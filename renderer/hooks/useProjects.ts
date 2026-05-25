@@ -45,6 +45,13 @@ export interface UseProjectsArgs {
    *  qualification — pin a reference doc and it shouldn't qualify the
    *  parent folder as a project. */
   pinnedTabPaths: ReadonlySet<string>
+  /** Phase 3a (D12) — set of project roots pinned via the rail
+   *  right-click menu. Pinned projects persist in the rail even
+   *  with zero open member tabs/terminals. */
+  pinnedProjects?: ReadonlySet<string>
+  /** Phase 3a (R2) — explicit color-index override map. Wins over
+   *  the `hashColorIndex(root)` default. */
+  colorOverrides?: Readonly<Record<string, number>>
 }
 
 export interface UseProjectsResult {
@@ -55,8 +62,20 @@ export interface UseProjectsResult {
   tabMembership: Record<string, string | null>
 }
 
+// Stable empty fallbacks so callers that omit `pinnedProjects` /
+// `colorOverrides` don't churn the `deriveProjects` memo identity
+// on every render.
+const EMPTY_PROJECT_SET: ReadonlySet<string> = new Set<string>()
+const EMPTY_COLOR_OVERRIDES: Readonly<Record<string, number>> = Object.freeze({})
+
 export function useProjects(args: UseProjectsArgs): UseProjectsResult {
-  const { terminals, workingTabs, pinnedTabPaths } = args
+  const {
+    terminals,
+    workingTabs,
+    pinnedTabPaths,
+    pinnedProjects = EMPTY_PROJECT_SET,
+    colorOverrides = EMPTY_COLOR_OVERRIDES
+  } = args
 
   // Probe caches. Each map<dir, result> grows as the async probes
   // complete; setState merges are idempotent (the result for a given
@@ -87,6 +106,12 @@ export function useProjects(args: UseProjectsArgs): UseProjectsResult {
       const dir = lastSlash > 0 ? tab.path.slice(0, lastSlash) : '/'
       for (const d of ancestors(dir)) candidates.add(d)
     }
+    // Pinned project roots themselves need a probe: pinned tiles
+    // survive zero open members, but they still need to be valid
+    // projects (git root OR marker). Probing means a pin to a folder
+    // that lost its marker since pin time silently drops from the
+    // rail rather than rendering as a ghost.
+    for (const root of pinnedProjects) candidates.add(root)
 
     const unprobedGit = [...candidates].filter(
       (d) => !gitResults.has(d) && !gitInFlightRef.current.has(d)
@@ -139,7 +164,7 @@ export function useProjects(args: UseProjectsArgs): UseProjectsResult {
         })
       })
     }
-  }, [terminals, workingTabs, pinnedTabPaths, gitResults, markerResults])
+  }, [terminals, workingTabs, pinnedTabPaths, pinnedProjects, gitResults, markerResults])
 
   // ── Pure derivation ────────────────────────────────────────────
   const result = useMemo<DeriveProjectsOutput>(() => {
@@ -147,11 +172,8 @@ export function useProjects(args: UseProjectsArgs): UseProjectsResult {
       terminals,
       workingTabs,
       pinnedTabPaths,
-      // Phase 1: persisted pins + overrides deferred. The rail
-      // renders auto-tiles only; the right-click menu (D12) and the
-      // settings UI (R2) for overrides come in Phase 3 + 4.
-      pinnedProjects: new Set<string>(),
-      colorOverrides: {},
+      pinnedProjects,
+      colorOverrides,
       qualify: (dir: string) => {
         if (isExcludedFromQualification(dir, HOME_DIR)) {
           return { isGitRoot: false, hasMarker: false }
@@ -162,7 +184,7 @@ export function useProjects(args: UseProjectsArgs): UseProjectsResult {
         return { isGitRoot, hasMarker }
       }
     })
-  }, [terminals, workingTabs, pinnedTabPaths, gitResults, markerResults])
+  }, [terminals, workingTabs, pinnedTabPaths, pinnedProjects, colorOverrides, gitResults, markerResults])
 
   return result
 }

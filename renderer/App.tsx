@@ -17,7 +17,7 @@ import type { FileTab, ActiveWorking } from './components/WorkingPane'
 import { classifyFile } from './components/fileClassifier'
 import { FilesPane, type FilesPaneHandle } from './components/FilesPane'
 import { CollapsedPaneRail } from './components/CollapsedPaneRail'
-import { ProjectRail } from './components/ProjectRail'
+import { ProjectRail, type ProjectCounts } from './components/ProjectRail'
 import { ThemeToggle } from './components/ThemeToggle'
 import { ClaudePresenceDot } from './components/ClaudePresenceDot'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
@@ -833,6 +833,33 @@ export function App() {
         .map((t) => ({ id: t.id, path: t.path })),
     [fileTabs]
   )
+  // ENH-182 Phase 3a — persisted projects.json slice (pins + color
+  // overrides). Loaded once on mount; subscribes to PROJECTS_CHANGED
+  // pushes from main (toggle-pin, set-color-override, Phase 4 CLI
+  // verbs all broadcast). Defaults to the empty slice until the
+  // initial read resolves — Phase 0 derivation handles that cleanly
+  // (no pins = behaviour identical to pre-Phase 3a).
+  const [projectsFile, setProjectsFile] = useState<{ pins: string[]; colorOverrides: Record<string, number> }>(
+    () => ({ pins: [], colorOverrides: {} })
+  )
+  useEffect(() => {
+    let cancelled = false
+    void window.electron.projects.read().then((file) => {
+      if (cancelled) return
+      setProjectsFile({ pins: file.pins, colorOverrides: file.colorOverrides })
+    })
+    const off = window.electron.projects.onChange((file) => {
+      setProjectsFile({ pins: file.pins, colorOverrides: file.colorOverrides })
+    })
+    return () => {
+      cancelled = true
+      off()
+    }
+  }, [])
+  const pinnedProjectsSet = useMemo(
+    () => new Set(projectsFile.pins),
+    [projectsFile.pins]
+  )
   const {
     projects: railProjects,
     terminalMembership,
@@ -840,7 +867,9 @@ export function App() {
   } = useProjects({
     terminals: projectTerminals,
     workingTabs: projectWorkingTabs,
-    pinnedTabPaths: pinnedFileTabPaths
+    pinnedTabPaths: pinnedFileTabPaths,
+    pinnedProjects: pinnedProjectsSet,
+    colorOverrides: projectsFile.colorOverrides
   })
   // ENH-182 Phase 2 — focus filter. `null` = All (no filter). Clicking
   // a tile sets this; clicking the active tile (or All) clears it.
@@ -854,6 +883,139 @@ export function App() {
       setFocusedProject((prev) => (prev === root ? null : root))
     },
     []
+  )
+  // ENH-182 Phase 3 D12 — counts map per project root for the tile
+  // right-click menu labels. Aggregates membership outputs from
+  // useProjects + tab.kind for the live-process confirm. Recomputes
+  // whenever membership or tab kinds change; cheap enough to be a
+  // useMemo. `hasClaudeKindTerminal` is a coarse proxy for "may have
+  // live work" — see ProjectRail.tsx comment on ProjectCounts.
+  const projectCounts = useMemo(() => {
+    const map = new Map<string, ProjectCounts>()
+    const ensure = (root: string): ProjectCounts => {
+      const existing = map.get(root)
+      if (existing) return existing
+      const fresh: ProjectCounts = {
+        terminals: 0,
+        workingTabs: 0,
+        hasClaudeKindTerminal: false
+      }
+      map.set(root, fresh)
+      return fresh
+    }
+    for (const t of tabs) {
+      const root = terminalMembership[t.id]
+      if (!root) continue
+      const c = ensure(root)
+      c.terminals += 1
+      if (t.kind === 'claude') c.hasClaudeKindTerminal = true
+    }
+    for (const ft of fileTabs) {
+      const root = tabMembership[ft.id]
+      if (!root) continue
+      ensure(root).workingTabs += 1
+    }
+    return map
+  }, [tabs, fileTabs, terminalMembership, tabMembership])
+  // ENH-182 Phase 3 D12 — Pin/Unpin handler. IPC call broadcasts
+  // PROJECTS_CHANGED which the renderer's effect picks up to update
+  // projectsFile + re-derive railProjects.
+  const handleTogglePin = useCallback((root: string) => {
+    void window.electron.projects.togglePin(root)
+  }, [])
+  // ENH-182 Phase 3c (D11) — auto-switch focus when activeWorking
+  // moves to a file whose deepest project ≠ the currently-focused
+  // project. Hooking off `activeWorking` (rather than `tabMembership`
+  // change) catches both new-file opens AND reactivations of an
+  // existing tab — `duo edit` of an already-open file reactivates
+  // without growing fileTabs, but the user's intent is still "show
+  // me this file in its project."
+  //
+  // Skipped in All mode (focusedProject === null) — no filter is
+  // active, so there's nothing to switch from. The PRD locks D11 to
+  // file activations; terminal-tab switches are intentionally not a
+  // trigger (a focused user clicking a hidden terminal is a UI
+  // impossibility — the strip already hides it).
+  useEffect(() => {
+    if (focusedProject === null) return
+    if (activeWorking.kind !== 'file') return
+    const project = tabMembership[activeWorking.id]
+    if (project && project !== focusedProject) {
+      setFocusedProject(project)
+    }
+  }, [activeWorking, tabMembership, focusedProject])
+  // ENH-182 Phase 3 D12 — bulk close every member terminal + tab for
+  // `root`. Confirms via dialog.confirm when any member terminal is
+  // `kind === 'claude'` (coarse proxy for "may have live work").
+  // Leaves at least one terminal alive — if we'd close every tab in
+  // `tabs`, append a fresh shell at the home dir so the strip stays
+  // non-empty (the existing closeTab path enforces a floor of 1).
+  const handleCloseProject = useCallback(
+    async (root: string) => {
+      const counts = projectCounts.get(root)
+      if (!counts || (counts.terminals === 0 && counts.workingTabs === 0)) return
+      // Compute member id sets at click time so a parallel re-render
+      // doesn't shift what we're closing.
+      const memberTermIds = new Set<string>()
+      for (const t of tabs) {
+        if (terminalMembership[t.id] === root) memberTermIds.add(t.id)
+      }
+      const memberFileIds = new Set<string>()
+      for (const ft of fileTabs) {
+        if (tabMembership[ft.id] === root) memberFileIds.add(ft.id)
+      }
+      if (counts.hasClaudeKindTerminal) {
+        const result = await window.electron.dialog.confirm({
+          title: 'Close project?',
+          message:
+            `${railProjects.find((p) => p.root === root)?.name ?? root} has a Claude terminal — ` +
+            `closing it ends any live session in that tab. Continue?`,
+          buttons: ['Cancel', 'Close project'],
+          defaultId: 0,
+          cancelId: 0
+        })
+        if (result.response !== 1) return
+      }
+      // Atomic membership flush. The terminal setter enforces the
+      // floor-of-1; if every existing terminal is a member, append a
+      // fresh shell at home BEFORE filtering so the floor holds.
+      setTabs((prev) => {
+        const survivors = prev.filter((t) => !memberTermIds.has(t.id))
+        if (survivors.length === 0) {
+          survivors.push(makeTab(home, 'shell', home))
+        }
+        // If the active terminal was a member, shift to the first
+        // survivor (whether pre-existing or freshly spawned).
+        if (memberTermIds.has(activeTabId)) {
+          setActiveTabId(survivors[0].id)
+        }
+        return survivors
+      })
+      setFileTabs((prev) => prev.filter((ft) => !memberFileIds.has(ft.id)))
+      // If the active working tab was a member, drop to the browser
+      // surface (matches closeFileTab's degenerate-case behavior).
+      if (activeWorking.kind === 'file' && memberFileIds.has(activeWorking.id)) {
+        setActiveWorking({ kind: 'browser' })
+      }
+      // If the focus chip is on this project, release focus — the
+      // project has zero members now (unless it's pinned, in which
+      // case the tile stays but the focus would be on an empty set).
+      if (focusedProject === root) {
+        setFocusedProject(null)
+      }
+    },
+    [
+      projectCounts,
+      tabs,
+      fileTabs,
+      terminalMembership,
+      tabMembership,
+      railProjects,
+      activeTabId,
+      activeWorking,
+      focusedProject,
+      home
+    ]
   )
   // Build the visible-terminal + visible-working-tab arrays the rest
   // of App.tsx consumes. While focused, hide tabs that belong to a
@@ -3343,6 +3505,9 @@ export function App() {
           projects={railProjects}
           focusedProject={focusedProject}
           onFocus={handleProjectFocus}
+          counts={projectCounts}
+          onTogglePin={handleTogglePin}
+          onCloseProject={handleCloseProject}
         />
         <div
           className="h-full shrink-0 min-w-0"

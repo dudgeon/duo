@@ -1,1 +1,1 @@
-export { ProjectRail, type ProjectRailProps } from './ProjectRail'
+export { ProjectRail, type ProjectRailProps, type ProjectCounts } from './ProjectRail'

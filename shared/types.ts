@@ -1810,6 +1810,15 @@ export const IPC = {
   // useProjects when the navigator listing isn't sufficient (e.g.
   // user just opened a file under ~/.claude without navigating).
   PROJECTS_HAS_MARKER: 'projects:has-marker',
+  // ENH-182 Phase 3 — persisted projects.json slice (pins + color
+  // overrides). Renderer → main.
+  PROJECTS_READ: 'projects:read',
+  PROJECTS_TOGGLE_PIN: 'projects:toggle-pin',
+  PROJECTS_SET_COLOR_OVERRIDE: 'projects:set-color-override',
+  // ENH-182 Phase 3 — main → renderer push after any mutation
+  // (toggle-pin, set-color-override, or a Phase 4 CLI verb), carrying
+  // the fresh ProjectsFile so subscribers can update without polling.
+  PROJECTS_CHANGED: 'projects:changed',
   // ENH-151 — clone wrapper + gh auth probe. renderer → main.
   GIT_CLONE: 'git:clone',
   GH_AUTH_STATUS: 'gh:auth-status',

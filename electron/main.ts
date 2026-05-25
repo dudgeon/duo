@@ -59,6 +59,7 @@ import { SocketServer, ensureSocketDir } from '../core/socket-server'
 import { FilesService } from './files-service'
 import { PinsService } from '../core/pins-service'
 import { NavPinsService } from '../core/nav-pins-service'
+import { ProjectsService } from '../core/projects-service'
 import { InstallService } from './install-service'
 import {
   discoverPacks,
@@ -276,6 +277,14 @@ const ptyManager = new PtyManager(app.getVersion())
 const filesService = new FilesService()
 const pinsService = new PinsService()
 const navPinsService = new NavPinsService()
+// ENH-182 Phase 3 — persisted projects.json (pins + color overrides).
+// Mutations broadcast PROJECTS_CHANGED so the renderer + future CLI
+// subscribers stay in sync without polling.
+const projectsService = new ProjectsService()
+function broadcastProjectsChanged(file: import('../shared/types').ProjectsFile): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  mainWindow.webContents.send(IPC.PROJECTS_CHANGED, file)
+}
 // Issue #27 / Stage 21c Phase 3 — browser history for URL-bar autocomplete.
 const browserHistory = new BrowserHistoryService()
 const installService = new InstallService()
@@ -1478,6 +1487,28 @@ function setupIPC(): void {
     const { hasMarker } = await import('../core/projects-service')
     return hasMarker(dir)
   })
+
+  // ENH-182 Phase 3 — persisted projects.json (pins + color overrides).
+  // Singleton service; every mutation broadcasts PROJECTS_CHANGED so
+  // subscribers (the renderer + any future CLI listener) update
+  // without polling. Phase 4 CLI verbs reuse these same handlers via
+  // socket-server routing.
+  ipcMain.handle(IPC.PROJECTS_READ, async () => {
+    return projectsService.read()
+  })
+  ipcMain.handle(IPC.PROJECTS_TOGGLE_PIN, async (_event, { root }: { root: string }) => {
+    const next = await projectsService.togglePin(root)
+    broadcastProjectsChanged(next)
+    return next
+  })
+  ipcMain.handle(
+    IPC.PROJECTS_SET_COLOR_OVERRIDE,
+    async (_event, { root, colorIndex }: { root: string; colorIndex: number | null }) => {
+      const next = await projectsService.setColorOverride(root, colorIndex)
+      broadcastProjectsChanged(next)
+      return next
+    }
+  )
 
   // ENH-151 — clone wrapper (gh + git fallback) + gh-auth probe.
   ipcMain.handle(IPC.GIT_CLONE, async (_event, req: import('../shared/host-api').CloneRequest) => {

@@ -813,7 +813,22 @@ const api: ElectronAPI = {
   // needs both to qualify a folder as a project.
   projects: {
     hasMarker: (dir: string) =>
-      ipcRenderer.invoke(IPC.PROJECTS_HAS_MARKER, { dir }) as Promise<boolean>
+      ipcRenderer.invoke(IPC.PROJECTS_HAS_MARKER, { dir }) as Promise<boolean>,
+    read: () =>
+      ipcRenderer.invoke(IPC.PROJECTS_READ) as Promise<import('../shared/types').ProjectsFile>,
+    togglePin: (root: string) =>
+      ipcRenderer.invoke(IPC.PROJECTS_TOGGLE_PIN, { root }) as Promise<
+        import('../shared/types').ProjectsFile
+      >,
+    setColorOverride: (root: string, colorIndex: number | null) =>
+      ipcRenderer.invoke(IPC.PROJECTS_SET_COLOR_OVERRIDE, { root, colorIndex }) as Promise<
+        import('../shared/types').ProjectsFile
+      >,
+    onChange: (cb: (file: import('../shared/types').ProjectsFile) => void) => {
+      const handler = (_e: unknown, file: import('../shared/types').ProjectsFile) => cb(file)
+      ipcRenderer.on(IPC.PROJECTS_CHANGED, handler)
+      return () => ipcRenderer.removeListener(IPC.PROJECTS_CHANGED, handler)
+    }
   },
   git: {
     status: (cwd) => ipcRenderer.invoke(IPC.GIT_STATUS, { cwd }),
