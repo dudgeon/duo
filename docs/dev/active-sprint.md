@@ -146,3 +146,21 @@ From Sprint 22 + 23 (now in CLAUDE.md `§ Working style`):
 7. **Phase 3c hook-point lesson** — design effects against the state that captures user intent, not the state that captures the side effect.
 8. **Computer-use pre-walking is cheap insurance for smoke walks.**
 9. **Other-claude tree preservation pattern validated over three feature commits.**
+
+---
+
+## Open product-decision questions for Geoff (carried from CLAUDE.md)
+
+Standing decisions awaiting owner input — none gate the current sprint. Surface
+when the relevant work next comes up.
+
+| Question | When it matters |
+|---|---|
+| **BUG-123 v2 direction** — once v1 cell selection is visible, do you still want cross-boundary text spanning (drag-from-cell-into-outside-text)? Ship as ENH-148-style spike-then-fix, or close BUG-123. | After owner walks v1 |
+| **ENH-127 direction** — declined entirely, or pivot to one of: Duo-side composer-window (separate text area outside the terminal), anti-accidental-submit heuristic, or upstream feature request to Claude Code for raw-newline mode? Lower priority since ENH-142 gave the per-pref toggle. | If accidental-submit pain re-surfaces |
+| **ENH-128 walk-4** — owner verification of HEIC drag-drop from Photos.app with the macOS `sips` fallback (~2 min). Closes the image-handling cluster. | Quick walk whenever |
+| Cross-machine cohort validation — does a real pack builder walk `distro-pack-builder/playground.md` end-to-end on a non-Geoff Mac? Closes FOLLOWUP-011. | When it happens |
+| **ENH-101** expand/collapse chord semantic — rail-collapse (new, orthogonal to ⌘⌥0/9) vs. full-screen (redundant; kill the chord)? | Before scoping the chord |
+| **Stage 17a.5** directions A/E (template gallery / registry). | Before any template code work |
+| **BUG-024 follow-up** — combine Send→Duo + Comment pills (single split-pill or hover flyout)? | Before further selection-pill iteration |
+| Backlinks panel / graph view (Obsidian cluster) — Sprint 18+ anchor, or defer? | When wikilink-autocomplete usage signals demand |
