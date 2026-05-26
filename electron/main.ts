@@ -333,17 +333,23 @@ export function setWorkspacePillMenuEnabledCli(
   return { ok: true }
 }
 /** Resolve a name-or-root argument against the cached project list.
- *  Exact root match wins; otherwise case-insensitive name match
- *  (unique). Returns null when no match or ambiguous. */
-export function resolveProjectRef(ref: string): string | null {
+ *  Exact root match wins; otherwise case-insensitive name match.
+ *  Returns an object so callers can distinguish "no match" vs
+ *  "ambiguous" (BUG-163 — both used to return null and the error
+ *  message misled the user about which case fired). */
+export function resolveProjectRef(
+  ref: string
+): { root: string } | { ambiguous: string[] } | null {
   if (!ref) return null
-  // Exact root path match.
+  // Exact root path match wins regardless of name collisions.
   const exact = projectsState.projects.find((p) => p.root === ref)
-  if (exact) return exact.root
-  // Case-insensitive unique name match.
+  if (exact) return { root: exact.root }
+  // Case-insensitive name match. Unique → resolve; multiple →
+  // surface the candidates so the user can pick by full root path.
   const lower = ref.toLowerCase()
   const byName = projectsState.projects.filter((p) => p.name.toLowerCase() === lower)
-  if (byName.length === 1) return byName[0].root
+  if (byName.length === 1) return { root: byName[0].root }
+  if (byName.length > 1) return { ambiguous: byName.map((p) => p.root) }
   return null
 }
 // Issue #27 / Stage 21c Phase 3 — browser history for URL-bar autocomplete.

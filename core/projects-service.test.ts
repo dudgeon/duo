@@ -556,6 +556,16 @@ describe('normalize', () => {
     expect(normalized.pins).toEqual(['/ok', '/also-ok'])
   })
 
+  it('BUG-164 — dedupes duplicate pin entries', () => {
+    // Hand-edited projects.json with duplicates breaks togglePin
+    // (indexOf + slice removes only the first occurrence). Normalize
+    // defends against this by collapsing duplicates at parse time.
+    const normalized = normalize({
+      pins: ['/foo', '/bar', '/foo', '/baz', '/bar']
+    })
+    expect(normalized.pins).toEqual(['/foo', '/bar', '/baz'])
+  })
+
   it('drops out-of-range color overrides', () => {
     const normalized = normalize({
       colorOverrides: { '/a': 2, '/b': 99, '/c': -1, '/d': 1.5 } as Record<string, number>

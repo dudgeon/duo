@@ -987,6 +987,11 @@ export function App() {
       setFocusedProject(project)
     }
   }, [activeWorking, tabMembership, focusedProject])
+  // Phase 3c-browser + FOLLOWUP-030 effects live below, after
+  // visibleBrowserTabIds + browserTabMembership are declared
+  // (declaration order matters; they need to come AFTER the visible
+  // sets compute, so they can't sit here next to the file-tab Phase
+  // 3c effect). Search for FOLLOWUP-030 to find them.
   // ENH-182 Phase 3 D12 — bulk close every member terminal + tab for
   // `root`. Confirms via dialog.confirm when any member terminal is
   // `kind === 'claude'` (coarse proxy for "may have live work").
@@ -1110,42 +1115,201 @@ export function App() {
     () => new Set(pins.filter((p) => p.kind === 'browser').map((p) => p.ref)),
     [pins]
   )
-  const visibleBrowserTabIds = useMemo<ReadonlySet<number> | undefined>(() => {
-    if (focusedProject === null) return undefined
-    // Pre-sort project roots by descending length so the first hit
-    // in the find loop is the deepest qualifying ancestor (D5).
+  // ENH-182 Phase 2b / FOLLOWUP-030 — browser-tab membership map keyed
+  // by BrowserTab.id. file:// → deepest qualifying project root (or
+  // null when no qualifying ancestor); non-file URLs (http/https/etc.)
+  // → null because they have no path under any project. Pinned URLs
+  // are NOT special here — that's a visibility concern, not a project
+  // membership concern; pinned tabs may legitimately belong to a
+  // specific project (e.g. a pinned smoke walk under duo) and the
+  // membership reflects that. Cached so the FOLLOWUP-030 active-tab
+  // redirect effect + the Phase 3c-browser auto-switch-focus effect
+  // (both below) reuse the same URL→project resolution.
+  const browserTabMembership = useMemo<Map<number, string | null>>(() => {
+    const map = new Map<number, string | null>()
+    if (railProjects.length === 0) {
+      for (const bt of browserTabs) map.set(bt.id, null)
+      return map
+    }
+    // Pre-sort roots by descending length so the first hit in the
+    // find loop is the deepest qualifying ancestor (D5).
     const rootsByDepth = [...railProjects.map((p) => p.root)].sort(
       (a, b) => b.length - a.length
     )
-    const visible = new Set<number>()
     for (const bt of browserTabs) {
-      if (!bt.url) continue
-      if (pinnedBrowserUrls.has(bt.url)) {
-        visible.add(bt.id)
-        continue
-      }
-      if (!bt.url.startsWith('file://')) {
-        // Non-file URLs are cross-project reference material; keep
-        // visible across every focus.
-        visible.add(bt.id)
+      if (!bt.url || !bt.url.startsWith('file://')) {
+        map.set(bt.id, null)
         continue
       }
       let pathPart: string
       try {
-        const u = new URL(bt.url)
-        pathPart = decodeURIComponent(u.pathname)
+        pathPart = decodeURIComponent(new URL(bt.url).pathname)
       } catch {
+        map.set(bt.id, null)
         continue
       }
-      const deepest = rootsByDepth.find(
-        (r) => pathPart === r || pathPart.startsWith(r + '/')
-      )
-      if (deepest === focusedProject) {
+      // BUG-162 (v0.8.0 fold-in) — macOS symlink shadow. /tmp →
+      // /private/tmp realpath; git rev-parse returns /private/tmp/X
+      // for paths under /tmp/X, so railProjects.root carries the
+      // /private/ form. Browser tabs opened via `duo open /tmp/foo.html`
+      // arrive as file:///tmp/foo.html. Without a fallback the string
+      // compare misses. Build TWO candidate paths (raw + /private-
+      // stripped) and try each against the sorted roots.
+      const candidates: string[] = [pathPart]
+      if (pathPart.startsWith('/private/')) {
+        candidates.push(pathPart.replace(/^\/private\//, '/'))
+      } else if (pathPart.startsWith('/tmp/') || pathPart === '/tmp') {
+        candidates.push('/private' + pathPart)
+      }
+      let deepest: string | undefined
+      for (const candidate of candidates) {
+        deepest = rootsByDepth.find(
+          (r) => candidate === r || candidate.startsWith(r + '/')
+        )
+        if (deepest) break
+      }
+      map.set(bt.id, deepest ?? null)
+    }
+    return map
+  }, [browserTabs, railProjects])
+  const visibleBrowserTabIds = useMemo<ReadonlySet<number> | undefined>(() => {
+    if (focusedProject === null) return undefined
+    const visible = new Set<number>()
+    for (const bt of browserTabs) {
+      if (!bt.url) continue
+      if (pinnedBrowserUrls.has(bt.url)) {
+        // Pinned browser tabs are cross-project reference material;
+        // keep visible across every focus.
+        visible.add(bt.id)
+        continue
+      }
+      if (!bt.url.startsWith('file://')) {
+        // Non-file URLs are also cross-project (no path under a
+        // project to bind to); keep visible across every focus.
+        visible.add(bt.id)
+        continue
+      }
+      if (browserTabMembership.get(bt.id) === focusedProject) {
         visible.add(bt.id)
       }
     }
     return visible
-  }, [focusedProject, browserTabs, railProjects, pinnedBrowserUrls])
+  }, [focusedProject, browserTabs, pinnedBrowserUrls, browserTabMembership])
+  // ENH-182 Phase 3c (D11) — browser-tab parallel to the file-tab
+  // auto-switch effect above. When activeWorking shifts to a browser
+  // tab whose `file://` URL resolves to a project ≠ focused, flip
+  // focus. Catches `duo open` of a different-project file:// URL +
+  // user-driven browser tab activations while focused.
+  //
+  // Browser tabs with no project membership (non-file URLs, /tmp,
+  // any path under no qualifying root) do NOT trigger a switch —
+  // those are reference material; the FOLLOWUP-030 effect below
+  // handles their visibility separately.
+  useEffect(() => {
+    if (focusedProject === null) return
+    if (activeWorking.kind !== 'browser') return
+    const active = browserTabs.find((bt) => bt.isActive && !bt.inAux)
+    if (!active) return
+    const project = browserTabMembership.get(active.id)
+    if (project && project !== focusedProject) {
+      setFocusedProject(project)
+    }
+  }, [activeWorking, browserTabs, browserTabMembership, focusedProject])
+  // ENH-182 FOLLOWUP-030 — browser-pane active-tab redirect on focus
+  // entry / focus change. The browser pane is one shared
+  // WebContentsView; without this, hiding a non-member browser tab's
+  // strip entry leaves the pane still rendering its content
+  // (disorienting + no UI affordance to close/switch away while the
+  // strip filter hides it).
+  //
+  // **Crucially gated on focusedProject change, NOT on activeWorking
+  // change.** Without the ref-guard the effect would also fire when
+  // the user CLICKS a non-member browser tab while focused — a click
+  // they presumably want to act on, not be bounced away from. The
+  // guard ensures the redirect only fires when focus is entered or
+  // changes (the conditions that actually create the disorientation).
+  // Phase 3c-browser above is the right effect for handling
+  // user-clicked tab activations (it auto-switches FOCUS instead).
+  //
+  // Strategy mirrors the Phase 2 file-side fallback in the bigger
+  // useEffect below (on `[focusedProject, visibleTerminals,
+  // visibleFileTabs]`):
+  //   1. Active browser is a visible member → no-op.
+  //   2. Hidden + member browser tabs exist → switch active to first.
+  //   3. Hidden + no member browser tabs + member file tabs exist →
+  //      flip activeWorking.kind to 'file' (delegates to file-pane).
+  //   4. Hidden + nothing of mine open → leave alone (last resort);
+  //      the focus chip + strip filter still signal the lens is active.
+  // State-machine instead of a simple ref-guard:
+  // - `pendingBrowserRedirect` is set to focusedProject on every focus
+  //   change (including hydration to null, which clears it).
+  // - The apply effect drains pendingBrowserRedirect once the relevant
+  //   browser state has converged (browserTabs populated, activeWorking
+  //   committed, visibleBrowserTabIds derived).
+  // - Once drained, subsequent re-renders (caused by user clicks on
+  //   non-member tabs, browserTabs updates, etc.) DON'T re-trigger the
+  //   redirect — preserving the user's intent to view that tab.
+  //
+  // This shape was necessary because a pure focus-change-only effect
+  // fires once on focus change but bails when browserTabs hasn't yet
+  // propagated from the addTab IPC, then never re-fires for that focus
+  // session (ref-guard skips). A pure no-guard effect fires every
+  // state change but bounces user-clicked tabs.
+  const [pendingBrowserRedirect, setPendingBrowserRedirect] = useState<string | null>(null)
+  useEffect(() => {
+    setPendingBrowserRedirect(focusedProject)
+  }, [focusedProject])
+  useEffect(() => {
+    if (pendingBrowserRedirect === null) return
+    if (pendingBrowserRedirect !== focusedProject) return
+    // Focus is null = no filter to enforce; clear pending.
+    if (focusedProject === null) {
+      setPendingBrowserRedirect(null)
+      return
+    }
+    // Not viewing the browser pane — the existing file-side fallback
+    // will land us on the right surface; clear pending so we don't
+    // re-fire if/when the user later switches to browser kind via a
+    // non-focus-change path.
+    if (activeWorking.kind !== 'browser') {
+      setPendingBrowserRedirect(null)
+      return
+    }
+    // visibleBrowserTabIds derived from focus + browserTabs + memos;
+    // when focused !== null, it's a Set. Defensive guard.
+    if (!visibleBrowserTabIds) return
+    // Wait for browserTabs population — `duo open` adds a tab via
+    // async IPC and the renderer's onTabsChange fires after a tick.
+    // Until then, browserTabs may be empty; defer the decision.
+    if (browserTabs.length === 0) return
+    const activeBrowser = browserTabs.find((bt) => bt.isActive && !bt.inAux)
+    if (!activeBrowser) {
+      setPendingBrowserRedirect(null)
+      return
+    }
+    // Already showing a visible member / pinned-cross / non-file URL
+    // tab — nothing to redirect.
+    if (visibleBrowserTabIds.has(activeBrowser.id)) {
+      setPendingBrowserRedirect(null)
+      return
+    }
+    // Prefer a TRUE member browser tab (its file:// URL resolves to
+    // focusedProject) over a pinned cross-project tab. Pinned tabs
+    // pass the visibility filter as reference material but they're
+    // NOT members; landing the user on a pinned-from-elsewhere tab
+    // chains into Phase 3c-browser auto-switching focus to that
+    // tab's actual project — exactly the disorientation FOLLOWUP-
+    // 030 was filed to fix.
+    const firstMember = browserTabs.find(
+      (bt) => !bt.inAux && browserTabMembership.get(bt.id) === focusedProject
+    )
+    if (firstMember) {
+      void window.electron.browser.switchTab(firstMember.id)
+    } else if (visibleFileTabs.length > 0) {
+      setActiveWorking({ kind: 'file', id: visibleFileTabs[0].id })
+    }
+    setPendingBrowserRedirect(null)
+  }, [pendingBrowserRedirect, focusedProject, activeWorking, visibleBrowserTabIds, browserTabs, browserTabMembership, visibleFileTabs])
   // ENH-182 Phase 2 — when the user enters focus, save the previous
   // navigator cwd so we can restore it when focus clears. Re-root the
   // navigator to the project root (D10 — not a hard tree filter; the
@@ -1217,6 +1381,43 @@ export function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusedProject, visibleTerminals, visibleFileTabs])
+  // BUG-161 (v0.8.0 fold-in) — auto-release focus when the focused
+  // project loses its last member via a non-rail close path. Without
+  // this, ⌘W or × on the last member tab leaves the user focus-
+  // trapped (auto-spawn already fired once this focus session;
+  // refuses to fire again; strip empty; only escape is clicking All
+  // or chip ×). Bulk-close via the rail right-click menu already
+  // handles release explicitly; this covers the direct close paths.
+  //
+  // Two-layer guard against false positives during the probe-pending
+  // window (terminalMembership/tabMembership briefly null while
+  // qualify probes are in-flight, producing transient 0/0 counts):
+  //   1. Don't release on undefined counts — wait for a positive
+  //      signal that the project exists in the counts map.
+  //   2. Don't release unless we've previously OBSERVED this project
+  //      with > 0 members in this session. A freshly focused project
+  //      whose probes haven't completed yet won't appear as
+  //      observed; first render with 0/0 is treated as "not yet
+  //      probed" rather than "user just closed everything."
+  //
+  // Pinned projects skip the release — D12 says pinned tiles persist
+  // even with zero members; the user opted-in to the empty state by
+  // pinning. Auto-spawn still fires for them.
+  const previousNonZeroCountsRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    if (focusedProject === null) return
+    const focusedProjectObj = railProjects.find((p) => p.root === focusedProject)
+    if (!focusedProjectObj) return
+    if (focusedProjectObj.pinned) return
+    const counts = projectCounts.get(focusedProject)
+    if (!counts || counts.terminals !== 0 || counts.workingTabs !== 0) {
+      previousNonZeroCountsRef.current.add(focusedProject)
+      return
+    }
+    if (!previousNonZeroCountsRef.current.has(focusedProject)) return
+    previousNonZeroCountsRef.current.delete(focusedProject)
+    setFocusedProject(null)
+  }, [focusedProject, projectCounts, railProjects])
   // Resolve the focused project's display name for the title-bar
   // chip. Avoids re-searching the list on every render.
   const focusedProjectName = useMemo(() => {

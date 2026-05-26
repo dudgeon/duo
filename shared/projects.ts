@@ -281,12 +281,16 @@ export function deriveProjects(input: DeriveProjectsInput): DeriveProjectsOutput
 // ── persisted-slice normalization (used by ProjectsService) ─────
 
 /** Normalize a partially-parsed projects.json: drop malformed pins,
- *  clamp override values, fill missing fields with defaults. Lives
- *  here (and not in projects-service.ts) so the renderer can also
- *  re-validate snapshots received over IPC. */
+ *  dedupe pin entries, clamp override values, fill missing fields
+ *  with defaults. Lives here (and not in projects-service.ts) so the
+ *  renderer can also re-validate snapshots received over IPC. */
 export function normalizeProjectsFile(parsed: Partial<ProjectsFile>): ProjectsFile {
+  // BUG-164 (v0.8.0 fold-in) — Array.from(new Set(...)) dedupes a
+  // hand-edited projects.json with duplicate pin entries. Without
+  // this, togglePin's indexOf-then-splice removes only the first
+  // occurrence, leaving zombie copies behind.
   const pins = Array.isArray(parsed.pins)
-    ? parsed.pins.filter((p): p is string => typeof p === 'string' && p.length > 0)
+    ? Array.from(new Set(parsed.pins.filter((p): p is string => typeof p === 'string' && p.length > 0)))
     : []
   const colorOverrides: Record<string, number> = {}
   if (parsed.colorOverrides && typeof parsed.colorOverrides === 'object') {

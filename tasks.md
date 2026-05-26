@@ -6,7 +6,61 @@
 
 ## Sprint 23 / v0.8.0 — ENH-182 capstone (shipped)
 
-> Sprint 23 earned the MINOR. Three commits + ENH-184 close-out + ENH-185 polish + smoke walk 5/5 PASS landed the feature-complete project-as-filter-layer story plus closed the workspace-pill defeaturing carry-forward. v0.8.0 cut + tagged + released 2026-05-25.
+> Sprint 23 earned the MINOR. Six commits closed the project-as-filter-layer story end-to-end: ENH-182 Phases 3 + 4 + 2b + ENH-185 polish + ENH-184 workspace-pill defeaturing + a polish pass folding in 5 audit-found fixes (FOLLOWUP-030 + Phase 3c-browser + BUG-161/162/163/164). Smoke walk 5/5 PASS via computer-use pre-walk. v0.8.0 cut + tagged + released 2026-05-25.
+
+### FOLLOWUP-030 + Phase 3c-browser + 4 BUGs — SHIPPED v0.8.0 audit fold-in (2026-05-25)
+
+**Status:** ✅ **Shipped v0.8.0** (commit pending). Background ENH-182 audit by general-purpose agent surfaced 5 polish items that fold into the same cut. Listed below.
+
+**FOLLOWUP-030 — browser-pane active-tab redirect on focus change.** The Phase 2b filter hides non-member `file://` browser tabs from the strip but the browser pane (one shared `WebContentsView`) keeps rendering the active tab's content. Result: user enters focus on duo with `/tmp/notes.html` active → strip drops the entry → pane still shows /tmp content → disorientation (no UI affordance to close or switch away). Fix lives in `renderer/App.tsx` as a two-effect state machine:
+1. On `focusedProject` change, set `pendingBrowserRedirect = focusedProject`.
+2. Apply effect runs on every relevant state change; drains the pending redirect once browser state has converged (browserTabs populated, activeWorking committed, visibleBrowserTabIds derived). Skips when active tab is already a visible member, when activeWorking.kind isn't 'browser', or when the user has changed focus AGAIN before the pending could apply.
+
+Resolution priority (mirrors the Phase 2 file-side fallback):
+- Active is visible member → no-op.
+- Hidden + true-member browser tabs exist → `switchTab(firstMember)`. **Critically: TRUE members only — pinned cross-project tabs are skipped, even though they're in `visibleBrowserTabIds`. Landing on a pinned-from-elsewhere tab chains into Phase 3c-browser auto-switching focus to that tab's actual project (the very disorientation FOLLOWUP-030 was filed to fix).**
+- Hidden + no true members + member file tabs exist → flip activeWorking.kind to 'file'.
+- Hidden + nothing of mine open → leave alone (last resort — focus chip + strip filter still signal the lens is active).
+
+**Phase 3c-browser — D11 auto-switch parallel for browser-tab activation.** Existing Phase 3c (v0.8.0 capstone) only handled `activeWorking.kind === 'file'`. Browser-tab activation in another project (e.g. `duo open <some-other-project-html>` while focused on duo) didn't switch focus. Now mirrors the file effect: when activeWorking moves to a browser tab whose `file://` URL resolves to a project ≠ focused, flip focus. Browser tabs with no project membership (non-file URLs, /tmp, paths under no qualifying root) don't trigger a switch — those are reference material; FOLLOWUP-030 handles their visibility.
+
+**BUG-161 — ⌘W / strip-× focus trap.** Direct close paths (⌘W or strip × on the last member terminal/file tab) left the user focus-trapped. Bulk-close via the rail right-click menu already releases focus; the direct close paths didn't. Fix lives in a separate `useEffect` that watches `[focusedProject, projectCounts, railProjects]`:
+- Two-layer guard against the probe-pending window (terminalMembership / tabMembership briefly null while qualify probes are in-flight, producing transient 0/0 counts):
+  1. Don't release on undefined counts.
+  2. Don't release unless we've previously OBSERVED this project with > 0 members in this session (tracked in `previousNonZeroCountsRef`).
+- Pinned projects skip the release (D12 says pinned tiles persist with 0 members).
+
+**BUG-162 — `/private/tmp` symlink shadow.** macOS resolves `/tmp/X` to `/private/tmp/X` at realpath. Git returns the `/private` form; browser tabs opened via `duo open /tmp/X` arrive as `file:///tmp/X`. String compare in `browserTabMembership` missed. Fix: build TWO candidate paths (raw + `/private/` stripped or prepended) and try each against the sorted roots.
+
+**BUG-163 — `resolveProjectRef` silent on ambiguous name match.** When two projects shared a name (e.g. two `docs` folders open), `resolveProjectRef` returned `null` with a misleading "No project matched" error. Fix changes the return shape to `{ root }` | `{ ambiguous: string[] }` | `null`, and the socket-server emits *"Ambiguous name 'X' matches N projects: /a, /b. Pass the full root path to disambiguate."*
+
+**BUG-164 — `normalizeProjectsFile` doesn't dedupe pins.** Hand-edited `~/.claude/duo/projects.json` with `["/foo", "/foo"]` left `togglePin('/foo')` removing only the first occurrence (`indexOf` + `splice`). Fix: `Array.from(new Set(...))` in normalize. New regression test in `core/projects-service.test.ts`.
+
+**Verification (live in v0.8.0 dev):**
+- Test 1 — focus duo with /tmp tab active → redirect lands on id=2 (Smoke walk v0.7.9, true duo member), NOT id=1 (What Duo Does pinned cross-project). Focus stays on duo. ✓
+- Test 2 — user opens /tmp tab while focused on duo → /tmp tab activates and stays active; focus stays on duo. Phase 3c-browser correctly skips for null-membership tabs. ✓
+- Test 3 — user opens ~/.claude/.../what-duo-does.html while focused on duo → Phase 3c-browser auto-switches focus to .claude. ✓
+- Test 4 — `duo project close duo` releases focus (then Phase 3c-browser auto-switches to .claude because What Duo Does is active and is a .claude member). ✓
+- Test BUG-163 — `duo project focus nonexistent` returns "No project matched..." error correctly. (Ambiguity error only fires when two projects share a name; not testable in this dev session without setting one up.)
+- Test BUG-164 — `normalizeProjectsFile({pins:['/foo','/bar','/foo','/baz','/bar']})` → `['/foo','/bar','/baz']`. New regression test passes (787/787).
+
+---
+
+### Deferred audit findings — file as v0.8.x follow-ups
+
+Background audit (agent ac060771dc81e76f5) surfaced additional polish items that DON'T fold into v0.8.0. File as tracked follow-ups for v0.8.x:
+
+- **FOLLOWUP-032** — double `duo project close` race. Two parallel CLI calls send two `PROJECTS_CLOSE_REQUEST` events; handleCloseProject runs twice; second invocation reads stale `projectCounts.get(root)`. Stacks two dialogs if claude-kind. Fix: in handleCloseProject, gate on `inFlightCloseRef.current.has(root)`. **Severity:** Low (rare CLI race).
+- **FOLLOWUP-033** — `duo project list` returns empty silently during 1-2s renderer-boot window. Renderer hasn't pushed first snapshot; main returns empty default — indistinguishable from "no projects open." Fix: add `ready: boolean` to ProjectsStateSnapshot flipped on first push; CLI warns "renderer not yet ready" when false. **Severity:** Medium.
+- **FOLLOWUP-034** — rail-color rotation past 6 projects. PRD R2 says "rotate shade variants past 6" — not implemented. ~50% collision probability at 4 projects (birthday paradox; P(no collision, N=4, K=6) ≈ 0.278). **Severity:** Low (planned per PRD; not user-blocking).
+- **FOLLOWUP-035** — `handleProjectFocus` may be dead code. Defined at App.tsx ~901 but its use site wasn't found in audit grep; could be shadowed by inline JSX lambda. Verify + remove if dead.
+- **FOLLOWUP-036** — Focus-release chip aria-label awkward. App.tsx ~3545 reads "Focused: duo, button, Release focus (duo)" — repetitive. Drop the visible-text from the aria-label or simplify to "Release focus."
+- **FOLLOWUP-037** — `useProjects` probe-after-delete cache: if pinned project's marker is deleted out-of-Duo mid-session, `markerResults` cache still shows true → ghost tile persists. Documented limitation; revisit if real users hit it.
+- **FOLLOWUP-038** — `useWorkspacePillMenuFlag` TS narrowing of `'key' in event` ambiguous between StorageEvent + CustomEvent with `key` field. Practically benign (we dispatch bare CustomEvent); worth a code comment.
+- **FOLLOWUP-039** — Cross-window race on `duo workspace-pill-menu`. No multi-window today; future-proofing.
+- **FOLLOWUP-040** — Smoke-walk item: with `duo workspace-pill-menu off`, exercise `File → New Workspace` to verify the menu handler still works post-ENH-184.
+
+---
 
 ### ENH-182 Phase 3 + 4 + 2b — SHIPPED v0.8.0 (2026-05-25)
 

@@ -238,8 +238,12 @@ export interface NavBridge {
    *  PROJECTS_STATE_PUSH). */
   getProjectsState: () => import('../shared/types').ProjectsStateSnapshot
   /** ENH-182 Phase 4 — resolve a `name|root` ref against the cached
-   *  list. Returns null when no unique match. */
-  resolveProjectRef: (ref: string) => string | null
+   *  list. Returns `{ root }` on unique match, `{ ambiguous: [...] }`
+   *  when the name resolves to multiple projects (BUG-163), or null
+   *  for no match at all. */
+  resolveProjectRef: (
+    ref: string
+  ) => { root: string } | { ambiguous: string[] } | null
   /** ENH-182 Phase 4 — push focus change to renderer (null = All). */
   setProjectFocus: (root: string | null) => { ok: boolean; error?: string }
   /** ENH-182 Phase 4 — push bulk-close request to renderer. */
@@ -1663,12 +1667,18 @@ export class SocketServer {
           if (!ref) {
             throw new Error(`duo project ${op} requires a <name|root> argument (or --all for focus).`)
           }
-          const root = this.nav.resolveProjectRef(ref)
-          if (!root) {
+          const resolved = this.nav.resolveProjectRef(ref)
+          if (!resolved) {
             throw new Error(
               `No project matched "${ref}". Run \`duo project list\` to see available projects. Match is by exact root path or unique name.`
             )
           }
+          if ('ambiguous' in resolved) {
+            throw new Error(
+              `Ambiguous name "${ref}" matches ${resolved.ambiguous.length} projects: ${resolved.ambiguous.join(', ')}. Pass the full root path to disambiguate.`
+            )
+          }
+          const root = resolved.root
           if (op === 'focus') {
             const r = this.nav.setProjectFocus(root)
             if (!r.ok) throw new Error(r.error ?? 'focus failed')
