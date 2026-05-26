@@ -525,6 +525,58 @@
   </div>
 </article>
 
+<article class="item" data-keys="project rail tile right-click menu pin unpin pinned dot persistent close bulk terminals tabs confirm claude-kind enh-182">
+  <div class="num">17m</div>
+  <div>
+    <h3>Pin a project tile + bulk-close from the rail</h3>
+    <p class="why"><strong>v0.8.0:</strong> right-click any project tile to manage it. Two items: <strong>Pin to rail</strong> (or Unpin when already pinned) keeps the tile in the rail even after every member tab/terminal closes — useful for projects you re-visit often. Pinned tiles render a small color-matched dot in the top-right corner. <strong>Close N terminals and M tabs</strong> atomically flushes every member tab + terminal in one click; the count is live. When any member terminal is a claude-kind tab, a confirm dialog appears so a misclick doesn't end a live session. The pin set persists in <code>~/.claude/duo/projects.json</code>.</p>
+    <p class="how"><strong>UI</strong>Right-click a project tile in the rail.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="project auto-switch focus file open edit different deepest d11 enh-182">
+  <div class="num">17n</div>
+  <div>
+    <h3>Open a file from another project → focus auto-switches</h3>
+    <p class="why"><strong>v0.8.0:</strong> while focused on one project, opening a file from a different project (via the navigator, <code>duo edit</code>, <code>duo open</code>, ⌘N) auto-switches focus to that file's project. The title-bar focus chip flips, the navigator re-roots, and the visibility filter follows. Reactivating an already-open tab also triggers the switch — the heuristic is "where is the user looking now" not "did a new tab appear."</p>
+    <p class="how"><strong>UI</strong>Automatic on every file open while a focus is active. <strong>CLI</strong><code>duo edit &lt;path&gt;</code> or <code>duo open &lt;path&gt;</code> — same behavior.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="project browser tab file-url filter focus member non-member pinned cross-project http https reference enh-182">
+  <div class="num">17o</div>
+  <div>
+    <h3>Browser tabs respect the project focus (file:// only)</h3>
+    <p class="why"><strong>v0.8.0:</strong> browser-mode canvas tabs whose URL is a <code>file://</code> path now obey the same focus filter as file editor tabs. Hide a <code>/tmp/test.html</code> tab when you focus the duo project; it reappears in All mode. Non-file URLs (http, https, about, etc.) cross focuses by design — web pages are treated as reference material. Pinned browser tabs (e.g. What Duo Does, the smoke-walk pages) also cross focuses regardless of path.</p>
+    <p class="how"><strong>UI</strong>Automatic. Browser tabs in the working-pane strip show / hide with focus.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="project cli command duo list focus pin unpin close all rail terminal agent enh-182">
+  <div class="num">17p</div>
+  <div>
+    <h3>Drive the project rail from the CLI</h3>
+    <p class="why"><strong>v0.8.0:</strong> every rail action has a <code>duo project</code> counterpart so agents can drive the focus lens. Name resolution is case-insensitive against unique project names; exact root paths always match.</p>
+    <p class="how"><strong>CLI</strong>
+      <code>duo project list</code> (snapshot — derived projects + focused + counts)
+      <code>duo project focus &lt;name|root&gt;</code> (set the focus lens)
+      <code>duo project focus --all</code> (release focus)
+      <code>duo project pin &lt;name|root&gt;</code> (persistent rail tile)
+      <code>duo project unpin &lt;name|root&gt;</code>
+      <code>duo project close &lt;name|root&gt;</code> (bulk close member tabs + terminals; confirms on claude-kind)
+    </p>
+  </div>
+</article>
+
+<article class="item" data-keys="workspace pill titlebar passive label file menu defeaturing dropdown disabled enh-184">
+  <div class="num">37c</div>
+  <div>
+    <h3>Workspace pill is a passive label</h3>
+    <p class="why"><strong>v0.8.0:</strong> the title-bar workspace name (next to the macOS traffic lights) is a passive label by default — it shows you which workspace is loaded but clicking it does nothing. All workspace operations route through the File menu (New / Open / Open Recent / Save / Save As). The previous click-to-open-dropdown gesture (ENH-171) lives behind a localStorage flag for users who prefer it.</p>
+    <p class="how"><strong>UI</strong>Use the File menu for workspace ops. <strong>CLI</strong><code>duo workspace-pill-menu on</code> (or off / toggle) to restore the dropdown gesture; <code>duo workspace-pill-menu</code> bare reads current state.</p>
+  </div>
+</article>
+
 <h2 class="cat">Terminal & Claude</h2>
 <p class="cat-tagline">Multiple terminal tabs. Each one knows it's running inside Duo.</p>
 

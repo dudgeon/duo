@@ -4,20 +4,89 @@
 > ****Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`.
 > ****Pruning policy.** Closed entries stay until the lesson migrates to [DECISIONS.md](http://DECISIONS.md) / [CLAUDE.md](http://CLAUDE.md) plumbing checklist / smoke-checklist (then they're prune candidates). The Sprint 15 cleanup pass (2026-05-10) trimmed BUG-001..BUG-017 (697 lines from the v0.3 / v0.4 era; lessons live in [DECISIONS.md](http://DECISIONS.md) / plumbing checklists / the smoke-checklist). Cross-references to those IDs may still appear inline in other entries as historical citations — see git history before commit `<v0.6.13-cleanup>` for the original writeups. Next prune candidate: closed BUG-018..BUG-040 era entries once their lessons similarly internalize.
 
-## Sprint 23 / v0.7.11 — starting
+## Sprint 23 / v0.8.0 — ENH-182 capstone (shipped)
 
-> Sprint 22 closed with the v0.7.10 cut + push + release. The "v0.8.0" working version mid-sprint was renumbered to PATCH at cut time — v0.8.0 stays reserved for the feature-complete ENH-182 capstone (Phase 2b + Phase 3 + Phase 4 + ENH-185 polish all close it). Entries below carry into Sprint 23.
+> Sprint 23 earned the MINOR. Three commits + ENH-184 close-out + ENH-185 polish + smoke walk 5/5 PASS landed the feature-complete project-as-filter-layer story plus closed the workspace-pill defeaturing carry-forward. v0.8.0 cut + tagged + released 2026-05-25.
 
-### ENH-185: Project rail refinements (filed from v0.7.10 walk-1 notes)
+### ENH-182 Phase 3 + 4 + 2b — SHIPPED v0.8.0 (2026-05-25)
 
-**Status:** 🆕 **Filed 2026-05-25** from owner notes on ENH-182-RAIL-VISUAL walk-1 PASS. Two visual refinements:
+**Status:** ✅ **Shipped v0.8.0 + walked 5/5 PASS via computer-use pre-walk on 2026-05-25.** Three commits closed the ENH-182 capstone scope after v0.7.10 shipped Phase 0–2:
 
-1. **10% narrower rail.** Current width is `w-14` (56px) which renders right but feels slightly heavy on the canvas. 10% off → ~50px (`w-[50px]` or `w-12` = 48px — owner picks).
-2. **Tooltip wording.** Project tile `title` currently shows `${project.name}\n${project.root}` (e.g. `duo\n/Users/.../duo`). Owner wants `Project: {project_name}` (e.g. `Project: duo`). Drop the root path from the title; keep it in the aria-label for accessibility.
+- [26cfd03](https://github.com/dudgeon/duo/commit/26cfd03) — Phase 3 (D11 auto-switch + D12 lifecycle/tile right-click menu) + ENH-185 polish
+- [608034e](https://github.com/dudgeon/duo/commit/608034e) — Phase 4 (`duo project list/focus/pin/unpin/close` CLI parity)
+- [f1adf96](https://github.com/dudgeon/duo/commit/f1adf96) — Phase 2b (`file://` browser tab filter by path membership)
 
-**Files touched (estimate):** `renderer/components/ProjectRail/ProjectRail.tsx` — two edits (`w-14 → w-[50px]` on the `<aside>`, `title={...}` rewrite on `ProjectTile`).
+**What's now in the rail (full ENH-182 surface):**
 
-**Priority:** Low (cosmetic polish; Phase 2 marquee already shipped in v0.7.10). Fold into Phase 3 or land as a side commit; the v0.8.0 capstone closes ENH-182 fully.
+- **Phase 1 + 2 (v0.7.10):** auto-derived projects + quiet-bloom tiles + focus filter (terminals + working tabs) + navigator re-root + Ctrl-Tab respects filter + auto-spawn on empty-terminal focus
+- **Phase 3a:** persisted `~/.claude/duo/projects.json` (pins + color overrides) with `PROJECTS_CHANGED` broadcast pipeline
+- **Phase 3b:** tile right-click menu (Pin/Unpin renders pin dot + "Close N terminals and M tabs" with live counts; `dialog.confirm` gate when any member is `kind: 'claude'`; atomic membership flush; floor-of-1 preserved via fresh-shell spawn)
+- **Phase 3c:** D11 auto-switch focus when `activeWorking` moves to a file whose deepest project ≠ focused (catches both new-file opens AND reactivations of an existing tab)
+- **Phase 4:** full `duo project` verb family — `list`, `focus <name|root>`, `focus --all`, `pin`, `unpin`, `close`. Renderer pushes `ProjectsStateSnapshot` via `PROJECTS_STATE_PUSH` so reads return instantly without round-trip. Name resolution is case-insensitive against unique names; exact root paths always match.
+- **Phase 2b:** browser-mode `file://` tabs gated by path membership. Non-file URLs (http/https/about) + pinned browser tabs cross focuses as reference material. URL→project resolution via decoded `URL.pathname` + sorted root-by-length lookup (D5 deepest-wins, one-pass).
+- **ENH-185 polish:** rail width `w-14 → w-[50px]` (10% narrower) + tooltip wording `Project: {name}` (root path on aria-label for accessibility)
+
+**Locked decisions reference:** [`docs/prd/enh-182-project-centric-ux.md`](docs/prd/enh-182-project-centric-ux.md) D1–D12 + R1–R3. Design assets at `docs/research/project-centric-ux.html` + `project-rail-style-study.html`.
+
+**Smoke walk:** 5/5 PASS via computer-use pre-walk 2026-05-25. Items: ENH-185-VISUAL (rail width + tooltip) · ENH-182-PHASE-3B-MENU (right-click Pin/Unpin + dot toggle) · ENH-182-PHASE-3B-CLOSE (claude-kind confirm dialog + atomic flush + tile drop) · ENH-182-PHASE-3C-AUTOSWITCH (focus chip flip on file-open from another project) · ENH-182-PHASE-2B-BROWSER (file:// filter + pinned cross-focus + All-restore). Manifest at `docs/dev/smoke-walks/v0.8.0.json`.
+
+**Deferred to follow-ups (not in v0.8.0):**
+
+- Browser-pane active-tab redirect on focus change (filed as FOLLOWUP-030 below). When focus changes and the active browser tab is non-member, the strip hides the entry but the WebContentsView still shows that tab's content. UX wrinkle; defer until a real user friction event surfaces.
+- Color override UI surface. The `colorOverrides` IPC is wired (Phase 3a infrastructure) but no rail menu or CLI exposes it yet. Future tile-context-menu enrichment can drop it in without main-side changes.
+
+---
+
+### FOLLOWUP-030 — Browser-pane active-tab redirect on focus change
+
+**Status:** 🆕 **Filed 2026-05-25** during v0.8.0 pre-cut audit. **Priority:** Low (UX polish; not user-blocking).
+
+**What's wanted.** When a user enters a project focus and the currently-active browser tab is NOT a member of the focused project, the browser pane's WebContentsView still renders that tab's content (Phase 2b only hides the strip entry, not the pane). The renderer's existing Phase 2 effect at App.tsx (`useEffect` on `[focusedProject, visibleTerminals, visibleFileTabs]`) handles the file-tab analog by re-routing `activeWorking` to a visible member — extend the same pattern for browser tabs.
+
+**Implementation sketch.** Add a parallel effect: when `focusedProject !== null` AND `activeWorking.kind === 'browser'` AND the active BrowserTab is not in `visibleBrowserTabIds`, call `window.electron.browser.switchTab(visibleBrowserTabIds.values().next().value)` to shift to the first visible member; fall back to `setActiveWorking({ kind: 'file', ... })` if no member browser tabs exist.
+
+**Why deferred from v0.8.0.** Pure UX polish; the existing strip-hide already makes the active tab unreachable via the strip UI. Surfacing this only matters when a user routinely uses focus to "blank out" the browser content of a non-member tab; that workflow may not even materialize.
+
+---
+
+### FOLLOWUP-031 — `MaxListenersExceededWarning` on `terminal:claude-presence-changed`
+
+**Status:** 🆕 **Filed 2026-05-25** during v0.8.0 pre-cut audit. **Priority:** Low (warning only; no user-visible behavior change).
+
+**Symptom.** Renderer log emits `(node:NNNN) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 terminal:claude-presence-changed listeners added to [IpcRenderer]. MaxListeners is 10.` during normal use of a multi-terminal-tab session.
+
+**Hypothesis.** The `useClaudePresence` hook at `renderer/hooks/useClaudePresence.ts:15-19` registers a listener per component mount; each `TerminalPane` invocation creates one. With many terminal tabs (the test session had 9+), the registered count exceeds Node's default 10-listener warning threshold. Listeners are properly removed on unmount, but the warning fires the moment count exceeds 10 — even transiently while a tab spawns/closes.
+
+**Fix candidates.**
+1. Use a single subscription at the App.tsx level + push state down via React context (matches the `useFrontTerminalClaudeLive` pattern). Eliminates per-tab listener.
+2. Bump `ipcRenderer.setMaxListeners(N)` for this specific channel during app boot.
+3. Refactor main-side broadcast so each tab gets its own dedicated IPC channel (decouples listener counts).
+
+(1) is the cleanest. Pre-existing — not new with v0.8.0.
+
+---
+
+### ENH-184 — workspace pill defeaturing — SHIPPED v0.8.0 (2026-05-25)
+
+**Status:** ✅ **Shipped v0.8.0** ([282b0bc](https://github.com/dudgeon/duo/commit/282b0bc)). Closes the Sprint 22 → Sprint 23 carry-forward. Other-claude's foundation (`useWorkspacePillMenuFlag.ts` + `WSD.tsx` handler fix + App.tsx flag declaration) was preserved untouched across Phase 3/4/2b commits per CLAUDE.md § 7d, then landed together with this session's finishing onClick gate + CLI parity verb in one commit.
+
+**What landed.**
+- Pill button: `onClick` gated on `workspacePillMenuEnabled`. When OFF → click is no-op + caret hidden + `cursor: default` + tooltip routes user to File menu. When ON → ENH-171 dropdown gesture restored verbatim.
+- `<WorkspaceSwitcherDropdown>` conditionally mounted only when flag is ON (avoids the stale `workspaceMenuOpen=true` re-opening after a CLI flip back to OFF).
+- CLI verb: `duo workspace-pill-menu [on|off|toggle]` — full CLAUDE.md § 4 plumbing (DuoCommandName + 2 IPC channels + preload + main helper + NavBridge + socket-server command + cli/duo.ts parser + skill/agents/CLI-COVERAGE cheat-sheet). Renderer pushes flag changes to main on every change so bare-reads return cached state instantly.
+
+**Verification.** CLI roundtrip live in v0.8.0 dev: bare returns cached value (`{enabled: false}` default); `on` flips to `true` + pill re-renders with caret ▾; `off` flips back to `false` + caret disappears + `cursor: default`. Bare-read confirms cached state both ways.
+
+---
+
+### ENH-185: Project rail refinements — SHIPPED v0.8.0 (2026-05-25)
+
+**Status:** ✅ **Shipped v0.8.0** as part of [26cfd03](https://github.com/dudgeon/duo/commit/26cfd03). Two visual refinements walked PASS:
+
+1. **10% narrower rail.** `w-14` (56px) → `w-[50px]` on `<aside>`. Renders less dominant against the navigator.
+2. **Tooltip wording.** Project tile `title` now reads `Project: {project_name}` (was `${project.name}\n${project.root}`). Root path stays on the aria-label for screen readers.
+
+Smoke walked as ENH-185-VISUAL — owner-walked tooltip + visual width PASS.
 
 ---
 
