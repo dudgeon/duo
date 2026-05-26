@@ -21,7 +21,36 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.7.10 cut 2026-05-25)*
+> *(empty — v0.8.0 cut 2026-05-25)*
+
+---
+
+## v0.8.0 — 2026-05-25 — ENH-182 capstone: project-as-filter-layer complete
+
+The MINOR v0.8.0 reservation is earned. v0.7.10 shipped the foundation (Phases 0–2 — rail + focus filter); v0.8.0 closes the story end-to-end with the right-click tile menu (D12), auto-switch focus on file-open (D11), browser-tab filter (Phase 2b), and the `duo project` CLI verb family (Phase 4). Six commits since v0.7.10 — three feature commits, ENH-184 close-out, one doc sync, one audit fold-in.
+
+The audit fold-in commit ([4e66419](https://github.com/dudgeon/duo/commit/4e66419)) deserves a callout. A background general-purpose agent reviewed the feature for race conditions, edge cases, and missing surfaces — and caught a chained-bug in the FOLLOWUP-030 design before it shipped. Without the agent's read, the browser-pane active-tab redirect would have preferred any visible tab (including pinned cross-project tabs), which then chained into Phase 3c-browser auto-switching focus to that pinned tab's actual project. Result: user clicks DU → ends up focused on CL. The strict TRUE-member preference fixes it. Plus 4 BUGs the agent identified (symlink shadow, ambiguity error, dedup, ⌘W focus trap) folded into the same cut.
+
+ENH-184 (workspace pill defeaturing) also lands here. Other-claude's working tree was preserved untouched across the entire Sprint 22 → most of Sprint 23 via the revert-edit-restore dance documented in `docs/dev/RESUME.md § 8` — validating the pattern over three feature commits. The finishing onClick gate + `duo workspace-pill-menu` CLI parity verb committed in [282b0bc](https://github.com/dudgeon/duo/commit/282b0bc) close the 🟡 carry-forward that had been waiting since 2026-05-24.
+
+**The full ENH-182 surface (Phases 0–4 + 2b + 3c-browser):**
+
+- **Phase 1 + 2 (v0.7.10):** auto-derived projects + quiet-bloom tiles + focus filter (terminals + non-browser file tabs) + navigator re-root + Ctrl-Tab respects filter + auto-spawn on empty-terminal focus.
+- **Phase 3a (v0.8.0):** persisted `~/.claude/duo/projects.json` (pins + color overrides) with `PROJECTS_CHANGED` broadcast pipeline; pinned-projects probe so pins to invalid roots silently drop.
+- **Phase 3b (v0.8.0):** per-tile right-click menu — `Pin to rail` / `Unpin from rail` (renders a small color-matched dot in the top-right of pinned tiles) + `Close N terminals and M tabs` with live counts; `dialog.confirm` gate when any member terminal is `kind: 'claude'`; atomic membership flush via single `setTabs` / `setFileTabs` updaters; fresh shell appended when closing the entire focus would empty the strip (floor-of-1 preserved).
+- **Phase 3c (v0.8.0):** D11 auto-switch focus when `activeWorking` moves to a file whose deepest project ≠ focused (catches both new-file opens AND reactivations of an existing tab — `duo edit` of an already-open file flips focus too). Phase 3c-browser parallel covers browser-tab activation.
+- **Phase 4 (v0.8.0):** full `duo project` verb family — `list`, `focus <name|root>`, `focus --all`, `pin`, `unpin`, `close`. Renderer pushes `ProjectsStateSnapshot` via `PROJECTS_STATE_PUSH` on every change so reads return instantly. Name resolution is case-insensitive against unique names; exact root paths always match. Pin/unpin honor verb semantics (no-op when already in target state).
+- **Phase 2b (v0.8.0):** browser-mode `file://` tabs gated by path membership. Non-file URLs (http/https/about) + pinned browser tabs cross focuses as reference material.
+- **FOLLOWUP-030 (v0.8.0):** browser-pane active-tab redirect on focus change. Two-effect state machine with TRUE-member preference.
+- **ENH-185 (v0.8.0):** rail 10% narrower + tooltip wording.
+
+**What this is.** A feature-complete capstone for ENH-182. Every right-click action has a CLI counterpart (CLAUDE.md § 4 — every UI gesture should be agent-drivable). Every disorientation gap the smoke walk + audit could find is closed.
+
+**What this isn't.** A breaking-change release. CLI verb signatures are additive; renderer state shape is backwards-compatible; persisted `projects.json` schema is unchanged from Phase 0. Pre-1.0 caveat applies (everything in 0.x may break), but nothing in v0.8.0 intentionally breaks anything in v0.7.x.
+
+**Queued for v0.8.x:** 9 deferred follow-ups filed in `tasks.md` (FOLLOWUP-032 through 040) — double-close race, list-before-renderer-ready, rail-color rotation past 6, aria-label polish, etc. None user-blocking; all small. Plus FOLLOWUP-031 (`MaxListenersExceededWarning` on claudePresence — pre-existing, not new with v0.8.0).
+
+**Smoke walk:** 5/5 PASS via computer-use pre-walk 2026-05-25. Manifest at `docs/dev/smoke-walks/v0.8.0.json`. Owner-judgment items: ENH-185-VISUAL · ENH-182-PHASE-3B-MENU · ENH-182-PHASE-3B-CLOSE · ENH-182-PHASE-3C-AUTOSWITCH · ENH-182-PHASE-2B-BROWSER. Agent-walked PASS (auto-skipped per intro): `npm test` 787/787 · `npm run typecheck` clean · `duo project list/focus/pin/unpin` round-trips · Phase 3c CLI verification · Phase 2b CLI verification · `duo workspace-pill-menu` CLI roundtrip · FOLLOWUP-030 fixed redirect via computer-use re-walk · Phase 3c-browser auto-switch verified · BUG-164 regression test.
 
 ---
 

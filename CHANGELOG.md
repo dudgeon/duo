@@ -19,7 +19,41 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.7.10 cut 2026-05-25.
+> Empty — v0.8.0 cut 2026-05-25.
+
+## [0.8.0] — 2026-05-25 — ENH-182 capstone: project-as-filter-layer complete
+
+### Added
+- **ENH-182 Phase 3 — D11 auto-switch + D12 lifecycle/tile menu** ([26cfd03](https://github.com/dudgeon/duo/commit/26cfd03)).
+  - Per-tile right-click menu: Pin to rail (renders color-matched pin dot) / Unpin + "Close N terminals and M tabs" with live counts.
+  - Persisted `~/.claude/duo/projects.json` (pins + color overrides) + `PROJECTS_CHANGED` broadcast pipeline.
+  - D12 lifecycle: pinned tiles persist with zero members; unpinned tiles auto-drop when last member closes.
+  - D12 bulk-close: `dialog.confirm` gate when any member terminal is `kind: 'claude'`; atomic membership flush; fresh-shell auto-spawn when closing the entire focus would empty the strip.
+  - D11 auto-switch: opening a file from a different project while focused flips focus (hook off `activeWorking` catches both new-file opens AND tab reactivations).
+- **ENH-182 Phase 4 — `duo project` CLI parity** ([608034e](https://github.com/dudgeon/duo/commit/608034e)).
+  - `duo project list` — JSON snapshot of derived projects + focused + counts.
+  - `duo project focus <name|root>` / `--all` — set/release the focus lens.
+  - `duo project pin <name|root>` / `unpin <name|root>` — persistent rail tile toggles.
+  - `duo project close <name|root>` — bulk-close every member terminal + working tab.
+  - Renderer pushes `ProjectsStateSnapshot` via `PROJECTS_STATE_PUSH` on every change so reads return instantly.
+  - Name resolution is case-insensitive against unique names; exact root paths always match.
+- **ENH-182 Phase 2b — `file://` browser-tab filter by path membership** ([f1adf96](https://github.com/dudgeon/duo/commit/f1adf96)).
+  - Browser-mode canvas tabs whose URL is a `file://` path obey the same focus filter as file editor tabs.
+  - Non-file URLs (http/https/about) + pinned browser tabs cross focuses as reference material.
+- **ENH-182 Phase 3c-browser — D11 auto-switch parallel for browser tabs** ([4e66419](https://github.com/dudgeon/duo/commit/4e66419)).
+  - Activating a browser tab from another project flips focus. Tabs with no project membership (non-file URLs, /tmp) don't trigger.
+- **ENH-184 — workspace pill defeaturing + `duo workspace-pill-menu` CLI parity** ([282b0bc](https://github.com/dudgeon/duo/commit/282b0bc)).
+  - Title-bar workspace pill is a passive label by default. Workspace ops route through the File menu.
+  - ENH-171's click-to-open-dropdown gesture lives behind a localStorage flag (`duo.workspacePillMenu`).
+  - CLI: `duo workspace-pill-menu [on|off|toggle]`.
+- **ENH-185 — project rail polish** (part of [26cfd03](https://github.com/dudgeon/duo/commit/26cfd03)). Rail 10% narrower (`w-14 → w-[50px]`); tooltip wording `Project: {name}` (root path stays on aria-label).
+- **FOLLOWUP-030 — browser-pane active-tab redirect on focus change** ([4e66419](https://github.com/dudgeon/duo/commit/4e66419)). When user enters focus and the active browser tab is hidden by the filter, the redirect switches BrowserManager's active tab to a true member (or falls through to a file tab). Two-effect state machine with TRUE-member preference (pinned cross-project tabs are skipped to avoid a chained focus-switch).
+
+### Fixed
+- **BUG-161** — ⌘W / strip-× focus trap. Closing the last member terminal/file tab via direct close paths now auto-releases focus. Two-layer guard against probe-pending false positives. Pinned projects skip the release (D12).
+- **BUG-162** — `/private/tmp` symlink shadow on macOS. `browserTabMembership` now tries both candidate paths (raw + `/private/` stripped or prepended) against sorted project roots.
+- **BUG-163** — `resolveProjectRef` ambiguous name match. Return shape changed from `string | null` to `{ root } | { ambiguous: string[] } | null`. CLI emits *"Ambiguous name 'X' matches N projects: …"* instead of misleading "no match."
+- **BUG-164** — `normalizeProjectsFile` dedupes pin entries. Defends `togglePin`'s indexOf+splice against hand-edited `projects.json` with duplicates. New regression test (787/787).
 
 ## [0.7.10] — 2026-05-25
 
@@ -1710,7 +1744,9 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.7.9...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/dudgeon/duo/releases/tag/v0.8.0
+[0.7.10]: https://github.com/dudgeon/duo/releases/tag/v0.7.10
 [0.7.9]: https://github.com/dudgeon/duo/releases/tag/v0.7.9
 [0.7.8]: https://github.com/dudgeon/duo/releases/tag/v0.7.8
 [0.7.7]: https://github.com/dudgeon/duo/releases/tag/v0.7.7
