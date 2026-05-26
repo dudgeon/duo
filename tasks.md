@@ -8,6 +8,22 @@
 
 > Sprint 24 anchor: close the v0.8.0 audit's deferred follow-ups (FOLLOWUP-031 through 040) before any new feature work. ENH-182 was the marquee chapter; Sprint 24 is its polish epilogue. Definition of done: all 10 FOLLOWUPs closed or explicitly deferred-with-reason. Expected cut shape: v0.8.1 PATCH (polish-only) OR v0.9.0 MINOR if a carry-forward capability lands alongside.
 
+### BUG-165: Terminal stuck on "[process exited]" when its cwd was deleted
+
+**Status:** 🟡 **Fix pushed `claude/terminal-process-exit-DFgEw` 2026-05-26.** **Priority:** High (terminal unusable, no recovery even on restart). **Effort:** ~45 min.
+
+**Symptom (owner repro 2026-05-26).** Terminal sat in a repo dir; owner ran a command that deleted that dir out from under the shell. Terminal showed `[process exited]` and never recovered — every relaunch re-spawned into the same dead path and exited immediately. DevTools also showed `[nav] list failed for /Users/.../aipm/main … ENOENT: no such file or directory, scandir` (the navigator hitting the same dead path — separate symptom, not fixed here).
+
+**Root cause.** `PtyManager.create` passed the tab's saved `cwd` straight to `pty.spawn`. node-pty's child `chdir(cwd)` fails when the dir is gone → child exits instantly → `onExit` → xterm prints `[process exited]`. The saved tab keeps pointing at the dead path, so the failure is sticky across restarts.
+
+**Fix.** New pure helper `core/cwd-utils.ts § resolveExistingCwd(desired, fallback)` — returns the desired dir if it exists, else walks up to the nearest surviving ancestor (keeps the shell close to where the tab expected to be), else the fallback (home), else `/`. `PtyManager.create` resolves the cwd before spawning, stores the resolved cwd in the session, and — when substituted — injects a one-line amber note into the PTY stream (`[duo] <path> no longer exists — opened <resolved> instead.`) so the user understands the jump. The note is sent synchronously before any async shell output and after the renderer has wired its `onData` listener (both `useTerminal.ts` and `TerminalPane.tsx` wire listeners before calling `create`), so it lands above the first prompt and is never dropped.
+
+**Tests.** `core/cwd-utils.test.ts` (6 tests) — existing path unchanged · nearest-ancestor walk · all-the-way-up walk · empty desired → fallback · non-absolute missing → fallback · neither exists → `/`. Extracted as a node-pty-free module so it's testable in CI without the native binding.
+
+**Follow-up not in scope.** The `[nav] list failed` navigator error on a deleted cwd is a separate surface (FileTree `files:list` ENOENT) — file as its own item if owner wants the navigator to fall back too.
+
+---
+
 ### FOLLOWUP-035: handleProjectFocus dead-code probe
 
 **Status:** 🆕 **Filed 2026-05-25** (v0.8.0 audit, Tier 1). **Priority:** Low. **Effort:** 5 min.
