@@ -196,6 +196,11 @@ path-scoped rules under `.claude/rules/` (see above).
      user says any variant of "you've made a mess / start over" on the SAME
      artifact a second time, stop layering edits — acknowledge in one sentence,
      discard the broken draft, and rewrite in one pass from the original intent.
+     <!-- 7f + 7g intentionally stay inline (NOT moved to ui-verification.md):
+          they're general-purpose, applying to ALL artifacts, not just UI.
+          7a–7e are UI-specific, so they live in the path-scoped rule. Don't
+          "finish the job" by relocating 7f/7g — that would hide them on
+          non-UI work where they still apply. -->
 8. **After editing `skill/` or `agents/`, run `npm run sync:claude`.** The repo
    is canonical; `~/.claude/skills/duo/` + `~/.claude/agents/duo.md` are copies,
    not symlinks. Remind the user too if they edit by hand.

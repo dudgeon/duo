@@ -2,6 +2,8 @@
 paths:
   - "cli/**"
   - "shared/types.ts"
+  - "electron/main.ts"
+  - "electron/preload.ts"
   - "electron/socket-server.ts"
   - "agents/duo.md"
   - "skill/SKILL.md"

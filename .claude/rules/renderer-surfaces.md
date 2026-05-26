@@ -1,6 +1,6 @@
 ---
 paths:
-  - "renderer/components/**"
+  - "renderer/**"
 ---
 
 # Renderer surface architecture

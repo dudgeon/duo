@@ -10,23 +10,11 @@ paths:
 
 Loaded when touching renderer / main / preload / CSS. **Build-passing +
 types-clean is NOT enough to call UI work done.** Type checking verifies
-code correctness, not feature correctness.
+code correctness, not feature correctness. These are the CLAUDE.md §7
+sub-rules (7a–7e); headings carry the sub-letter so `CLAUDE.md § 7x`
+references resolve here by grep.
 
-## Request Electron access at session start
-
-If the session has meaningful UI work on the table, call `request_access`
-with `applications: ["Electron"]` BEFORE writing code — not after a smoke
-walk fails, not after the third repeat bug. The dev target is **"Electron"**
-(the running `npm run dev` app), NOT "Duo" (which resolves to the packaged
-`/Applications/Duo.app`). Verify each UI change by: `screenshot` → synthesize
-the keystroke / click that exercises the new code → re-`screenshot` the
-expected post-state. Only after that round-trip is clean is the change
-"done". If the owner denies access, say so explicitly and don't claim done
-without a smoke-walk paste-back. (Why session-start: Sprint 18 closed with
-three failed walks of the same Backspace + ⌘K bugs; both root causes
-surfaced in minutes once I had eyes on the running app.)
-
-## Restart Duo yourself when verification needs it
+## 7a · Restart Duo yourself when verification needs it
 
 **HARD RULE — never write any variant of "you need to restart Duo / re-run
 `npm run dev`" in a handoff.** That offloads your job onto the user. If
@@ -41,7 +29,17 @@ up, a stale socket, a hung validation app):
 
 The user's only job is to walk the page — not to debug whether Duo is running.
 
-## Verify clean app state before any smoke-walk handoff
+## 7b · End UI sprints with the smoke-walk skill
+
+**HARD RULE — ALWAYS invoke `/smoke-walk` via the Skill tool.** Do NOT
+bypass by calling `.claude/skills/smoke-walk/generate.mjs` or its other
+scripts directly — the SKILL.md enforces renderer hard-reload, surface
+re-probe, and feature-pref reset that the generator alone doesn't.
+Manifests live at `docs/dev/smoke-walks/v<VERSION>.json`. Order: generate
+the page FIRST, wait for the owner's pasted results, parse them, then
+propose the cut.
+
+## 7c · Verify clean app state before any smoke-walk handoff
 
 Never hand off a smoke-walk page without first confirming the running app
 isn't crashed/errored (catching a stale error overlay is the agent's job):
@@ -58,17 +56,7 @@ isn't crashed/errored (catching a stale error overlay is the agent's job):
    DevTools for an error overlay before walking."* Restart on uncertainty
    if many changes have accumulated since the last verified-clean state.
 
-## End UI sprints with the smoke-walk skill
-
-**HARD RULE — ALWAYS invoke `/smoke-walk` via the Skill tool.** Do NOT
-bypass by calling `.claude/skills/smoke-walk/generate.mjs` or its other
-scripts directly — the SKILL.md enforces renderer hard-reload, surface
-re-probe, and feature-pref reset that the generator alone doesn't.
-Manifests live at `docs/dev/smoke-walks/v<VERSION>.json`. Order: generate
-the page FIRST, wait for the owner's pasted results, parse them, then
-propose the cut.
-
-## Never rewrite a fixture the editor already has open
+## 7d · Never rewrite a fixture the editor already has open
 
 Rewriting a file on disk while the running dev session's editor points at
 it fires the (correct) file-changed-on-disk dialog — the agent's
@@ -76,3 +64,17 @@ fixture-rewrite-while-open is the bug, not the dialog. Two valid patterns:
 
 1. **Unique paths per walk-rev (preferred)** — `/tmp/walk-{version}-{rev}-{slug}.md`.
 2. **Close before rewrite** — `duo tabs` → `duo close <n>` → then rewrite.
+
+## 7e · Request Electron access at session start
+
+Do this FIRST when the session has meaningful UI work on the table: call
+`request_access` with `applications: ["Electron"]` BEFORE writing code — not
+after a smoke walk fails, not after the third repeat bug. The dev target is
+**"Electron"** (the running `npm run dev` app), NOT "Duo" (which resolves to
+the packaged `/Applications/Duo.app`). Verify each UI change by: `screenshot`
+→ synthesize the keystroke / click that exercises the new code →
+re-`screenshot` the expected post-state. Only after that round-trip is clean
+is the change "done". If the owner denies access, say so explicitly and don't
+claim done without a smoke-walk paste-back. (Why session-start: Sprint 18
+closed with three failed walks of the same Backspace + ⌘K bugs; both root
+causes surfaced in minutes once I had eyes on the running app.)
