@@ -315,6 +315,23 @@ export function requestProjectClose(
   mainWindow.webContents.send(IPC.PROJECTS_CLOSE_REQUEST, { root })
   return { ok: true }
 }
+// ENH-184 (Sprint 23 / v0.8.0) — workspace-pill click-to-open-menu
+// CLI parity. Renderer pushes flag changes via WORKSPACE_PILL_MENU_PUSH;
+// CLI reads return the cached value; CLI writes push back via
+// WORKSPACE_PILL_MENU_SET (renderer applies + re-pushes for symmetry).
+let workspacePillMenuEnabledCache = false
+export function getWorkspacePillMenuEnabled(): boolean {
+  return workspacePillMenuEnabledCache
+}
+export function setWorkspacePillMenuEnabledCli(
+  enabled: boolean
+): { ok: boolean; error?: string } {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  mainWindow.webContents.send(IPC.WORKSPACE_PILL_MENU_SET, { enabled })
+  return { ok: true }
+}
 /** Resolve a name-or-root argument against the cached project list.
  *  Exact root match wins; otherwise case-insensitive name match
  *  (unique). Returns null when no match or ambiguous. */
@@ -689,7 +706,10 @@ async function createWindow(): Promise<void> {
       const next = await projectsService.togglePin(root)
       broadcastProjectsChanged(next)
       return next
-    }
+    },
+    // ENH-184 (Sprint 23 / v0.8.0) — workspace-pill menu CLI parity.
+    getWorkspacePillMenuEnabled: () => getWorkspacePillMenuEnabled(),
+    setWorkspacePillMenuEnabled: (enabled: boolean) => setWorkspacePillMenuEnabledCli(enabled)
   }, navPinsService, eventBus, packLoader)
   // Stage 12 close — wire the renderer event sink so the socket
   // server can push ambient cues (e.g. CLAUDE_READ_SELECTION when
@@ -1793,6 +1813,12 @@ function setupIPC(): void {
   // change. Cached for `duo project list` + name→root resolution.
   ipcMain.on(IPC.PROJECTS_STATE_PUSH, (_event, snapshot: import('../shared/types').ProjectsStateSnapshot) => {
     projectsState = snapshot
+  })
+
+  // ENH-184 Phase 4 — renderer pushes the workspace-pill flag on
+  // every change. Cached for `duo workspace-pill-menu` read.
+  ipcMain.on(IPC.WORKSPACE_PILL_MENU_PUSH, (_event, payload: { enabled: boolean }) => {
+    workspacePillMenuEnabledCache = !!payload?.enabled
   })
 
   ipcMain.on(IPC.NAV_STATE_PUSH, (_event, snapshot: NavStateSnapshot) => {

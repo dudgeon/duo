@@ -249,6 +249,7 @@ declare friction sites once and stop fighting them.
 | `duo project pin <name\|root>` | **ENH-182 Phase 4** — pin a project so its rail tile persists across close-all. No-op when already pinned. Writes `~/.claude/duo/projects.json`. | JSON: `{ ok, root, pinned: true }` |
 | `duo project unpin <name\|root>` | **ENH-182 Phase 4** — remove from the pin set. No-op when not pinned. | JSON: `{ ok, root, pinned: false }` |
 | `duo project close <name\|root>` | **ENH-182 Phase 4** — bulk close every member terminal + working tab. The renderer fires the same dialog confirm as the right-click "Close N terminals and M tabs" menu when any member terminal is `kind: 'claude'` (live work proxy). If closing the entire focus, a fresh shell terminal is spawned at home so the strip stays non-empty. | JSON: `{ ok, root }` |
+| `duo workspace-pill-menu [on\|off\|toggle]` | **ENH-184 (Sprint 23 / v0.8.0)** — toggle the title-bar workspace pill's click-to-open-menu behavior (ENH-171's dropdown). Default OFF: pill renders as a passive label + workspace operations route through the File menu. Bare command reads current state. Persisted in renderer localStorage `duo.workspacePillMenu`. | JSON: `{ enabled }` |
 
 ## Patterns
 

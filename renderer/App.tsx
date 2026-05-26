@@ -18,6 +18,7 @@ import { classifyFile } from './components/fileClassifier'
 import { FilesPane, type FilesPaneHandle } from './components/FilesPane'
 import { CollapsedPaneRail } from './components/CollapsedPaneRail'
 import { ProjectRail, type ProjectCounts } from './components/ProjectRail'
+import { useWorkspacePillMenuFlag, setWorkspacePillMenuFlag } from './hooks/useWorkspacePillMenuFlag'
 import { ThemeToggle } from './components/ThemeToggle'
 import { ClaudePresenceDot } from './components/ClaudePresenceDot'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
@@ -801,6 +802,28 @@ export function App() {
   // editor surface gets the right wiring via `onSendToDuo` +
   // `pillLabel`.
   const sendPillFlags = useSendPillFlags()
+
+  // Workspace-pill click-to-open-menu feature flag. Default OFF
+  // (2026-05-24) — ENH-171's dropdown gesture is disabled until the
+  // affordance is reworked. Flip via DevTools:
+  //   localStorage.setItem('duo.workspacePillMenu', 'true')
+  //   window.dispatchEvent(new CustomEvent('duo:workspacePillMenuFlagChanged'))
+  // or via CLI: `duo workspace-pill-menu on|off|toggle`.
+  const workspacePillMenuEnabled = useWorkspacePillMenuFlag()
+  // ENH-184 Phase 4 — push current flag value to main on every change
+  // so `duo workspace-pill-menu` (read) returns the live state.
+  useEffect(() => {
+    window.electron.workspacePillMenu.pushState(workspacePillMenuEnabled)
+  }, [workspacePillMenuEnabled])
+  // ENH-184 Phase 4 — listen for CLI writes (main → renderer) and
+  // apply via the existing setWorkspacePillMenuFlag helper, which
+  // writes localStorage + fires the in-window event that the hook
+  // already subscribes to.
+  useEffect(() => {
+    return window.electron.workspacePillMenu.onSet((enabled) => {
+      setWorkspacePillMenuFlag(enabled)
+    })
+  }, [])
 
   // ENH-178 — three-mode browser URL filter. Hook mounts on App
   // boot; first effect pushes the persisted localStorage value to
@@ -3474,22 +3497,40 @@ export function App() {
           <button
             ref={workspaceBadgeRef}
             type="button"
-            onClick={() => setWorkspaceMenuOpen(o => !o)}
-            className="titlebar-nodrag text-[12px] text-zinc-600 select-none truncate px-2 py-0.5 rounded hover:bg-accent/10 cursor-pointer"
-            title={activeWorkspace
-              ? `Workspace: ${activeWorkspace.name} — ${activeWorkspace.path}`
-              : 'No workspace loaded — click to open or create one'}
+            // ENH-184 (Sprint 23 / v0.8.0) — gate ENH-171's dropdown
+            // gesture behind a localStorage flag (default OFF). Pill
+            // renders as a passive label by default; workspace ops
+            // route through the File menu. DevTools toggle:
+            //   localStorage.setItem('duo.workspacePillMenu', 'true')
+            //   window.dispatchEvent(new CustomEvent('duo:workspacePillMenuFlagChanged'))
+            // or via CLI: `duo workspace-pill-menu on`.
+            onClick={workspacePillMenuEnabled ? () => setWorkspaceMenuOpen(o => !o) : undefined}
+            className={[
+              'titlebar-nodrag text-[12px] text-zinc-600 select-none truncate px-2 py-0.5 rounded',
+              workspacePillMenuEnabled ? 'hover:bg-accent/10 cursor-pointer' : 'cursor-default'
+            ].join(' ')}
+            title={
+              workspacePillMenuEnabled
+                ? (activeWorkspace
+                  ? `Workspace: ${activeWorkspace.name} — ${activeWorkspace.path}`
+                  : 'No workspace loaded — click to open or create one')
+                : (activeWorkspace
+                  ? `Workspace: ${activeWorkspace.name} — ${activeWorkspace.path}\nUse the File menu for workspace operations.`
+                  : 'No workspace loaded — use the File menu to open or create one.')
+            }
           >
             {activeWorkspace ? activeWorkspace.name : 'Workspaces'}
-            <span className="ml-1 text-zinc-400">▾</span>
+            {workspacePillMenuEnabled && <span className="ml-1 text-zinc-400">▾</span>}
           </button>
         </div>
-        <WorkspaceSwitcherDropdown
-          open={workspaceMenuOpen}
-          anchorRef={workspaceBadgeRef}
-          activeWorkspace={activeWorkspace}
-          onClose={() => setWorkspaceMenuOpen(false)}
-        />
+        {workspacePillMenuEnabled && (
+          <WorkspaceSwitcherDropdown
+            open={workspaceMenuOpen}
+            anchorRef={workspaceBadgeRef}
+            activeWorkspace={activeWorkspace}
+            onClose={() => setWorkspaceMenuOpen(false)}
+          />
+        )}
         {/* ENH-182 Phase 2 — title-bar focus chip. Renders ONLY when
             a project focus is active; click × (or anywhere on the
             chip) to release. Confirms "you're filtered" + provides

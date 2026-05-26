@@ -146,6 +146,7 @@ for the authoritative usage text.
 | `duo project pin <name\|root>` | **ENH-182 Phase 4** — `ProjectsService.togglePin` adds the root to the persisted pin set in `~/.claude/duo/projects.json`; `PROJECTS_CHANGED` broadcast updates the renderer. Verb is idempotent in user-intent terms: pin only adds when absent. |
 | `duo project unpin <name\|root>` | **ENH-182 Phase 4** — opposite of pin. Only removes when present (no-op otherwise). |
 | `duo project close <name\|root>` | **ENH-182 Phase 4** — push `PROJECTS_CLOSE_REQUEST` to the renderer, which runs the same `handleCloseProject(root)` pipeline as the right-click "Close N terminals and M tabs" menu — including the `dialog.confirm` gate when any member terminal is `kind: 'claude'`, the atomic membership flush, and the fresh-shell spawn when closing the entire focus would leave the strip empty. |
+| `duo workspace-pill-menu [on\|off\|toggle]` | **ENH-184 (Sprint 23 / v0.8.0)** — toggle ENH-171's workspace-pill click-to-open-menu (default OFF in v0.8.0). Bare read returns cached value (renderer pushes via `WORKSPACE_PILL_MENU_PUSH` on every change); arg writes push `WORKSPACE_PILL_MENU_SET` to renderer, which applies via the existing `setWorkspacePillMenuFlag` helper (localStorage write + in-window event). |
 | `duo --version` / `-v` | Print version |
 | `duo --help` / `-h` | Usage |
 

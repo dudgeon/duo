@@ -1601,6 +1601,22 @@ async function main(): Promise<void> {
         break
       }
 
+      case 'workspace-pill-menu': {
+        // ENH-184 (Sprint 23 / v0.8.0) — toggle the workspace-pill
+        // click-to-open-menu localStorage flag (default OFF). Bare
+        // command reads cached state; arg writes.
+        const mode = rest[0]
+        if (mode === undefined) {
+          out(await send('workspace-pill-menu'))
+        } else {
+          if (mode !== 'on' && mode !== 'off' && mode !== 'toggle') {
+            die('Usage: duo workspace-pill-menu [on|off|toggle]')
+          }
+          out(await send('workspace-pill-menu', { mode }))
+        }
+        break
+      }
+
       case 'project': {
         // ENH-182 Phase 4 (Sprint 23 / v0.8.0) — project rail CLI parity.
         //   duo project list
@@ -2534,6 +2550,15 @@ COMMANDS
                                     working tab. Fires the same confirm
                                     dialog as the right-click menu when
                                     any member terminal is kind:'claude'.
+
+  workspace-pill-menu [on|off|toggle]
+                                  ENH-184 (Sprint 23 / v0.8.0) — toggle
+                                  the title-bar workspace pill's
+                                  click-to-open-menu behavior. Default
+                                  OFF: pill renders as a passive label
+                                  + workspace operations route through
+                                  the File menu. Bare command reads
+                                  current state.
 
 FLAGS
   --version, -v    Print version

@@ -268,6 +268,11 @@ export type DuoCommandName =
   // Routes through socket-server → NavBridge.getProjectsState /
   // setProjectFocus / requestProjectClose / projectsTogglePin.
   | 'project'
+  // ENH-184 (Sprint 23 / v0.8.0) — CLI parity for the workspace-pill
+  // click-to-open-menu feature flag. `duo workspace-pill-menu` reads
+  // current state; `duo workspace-pill-menu [on|off|toggle]` writes.
+  // Persisted in renderer localStorage `duo.workspacePillMenu`.
+  | 'workspace-pill-menu'
 
 // ── Stage 18b — Distro skill packs ───────────────────────────────────────────
 // A pack is a directory under `~/.claude/duo/packs/<name>/` carrying a
@@ -1866,6 +1871,16 @@ export const IPC = {
   // snapshot so `duo project list` returns instantly without a
   // renderer round-trip.
   PROJECTS_STATE_PUSH: 'projects:state-push',
+  // ENH-184 Phase 4 — main → renderer push for the workspace-pill
+  // menu flag (CLI write path). Renderer applies via the existing
+  // setWorkspacePillMenuFlag(boolean) helper which writes localStorage
+  // + fires the duo:workspacePillMenuFlagChanged event so the hook
+  // re-reads without a reload.
+  WORKSPACE_PILL_MENU_SET: 'workspace-pill-menu:set',
+  // Renderer pushes the current flag value to main on every change
+  // (mirrors NAV_STATE_PUSH) so `duo workspace-pill-menu` (read) can
+  // return immediately without a renderer round-trip.
+  WORKSPACE_PILL_MENU_PUSH: 'workspace-pill-menu:push',
   // ENH-151 — clone wrapper + gh auth probe. renderer → main.
   GIT_CLONE: 'git:clone',
   GH_AUTH_STATUS: 'gh:auth-status',

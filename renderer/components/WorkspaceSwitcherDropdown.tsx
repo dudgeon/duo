@@ -10,6 +10,12 @@
 //   Q3 ID          = a — Name only (no color tags / emoji / thumbnails in v1)
 //   Q4 Create gesture = b — "+" inline → opens full native Save As dialog
 //
+// Q4 superseded 2026-05-24: "+ New Workspace" routes through the same
+// `newWorkspaceReset()` path as File > New Workspace (fresh empty
+// workspace; prompt-on-dirty handled by the shared path). The original
+// "Save As" wiring was a misread of the affordance — picker "+" means
+// new, not save-current-as-new.
+//
 // No keyboard chord in v1 (BUG-075 lesson: ⌘\ collides with 1Password
 // autofill on most users' machines). Owner-locked 2026-05-22 AUQ.
 
@@ -78,7 +84,7 @@ export function WorkspaceSwitcherDropdown({
 
   const handleNew = () => {
     onClose()
-    void window.electron.workspaceFile.save({ saveAs: true })
+    void window.electron.workspaceFile.newWorkspace()
   }
   const handleOpen = (path: string) => {
     onClose()

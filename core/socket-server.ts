@@ -247,6 +247,9 @@ export interface NavBridge {
   /** ENH-182 Phase 4 — direct main-side pin toggle (no renderer hop).
    *  Returns the updated persisted file. */
   projectsTogglePin: (root: string) => Promise<import('../shared/types').ProjectsFile>
+  /** ENH-184 (Sprint 23 / v0.8.0) — workspace-pill menu CLI parity. */
+  getWorkspacePillMenuEnabled: () => boolean
+  setWorkspacePillMenuEnabled: (enabled: boolean) => { ok: boolean; error?: string }
 }
 
 export class SocketServer {
@@ -1690,6 +1693,26 @@ export class SocketServer {
             result = { ok: true, root }
           } else {
             throw new Error(`Unknown project op: ${op}. Expected list|focus|pin|unpin|close.`)
+          }
+          break
+        }
+
+        case 'workspace-pill-menu': {
+          // ENH-184 (Sprint 23 / v0.8.0) — read or write the
+          // workspace-pill click-to-open-menu localStorage flag.
+          // Bare reads cached state; arg writes (on|off|toggle).
+          const mode = args['mode'] as string | undefined
+          if (mode === undefined) {
+            result = { enabled: this.nav.getWorkspacePillMenuEnabled() }
+          } else {
+            let next: boolean
+            if (mode === 'on') next = true
+            else if (mode === 'off') next = false
+            else if (mode === 'toggle') next = !this.nav.getWorkspacePillMenuEnabled()
+            else throw new Error('workspace-pill-menu mode must be on|off|toggle')
+            const setResult = this.nav.setWorkspacePillMenuEnabled(next)
+            if (!setResult.ok) throw new Error(setResult.error ?? 'workspace-pill-menu set failed')
+            result = { enabled: next }
           }
           break
         }

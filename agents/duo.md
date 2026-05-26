@@ -236,6 +236,7 @@ empty.
 | `duo project pin <name\|root>` | **ENH-182 Phase 4** — pin a project so its tile survives close-all. Writes `~/.claude/duo/projects.json`. |
 | `duo project unpin <name\|root>` | **ENH-182 Phase 4** — remove from pin set. |
 | `duo project close <name\|root>` | **ENH-182 Phase 4** — bulk close every member terminal + tab. Confirms via dialog when any member is `kind: 'claude'`. |
+| `duo workspace-pill-menu [on\|off\|toggle]` | **ENH-184 (v0.8.0)** — toggle the title-bar workspace pill click-to-open-menu (ENH-171's dropdown). Default OFF — pill is passive label; use File menu for workspace ops. |
 
 For deeper detail, the Duo skill at `~/.claude/skills/duo/` is the
 source of truth — fetch sections from it rather than guessing:

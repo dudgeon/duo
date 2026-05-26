@@ -986,6 +986,9 @@ export interface ElectronAPI {
   // navigator hasn't scanned (e.g. `~/.claude` when the user opens
   // a file directly under it without navigating there first).
   projects: ElectronProjectsAPI
+  // ENH-184 (Sprint 23 / v0.8.0) — workspace-pill click-to-open-menu
+  // CLI parity. Renderer pushes flag changes; main pushes CLI writes.
+  workspacePillMenu: ElectronWorkspacePillMenuAPI
 }
 
 export interface ElectronProjectsAPI {
@@ -1010,6 +1013,12 @@ export interface ElectronProjectsAPI {
   onSetFocus(cb: (root: string | null) => void): () => void
   /** Phase 4 — main → renderer push from `duo project close`. */
   onCloseRequest(cb: (root: string) => void): () => void
+}
+
+// ENH-184 Phase 4 — workspace-pill click-to-open-menu CLI bridge.
+export interface ElectronWorkspacePillMenuAPI {
+  pushState(enabled: boolean): void
+  onSet(cb: (enabled: boolean) => void): () => void
 }
 
 // ENH-151 / ENH-152a — GitHub integration host API.

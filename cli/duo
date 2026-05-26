@@ -1209,6 +1209,18 @@ To confirm, re-run:
         }
         break;
       }
+      case "workspace-pill-menu": {
+        const mode = rest[0];
+        if (mode === void 0) {
+          out(await send("workspace-pill-menu"));
+        } else {
+          if (mode !== "on" && mode !== "off" && mode !== "toggle") {
+            die("Usage: duo workspace-pill-menu [on|off|toggle]");
+          }
+          out(await send("workspace-pill-menu", { mode }));
+        }
+        break;
+      }
       case "project": {
         const sub = rest[0];
         if (!sub) {
@@ -2055,6 +2067,15 @@ COMMANDS
                                     working tab. Fires the same confirm
                                     dialog as the right-click menu when
                                     any member terminal is kind:'claude'.
+
+  workspace-pill-menu [on|off|toggle]
+                                  ENH-184 (Sprint 23 / v0.8.0) \u2014 toggle
+                                  the title-bar workspace pill's
+                                  click-to-open-menu behavior. Default
+                                  OFF: pill renders as a passive label
+                                  + workspace operations route through
+                                  the File menu. Bare command reads
+                                  current state.
 
 FLAGS
   --version, -v    Print version

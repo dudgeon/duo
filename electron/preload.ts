@@ -844,6 +844,18 @@ const api: ElectronAPI = {
       return () => ipcRenderer.removeListener(IPC.PROJECTS_CLOSE_REQUEST, handler)
     }
   },
+  // ENH-184 (Sprint 23 / v0.8.0) — workspace-pill click-to-open-menu
+  // CLI parity surface. Renderer pushes current value via pushState;
+  // main pushes CLI writes via onSet.
+  workspacePillMenu: {
+    pushState: (enabled: boolean) =>
+      ipcRenderer.send(IPC.WORKSPACE_PILL_MENU_PUSH, { enabled }),
+    onSet: (cb: (enabled: boolean) => void) => {
+      const handler = (_e: unknown, payload: { enabled: boolean }) => cb(payload.enabled)
+      ipcRenderer.on(IPC.WORKSPACE_PILL_MENU_SET, handler)
+      return () => ipcRenderer.removeListener(IPC.WORKSPACE_PILL_MENU_SET, handler)
+    }
+  },
   git: {
     status: (cwd) => ipcRenderer.invoke(IPC.GIT_STATUS, { cwd }),
     clone: (req) => ipcRenderer.invoke(IPC.GIT_CLONE, req),
