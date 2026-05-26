@@ -54,6 +54,7 @@ import { CommentMark, collectCommentRanges } from './extensions/CommentMark'
 import { WikilinkDecorations } from './extensions/WikilinkDecorations'
 import { WikilinkSuggestion } from './extensions/WikilinkSuggestion'
 import { AtMention } from './extensions/AtMention'
+import { LineNumbers, lineNumbersPluginKey, LINE_NUMBERS_STORAGE_KEY } from './extensions/LineNumbers'
 import { useVaultIndex, rankVaultFiles } from './vaultIndex'
 import { WriteWarningBanner } from './primitives/WriteWarningBanner'
 import { SendToDuoPill } from './primitives/SendToDuoPill'
@@ -372,23 +373,22 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // `open` for any callers that need to gate behavior on it (e.g.
   // hiding the comment rail while find is up).
   const [findOpen, setFindOpen] = useState(false)
-  // ENH-069 (v0.6.3) — toggleable line numbers. Global per-user
+  // ENH-069 / BUG-186 — toggleable line numbers. Global per-user
   // preference (NOT per-tab) — when set, every markdown editor on
-  // every launch shows numbers. Persisted to localStorage. The CSS
-  // counter-based v1 numbers BLOCKS (paragraphs / headings / list
-  // items / blockquotes) — not visual wrapped lines. "True" visual
-  // line numbering would need a ProseMirror plugin with reflow
-  // detection; queued as v2 if v1 doesn't solve the user's need.
+  // every launch shows numbers. Persisted to localStorage. The numbers
+  // are the TRUE markdown source line of each top-level block (computed
+  // by the LineNumbers plugin), so they match what Claude Code calls
+  // "line N". Numbers are sparse — see LineNumbers.ts / globals.css.
   const [lineNumbers, setLineNumbers] = useState<boolean>(() => {
     try {
-      return localStorage.getItem('duo:editor-line-numbers') === '1'
+      return localStorage.getItem(LINE_NUMBERS_STORAGE_KEY) === '1'
     } catch {
       return false
     }
   })
   useEffect(() => {
     try {
-      localStorage.setItem('duo:editor-line-numbers', lineNumbers ? '1' : '0')
+      localStorage.setItem(LINE_NUMBERS_STORAGE_KEY, lineNumbers ? '1' : '0')
     } catch { /* private mode / quota — best-effort */ }
   }, [lineNumbers])
 
@@ -627,7 +627,13 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         getItems: () => vaultFilesRef.current,
         isLoading: () => vaultLoadingRef.current,
         rank: rankVaultFiles
-      })
+      }),
+      // BUG-186 — source-line-number gutter. Computes the true markdown
+      // source line for each top-level block (via the save serializer)
+      // and renders it through globals.css. Enabled state is driven by
+      // the `lineNumbers` toggle below via a plugin meta transaction, so
+      // this static extension list never rebuilds.
+      LineNumbers
     ],
     []
   )
@@ -1716,6 +1722,17 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     storage.enabled = suggestingMode
     storage.getAuthor = () => authorOrLegacy
   }, [editor, suggestingMode, authorOrLegacy])
+
+  // BUG-186 — push the line-number toggle into the LineNumbers plugin.
+  // The plugin recomputes decorations only while enabled, so flipping
+  // this dispatches a meta transaction that rebuilds (or clears) the
+  // gutter without rebuilding the static extension list.
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return
+    editor.view.dispatch(
+      editor.state.tr.setMeta(lineNumbersPluginKey, { enabled: lineNumbers })
+    )
+  }, [editor, lineNumbers])
 
   useEffect(() => {
     const handler = () => handleStartNewComment()
