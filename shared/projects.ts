@@ -278,6 +278,149 @@ export function deriveProjects(input: DeriveProjectsInput): DeriveProjectsOutput
   return { projects, terminalMembership, tabMembership }
 }
 
+// ── tile abbreviations (ENH-186) ──────────────────────────────────
+//
+// Project tiles in the rail show a 2–3 character abbreviation of the
+// project name. The naive "first two characters" rule collapsed every
+// `ai*` / `aipm*` project to a duplicative "AI" tile. These helpers
+// derive a word-aware, collision-free abbreviation for the whole
+// visible set at once (collision detection needs every name in hand,
+// so this is a set operation, not a per-tile one).
+
+/**
+ * Split a project display name into words for abbreviation. Word
+ * delimiters are whitespace, hyphen, underscore, and dot; camelCase /
+ * PascalCase boundaries are also treated as breaks ("aiPlatform" →
+ * ["ai", "Platform"], "AIPlatform" → ["AI", "Platform"]). A leading
+ * dot is stripped first (".claude" → ["claude"]); empty segments drop.
+ */
+export function splitProjectWords(name: string): string[] {
+  return name
+    .replace(/^\.+/, '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .split(/[\s\-_.]+/)
+    .map((w) => w.trim())
+    .filter((w) => w.length > 0)
+}
+
+// Width caps keep tiles legible in the ~40px rail: at most three
+// word-initials for multi-word names, at most four leading letters for
+// single-word names. Past the cap, a numeric suffix disambiguates.
+const MAX_MULTIWORD_INITIALS = 3
+const MAX_SINGLEWORD_LETTERS = 4
+
+/** The letter/initial candidate for a name at escalation `level`
+ *  (0 = baseline). Multi-word → initials of the first (2 + level) words;
+ *  single-word → the first (2 + level) letters. Both capped; an empty
+ *  name collapses to "?". */
+function letterCandidate(words: string[], level: number): string {
+  if (words.length >= 2) {
+    const take = Math.min(2 + level, MAX_MULTIWORD_INITIALS, words.length)
+    return words
+      .slice(0, take)
+      .map((w) => w[0])
+      .join('')
+      .toUpperCase()
+  }
+  const word = words[0] ?? ''
+  if (!word) return '?'
+  const take = Math.min(2 + level, MAX_SINGLEWORD_LETTERS, word.length)
+  return word.slice(0, Math.max(take, 1)).toUpperCase()
+}
+
+/** Whether `letterCandidate` can still grow a longer candidate for this
+ *  name at `level`. Once false, only a numeric suffix can disambiguate. */
+function canEscalate(words: string[], level: number): boolean {
+  if (words.length >= 2) {
+    return 2 + level < Math.min(MAX_MULTIWORD_INITIALS, words.length)
+  }
+  const word = words[0] ?? ''
+  return 2 + level < Math.min(MAX_SINGLEWORD_LETTERS, word.length)
+}
+
+/**
+ * Compute a short, collision-free abbreviation for every project tile.
+ *
+ * Rules (ENH-186):
+ *   • Multi-word name → first letters of the first two words
+ *     ("ai-pm-tools" → "AP"). When two tiles collide because their
+ *     first two words match, expand to three initials ("APT" / "APD").
+ *   • Single-word name → first two letters ("platform" → "PL"). On
+ *     collision, extend one letter at a time ("PLA", "PLAT").
+ *   • When the letter/initial ladder is exhausted and tiles still
+ *     collide — e.g. "ai-pm-data" and "ai-pm-dashboard" both reduce to
+ *     "APD", or two two-word names share initials — a numeric suffix
+ *     disambiguates by sort order ("APD", "APD2"). The first tile keeps
+ *     the clean form.
+ *
+ * Pure + deterministic: the same set of {root, name} pairs always
+ * yields the same result regardless of input order. Returns a map keyed
+ * by project `root`.
+ */
+export function computeProjectAbbreviations(
+  projects: ReadonlyArray<{ root: string; name: string }>
+): Map<string, string> {
+  // Sort up front so numeric disambiguators are stable and independent
+  // of the caller's array order.
+  const ordered = [...projects].sort(
+    (a, b) => a.name.localeCompare(b.name) || a.root.localeCompare(b.root)
+  )
+
+  const words = new Map<string, string[]>()
+  const level = new Map<string, number>()
+  for (const p of ordered) {
+    words.set(p.root, splitProjectWords(p.name))
+    level.set(p.root, 0)
+  }
+
+  const candidateFor = (root: string): string =>
+    letterCandidate(words.get(root)!, level.get(root)!)
+
+  const groupByCandidate = (): Map<string, string[]> => {
+    const groups = new Map<string, string[]>()
+    for (const p of ordered) {
+      const c = candidateFor(p.root)
+      const bucket = groups.get(c)
+      if (bucket) bucket.push(p.root)
+      else groups.set(c, [p.root])
+    }
+    return groups
+  }
+
+  // Phase A — grow letter/initial candidates to break collisions
+  // wherever a longer candidate is available. Levels only increase and
+  // are capped, so this converges; the guard is a backstop.
+  for (let guard = 0; guard < 32; guard++) {
+    let advanced = false
+    for (const roots of groupByCandidate().values()) {
+      if (roots.length < 2) continue
+      for (const root of roots) {
+        if (canEscalate(words.get(root)!, level.get(root)!)) {
+          level.set(root, level.get(root)! + 1)
+          advanced = true
+        }
+      }
+    }
+    if (!advanced) break
+  }
+
+  // Phase B — numeric suffix for groups that still collide after the
+  // ladder is exhausted. Members arrive in sorted order, so the first
+  // keeps the clean form and the rest get "…2", "…3", …
+  const result = new Map<string, string>()
+  for (const [candidate, roots] of groupByCandidate()) {
+    if (roots.length === 1) {
+      result.set(roots[0], candidate)
+      continue
+    }
+    roots.forEach((root, i) => {
+      result.set(root, i === 0 ? candidate : `${candidate}${i + 1}`)
+    })
+  }
+  return result
+}
+
 // ── persisted-slice normalization (used by ProjectsService) ─────
 
 /** Normalize a partially-parsed projects.json: drop malformed pins,
