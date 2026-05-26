@@ -4,6 +4,186 @@
 > ****Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`.
 > ****Pruning policy.** Closed entries stay until the lesson migrates to [DECISIONS.md](http://DECISIONS.md) / [CLAUDE.md](http://CLAUDE.md) plumbing checklist / smoke-checklist (then they're prune candidates). The Sprint 15 cleanup pass (2026-05-10) trimmed BUG-001..BUG-017 (697 lines from the v0.3 / v0.4 era; lessons live in [DECISIONS.md](http://DECISIONS.md) / plumbing checklists / the smoke-checklist). Cross-references to those IDs may still appear inline in other entries as historical citations — see git history before commit `<v0.6.13-cleanup>` for the original writeups. Next prune candidate: closed BUG-018..BUG-040 era entries once their lessons similarly internalize.
 
+## Sprint 24 / v0.8.1 — v0.8.x polish wave (starting)
+
+> Sprint 24 anchor: close the v0.8.0 audit's deferred follow-ups (FOLLOWUP-031 through 040) before any new feature work. ENH-182 was the marquee chapter; Sprint 24 is its polish epilogue. Definition of done: all 10 FOLLOWUPs closed or explicitly deferred-with-reason. Expected cut shape: v0.8.1 PATCH (polish-only) OR v0.9.0 MINOR if a carry-forward capability lands alongside.
+
+### FOLLOWUP-035: handleProjectFocus dead-code probe
+
+**Status:** 🆕 **Filed 2026-05-25** (v0.8.0 audit, Tier 1). **Priority:** Low. **Effort:** 5 min.
+
+**Symptom.** Audit agent flagged `renderer/App.tsx` ~901 declaration of `handleProjectFocus` callback but couldn't find its use site. Possible: dead code, OR shadowed by an inline JSX lambda in `<ProjectRail onFocus={...}>`.
+
+**Fix path.** Grep for `handleProjectFocus` uses; check `<ProjectRail` props; if confirmed dead, remove the declaration + dep array. If actually used (audit was wrong), leave + add a code comment pointing at the call site for future grep audits.
+
+**Bundle target.** Tier 1 polish commit alongside FOLLOWUP-036/038/040.
+
+---
+
+### FOLLOWUP-036: Focus-release chip aria-label repetition
+
+**Status:** 🆕 **Filed 2026-05-25** (v0.8.0 audit, Tier 1). **Priority:** Low (a11y polish). **Effort:** 5 min.
+
+**Symptom.** `renderer/App.tsx` ~3545 — focus-release chip has both visible text "Focused: {name}" AND `aria-label="Release focus ({name})"`. Screen reader reads "Focused: duo, button, Release focus (duo)" — repetitive.
+
+**Fix.** Drop `({name})` from aria-label (visible text already conveys it) OR simplify aria-label to just "Release focus." Pick the latter — keeps the button-purpose statement clean.
+
+**Bundle target.** Tier 1 polish commit.
+
+---
+
+### FOLLOWUP-038: useWorkspacePillMenuFlag TS narrowing edge case
+
+**Status:** 🆕 **Filed 2026-05-25** (v0.8.0 audit, Tier 1). **Priority:** Low. **Effort:** 5 min.
+
+**Symptom.** `renderer/hooks/useWorkspacePillMenuFlag.ts` ~41-43 — `function refresh(event: StorageEvent | CustomEvent) { if ('key' in event && event.key && event.key !== LS_KEY) return }`. `'key' in event` is always true on `StorageEvent` AND any CustomEvent that incidentally carries a `key` field. The narrowing intent is "skip storage events for other keys"; a malicious/coincidental CustomEvent on the EVENT channel carrying a `key` field would also be filtered.
+
+**Practically benign.** We dispatch a bare `CustomEvent` (no `key` field), so the filter never fires for our own events. Add a code comment explaining the intent + acknowledging the edge case.
+
+**Bundle target.** Tier 1 polish commit.
+
+---
+
+### FOLLOWUP-040: Smoke-walk item — File → New Workspace with pill flag OFF
+
+**Status:** 🆕 **Filed 2026-05-25** (v0.8.0 audit, Tier 1). **Priority:** Verification-only. **Effort:** 5 min (manifest entry).
+
+**Why.** ENH-184 defeaturing made the workspace pill a passive label. The audit noted: `WorkspaceSwitcherDropdown.tsx`'s `handleNew` was unchanged (still calls `window.electron.workspaceFile.newWorkspace()`), and the native File menu's `New Workspace` handler routes through the same bridge. Worth one explicit smoke item with `duo workspace-pill-menu off` to verify the menu path still works post-defeaturing.
+
+**Fix.** Add a smoke walk item to the next manifest:
+```json
+{
+  "id": "ENH-184-FILE-MENU-NEW-WORKSPACE",
+  "title": "ENH-184 — File → New Workspace works with pill menu disabled",
+  "steps": [
+    "Confirm pill flag is OFF: `duo workspace-pill-menu` → returns {enabled: false}.",
+    "Click File menu → New Workspace.",
+    "Confirm a fresh workspace opens (one shell terminal at home, no file tabs, title bar back to 'Duo' or 'No workspace')."
+  ]
+}
+```
+
+**Bundle target.** Tier 1 polish commit (add to manifest as part of the polish bundle's smoke walk).
+
+---
+
+### FOLLOWUP-031: MaxListenersExceededWarning — hoist claudePresence subscription
+
+**Status:** 🆕 **Filed 2026-05-25** (v0.8.0 audit, Tier 2). **Priority:** **High** (biggest user-facing impact in Sprint 24). **Effort:** ~30 min.
+
+**Symptom.** Renderer log emits `(node:NNNN) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 terminal:claude-presence-changed listeners added to [IpcRenderer]. MaxListeners is 10.` during normal use of a multi-terminal-tab session.
+
+**Root cause.** `renderer/hooks/useClaudePresence.ts:15-19` registers a listener per component mount; each `TerminalPane` invocation creates one. With ~10+ terminal tabs (a routine state), the count exceeds Node's default 10-listener warning threshold. Listeners are properly removed on unmount, but the warning fires the moment count exceeds 10 — even transiently while a tab spawns/closes.
+
+**Fix path.** Hoist the subscription to App.tsx + push state down via React context. Mirrors the existing `useFrontTerminalClaudeLive` pattern. One subscription total (App.tsx level); `useClaudePresence` becomes a `useContext` consumer; no per-TerminalPane listener registration.
+
+**Implementation sketch:**
+1. Create `renderer/contexts/ClaudePresenceContext.tsx` — provider holds the per-tab presence map, subscribes to `window.electron.terminal.onClaudePresenceChange` once at App mount.
+2. App.tsx wraps children in `<ClaudePresenceContext.Provider>`.
+3. `useClaudePresence` becomes `useContext(ClaudePresenceContext)` — returns the map (or a per-tab getter).
+4. Each TerminalPane reads via context, no IPC subscription.
+
+**Risk.** Behavior should be identical from the user's perspective. The only observable change is the absence of the warning. Add a regression test that subscribes the same channel N times + counts IPC listeners (assert ≤1).
+
+**Hook-point lesson (Sprint 23 § 7):** the natural shape is "context provider at App.tsx → consume via useContext in TerminalPane." Don't introduce a new state-change-cascade pattern.
+
+---
+
+### FOLLOWUP-032: Double `duo project close` race
+
+**Status:** 🆕 **Filed 2026-05-25** (v0.8.0 audit, Tier 2). **Priority:** Low (rare CLI race). **Effort:** ~20 min.
+
+**Symptom.** `electron/main.ts:309-317` `requestProjectClose` just sends an IPC event; no lock. Two parallel CLI calls send two `PROJECTS_CLOSE_REQUEST` events, renderer's `handleCloseProject` runs twice. The second invocation reads stale `projectCounts.get(root)` (still has live counts; React state hasn't re-derived yet from the first close), shows a second confirm dialog.
+
+**Repro.** `(duo project close duo &); duo project close duo` → two stacked dialogs if claude-kind member terminal exists.
+
+**Fix.** In `handleCloseProject`, gate on `inFlightCloseRef.current.has(root)`. Set on entry; clear on completion (success or cancel).
+
+```typescript
+const inFlightCloseRef = useRef<Set<string>>(new Set())
+
+const handleCloseProject = useCallback(async (root: string) => {
+  if (inFlightCloseRef.current.has(root)) return  // already closing
+  inFlightCloseRef.current.add(root)
+  try {
+    // ... existing close logic
+  } finally {
+    inFlightCloseRef.current.delete(root)
+  }
+}, [...])
+```
+
+**Risk.** Trivial. The ref doesn't interact with React state lifecycle.
+
+---
+
+### FOLLOWUP-033: `duo project list` empty during 1-2s renderer-boot window
+
+**Status:** 🆕 **Filed 2026-05-25** (v0.8.0 audit, Tier 2). **Priority:** Medium. **Effort:** ~30 min.
+
+**Symptom.** `electron/main.ts:292-296` — `projectsState` initializes to `{projects:[], focusedProject:null, counts:{}}`. The renderer's `PROJECTS_STATE_PUSH` only fires after `useProjects` settles + initial qualify probes complete. Between Duo launch and first push (~1-2s), `duo project list` returns the empty default — indistinguishable from "no projects open."
+
+**Repro.** Restart Duo, immediately run `duo project list` → `{ projects: [], focusedProject: null, counts: {} }`. Same shape as "no projects."
+
+**Fix.** Add `ready: boolean` to `ProjectsStateSnapshot`:
+- Default false at main-side `projectsState` initialization.
+- Renderer's `pushState` always sends `ready: true`.
+- CLI emits warning when reading `ready: false`: *"renderer not yet ready (Duo is still booting / probing projects). Retry in 1-2s."*
+
+**Alternative:** block the CLI call until `ready: true` with a timeout (~3s). Simpler from the agent's perspective but less observable.
+
+**Recommendation.** Add the `ready` flag + emit the warning. Leave blocking as a future enhancement. Agent retry logic is cheap; the warning is the right diagnostic.
+
+**Files touched.** `shared/types.ts` (`ProjectsStateSnapshot.ready`), `electron/main.ts` (initial state + `getProjectsState`), `renderer/App.tsx` (pushState always sends `ready: true`), `core/socket-server.ts` (`duo project list` handler emits warning when not ready).
+
+---
+
+### FOLLOWUP-034: Rail-color rotation past 6 projects (Tier 3 — owner decision)
+
+**Status:** 🆕 **Filed 2026-05-25** (v0.8.0 audit, Tier 3 — design-gated). **Priority:** Low (PRD R2 planned; not user-blocking — most workflows have <7 projects).
+
+**PRD context.** R2 says hash-stable `colorIndex = hash(rootPath) % 6`. With 6 hash buckets, 50% collision probability at 4 projects (birthday paradox; P(no collision, N=4, K=6) ≈ 0.278). Past 6 projects, PRD says "rotate shade variants" — unspecified shape.
+
+**Owner decision needed.** What's the shade-variant rule?
+- **Option A** — `colorIndex × variant_count` (e.g. 6 hues × 2 lightness = 12 effective slots; double-hash determines lightness).
+- **Option B** — overlay marker (a small dot/stripe in a secondary color on collision).
+- **Option C** — saturation shift (same hue, desaturated for the second hit).
+- **Option D** — defer (current state — collisions silently happen; user sees two same-color tiles).
+
+**Recommended default if owner unavailable:** Option D (defer). No urgent need; <7 active projects in typical use.
+
+---
+
+### FOLLOWUP-037: useProjects probe-after-delete cache (Tier 3 — owner decision)
+
+**Status:** 🆕 **Filed 2026-05-25** (v0.8.0 audit, Tier 3 — design-gated). **Priority:** Low (documented limitation).
+
+**Symptom.** `renderer/hooks/useProjects.ts:13` — "no invalidation" comment is correct: if a user pins a project, then deletes `CLAUDE.md` from outside Duo, the cached `markerResults` STILL shows `true` for the session. Result: ghost tile persists in rail across the session. Re-launching Duo clears the cache.
+
+**Owner decision needed.** Invalidation strategy?
+- **Option A** — `fs.watch` on each cached candidate dir. Most reactive; adds N filesystem watchers per session (memory + handle cost).
+- **Option B** — Invalidate on focus change. Periodic re-probe; cheap; lag is one focus-change.
+- **Option C** — Drop cache + re-probe every N minutes. Simplest; not very reactive.
+- **Option D** — Leave as-is (current state). Document the limitation.
+
+**Recommended default if owner unavailable:** Option D. Real users rarely delete a project's `CLAUDE.md` mid-session without intending to.
+
+---
+
+### FOLLOWUP-039: Cross-window race on `duo workspace-pill-menu` (Tier 3 — owner decision)
+
+**Status:** 🆕 **Filed 2026-05-25** (v0.8.0 audit, Tier 3 — future-proofing). **Priority:** Low (no multi-window today).
+
+**Symptom.** `setWorkspacePillMenuFlag` writes localStorage in one window; another window (if it existed) receives a `storage` event (origin-window doesn't fire `storage`, others do) but ALSO the in-window `CustomEvent` fires only in the origin window. Today Duo is single-window; not exploitable.
+
+**Owner decision needed.**
+- **Option A** — Defer until multi-window ships (current state).
+- **Option B** — Pre-emptively use `BroadcastChannel` API for cross-window coordination.
+
+**Recommended default if owner unavailable:** Option A (defer). Adding `BroadcastChannel` infrastructure for a non-existent multi-window scenario is YAGNI.
+
+---
+
 ## Sprint 23 / v0.8.0 — ENH-182 capstone (shipped)
 
 > Sprint 23 earned the MINOR. Six commits closed the project-as-filter-layer story end-to-end: ENH-182 Phases 3 + 4 + 2b + ENH-185 polish + ENH-184 workspace-pill defeaturing + a polish pass folding in 5 audit-found fixes (FOLLOWUP-030 + Phase 3c-browser + BUG-161/162/163/164). Smoke walk 5/5 PASS via computer-use pre-walk. v0.8.0 cut + tagged + released 2026-05-25.

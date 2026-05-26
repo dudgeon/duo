@@ -1,57 +1,148 @@
-# Active sprint state — Sprint 23 / v0.8.0 (ENH-182 capstone)
+# Active sprint state — Sprint 24 / v0.8.1 (v0.8.x polish wave)
 
-**Status (2026-05-25):** **v0.8.0 cut + tagged + released.** The ENH-182 project-as-filter-layer story is feature-complete: rail (Phase 1) + focus filter (Phase 2 + 2b) + lifecycle/menu (Phase 3) + auto-switch (Phase 3c) + CLI parity (Phase 4). Plus ENH-184 workspace pill defeaturing closed out (other-claude's preserved working tree landed + finishing onClick gate + CLI parity verb). Plus ENH-185 polish (rail 10% narrower + tooltip wording). Smoke walk 5/5 PASS via computer-use pre-walk.
+**Status (2026-05-25):** **v0.8.0 cut + tagged + pushed + released.** [GitHub Release v0.8.0](https://github.com/dudgeon/duo/releases/tag/v0.8.0) live with signed-notarized DMG attached. Dev bumped to v0.8.1. Sprint 24 is a focused polish wave — clean up the v0.8.0 audit's deferred follow-ups (FOLLOWUP-031 through 040) before any new feature work, then triage 1-2 carry-forward items if time allows.
 
-## v0.8.0 — what shipped (Sprint 23)
+## Sprint anchor
 
-| Commit | Item |
+**Goal:** close the v0.8.0 follow-up backlog. The ENH-182 capstone (project-as-filter-layer) is the marquee chapter that just shipped; Sprint 24 is its polish epilogue. Closing the follow-ups before starting new feature work keeps the codebase clean + lets the next coherent chapter cut as a clean MINOR.
+
+**Definition of done:** all 10 v0.8.0-era FOLLOWUPs (031–040) closed OR explicitly deferred-with-reason. Tier 1 + 2 below are the must-close items; Tier 3 are owner-decision-gated and may stay open.
+
+**Expected cut shape:** v0.8.1 PATCH if the sprint is purely polish (Tier 1+2 only). v0.9.0 MINOR if a coherent capability ships alongside (e.g. ENH-148 v2 multi-select, ENH-162 Clone modal collision UX, ENH-128 HEIC drag-drop walk-4).
+
+---
+
+## Sprint 24 scope (prioritized)
+
+### Tier 1 — Small + bundled into one polish commit (~1 hour total)
+
+These are 1-line / 5-line fixes; the smoke walk can cover them all as a single rev. Bundle into a `chore(v0.8.x-polish): tier-1 followup cleanup` commit.
+
+| ID | Item | File | Effort |
+|---|---|---|---|
+| **FOLLOWUP-035** | `handleProjectFocus` dead-code probe — verify its use site (or absence) at App.tsx ~901; remove if confirmed dead | `renderer/App.tsx` | 5 min |
+| **FOLLOWUP-036** | Focus-release chip aria-label polish. Currently reads "Focused: duo, button, Release focus (duo)" via screen reader — repetitive. Drop visible-text from aria-label or simplify to "Release focus." | `renderer/App.tsx` ~3545 | 5 min |
+| **FOLLOWUP-038** | `useWorkspacePillMenuFlag` TS narrowing — `'key' in event` is always true on StorageEvent + any CustomEvent with a `key` field. Practically benign; add a code comment explaining the intent + acknowledging the narrowing edge case. | `renderer/hooks/useWorkspacePillMenuFlag.ts` ~41 | 5 min |
+| **FOLLOWUP-040** | Smoke-walk item: with `duo workspace-pill-menu off`, exercise File → New Workspace to verify the menu handler still works post-ENH-184 defeaturing. Add to next smoke walk manifest. | smoke-walk manifest | 5 min |
+
+### Tier 2 — Single-feature commits (~30–60 min each)
+
+| ID | Item | Effort | User impact |
+|---|---|---|---|
+| **FOLLOWUP-031** | `MaxListenersExceededWarning` on `terminal:claude-presence-changed` (11/10 listeners). Pre-existing; not new with v0.8.0. Fix: hoist `useClaudePresence` subscription to App.tsx + push state via React context (matches `useFrontTerminalClaudeLive` pattern). Eliminates per-TerminalPane listener. | ~30 min | **High** — eliminates a class-1 leak warning that fires routinely in normal use |
+| **FOLLOWUP-032** | Double `duo project close` race. Two parallel CLI calls send two `PROJECTS_CLOSE_REQUEST` events; `handleCloseProject` runs twice; second invocation reads stale `projectCounts.get(root)` and stacks two confirm dialogs if claude-kind. Fix: gate on `inFlightCloseRef.current.has(root)` in `handleCloseProject`. | ~20 min | Low — rare race, but a CLI scripter would hit it |
+| **FOLLOWUP-033** | `duo project list` returns empty silently during 1–2s renderer-boot window. Add `ready: boolean` to `ProjectsStateSnapshot`; flip to true on first push. CLI emits "renderer not yet ready" warning when false (or blocks until ready, owner decision). | ~30 min | Medium — agents that restart Duo + immediately query confuse with "no projects open" |
+
+### Tier 3 — Design-gated (open for owner direction)
+
+These need a quick owner decision before implementation. **Ask before doing.**
+
+| ID | Item | Decision needed |
+|---|---|---|
+| **FOLLOWUP-034** | Rail-color rotation past 6 projects. PRD R2 says "rotate shade variants past 6" but didn't specify the shape. 50% collision probability at 4 projects (birthday paradox; P(no collision, N=4, K=6) ≈ 0.278). | What's the shade variant rule? Lighter / darker / saturation shift / overlay marker? Hash to `colorIndex × variant_count`? |
+| **FOLLOWUP-037** | `useProjects` probe-after-delete cache. If a pinned project's marker is deleted out-of-Duo mid-session, `markerResults` cache still shows `true` → ghost tile persists across the session. Documented limitation. | Invalidate via fs.watch on each cached dir? Invalidate on focus change? Drop the cache + re-probe periodically? Or leave as-is (current state)? |
+| **FOLLOWUP-039** | Cross-window race on `duo workspace-pill-menu`. No multi-window today; future-proofing. | Defer until multi-window ships? Or pre-emptively use `BroadcastChannel`? |
+
+### Sprint-close carry-forward (pick 1-2 if Tiers 1+2 land fast)
+
+In descending priority:
+
+| ID | Item | Status |
+|---|---|---|
+| **BUG-079** | Ctrl-Tab cycle latency. Sprint 22 walk-1 gave a known-good repro (focus on duo with 1 visible terminal). Sprint 17 instrumentation established total renderer-keydown → switchTab return ≈ 15ms. Hypotheses 4 (modifier release timing) + 5 (upstream consumer race) still open. Instrumentation needed. | Diagnose-only, no fix queued |
+| **ENH-128 walk-4** | HEIC drag-drop verification. Owner-walked only (no code work). Closes the image-handling cluster end-to-end. | Awaiting owner walk |
+| **ENH-162** | Clone modal destination-collision UX. When user picks an existing folder for clone target, current UX is unclear. | Design pending |
+| **ENH-148 v2** | Multi-select v2 — ⇧-click range + ⌘-A select-all + `nav-state.selectedPaths` CLI parity. v1 shipped Sprint 18 (⌘-click). | Spec exists; implementation queued |
+
+### Out of scope (don't pull into Sprint 24)
+
+| ID | Why skip |
 |---|---|
-| [26cfd03](https://github.com/dudgeon/duo/commit/26cfd03) | **ENH-182 Phase 3** — D11 auto-switch + D12 lifecycle/tile right-click menu (Pin/Unpin + bulk-close with claude-kind confirm + persisted `~/.claude/duo/projects.json` + `PROJECTS_CHANGED` broadcast) + **ENH-185 polish** (rail 50px + tooltip wording) |
-| [608034e](https://github.com/dudgeon/duo/commit/608034e) | **ENH-182 Phase 4** — `duo project list/focus/pin/unpin/close` CLI parity (full CLAUDE.md § 4 plumbing) |
-| [f1adf96](https://github.com/dudgeon/duo/commit/f1adf96) | **ENH-182 Phase 2b** — `file://` browser-tab filter by path membership (non-file URLs + pinned tabs cross focuses) |
-| [282b0bc](https://github.com/dudgeon/duo/commit/282b0bc) | **ENH-184** — workspace pill defeaturing (other-claude's foundation + finishing onClick gate + `duo workspace-pill-menu [on\|off\|toggle]` CLI parity) |
+| **BUG-093** split crash | Not reproducing on CLI; needs real user gesture |
+| **BUG-122** save-conflict hypothesis 2/3 | Needs next-repro `last-conflict.log` to advance |
+| **ENH-084 v4** aux glow | Needs 60s owner click-around walk |
+| **ENH-127** composer-window direction | Owner declined (per CLAUDE.md § Open questions) |
+| **ENH-137** Beginner's Guide | Owner-draft pending |
+| **ENH-141** enterprise smoke | Needs real cross-machine test event |
+| **ENH-157** browser-pane comments | Design pending; medium-size architectural change |
+| **FOLLOWUP-021** `duo install --clean` | Edge case; revisit when a real user hits it |
+| **BUG-024** follow-up | Stale; needs re-triage before any work |
+| **17a.5** template gallery | Big chunk; not adjacent to v0.8.x |
+| **Backlinks/graph view** | Obsidian-cluster anchor; needs sprint of its own |
+| **GH-CLUSTER-PROTO gate** | Owner-decision required; not adjacent to ENH-182 polish |
 
-**Smoke walk:** 5/5 PASS via computer-use pre-walk 2026-05-25. Manifest at `docs/dev/smoke-walks/v0.8.0.json`. Items: ENH-185-VISUAL, ENH-182-PHASE-3B-MENU, ENH-182-PHASE-3B-CLOSE, ENH-182-PHASE-3C-AUTOSWITCH, ENH-182-PHASE-2B-BROWSER.
+---
 
-## What's now in the rail (full ENH-182 surface)
+## Suggested commit shape for Sprint 24
 
-- **Phase 1 + 2 (v0.7.10):** auto-derived projects + quiet-bloom tiles + focus filter (terminals + non-browser file tabs) + navigator re-root + Ctrl-Tab respects filter + auto-spawn on empty-terminal focus
-- **Phase 3a:** persisted `~/.claude/duo/projects.json` (pins + color overrides) with `PROJECTS_CHANGED` broadcast pipeline; pinned-projects probe so pins to invalid roots silently drop
-- **Phase 3b:** per-tile right-click menu — `Pin to rail` / `Unpin from rail` (renders a small color-matched dot in the top-right of pinned tiles) + `Close N terminals and M tabs` with live counts; `dialog.confirm` gate when any member terminal is `kind: 'claude'`; atomic membership flush via single `setTabs` / `setFileTabs` updaters; fresh shell appended when closing the entire focus would empty the strip (floor-of-1 preserved)
-- **Phase 3c:** D11 auto-switch focus when `activeWorking` moves to a file whose deepest project ≠ focused (catches both new-file opens AND reactivations of an existing tab — `duo edit` of an already-open file flips focus too)
-- **Phase 4:** full `duo project` verb family — `list`, `focus <name|root>`, `focus --all`, `pin`, `unpin`, `close`. Renderer pushes `ProjectsStateSnapshot` via `PROJECTS_STATE_PUSH` on every change so reads return instantly. Name resolution is case-insensitive against unique names; exact root paths always match. Pin/unpin honor verb semantics (no-op when already in target state).
-- **Phase 2b:** browser-mode `file://` tabs gated by path membership. Non-file URLs (http/https/about) + pinned browser tabs cross focuses as reference material. URL→project resolution via decoded `URL.pathname` + roots-sorted-by-length one-pass lookup (D5 deepest-wins).
+```
+1. chore(v0.8.x-polish): Tier-1 cleanup
+   FOLLOWUP-035 + 036 + 038 + 040. ~50 LOC + smoke-walk manifest entry.
 
-## ENH-184 — workspace pill defeaturing (shipped)
+2. fix(FOLLOWUP-031): hoist claudePresence subscription to App.tsx + React context
+   Eliminates the MaxListeners warning. Refactor: useClaudePresence becomes
+   useContext-based; per-TerminalPane no longer registers a listener.
 
-Other-claude's working tree (uncommitted on `main` across Sprint 22 → most of Sprint 23) landed in [282b0bc](https://github.com/dudgeon/duo/commit/282b0bc) together with this session's finishing onClick gate. Pill is now a passive label by default; workspace ops route through the File menu. Click-to-open-dropdown behavior lives behind a localStorage flag (`duo.workspacePillMenu`) flipped via CLI: `duo workspace-pill-menu [on|off|toggle]`. Cached snapshot syncs renderer → main so bare-reads return live state instantly.
+3. fix(FOLLOWUP-032): in-flight ref for duo project close
+   Gates handleCloseProject on inFlightCloseRef.current.has(root). Prevents
+   double-confirm + stale-count race.
 
-## Sprint 24 — possible starting points
+4. feat(FOLLOWUP-033): ProjectsStateSnapshot.ready flag
+   Renderer flips to true on first push. CLI `duo project list` includes
+   it; agents can poll. Default of false during 1-2s boot window prevents
+   the "is duo just slow or are there no projects?" confusion.
 
-### Top of carry-forward queue
+5. [Tier 3 + carry-forward TBD per owner direction]
 
-- **FOLLOWUP-030** (filed during v0.8.0 audit) — browser-pane active-tab redirect on focus change. When user enters focus and active browser tab is non-member, strip hides the entry but WebContentsView still shows its content. Implementation sketch in `tasks.md § FOLLOWUP-030`.
-- **FOLLOWUP-031** (filed during v0.8.0 audit) — `MaxListenersExceededWarning` on `terminal:claude-presence-changed` (11/10 listeners). Pre-existing; fix candidate is hoisting subscription to App.tsx + React context. Pure cleanup.
-- **BUG-079** Ctrl-Tab cycle latency partial repro. Sprint 22 walk-1 gave us a known-good repro (focus on duo with 1 visible terminal — narrow set; latency present means it's NOT in cycle traversal). Sprint 17 instrumentation established total renderer-keydown → switchTab return ≈ 15ms. Open hypotheses: modifier release timing, upstream consumer race.
+6. smoke walk → cut decision (PATCH v0.8.1 if polish-only; MINOR v0.9.0
+   if a capability lands alongside)
+```
 
-### Older carry-forward (most-recent first)
+---
 
-BUG-093 (split crash) · BUG-122 hypothesis 2/3 · ENH-084 v4 (aux glow) · ENH-127 (composer-window direction) · ENH-128 walk-4 (HEIC drag-drop) · ENH-137 (Beginner's Guide) · ENH-141 (enterprise smoke) · ENH-148 v2 · ENH-157 · ENH-162 (Clone modal collision UX) · FOLLOWUP-021 (`duo install --clean`) · BUG-024 follow-up · 17a.5 (template gallery) · Backlinks/graph view · GH-CLUSTER-PROTO gate.
+## Lessons captured this sprint (will appear here as they accrue)
 
-## Lessons captured this sprint (in addition to Sprint 22 ones)
+*(none yet — Sprint 24 starts here)*
 
-7. **Phase 3c auto-switch hook design.** Initially hooked off `tabMembership` change-detection (looking for new tabs); this failed to fire when a `duo edit` reactivated an existing tab (no `fileTabs` change → no `tabMembership` identity change → no effect). Refactored to hook off `activeWorking` instead — fires on both new-file opens AND tab reactivations. Lesson: think about user intent ("show me this file in its project") not implementation detail ("a new tab was created").
-
-8. **Promise-cancel-on-cleanup destroys async cache hooks** (re-confirmed). The `useProjects` hook documents this pattern with a comment for future maintainers; honor it when extending the hook.
-
-9. **Pre-walking the smoke walk via computer-use is cheap insurance.** Once `request_access` is granted for the Electron dev session, walking every owner-judgment item via `right_click` / `left_click` / `mouse_move` + screenshot verification eliminates the entire owner-walks-fail-then-fix iteration cycle for visual items. ENH-184 visual states (caret toggle, cursor:default) verified in seconds via computer-use; would have taken multiple owner-walk-and-paste-back round trips otherwise.
-
-## Smoke walks
-
-**v0.8.0 walk-1 (2026-05-25) — 5/5 PASS via computer-use pre-walk.** Manifest at [`docs/dev/smoke-walks/v0.8.0.json`](smoke-walks/v0.8.0.json). All 5 owner-judgment items walked by the agent via real mouse/keyboard before handoff; results captured via worksheet primitive's "Mark all Pass" + Copy results pattern. Agent-walked PASS (auto-skipped per intro): `npm test` 786/786 · `npm run typecheck` clean · `duo project list/focus/pin/unpin` round-trips · Phase 3c CLI verification · Phase 2b CLI verification · `duo workspace-pill-menu` CLI roundtrip.
+---
 
 ## Open questions for the next agent
 
-None blocking. Two natural starting points for Sprint 24:
-- **FOLLOWUP-030** browser-pane active-tab redirect — small, ~10 lines, closes the Phase 2b polish gap.
-- **FOLLOWUP-031** claudePresence listener leak — also small (single-subscription hoist), closes a long-standing warning.
+1. **Tier 3 design decisions** — owner picks the shade-variant rule for FOLLOWUP-034, the cache-invalidation strategy for FOLLOWUP-037, the multi-window stance for FOLLOWUP-039. Default direction (if owner unavailable): defer FOLLOWUP-034 (no urgent need; <7 projects in active use today); defer FOLLOWUP-037 (documented limitation); defer FOLLOWUP-039 (no multi-window today).
+
+2. **Carry-forward picks** — which 1-2 to pull in alongside Tier 1+2? Recommended (in order): BUG-079 instrumentation (helpful for next-walk diagnosis) → ENH-128 walk-4 (1-step owner verification, no agent code) → ENH-162 (UX polish, ~30 min).
+
+3. **Cut shape** — PATCH (v0.8.1) or MINOR (v0.9.0)? Decision at cut time: PATCH if Tier 1+2 only land; MINOR if ENH-148 v2 multi-select OR ENH-162 Clone modal lands as a coherent capability.
+
+---
+
+## v0.8.0 — what shipped (Sprint 23 close, recap)
+
+| Commit | Item |
+|---|---|
+| [26cfd03](https://github.com/dudgeon/duo/commit/26cfd03) | **ENH-182 Phase 3** — D11 auto-switch + D12 lifecycle/tile right-click menu + **ENH-185 polish** (50px + tooltip) |
+| [608034e](https://github.com/dudgeon/duo/commit/608034e) | **ENH-182 Phase 4** — `duo project list/focus/pin/unpin/close` CLI parity |
+| [f1adf96](https://github.com/dudgeon/duo/commit/f1adf96) | **ENH-182 Phase 2b** — `file://` browser-tab filter by path membership |
+| [282b0bc](https://github.com/dudgeon/duo/commit/282b0bc) | **ENH-184** — workspace pill defeaturing + `duo workspace-pill-menu` CLI |
+| [c5d6fea](https://github.com/dudgeon/duo/commit/c5d6fea) | Sprint 23 docs sync + what-duo-does entries + PACK.json bump |
+| [4e66419](https://github.com/dudgeon/duo/commit/4e66419) | **FOLLOWUP-030** + **Phase 3c-browser** + **BUG-161/162/163/164** audit fold-in |
+| [e30adf1](https://github.com/dudgeon/duo/commit/e30adf1) | **release: v0.8.0** |
+| [e80c508](https://github.com/dudgeon/duo/commit/e80c508) | chore: bump to v0.8.1 |
+
+**Smoke walk:** 5/5 PASS via computer-use pre-walk 2026-05-25.
+
+---
+
+## Lessons codified previously (carry into Sprint 24)
+
+From Sprint 22 + 23 (now in CLAUDE.md `§ Working style`):
+
+1. **iCloud Optimize Storage is a class-1 dev hazard** — guards live in `scripts/check-materialization.sh` + `predev` hook + CLAUDE.md § Build commands trap doc.
+2. **Promise-cancel-on-cleanup destroys async cache hooks** — pattern in `renderer/hooks/useProjects.ts § comment`.
+3. **Owner directive on `~/.claude` qualification** — pure helper `isExcludedFromQualification(dir, homeDir)`.
+4. **Structural pares need same-commit grep-audit of all consumers.**
+5. **Other-claude tree preservation pattern** — revert-edit-restore dance documented in [`docs/dev/RESUME.md § 8`](RESUME.md).
+6. **DMG version drift trap** — `dist-signed.sh` reads `package.json § version` at packaging time.
+7. **Phase 3c hook-point lesson** — design effects against the state that captures user intent, not the state that captures the side effect.
+8. **Computer-use pre-walking is cheap insurance for smoke walks.**
+9. **Other-claude tree preservation pattern validated over three feature commits.**
