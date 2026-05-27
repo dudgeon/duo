@@ -141,6 +141,13 @@ export function deepestEnclosingRoot(
 export interface QualificationResult {
   isGitRoot: boolean
   hasMarker: boolean
+  /** Whether the directory still exists on disk. Only consulted for
+   *  pinned roots: a pin is its own qualification (D12 — "pin alone
+   *  qualifies"), so a markerless-but-existing pinned folder still
+   *  renders. But a pin whose folder was DELETED is a ghost tile and is
+   *  dropped. `undefined` (probe pending / orchestrator doesn't supply
+   *  it) is treated as "exists" so we never drop a pin speculatively. */
+  exists?: boolean
 }
 
 export interface DeriveProjectsInput {
@@ -225,7 +232,13 @@ export function deriveProjects(input: DeriveProjectsInput): DeriveProjectsOutput
     considerAncestors(dirname(tab.path))
   }
   for (const pinned of pinnedProjects) {
-    probe(pinned)
+    const q = probe(pinned)
+    // D12 — a pinned root is its own qualification (the user asserted
+    // this folder is a project even if markers came and went). The one
+    // exception: a pin whose directory was DELETED is a ghost. Drop it
+    // once an existence probe confirms the dir is gone. `exists ===
+    // undefined` (probe pending / not wired) keeps the pin.
+    if (q.exists === false) continue
     qualifyingSet.add(pinned)
   }
 
@@ -250,7 +263,12 @@ export function deriveProjects(input: DeriveProjectsInput): DeriveProjectsOutput
   for (const root of Object.values(tabMembership)) {
     if (root) projectRoots.add(root)
   }
-  for (const root of pinnedProjects) projectRoots.add(root)
+  for (const root of pinnedProjects) {
+    // Mirror the ghost-pin drop from step 2: a deleted pinned folder
+    // never becomes a rendered project.
+    if (probe(root).exists === false) continue
+    projectRoots.add(root)
+  }
 
   // ── Step 5 — build Project objects ──
   const projects: Project[] = [...projectRoots].map((root) => {

@@ -13,8 +13,27 @@
 // Persistence: Phase 4 uses localStorage for a quick seed across reloads.
 // Phase 7 replaces this with the main-process state.json persistence.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DirEntry } from '@shared/types'
+
+/** Walk up from a now-deleted directory to the nearest ancestor that
+ *  still exists on disk. Returns '/' as the final fallback (root always
+ *  exists). Used to re-root the navigator when its cwd points at a
+ *  directory that was removed out from under it. */
+async function nearestExistingAncestor(deadPath: string): Promise<string> {
+  let cur = deadPath
+  while (true) {
+    const idx = cur.lastIndexOf('/')
+    const parent = idx > 0 ? cur.slice(0, idx) : '/'
+    if (parent === cur) return '/'
+    try {
+      if (await window.electron.files.dirExists(parent)) return parent
+    } catch {
+      /* probe failed — keep walking up */
+    }
+    cur = parent
+  }
+}
 
 const LS_KEY_CWD = 'duo.nav.cwd'
 const LS_KEY_EXPANDED = 'duo.nav.expanded'
@@ -105,10 +124,15 @@ export function useNavigator(initialCwd: string) {
     try { return localStorage.getItem(LS_KEY_SHOW_DOTFILES) === '1' } catch { return false }
   })
   const [listings, setListings] = useState<NavigatorState['listings']>(() => new Map())
+  // Latest cwd, readable from the stable `ensureListing` callback (whose
+  // deps are []). Lets the ENOENT self-heal decide whether the dead path
+  // is the current cwd without re-creating the callback every navigation.
+  const cwdRef = useRef(cwd)
 
   // Persist whenever relevant state changes. Debounce is minimal because
   // these are tiny writes.
   useEffect(() => {
+    cwdRef.current = cwd
     try { localStorage.setItem(LS_KEY_CWD, cwd) } catch { /* storage full or disabled */ }
   }, [cwd])
   useEffect(() => {
@@ -157,6 +181,40 @@ export function useNavigator(initialCwd: string) {
           next.set(path, []) // treat errors as empty; UI can surface later
           return next
         })
+        // Self-heal stale references to a deleted directory. A removed
+        // dir keeps firing ENOENT on every watch-resubscribe — once per
+        // project switch — which is the console spam users see. Confirm
+        // the dir is genuinely gone (a transient/permission error must
+        // NOT drop nav state), then prune it from expanded + the listing
+        // cache + selection so it stops being re-listed. If the dead dir
+        // is the current cwd, re-root to the nearest surviving ancestor.
+        void window.electron.files.dirExists(path).then(exists => {
+          if (exists) return
+          setExpanded(prev => {
+            if (!prev.has(path)) return prev
+            const next = new Set(prev)
+            next.delete(path)
+            return next
+          })
+          setListings(prev => {
+            if (!prev.has(path)) return prev
+            const next = new Map(prev)
+            next.delete(path)
+            return next
+          })
+          setSelectedItems(prev => {
+            if (!prev.has(path)) return prev
+            const next = new Map(prev)
+            next.delete(path)
+            return next
+          })
+          setPrimaryPath(prev => (prev === path ? null : prev))
+          if (cwdRef.current === path) {
+            void nearestExistingAncestor(path).then(fallback => {
+              setCwd(prev => (prev === path ? fallback : prev))
+            })
+          }
+        }).catch(() => { /* probe unreachable — leave nav state intact */ })
       }
     )
   }, [])
