@@ -21,7 +21,27 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.8.0 cut 2026-05-25)*
+> *(empty — v0.8.1 cut 2026-05-26)*
+
+---
+
+## v0.8.1 — 2026-05-26 — Sprint 24 polish wave
+
+**Why this lands here.** Sprint 23 closed the ENH-182 capstone (project-as-filter-layer) and shipped v0.8.0. Sprint 24 was scoped as a focused polish wave — clean up the v0.8.0 audit's deferred follow-ups before any new feature work. What actually landed reads less like polish and more like quality-of-life: every terminal user benefits from BUG-165 (terminal recovers from deleted cwd) and ENH-187 (⌘T follows the live shell cwd), every markdown editor user benefits from BUG-166 (autosave conflict banner stops over-firing), and every user with `ai*`-named projects benefits from ENH-186 (rail tiles now distinguish projects).
+
+**Key design decisions.**
+
+1. **BUG-166's two-refs-not-wider-normalize.** Five months of growing `normalizeForEchoCompare` regex-by-regex to cancel TipTap round-trip artifacts (BUG-107 trailing whitespace, BUG-122 hypothesis 4 soft-break, hypothesis 6 HTML-entity escape, BUG-155 autolinks) hit a wall this sprint — `tasks.md` (1.2MB) surfaced two more gaps (`****X**` → `\*\***X**` bold-marker escape, relative-path `[X](X)` autolink stripping). Rather than add a sixth and seventh regex, we recognized that the baseline ref was answering two semantically-different questions (dirty check vs. conflict check) and split it. The normalize step stays as defense-in-depth for cloud-sync content-preserving touches, but is no longer load-bearing.
+
+2. **BUG-165's nearest-ancestor strategy.** When the terminal's cwd disappears, choices are: fail (the pre-fix "[process exited]"), fall back to `$HOME` (loses context), or walk up to the nearest surviving ancestor (keeps the shell close to where the tab expected to be). Chose nearest-ancestor + a one-line amber notice explaining the jump. The substituted cwd persists to the session, so future respawns don't re-fail. ESC-sanitization on the interpolated paths prevents a POSIX-legal `\x1b` in a path from subverting the color reset.
+
+3. **ENH-187's live-cwd-not-launch-cwd.** The same `lsof`-based live-cwd lookup the workspace-new flow already used got exposed to the renderer as `window.electron.pty.liveCwd(id)`. Both the chord path (`newTab`) and the CLI handler (`onNewTabRequest`) query the focused tab's live cwd before spawning. Three-tier fallback handles dead pids, no-active-terminal, and lsof permission errors gracefully.
+
+4. **ENH-186's two-phase algorithm.** Phase A grows letter-initial candidates until collisions break (multi-word 2 → 3 initials, single-word 2 → 4 letters). Phase B numeric-suffixes the residue. Set operation, pure, deterministic — `useMemo` in `ProjectRail.tsx` recomputes only when the visible project set changes.
+
+**What this is and isn't.** This is a quality-of-life cut that closes three bug classes that hit users daily. It is NOT the v0.9.0 MINOR — Sprint 24 backlog still has FOLLOWUP-031 (claudePresence listener leak), FOLLOWUP-032 (double `duo project close` race), FOLLOWUP-033 (`duo project list` empty during boot), FOLLOWUP-041 (navigator parity with BUG-165), and the carry-forward items (BUG-079 Ctrl-Tab latency, ENH-128 walk-4, ENH-148 v2 multi-select, ENH-162 Clone modal collision) all queued. v0.9.0 lands when a coherent capability ships alongside the next polish wave.
+
+[#55](https://github.com/dudgeon/duo/pull/55) · [#56](https://github.com/dudgeon/duo/pull/56) · [#57](https://github.com/dudgeon/duo/pull/57)
 
 ---
 

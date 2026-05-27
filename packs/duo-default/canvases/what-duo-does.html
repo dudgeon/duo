@@ -502,7 +502,7 @@
   <div class="num">17j</div>
   <div>
     <h3>See your projects in a left-edge rail</h3>
-    <p class="why"><strong>v0.7.10:</strong> a thin left-edge rail surfaces one tile per detected project plus an "All" tile. A folder qualifies as a project when it's a git repo root OR contains <code>CLAUDE.md</code>/<code>.claude/</code> AND you're working in it (at least one terminal cwd or non-pinned tab under it). Tiles render in the locked R1-B "quiet bloom" treatment — paper bg + colored initials + same-hue underline when unfocused. The six hues (pine / harbor / iris / plum / rose / moss) are hash-stable per repo path, so the same project always lights up in the same color.</p>
+    <p class="why"><strong>v0.7.10:</strong> a thin left-edge rail surfaces one tile per detected project plus an "All" tile. A folder qualifies as a project when it's a git repo root OR contains <code>CLAUDE.md</code>/<code>.claude/</code> AND you're working in it (at least one terminal cwd or non-pinned tab under it). Tiles render in the locked R1-B "quiet bloom" treatment — paper bg + colored initials + same-hue underline when unfocused. The six hues (pine / harbor / iris / plum / rose / moss) are hash-stable per repo path, so the same project always lights up in the same color. <strong>v0.8.1:</strong> tile labels are now word-aware + collision-free — <code>ai-platform</code> / <code>ai-models</code> / <code>aipm-dashboard</code> / <code>aipm-tools</code> render as <code>AP</code> / <code>AM</code> / <code>AD</code> / <code>AT</code> instead of all collapsing to a duplicate <code>AI</code>. Pure two-phase algorithm (letter-initial ladder, then numeric suffix); see <code>shared/projects.ts § computeProjectAbbreviations</code>.</p>
     <p class="how"><strong>UI</strong>Visible automatically when you have at least one qualifying project open. Rail hides entirely when nothing qualifies.</p>
   </div>
 </article>
@@ -584,8 +584,8 @@
   <div class="num">18</div>
   <div>
     <h3>Open a vanilla shell tab</h3>
-    <p class="why">A regular zsh / bash session, useful for scripts you don't want Claude in.</p>
-    <p class="how"><strong>UI</strong>Click <code>&gt;</code> on the terminal tab strip, or ⌘T while a terminal has focus (opens at the front terminal's CWD). <strong>CLI</strong><code>duo new-tab --shell</code> <strong>v0.5.3+</strong></p>
+    <p class="why">A regular zsh / bash session, useful for scripts you don't want Claude in. <strong>v0.8.1:</strong> the new tab inherits the focused terminal's LIVE shell cwd — where you've <code>cd</code>'d to, not where the previous tab launched.</p>
+    <p class="how"><strong>UI</strong>Click <code>&gt;</code> on the terminal tab strip, or ⌘T while a terminal has focus. <strong>CLI</strong><code>duo new-tab --shell</code> <strong>v0.5.3+</strong></p>
   </div>
 </article>
 
@@ -602,8 +602,8 @@
   <div class="num">19</div>
   <div>
     <h3>Open a Claude tab</h3>
-    <p class="why">A new terminal tab that auto-launches Claude Code (when <code>claude</code> is on your PATH). Title shows <code>claude · &lt;basename&gt;</code> until the REPL detects.</p>
-    <p class="how"><strong>UI</strong>Click <code>+</code> on the terminal tab strip, or ⌘⇧T from anywhere — from terminal focus, opens at the front terminal's CWD. <strong>CLI</strong><code>duo new-tab --claude</code></p>
+    <p class="why">A new terminal tab that auto-launches Claude Code (when <code>claude</code> is on your PATH). Title shows <code>claude · &lt;basename&gt;</code> until the REPL detects. <strong>v0.8.1:</strong> inherits the focused terminal's LIVE shell cwd (same as the shell variant).</p>
+    <p class="how"><strong>UI</strong>Click <code>+</code> on the terminal tab strip, or ⌘⇧T from anywhere. <strong>CLI</strong><code>duo new-tab --claude</code></p>
   </div>
 </article>
 
@@ -631,6 +631,15 @@
     <h3>Toggle ⌘Return for Claude submit from the Settings menu</h3>
     <p class="why"><strong>v0.7.7:</strong> the new top-level <strong>Settings</strong> menu (between Edit and View) carries one item: <strong>⌘Return for Claude submit</strong>. Click to toggle. When checked, plain Return inserts a newline and ⌘Return submits — same wire as the CLI override above, just visible. Works in any terminal tab running <code>claude</code> (dedicated <code>kind='claude'</code> tabs and shell tabs where you typed <code>claude</code> by hand — broadened in BUG-154).</p>
     <p class="how"><strong>UI</strong>Settings menu → ⌘Return for Claude submit.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="terminal cwd deleted process exited recovery resilience nearest ancestor amber note bug-165">
+  <div class="num">19e</div>
+  <div>
+    <h3>Terminal survives when its working directory disappears</h3>
+    <p class="why"><strong>v0.8.1:</strong> if the folder a terminal is spawned in gets deleted (you <code>rm -rf</code> the repo, <code>git checkout</code> a branch without that path, or another tab cleans the directory), the shell no longer dies as <code>[process exited]</code>. Duo walks up to the nearest surviving ancestor, spawns the shell there, and prints a one-line amber notice — <code>[duo] /path/no-longer-exists no longer exists — opened /path instead.</code> — above the first prompt so you know why the cwd jumped. The substituted cwd persists to the tab so future restarts don't re-fail.</p>
+    <p class="how"><strong>UI</strong>Automatic. The amber line appears above the shell prompt the first time the substitution happens.</p>
   </div>
 </article>
 

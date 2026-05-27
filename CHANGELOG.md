@@ -19,7 +19,53 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.8.0 cut 2026-05-25.
+> Empty — v0.8.1 cut 2026-05-26.
+
+## [0.8.1] — 2026-05-26 — Sprint 24 polish wave
+
+### Added
+- **ENH-186** Project rail tile abbreviations — word-aware + collision-free.
+  Pre-fix `name.slice(0, 2)` collapsed every `ai*` / `aipm*` project to a
+  duplicate "AI" tile. New two-phase algorithm: letter-initial ladder
+  (multi-word `AP` → `APT` → `APD`; single-word `PL` → `PLA` → `PLAT`
+  capped at 4) then numeric suffix for unbreakable collisions. 19 unit
+  tests + interactive mockup at `docs/research/enh-186-project-abbreviations.html`.
+  ([#57](https://github.com/dudgeon/duo/pull/57))
+
+### Changed
+- **ENH-187** `⌘T` / `⌘⇧T` / `duo new-tab` (without `--cwd`) inherits the
+  focused terminal's LIVE shell cwd rather than the navigator's launch cwd.
+  Three-tier fallback: live cwd (`lsof`) → focused tab's launch cwd →
+  `pendingCwd`. Closes a live-vs-launch UX mismatch + a follow-mode race
+  for rapid tab-switch-then-⌘T. New `IPC.PTY_LIVE_CWD` channel exposes
+  the lookup as `window.electron.pty.liveCwd(id)`.
+
+### Fixed
+- **BUG-165** Terminal recovers when its cwd is deleted (was: `[process exited]`
+  forever, sticky across restarts). New `core/cwd-utils.ts § resolveExistingCwd`
+  walks up to the nearest surviving ancestor, persists the resolved cwd to the
+  session, and injects a one-line amber notice into the PTY stream explaining
+  the jump. ESC bytes stripped from the interpolated paths before going into
+  the ANSI-wrapped notice. ([#56](https://github.com/dudgeon/duo/pull/56))
+- **BUG-166** Autosave conflict banner no longer over-fires on first save after
+  open. Root cause: `lastSavedBodyRef` did double duty for the dirty check
+  (where the editor's serialized view is correct) AND the conflict check (where
+  raw disk bytes are correct), turning every TipTap round-trip quirk into a
+  false-positive banner. Split into `lastSavedBodyRef` (dirty check) + new
+  `lastSeenDiskBodyRef` (byte-exact conflict check). The normalize fallback
+  stays as defense-in-depth for content-preserving cloud-sync touches. Closes
+  BUG-122 hypotheses 2/3.
+
+### Docs
+- CLAUDE.md slimmed to always-on index + path-scoped rules in `.claude/rules/`.
+  ([#55](https://github.com/dudgeon/duo/pull/55))
+
+### Known issues
+- **FOLLOWUP-041** Navigator's `files:list` IPC still ENOENTs on a deleted cwd;
+  BUG-165's fallback only landed on the terminal surface. Filed; queued for
+  the next polish wave.
+
+[0.8.1]: https://github.com/dudgeon/duo/compare/v0.8.0...v0.8.1
 
 ## [0.8.0] — 2026-05-25 — ENH-182 capstone: project-as-filter-layer complete
 

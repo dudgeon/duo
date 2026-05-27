@@ -18,6 +18,26 @@
 
 ---
 
+## 2026-05-26 (v0.8.1 cut — Sprint 24 polish wave)
+
+**v0.8.1 cut + tagged locally.** Sprint 24 was scoped as "polish wave: close the v0.8.0 audit follow-ups before any new feature work." What actually landed reads less like polish and more like quality-of-life across the four primary surfaces:
+
+- **#55** ([`f954a49`](https://github.com/dudgeon/duo/commit/f954a49)) — CLAUDE.md slim: always-on index + path-scoped rules in `.claude/rules/` (Sprint 24 kick-off).
+- **#57** ([`9a87d2b`](https://github.com/dudgeon/duo/commit/9a87d2b)) — ENH-186: project rail tile abbreviations word-aware + collision-free. Pre-fix `name.slice(0, 2)` collapsed every `ai*` / `aipm*` project to a duplicate "AI". New two-phase algorithm (letter-initial ladder → numeric suffix). 19 unit tests + interactive mockup.
+- **#56** ([`0c89347`](https://github.com/dudgeon/duo/commit/0c89347)) — BUG-165: terminal recovers when its cwd is deleted (was `[process exited]` forever, sticky across restarts). `core/cwd-utils.ts § resolveExistingCwd` walks up to the nearest surviving ancestor; amber notice prints above the first prompt. ESC bytes stripped from interpolated paths.
+- **BUG-166** ([`84f0004`](https://github.com/dudgeon/duo/commit/84f0004) + [`6d012e0`](https://github.com/dudgeon/duo/commit/6d012e0)) — autosave conflict banner no longer over-fires on first save after open. Root cause: `lastSavedBodyRef` did double duty for the dirty check (where the editor's serialized view is correct) AND the conflict check (where raw disk bytes are correct). Split into `lastSavedBodyRef` + new `lastSeenDiskBodyRef` byte-exact ref. Closes BUG-122 hypotheses 2/3. The five months of growing `normalizeForEchoCompare` regex-by-regex is now defense-in-depth rather than the primary check.
+- **ENH-187** ([`0d303e1`](https://github.com/dudgeon/duo/commit/0d303e1)) — `⌘T` / `⌘⇧T` / `duo new-tab` (without `--cwd`) inherits the focused terminal's LIVE shell cwd rather than the navigator's launch cwd. New `IPC.PTY_LIVE_CWD` channel exposes `getLiveCwdForPid` to the renderer. Three-tier fallback (live → launch → pendingCwd). Closes both a live-vs-launch UX mismatch AND a follow-mode race for rapid tab-switch-then-⌘T.
+
+**Smoke walk pre-cut, all PASS via computer-use:** BUG-165 (amber note appeared after spawn into dead path), BUG-166 (typed space into 1.2MB tasks.md, no banner, no conflict log), ENH-186 (4 `ai*`/`aipm*` projects rendered as AP/AM/AD/AT distinct tiles), ENH-187 (real ⌘T from a tab `cd`'d to a sub-dir spawned the new tab at that sub-dir).
+
+**Lesson codified into memory (`feedback_one_ref_two_purposes_pitfall`):** when a normalize step keeps growing rule-by-rule to cancel quirks, split the ref instead. The architectural fix is cheaper than the regex-per-quirk pattern. BUG-107 / BUG-122 hypotheses 4 + 6 / BUG-155 had stitched 4 regex layers onto `normalizeForEchoCompare`; BUG-166's repro on `tasks.md` (1.2MB) uncovered two more gaps (`****X**` bold-marker escape, relative-path `[X](X)` autolink stripping). The two-refs design retires the pattern.
+
+**FOLLOWUP-041 filed** for the navigator-parity half of BUG-165 (FileTree's `files:list` still ENOENTs on a deleted cwd). Deliberately out of scope for #56 — UI surface needs a live walk; queued for next polish wave.
+
+**Sprint 24 carry-forward queue still open:** FOLLOWUP-031 (claudePresence listener leak), FOLLOWUP-032 (double `duo project close` race), FOLLOWUP-033 (`duo project list` empty during boot), FOLLOWUP-034 through 040 (Tier 1+2 from the v0.8.0 audit not yet pulled in), plus BUG-079 / ENH-128 walk-4 / ENH-148 v2 / ENH-162 from the prior carry-forward list. v0.9.0 MINOR lands when a coherent capability ships alongside the next polish wave.
+
+---
+
 ## 2026-05-25 (v0.8.0 cut — ENH-182 capstone: project-as-filter-layer complete)
 
 **v0.8.0 cut + tagged locally.** Same-day as v0.7.10 — Sprint 23 ran inside the same session. Six commits since v0.7.10 close the ENH-182 capstone end-to-end: Phase 3 (D11 auto-switch + D12 lifecycle/tile right-click menu) + ENH-185 polish in [`26cfd03`](https://github.com/dudgeon/duo/commit/26cfd03); Phase 4 CLI parity (`duo project list/focus/pin/unpin/close`) in [`608034e`](https://github.com/dudgeon/duo/commit/608034e); Phase 2b `file://` browser-tab filter in [`f1adf96`](https://github.com/dudgeon/duo/commit/f1adf96); ENH-184 workspace pill defeaturing + `duo workspace-pill-menu` CLI in [`282b0bc`](https://github.com/dudgeon/duo/commit/282b0bc); Sprint 23 doc sync (tasks.md + active-sprint + RESUME + CLAUDE.md + what-duo-does + PACK.json bump 1.0.14 → 1.0.15) in [`c5d6fea`](https://github.com/dudgeon/duo/commit/c5d6fea); audit fold-in (FOLLOWUP-030 + Phase 3c-browser + BUG-161/162/163/164) in [`4e66419`](https://github.com/dudgeon/duo/commit/4e66419). Smoke walk 5/5 PASS via computer-use pre-walk (manifest `docs/dev/smoke-walks/v0.8.0.json`). 787/787 vitest green (BUG-164 regression test added). Typecheck clean.
