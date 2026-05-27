@@ -1,5 +1,6 @@
 import * as pty from 'node-pty'
 import { DEFAULT_SHELL, DEFAULT_CWD, TERMINAL_DEFAULTS, SOCKET_PATH, SHIM_DIR } from './constants'
+import { resolveExistingCwd } from './cwd-utils'
 import { IPC } from '../shared/types'
 import type { EventSink } from './event-sink'
 
@@ -48,11 +49,19 @@ export class PtyManager {
       DUO_VERSION: this.appVersion,
       TERM_PROGRAM: 'Duo'
     }
+
+    // A PTY spawned into a missing cwd makes its child exit immediately —
+    // the terminal shows "[process exited]" and never recovers, even on
+    // restart, because the saved tab keeps pointing at the dead path.
+    // Triggered when the user deletes the directory the terminal is
+    // sitting in. Spawn in the nearest surviving directory instead.
+    const { cwd: resolvedCwd, substituted } = resolveExistingCwd(cwd, DEFAULT_CWD)
+
     const ptyProcess = pty.spawn(shell, [], {
       name: 'xterm-256color',
       cols: TERMINAL_DEFAULTS.cols,
       rows: TERMINAL_DEFAULTS.rows,
-      cwd,
+      cwd: resolvedCwd,
       env
     })
 
@@ -65,7 +74,21 @@ export class PtyManager {
       this.sessions.delete(id)
     })
 
-    this.sessions.set(id, { id, pty: ptyProcess, cwd })
+    this.sessions.set(id, { id, pty: ptyProcess, cwd: resolvedCwd })
+
+    if (substituted) {
+      // Tell the user why the shell didn't open where the tab expected.
+      // Sent synchronously before any async shell output, so it lands
+      // above the first prompt; the renderer's onData listener is wired
+      // before it calls create(), so the message is never dropped.
+      //
+      // Strip ESC from the interpolated paths first: a path legally
+      // containing 0x1b (POSIX permits it) would otherwise subvert the
+      // color reset or inject arbitrary terminal sequences.
+      const safe = (s: string) => s.replace(/\x1b/g, '?')
+      const note = `\x1b[33m[duo] ${safe(cwd)} no longer exists — opened ${safe(resolvedCwd)} instead.\x1b[0m\r\n`
+      this.eventSink?.send(IPC.PTY_DATA(id), note)
+    }
   }
 
   /** ENH-183 C9 — list live tab ids matching a cwd (in insertion

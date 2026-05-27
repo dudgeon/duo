@@ -8,6 +8,38 @@
 
 > Sprint 24 anchor: close the v0.8.0 audit's deferred follow-ups (FOLLOWUP-031 through 040) before any new feature work. ENH-182 was the marquee chapter; Sprint 24 is its polish epilogue. Definition of done: all 10 FOLLOWUPs closed or explicitly deferred-with-reason. Expected cut shape: v0.8.1 PATCH (polish-only) OR v0.9.0 MINOR if a carry-forward capability lands alongside.
 
+### BUG-165: Terminal stuck on "[process exited]" when its cwd was deleted
+
+**Status:** 🟡 **Fix pushed `claude/terminal-process-exit-DFgEw` 2026-05-26.** **Priority:** High (terminal unusable, no recovery even on restart). **Effort:** ~45 min.
+
+**Symptom (owner repro 2026-05-26).** Terminal sat in a repo dir; owner ran a command that deleted that dir out from under the shell. Terminal showed `[process exited]` and never recovered — every relaunch re-spawned into the same dead path and exited immediately. DevTools also showed `[nav] list failed for /Users/.../aipm/main … ENOENT: no such file or directory, scandir` (the navigator hitting the same dead path — separate symptom, not fixed here).
+
+**Root cause.** `PtyManager.create` passed the tab's saved `cwd` straight to `pty.spawn`. node-pty's child `chdir(cwd)` fails when the dir is gone → child exits instantly → `onExit` → xterm prints `[process exited]`. The saved tab keeps pointing at the dead path, so the failure is sticky across restarts.
+
+**Fix.** New pure helper `core/cwd-utils.ts § resolveExistingCwd(desired, fallback)` — returns the desired dir if it exists, else walks up to the nearest surviving ancestor (keeps the shell close to where the tab expected to be), else the fallback (home), else `/`. `PtyManager.create` resolves the cwd before spawning, stores the resolved cwd in the session, and — when substituted — injects a one-line amber note into the PTY stream (`[duo] <path> no longer exists — opened <resolved> instead.`) so the user understands the jump. The note is sent synchronously before any async shell output and after the renderer has wired its `onData` listener (both `useTerminal.ts` and `TerminalPane.tsx` wire listeners before calling `create`), so it lands above the first prompt and is never dropped.
+
+**Tests.** `core/cwd-utils.test.ts` (6 tests) — existing path unchanged · nearest-ancestor walk · all-the-way-up walk · empty desired → fallback · non-absolute missing → fallback · neither exists → `/`. Extracted as a node-pty-free module so it's testable in CI without the native binding.
+
+**Review hardening (PR #56, owner 2026-05-26).** ESC bytes stripped from the interpolated `cwd` / `resolvedCwd` before they go into the ANSI-wrapped amber note — a path legally containing `0x1b` (POSIX permits it) could otherwise subvert the color reset or inject terminal sequences. One-line `safe()` in `PtyManager.create`.
+
+**Deferred (owner "no action now").** Substituted cwd is persisted to the session, so if the original dir reappears (git checkout, mkdir) the next respawn won't auto-jump back. A `desiredCwd` / `actualCwd` split on the session would let it. Defer unless it's real friction. → tracked here, not yet a numbered item.
+
+**Spun-off follow-up.** → FOLLOWUP-041 (navigator parity).
+
+---
+
+### FOLLOWUP-041: Navigator `files:list` should fall back like the terminal on a deleted cwd
+
+**Status:** 🆕 **Filed 2026-05-26** (PR #56 review, owner request). **Priority:** Medium (half of the two-pane "where am I?" experience stays broken after BUG-165). **Effort:** ~30-45 min + live walk.
+
+**Symptom.** BUG-165 fixed the terminal recovering from a deleted cwd, but the navigator still ENOENTs: `[nav] list failed for /Users/.../aipm/main … ENOENT: no such file or directory, scandir`. The FileTree's `files:list` IPC hits the same dead path and the tree renders empty/errored.
+
+**Fix path (owner suggestion).** Have the navigator's path-bind reuse `core/cwd-utils.ts § resolveExistingCwd` — when `FilesService.list` (or wherever the FileTree binds its root) ENOENTs, walk up to the same nearest-surviving-ancestor, rebind the tree there, and surface a similar one-line note in the navigator chip. Shared helper keeps terminal + navigator fallback behavior identical.
+
+**Why not bundled into PR #56.** Touches the FileTree UI (rebind + chip note) which needs live verification in the running app; BUG-165's PR is a narrow main-process fix. Keep them separate so the urgent terminal fix can merge without waiting on a UI walk.
+
+---
+
 ### ENH-186: Project rail tile abbreviations — word-aware + collision-free
 
 **Status:** 🆕 **Filed + implemented 2026-05-26** (branch `claude/projects-filter-abbreviations-FKeyl`). **Priority:** Medium (daily-driver legibility). **Effort:** ~1.5h.
@@ -24,6 +56,8 @@
 **Visual mockup.** `docs/research/enh-186-project-abbreviations.html` (interactive — type names, watch tiles resolve) + `docs/research/assets/project-filter/abbreviations-before-after.{svg,png}` (before/after + collision ladder).
 
 **Open for review.** (1) Numeric-suffix fallback vs. a 4th-initial / extra-letter scheme for the unbreakable cases — chose numeric for tile width + consistency. (2) Single-word letter cap (4) before numeric.
+
+---
 
 ### FOLLOWUP-035: handleProjectFocus dead-code probe
 
