@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="duo-editable" content="false" />
+<title>ENH-186 — Project tile abbreviations</title>
+<style>
+  /* Atelier palette (renderer/styles/globals.css). Light theme only —
+     this is a review artifact, not a shipped surface. */
+  :root {
+    --paper: #FBF8EE; --paper-deep: #F0E9D6; --paper-edge: #E5DCC1;
+    --paper-rule: #D4C8A6; --ink: #1A1410; --ink-soft: #3D352A;
+    --ink-mute: #7B6F58; --accent: #C66A2E;
+    --pine: #2E7D74; --harbor: #3C6E93; --iris: #5B57A6;
+    --plum: #87508F; --rose: #A4506A; --moss: #69763A;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 40px 64px;
+    background: var(--paper); color: var(--ink);
+    font: 15px/1.5 -apple-system, "Segoe UI", "DejaVu Sans", sans-serif;
+  }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  h2 { font-size: 17px; margin: 36px 0 12px; }
+  .sub { color: var(--ink-mute); margin: 0 0 8px; max-width: 70ch; }
+  code, .mono { font-family: "DejaVu Sans Mono", ui-monospace, monospace; font-size: 0.9em; }
+  .intro {
+    background: var(--paper-deep); border: 1px solid var(--paper-rule);
+    border-radius: 10px; padding: 16px 18px; margin: 18px 0; max-width: 80ch;
+  }
+  .grid { display: grid; grid-template-columns: 1fr auto 1fr; gap: 24px; align-items: start; max-width: 980px; }
+  .panel-label { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--ink-mute); }
+  .panel-label .mono { font-weight: 400; letter-spacing: 0; margin-left: 8px; }
+  .arrow { color: var(--paper-rule); font-size: 30px; align-self: center; }
+  /* rail */
+  .rail { display: inline-flex; flex-direction: column; gap: 10px; padding: 10px 8px;
+    background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 10px; }
+  .tile { position: relative; width: 40px; height: 40px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px; }
+  .tile.all { background: var(--paper); border: 1px solid var(--paper-rule);
+    color: var(--ink-mute); font-size: 12px; font-weight: 600; }
+  .tile .lbl { line-height: 1; }
+  .tile.focused { color: #fff; }
+  .tile.focused::before { content: ""; position: absolute; left: 0; top: 9px;
+    width: 3px; height: 22px; border-radius: 2px; background: #fff; }
+  .tile.quiet .lbl { /* color set inline */ }
+  .tile.quiet::after { content: ""; position: absolute; bottom: 4px; left: 8px;
+    width: 24px; height: 2px; border-radius: 1px; background: currentColor; }
+  .railrow { display: flex; gap: 14px; }
+  .names { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; }
+  .names .n { height: 40px; display: flex; align-items: center; color: var(--ink-soft); }
+  .flag { margin-top: 8px; font-weight: 600; font-size: 13px; }
+  .flag.bad { color: var(--accent); }
+  .flag.good { color: var(--pine); }
+  /* ladder */
+  .ladder { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; max-width: 980px; }
+  .rule h3 { font-size: 13.5px; margin: 0 0 10px; color: var(--ink-soft); }
+  .pair { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .pair .mono { color: var(--ink-soft); }
+  .rule .note { color: var(--ink-mute); font-size: 12px; margin-top: 4px; }
+  /* live demo */
+  .demo { max-width: 980px; }
+  .demo textarea { width: 100%; min-height: 120px; resize: vertical;
+    font-family: "DejaVu Sans Mono", ui-monospace, monospace; font-size: 13px;
+    padding: 10px 12px; border: 1px solid var(--paper-rule); border-radius: 8px;
+    background: var(--paper); color: var(--ink); }
+  .demo .out { display: flex; flex-wrap: wrap; gap: 18px 22px; margin-top: 16px; }
+  .demo .chip { display: flex; align-items: center; gap: 10px; }
+  .demo .chip .mono { color: var(--ink-soft); }
+  .hint { color: var(--ink-mute); font-size: 13px; margin: 6px 0 0; }
+</style>
+</head>
+<body>
+  <h1>Project rail — tile abbreviations</h1>
+  <p class="sub"><strong>ENH-186.</strong> The project rail labels each tile with a short
+  abbreviation of the folder name. The old rule took the first two characters, so every
+  <code>ai-*</code> / <code>aipm-*</code> project collapsed to a duplicate <strong>“AI”</strong>
+  tile. This change derives <em>word-aware</em> initials and resolves collisions across the
+  whole visible set.</p>
+
+  <div class="intro">
+    <strong>The rules</strong>
+    <ul style="margin:8px 0 0; padding-left: 20px;">
+      <li><strong>Multi-word</strong> name → first letters of the first two words
+        (<code>ai-pm-tools</code> → <code>AP</code>).</li>
+      <li>If two tiles collide because their first two words match → expand to
+        <strong>three initials</strong> (<code>APT</code> / <code>APD</code>).</li>
+      <li><strong>Single-word</strong> name → first two letters (<code>platform</code> →
+        <code>PL</code>); on collision, grow one letter at a time (<code>PLAT</code> /
+        <code>PLAN</code>).</li>
+      <li><strong>Proposed fallback</strong> for collisions the letter ladder can’t break
+        (e.g. <code>ai-pm-data</code> vs <code>ai-pm-dashboard</code> — both <code>APD</code>):
+        a numeric suffix by sort order (<code>APD</code>, <code>APD2</code>). The first tile
+        keeps the clean form.</li>
+    </ul>
+  </div>
+
+  <h2>Before / after</h2>
+  <div class="grid">
+    <div>
+      <div class="panel-label">BEFORE <span class="mono">name.slice(0, 2)</span></div>
+      <div class="railrow" style="margin-top:10px;">
+        <div class="rail" id="rail-before"></div>
+        <div class="names" id="names-before"></div>
+      </div>
+      <div class="flag bad">⚠ four tiles, one label</div>
+    </div>
+    <div class="arrow">→</div>
+    <div>
+      <div class="panel-label">AFTER <span class="mono">first letters of first two words</span></div>
+      <div class="railrow" style="margin-top:10px;">
+        <div class="rail" id="rail-after"></div>
+        <div class="names" id="names-after"></div>
+      </div>
+      <div class="flag good">✓ every tile distinct</div>
+    </div>
+  </div>
+
+  <h2>Collision ladder</h2>
+  <div class="ladder" id="ladder"></div>
+
+  <h2>Live demo</h2>
+  <div class="demo">
+    <p class="hint">Type one project folder name per line. Tiles update with the exact
+    algorithm shipped in <code>shared/projects.ts</code>.</p>
+    <textarea id="demo-input">ai-platform
+ai-models
+aipm-dashboard
+aipm-tools
+ai-pm-tools
+ai-pm-dashboard
+ai-pm-data
+platform
+planet
+duo</textarea>
+    <div class="out" id="demo-out"></div>
+  </div>
+
+<script>
+// ── Port of shared/projects.ts computeProjectAbbreviations (ENH-186).
+// Kept in lockstep with the TypeScript source; this is a review demo,
+// not the shipped path.
+const HUES = ['#2E7D74', '#3C6E93', '#5B57A6', '#87508F', '#A4506A', '#69763A'];
+const MAX_MULTIWORD_INITIALS = 3;
+const MAX_SINGLEWORD_LETTERS = 4;
+
+function splitProjectWords(name) {
+  return name
+    .replace(/^\.+/, '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .split(/[\s\-_.]+/)
+    .map(w => w.trim())
+    .filter(Boolean);
+}
+function letterCandidate(words, level) {
+  if (words.length >= 2) {
+    const take = Math.min(2 + level, MAX_MULTIWORD_INITIALS, words.length);
+    return words.slice(0, take).map(w => w[0]).join('').toUpperCase();
+  }
+  const word = words[0] ?? '';
+  if (!word) return '?';
+  const take = Math.min(2 + level, MAX_SINGLEWORD_LETTERS, word.length);
+  return word.slice(0, Math.max(take, 1)).toUpperCase();
+}
+function canEscalate(words, level) {
+  if (words.length >= 2) return 2 + level < Math.min(MAX_MULTIWORD_INITIALS, words.length);
+  const word = words[0] ?? '';
+  return 2 + level < Math.min(MAX_SINGLEWORD_LETTERS, word.length);
+}
+function computeProjectAbbreviations(projects) {
+  const ordered = [...projects].sort(
+    (a, b) => a.name.localeCompare(b.name) || a.root.localeCompare(b.root)
+  );
+  const words = new Map(), level = new Map();
+  for (const p of ordered) { words.set(p.root, splitProjectWords(p.name)); level.set(p.root, 0); }
+  const candidateFor = r => letterCandidate(words.get(r), level.get(r));
+  const groupByCandidate = () => {
+    const g = new Map();
+    for (const p of ordered) {
+      const c = candidateFor(p.root);
+      (g.get(c) || g.set(c, []).get(c)).push(p.root);
+    }
+    return g;
+  };
+  for (let guard = 0; guard < 32; guard++) {
+    let advanced = false;
+    for (const roots of groupByCandidate().values()) {
+      if (roots.length < 2) continue;
+      for (const r of roots) if (canEscalate(words.get(r), level.get(r))) { level.set(r, level.get(r) + 1); advanced = true; }
+    }
+    if (!advanced) break;
+  }
+  const result = new Map();
+  for (const [cand, roots] of groupByCandidate()) {
+    if (roots.length === 1) { result.set(roots[0], cand); continue; }
+    roots.forEach((r, i) => result.set(r, i === 0 ? cand : cand + (i + 1)));
+  }
+  return result;
+}
+
+// djb2 hash → hue index (mirrors hashColorIndex for stable per-name color)
+function hueIndex(s) { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; return h % HUES.length; }
+
+function tileEl(label, hue, focused) {
+  const t = document.createElement('div');
+  t.className = 'tile ' + (focused ? 'focused' : 'quiet');
+  if (focused) t.style.background = hue; else t.style.color = hue;
+  const span = document.createElement('span');
+  span.className = 'lbl'; span.textContent = label;
+  if (label.length >= 4) span.style.fontSize = '12px';
+  if (label.length >= 5) span.style.fontSize = '10px';
+  t.appendChild(span);
+  return t;
+}
+function allTile() { const t = document.createElement('div'); t.className = 'tile all'; t.textContent = 'All'; return t; }
+
+const DEMO = ['ai-platform', 'ai-models', 'aipm-dashboard', 'aipm-tools'];
+const HUE4 = [HUES[0], HUES[1], HUES[2], HUES[3]];
+
+// before/after rails
+function buildBeforeAfter() {
+  const rb = document.getElementById('rail-before'), nb = document.getElementById('names-before');
+  const ra = document.getElementById('rail-after'), na = document.getElementById('names-after');
+  rb.appendChild(allTile()); ra.appendChild(allTile());
+  const after = computeProjectAbbreviations(DEMO.map((name, i) => ({ root: '/' + i + '/' + name, name })));
+  DEMO.forEach((name, i) => {
+    rb.appendChild(tileEl(name.slice(0, 2).toUpperCase(), HUE4[i], i === 0));
+    ra.appendChild(tileEl(after.get('/' + i + '/' + name), HUE4[i], i === 0));
+    const n1 = document.createElement('div'); n1.className = 'n mono'; n1.textContent = name + '/';
+    const n2 = n1.cloneNode(true);
+    nb.appendChild(n1); na.appendChild(n2);
+  });
+}
+
+const LADDER = [
+  ['Same first two words → 3 initials', ['ai-pm-tools', 'ai-pm-dashboard'], 'expand to the third word'],
+  ['Three-word collision → numeric', ['ai-pm-dashboard', 'ai-pm-data'], 'first by sort order stays clean'],
+  ['Single word → extend letters', ['platform', 'planet'], 'grow one letter until distinct']
+];
+function buildLadder() {
+  const host = document.getElementById('ladder');
+  LADDER.forEach(([title, names, note], gi) => {
+    const map = computeProjectAbbreviations(names.map((name, i) => ({ root: '/' + i, name })));
+    const col = document.createElement('div'); col.className = 'rule';
+    const h = document.createElement('h3'); h.textContent = title; col.appendChild(h);
+    names.forEach((name, i) => {
+      const row = document.createElement('div'); row.className = 'pair';
+      row.appendChild(tileEl(map.get('/' + i), HUES[gi % HUES.length], false));
+      const lab = document.createElement('span'); lab.className = 'mono'; lab.textContent = name;
+      row.appendChild(lab); col.appendChild(row);
+    });
+    const nt = document.createElement('div'); nt.className = 'note'; nt.textContent = note; col.appendChild(nt);
+    host.appendChild(col);
+  });
+}
+
+function renderDemo() {
+  const lines = document.getElementById('demo-input').value.split('\n').map(s => s.trim()).filter(Boolean);
+  const projects = lines.map((name, i) => ({ root: '/' + i + '/' + name, name }));
+  const map = computeProjectAbbreviations(projects);
+  const out = document.getElementById('demo-out'); out.innerHTML = '';
+  projects.forEach(p => {
+    const chip = document.createElement('div'); chip.className = 'chip';
+    chip.appendChild(tileEl(map.get(p.root), HUES[hueIndex(p.root)], false));
+    const lab = document.createElement('span'); lab.className = 'mono'; lab.textContent = p.name;
+    chip.appendChild(lab); out.appendChild(chip);
+  });
+}
+
+buildBeforeAfter();
+buildLadder();
+renderDemo();
+document.getElementById('demo-input').addEventListener('input', renderDemo);
+</script>
+</body>
+</html>
