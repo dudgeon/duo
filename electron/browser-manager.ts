@@ -1265,6 +1265,10 @@ export class BrowserManager {
   private wireKeyForwarding(view: WebContentsView): void {
     view.webContents.on('before-input-event', (event, input) => {
       if (input.type !== 'keyDown') return
+      // BUG-189 follow-up — bail if the main window is gone (quit/teardown).
+      // Guards the focus() + both sends below: webContents.send on a
+      // destroyed window throws "Object has been destroyed".
+      if (this.window.isDestroyed() || this.window.webContents.isDestroyed()) return
       const key = input.key.toLowerCase()
 
       // ⌃Tab / ⌃⇧Tab cycle browser tabs. Handled in the renderer, but
@@ -1426,6 +1430,8 @@ export class BrowserManager {
     // focusedColumn = 'working'. Symmetric to the canvas iframe's
     // mousedown forwarder (BUG-037 fix on the renderer side).
     view.webContents.on('focus', () => {
+      // BUG-189 follow-up — bail if the main window is gone (quit/teardown).
+      if (this.window.isDestroyed() || this.window.webContents.isDestroyed()) return
       // Phase 3c BUG-095 fix — forward the tab id + slot so the
       // renderer can distinguish a focus event on the AUX-pinned tab
       // from one on a main-strip tab. Pre-fix the renderer

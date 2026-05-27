@@ -40,7 +40,7 @@
 
 **Verification.** Reasoning + `npm run typecheck` clean. Not run in-app: this is a macOS-only Electron quit-time path and the fix landed in a Linux cloud container (no Electron, node-pty native rebuild unavailable). Owner smoke: launch Duo with a live terminal producing output, then ⌘Q — should quit cleanly with no error dialog.
 
-**Noted follow-up (not in this fix).** `electron/browser-manager.ts` has three still-unguarded `this.window.webContents.send` calls in the key-forward (1274/1405) and focus (1440) handlers. Lower severity — they fire on keyboard/focus events (one-shot, no buffered-data burst), so they can't reproduce the *loop*, at most a single dialog if they race quit. Left for a follow-up so this fix stays scoped to the reported crash.
+**Follow-up (now folded in, same PR).** `electron/browser-manager.ts` had three still-unguarded `this.window.webContents.send` calls in the key-forward (1274/1405) and focus (1440) handlers, plus a `this.window.webContents.focus()` (1397) that would also throw on a destroyed window. Lower severity — they fire on keyboard/focus events (one-shot, no buffered-data burst), so they couldn't reproduce the *loop*, at most a single dialog if they raced quit. Hardened with an early-return guard at the top of each handler (`this.window.isDestroyed() || this.window.webContents.isDestroyed()`) — matching the file's existing inline-guard convention plus the webContents check that was this bug's root cause.
 
 ---
 
