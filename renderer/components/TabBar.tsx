@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react'
-import type { TabSession } from '@shared/types'
+import { useEffect, useRef, useState } from 'react'
+import type { MenuTemplateItem, TabSession } from '@shared/types'
 
 interface TabBarProps {
   tabs: TabSession[]
@@ -28,6 +28,14 @@ interface TabBarProps {
    *  tab fires this with the tab's `cwd`. Parent points the navigator
    *  at the path (same code path as the CLI's `duo reveal`). */
   onRevealCwd?: (cwd: string) => void
+  /** ENH-188 — reorder terminal tabs (move-left/right menu + HTML5
+   *  drag-and-drop). Both ids are members of the visible strip; the
+   *  parent reorders the underlying `tabs` array. Mirrors
+   *  WorkingTabStrip's `onReorderTab`. */
+  onReorderTab?: (sourceId: string, targetId: string) => void
+  /** ENH-188 — right-click → "Close other tabs": close every visible
+   *  terminal tab except the right-clicked one. */
+  onCloseOthers?: (id: string) => void
 }
 
 // Stage 12 Phase 3 — tab-strip rhyme.
@@ -57,8 +65,28 @@ export function TabBar({
   focused = false,
   isTerminalCollapsed = false,
   onToggleTerminalCollapsed,
-  onRevealCwd
+  onRevealCwd,
+  onReorderTab,
+  onCloseOthers
 }: TabBarProps) {
+  // ENH-188 — drag-reorder visual state. The hovered tab paints an
+  // accent insertion cue while a drag is in flight; cleared on drop /
+  // dragend. Mirrors WorkingTabStrip's dropTargetId.
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null)
+
+  // ENH-188 — move a tab one slot left/right within the visible strip.
+  // `tabs` here is already the visible (project-filtered) set, so its
+  // index order IS the strip order. Mirrors WorkingTabStrip.moveTabBy
+  // minus the pinned-zone logic (terminals don't pin).
+  const moveTabBy = (id: string, delta: -1 | 1) => {
+    if (!onReorderTab) return
+    const idx = tabs.findIndex(t => t.id === id)
+    if (idx < 0) return
+    const targetIdx = idx + delta
+    if (targetIdx < 0 || targetIdx >= tabs.length) return
+    onReorderTab(id, tabs[targetIdx].id)
+  }
+
   const cwdSuffix = pendingCwd ? ` in ${pendingCwd}` : ''
   const claudeTip = `New Claude session (⌘T from terminal focus)${cwdSuffix}`
   const shellTip = `New shell tab (⌘⇧T)${cwdSuffix}`
@@ -84,21 +112,47 @@ export function TabBar({
     >
       {/* ENH-132 (Sprint 14, 2026-05-10) — ARIA tablist for screen readers. */}
       <div role="tablist" aria-label="Terminal tabs" className="flex items-end flex-1 overflow-x-auto scrollbar-none gap-0.5">
-        {tabs.map(tab => (
+        {tabs.map((tab, index) => (
           <Tab
             key={tab.id}
             tab={tab}
             isActive={tab.id === activeTabId}
             onSelect={() => onSelect(tab.id)}
-            onClose={(e) => {
-              e.stopPropagation()
-              onClose(tab.id)
-            }}
+            onCloseSelf={() => onClose(tab.id)}
             canClose={tabs.length > 1}
             onRevealCwd={onRevealCwd}
             // ENH-024 — only the active tab gets the ref; previous
             // active tab loses the assignment naturally on re-render.
             buttonRef={tab.id === activeTabId ? activeTabRef : undefined}
+            // ENH-188 — reorder context: position within the visible
+            // strip gates the move-left/right items; the bound mover +
+            // close-others wire the menu actions.
+            index={index}
+            total={tabs.length}
+            canReorder={!!onReorderTab}
+            onMoveTab={(delta) => moveTabBy(tab.id, delta)}
+            onCloseOthers={onCloseOthers ? () => onCloseOthers(tab.id) : undefined}
+            // ENH-188 — HTML5 drag-and-drop reorder. Distinct mime from
+            // the canvas strip so terminal/canvas drags never cross.
+            isDropTarget={dropTargetId === tab.id}
+            onDragStart={onReorderTab ? (e) => {
+              e.dataTransfer.effectAllowed = 'move'
+              e.dataTransfer.setData('application/x-duo-terminal-tab-id', tab.id)
+            } : undefined}
+            onDragOver={onReorderTab ? (e) => {
+              if (e.dataTransfer.types.includes('application/x-duo-terminal-tab-id')) {
+                e.preventDefault()
+                setDropTargetId(tab.id)
+              }
+            } : undefined}
+            onDragLeave={() => setDropTargetId(prev => (prev === tab.id ? null : prev))}
+            onDrop={onReorderTab ? (e) => {
+              e.preventDefault()
+              const sourceId = e.dataTransfer.getData('application/x-duo-terminal-tab-id')
+              setDropTargetId(null)
+              if (sourceId && sourceId !== tab.id) onReorderTab(sourceId, tab.id)
+            } : undefined}
+            onDragEnd={() => setDropTargetId(null)}
           />
         ))}
       </div>
@@ -168,28 +222,87 @@ interface TabProps {
   tab: TabSession
   isActive: boolean
   onSelect: () => void
-  onClose: (e: React.MouseEvent) => void
+  /** ENH-188 — close this tab (menu "Close tab" + the × button). */
+  onCloseSelf: () => void
   canClose: boolean
   /** ENH-024 — passed by the parent on the active tab so it can
    *  `scrollIntoView` whenever the active tab changes. */
   buttonRef?: React.Ref<HTMLButtonElement>
   /** ENH-115 — right-click → Reveal in navigator. */
   onRevealCwd?: (cwd: string) => void
+  /** ENH-188 — position within the visible strip; gates move-left/right. */
+  index: number
+  total: number
+  /** ENH-188 — whether reorder is wired (drag + move items). */
+  canReorder: boolean
+  /** ENH-188 — move this tab one slot left (-1) / right (1). */
+  onMoveTab: (delta: -1 | 1) => void
+  /** ENH-188 — "Close other tabs" (undefined hides the item). */
+  onCloseOthers?: () => void
+  /** ENH-188 — drag-reorder wiring. Undefined handlers ⇒ non-draggable. */
+  isDropTarget?: boolean
+  onDragStart?: (e: React.DragEvent) => void
+  onDragOver?: (e: React.DragEvent) => void
+  onDragLeave?: (e: React.DragEvent) => void
+  onDrop?: (e: React.DragEvent) => void
+  onDragEnd?: (e: React.DragEvent) => void
 }
 
-function Tab({ tab, isActive, onSelect, onClose, canClose, buttonRef, onRevealCwd }: TabProps) {
-  // ENH-115 — right-click → native context menu. Single verb today
-  // ("Reveal in navigator"); leaves room for additional terminal-tab
-  // verbs (Duplicate / Close others) without restructuring.
+function Tab({
+  tab, isActive, onSelect, onCloseSelf, canClose, buttonRef, onRevealCwd,
+  index, total, canReorder, onMoveTab, onCloseOthers,
+  isDropTarget, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd
+}: TabProps) {
+  // ENH-188 — right-click → native context menu, approaching parity
+  // with the canvas-tab menu (WorkingTabStrip). Items are grouped:
+  // reveal / copy-cwd, then move-left/right, then close verbs — each
+  // group separated by a rule (same builder shape as the canvas side).
   const onContextMenu = async (e: React.MouseEvent) => {
     e.preventDefault()
-    if (!onRevealCwd || !tab.cwd) return
-    const res = await window.electron.menu.popup({
-      items: [{ id: 'reveal-cwd', label: 'Reveal in navigator' }],
-      x: e.clientX,
-      y: e.clientY
-    })
-    if (res.chosenId === 'reveal-cwd') onRevealCwd(tab.cwd)
+    const items: MenuTemplateItem[] = []
+    if (onRevealCwd && tab.cwd) items.push({ id: 'reveal-cwd', label: 'Reveal in navigator' })
+    if (tab.cwd) items.push({ id: 'copy-cwd', label: 'Copy cwd' })
+
+    const moveItems: MenuTemplateItem[] = []
+    if (canReorder && index > 0) moveItems.push({ id: 'move-left', label: 'Move tab left' })
+    if (canReorder && index < total - 1) moveItems.push({ id: 'move-right', label: 'Move tab right' })
+    if (moveItems.length) {
+      if (items.length) items.push({ type: 'separator' })
+      items.push(...moveItems)
+    }
+
+    const closeItems: MenuTemplateItem[] = []
+    if (canClose) closeItems.push({ id: 'close', label: 'Close tab' })
+    if (onCloseOthers && total > 1) closeItems.push({ id: 'close-others', label: 'Close other tabs' })
+    if (closeItems.length) {
+      if (items.length) items.push({ type: 'separator' })
+      items.push(...closeItems)
+    }
+
+    if (items.length === 0) return
+    const res = await window.electron.menu.popup({ items, x: e.clientX, y: e.clientY })
+    switch (res.chosenId) {
+      case 'reveal-cwd':
+        if (tab.cwd) onRevealCwd?.(tab.cwd)
+        return
+      case 'copy-cwd':
+        // BUG-105 pattern — main-process clipboard write (no gesture
+        // requirement inside a native NSMenu handler).
+        if (tab.cwd) { try { await window.electron.clipboard.writeText(tab.cwd) } catch { /* denied */ } }
+        return
+      case 'move-left':
+        onMoveTab(-1)
+        return
+      case 'move-right':
+        onMoveTab(1)
+        return
+      case 'close':
+        onCloseSelf()
+        return
+      case 'close-others':
+        onCloseOthers?.()
+        return
+    }
   }
 
   const onClick = () => {
@@ -204,6 +317,14 @@ function Tab({ tab, isActive, onSelect, onClose, canClose, buttonRef, onRevealCw
       aria-selected={isActive}
       onClick={onClick}
       onContextMenu={onContextMenu}
+      // ENH-188 — HTML5 drag-reorder. Draggable only when the parent
+      // wired reorder handlers.
+      draggable={canReorder}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
       className={[
         'group relative flex items-center gap-1.5 px-2.5 h-7 max-w-[200px] rounded-t-lg shrink-0 transition-colors',
         isActive
@@ -211,7 +332,10 @@ function Tab({ tab, isActive, onSelect, onClose, canClose, buttonRef, onRevealCw
           // top + sides via inset shadows (paper-rule). 2px accent stripe
           // at the top renders as an absolute child below.
           ? 'bg-surface-0 text-ink shadow-[inset_0_1px_0_var(--duo-paper-rule),inset_1px_0_var(--duo-paper-rule),inset_-1px_0_var(--duo-paper-rule)] font-serif italic text-[13px] font-medium'
-          : 'text-ink-mute hover:text-ink-soft hover:bg-surface-3 text-xs'
+          : 'text-ink-mute hover:text-ink-soft hover:bg-surface-3 text-xs',
+        // ENH-188 — drop-target insertion cue. Same accent ring the
+        // canvas strip (WorkingTabItem) uses for its drag affordance.
+        isDropTarget ? 'ring-2 ring-accent ring-inset' : ''
       ].join(' ')}
       title={tab.title}
     >
@@ -229,11 +353,11 @@ function Tab({ tab, isActive, onSelect, onClose, canClose, buttonRef, onRevealCw
 
       {canClose && (
         <span
-          onClick={onClose}
+          onClick={(e) => { e.stopPropagation(); onCloseSelf() }}
           role="button"
           tabIndex={0}
           aria-label={`Close ${tab.title}`}
-          onKeyDown={(e) => e.key === 'Enter' && onClose(e as unknown as React.MouseEvent)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onCloseSelf() } }}
           className={[
             'flex items-center justify-center w-3.5 h-3.5 rounded shrink-0 transition-opacity transition-colors',
             isActive

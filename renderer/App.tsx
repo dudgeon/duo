@@ -36,6 +36,7 @@ import { htmlBoilerplate } from './components/Page/htmlBoilerplate'
 import { encodeUtf8 } from './components/editor/markdown-io'
 import { findVaultRoot, resolveWikilinkInVault } from './components/editor/wikilinkResolver'
 import type { TabSession, DirEntry, TerminalTabKind, NewTabResult, PinEntry, SessionState, BrowserTab, ActiveWorkspace } from '@shared/types'
+import { reorderVisible } from '@shared/reorderTabs'
 
 // Stage 10 § D32: auto-collapse the Files column on windows narrower than
 // this. The user can manually re-expand; we don't re-collapse again unless
@@ -1572,6 +1573,44 @@ export function App() {
       return next
     })
   }, [activeTabId])
+
+  // ENH-188 — reorder terminal tabs (drag + move-left/right menu).
+  // Mirrors WorkingPane's `reorderTab` insert-before/after semantics but
+  // operates directly on the `tabs` array (no pinned zones, no separate
+  // order state — array order IS the strip order, and it persists for
+  // free via workspace-save). Both ids are members of the VISIBLE strip
+  // (TabBar only ever hands us visible-tab ids). Under ENH-182 project
+  // focus the strip is a subset, so `reorderVisible` reorders within the
+  // visible subsequence and rebuilds in place — hidden tabs keep their
+  // absolute slots, so a reorder while focused never disturbs another
+  // project's tab order. The transform (+ its hidden-slot invariant) is
+  // unit-tested in `shared/reorderTabs.test.ts`.
+  const reorderTerminalTab = useCallback((sourceId: string, targetId: string) => {
+    setTabs(prev => reorderVisible(prev, sourceId, targetId, (t) =>
+      focusedProject === null || terminalMembership[t.id] === focusedProject))
+  }, [focusedProject, terminalMembership])
+
+  // ENH-188 — "Close other tabs" context-menu verb. Closes every VISIBLE
+  // terminal tab except the kept one (under project focus, other
+  // projects' tabs are untouched). Each closed tab is pushed onto the
+  // ENH-179 closed-tab ring so ⌘Z restores them (re-spawns at the same
+  // cwd/kind — PTY state isn't preserved, matching single-tab close).
+  const closeOtherTabs = useCallback((keepId: string) => {
+    setTabs(prev => {
+      const isVisible = (t: TabSession) =>
+        focusedProject === null || terminalMembership[t.id] === focusedProject
+      const toClose = prev.filter(t => isVisible(t) && t.id !== keepId)
+      if (toClose.length === 0) return prev
+      const closeIds = new Set(toClose.map(t => t.id))
+      const ring = closedTabsRef.current
+      for (const closed of toClose) {
+        ring.push({ kind: 'terminal', cwd: closed.cwd, ptyKind: closed.kind, closedAt: Date.now() })
+        if (ring.length > CLOSED_TABS_MAX) ring.shift()
+      }
+      return prev.filter(t => !closeIds.has(t.id))
+    })
+    setActiveTabId(keepId)
+  }, [focusedProject, terminalMembership])
 
   const updateTabTitle = useCallback((id: string, title: string) => {
     setTabs(prev => prev.map(t => t.id === id ? { ...t, title } : t))
@@ -4009,6 +4048,10 @@ export function App() {
                     nav.actions.navigateTo(cwd)
                     setRevealChip(cwd)
                   }}
+                  // ENH-188 — terminal-tab reorder (drag + move-left/right
+                  // menu) and "Close other tabs", parity with canvas tabs.
+                  onReorderTab={reorderTerminalTab}
+                  onCloseOthers={closeOtherTabs}
                 />
                 <div className="flex-1 overflow-hidden">
                   <TerminalPane
