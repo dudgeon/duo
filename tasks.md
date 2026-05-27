@@ -1,8 +1,6 @@
 # Duo — Bug & Task Backlog
 
-> **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry.
-> ****Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`.
-> ****Pruning policy.** Closed entries stay until the lesson migrates to [DECISIONS.md](http://DECISIONS.md) / [CLAUDE.md](http://CLAUDE.md) plumbing checklist / smoke-checklist (then they're prune candidates). The Sprint 15 cleanup pass (2026-05-10) trimmed BUG-001..BUG-017 (697 lines from the v0.3 / v0.4 era; lessons live in [DECISIONS.md](http://DECISIONS.md) / plumbing checklists / the smoke-checklist). Cross-references to those IDs may still appear inline in other entries as historical citations — see git history before commit `<v0.6.13-cleanup>` for the original writeups. Next prune candidate: closed BUG-018..BUG-040 era entries once their lessons similarly internalize.
+> **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Pruning policy.** Closed entries stay until the lesson migrates to [DECISIONS.md](http://DECISIONS.md) / [CLAUDE.md](http://CLAUDE.md) plumbing checklist / smoke-checklist (then they're prune candidates). The Sprint 15 cleanup pass (2026-05-10) trimmed BUG-001..BUG-017 (697 lines from the v0.3 / v0.4 era; lessons live in [DECISIONS.md](http://DECISIONS.md) / plumbing checklists / the smoke-checklist). Cross-references to those IDs may still appear inline in other entries as historical citations — see git history before commit `<v0.6.13-cleanup>` for the original writeups. Next prune candidate: closed BUG-018..BUG-040 era entries once their lessons similarly internalize.
 
 ## Sprint 24 / v0.8.1 — v0.8.x polish wave (starting)
 
@@ -63,7 +61,7 @@
 
 **Status:** 🆕 **Filed 2026-05-25** (v0.8.0 audit, Tier 1). **Priority:** Low. **Effort:** 5 min.
 
-**Symptom.** Audit agent flagged `renderer/App.tsx` ~901 declaration of `handleProjectFocus` callback but couldn't find its use site. Possible: dead code, OR shadowed by an inline JSX lambda in `<ProjectRail onFocus={...}>`.
+**Symptom.** Audit agent flagged `renderer/App.tsx` \~901 declaration of `handleProjectFocus` callback but couldn't find its use site. Possible: dead code, OR shadowed by an inline JSX lambda in `<ProjectRail onFocus={...}>`.
 
 **Fix path.** Grep for `handleProjectFocus` uses; check `<ProjectRail` props; if confirmed dead, remove the declaration + dep array. If actually used (audit was wrong), leave + add a code comment pointing at the call site for future grep audits.
 
@@ -75,7 +73,7 @@
 
 **Status:** 🆕 **Filed 2026-05-25** (v0.8.0 audit, Tier 1). **Priority:** Low (a11y polish). **Effort:** 5 min.
 
-**Symptom.** `renderer/App.tsx` ~3545 — focus-release chip has both visible text "Focused: {name}" AND `aria-label="Release focus ({name})"`. Screen reader reads "Focused: duo, button, Release focus (duo)" — repetitive.
+**Symptom.** `renderer/App.tsx` \~3545 — focus-release chip has both visible text "Focused: {name}" AND `aria-label="Release focus ({name})"`. Screen reader reads "Focused: duo, button, Release focus (duo)" — repetitive.
 
 **Fix.** Drop `({name})` from aria-label (visible text already conveys it) OR simplify aria-label to just "Release focus." Pick the latter — keeps the button-purpose statement clean.
 
@@ -87,7 +85,7 @@
 
 **Status:** 🆕 **Filed 2026-05-25** (v0.8.0 audit, Tier 1). **Priority:** Low. **Effort:** 5 min.
 
-**Symptom.** `renderer/hooks/useWorkspacePillMenuFlag.ts` ~41-43 — `function refresh(event: StorageEvent | CustomEvent) { if ('key' in event && event.key && event.key !== LS_KEY) return }`. `'key' in event` is always true on `StorageEvent` AND any CustomEvent that incidentally carries a `key` field. The narrowing intent is "skip storage events for other keys"; a malicious/coincidental CustomEvent on the EVENT channel carrying a `key` field would also be filtered.
+**Symptom.** `renderer/hooks/useWorkspacePillMenuFlag.ts` \~41-43 — `function refresh(event: StorageEvent | CustomEvent) { if ('key' in event && event.key && event.key !== LS_KEY) return }`. `'key' in event` is always true on `StorageEvent` AND any CustomEvent that incidentally carries a `key` field. The narrowing intent is "skip storage events for other keys"; a malicious/coincidental CustomEvent on the EVENT channel carrying a `key` field would also be filtered.
 
 **Practically benign.** We dispatch a bare `CustomEvent` (no `key` field), so the filter never fires for our own events. Add a code comment explaining the intent + acknowledging the edge case.
 
@@ -102,6 +100,7 @@
 **Why.** ENH-184 defeaturing made the workspace pill a passive label. The audit noted: `WorkspaceSwitcherDropdown.tsx`'s `handleNew` was unchanged (still calls `window.electron.workspaceFile.newWorkspace()`), and the native File menu's `New Workspace` handler routes through the same bridge. Worth one explicit smoke item with `duo workspace-pill-menu off` to verify the menu path still works post-defeaturing.
 
 **Fix.** Add a smoke walk item to the next manifest:
+
 ```json
 {
   "id": "ENH-184-FILE-MENU-NEW-WORKSPACE",
@@ -120,15 +119,16 @@
 
 ### FOLLOWUP-031: MaxListenersExceededWarning — hoist claudePresence subscription
 
-**Status:** 🆕 **Filed 2026-05-25** (v0.8.0 audit, Tier 2). **Priority:** **High** (biggest user-facing impact in Sprint 24). **Effort:** ~30 min.
+**Status:** 🆕 **Filed 2026-05-25** (v0.8.0 audit, Tier 2). **Priority:** **High** (biggest user-facing impact in Sprint 24). **Effort:** \~30 min.
 
 **Symptom.** Renderer log emits `(node:NNNN) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 terminal:claude-presence-changed listeners added to [IpcRenderer]. MaxListeners is 10.` during normal use of a multi-terminal-tab session.
 
-**Root cause.** `renderer/hooks/useClaudePresence.ts:15-19` registers a listener per component mount; each `TerminalPane` invocation creates one. With ~10+ terminal tabs (a routine state), the count exceeds Node's default 10-listener warning threshold. Listeners are properly removed on unmount, but the warning fires the moment count exceeds 10 — even transiently while a tab spawns/closes.
+**Root cause.** `renderer/hooks/useClaudePresence.ts:15-19` registers a listener per component mount; each `TerminalPane` invocation creates one. With \~10+ terminal tabs (a routine state), the count exceeds Node's default 10-listener warning threshold. Listeners are properly removed on unmount, but the warning fires the moment count exceeds 10 — even transiently while a tab spawns/closes.
 
 **Fix path.** Hoist the subscription to App.tsx + push state down via React context. Mirrors the existing `useFrontTerminalClaudeLive` pattern. One subscription total (App.tsx level); `useClaudePresence` becomes a `useContext` consumer; no per-TerminalPane listener registration.
 
 **Implementation sketch:**
+
 1. Create `renderer/contexts/ClaudePresenceContext.tsx` — provider holds the per-tab presence map, subscribes to `window.electron.terminal.onClaudePresenceChange` once at App mount.
 2. App.tsx wraps children in `<ClaudePresenceContext.Provider>`.
 3. `useClaudePresence` becomes `useContext(ClaudePresenceContext)` — returns the map (or a per-tab getter).
@@ -142,7 +142,7 @@
 
 ### FOLLOWUP-032: Double `duo project close` race
 
-**Status:** 🆕 **Filed 2026-05-25** (v0.8.0 audit, Tier 2). **Priority:** Low (rare CLI race). **Effort:** ~20 min.
+**Status:** 🆕 **Filed 2026-05-25** (v0.8.0 audit, Tier 2). **Priority:** Low (rare CLI race). **Effort:** \~20 min.
 
 **Symptom.** `electron/main.ts:309-317` `requestProjectClose` just sends an IPC event; no lock. Two parallel CLI calls send two `PROJECTS_CLOSE_REQUEST` events, renderer's `handleCloseProject` runs twice. The second invocation reads stale `projectCounts.get(root)` (still has live counts; React state hasn't re-derived yet from the first close), shows a second confirm dialog.
 
@@ -170,18 +170,19 @@ const handleCloseProject = useCallback(async (root: string) => {
 
 ### FOLLOWUP-033: `duo project list` empty during 1-2s renderer-boot window
 
-**Status:** 🆕 **Filed 2026-05-25** (v0.8.0 audit, Tier 2). **Priority:** Medium. **Effort:** ~30 min.
+**Status:** 🆕 **Filed 2026-05-25** (v0.8.0 audit, Tier 2). **Priority:** Medium. **Effort:** \~30 min.
 
-**Symptom.** `electron/main.ts:292-296` — `projectsState` initializes to `{projects:[], focusedProject:null, counts:{}}`. The renderer's `PROJECTS_STATE_PUSH` only fires after `useProjects` settles + initial qualify probes complete. Between Duo launch and first push (~1-2s), `duo project list` returns the empty default — indistinguishable from "no projects open."
+**Symptom.** `electron/main.ts:292-296` — `projectsState` initializes to `{projects:[], focusedProject:null, counts:{}}`. The renderer's `PROJECTS_STATE_PUSH` only fires after `useProjects` settles + initial qualify probes complete. Between Duo launch and first push (\~1-2s), `duo project list` returns the empty default — indistinguishable from "no projects open."
 
 **Repro.** Restart Duo, immediately run `duo project list` → `{ projects: [], focusedProject: null, counts: {} }`. Same shape as "no projects."
 
 **Fix.** Add `ready: boolean` to `ProjectsStateSnapshot`:
+
 - Default false at main-side `projectsState` initialization.
 - Renderer's `pushState` always sends `ready: true`.
 - CLI emits warning when reading `ready: false`: *"renderer not yet ready (Duo is still booting / probing projects). Retry in 1-2s."*
 
-**Alternative:** block the CLI call until `ready: true` with a timeout (~3s). Simpler from the agent's perspective but less observable.
+**Alternative:** block the CLI call until `ready: true` with a timeout (\~3s). Simpler from the agent's perspective but less observable.
 
 **Recommendation.** Add the `ready` flag + emit the warning. Leave blocking as a future enhancement. Agent retry logic is cheap; the warning is the right diagnostic.
 
@@ -191,17 +192,18 @@ const handleCloseProject = useCallback(async (root: string) => {
 
 ### FOLLOWUP-034: Rail-color rotation past 6 projects (Tier 3 — owner decision)
 
-**Status:** 🆕 **Filed 2026-05-25** (v0.8.0 audit, Tier 3 — design-gated). **Priority:** Low (PRD R2 planned; not user-blocking — most workflows have <7 projects).
+**Status:** 🆕 **Filed 2026-05-25** (v0.8.0 audit, Tier 3 — design-gated). **Priority:** Low (PRD R2 planned; not user-blocking — most workflows have &lt;7 projects).
 
 **PRD context.** R2 says hash-stable `colorIndex = hash(rootPath) % 6`. With 6 hash buckets, 50% collision probability at 4 projects (birthday paradox; P(no collision, N=4, K=6) ≈ 0.278). Past 6 projects, PRD says "rotate shade variants" — unspecified shape.
 
 **Owner decision needed.** What's the shade-variant rule?
+
 - **Option A** — `colorIndex × variant_count` (e.g. 6 hues × 2 lightness = 12 effective slots; double-hash determines lightness).
 - **Option B** — overlay marker (a small dot/stripe in a secondary color on collision).
 - **Option C** — saturation shift (same hue, desaturated for the second hit).
 - **Option D** — defer (current state — collisions silently happen; user sees two same-color tiles).
 
-**Recommended default if owner unavailable:** Option D (defer). No urgent need; <7 active projects in typical use.
+**Recommended default if owner unavailable:** Option D (defer). No urgent need; &lt;7 active projects in typical use.
 
 ---
 
@@ -212,6 +214,7 @@ const handleCloseProject = useCallback(async (root: string) => {
 **Symptom.** `renderer/hooks/useProjects.ts:13` — "no invalidation" comment is correct: if a user pins a project, then deletes `CLAUDE.md` from outside Duo, the cached `markerResults` STILL shows `true` for the session. Result: ghost tile persists in rail across the session. Re-launching Duo clears the cache.
 
 **Owner decision needed.** Invalidation strategy?
+
 - **Option A** — `fs.watch` on each cached candidate dir. Most reactive; adds N filesystem watchers per session (memory + handle cost).
 - **Option B** — Invalidate on focus change. Periodic re-probe; cheap; lag is one focus-change.
 - **Option C** — Drop cache + re-probe every N minutes. Simplest; not very reactive.
@@ -228,6 +231,7 @@ const handleCloseProject = useCallback(async (root: string) => {
 **Symptom.** `setWorkspacePillMenuFlag` writes localStorage in one window; another window (if it existed) receives a `storage` event (origin-window doesn't fire `storage`, others do) but ALSO the in-window `CustomEvent` fires only in the origin window. Today Duo is single-window; not exploitable.
 
 **Owner decision needed.**
+
 - **Option A** — Defer until multi-window ships (current state).
 - **Option B** — Pre-emptively use `BroadcastChannel` API for cross-window coordination.
 
@@ -244,33 +248,37 @@ const handleCloseProject = useCallback(async (root: string) => {
 **Status:** ✅ **Shipped v0.8.0** (commit pending). Background ENH-182 audit by general-purpose agent surfaced 5 polish items that fold into the same cut. Listed below.
 
 **FOLLOWUP-030 — browser-pane active-tab redirect on focus change.** The Phase 2b filter hides non-member `file://` browser tabs from the strip but the browser pane (one shared `WebContentsView`) keeps rendering the active tab's content. Result: user enters focus on duo with `/tmp/notes.html` active → strip drops the entry → pane still shows /tmp content → disorientation (no UI affordance to close or switch away). Fix lives in `renderer/App.tsx` as a two-effect state machine:
+
 1. On `focusedProject` change, set `pendingBrowserRedirect = focusedProject`.
 2. Apply effect runs on every relevant state change; drains the pending redirect once browser state has converged (browserTabs populated, activeWorking committed, visibleBrowserTabIds derived). Skips when active tab is already a visible member, when activeWorking.kind isn't 'browser', or when the user has changed focus AGAIN before the pending could apply.
 
 Resolution priority (mirrors the Phase 2 file-side fallback):
+
 - Active is visible member → no-op.
-- Hidden + true-member browser tabs exist → `switchTab(firstMember)`. **Critically: TRUE members only — pinned cross-project tabs are skipped, even though they're in `visibleBrowserTabIds`. Landing on a pinned-from-elsewhere tab chains into Phase 3c-browser auto-switching focus to that tab's actual project (the very disorientation FOLLOWUP-030 was filed to fix).**
+- Hidden + true-member browser tabs exist → `switchTab(firstMember)`. **Critically: TRUE members only — pinned cross-project tabs are skipped, even though they're in** `visibleBrowserTabIds`**. Landing on a pinned-from-elsewhere tab chains into Phase 3c-browser auto-switching focus to that tab's actual project (the very disorientation FOLLOWUP-030 was filed to fix).**
 - Hidden + no true members + member file tabs exist → flip activeWorking.kind to 'file'.
 - Hidden + nothing of mine open → leave alone (last resort — focus chip + strip filter still signal the lens is active).
 
 **Phase 3c-browser — D11 auto-switch parallel for browser-tab activation.** Existing Phase 3c (v0.8.0 capstone) only handled `activeWorking.kind === 'file'`. Browser-tab activation in another project (e.g. `duo open <some-other-project-html>` while focused on duo) didn't switch focus. Now mirrors the file effect: when activeWorking moves to a browser tab whose `file://` URL resolves to a project ≠ focused, flip focus. Browser tabs with no project membership (non-file URLs, /tmp, paths under no qualifying root) don't trigger a switch — those are reference material; FOLLOWUP-030 handles their visibility.
 
 **BUG-161 — ⌘W / strip-× focus trap.** Direct close paths (⌘W or strip × on the last member terminal/file tab) left the user focus-trapped. Bulk-close via the rail right-click menu already releases focus; the direct close paths didn't. Fix lives in a separate `useEffect` that watches `[focusedProject, projectCounts, railProjects]`:
+
 - Two-layer guard against the probe-pending window (terminalMembership / tabMembership briefly null while qualify probes are in-flight, producing transient 0/0 counts):
   1. Don't release on undefined counts.
-  2. Don't release unless we've previously OBSERVED this project with > 0 members in this session (tracked in `previousNonZeroCountsRef`).
+  2. Don't release unless we've previously OBSERVED this project with &gt; 0 members in this session (tracked in `previousNonZeroCountsRef`).
 - Pinned projects skip the release (D12 says pinned tiles persist with 0 members).
 
-**BUG-162 — `/private/tmp` symlink shadow.** macOS resolves `/tmp/X` to `/private/tmp/X` at realpath. Git returns the `/private` form; browser tabs opened via `duo open /tmp/X` arrive as `file:///tmp/X`. String compare in `browserTabMembership` missed. Fix: build TWO candidate paths (raw + `/private/` stripped or prepended) and try each against the sorted roots.
+**BUG-162 —** `/private/tmp` **symlink shadow.** macOS resolves `/tmp/X` to `/private/tmp/X` at realpath. Git returns the `/private` form; browser tabs opened via `duo open /tmp/X` arrive as `file:///tmp/X`. String compare in `browserTabMembership` missed. Fix: build TWO candidate paths (raw + `/private/` stripped or prepended) and try each against the sorted roots.
 
-**BUG-163 — `resolveProjectRef` silent on ambiguous name match.** When two projects shared a name (e.g. two `docs` folders open), `resolveProjectRef` returned `null` with a misleading "No project matched" error. Fix changes the return shape to `{ root }` | `{ ambiguous: string[] }` | `null`, and the socket-server emits *"Ambiguous name 'X' matches N projects: /a, /b. Pass the full root path to disambiguate."*
+**BUG-163 —** `resolveProjectRef` **silent on ambiguous name match.** When two projects shared a name (e.g. two `docs` folders open), `resolveProjectRef` returned `null` with a misleading "No project matched" error. Fix changes the return shape to `{ root }` | `{ ambiguous: string[] }` | `null`, and the socket-server emits *"Ambiguous name 'X' matches N projects: /a, /b. Pass the full root path to disambiguate."*
 
-**BUG-164 — `normalizeProjectsFile` doesn't dedupe pins.** Hand-edited `~/.claude/duo/projects.json` with `["/foo", "/foo"]` left `togglePin('/foo')` removing only the first occurrence (`indexOf` + `splice`). Fix: `Array.from(new Set(...))` in normalize. New regression test in `core/projects-service.test.ts`.
+**BUG-164 —** `normalizeProjectsFile` **doesn't dedupe pins.** Hand-edited `~/.claude/duo/projects.json` with `["/foo", "/foo"]` left `togglePin('/foo')` removing only the first occurrence (`indexOf` + `splice`). Fix: `Array.from(new Set(...))` in normalize. New regression test in `core/projects-service.test.ts`.
 
 **Verification (live in v0.8.0 dev):**
+
 - Test 1 — focus duo with /tmp tab active → redirect lands on id=2 (Smoke walk v0.7.9, true duo member), NOT id=1 (What Duo Does pinned cross-project). Focus stays on duo. ✓
 - Test 2 — user opens /tmp tab while focused on duo → /tmp tab activates and stays active; focus stays on duo. Phase 3c-browser correctly skips for null-membership tabs. ✓
-- Test 3 — user opens ~/.claude/.../what-duo-does.html while focused on duo → Phase 3c-browser auto-switches focus to .claude. ✓
+- Test 3 — user opens \~/.claude/.../what-duo-does.html while focused on duo → Phase 3c-browser auto-switches focus to .claude. ✓
 - Test 4 — `duo project close duo` releases focus (then Phase 3c-browser auto-switches to .claude because What Duo Does is active and is a .claude member). ✓
 - Test BUG-163 — `duo project focus nonexistent` returns "No project matched..." error correctly. (Ambiguity error only fires when two projects share a name; not testable in this dev session without setting one up.)
 - Test BUG-164 — `normalizeProjectsFile({pins:['/foo','/bar','/foo','/baz','/bar']})` → `['/foo','/bar','/baz']`. New regression test passes (787/787).
@@ -283,9 +291,9 @@ Background audit (agent ac060771dc81e76f5) surfaced additional polish items that
 
 - **FOLLOWUP-032** — double `duo project close` race. Two parallel CLI calls send two `PROJECTS_CLOSE_REQUEST` events; handleCloseProject runs twice; second invocation reads stale `projectCounts.get(root)`. Stacks two dialogs if claude-kind. Fix: in handleCloseProject, gate on `inFlightCloseRef.current.has(root)`. **Severity:** Low (rare CLI race).
 - **FOLLOWUP-033** — `duo project list` returns empty silently during 1-2s renderer-boot window. Renderer hasn't pushed first snapshot; main returns empty default — indistinguishable from "no projects open." Fix: add `ready: boolean` to ProjectsStateSnapshot flipped on first push; CLI warns "renderer not yet ready" when false. **Severity:** Medium.
-- **FOLLOWUP-034** — rail-color rotation past 6 projects. PRD R2 says "rotate shade variants past 6" — not implemented. ~50% collision probability at 4 projects (birthday paradox; P(no collision, N=4, K=6) ≈ 0.278). **Severity:** Low (planned per PRD; not user-blocking).
-- **FOLLOWUP-035** — `handleProjectFocus` may be dead code. Defined at App.tsx ~901 but its use site wasn't found in audit grep; could be shadowed by inline JSX lambda. Verify + remove if dead.
-- **FOLLOWUP-036** — Focus-release chip aria-label awkward. App.tsx ~3545 reads "Focused: duo, button, Release focus (duo)" — repetitive. Drop the visible-text from the aria-label or simplify to "Release focus."
+- **FOLLOWUP-034** — rail-color rotation past 6 projects. PRD R2 says "rotate shade variants past 6" — not implemented. \~50% collision probability at 4 projects (birthday paradox; P(no collision, N=4, K=6) ≈ 0.278). **Severity:** Low (planned per PRD; not user-blocking).
+- **FOLLOWUP-035** — `handleProjectFocus` may be dead code. Defined at App.tsx \~901 but its use site wasn't found in audit grep; could be shadowed by inline JSX lambda. Verify + remove if dead.
+- **FOLLOWUP-036** — Focus-release chip aria-label awkward. App.tsx \~3545 reads "Focused: duo, button, Release focus (duo)" — repetitive. Drop the visible-text from the aria-label or simplify to "Release focus."
 - **FOLLOWUP-037** — `useProjects` probe-after-delete cache: if pinned project's marker is deleted out-of-Duo mid-session, `markerResults` cache still shows true → ghost tile persists. Documented limitation; revisit if real users hit it.
 - **FOLLOWUP-038** — `useWorkspacePillMenuFlag` TS narrowing of `'key' in event` ambiguous between StorageEvent + CustomEvent with `key` field. Practically benign (we dispatch bare CustomEvent); worth a code comment.
 - **FOLLOWUP-039** — Cross-window race on `duo workspace-pill-menu`. No multi-window today; future-proofing.
@@ -311,7 +319,7 @@ Background audit (agent ac060771dc81e76f5) surfaced additional polish items that
 - **Phase 2b:** browser-mode `file://` tabs gated by path membership. Non-file URLs (http/https/about) + pinned browser tabs cross focuses as reference material. URL→project resolution via decoded `URL.pathname` + sorted root-by-length lookup (D5 deepest-wins, one-pass).
 - **ENH-185 polish:** rail width `w-14 → w-[50px]` (10% narrower) + tooltip wording `Project: {name}` (root path on aria-label for accessibility)
 
-**Locked decisions reference:** [`docs/prd/enh-182-project-centric-ux.md`](docs/prd/enh-182-project-centric-ux.md) D1–D12 + R1–R3. Design assets at `docs/research/project-centric-ux.html` + `project-rail-style-study.html`.
+**Locked decisions reference:** `docs/prd/enh-182-project-centric-ux.md` D1–D12 + R1–R3. Design assets at `docs/research/project-centric-ux.html` + `project-rail-style-study.html`.
 
 **Smoke walk:** 5/5 PASS via computer-use pre-walk 2026-05-25. Items: ENH-185-VISUAL (rail width + tooltip) · ENH-182-PHASE-3B-MENU (right-click Pin/Unpin + dot toggle) · ENH-182-PHASE-3B-CLOSE (claude-kind confirm dialog + atomic flush + tile drop) · ENH-182-PHASE-3C-AUTOSWITCH (focus chip flip on file-open from another project) · ENH-182-PHASE-2B-BROWSER (file:// filter + pinned cross-focus + All-restore). Manifest at `docs/dev/smoke-walks/v0.8.0.json`.
 
@@ -343,6 +351,7 @@ Background audit (agent ac060771dc81e76f5) surfaced additional polish items that
 **Hypothesis.** The `useClaudePresence` hook at `renderer/hooks/useClaudePresence.ts:15-19` registers a listener per component mount; each `TerminalPane` invocation creates one. With many terminal tabs (the test session had 9+), the registered count exceeds Node's default 10-listener warning threshold. Listeners are properly removed on unmount, but the warning fires the moment count exceeds 10 — even transiently while a tab spawns/closes.
 
 **Fix candidates.**
+
 1. Use a single subscription at the App.tsx level + push state down via React context (matches the `useFrontTerminalClaudeLive` pattern). Eliminates per-tab listener.
 2. Bump `ipcRenderer.setMaxListeners(N)` for this specific channel during app boot.
 3. Refactor main-side broadcast so each tab gets its own dedicated IPC channel (decouples listener counts).
@@ -353,12 +362,13 @@ Background audit (agent ac060771dc81e76f5) surfaced additional polish items that
 
 ### ENH-184 — workspace pill defeaturing — SHIPPED v0.8.0 (2026-05-25)
 
-**Status:** ✅ **Shipped v0.8.0** ([282b0bc](https://github.com/dudgeon/duo/commit/282b0bc)). Closes the Sprint 22 → Sprint 23 carry-forward. Other-claude's foundation (`useWorkspacePillMenuFlag.ts` + `WSD.tsx` handler fix + App.tsx flag declaration) was preserved untouched across Phase 3/4/2b commits per CLAUDE.md § 7d, then landed together with this session's finishing onClick gate + CLI parity verb in one commit.
+**Status:** ✅ **Shipped v0.8.0** ([282b0bc](https://github.com/dudgeon/duo/commit/282b0bc)). Closes the Sprint 22 → Sprint 23 carry-forward. Other-claude's foundation (`useWorkspacePillMenuFlag.ts` + `WSD.tsx` handler fix + App.tsx flag declaration) was preserved untouched across Phase 3/4/2b commits per [CLAUDE.md](http://CLAUDE.md) § 7d, then landed together with this session's finishing onClick gate + CLI parity verb in one commit.
 
 **What landed.**
+
 - Pill button: `onClick` gated on `workspacePillMenuEnabled`. When OFF → click is no-op + caret hidden + `cursor: default` + tooltip routes user to File menu. When ON → ENH-171 dropdown gesture restored verbatim.
 - `<WorkspaceSwitcherDropdown>` conditionally mounted only when flag is ON (avoids the stale `workspaceMenuOpen=true` re-opening after a CLI flip back to OFF).
-- CLI verb: `duo workspace-pill-menu [on|off|toggle]` — full CLAUDE.md § 4 plumbing (DuoCommandName + 2 IPC channels + preload + main helper + NavBridge + socket-server command + cli/duo.ts parser + skill/agents/CLI-COVERAGE cheat-sheet). Renderer pushes flag changes to main on every change so bare-reads return cached state instantly.
+- CLI verb: `duo workspace-pill-menu [on|off|toggle]` — full [CLAUDE.md](http://CLAUDE.md) § 4 plumbing (DuoCommandName + 2 IPC channels + preload + main helper + NavBridge + socket-server command + cli/duo.ts parser + skill/agents/CLI-COVERAGE cheat-sheet). Renderer pushes flag changes to main on every change so bare-reads return cached state instantly.
 
 **Verification.** CLI roundtrip live in v0.8.0 dev: bare returns cached value (`{enabled: false}` default); `on` flips to `true` + pill re-renders with caret ▾; `off` flips back to `false` + caret disappears + `cursor: default`. Bare-read confirms cached state both ways.
 
@@ -377,22 +387,24 @@ Smoke walked as ENH-185-VISUAL — owner-walked tooltip + visual width PASS.
 
 ### BUG-079 — Ctrl-Tab cycle latency CONFIRMED REPRO in focused mode (Sprint 22 walk-1 update)
 
-**Status update 2026-05-25:** owner ENH-182-CTRL-TAB walk-1 PASS with explicit note "passes, but observing some noticeable ctrl-tab latency." This is a **partial repro of the long-standing BUG-079** ("tab-cycle latency — needs prod repro"). The Phase 2 filter doesn't change the cycle implementation (we just hand `visibleTerminals` to `useKeyboardShortcuts.tabs` instead of the full `tabs`), so the latency is the same root cause as BUG-079. The Sprint 17 diagnosis at [feedback_verify_current_behavior_before_proposing_fix.md] established total renderer-keydown → switchTab return = ~15ms regardless of pacing; the latency isn't in the dispatch path. Hypotheses 4 (modifier release timing) + 5 (upstream consumer race) are still open. Owner's observation gives us a fresh chance to instrument under known conditions (focused on duo with 1 visible terminal — narrow set, should be fastest case; if it still feels slow, the latency is NOT in cycle traversal). Add to Sprint 23 carry-forward priority list.
+**Status update 2026-05-25:** owner ENH-182-CTRL-TAB walk-1 PASS with explicit note "passes, but observing some noticeable ctrl-tab latency." This is a **partial repro of the long-standing BUG-079** ("tab-cycle latency — needs prod repro"). The Phase 2 filter doesn't change the cycle implementation (we just hand `visibleTerminals` to `useKeyboardShortcuts.tabs` instead of the full `tabs`), so the latency is the same root cause as BUG-079. The Sprint 17 diagnosis at \[feedback_verify_current_behavior_before_proposing_fix.md\] established total renderer-keydown → switchTab return = \~15ms regardless of pacing; the latency isn't in the dispatch path. Hypotheses 4 (modifier release timing) + 5 (upstream consumer race) are still open. Owner's observation gives us a fresh chance to instrument under known conditions (focused on duo with 1 visible terminal — narrow set, should be fastest case; if it still feels slow, the latency is NOT in cycle traversal). Add to Sprint 23 carry-forward priority list.
 
 ---
 
 ### ENH-182 Phase 0 + Phase 1 + Phase 2 + home-dir fix + auto-spawn — SHIPPED v0.7.10 (2026-05-25)
 
-**Status:** ✅ **Shipped v0.7.10 + walked 5/5 PASS + tagged + pushed + released on 2026-05-25.** [GitHub Release v0.7.10](https://github.com/dudgeon/duo/releases/tag/v0.7.10). Decisions D1–D12 + R1–R3 locked 2026-05-25 (PRD at [`docs/prd/enh-182-project-centric-ux.md`](docs/prd/enh-182-project-centric-ux.md)); design playgrounds at [`docs/research/project-centric-ux.html`](docs/research/project-centric-ux.html) + [`docs/research/project-rail-style-study.html`](docs/research/project-rail-style-study.html). Was a PATCH bump (0.7.9 → 0.7.10), not MINOR — v0.8.0 reserved for the feature-complete ENH-182 capstone.
+**Status:** ✅ **Shipped v0.7.10 + walked 5/5 PASS + tagged + pushed + released on 2026-05-25.** [GitHub Release v0.7.10](https://github.com/dudgeon/duo/releases/tag/v0.7.10). Decisions D1–D12 + R1–R3 locked 2026-05-25 (PRD at `docs/prd/enh-182-project-centric-ux.md`); design playgrounds at `docs/research/project-centric-ux.html` + `docs/research/project-rail-style-study.html`. Was a PATCH bump (0.7.9 → 0.7.10), not MINOR — v0.8.0 reserved for the feature-complete ENH-182 capstone.
 
 **What shipped:**
+
 - **Phase 0** ([3b49e43](https://github.com/dudgeon/duo/commit/3b49e43)) — `Project` + `ProjectsFile` types in `shared/types.ts`; pure `deriveProjects()` in `shared/projects.ts` (D2 qualification, D5 deepest-wins, D12 pinned-projects, R2 hash-stable color); `ProjectsService` persisted slice at `~/.claude/duo/projects.json`; `hasMarker(dir)` fs probe. 40 unit tests across the matrix.
 - **Phase 1** ([58dcc86](https://github.com/dudgeon/duo/commit/58dcc86)) — `ProjectRail` component renders the locked R1-B "quiet bloom" tile treatment (paper bg + colored initials + hue underline; focused → full-hue fill + white notch). Six `--duo-project-*` tokens mirrored from the Atelier kernel into `renderer/styles/globals.css`. `useProjects` hook drives derivation from app state.
-- **Home-dir exclusion + IPC marker probe** ([6bd1742](https://github.com/dudgeon/duo/commit/6bd1742)) — `isExcludedFromQualification(dir, homeDir)` pure helper blocks `$HOME` and `/` from qualifying as projects (the global `~/.claude/` would otherwise false-positive the home dir on every random cwd). **Subdirectories of home (including `~/.claude/`) still qualify normally** — owner directive 2026-05-25. New IPC `projects:has-marker` replaces the nav-listings lookup. 9 new tests including 3 explicit `~/.claude editing scenario` integration tests.
+- **Home-dir exclusion + IPC marker probe** ([6bd1742](https://github.com/dudgeon/duo/commit/6bd1742)) — `isExcludedFromQualification(dir, homeDir)` pure helper blocks `$HOME` and `/` from qualifying as projects (the global `~/.claude/` would otherwise false-positive the home dir on every random cwd). **Subdirectories of home (including** `~/.claude/`**) still qualify normally** — owner directive 2026-05-25. New IPC `projects:has-marker` replaces the nav-listings lookup. 9 new tests including 3 explicit `~/.claude editing scenario` integration tests.
 - **Phase 2** ([2a8a885](https://github.com/dudgeon/duo/commit/2a8a885)) — focus filter (the actual payoff). Click tile → `focusedProject` state; hides non-member terminal + working tabs; re-roots navigator; title-bar focus chip; Ctrl-Tab respects filter. Active-in-hidden recovery on entry.
 - **Auto-spawn on focus** ([dfb0b52](https://github.com/dudgeon/duo/commit/dfb0b52)) — owner edge-case during walk-1: focusing on a project with no member terminals spawns a fresh terminal at the project root via `lastTabKind`. Per-focus-session ref-guard prevents double-spawn.
 
 **Walk-1 results (5/5 PASS):**
+
 - ✅ ENH-182-RAIL-VISUAL · PASS · refinements filed as [ENH-185](#enh-185-project-rail-refinements-filed-from-v080-walk-1-notes)
 - ✅ ENH-182-FOCUS-CLICK · PASS
 - ✅ ENH-182-FOCUS-NAV · PASS
@@ -400,14 +412,16 @@ Smoke walked as ENH-185-VISUAL — owner-walked tooltip + visual width PASS.
 - ✅ TABBAR-PARE-CLEANUP · PASS
 
 **What's NOT in v0.7.10 (carry into Sprint 23, all roll up to the v0.8.0 capstone):**
+
 - **Phase 2b** — browser-mode canvas tab (`file://`) filter by path membership.
 - **Phase 3** — D11 auto-switch + D12 lifecycle + tile right-click menu (Pin/Unpin + bulk-close).
 - **Phase 4** — `duo project list/focus/pin/unpin/close` CLI parity.
 - **ENH-185** rail refinements (filed above).
 
 **Lessons from Phase 1 verification (both fixed):**
+
 1. **Promise-cancel-on-cleanup race** — `useEffect` cleanup was cancelling async git-status probes on every re-render before they could `setGitResults`, leaving the cache permanently empty. Fix: no cancel-on-cleanup; the setState merge is idempotent (each key writes the same stable result on retry) so stale-closure resolutions after re-render produce a correct state. Pattern applies to any "async probe → merge into Map state" hook with renderer state that churns.
-2. **Owner directive on home-dir exclusion** — D2 says "marker = CLAUDE.md or .claude/". A naive read qualified the home dir because the user's global `~/.claude/` config IS a `.claude/` subdir. But the home dir itself shouldn't be a project; only the global `~/.claude/` (which has its own CLAUDE.md inside) should. The fix is a pure helper `isExcludedFromQualification(dir, homeDir)` that excludes ONLY the dir itself, never subdirs.
+2. **Owner directive on home-dir exclusion** — D2 says "marker = [CLAUDE.md](http://CLAUDE.md) or .claude/". A naive read qualified the home dir because the user's global `~/.claude/` config IS a `.claude/` subdir. But the home dir itself shouldn't be a project; only the global `~/.claude/` (which has its own [CLAUDE.md](http://CLAUDE.md) inside) should. The fix is a pure helper `isExcludedFromQualification(dir, homeDir)` that excludes ONLY the dir itself, never subdirs.
 
 ---
 
@@ -427,7 +441,8 @@ Smoke walked as ENH-185-VISUAL — owner-walked tooltip + visual width PASS.
 
 **Origin.** Sprint 22 session-start emergency: 13,000+ files in this repo (including `.git/refs/heads/main`, both packfiles, 34 source files, and most of `node_modules`) had been evicted by macOS "Optimize Mac Storage" under disk pressure (94% full). Files showed non-zero sizes in `stat` but read as zero bytes (`dataless` BSD file flag). Git was completely broken — `git rev-parse HEAD` returned "ambiguous argument 'HEAD'"; `git cat-file -e` returned SIGBUS from a partially-materialized packfile. First time across many sessions this had fired.
 
-**Recovery walked (~45 min of session time):**
+**Recovery walked (\~45 min of session time):**
+
 1. `defaults write com.apple.bird optimize-storage -bool false` + `killall bird` to stop further evictions.
 2. Force-read every file in `.git/` to materialize from cloud (parallel `find ... -print0 | xargs -0 -P 8 -n 50 cat > /dev/null`).
 3. Reconstructed `.git/refs/heads/main` from the reflog at `.git/logs/HEAD` (the last commit hash was `9da43ad9...` — recoverable because the log was materialized).
@@ -437,16 +452,18 @@ Smoke walked as ENH-185-VISUAL — owner-walked tooltip + visual width PASS.
 7. Stubbed empty `.git/logs/refs/*` reflogs (append-only files; will regrow as git is used).
 
 **Permanent guard:**
-- [`scripts/check-materialization.sh`](scripts/check-materialization.sh) — fast scan for dataless flag in critical paths (.git, renderer, core, shared, cli, skill, electron, key config files). Warn-only by default (`--strict` for CI). Exits 0 so `predev`/`pretest` hooks don't block dev launches.
-- [`scripts/materialize.sh`](scripts/materialize.sh) — 6-stage recovery: pause Optimize Storage → materialize `.git/` → working tree → node_modules → `git checkout HEAD --` stuck files → final-state report.
+
+- `scripts/check-materialization.sh` — fast scan for dataless flag in critical paths (.git, renderer, core, shared, cli, skill, electron, key config files). Warn-only by default (`--strict` for CI). Exits 0 so `predev`/`pretest` hooks don't block dev launches.
+- `scripts/materialize.sh` — 6-stage recovery: pause Optimize Storage → materialize `.git/` → working tree → node_modules → `git checkout HEAD --` stuck files → final-state report.
 - `package.json` — new `predev` / `pretest` / `pretest:run` hooks run the check with `--quiet || true`. New `materialize` / `check:materialization` npm scripts for direct invocation.
-- [`CLAUDE.md`](CLAUDE.md) § Build commands — appended trap description, symptom list (short-read while indexing; Unexpected end of JSON input; ambiguous HEAD; SIGBUS from packfile), and recovery commands.
+- `CLAUDE.md` § Build commands — appended trap description, symptom list (short-read while indexing; Unexpected end of JSON input; ambiguous HEAD; SIGBUS from packfile), and recovery commands.
 
 **Lessons:**
-1. **SIGBUS from `git cat-file -e`** is the smoking gun for a partially-materialized packfile — not git corruption. If you see it, force-read the packfile (`cat .git/objects/pack/*.pack > /dev/null`) before trying anything else.
+
+1. **SIGBUS from** `git cat-file -e` is the smoking gun for a partially-materialized packfile — not git corruption. If you see it, force-read the packfile (`cat .git/objects/pack/*.pack > /dev/null`) before trying anything else.
 2. **Cloud-evicted files can't be overwritten directly** — git's `checkout HEAD --` silently fails (returns 0 without writing) when the target is a cloud-stub. `rm` first, then `checkout`.
-3. **`.git/refs/heads/main` is unrecoverable from cloud if written locally just before eviction.** Reconstruct from `.git/logs/HEAD` (the reflog) which has a higher chance of materializing because it's append-only and longer-lived.
-4. **`npm install` is much faster than waiting for per-file iCloud download** when node_modules is largely dataless. Cancel the materialize pass + nuke + reinstall.
+3. `.git/refs/heads/main` **is unrecoverable from cloud if written locally just before eviction.** Reconstruct from `.git/logs/HEAD` (the reflog) which has a higher chance of materializing because it's append-only and longer-lived.
+4. `npm install` **is much faster than waiting for per-file iCloud download** when node_modules is largely dataless. Cancel the materialize pass + nuke + reinstall.
 5. **Disk pressure is the trigger.** Free space before debugging. Sprint 22 also cleaned `dist/` (11 legacy DMGs from v0.6.12–v0.7.8; freed 1.1 GB) — keep `dist/` clean as standard hygiene.
 
 ---
@@ -459,7 +476,7 @@ Smoke walked as ENH-185-VISUAL — owner-walked tooltip + visual width PASS.
 - `renderer/App.tsx` (modified) — flag imported + declared as `workspacePillMenuEnabled`, NOT YET CONSUMED
 - `renderer/components/WorkspaceSwitcherDropdown.tsx` (modified) — `handleNew` routing fix (save-as → newWorkspace)
 
-Sprint 22 finishing work for ENH-184 (handoff to whichever Claude picks it up): wire the flag to gate the pill's onClick, owner walk, optional CLI parity verb. See full plan at [`docs/dev/active-sprint.md § ENH-184`](docs/dev/active-sprint.md).
+Sprint 22 finishing work for ENH-184 (handoff to whichever Claude picks it up): wire the flag to gate the pill's onClick, owner walk, optional CLI parity verb. See full plan at `docs/dev/active-sprint.md § ENH-184`.
 
 ---
 
@@ -467,9 +484,10 @@ Sprint 22 finishing work for ENH-184 (handoff to whichever Claude picks it up): 
 
 ### ENH-183 PARED 2026-05-25 (Option A) — S2 + C11 + T3 + force-rename dropped
 
-**Owner directive 2026-05-25**, mid-walk: *"the banner is useless; the repeated session restarts you've done demonstrate that the resume function, which we actually care about, is working; the force rename is also not necessary because claude is successfully summarizing the sessions."* Confirmed via empirics — `duo session hydrate` returned `{hydrated: false, reason: 'already-has-aiTitle'}` 100% of the time during rev5 pre-walk. Haiku auto-titling covers ~80% of sessions (per C1 step-0 PRD § 11) + tab title carries the name via `✳ <haiku>` prefix. The S2 banner just duplicated info already in the tab.
+**Owner directive 2026-05-25**, mid-walk: *"the banner is useless; the repeated session restarts you've done demonstrate that the resume function, which we actually care about, is working; the force rename is also not necessary because claude is successfully summarizing the sessions."* Confirmed via empirics — `duo session hydrate` returned `{hydrated: false, reason: 'already-has-aiTitle'}` 100% of the time during rev5 pre-walk. Haiku auto-titling covers \~80% of sessions (per C1 step-0 PRD § 11) + tab title carries the name via `✳ <haiku>` prefix. The S2 banner just duplicated info already in the tab.
 
 **Kept (final ENH-183 surface):**
+
 - **S1** resume pills (fresh shell tab in CWD with prior sessions → list with click-to-resume)
 - **S3** restore offer (workspace switch reattaches a tab that hosted claude → `[Resume] ×` banner)
 - **D5 read ladder** (`customTitle > aiTitle > firstPrompt > uuid`) — needed by S1 + S3 title display
@@ -478,6 +496,7 @@ Sprint 22 finishing work for ENH-184 (handoff to whichever Claude picks it up): 
 - CLI: `duo session list`, `duo session resume`
 
 **Dropped:**
+
 - **S2** named banner (`● Claude session: X`) — duplicated tab title
 - **S2 inline rename** (click title → contentEditable → /rename injection)
 - **C11** educational tip (`Duo named this session…`) — no S2 to attach to
@@ -488,10 +507,11 @@ Sprint 22 finishing work for ENH-184 (handoff to whichever Claude picks it up): 
 - Decision locks **D2** (educational banner), **D8** (write ladder), **D12** (collapsed-dot), partial **D6** (T3 trigger), partial **D11** (S2 mockup variants)
 
 **Files touched (deletions + simplifications):**
+
 - 🗑 `electron/session-hydrator.ts` (114 LOC)
-- 🗑 `electron/session-hydrator.test.ts` (~160 LOC)
+- 🗑 `electron/session-hydrator.test.ts` (\~160 LOC)
 - 🗑 `renderer/store/sessionTipPrefs.ts` (38 LOC)
-- ✂ `renderer/components/SessionHeader.tsx` — dropped `NamedBanner` (~160 LOC), inline-rename, C11 tip render, S2 branch + discriminator return
+- ✂ `renderer/components/SessionHeader.tsx` — dropped `NamedBanner` (\~160 LOC), inline-rename, C11 tip render, S2 branch + discriminator return
 - ✂ `renderer/components/SessionHeader.test.ts` — S2 tests rewritten as S0 tests; BUG-160 test updated to reflect post-pare behavior; 15 tests still pass
 - ✂ `renderer/store/sessionHeader.ts` — dropped `collapsed` + `editingTitle` fields
 - ✂ `electron/main.ts` — removed `sessionRename`, `sessionHydrate`, `SESSION_MAYBE_HYDRATE` IPC, T3 trigger block
@@ -502,9 +522,10 @@ Sprint 22 finishing work for ENH-184 (handoff to whichever Claude picks it up): 
 - ✂ `cli/duo.ts` — removed `session rename` + `session hydrate` subcommands + help text. Rebuilt binary.
 - ✂ `skill/SKILL.md`, `agents/duo.md`, `docs/CLI-COVERAGE.md` — removed verb cheat-sheet entries
 
-**Net code change:** ~600 LOC removed across deletions + simplifications. Typecheck clean. 15/15 SessionHeader tests pass.
+**Net code change:** \~600 LOC removed across deletions + simplifications. Typecheck clean. 15/15 SessionHeader tests pass.
 
 **v0.7.9 cut scope (post-pare):**
+
 - BUG-158 (realpath in `encodeProjectDir`) + regression tests
 - BUG-160 (discriminator dismissedBanner scoping)
 - FOLLOWUP-027 (about:blank ghost-tab — shipped earlier this session)
@@ -516,13 +537,41 @@ Sprint 22 finishing work for ENH-184 (handoff to whichever Claude picks it up): 
 
 ---
 
+### BUG-161: Autosave conflict banner fires consistently on first save after open (BUG-122 hypothesis 2/3 closed)
+
+**Status:** ✅ **Root-caused + fixed + regression-tested** 2026-05-26 (Sprint 24 / v0.8.1). Owner reported "still consistently hitting autosave conflicts when opening and editing markdown files." Live repro on `tasks.md` (1.2MB), confirmed via the `~/.claude/duo/logs/last-conflict.log` ring (trigger=`save-pre-reconcile`, surface=`markdown`, disk and baseline both \~1.19M, post-normalize divergence at offset 340+).
+
+**Root cause.** `MarkdownEditor.tsx`'s `lastSavedBodyRef` was being used for TWO different questions that have different correct answers:
+
+1. **Dirty check** ("did the user type anything since load?") — needs the editor's *serialized* view of the loaded doc as baseline. If the baseline were raw disk bytes, then on every load with a file whose TipTap parse/serialize round-trip isn't byte-exact (which is most non-trivial markdown), the buffer would read as dirty immediately. The 2026-05-02 lock at MarkdownEditor.tsx:920 set baseline to `serializeWithCriticMarkup(editor)` to avoid that.
+
+2. **Conflict check** ("did disk drift externally since we last touched it?") — needs the *actual disk bytes* as baseline. Using the round-tripped view here turned the comparison into whack-a-mole: every TipTap quirk the normalize step couldn't cancel fired a false-positive banner. BUG-107 (trailing whitespace), BUG-122 hypothesis 4 (soft-break-≡-space), BUG-122 hypothesis 6 (HTML-entity escape), BUG-155 (autolink round-trip) were all stitched into `normalizeForEchoCompare`. The 2026-05-26 repro added two more gaps: `****X**` → `\*\***X**` (bold-marker escape when 4+ asterisks appear before bold text) and `[X](X)` → `` `X` `` for relative-path "autolinks" (markdown-it emits the bracket form, TipTap drops it). Each gap = a new regex added to `normalizeForEchoCompare`. The pattern is unbounded.
+
+**Fix.** Separate the two concerns. `lastSavedBodyRef` stays as today (TipTap-serialized view, used for the dirty check). New `lastSeenDiskBodyRef` holds the byte-exact disk content, advanced in lockstep at every site that writes to disk or reloads from disk. The save-pre-reconcile and watcher paths fast-path on `diskBody === lastSeenDiskBodyRef.current` BEFORE the normalize check — if disk hasn't changed byte-for-byte since we last touched it, no external change happened, no conflict possible. The normalize fallback stays as defense-in-depth for cloud-sync agents that do content-preserving touches (BOM, CRLF, trailing whitespace).
+
+**Why not just track the disk bytes for both checks.** Because the dirty check's `body !== lastSavedBodyRef.current` would always be true on load (TipTap-serialized body ≠ raw disk body), making every fresh file appear dirty and triggering an immediate autosave that overwrites the user's original with TipTap's round-trip view. Two refs, two purposes.
+
+**Files touched.** `renderer/components/editor/MarkdownEditor.tsx` (8 sites added that pair `lastSavedBodyRef.current = ...` with the byte-exact assignment) + `renderer/utils/conflictDiagnostic.test.ts` (+3 new regression tests documenting the normalize-gaps the fast-path now bypasses).
+
+**PageTab.tsx — checked, no fix needed.** The canvas already tracks raw disk bytes as `lastSavedRef.current` (line 582) and updates to the bytes just written (line 870) — it answers the "did disk change" question correctly without a separate ref. The bug was markdown-specific.
+
+**Why the existing** `normalizeForEchoCompare` **stays.** Defense in depth for cloud-sync agents (Dropbox, iCloud) that touch the file with content-preserving changes (BOM stamp, line-ending normalization). The byte-exact fast-path covers the common case; the normalize covers the friendly-touch case.
+
+**Live verification.** With dev session running on the same `tasks.md` that fired the conflict log at 17:35:31: re-loaded, edited via `duo doc write --replace-selection`, save fired clean ("Saved" / "No unsaved changes"), no new conflict log entry. Separately tested the REAL-external-write path: dirtied the buffer, appended `EXTERNAL_MARKER` via shell `>>`, banner fired correctly (trigger=`watcher-dirty`, diskTail contains the marker, baselineTail does not).
+
+**Filed:** 2026-05-26. **Fixed:** 2026-05-26.
+
+**Cross-ref:** [BUG-107](#) (original false-positive class, trailing-whitespace normalize), [BUG-122](#bug-122-markdown-editor-file-changed-on-disk-banner-re-surfaces-in-v0614) (hypotheses 1-6 — prior normalize extensions; this fix retires hypothesis 2/3 by sidestepping the normalize layer entirely), [BUG-155](#bug-155-false-positive-file-changed-on-disk-dialog-from-tiptap-markdown-autolink-round-trip) (autolink round-trip — last normalize-only extension before this), `renderer/components/editor/MarkdownEditor.tsx` § `lastSeenDiskBodyRef`.
+
+---
+
 ### BUG-160: Clicking Resume on S3 banner suppresses subsequent S2 banner — discriminator short-circuit
 
 **Status:** ✅ **Root-caused + fixed + regression-tested** 2026-05-25. Surfaced by ENH-183 rev5 walk S3-RESTORE step.
 
 **Symptom (owner-reported).** Clicked Resume on the S3 banner ("⏪ This tab had: CLI rename test successful"). Claude resumed (tab title changed to "✳ CLI rename test succ..."). But **NO S2 banner appeared** — not even after clicking the tab.
 
-**Root cause.** [`renderer/components/SessionHeader.tsx`](renderer/components/SessionHeader.tsx) line 75 (pre-fix):
+**Root cause.** `renderer/components/SessionHeader.tsx` line 75 (pre-fix):
 
 ```ts
 const { lastClaudeSession, claudePresence, dismissedBanner, ... } = args
@@ -545,13 +594,13 @@ if (lastClaudeSession?.id) {
 if (dismissedBanner) return 'S0'  // legacy S1-dismissal compat
 ```
 
-**Regression test.** Added `'BUG-160 — S2 still renders when dismissedBanner=true and claude is live'` to [`SessionHeader.test.ts`](renderer/components/SessionHeader.test.ts) covering both `claudePresence='claude'` and `'starting'`. The existing S3-dismissal test still passes (covers the `claudePresence='shell' + dismissedBanner=true` case → S0).
+**Regression test.** Added `'BUG-160 — S2 still renders when dismissedBanner=true and claude is live'` to `SessionHeader.test.ts` covering both `claudePresence='claude'` and `'starting'`. The existing S3-dismissal test still passes (covers the `claudePresence='shell' + dismissedBanner=true` case → S0).
 
 **Why this wasn't caught earlier.** The discriminator's design had `dismissedBanner` as a global suppress flag from the C2 cherry-pick (when S3 was the only banner state). C5 added S2 + C10 added the inline-rename path, but the discriminator's structure wasn't revisited — the global suppress remained. Existing unit tests covered the S3-dismissal-only path (didn't combine dismissedBanner=true with claudePresence='claude').
 
 **Process gap.** Should have run a discriminator probe AFTER S3 dismissal in the C5/C10 PR's smoke. The "dismiss then live-resume then S2" path is exactly the walk's S3-RESTORE → S2-EXPANDED flow — it's the user's primary success path. Decision-state matrix coverage (all combinations of `lastClaudeSession × claudePresence × dismissedBanner`) would have caught this.
 
-**Walk implication.** With BUG-160 fix: rev5 walk's S3-RESTORE → S2-EXPANDED transition now works correctly. Owner re-walks: click Resume on visible S3 banner → S2 banner appears with title → walk S2-* + C11 + S2-RENAME-GATE → S3-DISMISS.
+**Walk implication.** With BUG-160 fix: rev5 walk's S3-RESTORE → S2-EXPANDED transition now works correctly. Owner re-walks: click Resume on visible S3 banner → S2 banner appears with title → walk S2-\* + C11 + S2-RENAME-GATE → S3-DISMISS.
 
 ---
 
@@ -563,16 +612,18 @@ if (dismissedBanner) return 'S0'  // legacy S1-dismissal compat
 
 **Initial hypothesis (PARTIALLY WRONG).** Three injection sites all used `\r/rename ${trimmed}\n`. Hypothesized that Claude's TUI commits on CR (`\r`) not LF (`\n`), so trailing `\n` was leaving the command queued.
 
-**Corrected diagnosis (2026-05-25 post-fix JSONL inspection).** The `\n` terminator DID commit — JSONL inspection after the owner's rev5 attempt shows TWO `{"type":"custom-title","customTitle":"CLI rename test successful",...}` entries in `~/.claude/projects/-private-tmp-duo-walk-hydrate/e48d153a-*.jsonl`. The S3 banner correctly displays "This tab had: CLI rename test successful" after workspace restore — proving the entire write+capture+render chain works. Owner's "command sitting in buffer" perception was likely a visual artifact: Claude's TUI shows the typed text briefly post-submit before clearing, AND the verb's leading `\r` positions the cursor at line-start (in some terminal modes \r doesn't clear residual text), so the user can see the typed `/rename ...` text in the input area even though the command has already committed.
+**Corrected diagnosis (2026-05-25 post-fix JSONL inspection).** The `\n` terminator DID commit — JSONL inspection after the owner's rev5 attempt shows TWO `{"type":"custom-title","customTitle":"CLI rename test successful",...}` entries in `~/.claude/projects/-private-tmp-duo-walk-hydrate/e48d153a-*.jsonl`. The S3 banner correctly displays "This tab had: CLI rename test successful" after workspace restore — proving the entire write+capture+render chain works. Owner's "command sitting in buffer" perception was likely a visual artifact: Claude's TUI shows the typed text briefly post-submit before clearing, AND the verb's leading `\r` positions the cursor at line-start (in some terminal modes \\r doesn't clear residual text), so the user can see the typed `/rename ...` text in the input area even though the command has already committed.
 
 **Sites changed.** Three injection sites all used `\r/rename ${trimmed}\n`:
-1. [`electron/main.ts:645`](electron/main.ts#L645) — `sessionRename` CLI verb (`duo session rename`)
-2. [`electron/session-hydrator.ts:99`](electron/session-hydrator.ts#L99) — C8 auto-hydrator (currently OFF behind FOLLOWUP-028)
-3. [`renderer/components/SessionHeader.tsx:271`](renderer/components/SessionHeader.tsx#L271) — S2 inline-rename (click title → type → Return)
+
+1. `electron/main.ts:645` — `sessionRename` CLI verb (`duo session rename`)
+2. `electron/session-hydrator.ts:99` — C8 auto-hydrator (currently OFF behind FOLLOWUP-028)
+3. `renderer/components/SessionHeader.tsx:271` — S2 inline-rename (click title → type → Return)
 
 Changed to `\r/rename ${trimmed}\r` at all three sites.
 
 **Justification for keeping the fix despite the corrected diagnosis.** `\r` is the canonical Enter/Return signal a real keypress sends in TUI input (matches Claude's expected interactive shape). LF (`\n`) is "linefeed" — its acceptance as a commit signal is incidental and may differ across Claude TUI versions. Keeping the `\r` terminator:
+
 - Aligns Duo's PTY synthesis with real keystroke semantics
 - May eliminate the visual artifact (text remaining briefly in input area post-submit) that the owner observed
 - Removes a potential future-fragility (if Claude tightens its input parser to reject LF, our injection would silently break)
@@ -585,7 +636,7 @@ Changed to `\r/rename ${trimmed}\r` at all three sites.
 
 ### BUG-158: `duo session hydrate` fails on /tmp/ cwds — encodeProjectDir didn't resolve symlinks.
 
-**Status:** ✅ **Root-caused + fixed + regression-tested** 2026-05-24. Surfaced by ENH-183 rev4 walk-4 (CLI-HYDRATE step 6). 
+**Status:** ✅ **Root-caused + fixed + regression-tested** 2026-05-24. Surfaced by ENH-183 rev4 walk-4 (CLI-HYDRATE step 6).
 
 **Symptom.** Owner walked rev4 CLI-HYDRATE: created fresh tab at `/tmp/duo-walk-hydrate`, started Claude, sent 3 messages (Haiku auto-titled the session "✳ Knock knock joke"), ran `duo session hydrate <tabId>` — got `duo: no recent Claude session in this tab's cwd (24h cap)` despite the session being seconds old.
 
@@ -771,7 +822,7 @@ Changed to `\r/rename ${trimmed}\r` at all three sites.
 
 **Symptom (reported).** `duo doc comment` returns `ok:true, changed:true` but the open editor's TipTap buffer doesn't update. Agent and user see divergent state; agent has no signal that anything went wrong.
 
-**Root cause.** Live test (this session) showed that `duo doc insert / delete / substitute / highlight / accept / reject` DO refresh the open editor via the existing BUG-085 chokidar reconciliation path. The reported "no editor update" was specific to the `--reply-to` codepath: the agent (per the bug report's repro) passed the parent comment id as `--anchor` text. `addAnchoredComment` then created a nested {==id==}{&gt;&gt;NEW&lt;&lt;} token inside the existing  body — corrupting the parent comment. The disk file changed, the editor reloaded, but rendered the corrupted structure (no visible reply).
+**Root cause.** Live test (this session) showed that `duo doc insert / delete / substitute / highlight / accept / reject` DO refresh the open editor via the existing BUG-085 chokidar reconciliation path. The reported "no editor update" was specific to the `--reply-to` codepath: the agent (per the bug report's repro) passed the parent comment id as `--anchor` text. `addAnchoredComment` then created a nested {==id==}{&gt;&gt;NEW&lt;&lt;} token inside the existing body — corrupting the parent comment. The disk file changed, the editor reloaded, but rendered the corrupted structure (no visible reply).
 
 **Fix:** Adding [BUG-143](#bug-143---reply-to-should-make---anchor-optional)'s proper `addCommentReply` path (canonical `↪ @author ts: body` separator inside the parent token) closes BUG-142 by construction — the chokidar reload now applies a well-formed update.
 
@@ -792,7 +843,7 @@ The only thing that worked was `--anchor "<parent-comment-id>"`, which corrupted
 
 **Fix shape.**
 
-- New pure function `addCommentReply` — finds the parent comment by id, appends `\n↪ @<author> <ts>: <body>` inside the parent's  body. Single-paragraph guard collapses multi-line replies. Re-serializes the parent token with the extended body. 6 new vitest fixtures cover lead+1 reply, lead+chained replies, standalone (un-anchored) parents, missing-id error, multi-line collapse, empty-input rejection.
+- New pure function `addCommentReply` — finds the parent comment by id, appends `\n↪ @<author> <ts>: <body>` inside the parent's body. Single-paragraph guard collapses multi-line replies. Re-serializes the parent token with the extended body. 6 new vitest fixtures cover lead+1 reply, lead+chained replies, standalone (un-anchored) parents, missing-id error, multi-line collapse, empty-input rejection.
 - Socket-server's `doc-edit comment` op now branches: `--reply-to + no --anchor` → `addCommentReply` path; `--anchor + (optional --reply-to)` → existing `addAnchoredComment` path. Error message updated: *"comment requires --anchor (or --reply-to to reply to an existing thread)"*.
 - CLI's `cli/duo.ts § case 'doc' / sub === 'comment'` validation loosened: requires `--body`, then requires EITHER `--anchor` OR `--reply-to`. Usage banner emits both shapes.
 - `printHelp` doc-comment entry now lists both forms; `printDocHelp('comment')` (BUG-145) gives the focused signature.
@@ -951,24 +1002,26 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 **Status:** 🟢 **Decisions LOCKED 2026-05-25** (owner walk via AskUserQuestion; gate closed). Research artifact only — **no code yet**. All 12 decisions + R1/R2/R3 answered; outcomes recorded in the playgrounds (per-card `Locked ✓` tags + top summary banner) and below. Next step is a PRD + sprint scope — no longer surfaces in smoke walks.
 
-**What it is.** Owner asked: "given what Duo supports today, what would a full refactor to a Claude-Code-project-centric UX look like?" — a project selector/switcher with files + terminal + browser tabs nested under a project parent. Canonical playground at [`docs/research/project-centric-ux.html`](docs/research/project-centric-ux.html) (open via `duo open`) + rail-style deep-dive [`docs/research/project-rail-style-study.html`](docs/research/project-rail-style-study.html); PRD + build plan at [`docs/prd/enh-182-project-centric-ux.md`](docs/prd/enh-182-project-centric-ux.md). (Notion mirror retired 2026-05-25 — repo is the single source of truth.) The playground evolved through the walk from four layout mockups (A–D) into the locked filter-layer model below.
+**What it is.** Owner asked: "given what Duo supports today, what would a full refactor to a Claude-Code-project-centric UX look like?" — a project selector/switcher with files + terminal + browser tabs nested under a project parent. Canonical playground at `docs/research/project-centric-ux.html` (open via `duo open`) + rail-style deep-dive `docs/research/project-rail-style-study.html`; PRD + build plan at `docs/prd/enh-182-project-centric-ux.md`. (Notion mirror retired 2026-05-25 — repo is the single source of truth.) The playground evolved through the walk from four layout mockups (A–D) into the locked filter-layer model below.
 
 **Grounding (3 research streams, this session):**
+
 - *Current workspace model* — a workspace is a thin `WorkspaceFile` envelope around a `SessionState` snapshot (flat tabs/terminals/browser-tabs); switching = force-flush + kill PTYs + teardown browser tabs + renderer reload. No runtime workspace object.
-- *Current project/cwd/git detection* — **no `Project` object, no `~/.claude/projects/` read (ENH-177 reverted), no CLAUDE.md parsing.** "Where am I" is three loosely-linked signals (`TabSession.cwd`, `nav.state.cwd` + follow-mode, on-demand `getGitStatus(cwd)→workTreeRoot`) plus an orthogonal `claudePresence` probe. Git remotes string-parsed for "Open on GitHub" only; no API.
+- *Current project/cwd/git detection* — **no** `Project` **object, no** `~/.claude/projects/` **read (ENH-177 reverted), no [CLAUDE.md](http://CLAUDE.md) parsing.** "Where am I" is three loosely-linked signals (`TabSession.cwd`, `nav.state.cwd` + follow-mode, on-demand `getGitStatus(cwd)→workTreeRoot`) plus an orthogonal `claudePresence` probe. Git remotes string-parsed for "Open on GitHub" only; no API.
 - *IDE prior art* — implicit folder-as-project is the modern default (VS Code/Sublime/Zed/GitHub Desktop); JetBrains/Xcode "explicit declaration" is heavier; VS Code multi-root is the canonical multi-project confusion tale; AI-first editors (Cursor/Windsurf/Zed) scope the agent to the project boundary, trending toward git-worktree-per-task; lowest-risk switcher primitive is recent-list + ⌘P top-left.
 
 **Filter-layer expansion (2026-05-24, walk-2 of the artifact).** Owner critique: the v1 draft proposed the low-risk *primitive* but no UX *payoff*. Owner's proposed payoff — **projects as a filter layer**: a workspace holds items from many projects (default/today); opening a file from a declared/implicit project auto-adds it to a thin rail (initials); clicking a tile enters **focus** (collapses unrelated terminal + canvas tabs, re-roots the navigator); an **All** button unfilters; out-of-project-file corner case pops back to All for v1. New §5 "Projects as a filter layer" added with: a **live interactive demo** (CSS/JS — click tiles, toggle transition style + rail side), and **animated GIFs** generated headlessly (resvg + gifenc pipeline, build tooling outside the repo) at `docs/research/assets/project-filter/` — `filter-transition.gif` (All↔focus collapse-&-reflow), `corner-case.gif` (open-external→pop-to-All), `rail-left.png` / `rail-right.png` (placement options). Five new decisions added (D8–D12).
 
 **LOCKED 2026-05-25 (R1 / D9 tile style):** rail treatment = **B "quiet bloom"** (colored initials + underline; focused project blooms to full-hue fill + white notch). The **project color system** developed here is now **canonical** — six `--project-*` tokens added to the Atelier kernel `skill/references/duo-atelier.css` `:root`, documented in `skill/references/atelier-css.md § Project color system`, and cross-referenced from the design source-of-truth `docs/design/atelier/README.md § Extensions`.
 
-**Rail style study (2026-05-25, D9 deep-dive).** Owner picked left/Slack-style rail; commissioned a focused visual study at [`docs/research/project-rail-style-study.html`](docs/research/project-rail-style-study.html). Delivers (a) a **project color system** — 6 muted "studio" hues (Pine/Harbor/Iris/Plum/Rose/Moss), evenly spaced but deliberately skipping the orange/amber band so no project reads as the burnt-orange app accent; hash-stable assignment per project root + manual override; shade-variant rotation past 6 — and (b) **four live tile treatments** (A Painted · B Quiet-bloom *recommended* · C Color-bar · D Dot-minimal) with a tile-anatomy/state sub-study (identity + selection v1, optional "claude live here" dot, defer count/git-dirty badges). Three sub-decisions R1 (tile style) · R2 (color assignment) · R3 (tile state). Stills: `assets/project-filter/palette-swatches.png`, `rail-styles.png`. Cross-linked from §5/D9.
+**Rail style study (2026-05-25, D9 deep-dive).** Owner picked left/Slack-style rail; commissioned a focused visual study at `docs/research/project-rail-style-study.html`. Delivers (a) a **project color system** — 6 muted "studio" hues (Pine/Harbor/Iris/Plum/Rose/Moss), evenly spaced but deliberately skipping the orange/amber band so no project reads as the burnt-orange app accent; hash-stable assignment per project root + manual override; shade-variant rotation past 6 — and (b) **four live tile treatments** (A Painted · B Quiet-bloom *recommended* · C Color-bar · D Dot-minimal) with a tile-anatomy/state sub-study (identity + selection v1, optional "claude live here" dot, defer count/git-dirty badges). Three sub-decisions R1 (tile style) · R2 (color assignment) · R3 (tile state). Stills: `assets/project-filter/palette-swatches.png`, `rail-styles.png`. Cross-linked from §5/D9.
 
 **Twelve owner decisions now:** D1 gated vs. progressive · D2 what *is* a Duo project · D3 switcher surface (layout A–D) · **D8 switcher vs. filter/lens (the reframe)** · **D9 filter-rail placement + population** · **D10 filter scope** · **D11 out-of-project corner case** · **D12 rail lifecycle** · D4 multi-project model (largely subsumed by D8) · D5 nested-project scope · D6 clone→project · D7 workspaces' fate.
 
-**Pre-walk scope locked via AskUserQuestion 2026-05-24:** report+mockups only (no code) · full layouts + micro-mockups + animated transitions · positioning = project-is-any-folder with progressive (non-mandatory) CLAUDE.md/agents.md/git enrichment, clone-repo prompts a project decision · workspaces = future decision, leaning workspace-contains-projects.
+**Pre-walk scope locked via AskUserQuestion 2026-05-24:** report+mockups only (no code) · full layouts + micro-mockups + animated transitions · positioning = project-is-any-folder with progressive (non-mandatory) [CLAUDE.md/agents.md/git](http://CLAUDE.md/agents.md/git) enrichment, clone-repo prompts a project decision · workspaces = future decision, leaning workspace-contains-projects.
 
 **LOCKED DECISIONS (owner walk 2026-05-25)** — several refined beyond the original radios:
+
 - **D1 (spine):** projecthood gated, app open — work in any folder (view-all always exists); a folder becomes a *project* only if it's a git-repo root *or* has `CLAUDE.md`/`.claude/` *and* you're working in it. Not a front-door gate.
 - **D2 (primitive):** project = folder you're actively working in (terminal CWD / non-pinned tabs there) **and** (git-repo root **or** has `CLAUDE.md`/`.claude/`). Navigator right-click "New project" drops a `.claude/`.
 - **D3 (surface):** left filter rail only for v1 — ⌘P palette + title-bar breadcrumb deferred.
@@ -1595,6 +1648,7 @@ All three reuse the same modal (asks for name, validates filename collision, cre
   ```
 
   Smallest diff; addresses paste flow specifically. Drag-drop has the same issue, so the same pattern needs to apply there.
+
 - **B. Block-by-construction.** Change DuoImage from `group: 'inline'` to `'block'`. Fixes paste + drag-drop + `duo image insert` in one place. Rules out inline-icon-mid-text usage, which is rare in docs-shaped content. (Recommended.)
 
 **v1 workaround.** Author manually adds a blank line above + below pasted images. Edited [about-duo.md](http://about-duo.md) uses this workaround pending the fix.
@@ -1813,8 +1867,8 @@ Original entry kept for context: 🟡 **Filed 2026-05-18 (post-v0.7.1 cut, provi
 **Phase 5 shape (provisional, owner walk required before shipping).**
 
 1. **New TipTap inline atom node** `StandaloneCommentNode` — renders inline in the editor body without text content (it's an atom — like a Mention). Carries metadata: `commentId`, `author`, `ts`, `body`, `replyTo`. Visual: small inline chip styled like the existing comment-anchor decoration but with a different shape (e.g. a smaller dot + author initial) so a reader can tell anchored-comment-with-text apart from standalone-reply-no-text.
-2. **Parser update in** `renderer/components/editor/markdownCriticMarkup.ts` — when `applyCriticMarkupFromText` encounters a standalone  op (no preceding {==anchor==}), insert the atom node instead of dropping it (current v1 behavior).
-3. **Serializer update in** `materializeCriticMarkupToJSON` — when emitting a standalone-comment atom, write  at the node's position.
+2. **Parser update in** `renderer/components/editor/markdownCriticMarkup.ts` — when `applyCriticMarkupFromText` encounters a standalone op (no preceding {==anchor==}), insert the atom node instead of dropping it (current v1 behavior).
+3. **Serializer update in** `materializeCriticMarkupToJSON` — when emitting a standalone-comment atom, write at the node's position.
 4. **Rail update in** `renderer/components/editor/markdownComments.ts` — `buildMarkdownThreads` already collects entries by `anchorId`; extend to include standalone replies (matched by `meta.replyTo === anchor.commentId`).
 5. **Migration update in** `renderer/components/editor/migrateSidecarComments.ts` — instead of collapsing replies into the lead's body, emit anchored-lead + N standalone-reply atom nodes adjacent.
 
@@ -1904,9 +1958,7 @@ The banner's wording read like Duo just NOW added something to the file when act
 
 ## 🟡 OPEN OWNER-DECISION GATES — v0.7.0 cut blocked until walked
 
-> **Forgetting-protection.** Each gate below is a playground that owner must walk (radio + Copy decisions) before the gated implementation work starts. These appear in every smoke walk manifest until owner closes them. The v0.7.0 cut is blocked until all four are walked.
-> ****How to walk:** `duo open <path>` opens the playground in Duo's browser pane. Pick a radio for each decision card, add any notes, hit "Copy decisions" at the bottom, paste back to Claude.
-> ****Status convention.** 🟡 = awaiting owner walk. Once walked + decisions copied, status flips to ⏳ In progress (Claude implementing), then ✅ Shipped after the smoke walk closes.
+> **Forgetting-protection.** Each gate below is a playground that owner must walk (radio + Copy decisions) before the gated implementation work starts. These appear in every smoke walk manifest until owner closes them. The v0.7.0 cut is blocked until all four are walked. \*\***How to walk:** `duo open <path>` opens the playground in Duo's browser pane. Pick a radio for each decision card, add any notes, hit "Copy decisions" at the bottom, paste back to Claude. \*\***Status convention.** 🟡 = awaiting owner walk. Once walked + decisions copied, status flips to ⏳ In progress (Claude implementing), then ✅ Shipped after the smoke walk closes.
 
 ### GATE-BUG-125-v2: Canvas baseline tracking — Option B normalize layer
 
@@ -3576,9 +3628,11 @@ The banner only tells the user "add this line to your shell rc" — it doesn't *
 **Proposed fix:**
 
 1. **Add a "Add to PATH" button to the install banner.** Click → install service appends `export PATH="$HOME/.local/bin:$PATH"` to the user's shell rc:
+
    - Detect shell from `$SHELL` env: `zsh` → `~/.zshrc` (or `~/.zshenv` if it exists; zsh users with chezmoi/dotfiles often prefer `.zshenv`).
    - `bash` → `~/.bash_profile` (macOS convention) with fallback to `~/.bashrc`.
    - `fish` → `~/.config/fish/config.fish` (different syntax: `set -gx PATH $HOME/.local/bin $PATH`).
+
 2. **Idempotent.** Wrap the appended line in a fenced block:
 
    ```
@@ -3588,7 +3642,9 @@ The banner only tells the user "add this line to your shell rc" — it doesn't *
    ```
 
    On re-install, detect the fence and skip if already present. If user moved the line manually, leave their version alone.
+
 3. **Tell the user what to do next.** Banner success state: "Added `~/.local/bin` to your PATH in `~/.zshrc`. Open a new terminal (or run `source ~/.zshrc`) to pick it up."
+
 4. **Surface failure modes clearly.** If the rc file is owned by another user, read-only, or in a non-standard location, show the manual-line copy block as today. Don't fail silently.
 
 **Risks + safeguards:**
@@ -5408,6 +5464,7 @@ If a future refactor needs to rename `window.__duoClaudeLive` (e.g. `window.duoS
    console.log('hi')
    ​```
    ```
+
 2. **Observed:** the editor renders the triple-backticks as literal text, not a code block.
 
 **Expected:** the editor recognizes \`\`\`lang ... \`\`\` as a code block on Enter (when the closing fence is typed) AND on paste (when pasted markdown contains a fenced code block).
@@ -6859,7 +6916,7 @@ The hover Comment pill goes away entirely. Send → Duo pill stays as-is (it's t
 
 ### BUG-083: Comments in rail have no visual association with the text they comment on
 
-**Status:** ✅ **Markdown-side polished v0.7.2 2026-05-18** ([this session](https://github.com/dudgeon/duo)) — the active-thread wiring was already shipped via BUG-087 (markdown editor sets `[data-duo-comment-active="1"]` on matching CommentMark spans on every PM transaction), but the CSS bump from default-state (`rgba(198,106,46,0.12)`) to active-state (`rgba(198,106,46,0.22)`) was too subtle — owner couldn't reliably tell which inline mark a rail thread anchored to. v0.7.2 polish bumped the active alpha to 0.42 + added a 1px accent `box-shadow` outline + `border-radius: 2px` in both light + dark themes (globals.css § markdown comment-anchor styling). Clicking a rail thread now visibly pops the corresponding  text. The canvas-side variant of this entry is tracked separately under the original v0.6.7 partial fix (kept below).
+**Status:** ✅ **Markdown-side polished v0.7.2 2026-05-18** ([this session](https://github.com/dudgeon/duo)) — the active-thread wiring was already shipped via BUG-087 (markdown editor sets `[data-duo-comment-active="1"]` on matching CommentMark spans on every PM transaction), but the CSS bump from default-state (`rgba(198,106,46,0.12)`) to active-state (`rgba(198,106,46,0.22)`) was too subtle — owner couldn't reliably tell which inline mark a rail thread anchored to. v0.7.2 polish bumped the active alpha to 0.42 + added a 1px accent `box-shadow` outline + `border-radius: 2px` in both light + dark themes (globals.css § markdown comment-anchor styling). Clicking a rail thread now visibly pops the corresponding text. The canvas-side variant of this entry is tracked separately under the original v0.6.7 partial fix (kept below).
 
 Old status (kept for context): 🟡 **PARTIAL** in v0.6.7 (Sprint 6 Phase 3, 2026-05-04). Heading-level + paragraph-level anchors work; smoke walk surfaced three follow-up issues filed as BUG-088 / BUG-089 / BUG-090. Decision: hold the v0.6.7 cut until these land. Original three concerns:
 
@@ -8287,10 +8344,10 @@ The frontmatter IS preserved on save round-trip — it's stored in `markdown-io.
 
 | Q | Decision | Rationale |
 | --- | --- | --- |
-| Q1 · Body shape | **A · Pipe-delimited prefix** | . Parser splits first N `|`s for metadata; body is everything after the last metadata `|`. Bodies CAN contain `|`. |
+| Q1 · Body shape | **A · Pipe-delimited prefix** | . Parser splits first N \` |
 | Q2 · Track-changes scope | **A · All five operations** | Comment + insert + delete + substitute + highlight. Maximum value from the parser/serializer lift. Stages 14b/14c/14d ship together. |
 | Q3 · Author attribution | **B · Named** | `dudgeon` (human) + `claude` (agent). Human name from new `duo author [<name>]` setting (defaults to `$USER`). Agent name from agent-context (CLI sets via env or arg). Forward-compatible with codex/etc. |
-| Q4 · Agent CLI verbs | **A · Explicit per-op** | `duo doc insert/delete/substitute/comment/accept/reject <file> [--at |--range |--anchor]`. Anchor formats: `heading:"X"` / `line:42` / `text:"exact"` / `range:from-to`. Same shape as existing Stage 11 anchor verbs. |
+| Q4 · Agent CLI verbs | **A · Explicit per-op** | \`duo doc insert/delete/substitute/comment/accept/reject &lt;file&gt; \[--at |
 | Q5 · Migration trigger | **A · Auto-migrate on first load, silent** | If sidecar has `comments[]` AND body has no CriticMarkup, migrate immediately. Sidecar's `comments[]` cleared post-write. No UI. |
 | Q6 · Backward-read | **A · Read-both-until-touched, then inline-only** | First open: read CriticMarkup from body + comments from sidecar; merge. First save: write CriticMarkup; clear `sidecar.comments[]`. Sidecar comments-reading deprecated in v0.9.0. |
 
@@ -8339,14 +8396,13 @@ The frontmatter IS preserved on save round-trip — it's stored in `markdown-io.
 
 The standard syntax for markdown comments / edits:
 
--  — standalone comment placed at a position.
+- — standalone comment placed at a position.
 - {==highlighted text==}{&gt;&gt;comment body&lt;&lt;} — comment anchored to selected text.
 - {++insertion++}, {--deletion--}, {\~\~old\~&gt;new\~\~} — edit operations (Stage 14b track-changes territory; in-scope for the comment refactor since the parser/serializer is the same).
 
 CriticMarkup doesn't standardize metadata (id, author, ts, replies). Owner's "opinionated extension" call-out means we define a Duo-specific structured comment body:
 
 ```
-
 ```
 
 The opinionated extension is the structured prefix: `id:<ulid>|author:<name>|ts:<iso>|reply-to:<id>?|<body>`. Body starts after the last `|`. Parser splits on the FIRST few `|` until it hits `body`-shaped content. Robust to bodies containing `|` since fixed metadata fields come first.
@@ -8354,7 +8410,7 @@ The opinionated extension is the structured prefix: `id:<ulid>|author:<name>|ts:
 **Migration path.**
 
 1. **Phase 1 — Reader.** Markdown parser learns to recognize CriticMarkup {==…==}{&gt;&gt;id:…|…&lt;&lt;} blocks during load. They become TipTap comment marks (same `CommentMark` extension as today). Re-anchor logic shifts from sidecar-walks-doc to parser-knows-position.
-2. **Phase 2 — Writer.** Markdown serializer emits CriticMarkup on save. Comment threads become sequences of ` ` blocks at the anchor position.
+2. **Phase 2 — Writer.** Markdown serializer emits CriticMarkup on save. Comment threads become sequences of blocks at the anchor position.
 3. **Phase 3 — Sidecar migration.** On first load of a file that has comments in the sidecar AND no CriticMarkup in the body, migrate: insert CriticMarkup at the re-anchored positions, save the file, clear `sidecar.comments[]` (preserve `recentEdits` and other fields). One-shot per file.
 4. **Phase 4 — Deprecate** `SidecarComment`**.** Once the codebase doesn't read `sidecar.comments` anymore, remove the field from the schema. Older sidecars with the field are tolerated (we just ignore it post-migration).
 
@@ -9974,7 +10030,7 @@ Backward-compat: legacy v0.6.10 docs with `<img src="blob:...">` continue to ren
 
 **Recommendation:** owner picks. Local agent's lean (without seeing what's broken about ENH-111): **(2)** — Sprint 12 ships as-is plus a release-note line acknowledging "image viewer chrome landed; paste-image (the actual ask) is Sprint 13 P0." Trades narrative cleanness for ship velocity. Inverts to **(1)** if ENH-111 is broken in a way that wastes user time (e.g. crashes the renderer or the toolbar buttons no-op).
 
-**Cross-ref:** ENH-108 (the actual ask), ENH-111 (what shipped), active-sprint.md, [idle-thoughts.md](http://idle-thoughts.md) "Image handling" entry → ENH-108 sub-bullet.
+**Cross-ref:** ENH-108 (the actual ask), ENH-111 (what shipped), [active-sprint.md](http://active-sprint.md), [idle-thoughts.md](http://idle-thoughts.md) "Image handling" entry → ENH-108 sub-bullet.
 
 ---
 
@@ -10254,6 +10310,7 @@ Bar visual:
 **Architecture sketch (research doc finalizes):**
 
 - **State location:** per-terminal-tab metadata, persisted in `~/.claude/duo/session-state.json` alongside the terminal's `cwd` + `kind` (extend `SessionStateTerminal` shape — additive field, same pattern as Phase 3c-i `aux`).
+
 - **Per-tab state shape:**
 
   ```ts
@@ -10266,14 +10323,18 @@ Bar visual:
                                  // for the just-added wash (max 10)
   }
   ```
+
 - **CLI surface (new verbs, full plumbing checklist per [CLAUDE.md](http://CLAUDE.md) § 4):**
+
   - `duo terminal job [<text>]` — read or set the active terminal's job statement.
   - `duo terminal docs [add|remove|list] [<path>]` — manage the docs list.
   - `duo terminal skills [add|remove|list] [<name>]` — manage the skills list (v2 may auto-populate from skill discovery).
   - `duo terminal expand|collapse` — UI state.
   - `duo terminal context [--json]` — read everything for the active terminal.
   - All scoped by `DUO_SESSION` env so verbs run from inside a terminal target THAT terminal automatically; `--terminal <id>` flag for cross-terminal writes from outside (rare).
+
 - **Skill update:** new entry in `skill/SKILL.md` documenting the convention — agents should set the job statement at session start and update the docs list as they touch files. Eventually this becomes part of the priming flow (Stage 19b).
+
 - **UI components:** new `renderer/components/TerminalContextBar.tsx` that consumes per-tab context state from `useTerminalContext` hook (mirror of `useNavigator` shape).
 
 **Edge cases the research doc should resolve:**
@@ -10991,8 +11052,8 @@ For the boilerplate `<h1>title</h1><p></p>`, the last block is the empty `<p>`. 
 
 **Original deferred list (now shipped):**
 
-- **~~B2 — wikilink autocomplete on~~** `[[`**~~.~~**~~ Needs a popup overlay coordinated with TipTap's input handler — substantively more work than the decoration plugin. Filed as a future scope item under the same ENH-096 entry. ~~**~~Recommended approach (Sprint 10 research, 2026-05-07):~~**~~ use TipTap's first-party~~ `@tiptap/suggestion` ~~utility (the same primitive that backs the~~ `Mention` ~~extension) rather than hand-building the popover. Pairs with B4 + ENH-105 (~~`@` ~~autocomplete) on the same shared primitive. NPM-published, actively maintained — way better than the~~ `aarkue/tiptap-wikilink-extension` ~~GitHub repo (7 commits, no npm publish, no Obsidian-vault-aware features).~~ **Shipped Sprint 11.**
-- **~~B4 —~~** `⌘O` **~~vault quick switcher.~~**~~ Logic shape is well-understood (TabSearchPalette UI + a vault-walking source). Defer until B2 lands so they can share the popup primitive. Owner can manually navigate via the existing FileTree until then. ~~**~~Note:~~** ~~B4 is closer to a renderer-level overlay than a TipTap suggestion (it's not text-position-anchored), so it shares the FUZZY MATCH source with B2 + ENH-105 but has its own UI shell (resembling ENH-080's~~ `⌘⇧A` ~~palette).~~ **Shipped Sprint 11.**
+- **~~B2 — wikilink autocomplete on~~** `[[`**~~.~~**\~\~ Needs a popup overlay coordinated with TipTap's input handler — substantively more work than the decoration plugin. Filed as a future scope item under the same ENH-096 entry. **~~Recommended approach (Sprint 10 research, 2026-05-07):~~** use TipTap's first-party\~\~ `@tiptap/suggestion` ~~utility (the same primitive that backs the~~ `Mention` ~~extension) rather than hand-building the popover. Pairs with B4 + ENH-105 (~~`@` ~~autocomplete) on the same shared primitive. NPM-published, actively maintained — way better than the~~ `aarkue/tiptap-wikilink-extension` ~~GitHub repo (7 commits, no npm publish, no Obsidian-vault-aware features).~~ **Shipped Sprint 11.**
+- **~~B4 —~~** `⌘O` **~~vault quick switcher.~~**\~\~ Logic shape is well-understood (TabSearchPalette UI + a vault-walking source). Defer until B2 lands so they can share the popup primitive. Owner can manually navigate via the existing FileTree until then. \~\~**~~Note:~~** ~~B4 is closer to a renderer-level overlay than a TipTap suggestion (it's not text-position-anchored), so it shares the FUZZY MATCH source with B2 + ENH-105 but has its own UI shell (resembling ENH-080's~~ `⌘⇧A` ~~palette).~~ **Shipped Sprint 11.**
 - **A3 —** `@testing-library/react` **infra + frontmatter round-trip fixtures.** Defer alongside FOLLOWUP-009's existing deferral note — the infra cost doesn't earn its keep until there's a concrete async-orchestration test the smoke walk can't cover.
 
 **Library / framework research (Sprint 10, 2026-05-07).** Three candidate approaches for raising Obsidian fidelity were evaluated:
@@ -11100,7 +11161,3 @@ New: `PLAYGROUND_RUNTIME_IIFE` injected on every CDP attach + on `Page.frameNavi
 **Effort estimate:** \~1 sprint (CDP injection + IPC plumbing + trust check + browser-pane test surface).
 
 **Cross-ref:** ENH-043 (meta). ENH-092 + ENH-093 (the verbs this exposes to browser pages). Stage 23 (canvas action vocabulary + trust model). Stage 15.2 / ENH-039 / BUG-006 (CDP injection precedents).
-
----
-
----

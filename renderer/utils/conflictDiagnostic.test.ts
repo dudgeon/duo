@@ -156,6 +156,53 @@ describe('normalizeForEchoCompare — BUG-155 (tiptap autolink round-trip)', () 
   })
 })
 
+// BUG-161 — regression coverage for the 2026-05-26 byte-exact-ref fix
+// (the `lastSeenDiskBodyRef` companion to `lastSavedBodyRef` in
+// `MarkdownEditor.tsx`). The cases below are the TipTap-markdown
+// round-trip patterns that `normalizeForEchoCompare` does NOT cancel —
+// i.e. the gaps that previously fired false-positive save-pre-reconcile
+// banners on first-save-after-load. They're documented here so a future
+// "let me widen normalize again" PR runs the contract first and sees
+// that these are NOT supposed to normalize-equal: the right answer for
+// the save-pre-reconcile path is the byte-exact ref check, not yet
+// another regex. (The watcher / save paths in MarkdownEditor.tsx
+// answer the "did disk drift externally?" question via byte-exact
+// comparison against `lastSeenDiskBodyRef`; the normalize is only a
+// fallback for content-preserving touches.)
+describe('normalizeForEchoCompare — gaps that motivated the byte-exact fast-path', () => {
+  it('does NOT cancel `****X**` → `\\*\\***X**` (tiptap escapes leading **** before bold)', () => {
+    // tasks.md 2026-05-26 repro pattern: `> ****Reading guide.**` on disk
+    // becomes `> \*\***Reading guide.**` after tiptap parse + serialize.
+    // 6 chars vs 8 chars; normalize step doesn't touch backslash-escape.
+    const disk = '> ****Reading guide.**'
+    const baseline = '> \\*\\***Reading guide.**'
+    expect(normalizeForEchoCompare(disk)).not.toBe(normalizeForEchoCompare(baseline))
+  })
+
+  it('does NOT cancel relative-path autolinks ([X](X) where X is not http://)', () => {
+    // Real tasks.md content: `[docs/prd/foo.md](docs/prd/foo.md)` on disk
+    // becomes `` `docs/prd/foo.md` `` after tiptap (the autolinker only
+    // owns the http(s):// form, but the markdown emitter strips the
+    // bracket form when text == url and there's no scheme).
+    const disk = '[docs/prd/foo.md](docs/prd/foo.md)'
+    const baseline = '`docs/prd/foo.md`'
+    expect(normalizeForEchoCompare(disk)).not.toBe(normalizeForEchoCompare(baseline))
+  })
+
+  it('does NOT cancel paragraph-break insertion mid-list', () => {
+    // Pattern seen in tasks.md walk: a single-paragraph list item
+    // continues across a soft-break that tiptap inflates into a `\n\n`
+    // (creating two paragraphs). The soft-break normalize collapses
+    // `\n` between non-blank lines to space — but only when there's
+    // no blank line between them. The reverse (` ` → `\n\n`) isn't
+    // covered, and shouldn't be: a real paragraph break carries
+    // meaning that a space doesn't.
+    const disk = '- item continues here naturally'
+    const baseline = '- item continues\n\nhere naturally'
+    expect(normalizeForEchoCompare(disk)).not.toBe(normalizeForEchoCompare(baseline))
+  })
+})
+
 describe('computeFirstDiffOffset', () => {
   it('returns null when strings are identical', () => {
     expect(computeFirstDiffOffset('abc', 'abc')).toBeNull()

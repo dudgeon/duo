@@ -423,6 +423,25 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // and to avoid issuing identical writes.
   const lastSavedBodyRef = useRef<string>('')
 
+  // BUG-161 (2026-05-26) — the BYTE-EXACT body we last read from
+  // or wrote to disk. Distinct from `lastSavedBodyRef`, which holds the
+  // editor's *serialized* view (TipTap round-trip). The conflict check
+  // ("did disk change externally since we last touched it?") is a question
+  // about disk bytes, not about the editor's normalized view — using the
+  // round-tripped baseline made `normalizeForEchoCompare` whack-a-mole,
+  // because every TipTap serialization quirk that the normalize can't
+  // cancel (`****` → `\*\***`, soft-break collapse mid-list, relative
+  // autolink stripping, etc.) fired a false-positive conflict on the
+  // FIRST save after loading any file that hit the quirk.
+  // Captures: the raw `split.body` on load, the migrated body after the
+  // BUG-138 Phase 2 sidecar→inline auto-migration write, and the just-
+  // written `body` after each successful save. Used as a byte-exact
+  // fast-path in BOTH the save-pre-reconcile and the watcher; the
+  // existing normalize-based check stays as defense-in-depth for the
+  // case where an external agent does a content-preserving touch
+  // (BOM, CRLF, trailing whitespace).
+  const lastSeenDiskBodyRef = useRef<string>('')
+
   // BUG-099 / save-loop fix — set of body strings we've written recently.
   // Used by the watcher's echo detection alongside `lastSavedBodyRef` so
   // a chokidar event that arrives between two consecutive autosaves (or
@@ -838,6 +857,9 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     // a stale entry from the previously-open file can't masquerade as
     // an echo for the new path's first watcher event.
     recentlyWrittenBodiesRef.current.clear()
+    // BUG-161 — reset the byte-exact disk snapshot on path
+    // change for the same reason.
+    lastSeenDiskBodyRef.current = ''
     if (isNew) {
       frontmatterRef.current = null
       setFrontmatterState(null)
@@ -922,6 +944,12 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         // using what the editor itself serializes avoids a spurious "dirty"
         // state the instant the user types a single character.
         lastSavedBodyRef.current = serializeWithCriticMarkup(editor)
+        // BUG-161 — also snapshot the RAW disk body. The two
+        // refs answer different questions: `lastSavedBodyRef` tracks
+        // the editor's serialized view (for the dirty check),
+        // `lastSeenDiskBodyRef` tracks the actual disk bytes (for the
+        // conflict check).
+        lastSeenDiskBodyRef.current = split.body
 
         // Re-apply comment marks for any sidecar entries that didn't
         // migrate (orphans, or — pre-Phase-2 — when migration was
@@ -938,6 +966,10 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         if (migration.bodyChanged) {
           const migratedFullText = joinFrontmatter(frontmatterRef.current, migration.body, eolRef.current)
           trackRecentlyWritten(normalizeForEchoCompare(migration.body))
+          // BUG-161 — disk now holds the migrated body, not
+          // the original `split.body`. Advance the snapshot so the
+          // first real save's byte-exact fast-path matches.
+          lastSeenDiskBodyRef.current = migration.body
           void window.electron.files
             .write(path, encodeUtf8(migratedFullText))
             .then(() => {
@@ -997,6 +1029,15 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         const split = splitFrontmatter(text)
         const diskBody = split.body
 
+        // BUG-161 — byte-exact fast-path. If the disk body
+        // is the same bytes we last read or wrote, no external write
+        // happened. This sidesteps `normalizeForEchoCompare` for the
+        // common case (chokidar fires for our own write, or fires
+        // spuriously when something touches mtime without changing
+        // content) and avoids false conflicts when TipTap's round-trip
+        // produced a baseline the normalize can't fully cancel.
+        if (diskBody === lastSeenDiskBodyRef.current) return
+
         // Echo of our own save — `lastSavedBodyRef.current` was
         // updated to the freshly-saved body before chokidar fired.
         // Sprint 11 walk-3 fix (BUG-107) — normalize trailing
@@ -1044,6 +1085,10 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           // BUG-138 Phase 1b — apply CriticMarkup→marks before baseline.
           applyCriticMarkupFromText(editor)
           lastSavedBodyRef.current = serializeWithCriticMarkup(editor)
+          // BUG-161 — advance the disk snapshot too, so the
+          // next watcher event or save doesn't re-fire on this same
+          // disk content.
+          lastSeenDiskBodyRef.current = diskBody
         } else {
           // Dirty buffer — surface conflict; user picks resolution.
           // BUG-099 diagnostic — log the conflict-surface event with
@@ -1115,6 +1160,9 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     // BUG-138 Phase 1b — apply CriticMarkup→marks before baseline.
     applyCriticMarkupFromText(editor)
     lastSavedBodyRef.current = serializeWithCriticMarkup(editor)
+    // BUG-161 — disk snapshot tracks the bytes now in the
+    // editor (which are also what's on disk after the reload).
+    lastSeenDiskBodyRef.current = externalConflict.diskBody
     // Sprint 6 Phase 4 — re-apply comment marks after setContent
     // wipes them. Same idempotent pass that runs on initial load.
     applyCommentMarksFromSidecar(editor, sidecarRef.current)
@@ -1131,6 +1179,12 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     // true and the immediate save below overwrites disk with the
     // local version — exactly what "keep mine" means.
     lastSavedBodyRef.current = externalConflict.diskBody
+    // BUG-161 — also advance the byte-exact snapshot to the
+    // current disk content. The subsequent save will overwrite disk
+    // with our buffer, and the post-write block updates the snapshot
+    // again — but if the save doesn't fire (timing), the watcher's
+    // fast-path needs the right baseline so we don't re-banner.
+    lastSeenDiskBodyRef.current = externalConflict.diskBody
     setDirty(true)
     onDirtyChange?.(true)
     setExternalConflict(null)
@@ -1166,6 +1220,25 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           const diskRes = await window.electron.files.read(path)
           const diskText = decodeUtf8(diskRes.bytes)
           const diskBody = splitFrontmatter(diskText).body
+          // BUG-161 — byte-exact fast-path. The conflict
+          // check is asking "did disk drift externally since we last
+          // touched it?" That's a question about disk bytes, not
+          // about the editor's serialized view. Pre-fix, the
+          // normalize-based comparison below was the only check, and
+          // it false-positived whenever TipTap's parse/serialize
+          // round-trip produced a baseline with quirks the normalize
+          // couldn't cancel (`****X**` → `\*\***X**`, soft-break
+          // mid-list collapse, relative-path autolink stripping).
+          // Result: first save after opening any file with those
+          // patterns fired the banner. By snapshotting the raw disk
+          // body separately (`lastSeenDiskBodyRef`) on every read +
+          // write, we can answer the real question directly. The
+          // normalize-based check below stays as defense-in-depth
+          // for content-preserving touches (cloud-sync BOM, CRLF).
+          if (diskBody === lastSeenDiskBodyRef.current) {
+            // Disk hasn't changed since we last touched it. Proceed
+            // with the write below.
+          } else {
           // Sprint 11 walk-3 fix (BUG-107) — disk content may differ
           // from baseline by trailing whitespace alone. tiptap-markdown's
           // serializer normalizes trailing blank lines on round-trip
@@ -1223,6 +1296,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
             setExternalConflict({ diskBody })
             return
           }
+          } // end of `else` block from BUG-155 byte-exact fast-path
         } catch {
           // Can't read disk (file deleted, permissions, etc.) — fall
           // through to write. The write may also fail; the catch below
@@ -1240,6 +1314,11 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         trackRecentlyWritten(body)
         await window.electron.files.write(path, bytes)
         lastSavedBodyRef.current = body
+        // BUG-161 — the bytes we just wrote are now what's
+        // on disk. Advance the byte-exact snapshot so the watcher's
+        // upcoming event (and the next save's pre-reconcile) take the
+        // fast-path bypass.
+        lastSeenDiskBodyRef.current = body
       }
 
       // Sprint 6 Phase 4 — refresh + persist the sidecar. Refresh
@@ -1832,6 +1911,10 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
               eolRef.current = diskSplit.eol
               editor.commands.setContent(preprocessSubstitutions(diskBody), false)
               lastSavedBodyRef.current = serializeWithCriticMarkup(editor)
+              // BUG-161 — advance the byte-exact disk
+              // snapshot in lockstep with the round-tripped baseline,
+              // so the next save's fast-path bypass matches.
+              lastSeenDiskBodyRef.current = diskBody
               didReload = true
             } else {
               // Dirty buffer + diverged disk = real conflict. Don't
