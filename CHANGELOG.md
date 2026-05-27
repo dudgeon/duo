@@ -19,7 +19,25 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.8.1 cut 2026-05-26.
+> Empty — v0.8.2 cut 2026-05-27.
+
+## [0.8.2] — 2026-05-27 — Terminal-tab context menu parity
+
+### Added
+- **ENH-188** Terminal-tab right-click menu approaches parity with canvas-tab menu.
+  New verbs:
+  - **Move tab left / right** — position-gated in the menu; also via **HTML5 drag-and-drop** with an accent-ring drop cue (mirrors the canvas strip's `application/x-duo-tab-id` pattern with a distinct `application/x-duo-terminal-tab-id` mime so cross-strip drags never contaminate).
+  - **Copy cwd** — analog of the canvas "Copy path".
+  - **Close tab** — menu mirror of the × button.
+  - **Close other tabs** — closes every visible terminal tab except the right-clicked one; each closed tab is pushed onto the ENH-179 ring so ⌘Z restores them.
+  - The existing **Reveal in navigator** (ENH-115) is preserved.
+
+  Under ENH-182 project focus, reorder is scoped to the visible subsequence — hidden tabs (from other projects) keep their absolute strip slots. The semantics + the hidden-slot preservation invariant are pinned by 9 vitest cases against a new pure helper `shared/reorderTabs.ts § reorderVisible`. ([#60](https://github.com/dudgeon/duo/pull/60))
+
+### Known issues
+- **FOLLOWUP-042** No `duo` CLI verb for terminal-tab reorder yet (this matches the canvas reorder, which is also UI-only). Filed; queued for the polish wave's next pass.
+
+[0.8.2]: https://github.com/dudgeon/duo/compare/v0.8.1...v0.8.2
 
 ## [0.8.1] — 2026-05-26 — Sprint 24 polish wave
 

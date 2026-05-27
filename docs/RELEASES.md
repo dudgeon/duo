@@ -21,7 +21,25 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.8.1 cut 2026-05-26)*
+> *(empty — v0.8.2 cut 2026-05-27)*
+
+---
+
+## v0.8.2 — 2026-05-27 — Terminal-tab context menu parity
+
+**Why this lands here.** The terminal-tab right-click menu had a single verb (Reveal in navigator, ENH-115) while the canvas-tab menu was rich: reveal, rename, copy path, move left/right, pin, move-to-split, edit-in-canvas, open-in-browser, view-source, trash. The asymmetry was most visible when you wanted to *reorder* terminal tabs — you couldn't. Close + reopen was the only recourse, and that lost the PTY state. ENH-188 closes the gap with a thoughtful subset: every canvas verb that has a real terminal analog now ships; verbs without one (Pin, Move-to-Split, Edit-in-canvas, View-source, Trash, Rename) are documented as skipped rather than silently absent.
+
+**Key design decisions.**
+
+1. **Pure helper for the reorder transform.** `shared/reorderTabs.ts § reorderVisible(items, sourceId, targetId, isVisible)` is the load-bearing function — it implements the insert-before / insert-after rule AND the under-focus hidden-slot preservation (the bit that's more subtle than the canvas WorkingPane version, which has no focus filter). Lives in `shared/` so vitest can pin the invariants without mounting a React tree; the `App.tsx` callsite is a 3-line delegation.
+
+2. **Reorder gesture: menu + drag-and-drop.** Both are wired. The drag dataTransfer mime is `application/x-duo-terminal-tab-id` — distinct from the canvas's `application/x-duo-tab-id` so cross-strip drags can never contaminate. Drag affordance is the same accent-ring (`ring-2 ring-accent ring-inset`) the canvas strip uses.
+
+3. **CLI parity deferred, not skipped.** Canvas "move left/right" is itself UI-only — there's no `duo move-tab` verb on the canvas side either. So this faithfully *approaches* canvas parity rather than introducing a new gap. Tracked as FOLLOWUP-042; arguably pairs with a canvas-side equivalent so both surfaces gain CLI parity in one pass.
+
+**What this is and isn't.** This is a small ergonomic shipment that completes Sprint 24's terminal-tab polish thread. It is NOT the v0.9.0 MINOR — the Sprint 24 backlog still has FOLLOWUP-031 (claudePresence listener leak), FOLLOWUP-032 (double project-close race), FOLLOWUP-033 (project list empty during boot), FOLLOWUP-041 (navigator parity with BUG-165), and the carry-forward items (BUG-079 Ctrl-Tab latency, ENH-128 walk-4, ENH-148 v2 multi-select, ENH-162 Clone modal collision) all queued. v0.9.0 lands when a coherent capability ships alongside the next polish wave.
+
+[#60](https://github.com/dudgeon/duo/pull/60)
 
 ---
 

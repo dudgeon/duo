@@ -607,12 +607,12 @@
   </div>
 </article>
 
-<article class="item" data-keys="terminal tab right click reveal navigator cwd jump enh-115">
+<article class="item" data-keys="terminal tab right click reveal navigator cwd jump enh-115 enh-188 copy cwd close other move left right drag reorder">
   <div class="num">19b</div>
   <div>
-    <h3>Right-click a terminal tab → Reveal in navigator</h3>
-    <p class="why">Each terminal tab has its own CWD (set when you spawned it). Right-click any tab in the terminal tab strip → "Reveal in navigator" jumps the file tree to that tab's CWD and surfaces the reveal chip. Same flow as the CLI's <code>duo reveal</code>. <strong>v0.6.10+</strong></p>
-    <p class="how"><strong>UI</strong>Right-click the tab label (top of the terminal column, NOT inside the terminal body) → Reveal in navigator.</p>
+    <h3>Right-click a terminal tab → menu of verbs</h3>
+    <p class="why">Each terminal tab has its own CWD (set when you spawned it). Right-click any tab in the terminal tab strip to open a menu approaching parity with the canvas-tab menu. <strong>v0.6.10:</strong> <em>Reveal in navigator</em> jumps the file tree to that tab's CWD and surfaces the reveal chip — same flow as the CLI's <code>duo reveal</code>. <strong>v0.8.2:</strong> menu adds <em>Copy cwd</em> (puts the tab's cwd on the clipboard), <em>Move tab left / right</em> (position-gated; edges hide the unavailable direction; also via HTML5 drag-and-drop with an accent insertion cue), <em>Close tab</em> (mirror of the × button), and <em>Close other tabs</em> (closes every visible terminal tab except this one — ⌘Z restores from the closed-tab ring). Under project focus, reorder is scoped to the visible subsequence so hidden tabs keep their absolute slots.</p>
+    <p class="how"><strong>UI</strong>Right-click the tab label (top of the terminal column, NOT inside the terminal body), or drag a tab onto another to reorder.</p>
   </div>
 </article>
 

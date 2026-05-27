@@ -18,6 +18,32 @@
 
 ---
 
+## 2026-05-27 (v0.8.2 cut — terminal-tab context menu parity)
+
+**v0.8.2 cut + tagged locally.** Single feature lands — **ENH-188** ([#60](https://github.com/dudgeon/duo/pull/60), squash [`69a18d3`](https://github.com/dudgeon/duo/commit/69a18d3)): terminal-tab right-click menu approaches parity with canvas-tab menu.
+
+- **Brought over** (owner-confirmed via AskUserQuestion): Move tab left/right (menu + HTML5 drag-and-drop), Copy cwd, Close tab, Close other tabs. Plus pre-existing Reveal in navigator.
+- **Skipped** (no terminal analog): Pin/Unpin, Move-to-Split, Edit-in-canvas, Open-in-browser, View source, Move to Trash, Rename.
+- **Pure helper extracted:** `shared/reorderTabs.ts § reorderVisible(items, sourceId, targetId, isVisible)` — the load-bearing function with insert-before/after semantics + under-focus hidden-slot preservation. 9 vitest cases pin both layers. App.tsx callsite is a 3-line delegation.
+- **Distinct drag dataTransfer mime** (`application/x-duo-terminal-tab-id` vs canvas's `application/x-duo-tab-id`) prevents cross-strip contamination.
+- **CLI verb deferred → FOLLOWUP-042.** Canvas reorder is itself UI-only; this faithfully approaches parity rather than introducing a new gap.
+
+**ID collision discovered + fixed during review (commit `042e543` on the PR branch).** The PR opened against pre-v0.8.1 main and originally used ENH-187. v0.8.1 shipped a different ENH-187 (the `⌘T` live-cwd-inheritance feature, [`0d303e1`](https://github.com/dudgeon/duo/commit/0d303e1)) while this PR sat open. Renumbered to ENH-188 across all touchpoints (tasks.md heading + body + FOLLOWUP-042, 18 code comments, commit message, PR title) plus a provenance note in the entry pointing back at the v0.8.1 ENH-187 commit. Same collision pattern I hit on BUG-161 the prior sprint — the lesson (rebase against current main before naming new IDs) didn't quite save us this time because the PR was opened from a pre-cut snapshot of main; the fix is mechanical when caught at review.
+
+**Smoke walk pre-cut, all PASS via computer-use:**
+- Native NSMenu opens on right-click with all 6 items + 2 separators rendered exactly as spec'd ✅
+- Position-gating: mid-strip tab shows both Move-left and Move-right; right-edge tab correctly hides Move-right ✅
+- "Move tab right" reorders `[alpha, bravo, charlie]` → `[alpha, charlie, bravo]` ✅
+- "Copy cwd" writes `/tmp/walk-enh188-bravo` to clipboard (verified via `pbpaste`) ✅
+- HTML5 drag-and-drop: synthetic `DragEvent` chain in both directions reorders correctly (drag-right inserts after, drag-left inserts before) ✅
+- Bonus regression check: BUG-165 amber note (`[duo] /tmp/walk-enh188-charlie no longer exists — opened /tmp instead.`) still fires on deleted-cwd spawn ✅
+
+"Close other tabs" was NOT live-walked — would have destroyed 15+ unrelated user tabs in this dev session. Covered by code review (5-line filter + setActiveTabId + ring push; same ring-push pattern as the existing single-tab close + ⌘Z restore path).
+
+**Mac was unlocked for this walk** (prior attempt failed on a locked screen per `feedback_locked_mac_screenshot_pattern`).
+
+---
+
 ## 2026-05-26 (v0.8.1 cut — Sprint 24 polish wave)
 
 **v0.8.1 cut + tagged locally.** Sprint 24 was scoped as "polish wave: close the v0.8.0 audit follow-ups before any new feature work." What actually landed reads less like polish and more like quality-of-life across the four primary surfaces:
