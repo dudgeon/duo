@@ -28,12 +28,12 @@ interface TabBarProps {
    *  tab fires this with the tab's `cwd`. Parent points the navigator
    *  at the path (same code path as the CLI's `duo reveal`). */
   onRevealCwd?: (cwd: string) => void
-  /** ENH-187 — reorder terminal tabs (move-left/right menu + HTML5
+  /** ENH-188 — reorder terminal tabs (move-left/right menu + HTML5
    *  drag-and-drop). Both ids are members of the visible strip; the
    *  parent reorders the underlying `tabs` array. Mirrors
    *  WorkingTabStrip's `onReorderTab`. */
   onReorderTab?: (sourceId: string, targetId: string) => void
-  /** ENH-187 — right-click → "Close other tabs": close every visible
+  /** ENH-188 — right-click → "Close other tabs": close every visible
    *  terminal tab except the right-clicked one. */
   onCloseOthers?: (id: string) => void
 }
@@ -69,12 +69,12 @@ export function TabBar({
   onReorderTab,
   onCloseOthers
 }: TabBarProps) {
-  // ENH-187 — drag-reorder visual state. The hovered tab paints an
+  // ENH-188 — drag-reorder visual state. The hovered tab paints an
   // accent insertion cue while a drag is in flight; cleared on drop /
   // dragend. Mirrors WorkingTabStrip's dropTargetId.
   const [dropTargetId, setDropTargetId] = useState<string | null>(null)
 
-  // ENH-187 — move a tab one slot left/right within the visible strip.
+  // ENH-188 — move a tab one slot left/right within the visible strip.
   // `tabs` here is already the visible (project-filtered) set, so its
   // index order IS the strip order. Mirrors WorkingTabStrip.moveTabBy
   // minus the pinned-zone logic (terminals don't pin).
@@ -124,7 +124,7 @@ export function TabBar({
             // ENH-024 — only the active tab gets the ref; previous
             // active tab loses the assignment naturally on re-render.
             buttonRef={tab.id === activeTabId ? activeTabRef : undefined}
-            // ENH-187 — reorder context: position within the visible
+            // ENH-188 — reorder context: position within the visible
             // strip gates the move-left/right items; the bound mover +
             // close-others wire the menu actions.
             index={index}
@@ -132,7 +132,7 @@ export function TabBar({
             canReorder={!!onReorderTab}
             onMoveTab={(delta) => moveTabBy(tab.id, delta)}
             onCloseOthers={onCloseOthers ? () => onCloseOthers(tab.id) : undefined}
-            // ENH-187 — HTML5 drag-and-drop reorder. Distinct mime from
+            // ENH-188 — HTML5 drag-and-drop reorder. Distinct mime from
             // the canvas strip so terminal/canvas drags never cross.
             isDropTarget={dropTargetId === tab.id}
             onDragStart={onReorderTab ? (e) => {
@@ -222,7 +222,7 @@ interface TabProps {
   tab: TabSession
   isActive: boolean
   onSelect: () => void
-  /** ENH-187 — close this tab (menu "Close tab" + the × button). */
+  /** ENH-188 — close this tab (menu "Close tab" + the × button). */
   onCloseSelf: () => void
   canClose: boolean
   /** ENH-024 — passed by the parent on the active tab so it can
@@ -230,16 +230,16 @@ interface TabProps {
   buttonRef?: React.Ref<HTMLButtonElement>
   /** ENH-115 — right-click → Reveal in navigator. */
   onRevealCwd?: (cwd: string) => void
-  /** ENH-187 — position within the visible strip; gates move-left/right. */
+  /** ENH-188 — position within the visible strip; gates move-left/right. */
   index: number
   total: number
-  /** ENH-187 — whether reorder is wired (drag + move items). */
+  /** ENH-188 — whether reorder is wired (drag + move items). */
   canReorder: boolean
-  /** ENH-187 — move this tab one slot left (-1) / right (1). */
+  /** ENH-188 — move this tab one slot left (-1) / right (1). */
   onMoveTab: (delta: -1 | 1) => void
-  /** ENH-187 — "Close other tabs" (undefined hides the item). */
+  /** ENH-188 — "Close other tabs" (undefined hides the item). */
   onCloseOthers?: () => void
-  /** ENH-187 — drag-reorder wiring. Undefined handlers ⇒ non-draggable. */
+  /** ENH-188 — drag-reorder wiring. Undefined handlers ⇒ non-draggable. */
   isDropTarget?: boolean
   onDragStart?: (e: React.DragEvent) => void
   onDragOver?: (e: React.DragEvent) => void
@@ -253,7 +253,7 @@ function Tab({
   index, total, canReorder, onMoveTab, onCloseOthers,
   isDropTarget, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd
 }: TabProps) {
-  // ENH-187 — right-click → native context menu, approaching parity
+  // ENH-188 — right-click → native context menu, approaching parity
   // with the canvas-tab menu (WorkingTabStrip). Items are grouped:
   // reveal / copy-cwd, then move-left/right, then close verbs — each
   // group separated by a rule (same builder shape as the canvas side).
@@ -317,7 +317,7 @@ function Tab({
       aria-selected={isActive}
       onClick={onClick}
       onContextMenu={onContextMenu}
-      // ENH-187 — HTML5 drag-reorder. Draggable only when the parent
+      // ENH-188 — HTML5 drag-reorder. Draggable only when the parent
       // wired reorder handlers.
       draggable={canReorder}
       onDragStart={onDragStart}
@@ -333,7 +333,7 @@ function Tab({
           // at the top renders as an absolute child below.
           ? 'bg-surface-0 text-ink shadow-[inset_0_1px_0_var(--duo-paper-rule),inset_1px_0_var(--duo-paper-rule),inset_-1px_0_var(--duo-paper-rule)] font-serif italic text-[13px] font-medium'
           : 'text-ink-mute hover:text-ink-soft hover:bg-surface-3 text-xs',
-        // ENH-187 — drop-target insertion cue. Same accent ring the
+        // ENH-188 — drop-target insertion cue. Same accent ring the
         // canvas strip (WorkingTabItem) uses for its drag affordance.
         isDropTarget ? 'ring-2 ring-accent ring-inset' : ''
       ].join(' ')}

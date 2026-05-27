@@ -8,9 +8,11 @@
 
 > Sprint 24 anchor: close the v0.8.0 audit's deferred follow-ups (FOLLOWUP-031 through 040) before any new feature work. ENH-182 was the marquee chapter; Sprint 24 is its polish epilogue. Definition of done: all 10 FOLLOWUPs closed or explicitly deferred-with-reason. Expected cut shape: v0.8.1 PATCH (polish-only) OR v0.9.0 MINOR if a carry-forward capability lands alongside.
 
-### ENH-187: Terminal-tab context menu — parity with canvas tabs (reorder + close + copy cwd)
+### ENH-188: Terminal-tab context menu — parity with canvas tabs (reorder + close + copy cwd)
 
 **Status:** 🆕 **Filed + implemented 2026-05-27** (branch `claude/terminal-tabs-context-parity-2lh2X`). **Priority:** Medium (daily-driver ergonomics; the headline gap is "can't reorder terminal tabs"). **Effort:** ~1.5h.
+
+> **Renumbered ENH-187 → ENH-188 (PR #60 review).** The branch was cut from pre-v0.8.1 main; ENH-187 was meanwhile taken by the shipped `⌘T`/`duo new-tab` live-cwd-inheritance feature (v0.8.1, commit `0d303e1`). Different surface, so this work moved to the next free id, ENH-188.
 
 **Symptom.** The terminal-tab right-click menu (`TabBar.tsx`) offered a single verb — "Reveal in navigator" (ENH-115) — while the canvas-tab menu (`WorkingTabStrip.tsx`) is rich: reveal, rename, copy path, **move left/right**, pin, move-to-split, edit-in-canvas, open-in-browser, view-source, trash. Terminal tabs couldn't be reordered at all (no drag, no menu), so a mis-ordered strip was permanent until close + reopen.
 
@@ -20,7 +22,7 @@
 - **Skipped — no terminal analog:** Pin/Unpin (terminals have no pin concept), Move to Split View (working-pane-only), Edit-in-canvas / Open-in-browser (HTML modality flip), View source (file-content concept), Move to Trash (terminals aren't files — Close is the analog).
 - **Skipped — not true parity:** Rename… (canvas renames the *file*; terminal titles come from the process/OSC — a manual override would be a new concept, declined for v1).
 
-**Implementation.** `renderer/components/TabBar.tsx` — context-menu builder expanded (position-aware move items, separators between groups), HTML5 drag handlers + `dropTargetId` accent insertion cue, new `onReorderTab` / `onCloseOthers` props. `renderer/App.tsx` — `reorderTerminalTab(sourceId, targetId)` reorders the full `tabs` array with insert-before/after semantics (mirrors WorkingPane's `reorderTab`) while **preserving hidden tabs' absolute slots** under ENH-182 project focus (reorders only within the visible subsequence, rebuilds in place); `closeOtherTabs(keepId)` closes every *visible* terminal tab except the kept one and pushes each onto the ENH-179 closed-tab ring (⌘Z-restorable). Reorder persists for free via the existing workspace-save (`terminals: tabs.map(...)`).
+**Implementation.** `renderer/components/TabBar.tsx` — context-menu builder expanded (position-aware move items, separators between groups), HTML5 drag handlers + `dropTargetId` accent insertion cue, new `onReorderTab` / `onCloseOthers` props. `renderer/App.tsx` — `reorderTerminalTab(sourceId, targetId)` reorders the full `tabs` array with insert-before/after semantics (mirrors WorkingPane's `reorderTab`) while **preserving hidden tabs' absolute slots** under ENH-182 project focus (reorders only within the visible subsequence, rebuilds in place); `closeOtherTabs(keepId)` closes every *visible* terminal tab except the kept one and pushes each onto the ENH-179 closed-tab ring (⌘Z-restorable). Reorder persists for free via the existing workspace-save (`terminals: tabs.map(...)`). The reorder transform is extracted as the pure `shared/reorderTabs.ts § reorderVisible(items, sourceId, targetId, isVisible)` with **9 unit tests** (`shared/reorderTabs.test.ts`) pinning the insert-before/after + hidden-slot-preservation invariants (PR #60 review ask).
 
 **Deliberate asymmetry (CLI parity).** Canvas "move left/right" is itself UI-only — there is **no** `duo` verb for canvas reorder either (only `BROWSER_MOVE_TAB_TO_AUX`). So terminal reorder shipping UI-only *faithfully* approaches canvas parity rather than introducing a new gap. The CLI verb is deferred, not skipped → FOLLOWUP-042.
 
@@ -30,9 +32,9 @@
 
 ### FOLLOWUP-042: `duo move-terminal-tab` (and arguably `duo move-tab` for canvas) CLI verb
 
-**Status:** 🆕 **Filed 2026-05-27** (ENH-187 scoping, owner chose "defer CLI verb as follow-up"). **Priority:** Low. **Effort:** ~45 min (full new-CLI-verb plumbing checklist).
+**Status:** 🆕 **Filed 2026-05-27** (ENH-188 scoping, owner chose "defer CLI verb as follow-up"). **Priority:** Low. **Effort:** ~45 min (full new-CLI-verb plumbing checklist).
 
-**Gap.** ENH-187 added human-facing terminal-tab reorder (menu + drag) but no CLI verb — matching the canvas side, which is *also* UI-only. CLAUDE.md §4 wants every human action mirrored in the CLI; this is a known, deliberate asymmetry pending this follow-up.
+**Gap.** ENH-188 added human-facing terminal-tab reorder (menu + drag) but no CLI verb — matching the canvas side, which is *also* UI-only. CLAUDE.md §4 wants every human action mirrored in the CLI; this is a known, deliberate asymmetry pending this follow-up.
 
 **Fix path.** Add `duo move-terminal-tab <n> <left|right>` (1-indexed against the visible strip). Probably pairs with a `duo move-tab <n> <left|right>` for the canvas WorkingPane so both reorder surfaces gain CLI parity in one pass. Full plumbing checklist applies (`shared/types.ts` → `electron/preload.ts` → `electron/main.ts` → `electron/socket-server.ts` → `cli/duo.ts` + `npm run build:cli` → `skill/SKILL.md` + `npm run sync:claude` → `agents/duo.md` → `docs/CLI-COVERAGE.md`). The renderer reorder primitives (`reorderTerminalTab`, WorkingPane's `reorderTab`) already exist — this is pure plumbing to reach them from the socket.
 

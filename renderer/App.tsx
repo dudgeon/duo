@@ -36,6 +36,7 @@ import { htmlBoilerplate } from './components/Page/htmlBoilerplate'
 import { encodeUtf8 } from './components/editor/markdown-io'
 import { findVaultRoot, resolveWikilinkInVault } from './components/editor/wikilinkResolver'
 import type { TabSession, DirEntry, TerminalTabKind, NewTabResult, PinEntry, SessionState, BrowserTab, ActiveWorkspace } from '@shared/types'
+import { reorderVisible } from '@shared/reorderTabs'
 
 // Stage 10 § D32: auto-collapse the Files column on windows narrower than
 // this. The user can manually re-expand; we don't re-collapse again unless
@@ -1559,41 +1560,23 @@ export function App() {
     })
   }, [activeTabId])
 
-  // ENH-187 — reorder terminal tabs (drag + move-left/right menu).
+  // ENH-188 — reorder terminal tabs (drag + move-left/right menu).
   // Mirrors WorkingPane's `reorderTab` insert-before/after semantics but
   // operates directly on the `tabs` array (no pinned zones, no separate
   // order state — array order IS the strip order, and it persists for
   // free via workspace-save). Both ids are members of the VISIBLE strip
   // (TabBar only ever hands us visible-tab ids). Under ENH-182 project
-  // focus the strip is a subset, so we reorder within the visible
-  // subsequence and rebuild the full array in place — hidden tabs keep
-  // their absolute slots, so a reorder while focused never disturbs
-  // other projects' tab order.
+  // focus the strip is a subset, so `reorderVisible` reorders within the
+  // visible subsequence and rebuilds in place — hidden tabs keep their
+  // absolute slots, so a reorder while focused never disturbs another
+  // project's tab order. The transform (+ its hidden-slot invariant) is
+  // unit-tested in `shared/reorderTabs.test.ts`.
   const reorderTerminalTab = useCallback((sourceId: string, targetId: string) => {
-    if (sourceId === targetId) return
-    setTabs(prev => {
-      const isVisible = (t: TabSession) =>
-        focusedProject === null || terminalMembership[t.id] === focusedProject
-      const visible = prev.filter(isVisible)
-      const srcIdx = visible.findIndex(t => t.id === sourceId)
-      const tgtIdx = visible.findIndex(t => t.id === targetId)
-      if (srcIdx < 0 || tgtIdx < 0) return prev
-      const without = visible.filter(t => t.id !== sourceId)
-      const newTgtIdx = without.findIndex(t => t.id === targetId)
-      if (newTgtIdx < 0) return prev
-      // Drag-rightward (source was left of target) → insert AFTER target;
-      // drag-leftward → insert BEFORE. Matches WorkingPane.reorderTab.
-      const insertAt = srcIdx < tgtIdx ? newTgtIdx + 1 : newTgtIdx
-      const newVisible = [...without.slice(0, insertAt), visible[srcIdx], ...without.slice(insertAt)]
-      // Re-thread the reordered visible tabs back into the slots the
-      // visible tabs originally occupied; hidden tabs pass through.
-      const visibleIds = new Set(visible.map(t => t.id))
-      let vi = 0
-      return prev.map(t => (visibleIds.has(t.id) ? newVisible[vi++] : t))
-    })
+    setTabs(prev => reorderVisible(prev, sourceId, targetId, (t) =>
+      focusedProject === null || terminalMembership[t.id] === focusedProject))
   }, [focusedProject, terminalMembership])
 
-  // ENH-187 — "Close other tabs" context-menu verb. Closes every VISIBLE
+  // ENH-188 — "Close other tabs" context-menu verb. Closes every VISIBLE
   // terminal tab except the kept one (under project focus, other
   // projects' tabs are untouched). Each closed tab is pushed onto the
   // ENH-179 closed-tab ring so ⌘Z restores them (re-spawns at the same
@@ -4037,7 +4020,7 @@ export function App() {
                     nav.actions.navigateTo(cwd)
                     setRevealChip(cwd)
                   }}
-                  // ENH-187 — terminal-tab reorder (drag + move-left/right
+                  // ENH-188 — terminal-tab reorder (drag + move-left/right
                   // menu) and "Close other tabs", parity with canvas tabs.
                   onReorderTab={reorderTerminalTab}
                   onCloseOthers={closeOtherTabs}
