@@ -59,7 +59,7 @@ In descending priority:
 | ID | Why skip |
 |---|---|
 | **BUG-093** split crash | Not reproducing on CLI; needs real user gesture |
-| ~~**BUG-122** save-conflict hypothesis 2/3~~ | **Closed 2026-05-26 by BUG-161** — root cause was MarkdownEditor's `lastSavedBodyRef` doing double duty for dirty + conflict checks. Fix: separate `lastSeenDiskBodyRef` byte-exact ref for the conflict path. Sidesteps the normalize-whack-a-mole pattern. |
+| ~~**BUG-122** save-conflict hypothesis 2/3~~ | **Closed 2026-05-26 by BUG-166** — root cause was MarkdownEditor's `lastSavedBodyRef` doing double duty for dirty + conflict checks. Fix: separate `lastSeenDiskBodyRef` byte-exact ref for the conflict path. Sidesteps the normalize-whack-a-mole pattern. |
 | **ENH-084 v4** aux glow | Needs 60s owner click-around walk |
 | **ENH-127** composer-window direction | Owner declined (per CLAUDE.md § Open questions) |
 | **ENH-137** Beginner's Guide | Owner-draft pending |
@@ -102,7 +102,7 @@ In descending priority:
 
 ## Lessons captured this sprint (will appear here as they accrue)
 
-- **2026-05-26 — BUG-161 / one-ref-two-purposes pitfall.** When a state ref answers two questions with different correct answers, splitting into two refs is cheaper than widening a normalize step to cover the gap. The MarkdownEditor.tsx baseline ref had been used both for the dirty check (where the editor's serialized view is correct) AND the conflict check (where raw disk bytes are correct). Every TipTap round-trip artifact the normalize step couldn't cancel = one false-positive banner pattern (BUG-107, BUG-122 h4, BUG-122 h6, BUG-155, plus 2 new ones uncovered today). The byte-exact `lastSeenDiskBodyRef` resolves the architectural mismatch; the normalize stays as defense-in-depth for content-preserving touches (cloud-sync BOM, CRLF) but is no longer load-bearing.
+- **2026-05-26 — BUG-166 / one-ref-two-purposes pitfall.** When a state ref answers two questions with different correct answers, splitting into two refs is cheaper than widening a normalize step to cover the gap. The MarkdownEditor.tsx baseline ref had been used both for the dirty check (where the editor's serialized view is correct) AND the conflict check (where raw disk bytes are correct). Every TipTap round-trip artifact the normalize step couldn't cancel = one false-positive banner pattern (BUG-107, BUG-122 h4, BUG-122 h6, BUG-155, plus 2 new ones uncovered today). The byte-exact `lastSeenDiskBodyRef` resolves the architectural mismatch; the normalize stays as defense-in-depth for content-preserving touches (cloud-sync BOM, CRLF) but is no longer load-bearing.
 
 ---
 
@@ -125,7 +125,7 @@ In descending priority:
 | [f1adf96](https://github.com/dudgeon/duo/commit/f1adf96) | **ENH-182 Phase 2b** — `file://` browser-tab filter by path membership |
 | [282b0bc](https://github.com/dudgeon/duo/commit/282b0bc) | **ENH-184** — workspace pill defeaturing + `duo workspace-pill-menu` CLI |
 | [c5d6fea](https://github.com/dudgeon/duo/commit/c5d6fea) | Sprint 23 docs sync + what-duo-does entries + PACK.json bump |
-| [4e66419](https://github.com/dudgeon/duo/commit/4e66419) | **FOLLOWUP-030** + **Phase 3c-browser** + **BUG-161/162/163/164** audit fold-in |
+| [4e66419](https://github.com/dudgeon/duo/commit/4e66419) | **FOLLOWUP-030** + **Phase 3c-browser** + **BUG-166/162/163/164** audit fold-in |
 | [e30adf1](https://github.com/dudgeon/duo/commit/e30adf1) | **release: v0.8.0** |
 | [e80c508](https://github.com/dudgeon/duo/commit/e80c508) | chore: bump to v0.8.1 |
 

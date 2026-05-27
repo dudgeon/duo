@@ -156,7 +156,7 @@ describe('normalizeForEchoCompare — BUG-155 (tiptap autolink round-trip)', () 
   })
 })
 
-// BUG-161 — regression coverage for the 2026-05-26 byte-exact-ref fix
+// BUG-166 — regression coverage for the 2026-05-26 byte-exact-ref fix
 // (the `lastSeenDiskBodyRef` companion to `lastSavedBodyRef` in
 // `MarkdownEditor.tsx`). The cases below are the TipTap-markdown
 // round-trip patterns that `normalizeForEchoCompare` does NOT cancel —

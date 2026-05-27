@@ -423,7 +423,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // and to avoid issuing identical writes.
   const lastSavedBodyRef = useRef<string>('')
 
-  // BUG-161 (2026-05-26) — the BYTE-EXACT body we last read from
+  // BUG-166 (2026-05-26) — the BYTE-EXACT body we last read from
   // or wrote to disk. Distinct from `lastSavedBodyRef`, which holds the
   // editor's *serialized* view (TipTap round-trip). The conflict check
   // ("did disk change externally since we last touched it?") is a question
@@ -857,7 +857,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     // a stale entry from the previously-open file can't masquerade as
     // an echo for the new path's first watcher event.
     recentlyWrittenBodiesRef.current.clear()
-    // BUG-161 — reset the byte-exact disk snapshot on path
+    // BUG-166 — reset the byte-exact disk snapshot on path
     // change for the same reason.
     lastSeenDiskBodyRef.current = ''
     if (isNew) {
@@ -944,7 +944,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         // using what the editor itself serializes avoids a spurious "dirty"
         // state the instant the user types a single character.
         lastSavedBodyRef.current = serializeWithCriticMarkup(editor)
-        // BUG-161 — also snapshot the RAW disk body. The two
+        // BUG-166 — also snapshot the RAW disk body. The two
         // refs answer different questions: `lastSavedBodyRef` tracks
         // the editor's serialized view (for the dirty check),
         // `lastSeenDiskBodyRef` tracks the actual disk bytes (for the
@@ -966,7 +966,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         if (migration.bodyChanged) {
           const migratedFullText = joinFrontmatter(frontmatterRef.current, migration.body, eolRef.current)
           trackRecentlyWritten(normalizeForEchoCompare(migration.body))
-          // BUG-161 — disk now holds the migrated body, not
+          // BUG-166 — disk now holds the migrated body, not
           // the original `split.body`. Advance the snapshot so the
           // first real save's byte-exact fast-path matches.
           lastSeenDiskBodyRef.current = migration.body
@@ -1029,7 +1029,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         const split = splitFrontmatter(text)
         const diskBody = split.body
 
-        // BUG-161 — byte-exact fast-path. If the disk body
+        // BUG-166 — byte-exact fast-path. If the disk body
         // is the same bytes we last read or wrote, no external write
         // happened. This sidesteps `normalizeForEchoCompare` for the
         // common case (chokidar fires for our own write, or fires
@@ -1085,7 +1085,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           // BUG-138 Phase 1b — apply CriticMarkup→marks before baseline.
           applyCriticMarkupFromText(editor)
           lastSavedBodyRef.current = serializeWithCriticMarkup(editor)
-          // BUG-161 — advance the disk snapshot too, so the
+          // BUG-166 — advance the disk snapshot too, so the
           // next watcher event or save doesn't re-fire on this same
           // disk content.
           lastSeenDiskBodyRef.current = diskBody
@@ -1160,7 +1160,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     // BUG-138 Phase 1b — apply CriticMarkup→marks before baseline.
     applyCriticMarkupFromText(editor)
     lastSavedBodyRef.current = serializeWithCriticMarkup(editor)
-    // BUG-161 — disk snapshot tracks the bytes now in the
+    // BUG-166 — disk snapshot tracks the bytes now in the
     // editor (which are also what's on disk after the reload).
     lastSeenDiskBodyRef.current = externalConflict.diskBody
     // Sprint 6 Phase 4 — re-apply comment marks after setContent
@@ -1179,7 +1179,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     // true and the immediate save below overwrites disk with the
     // local version — exactly what "keep mine" means.
     lastSavedBodyRef.current = externalConflict.diskBody
-    // BUG-161 — also advance the byte-exact snapshot to the
+    // BUG-166 — also advance the byte-exact snapshot to the
     // current disk content. The subsequent save will overwrite disk
     // with our buffer, and the post-write block updates the snapshot
     // again — but if the save doesn't fire (timing), the watcher's
@@ -1220,7 +1220,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           const diskRes = await window.electron.files.read(path)
           const diskText = decodeUtf8(diskRes.bytes)
           const diskBody = splitFrontmatter(diskText).body
-          // BUG-161 — byte-exact fast-path. The conflict
+          // BUG-166 — byte-exact fast-path. The conflict
           // check is asking "did disk drift externally since we last
           // touched it?" That's a question about disk bytes, not
           // about the editor's serialized view. Pre-fix, the
@@ -1314,7 +1314,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         trackRecentlyWritten(body)
         await window.electron.files.write(path, bytes)
         lastSavedBodyRef.current = body
-        // BUG-161 — the bytes we just wrote are now what's
+        // BUG-166 — the bytes we just wrote are now what's
         // on disk. Advance the byte-exact snapshot so the watcher's
         // upcoming event (and the next save's pre-reconcile) take the
         // fast-path bypass.
@@ -1911,7 +1911,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
               eolRef.current = diskSplit.eol
               editor.commands.setContent(preprocessSubstitutions(diskBody), false)
               lastSavedBodyRef.current = serializeWithCriticMarkup(editor)
-              // BUG-161 — advance the byte-exact disk
+              // BUG-166 — advance the byte-exact disk
               // snapshot in lockstep with the round-tripped baseline,
               // so the next save's fast-path bypass matches.
               lastSeenDiskBodyRef.current = diskBody

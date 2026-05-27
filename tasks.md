@@ -537,7 +537,7 @@ Sprint 22 finishing work for ENH-184 (handoff to whichever Claude picks it up): 
 
 ---
 
-### BUG-161: Autosave conflict banner fires consistently on first save after open (BUG-122 hypothesis 2/3 closed)
+### BUG-166: Autosave conflict banner fires consistently on first save after open (BUG-122 hypothesis 2/3 closed)
 
 **Status:** ✅ **Root-caused + fixed + regression-tested** 2026-05-26 (Sprint 24 / v0.8.1). Owner reported "still consistently hitting autosave conflicts when opening and editing markdown files." Live repro on `tasks.md` (1.2MB), confirmed via the `~/.claude/duo/logs/last-conflict.log` ring (trigger=`save-pre-reconcile`, surface=`markdown`, disk and baseline both \~1.19M, post-normalize divergence at offset 340+).
 
