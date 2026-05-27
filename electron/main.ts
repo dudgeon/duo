@@ -1219,6 +1219,17 @@ function setupIPC(): void {
     ptyManager.kill(id)
   })
 
+  // ENH-187 — best-effort live cwd lookup for a PTY. The renderer's
+  // `newTab` calls this synchronously on ⌘T so the new tab inherits the
+  // focused terminal's CURRENT shell cwd rather than its launch cwd
+  // (which is what nav.cwd tracks via follow-mode). Mirrors the live-
+  // cwd-on-active-tab logic that the workspace-new flow already uses.
+  ipcMain.handle(IPC.PTY_LIVE_CWD, (_event, { id }: { id: string }): string | null => {
+    const pid = ptyManager.getPid(id)
+    if (!pid) return null
+    return getLiveCwdForPid(pid)
+  })
+
   // ── Browser ───────────────────────────────────────────────────────────────
 
   ipcMain.handle(IPC.BROWSER_NAVIGATE, async (_event, { url }: { url: string }) => {

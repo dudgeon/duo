@@ -1395,6 +1395,11 @@ export const IPC = {
   PTY_WRITE: 'pty:write',
   PTY_RESIZE: 'pty:resize',
   PTY_KILL: 'pty:kill',
+  // ENH-187 — best-effort live cwd for a PTY (via lsof in main). Used
+  // by ⌘T / `duo new-tab` to inherit the focused terminal's CURRENT
+  // shell cwd (where the user has `cd`'d to), not the launch cwd from
+  // the navigator's follow-mode-synced state.
+  PTY_LIVE_CWD: 'pty:live-cwd',
   PTY_DATA: (id: string) => `pty:data:${id}`,
   PTY_EXIT: (id: string) => `pty:exit:${id}`,
 

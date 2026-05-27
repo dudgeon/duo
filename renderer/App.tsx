@@ -1489,19 +1489,33 @@ export function App() {
     void window.electron.pty.write(id, payload)
   }, [])
 
-  // Stage 10 § D9 + Stage 19c — new terminal tabs launch in `pendingCwd`
-  // (navigator's current folder or the selected file's parent). `kind`
-  // controls whether the tab auto-launches claude after the shell starts
-  // (D17 / D21). The split-button `+` always passes 'claude'; `>` passes
-  // 'shell'. The persisted last-kind only governs `duo new-tab` calls
-  // without --kind — see addTabFromCli below.
-  const newTab = useCallback((kind: TerminalTabKind) => {
-    const tab = makeTab(pendingCwd, kind, home)
+  // Stage 10 § D9 + Stage 19c — new terminal tabs inherit the focused
+  // terminal's CWD. ENH-187 (2026-05-26) — read the focused tab's
+  // LIVE shell cwd (via lsof in main) rather than its launch cwd, so a
+  // tab the user has `cd`'d around in still inherits where they
+  // currently are. Three-tier fallback:
+  //   1. Active tab's live cwd (lsof) — what the user sees in their shell.
+  //   2. Active tab's launch cwd — if lsof can't read (dead pid, no permission).
+  //   3. pendingCwd — when there's no active terminal at all (navigator's
+  //      current folder or the selected file's parent — Stage 10 D9).
+  // Pre-ENH-187, this used pendingCwd directly, which lagged the focused
+  // terminal on follow-mode races (rapid switch + ⌘T) and never tracked
+  // the live shell cwd. `kind` controls whether the tab auto-launches
+  // claude after the shell starts (D17 / D21). The split-button `+`
+  // always passes 'claude'; `>` passes 'shell'. The persisted last-kind
+  // only governs `duo new-tab` calls without --kind — see addTabFromCli below.
+  const newTab = useCallback(async (kind: TerminalTabKind) => {
+    let cwd = pendingCwd
+    if (activeTab) {
+      const liveCwd = await window.electron.pty.liveCwd(activeTab.id)
+      cwd = liveCwd ?? activeTab.cwd ?? pendingCwd
+    }
+    const tab = makeTab(cwd, kind, home)
     setTabs(prev => [...prev, tab])
     setActiveTabId(tab.id)
     void dispatchPostSpawnWrite(tab.id, kind)
     return tab
-  }, [pendingCwd, home, dispatchPostSpawnWrite])
+  }, [pendingCwd, home, dispatchPostSpawnWrite, activeTab])
 
   // "Open terminal here" from the navigator's right-click menu (§ D11).
   // Explicit CWD bypasses the pending-CWD rule so the user gets exactly
@@ -2508,29 +2522,43 @@ export function App() {
   useEffect(() => {
     return window.electron.terminal.onNewTabRequest((req) => {
       const reply = (result: NewTabResult) => window.electron.terminal.replyNewTab(result)
-      try {
-        const kind = req.kind ?? lastTabKind
-        const cwd = req.cwd && req.cwd.length > 0 ? req.cwd : pendingCwd
-        const tab = makeTab(cwd, kind, home)
-        setTabs(prev => [...prev, tab])
-        setActiveTabId(tab.id)
-        if (req.kind !== undefined) {
-          // Explicit --kind flag → also bump persisted last-kind so
-          // subsequent flagless calls follow the agent's recent choice.
-          setLastTabKind(kind)
-          saveLastTabKind(kind)
+      void (async () => {
+        try {
+          const kind = req.kind ?? lastTabKind
+          // ENH-187 — when the caller didn't pass --cwd, mirror the
+          // chord's behavior: inherit the focused terminal's live shell
+          // cwd, falling back to its launch cwd, then to pendingCwd.
+          let cwd: string
+          if (req.cwd && req.cwd.length > 0) {
+            cwd = req.cwd
+          } else {
+            cwd = pendingCwd
+            if (activeTab) {
+              const liveCwd = await window.electron.pty.liveCwd(activeTab.id)
+              cwd = liveCwd ?? activeTab.cwd ?? pendingCwd
+            }
+          }
+          const tab = makeTab(cwd, kind, home)
+          setTabs(prev => [...prev, tab])
+          setActiveTabId(tab.id)
+          if (req.kind !== undefined) {
+            // Explicit --kind flag → also bump persisted last-kind so
+            // subsequent flagless calls follow the agent's recent choice.
+            setLastTabKind(kind)
+            saveLastTabKind(kind)
+          }
+          void dispatchPostSpawnWrite(tab.id, kind, req.cmd)
+          reply({ reqId: req.reqId, ok: true, id: tab.id, kind, cwd, title: tab.title })
+        } catch (err) {
+          reply({
+            reqId: req.reqId,
+            ok: false,
+            error: err instanceof Error ? err.message : String(err)
+          })
         }
-        void dispatchPostSpawnWrite(tab.id, kind, req.cmd)
-        reply({ reqId: req.reqId, ok: true, id: tab.id, kind, cwd, title: tab.title })
-      } catch (err) {
-        reply({
-          reqId: req.reqId,
-          ok: false,
-          error: err instanceof Error ? err.message : String(err)
-        })
-      }
+      })()
     })
-  }, [pendingCwd, lastTabKind, home, dispatchPostSpawnWrite])
+  }, [pendingCwd, lastTabKind, home, dispatchPostSpawnWrite, activeTab])
 
   // ── Cozy mode (Stage 9) ────────────────────────────────────────────────────
 

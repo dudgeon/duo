@@ -53,6 +53,12 @@ export interface ElectronPtyAPI {
   kill: (id: string) => Promise<void>
   onData: (id: string, cb: (data: string) => void) => () => void
   onExit: (id: string, cb: (code: number) => void) => () => void
+  // ENH-187 — best-effort live cwd for a PTY. Returns the shell's
+  // CURRENT working directory (where the user has `cd`'d to) via lsof,
+  // or null on any failure (lsof missing, dead pid, permission). Used
+  // by ⌘T / `duo new-tab` so the new tab opens where the user IS, not
+  // where the previous tab LAUNCHED.
+  liveCwd: (id: string) => Promise<string | null>
   // Note: tab titles come from xterm.js Terminal.onTitleChange() (OSC sequences),
   // not via IPC — no main-process emit needed.
 }

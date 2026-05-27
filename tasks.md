@@ -537,6 +537,35 @@ Sprint 22 finishing work for ENH-184 (handoff to whichever Claude picks it up): 
 
 ---
 
+### ENH-187: ⌘T / `duo new-tab` should inherit the focused terminal's LIVE shell cwd, not the navigator's launch cwd
+
+**Status:** ✅ **Root-caused + fixed + verified** 2026-05-26 (Sprint 24 / v0.8.1).
+
+**Symptom (owner report).** "Live in terminal tab 2 of 4, hit ⌘T — the new tab appears to inherit the CWD of terminal tab 4, whereas it should inherit CWD of terminal tab 2."
+
+**Root cause.** `newTab(kind)` in `renderer/App.tsx` used `pendingCwd` (which equals `nav.state.cwd`) as the new tab's cwd. `nav.state.cwd` is synced to the focused tab's *launch* cwd via the Stage 10 § D1 follow-mode effect — NOT the focused tab's *live* shell cwd. Two ways this surfaces as a bug:
+1. **Live-vs-launch mismatch.** User on tab 2 (launch `/a`) has `cd`'d to `/b`. ⌘T opens a new tab in `/a` (launch), not `/b` (where they actually are). Surprising every time.
+2. **Follow-mode race.** Rapid tab-switch-then-⌘T can fire before the follow-mode `useEffect` commits, so `nav.cwd` still reflects the previously focused tab. Likely what the owner saw — "tab 4's cwd" was the previously focused tab's launch cwd, surfaced because the follow-mode effect hadn't run between the switch and ⌘T.
+
+**Fix.** New `IPC.PTY_LIVE_CWD` channel exposes `getLiveCwdForPid` (the lsof-based live-cwd lookup already used by the workspace-new flow) to the renderer as `window.electron.pty.liveCwd(id)`. `newTab` (chord path) and the `duo new-tab` CLI handler both now query the FOCUSED tab's live cwd before spawning, with a three-tier fallback: live cwd → launch cwd → `pendingCwd` (the original behavior, only kicks in when there's no focused tab at all).
+
+**Surfaces touched.**
+- `shared/types.ts` — new `PTY_LIVE_CWD: 'pty:live-cwd'` IPC channel.
+- `shared/host-api.ts` — `ElectronPtyAPI.liveCwd(id)` typed.
+- `electron/preload.ts` — exposes the invoke.
+- `electron/main.ts` — `ipcMain.handle(IPC.PTY_LIVE_CWD)` wraps `ptyManager.getPid` + `getLiveCwdForPid`.
+- `renderer/App.tsx` — `newTab` becomes async; `onNewTabRequest` handler too. Both query liveCwd before falling back.
+
+**Why the chord+CLI paths share the lookup.** Both routes through `newTab(kind)` for the chord (`newClaudeTab`/`newShellTab`/⌘T) and through the `onNewTabRequest` handler for the CLI. The pattern is the same: query active tab's live cwd, fall back to its launch cwd, then `pendingCwd`. Consistent behavior so the agent invoking `duo new-tab` from a side terminal sees the same cwd inheritance the user gets from a chord.
+
+**Verified live.** 4 tabs spawned at distinct cwds (a/b/c/d), tab d active. `duo send` `cd /tmp/repro-cwd-b/nested-inside-b` into tab d (live cwd diverges from launch `/tmp/repro-cwd-d`). Then `duo new-tab --shell` (no `--cwd`) → new tab opened in `/private/tmp/repro-cwd-b/nested-inside-b` (the live cwd). Pre-fix would have used `/tmp/repro-cwd-d` (the launch cwd).
+
+**Filed:** 2026-05-26. **Fixed:** 2026-05-26.
+
+**Cross-ref:** `getLiveCwdForPid` in `electron/main.ts` (the lsof lookup, also used by the workspace-new flow at `applyNewSessionState`). Stage 10 § D1 follow-mode (`renderer/App.tsx:1576`) which still tracks the focused tab's launch cwd for the navigator pane (unchanged).
+
+---
+
 ### BUG-166: Autosave conflict banner fires consistently on first save after open (BUG-122 hypothesis 2/3 closed)
 
 **Status:** ✅ **Root-caused + fixed + regression-tested** 2026-05-26 (Sprint 24 / v0.8.1). Owner reported "still consistently hitting autosave conflicts when opening and editing markdown files." Live repro on `tasks.md` (1.2MB), confirmed via the `~/.claude/duo/logs/last-conflict.log` ring (trigger=`save-pre-reconcile`, surface=`markdown`, disk and baseline both \~1.19M, post-normalize divergence at offset 340+).

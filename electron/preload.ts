@@ -77,6 +77,9 @@ const api: ElectronAPI = {
     kill: (id) =>
       ipcRenderer.invoke(IPC.PTY_KILL, { id }),
 
+    liveCwd: (id) =>
+      ipcRenderer.invoke(IPC.PTY_LIVE_CWD, { id }),
+
     onData: (id, cb) => {
       const handler = (_: IpcRendererEvent, data: string) => cb(data)
       ipcRenderer.on(IPC.PTY_DATA(id), handler)
