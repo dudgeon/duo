@@ -28,6 +28,22 @@
 
 ---
 
+### BUG-189: Quit-loop crash — "Object has been destroyed" cycling dialog on app quit
+
+**Status:** 🟡 **Fix pushed `claude/duo-quit-loop-bug-OBZHB` 2026-05-27.** **Priority:** High (app un-quittable without force-quit). **Effort:** ~30 min.
+
+**Symptom (owner repro 2026-05-27).** Quitting Duo popped the Electron "A JavaScript error occurred in the main process" dialog — `TypeError: Object has been destroyed` at `webContents.send` inside a node-pty `onData` handler. Clicking OK re-popped it immediately; the dialog cycled and owner had to force-quit.
+
+**Root cause.** PtyManager forwards terminal output to the renderer through an EventSink adapter wired in `electron/main.ts` as `(channel, payload) => mainWindow?.webContents.send(...)`. The `?.` guards a *null* `mainWindow` but not a *destroyed* one. On quit, `before-quit` calls `ptyManager.dispose()` → `pty.kill()`, which makes node-pty flush a final burst of buffered output as `onData` events. Those fire after the window's `webContents` is torn down but before the `'closed'` handler nulls `mainWindow`, so each send throws "Object has been destroyed". The throw is uncaught (→ Electron's crash dialog), and because the buffered data keeps draining, every subsequent `onData` re-throws → the dialog loops. The same unguarded closure pattern existed in the socket-server EventSink, the BrowserManager state/tabs callbacks, and the nav-pins push — all async-driven, so all could race teardown the same way (the git-watch path had already grown a bespoke `webContents.isDestroyed()` guard, evidence this class had bitten before).
+
+**Fix.** Added a single `safeSend(channel, payload?)` helper in `electron/main.ts` that checks `mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()` before sending, and routed every async-callback sink through it (PtyManager + socket-server EventSinks, BrowserManager state/tabs, nav-pins, claude-presence, git-watch — the last two had window-only / bespoke guards now consolidated onto the canonical path). No behavior change on the live path; sends mid-teardown become silent no-ops, which stops the throw and therefore the loop.
+
+**Verification.** Reasoning + `npm run typecheck` clean. Not run in-app: this is a macOS-only Electron quit-time path and the fix landed in a Linux cloud container (no Electron, node-pty native rebuild unavailable). Owner smoke: launch Duo with a live terminal producing output, then ⌘Q — should quit cleanly with no error dialog.
+
+**Noted follow-up (not in this fix).** `electron/browser-manager.ts` has three still-unguarded `this.window.webContents.send` calls in the key-forward (1274/1405) and focus (1440) handlers. Lower severity — they fire on keyboard/focus events (one-shot, no buffered-data burst), so they can't reproduce the *loop*, at most a single dialog if they race quit. Left for a follow-up so this fix stays scoped to the reported crash.
+
+---
+
 ### ENH-188: Terminal-tab context menu — parity with canvas tabs (reorder + close + copy cwd)
 
 **Status:** 🆕 **Filed + implemented 2026-05-27** (branch `claude/terminal-tabs-context-parity-2lh2X`). **Priority:** Medium (daily-driver ergonomics; the headline gap is "can't reorder terminal tabs"). **Effort:** ~1.5h.
