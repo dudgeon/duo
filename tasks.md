@@ -40,6 +40,25 @@
 
 ---
 
+### ENH-186: Project rail tile abbreviations — word-aware + collision-free
+
+**Status:** 🆕 **Filed + implemented 2026-05-26** (branch `claude/projects-filter-abbreviations-FKeyl`). **Priority:** Medium (daily-driver legibility). **Effort:** ~1.5h.
+
+**Symptom.** The project rail (ENH-182) labels each tile with `name.slice(0, 2)` — the first two characters of the folder name (`ProjectRail.tsx` ~155). Many projects begin with `ai` / `aipm`, so the rail showed a stack of identical, useless **“AI”** tiles. The abbreviation carries no information when several projects share a two-character prefix.
+
+**Fix.** New pure helper `computeProjectAbbreviations(projects)` in `shared/projects.ts` derives a word-aware, collision-free label for the whole visible set at once (collision detection needs every name in hand). Rules:
+- **Multi-word** → first letters of the first two words (`ai-pm-tools` → `AP`). On collision (same first two words) → three initials (`APT` / `APD`).
+- **Single-word** → first two letters (`platform` → `PL`). On collision → extend one letter at a time (`PLAT` / `PLAN`), capped at four.
+- **Proposed fallback** for collisions the letter ladder can't break (`ai-pm-data` vs `ai-pm-dashboard` both → `APD`; two-word names sharing initials): numeric suffix by sort order (`APD`, `APD2`); first tile keeps the clean form. Word-split handles `-` `_` `.` space + camelCase/PascalCase; leading dot stripped.
+
+**Surfaces touched.** `shared/projects.ts` (pure logic + 19 unit tests in `shared/projects.test.ts`); `renderer/components/ProjectRail/ProjectRail.tsx` (computes the map via `useMemo`, passes `abbreviation` per tile — replaces the inline `initials`). No `Project` type / `deriveProjects` change (abbreviation is a view concern that depends on the currently-rendered set).
+
+**Visual mockup.** `docs/research/enh-186-project-abbreviations.html` (interactive — type names, watch tiles resolve) + `docs/research/assets/project-filter/abbreviations-before-after.{svg,png}` (before/after + collision ladder).
+
+**Open for review.** (1) Numeric-suffix fallback vs. a 4th-initial / extra-letter scheme for the unbreakable cases — chose numeric for tile width + consistency. (2) Single-word letter cap (4) before numeric.
+
+---
+
 ### FOLLOWUP-035: handleProjectFocus dead-code probe
 
 **Status:** 🆕 **Filed 2026-05-25** (v0.8.0 audit, Tier 1). **Priority:** Low. **Effort:** 5 min.

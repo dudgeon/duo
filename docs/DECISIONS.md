@@ -663,7 +663,7 @@ Unifying them requires picking which contract wins. Either we wrap canvas in Tip
 3. **Existing parity gaps tracked.** ENH-076 (canvas ⌘[ / ⌘] indent) is in Sprint 3 Phase 3; will close one of the open gaps. MISSING-001 (markdown editor add-comment affordance) is the inverse direction — comments live in canvas via Stage 17d's CommentRail; the markdown editor needs equivalent surfacing. Tracked under Phase 3 of this sprint.
 4. **No active rewrite work** — the decision is to keep the parallel codebases, so there's nothing to refactor proactively. Future feature work follows the parity rule.
 
-Cross-references: BUG-061 (the bug that raised the convergence question), ENH-018 (markdown editor bullet markers — an example of a deliberate non-mirror), ENH-025 (markdown editor ⌘[/⌘] indent — paired with canvas-side ENH-076), MISSING-001 (markdown editor needs comment-add affordance — inverse-direction parity gap), Stage 11 PRD (markdown editor), Stage 17 PRD H1 ("the canvas IS the page" — the load-bearing principle that drove this decision), CLAUDE.md § Plumbing checklists (where the parity rule now lives).
+Cross-references: BUG-061 (the bug that raised the convergence question), ENH-018 (markdown editor bullet markers — an example of a deliberate non-mirror), ENH-025 (markdown editor ⌘[/⌘] indent — paired with canvas-side ENH-076), MISSING-001 (markdown editor needs comment-add affordance — inverse-direction parity gap), Stage 11 PRD (markdown editor), Stage 17 PRD H1 ("the canvas IS the page" — the load-bearing principle that drove this decision), `.claude/rules/renderer-surfaces.md` (where the editor/canvas parity rule now lives).
 
 ---
 

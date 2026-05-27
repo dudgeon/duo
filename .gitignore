@@ -50,13 +50,16 @@ coverage/
 
 # Claude Code workspace state — ignore per-user settings + worktrees,
 # but track the shared `launch.json` (preview server config for the
-# roadmap HTML) and the project-scoped `skills/` directory (each
-# skill is a deliverable that any Claude session in this directory
-# should auto-discover — e.g. `cut-version`).
+# roadmap HTML), the project-scoped `skills/` directory (each skill is
+# a deliverable that any Claude session in this directory should
+# auto-discover — e.g. `cut-version`), and the `rules/` directory
+# (path-scoped instruction files that extend CLAUDE.md).
 .claude/*
 !.claude/launch.json
 !.claude/skills/
 !.claude/skills/**
+!.claude/rules/
+!.claude/rules/**
 fork.config.json
 fork.config.local.json
 

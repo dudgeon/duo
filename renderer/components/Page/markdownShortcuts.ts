@@ -113,7 +113,7 @@ export function installMarkdownShortcuts(doc: Document): () => void {
   const onKeyDown = (e: KeyboardEvent) => {
     // ENH-076 (v0.6.4) — ⌘[ / ⌘] indent/outdent inside list items,
     // mirroring the markdown editor's ListIndentShortcuts.ts (ENH-025).
-    // Editor-canvas parity rule (CLAUDE.md § 4) disposition: (a) Mirrored
+    // Editor-canvas parity rule (.claude/rules/renderer-surfaces.md) disposition: (a) Mirrored
     // — same chord, same handler shape, same no-op-outside-list semantics.
     // ⌘⇧[ / ⌘⇧] are claimed globally per ListIndentShortcuts comments;
     // the !shiftKey guard keeps us from shadowing those.
@@ -429,7 +429,7 @@ function handleEnterShortcuts(doc: Document): boolean {
   // mid-blockquote (rare but possible after editing) would also
   // trigger an exit, which would surprise the user.
   //
-  // Editor-canvas parity disposition (CLAUDE.md § 4): (a) Mirrored —
+  // Editor-canvas parity disposition (.claude/rules/renderer-surfaces.md): (a) Mirrored —
   // TipTap StarterKit's Blockquote should already do this; verify
   // and file a paired ENH if it doesn't.
   if (isEmptyTrailingBlockquoteChild(block)) {

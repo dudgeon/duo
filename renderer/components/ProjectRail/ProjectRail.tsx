@@ -18,7 +18,9 @@
 //   docs/research/assets/project-filter/rail-styles.png (variant B)
 //   docs/research/assets/project-filter/tile-state.png (leftmost / Minimal)
 
+import { useMemo } from 'react'
 import type { Project, MenuTemplateItem } from '@shared/types'
+import { computeProjectAbbreviations } from '@shared/projects'
 
 /** Map colorIndex (0..5) → CSS var. Mirrors the six `--duo-project-*`
  *  tokens in `renderer/styles/globals.css` (which themselves mirror the
@@ -72,6 +74,14 @@ export function ProjectRail({
   onTogglePin,
   onCloseProject
 }: ProjectRailProps) {
+  // Word-aware, collision-free tile labels (ENH-186). Computed across
+  // the whole visible set because disambiguation depends on which other
+  // projects are showing. Recomputed only when the roots/names change.
+  const abbreviations = useMemo(
+    () => computeProjectAbbreviations(projects),
+    [projects]
+  )
+
   // Hide the rail entirely when no projects have surfaced yet. Avoids
   // an awkward empty rail on first launch / in a workspace with no
   // qualifying folders open.
@@ -88,6 +98,7 @@ export function ProjectRail({
         <ProjectTile
           key={p.root}
           project={p}
+          abbreviation={abbreviations.get(p.root) ?? '?'}
           focused={focusedProject === p.root}
           onClick={() => onFocus?.(p.root)}
           counts={counts?.get(p.root)}
@@ -133,6 +144,10 @@ function AllTile({ focused, onClick }: AllTileProps) {
 
 interface ProjectTileProps {
   project: Project
+  /** Word-aware, collision-free tile label computed by the rail
+   *  (ENH-186) — e.g. "ai-pm-tools" → "AP", or "APT" when it would
+   *  otherwise collide with another `ai-pm-*` project. */
+  abbreviation: string
   focused: boolean
   onClick: () => void
   counts?: ProjectCounts
@@ -142,6 +157,7 @@ interface ProjectTileProps {
 
 function ProjectTile({
   project,
+  abbreviation,
   focused,
   onClick,
   counts,
@@ -149,11 +165,6 @@ function ProjectTile({
   onCloseProject
 }: ProjectTileProps) {
   const tint = PROJECT_COLOR_TOKENS[project.colorIndex] ?? PROJECT_COLOR_TOKENS[0]
-  // Up to two characters from the project name. Strip a leading dot
-  // (".claude" should never qualify on its own but be defensive) and
-  // collapse to a single uppercase initial if the name is one char.
-  const cleaned = project.name.replace(/^\./, '')
-  const initials = (cleaned.slice(0, 2) || '?').toUpperCase()
 
   // ENH-182 Phase 3 D12 — right-click context menu. Reuses the
   // generic menu.popup IPC (CLAUDE.md § 4 area 10 pattern), so the
@@ -214,7 +225,7 @@ function ProjectTile({
       ].join(' ')}
       style={focused ? { background: tint } : undefined}
     >
-      <span style={!focused ? { color: tint } : undefined}>{initials}</span>
+      <span style={!focused ? { color: tint } : undefined}>{abbreviation}</span>
       {/* Quiet-bloom underline — colored hint when not focused. Hidden
           on focus since the full-hue background is the bloom. */}
       {!focused && (
