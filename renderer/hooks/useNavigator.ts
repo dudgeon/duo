@@ -13,8 +13,20 @@
 // Persistence: Phase 4 uses localStorage for a quick seed across reloads.
 // Phase 7 replaces this with the main-process state.json persistence.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DirEntry } from '@shared/types'
+
+/** BUG-167 — true for fs errors that mean "the path is simply gone"
+ *  (deleted folder, moved directory, a stale persisted path, a transient
+ *  skill workspace that came and went). These are expected, not app
+ *  errors. The renderer receives them wrapped by Electron as
+ *  `Error invoking remote method 'files:list': Error: ENOENT …`, so we
+ *  match on the embedded errno rather than the wrapper. Shared with
+ *  `useUserClaudeNavigator`. */
+export function isMissingPathError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err)
+  return msg.includes('ENOENT') || msg.includes('ENOTDIR')
+}
 
 const LS_KEY_CWD = 'duo.nav.cwd'
 const LS_KEY_EXPANDED = 'duo.nav.expanded'
@@ -151,7 +163,20 @@ export function useNavigator(initialCwd: string) {
         })
       },
       err => {
-        console.warn('[nav] list failed for', path, err instanceof Error ? err.message : err)
+        if (isMissingPathError(err)) {
+          // BUG-167 — the folder is gone. Drop it from the expanded set so
+          // we stop re-listing a ghost on every project switch (the watcher
+          // effect re-lists the entire expanded set on each cwd change).
+          // No console noise: this is an expected condition, not an error.
+          setExpanded(prev => {
+            if (!prev.has(path)) return prev
+            const next = new Set(prev)
+            next.delete(path)
+            return next
+          })
+        } else {
+          console.warn('[nav] list failed for', path, err instanceof Error ? err.message : err)
+        }
         setListings(prev => {
           const next = new Map(prev)
           next.set(path, []) // treat errors as empty; UI can surface later
@@ -159,6 +184,60 @@ export function useNavigator(initialCwd: string) {
         })
       }
     )
+  }, [])
+
+  // BUG-167 — prune ghost paths from persisted nav state once on mount.
+  // `cwd` + `expanded` are restored from localStorage and can point at
+  // folders deleted/moved since last session (e.g. transient skill
+  // workspaces). The watcher effect re-lists the whole expanded set on
+  // every project switch, so a single ghost throws ENOENT on each
+  // navigation. Validate once at startup: recover a missing cwd to its
+  // nearest existing ancestor (else the initial home), and drop dead
+  // expanded entries. Reads cwd/expanded/initialCwd from the mount-time
+  // closure (their persisted values) — intentionally mount-only.
+  const prunedRef = useRef(false)
+  useEffect(() => {
+    if (prunedRef.current) return
+    prunedRef.current = true
+    let cancelled = false
+    const probe = window.electron?.files?.dirExists
+    if (!probe) return
+    void (async () => {
+      try {
+        if (!(await probe(cwd))) {
+          let dir = cwd
+          let recovered = initialCwd
+          while (dir.length > 1) {
+            const slash = dir.lastIndexOf('/')
+            const parent = slash > 0 ? dir.slice(0, slash) : '/'
+            if (parent === dir) break
+            dir = parent
+            if (await probe(dir)) { recovered = dir; break }
+          }
+          if (!cancelled) setCwd(recovered)
+        }
+      } catch { /* probe failed — leave cwd as-is */ }
+      const current = [...expanded]
+      if (current.length === 0) return
+      try {
+        const checks = await Promise.all(
+          current.map(async p => [p, await probe(p)] as const)
+        )
+        const dead = checks.filter(([, ok]) => !ok).map(([p]) => p)
+        if (cancelled || dead.length === 0) return
+        setExpanded(prev => {
+          const next = new Set(prev)
+          for (const p of dead) next.delete(p)
+          return next
+        })
+        setListings(prev => {
+          const next = new Map(prev)
+          for (const p of dead) next.delete(p)
+          return next
+        })
+      } catch { /* probe failed — leave expanded as-is */ }
+    })()
+    return () => { cancelled = true }
   }, [])
 
   // Auto-load the current cwd + any expanded children.
@@ -204,6 +283,14 @@ export function useNavigator(initialCwd: string) {
           return next
         })
         setPrimaryPath(curr => (curr === event.path ? null : curr))
+        // BUG-167 — a removed folder that was expanded must leave the
+        // expanded set too, or the next project switch re-lists a ghost.
+        setExpanded(curr => {
+          if (!curr.has(event.path)) return curr
+          const next = new Set(curr)
+          next.delete(event.path)
+          return next
+        })
       }
     }
 

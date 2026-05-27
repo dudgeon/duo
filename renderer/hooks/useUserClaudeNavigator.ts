@@ -19,9 +19,9 @@
 // so the tree can present a small hand-picked top level on top of
 // otherwise-normal expand-on-click behavior.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DirEntry, FileChangeEvent } from '@shared/types'
-import type { NavigatorState, NavigatorActions } from './useNavigator'
+import { isMissingPathError, type NavigatorState, type NavigatorActions } from './useNavigator'
 
 const LS_KEY_SHOW_ALL = 'duo.userClaude.showAll'
 const LS_KEY_EXPANDED = 'duo.userClaude.expanded'
@@ -89,7 +89,18 @@ export function useUserClaudeNavigator(home: string): UserClaudeNavigatorApi {
         })
       },
       err => {
-        console.warn('[user-claude-nav] list failed for', path, err instanceof Error ? err.message : err)
+        if (isMissingPathError(err)) {
+          // BUG-167 — folder gone; drop it from the expanded set so it
+          // isn't re-listed on every re-subscribe. Expected, not an error.
+          setExpanded(prev => {
+            if (!prev.has(path)) return prev
+            const next = new Set(prev)
+            next.delete(path)
+            return next
+          })
+        } else {
+          console.warn('[user-claude-nav] list failed for', path, err instanceof Error ? err.message : err)
+        }
         setListings(prev => {
           const next = new Map(prev)
           next.set(path, [])
@@ -97,6 +108,41 @@ export function useUserClaudeNavigator(home: string): UserClaudeNavigatorApi {
         })
       }
     )
+  }, [])
+
+  // BUG-167 — prune ghost expanded paths once on mount. The root is fixed
+  // at ~/.claude so there's no cwd to recover, but persisted `expanded`
+  // can still reference folders (skills/<gone>, agents/<gone>) that were
+  // deleted since last session. Validate once and drop the dead entries.
+  const prunedRef = useRef(false)
+  useEffect(() => {
+    if (prunedRef.current) return
+    prunedRef.current = true
+    let cancelled = false
+    const probe = window.electron?.files?.dirExists
+    if (!probe) return
+    const current = [...expanded]
+    if (current.length === 0) return
+    void (async () => {
+      try {
+        const checks = await Promise.all(
+          current.map(async p => [p, await probe(p)] as const)
+        )
+        const dead = checks.filter(([, ok]) => !ok).map(([p]) => p)
+        if (cancelled || dead.length === 0) return
+        setExpanded(prev => {
+          const next = new Set(prev)
+          for (const p of dead) next.delete(p)
+          return next
+        })
+        setListings(prev => {
+          const next = new Map(prev)
+          for (const p of dead) next.delete(p)
+          return next
+        })
+      } catch { /* probe failed — leave expanded as-is */ }
+    })()
+    return () => { cancelled = true }
   }, [])
 
   // Always load the user-claude root + any expanded children.
@@ -142,6 +188,16 @@ export function useUserClaudeNavigator(home: string): UserClaudeNavigatorApi {
         return next
       })
       ensureListing(parent)
+      if (event.kind === 'removed') {
+        // BUG-167 — a removed folder that was expanded must leave the
+        // expanded set, or it gets re-listed (ENOENT) on the next re-sub.
+        setExpanded(curr => {
+          if (!curr.has(event.path)) return curr
+          const next = new Set(curr)
+          next.delete(event.path)
+          return next
+        })
+      }
     }
 
     void window.electron.files.watch(paths, handleEvent).then(stop => {

@@ -6,6 +6,22 @@
 
 > Sprint 24 anchor: close the v0.8.0 audit's deferred follow-ups (FOLLOWUP-031 through 040) before any new feature work. ENH-182 was the marquee chapter; Sprint 24 is its polish epilogue. Definition of done: all 10 FOLLOWUPs closed or explicitly deferred-with-reason. Expected cut shape: v0.8.1 PATCH (polish-only) OR v0.9.0 MINOR if a carry-forward capability lands alongside.
 
+### BUG-167: Navigator ENOENT spam from ghost folders + console-flooding focus instrumentation
+
+**Status:** 🆕 **Filed + fixed 2026-05-27** (branch `claude/project-navigation-errors-7UpEJ`). **Priority:** Medium (console noise + perceived instability; functionally benign). **Effort:** ~1h.
+
+**Symptom.** Switching between projects in v0.8.2 floods the renderer console with two error classes (owner screenshot): repeated `[nav] list failed for …/skills/setup-check-workspace — Error invoking remote method 'files:list': ENOENT`, and per-interaction `[ENH-084-v4] … focusin/mousedown/blur` logs.
+
+**Root cause (nav ENOENT).** `useNavigator` persists every folder ever expanded to `localStorage` (`duo.nav.expanded`) and never prunes it; the persisted `cwd` (`duo.nav.cwd`) is restored with no existence check. The watcher effect depends on `[cwd, expanded]`, so **each project switch re-subscribes and re-lists the entire expanded set** (the belt-and-suspenders refresh). Any folder that has since been deleted/moved — e.g. a transient Claude Code skill workspace like `setup-check-workspace` — throws ENOENT on every navigation. The renderer treated all list failures identically: a loud `console.warn` of the full Electron remote-method wrapper, so a benign condition read like a crash. Brand-new users don't hit it; anyone who deletes/moves an expanded folder accumulates it permanently. Same pattern in `useUserClaudeNavigator`.
+
+**Root cause (`[ENH-084-v4]`).** `WorkingPane.tsx` installs document-wide `focusin`/`mousedown`/`blur` listeners that `console.log` on every event — a Sprint 17 "INSTRUMENTATION ONLY" data-capture pass that was never re-gated, so it ships in release builds.
+
+**Fix.** Navigator hardening (`useNavigator.ts`, `useUserClaudeNavigator.ts`): (a) one-shot **mount-time prune** via the existing `files.dirExists` probe — drop dead `expanded` entries and recover a missing `cwd` to its nearest existing ancestor (else `$HOME`); (b) drop a removed folder from `expanded` in the watcher's `removed` handler so mid-session deletes don't re-accumulate; (c) shared `isMissingPathError()` classifier — ENOENT/ENOTDIR is pruned + logged quietly, genuine errors (EACCES etc.) still `console.warn`. `FilesService.list` is deliberately **unchanged** — it's shared with the CLI `duo ls`, where erroring on a nonexistent path is correct Unix semantics; resilience belongs in the navigator layer that replays persisted state. Focus instrumentation gated behind an opt-in `localStorage` flag (`duo.debug.focus = '1'`, read once on mount): silent in release, recoverable if the subpane-focus work resumes. **Deliberate asymmetry:** the debug flag is developer-only and has no `duo` verb (not a product surface).
+
+**Cross-ref:** ENH-084 (the focus-glow defect whose v4 instrumentation this gates), BUG-039 (the `files.exists` probe pattern reused here for session-restore tab pruning), ENH-182 (project navigation, the surface this fires on).
+
+---
+
 ### ENH-188: Terminal-tab context menu — parity with canvas tabs (reorder + close + copy cwd)
 
 **Status:** 🆕 **Filed + implemented 2026-05-27** (branch `claude/terminal-tabs-context-parity-2lh2X`). **Priority:** Medium (daily-driver ergonomics; the headline gap is "can't reorder terminal tabs"). **Effort:** ~1.5h.

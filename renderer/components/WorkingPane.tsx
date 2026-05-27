@@ -308,6 +308,14 @@ export function WorkingPane({
   // walks for 60s, grep [ENH-084-v4] in /tmp/duo-dev-*.log to read the
   // event stream + decide which signal source is the right driver.
   useEffect(() => {
+    // BUG-167 — this v4 pass logs on EVERY focusin / mousedown / blur
+    // document-wide, which floods the release console (it was never
+    // un-gated after the Sprint 17 data capture). Now opt-in: silent by
+    // default, recoverable if the subpane-focus work resumes — set
+    // `duo.debug.focus` to '1' in DevTools and reload to re-arm the stream.
+    let focusDebug = false
+    try { focusDebug = localStorage.getItem('duo.debug.focus') === '1' } catch { /* storage disabled */ }
+    if (!focusDebug) return
     const subpaneOf = (target: EventTarget | null): 'main' | 'aux' | 'neither' => {
       if (!(target instanceof Node)) return 'neither'
       if (mainColRef.current?.contains(target)) return 'main'
