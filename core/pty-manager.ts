@@ -81,7 +81,12 @@ export class PtyManager {
       // Sent synchronously before any async shell output, so it lands
       // above the first prompt; the renderer's onData listener is wired
       // before it calls create(), so the message is never dropped.
-      const note = `\x1b[33m[duo] ${cwd} no longer exists — opened ${resolvedCwd} instead.\x1b[0m\r\n`
+      //
+      // Strip ESC from the interpolated paths first: a path legally
+      // containing 0x1b (POSIX permits it) would otherwise subvert the
+      // color reset or inject arbitrary terminal sequences.
+      const safe = (s: string) => s.replace(/\x1b/g, '?')
+      const note = `\x1b[33m[duo] ${safe(cwd)} no longer exists — opened ${safe(resolvedCwd)} instead.\x1b[0m\r\n`
       this.eventSink?.send(IPC.PTY_DATA(id), note)
     }
   }
