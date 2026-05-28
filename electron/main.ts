@@ -55,6 +55,7 @@ import { expandTilde } from '../core/path-utils'
 import { PtyManager } from '../core/pty-manager'
 import { BrowserManager } from './browser-manager'
 import { CdpBridge } from './cdp-bridge'
+import { makeSafeSend } from './safe-send'
 import { SocketServer, ensureSocketDir } from '../core/socket-server'
 import { FilesService } from './files-service'
 import { PinsService } from '../core/pins-service'
@@ -255,12 +256,9 @@ let mainWindow: BrowserWindow | null = null
 // PTYs, which flush a final burst of onData — each throwing send was an
 // uncaught exception, and node-pty kept emitting buffered output, so the
 // crash dialog looped until force-quit. Route every async-callback sink
-// through this guard.
-function safeSend(channel: string, payload?: unknown): void {
-  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
-    mainWindow.webContents.send(channel, payload)
-  }
-}
+// through this guard. Pure-logic factory lives in ./safe-send so it can
+// be exercised from a vitest node env (see safe-send.test.ts).
+const safeSend = makeSafeSend(() => mainWindow)
 // ENH-081 (v0.6.4) — Finder double-click / drag-onto-Dock landing
 // strip. macOS fires `app.on('open-file')` for paths the user opened
 // via the OS shell. On cold start the event can fire before
