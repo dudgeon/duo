@@ -20,7 +20,7 @@ notarized distribution (Stage 21).
 ## [Unreleased]
 
 ### Fixed
-- **BUG-189** Quitting Duo no longer pops a looping "A JavaScript error occurred in the main process" dialog (`TypeError: Object has been destroyed`). A node-pty data burst during shutdown was hitting `webContents.send` on an already-destroyed window; every async main→renderer send now routes through a guard that no-ops once the window is torn down.
+- **BUG-190** Quitting Duo no longer pops a looping "A JavaScript error occurred in the main process" dialog (`TypeError: Object has been destroyed`). A node-pty data burst during shutdown was hitting `webContents.send` on an already-destroyed window; every async main→renderer send now routes through a guard that no-ops once the window is torn down.
 
 ## [0.8.2] — 2026-05-27 — Terminal-tab context menu parity
 

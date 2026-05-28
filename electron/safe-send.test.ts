@@ -1,4 +1,4 @@
-// BUG-189 — pins the guarded-send invariants so the quit-loop crash
+// BUG-190 — pins the guarded-send invariants so the quit-loop crash
 // can't regress silently. Each case targets one branch the production
 // closure depends on; the destroyed-window-throws-on-webContents case
 // is the specific defensive behavior that motivated the short-circuit
@@ -23,7 +23,7 @@ function makeFakeWindow(opts?: {
   return { window, send }
 }
 
-describe('makeSafeSend — BUG-189 guard', () => {
+describe('makeSafeSend — BUG-190 guard', () => {
   it('no-ops when getWindow returns null', () => {
     const safeSend = makeSafeSend(() => null)
     expect(() => safeSend('channel', 'payload')).not.toThrow()
@@ -44,7 +44,7 @@ describe('makeSafeSend — BUG-189 guard', () => {
   })
 
   it('short-circuits BEFORE touching webContents on a destroyed window', () => {
-    // Reproduces the BUG-189 defensive shape: accessing webContents on a
+    // Reproduces the BUG-190 defensive shape: accessing webContents on a
     // torn-down BrowserWindow can itself throw. The guard must check
     // isDestroyed() first so the getter never fires.
     const send = vi.fn()

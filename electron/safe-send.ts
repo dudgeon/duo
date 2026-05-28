@@ -1,4 +1,4 @@
-// BUG-189 — guarded webContents.send factory, extracted from
+// BUG-190 — guarded webContents.send factory, extracted from
 // electron/main.ts so it's exercisable from a vitest node env without
 // mounting Electron. The production wiring closes over the main-process
 // `mainWindow` variable via the `getWindow` thunk; tests inject a fake

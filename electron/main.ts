@@ -248,7 +248,7 @@ nativeTheme.themeSource = 'light'
 
 let mainWindow: BrowserWindow | null = null
 
-// BUG-189 — a webContents.send that's safe to call from async callbacks
+// BUG-190 — a webContents.send that's safe to call from async callbacks
 // (PTY data, socket events, CDP-driven browser state) that can fire
 // mid-quit. `mainWindow?.` guards only null; during teardown `mainWindow`
 // is still set but its webContents is already destroyed, so the bare send

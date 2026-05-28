@@ -28,9 +28,11 @@
 
 ---
 
-### BUG-189: Quit-loop crash — "Object has been destroyed" cycling dialog on app quit
+### BUG-190: Quit-loop crash — "Object has been destroyed" cycling dialog on app quit
 
 **Status:** 🟡 **Fix pushed `claude/duo-quit-loop-bug-OBZHB` 2026-05-27.** **Priority:** High (app un-quittable without force-quit). **Effort:** ~30 min.
+
+> **Renumbered BUG-189 → BUG-190 (PR #61 review).** This PR opened before [ENH-189](#enh-189) ([#62](https://github.com/dudgeon/duo/pull/62)) landed on `main`; ENH-189 claimed the next-free id while #61 sat open. Same shared BUG/ENH counter, same collision pattern as the [ENH-187 → ENH-188 rename](#enh-188) the prior sprint; moved to the next free id, BUG-190.
 
 **Symptom (owner repro 2026-05-27).** Quitting Duo popped the Electron "A JavaScript error occurred in the main process" dialog — `TypeError: Object has been destroyed` at `webContents.send` inside a node-pty `onData` handler. Clicking OK re-popped it immediately; the dialog cycled and owner had to force-quit.
 
