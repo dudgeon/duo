@@ -55,6 +55,7 @@ import { expandTilde } from '../core/path-utils'
 import { PtyManager } from '../core/pty-manager'
 import { BrowserManager } from './browser-manager'
 import { CdpBridge } from './cdp-bridge'
+import { makeSafeSend } from './safe-send'
 import { SocketServer, ensureSocketDir } from '../core/socket-server'
 import { FilesService } from './files-service'
 import { PinsService } from '../core/pins-service'
@@ -246,6 +247,18 @@ const newTabPending = new Map<string, (res: NewTabResult) => void>()
 nativeTheme.themeSource = 'light'
 
 let mainWindow: BrowserWindow | null = null
+
+// BUG-190 — a webContents.send that's safe to call from async callbacks
+// (PTY data, socket events, CDP-driven browser state) that can fire
+// mid-quit. `mainWindow?.` guards only null; during teardown `mainWindow`
+// is still set but its webContents is already destroyed, so the bare send
+// throws "Object has been destroyed". On quit, `before-quit` kills the
+// PTYs, which flush a final burst of onData — each throwing send was an
+// uncaught exception, and node-pty kept emitting buffered output, so the
+// crash dialog looped until force-quit. Route every async-callback sink
+// through this guard. Pure-logic factory lives in ./safe-send so it can
+// be exercised from a vitest node env (see safe-send.test.ts).
+const safeSend = makeSafeSend(() => mainWindow)
 // ENH-081 (v0.6.4) — Finder double-click / drag-onto-Dock landing
 // strip. macOS fires `app.on('open-file')` for paths the user opened
 // via the OS shell. On cold start the event can fire before
@@ -532,7 +545,7 @@ async function createWindow(): Promise<void> {
   // adapter is one line in Electron (webContents.send); a future
   // extension helper would wrap a Native Messaging port write instead.
   ptyManager.setEventSink({
-    send: (channel, payload) => mainWindow?.webContents.send(channel, payload)
+    send: (channel, payload) => safeSend(channel, payload)
   })
 
   // BUG-040 — external-domains routing service. Loaded once at boot;
@@ -569,8 +582,8 @@ async function createWindow(): Promise<void> {
   browserManager = new BrowserManager(
     mainWindow,
     cdpBridge,
-    (state: BrowserState) => mainWindow?.webContents.send(IPC.BROWSER_STATE, state),
-    (tabs: BrowserTab[]) => mainWindow?.webContents.send(IPC.BROWSER_TABS, tabs),
+    (state: BrowserState) => safeSend(IPC.BROWSER_STATE, state),
+    (tabs: BrowserTab[]) => safeSend(IPC.BROWSER_TABS, tabs),
     browserHistory,
     externalDomainsService
   )
@@ -695,7 +708,7 @@ async function createWindow(): Promise<void> {
       return { ok: true, target }
     },
     pushNavPinsChanged: (pins) => {
-      mainWindow?.webContents.send(IPC.NAV_PINS_CHANGED, pins)
+      safeSend(IPC.NAV_PINS_CHANGED, pins)
     },
     // ENH-167 — workspace-as-file CLI parity.
     workspaceSave: async (opts) => saveWorkspaceFile(opts),
@@ -722,7 +735,7 @@ async function createWindow(): Promise<void> {
   // the agent calls `duo selection`). Same one-liner adapter as
   // PtyManager's setEventSink.
   socketServer.setEventSink((channel, payload) => {
-    mainWindow?.webContents.send(channel, payload)
+    safeSend(channel, payload)
   })
   socketServer.start()
 
@@ -752,9 +765,7 @@ async function createWindow(): Promise<void> {
     if ((state === 'claude' || state === 'starting') && activeTerminalId) {
       tabsThatHostedClaude.add(activeTerminalId)
     }
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send(IPC.TERMINAL_CLAUDE_PRESENCE_CHANGED, state)
-    }
+    safeSend(IPC.TERMINAL_CLAUDE_PRESENCE_CHANGED, state)
     const live = state === 'claude' || state === 'starting'
     cdpBridge.setClaudeLive(live)
     // BUG-133 — also broadcast to ALL browser tabs (not just the
@@ -1704,8 +1715,7 @@ function setupIPC(): void {
       usePolling: false
     })
     const fireInvalidate = () => {
-      if (mainWindow?.webContents.isDestroyed()) return
-      mainWindow?.webContents.send(IPC.GIT_WATCH_INVALIDATE)
+      safeSend(IPC.GIT_WATCH_INVALIDATE)
     }
     const scheduleInvalidate = () => {
       if (gitWatcherTimer) clearTimeout(gitWatcherTimer)
