@@ -150,7 +150,7 @@ table.cmp .feat { font-weight: 600; color: var(--ink); }
   <div class="meta">
     <span class="pill">RESEARCH</span>
     <span class="pill">ENH-189</span>
-    Max-effort research sprint · 2026-05-28 (rev 2) · branch <code>claude/duo-agent-agnostic-research-9y1t3</code>
+    Max-effort research sprint · 2026-05-28 (rev 3 — per-Breaks affordance audit) · branch <code>claude/duo-agent-agnostic-research-9y1t3</code>
   </div>
 </header>
 
@@ -207,8 +207,8 @@ standard; the lifecycle layer is where the work is — and most of it is cheap.<
 
   <line x1="340" y1="52" x2="478" y2="52" stroke="#b07527" stroke-width="1"/>
   <text x="484" y="48" font-family="system-ui" font-size="11" font-weight="700" fill="#8a5d1f">Ring 3 — 9 touchpoints</text>
-  <text x="484" y="62" font-family="system-ui" font-size="10.5" fill="#6f6557">7 are cheap renames/params; 2 are real</text>
-  <text x="484" y="75" font-family="system-ui" font-size="10.5" fill="#6f6557">gaps (priming mechanism, session store).</text>
+  <text x="484" y="62" font-family="system-ui" font-size="10.5" fill="#6f6557">6 have a direct Codex affordance; 1 partial</text>
+  <text x="484" y="75" font-family="system-ui" font-size="10.5" fill="#6f6557">(priming); 2 none (session enum + titles).</text>
 
   <text x="484" y="300" font-family="system-ui" font-size="10.5" font-style="italic" fill="#9a9080">Value lives in the green core (free under Codex).</text>
   <text x="484" y="315" font-family="system-ui" font-size="10.5" font-style="italic" fill="#9a9080">Cost concentrates in 2 of Ring 3's 9.</text>
@@ -257,6 +257,44 @@ standard; the lifecycle layer is where the work is — and most of it is cheap.<
   <div class="tp" data-cat="general"><div class="tp-status"><span class="badge general">General</span></div><div><div class="tp-name">Author identity (<code>duo author</code> + <code>DUO_AUTHOR</code>)</div><div class="tp-impact">Already a generic string channel, env-overridable today; just derive the default from the active harness instead of literal "claude." Cosmetic — affects CriticMarkup attribution labels.</div><div class="tp-loc">cli/duo.ts:663–676</div></div></div>
 </div>
 
+<h2>2b · Affordance audit — does Codex offer a path for each "Breaks" item?</h2>
+
+<p>The nine "Breaks" rows are not equal. <strong>Six</strong> are pure Duo-side hardcodes that Codex provides a
+<em>direct</em> equivalent for (cheap parameterization). <strong>One</strong> has only a <em>partial / different-mechanism</em>
+affordance (priming). <strong>Two</strong> have <em>no public affordance</em> at all — they'd require parsing Codex's
+private session files. Each verdict is sourced.</p>
+
+<table class="cmp">
+  <thead><tr><th>"Breaks" item</th><th>Does Codex provide an affordance?</th><th>Verdict</th></tr></thead>
+  <tbody>
+    <tr><td class="feat">1 · First-class launch</td><td>The <code>codex</code> binary launches like <code>claude</code> (interactive or <code>codex exec</code>). Duo just needs a <code>codex</code> tab kind.</td><td class="yes">✓ Direct</td></tr>
+    <tr><td class="feat">2 · Presence pill</td><td>The running process is the <code>codex</code> binary; the BFS probe just needs to also match the name <code>codex</code> (confirm basename in practice, as Duo does for <code>claude</code>).</td><td class="yes">✓ Direct</td></tr>
+    <tr><td class="feat">3 · Priming injection</td><td><strong>No</strong> per-invocation <code>--append-system-prompt</code> (openai/codex #11588, closed/unmerged). Instruction channels are file-based: global <code>~/.codex/AGENTS.md</code> / <code>AGENTS.override.md</code> (machine-wide) or project <code>AGENTS.md</code>. <code>CODEX_HOME</code> can relocate the home to scope it, but that also relocates credentials/config — no clean ephemeral, Duo-only equivalent to the shim. The <em>skill</em> covers the discovery need.</td><td class="meh">≈ Partial</td></tr>
+    <tr><td class="feat">4 · Session capture (enumerate by cwd)</td><td><strong>No public affordance.</strong> The active session id isn't exposed as an env var, command, or JSON (openai/codex #8923). Only the interactive <code>codex resume</code> picker, or parsing the private <code>rollout-*.jsonl</code>.</td><td class="no">✗ None</td></tr>
+    <tr><td class="feat">5 · Session resume (the action)</td><td><code>codex resume &lt;id&gt;</code>, <code>codex resume --last</code> (cwd-aware), <code>--all</code>. Clean public subcommand.</td><td class="yes">✓ Direct</td></tr>
+    <tr><td class="feat">6 · Session title + message count</td><td><strong>No public affordance.</strong> No titles/metadata API (#8923); the community pattern parses <code>rollout-*.jsonl</code> for cwd (from <code>environment_context</code>) + first prompt. Private-format drift.</td><td class="no">✗ None</td></tr>
+    <tr><td class="feat">7 · Binary resolution</td><td>Resolve <code>codex</code> on PATH / well-known dirs — same pattern as <code>resolveClaudeBinary</code>.</td><td class="yes">✓ Direct</td></tr>
+    <tr><td class="feat">8 · <code>duo doctor</code></td><td>Check the Codex surfaces instead: <code>~/.codex/</code> (config.toml, AGENTS.md), <code>~/.agents/skills/</code>.</td><td class="yes">✓ Direct</td></tr>
+    <tr><td class="feat">9 · UserClaudePane</td><td>Point the pane at the equivalent surface: <code>~/.codex/</code> (config.toml, AGENTS.md, prompts/) + <code>~/.agents/skills/</code>.</td><td class="yes">✓ Direct</td></tr>
+  </tbody>
+</table>
+
+<div class="keyline">
+  <strong>Result: 6 direct · 1 partial · 2 none.</strong> Only <em>session enumeration</em> (#4) and <em>session
+  titles/count</em> (#6) have no public Codex affordance, and the priming mechanism (#3) only a caveated one. The other
+  six "Breaks" are pure Duo-side hardcodes with a clean Codex equivalent. So the genuinely hard residual is just the
+  <em>session-history surface</em> — which D6 already recommends degrading (use <code>codex resume --last</code>;
+  don't parse rollout files).
+</div>
+
+<p class="tl-note"><strong>Two distinct "teach the agent" problems — don't conflate them.</strong>
+<strong>(A)</strong> a <em>contributor's</em> agent working on the Duo repo: solved by <code>CLAUDE.md</code> (Claude) +
+the repo-root <code>AGENTS.md</code> "Codex guidance shim" already committed (points Codex at CLAUDE.md as canonical,
+tells it to read <code>.claude/skills/**</code> directly rather than mirror a parallel tree).
+<strong>(B)</strong> an <em>end-user's</em> agent driving the Duo <em>app</em> via the <code>duo</code> CLI: solved by
+the shipped <code>skill/SKILL.md</code> installed to the agent's skills dir (<code>~/.claude/skills/duo/</code> and,
+generalized, <code>~/.agents/skills/duo/</code>). D3 below is about (B); the committed AGENTS.md already handles (A).</p>
+
 <h2>3 · Claude Code vs Codex — the surfaces, verified</h2>
 
 <p>The surfaces converged more than expected. <code>SKILL.md</code> and MCP are shared; what stays asymmetric is the
@@ -271,7 +309,8 @@ lifecycle plumbing — ephemeral system-prompt injection, subagents, and the sha
     <tr><td class="feat">Project instructions</td><td><code>CLAUDE.md</code></td><td><code>AGENTS.md</code> (+ overrides; global <code>~/.codex/AGENTS.md</code>)</td><td class="dim">Add to marker set — cheap.</td></tr>
     <tr><td class="feat">Resume</td><td><code>claude --resume &lt;uuid&gt;</code></td><td><code>codex resume &lt;id&gt;</code> · <code>--last</code> (cwd-aware)</td><td class="dim">Different verb + id; Codex's <code>--last</code> is cwd-scoped natively.</td></tr>
     <tr><td class="feat">Session storage</td><td><code>~/.claude/projects/&lt;enc-cwd&gt;/&lt;uuid&gt;.jsonl</code><br><span class="dim">cwd-pathed</span></td><td><code>~/.codex/sessions/Y/M/D/rollout-*.jsonl</code><br><span class="dim">date-bucketed (cwd in metadata)</span></td><td class="dim">Can't map cwd→file by path; but <code>codex resume --last</code> already does it.</td></tr>
-    <tr><td class="feat">Per-session system-prompt append</td><td class="yes">✓ <code>--append-system-prompt</code></td><td class="no">✗ none<br><span class="dim">(issue #11588 closed/unmerged; AGENTS.md only)</span></td><td class="dim"><strong>The priming shim's hard gap.</strong> No ephemeral, session-scoped channel.</td></tr>
+    <tr><td class="feat">Session enumeration / id API</td><td><span class="dim">transcript scan</span></td><td class="no">✗ none (openai/codex #8923)</td><td class="dim">No env var / command / JSON for the active session id; parsing the private rollout files is the only path.</td></tr>
+    <tr><td class="feat">Per-session system-prompt append</td><td class="yes">✓ <code>--append-system-prompt</code></td><td class="no">✗ none<br><span class="dim">(issue #11588 closed/unmerged)</span></td><td class="dim"><strong>The priming shim's hard gap.</strong> Instructions only via file-based AGENTS.md (global/project); <code>CODEX_HOME</code> can scope it but relocates credentials/config too. No clean ephemeral, Duo-only channel.</td></tr>
     <tr><td class="feat">Subagents</td><td class="yes">✓ <code>~/.claude/agents/</code></td><td class="no">✗ none</td><td class="dim">Delegation optimization unavailable.</td></tr>
     <tr><td class="feat">Lifecycle hooks</td><td class="yes">✓ SessionStart (settings.json)</td><td class="no">✗ none equivalent</td><td class="dim">Priming safety-net unavailable.</td></tr>
     <tr><td class="feat">Skill distribution</td><td>sync / copy</td><td class="meh">≈ plugins</td><td class="dim">Codex plugins bundle skills (+ MCP config) for install.</td></tr>
@@ -440,7 +479,7 @@ near-term moves cluster in the cheap-and-durable corner; MCP trades upfront cost
 <section class="decision-card">
   <div class="q-title">Decision 3 · Teaching the agent</div>
   <h3 class="q-prompt">How does Codex learn that <code>duo</code> exists?</h3>
-  <p class="q-context">Smaller than feared: Codex supports the <code>SKILL.md</code> open standard (progressive disclosure + implicit invocation) from <code>~/.agents/skills/</code>, so the existing skill ports near-verbatim. Options aren't mutually exclusive.</p>
+  <p class="q-context">Smaller than feared: Codex supports the <code>SKILL.md</code> open standard (progressive disclosure + implicit invocation) from <code>~/.agents/skills/</code>, so the existing skill ports near-verbatim. (Repo-contributor guidance is a <em>separate</em> problem, already handled by the committed repo-root <code>AGENTS.md</code> shim — see §2b.) Note: there is no ephemeral per-session injection on Codex (no <code>--append-system-prompt</code>); always-on nudges would need a global/project AGENTS.md. Options aren't mutually exclusive.</p>
   <div class="q-options">
     <label class="q-option"><input type="radio" name="d3" value="A"><div class="q-option-body"><div class="q-option-title">A · Nothing — user tells Codex manually</div><div class="q-option-rationale">Zero build/maintenance; loses the autonomous-driving experience. A valid "ship-the-bridge-only" floor. <span class="cost"><span class="up">Upfront ○○○○○</span> <span class="on">Ongoing ○○○○○</span></span></div></div></label>
     <label class="q-option"><input type="radio" name="d3" value="B"><div class="q-option-body"><div class="q-option-title">B · Sync the skill to <code>~/.agents/skills/duo/</code> (or ship a plugin) <span class="recommend-tag">Recommended now</span></div><div class="q-option-rationale">Same file Claude Code loads, discovered + implicitly invoked by Codex from its own dir. Teach <code>npm run sync:claude</code> to also write <code>~/.agents/skills/</code>; optionally package a Codex plugin for installable distribution. <span class="cost"><span class="up">Upfront ●○○○○</span> <span class="on">Ongoing ●○○○○</span></span></div></div></label>
@@ -477,7 +516,7 @@ near-term moves cluster in the cheap-and-durable corner; MCP trades upfront cost
 <section class="decision-card">
   <div class="q-title">Decision 6 · Session capture &amp; resume</div>
   <h3 class="q-prompt">Do we rebuild resume pills for Codex — and how?</h3>
-  <p class="q-context">Where the ongoing-maintenance tax is highest. Codex's transcripts are date-bucketed (<code>~/.codex/sessions/Y/M/D/rollout-*.jsonl</code>) with a different schema, so per-cwd reconstruction is both harder <em>and</em> a standing drift liability — but <code>codex resume --last</code> is already cwd-aware.</p>
+  <p class="q-context">Where the ongoing-maintenance tax is highest, and the one cluster with <strong>no public Codex affordance</strong>: the active session id isn't exposed via env/command/JSON (openai/codex #8923), and transcripts are date-bucketed private <code>rollout-*.jsonl</code>. So enumerating/labeling prior sessions means parsing private files — the drift trap. The one clean public path is the action <code>codex resume --last</code> (already cwd-aware).</p>
   <div class="q-options">
     <label class="q-option"><input type="radio" name="d6" value="A"><div class="q-option-body"><div class="q-option-title">A · Skip rich capture — resume pills just don't show on Codex tabs <span class="recommend-tag">Recommended v1</span></div><div class="q-option-rationale">Graceful no-op. Zero drift tax. Codex users still get the full bridge; they resume via Codex's own UI. <span class="cost"><span class="up">Upfront ●○○○○</span> <span class="on">Ongoing ○○○○○</span></span></div></div></label>
     <label class="q-option"><input type="radio" name="d6" value="B"><div class="q-option-body"><div class="q-option-title">B · Offer "Resume last Codex session" via <code>codex resume --last</code></div><div class="q-option-rationale">Public-CLI path (rule-12 aligned): Duo runs the documented, cwd-aware subcommand and never parses rollout files. Less rich (no per-session titles) but durable. <span class="cost"><span class="up">Upfront ●●○○○</span> <span class="on">Ongoing ●○○○○</span></span></div></div></label>
@@ -526,9 +565,11 @@ near-term moves cluster in the cheap-and-durable corner; MCP trades upfront cost
     standard; user skills at <code>~/.agents/skills/</code>, repo at <code>.agents/skills/</code>; progressive
     disclosure; implicit invocation; plugins as the distribution unit). The absence of a per-session
     <code>--append-system-prompt</code> flag was verified against openai/codex issue #11588 (closed, <em>not</em>
-    merged; the issue states Codex customizes instructions only via AGENTS.md). Session storage / resume
+    merged; instructions only via AGENTS.md). The lack of a public session-enumeration API / programmatic session id is
+    per openai/codex issue #8923; the <code>CODEX_HOME</code> env var + global AGENTS.md / AGENTS.override.md per the
+    Codex config + agents_md docs. Session storage / resume
     (<code>~/.codex/sessions/Y/M/D/rollout-*.jsonl</code>; <code>codex resume --last</code>, cwd-aware) per OpenAI's CLI
-    docs. <em>Two earlier drafts of this report mis-stated the skills situation; this revision corrects them.</em></p>
+    docs. <em>Two earlier drafts mis-stated the skills situation; rev 2 corrected them and rev 3 added the §2b per-Breaks affordance audit.</em></p>
     <p class="tl-note">Open item to confirm before build: whether Claude Code also reads the standard's
     <code>~/.agents/skills/</code> location — if so, one shared dir could serve both harnesses and Duo wouldn't dual-write.</p>
   </div>
