@@ -7,39 +7,19 @@
 <title>Agent-agnostic Duo — Claude Code + Codex</title>
 <style>
 /* ============================================================
-   Atelier CSS kernel (inlined verbatim — see
-   skill/references/duo-atelier.css)
+   Atelier CSS kernel (inlined verbatim — skill/references/duo-atelier.css)
    ============================================================ */
 :root {
-  --paper: #fbf8f1;
-  --paper-deep: #f3ede0;
-  --paper-edge: #e8e0cb;
-  --paper-rule: #d9cea8;
-  --ink: #2b2620;
-  --ink-soft: #4a4238;
-  --ink-mute: #6f6557;
-  --ink-ghost: #9a9080;
-  --accent: #c46a1c;
-  --accent-soft: #f4d9b6;
-  --pass: #4a7d3e;
-  --fail: #b13e3a;
-  --warn: #b07527;
-  --code-bg: #2b2823;
-  --code-ink: #e8e0cb;
-  --project-pine:   #2E7D74;
-  --project-harbor: #3C6E93;
-  --project-iris:   #5B57A6;
-  --project-plum:   #87508F;
-  --project-rose:   #A4506A;
-  --project-moss:   #69763A;
+  --paper: #fbf8f1; --paper-deep: #f3ede0; --paper-edge: #e8e0cb; --paper-rule: #d9cea8;
+  --ink: #2b2620; --ink-soft: #4a4238; --ink-mute: #6f6557; --ink-ghost: #9a9080;
+  --accent: #c46a1c; --accent-soft: #f4d9b6;
+  --pass: #4a7d3e; --fail: #b13e3a; --warn: #b07527;
+  --code-bg: #2b2823; --code-ink: #e8e0cb;
+  --project-pine: #2E7D74; --project-harbor: #3C6E93; --project-iris: #5B57A6;
+  --project-plum: #87508F; --project-rose: #A4506A; --project-moss: #69763A;
 }
 * { box-sizing: border-box; }
-html, body {
-  margin: 0; padding: 0;
-  background: var(--paper); color: var(--ink);
-  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
-  font-size: 14px; line-height: 1.55;
-}
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif; font-size: 14px; line-height: 1.55; }
 body { padding: 32px 40px 96px; max-width: 920px; margin: 0 auto; }
 header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
 header.page-head h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px; }
@@ -83,23 +63,19 @@ details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(
 .copy-bar button.copied { background: var(--pass); }
 
 /* ============================================================
-   Per-playground patterns (authored after the kernel)
+   Per-playground patterns
    ============================================================ */
-
-/* — status badges for the touchpoint matrix — */
 .badge { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 7px; border-radius: 8px; white-space: nowrap; }
 .badge.works   { background: color-mix(in srgb, var(--pass) 18%, var(--paper)); color: var(--pass); }
 .badge.noop    { background: color-mix(in srgb, var(--project-harbor) 18%, var(--paper)); color: var(--project-harbor); }
 .badge.breaks  { background: color-mix(in srgb, var(--fail) 16%, var(--paper)); color: var(--fail); }
 .badge.general { background: color-mix(in srgb, var(--warn) 20%, var(--paper)); color: var(--warn); }
 
-/* — legend / filter chips — */
 .filter-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 6px; }
 .filter-row button { background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 14px; padding: 5px 13px; font-family: inherit; font-size: 12px; font-weight: 600; color: var(--ink-soft); cursor: pointer; transition: all 0.12s; }
 .filter-row button:hover { border-color: var(--ink-ghost); }
 .filter-row button.active { background: var(--ink); border-color: var(--ink); color: var(--paper); }
 
-/* — touchpoint matrix — */
 .matrix { display: grid; grid-template-columns: 1fr; gap: 8px; margin: 12px 0; }
 .tp { display: grid; grid-template-columns: 92px 1fr; gap: 12px; align-items: start; background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 11px 14px; }
 .tp.hide { display: none; }
@@ -108,7 +84,6 @@ details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(
 .tp-impact { font-size: 12px; color: var(--ink-soft); margin: 0 0 4px; }
 .tp-loc { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10.5px; color: var(--ink-mute); }
 
-/* — comparison table — */
 table.cmp { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 12.5px; }
 table.cmp th, table.cmp td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--paper-rule); vertical-align: top; }
 table.cmp thead th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-mute); border-bottom: 1.5px solid var(--paper-rule); }
@@ -119,50 +94,36 @@ table.cmp .meh { color: var(--warn); font-weight: 700; }
 table.cmp tbody tr:hover { background: color-mix(in srgb, var(--accent) 4%, transparent); }
 table.cmp .feat { font-weight: 600; color: var(--ink); }
 
-/* — cost pips on each option — */
 .cost { display: inline-flex; gap: 14px; margin-top: 6px; font-size: 10.5px; color: var(--ink-mute); text-transform: uppercase; letter-spacing: 0.03em; font-weight: 600; }
-.cost .pips { letter-spacing: 1px; }
 .cost .up { color: var(--accent); }
 .cost .on { color: var(--project-iris); }
 
-/* — mockup frames — */
 .mock { background: #1d1b17; border: 1px solid var(--paper-rule); border-radius: 8px; padding: 16px; margin: 14px 0; }
 .mock-cap { font-size: 11.5px; color: var(--ink-mute); margin: 4px 0 0; font-style: italic; }
 .mockrow { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
 .mockcol { flex: 1; min-width: 220px; }
-
-/* faux Duo tab strip */
 .tabstrip { display: flex; gap: 2px; background: #26231d; border-radius: 6px 6px 0 0; padding: 6px 6px 0; font-size: 12px; }
 .ftab { display: flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 6px 6px 0 0; color: #cabfa9; background: #322d25; }
 .ftab.active { background: var(--paper); color: var(--ink); }
 .ftab .dot { width: 7px; height: 7px; border-radius: 2px; display: inline-block; }
 .ftab .x { color: #8a8170; margin-left: 2px; }
 .tabadd { padding: 7px 10px; color: #cabfa9; background: #322d25; border-radius: 6px 6px 0 0; font-weight: 700; }
-
-/* faux new-tab dropdown */
-.ddmenu { margin-top: 6px; width: 210px; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 7px; overflow: hidden; box-shadow: 0 6px 20px rgba(0,0,0,0.25); }
+.ddmenu { margin-top: 6px; width: 220px; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 7px; overflow: hidden; box-shadow: 0 6px 20px rgba(0,0,0,0.25); }
 .ddmenu .item { display: flex; align-items: center; gap: 9px; padding: 9px 12px; font-size: 12.5px; color: var(--ink); border-bottom: 1px solid var(--paper-edge); }
 .ddmenu .item:last-child { border-bottom: none; }
 .ddmenu .item .kbd { margin-left: auto; font-family: ui-monospace, Menlo, monospace; font-size: 10.5px; color: var(--ink-ghost); }
 .ddmenu .item .ic { width: 16px; text-align: center; }
 .ddmenu .item.new { color: var(--accent); font-weight: 600; }
-
-/* faux send pill */
 .pillbar { display: flex; gap: 10px; align-items: center; background: #26231d; border-radius: 0 0 6px 6px; padding: 10px 12px; }
 .spill { display: inline-flex; align-items: center; gap: 7px; padding: 6px 13px; border-radius: 16px; font-size: 12px; font-weight: 600; }
 .spill.live { background: var(--accent); color: #fff; }
 .spill.off { background: #3a352c; color: #8a8170; }
 .spill.codex { background: #1f6f5c; color: #fff; }
 .spill .led { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: 0.9; }
-
-/* faux navigator pane */
 .navpane { background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 7px; padding: 8px 0; font-size: 12.5px; min-width: 230px; }
 .navpane .nrow { display: flex; align-items: center; gap: 8px; padding: 5px 14px; }
 .navpane .nrow.head { font-weight: 700; color: var(--ink-mute); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; }
 .navpane .nrow .ic { width: 14px; text-align: center; color: var(--ink-mute); }
-.navpane .nrow.child { padding-left: 30px; color: var(--ink-soft); }
-
-/* onboarding lane cards */
 .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 10px; margin: 12px 0; }
 .lane { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 12px 13px; }
 .lane h4 { margin: 0 0 6px; font-size: 12.5px; }
@@ -171,17 +132,12 @@ table.cmp .feat { font-weight: 600; color: var(--ink); }
 .lane .tag { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 7px; }
 .lane .tag.good { background: color-mix(in srgb, var(--pass) 18%, var(--paper)); color: var(--pass); }
 .lane .tag.warn { background: color-mix(in srgb, var(--warn) 20%, var(--paper)); color: var(--warn); }
-
-/* SVG figure wrapper */
 .fig { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 8px; padding: 16px; margin: 16px 0; }
 .fig svg { display: block; width: 100%; height: auto; }
 .fig figcaption { font-size: 11.5px; color: var(--ink-mute); margin-top: 10px; font-style: italic; }
-
-/* general comments block */
 .general-comments { margin: 24px 0 8px; }
 .general-comments textarea { width: 100%; background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 10px 12px; font-family: inherit; font-size: 13px; color: var(--ink); resize: vertical; min-height: 80px; }
 .general-comments textarea:focus { outline: 1.5px solid var(--accent); }
-
 .tl-note { font-size: 12px; color: var(--ink-mute); margin: 6px 0 0; }
 .keyline { background: color-mix(in srgb, var(--accent) 8%, var(--paper-deep)); border-left: 3px solid var(--accent); border-radius: 0 6px 6px 0; padding: 12px 16px; margin: 16px 0; font-size: 13px; }
 .keyline strong { color: var(--ink); }
@@ -194,204 +150,195 @@ table.cmp .feat { font-weight: 600; color: var(--ink); }
   <div class="meta">
     <span class="pill">RESEARCH</span>
     <span class="pill">ENH-189</span>
-    Max-effort research sprint · 2026-05-27 · branch <code>claude/duo-agent-agnostic-research-9y1t3</code>
+    Max-effort research sprint · 2026-05-28 (rev 2) · branch <code>claude/duo-agent-agnostic-research-9y1t3</code>
   </div>
 </header>
 
 <div class="intro">
-  <strong>What this is.</strong> A decision-bearing audit of every place Duo is wired to
-  Claude Code, scored for what would happen under OpenAI's Codex CLI —
-  <strong>works</strong>, <strong>no-ops</strong>, or <strong>breaks</strong> — with options for each,
-  weighed by <em>upfront build</em> vs <em>ongoing maintenance</em>. The headline:
-  Duo's bridge is already ~90% harness-neutral; the coupling is a thin lifecycle skin.
-  Answer the decision cards and hit <em>Copy decisions</em> at the bottom to round-trip back to Claude.
+  <strong>What this is.</strong> A decision-bearing audit of every place Duo is wired to Claude Code, scored for what
+  happens under OpenAI's Codex CLI — <strong>works</strong>, <strong>no-ops</strong>, or <strong>breaks</strong> — with
+  options for each, weighed by <em>upfront build</em> vs <em>ongoing maintenance</em>. Every Duo touchpoint below was
+  read from source; every Codex claim was checked against OpenAI's docs (see the verification note at the foot).
+  Answer the decision cards and hit <em>Copy decisions</em> to round-trip back to Claude.
 </div>
 
 <div class="keyline">
-  <strong>The one-sentence thesis.</strong> The <code>duo</code> CLI + socket bridge are agent-neutral and
-  work with Codex <em>today</em> — what doesn't port is (1) <em>teaching</em> the agent that <code>duo</code> exists
-  and (2) a handful of <em>lifecycle</em> features that read Claude's private on-disk state or shell its private flags.
-  The cheap, durable play is to parameterize the launch/presence/marker layer and degrade the rest gracefully —
-  while treating <strong>MCP</strong> (the one extension surface both harnesses share) as the long-term, drift-proof spine.
+  <strong>The thesis.</strong> The <code>duo</code> CLI + socket bridge are agent-neutral and run under Codex
+  <em>today</em>. <em>Teaching</em> Codex about <code>duo</code> is also cheap, because <code>SKILL.md</code> is now a
+  cross-harness open standard — Codex auto-discovers skills from <code>~/.agents/skills/</code> with the same
+  progressive-disclosure behavior as Claude Code. The genuine residual work is a thin <em>lifecycle</em> layer; most of
+  it is cheap parameterization (launch, presence, marker, doctor, config pane), and only <strong>two</strong> pieces are
+  real gaps because they lean on Claude-private mechanisms: the always-on <em>priming shim</em> (Codex has no
+  per-session system-prompt flag) and <em>session capture/resume</em> (Claude's cwd-indexed transcript store vs Codex's
+  date-bucketed one). Keep coupling on public contracts — the skill standard, <code>codex resume --last</code>, MCP —
+  and avoid reverse-engineering Codex's private session files.
 </div>
 
 <h2>1 · The architecture in three rings</h2>
 
-<p>Every Claude-Code touchpoint falls into one of three concentric rings. The further out, the more
-Claude-specific — and the more it breaks under Codex.</p>
+<p>Every Claude-Code touchpoint falls into one of three rings. The bridge works as-is; teaching converged onto a shared
+standard; the lifecycle layer is where the work is — and most of it is cheap.</p>
 
 <div class="fig">
-<svg viewBox="0 0 700 360" role="img" aria-label="Three concentric rings: core bridge works, onboarding no-ops, lifecycle breaks">
-  <!-- rings -->
-  <ellipse cx="230" cy="180" rx="200" ry="150" fill="color-mix(in srgb, #b13e3a 8%, #fbf8f1)" stroke="#b13e3a" stroke-width="1.5" stroke-dasharray="4 3"/>
+<svg viewBox="0 0 700 360" role="img" aria-label="Three rings: core bridge works, teaching is cheap, lifecycle is residual work">
+  <ellipse cx="230" cy="180" rx="200" ry="150" fill="color-mix(in srgb, #b07527 9%, #fbf8f1)" stroke="#b07527" stroke-width="1.5" stroke-dasharray="4 3"/>
   <ellipse cx="230" cy="180" rx="140" ry="108" fill="color-mix(in srgb, #3C6E93 10%, #fbf8f1)" stroke="#3C6E93" stroke-width="1.5"/>
   <ellipse cx="230" cy="180" rx="80" ry="62" fill="color-mix(in srgb, #4a7d3e 16%, #fbf8f1)" stroke="#4a7d3e" stroke-width="2"/>
-  <!-- labels in rings -->
   <text x="230" y="172" text-anchor="middle" font-family="system-ui" font-size="13" font-weight="700" fill="#3a6330">CORE BRIDGE</text>
   <text x="230" y="190" text-anchor="middle" font-family="system-ui" font-size="10.5" fill="#3a6330">socket + ~100 verbs</text>
   <text x="230" y="204" text-anchor="middle" font-family="system-ui" font-size="10" font-weight="700" fill="#4a7d3e">WORKS</text>
 
-  <text x="230" y="96" text-anchor="middle" font-family="system-ui" font-size="12" font-weight="700" fill="#2f567a">ONBOARDING</text>
-  <text x="230" y="111" text-anchor="middle" font-family="system-ui" font-size="9.5" fill="#2f567a">skill · agent · hook</text>
-  <text x="230" y="124" text-anchor="middle" font-family="system-ui" font-size="9.5" font-weight="700" fill="#3C6E93">NO-OP</text>
+  <text x="230" y="96" text-anchor="middle" font-family="system-ui" font-size="12" font-weight="700" fill="#2f567a">TEACHING</text>
+  <text x="230" y="111" text-anchor="middle" font-family="system-ui" font-size="9.5" fill="#2f567a">SKILL.md shared standard</text>
+  <text x="230" y="124" text-anchor="middle" font-family="system-ui" font-size="9.5" font-weight="700" fill="#3C6E93">CHEAP</text>
 
-  <text x="230" y="50" text-anchor="middle" font-family="system-ui" font-size="12" font-weight="700" fill="#9c3531">LIFECYCLE</text>
-  <text x="230" y="64" text-anchor="middle" font-family="system-ui" font-size="9.5" fill="#9c3531">launch · pill · resume · panes</text>
-  <text x="230" y="77" text-anchor="middle" font-family="system-ui" font-size="9.5" font-weight="700" fill="#b13e3a">BREAKS</text>
+  <text x="230" y="50" text-anchor="middle" font-family="system-ui" font-size="12" font-weight="700" fill="#8a5d1f">LIFECYCLE</text>
+  <text x="230" y="64" text-anchor="middle" font-family="system-ui" font-size="9.5" fill="#8a5d1f">launch · pill · priming · resume · panes</text>
+  <text x="230" y="77" text-anchor="middle" font-family="system-ui" font-size="9.5" font-weight="700" fill="#b07527">RESIDUAL WORK</text>
 
-  <!-- right-side callouts -->
   <line x1="430" y1="180" x2="478" y2="180" stroke="#4a7d3e" stroke-width="1"/>
   <text x="484" y="176" font-family="system-ui" font-size="11" font-weight="700" fill="#3a6330">Ring 1 — Codex calls these identically</text>
-  <text x="484" y="190" font-family="system-ui" font-size="10.5" fill="#6f6557">Transport is JSON-RPC; verbs are generic.</text>
+  <text x="484" y="190" font-family="system-ui" font-size="10.5" fill="#6f6557">Transport is JSON-RPC; verbs are generic. 4 touchpoints.</text>
 
   <line x1="370" y1="100" x2="478" y2="100" stroke="#3C6E93" stroke-width="1"/>
-  <text x="484" y="96" font-family="system-ui" font-size="11" font-weight="700" fill="#2f567a">Ring 2 — silent absence</text>
-  <text x="484" y="110" font-family="system-ui" font-size="10.5" fill="#6f6557">Codex never reads the skill, so it</text>
-  <text x="484" y="123" font-family="system-ui" font-size="10.5" fill="#6f6557">doesn't <tspan font-style="italic">know</tspan> duo exists. Nothing errors.</text>
+  <text x="484" y="96" font-family="system-ui" font-size="11" font-weight="700" fill="#2f567a">Ring 2 — sync the skill</text>
+  <text x="484" y="110" font-family="system-ui" font-size="10.5" fill="#6f6557">Same file, different dir (<tspan font-family="monospace">~/.agents/skills/</tspan>).</text>
+  <text x="484" y="123" font-family="system-ui" font-size="10.5" fill="#6f6557">Near-verbatim; extend the sync script.</text>
 
-  <line x1="340" y1="52" x2="478" y2="52" stroke="#b13e3a" stroke-width="1"/>
-  <text x="484" y="48" font-family="system-ui" font-size="11" font-weight="700" fill="#9c3531">Ring 3 — false signals</text>
-  <text x="484" y="62" font-family="system-ui" font-size="10.5" fill="#6f6557">Pill stuck off, resume never offered,</text>
-  <text x="484" y="75" font-family="system-ui" font-size="10.5" fill="#6f6557">doctor shows red, wrong config pane.</text>
+  <line x1="340" y1="52" x2="478" y2="52" stroke="#b07527" stroke-width="1"/>
+  <text x="484" y="48" font-family="system-ui" font-size="11" font-weight="700" fill="#8a5d1f">Ring 3 — 9 touchpoints</text>
+  <text x="484" y="62" font-family="system-ui" font-size="10.5" fill="#6f6557">7 are cheap renames/params; 2 are real</text>
+  <text x="484" y="75" font-family="system-ui" font-size="10.5" fill="#6f6557">gaps (priming mechanism, session store).</text>
 
-  <text x="484" y="300" font-family="system-ui" font-size="10.5" font-style="italic" fill="#9a9080">Value concentrates in Ring 1 (free under Codex).</text>
-  <text x="484" y="315" font-family="system-ui" font-size="10.5" font-style="italic" fill="#9a9080">Cost concentrates in Ring 3.</text>
+  <text x="484" y="300" font-family="system-ui" font-size="10.5" font-style="italic" fill="#9a9080">Value lives in the green core (free under Codex).</text>
+  <text x="484" y="315" font-family="system-ui" font-size="10.5" font-style="italic" fill="#9a9080">Cost concentrates in 2 of Ring 3's 9.</text>
 </svg>
-<figcaption>Figure 1 — The coupling is a thin skin. The browser/editor/canvas value lives in the green core, which is already agent-neutral.</figcaption>
+<figcaption>Figure 1 — The coupling is a thin skin. The browser/editor/canvas value is the green core, already agent-neutral; teaching converged onto a shared standard; only two lifecycle items are genuinely hard.</figcaption>
 </div>
 
 <h2>2 · Touchpoint inventory — works / no-op / breaks</h2>
 
-<p>Every Claude-specific touchpoint found in the codebase, scored for Codex. Filter by verdict:</p>
+<p>Every Claude-specific touchpoint found in the codebase (file:line verified against source), scored for Codex. Filter by verdict:</p>
 
 <div class="filter-row" id="filters">
   <button data-f="all" class="active">All (19)</button>
   <button data-f="works">✓ Works (4)</button>
-  <button data-f="noop">No-op (5)</button>
-  <button data-f="breaks">Breaks (8)</button>
-  <button data-f="general">Generalizable (2)</button>
+  <button data-f="noop">No-op (3)</button>
+  <button data-f="breaks">Breaks (9)</button>
+  <button data-f="general">Generalizable (3)</button>
 </div>
 
 <div class="matrix" id="matrix">
-  <!-- WORKS -->
-  <div class="tp" data-cat="works"><div class="tp-status"><span class="badge works">Works</span></div><div><div class="tp-name">Socket protocol (JSON-RPC)</div><div class="tp-impact">Generic <code>{id,cmd,args}</code> → <code>{id,ok,result}</code>. No agent concept in the frame. Codex over the same socket is byte-identical.</div><div class="tp-loc">shared/types.ts · DuoRequest/DuoResponse</div></div></div>
+  <!-- WORKS (4) -->
+  <div class="tp" data-cat="works"><div class="tp-status"><span class="badge works">Works</span></div><div><div class="tp-name">Socket protocol (JSON-RPC)</div><div class="tp-impact">Generic <code>{id,cmd,args}</code> → <code>{id,ok,result}</code>. No agent concept in the frame. Codex over the same socket is byte-identical.</div><div class="tp-loc">shared/types.ts:22–36 · DuoRequest/DuoResponse</div></div></div>
   <div class="tp" data-cat="works"><div class="tp-status"><span class="badge works">Works</span></div><div><div class="tp-name">~100 <code>duo</code> verbs (browser / editor / canvas / file / layout / git / project / events)</div><div class="tp-impact">navigate, click, fill, dom, ax, screenshot, doc&nbsp;read/write, html&nbsp;*, split, theme, project&nbsp;* … all pure renderer/CDP ops. No Claude check in any dispatch branch.</div><div class="tp-loc">cli/duo.ts · core/socket-server.ts (switch cmd)</div></div></div>
-  <div class="tp" data-cat="works"><div class="tp-status"><span class="badge works">Works</span></div><div><div class="tp-name">PTY environment injection</div><div class="tp-impact"><code>DUO_SESSION</code>, <code>DUO_SOCKET</code>, <code>DUO_VERSION</code>, <code>TERM_PROGRAM=Duo</code> are set by Duo's pty pool regardless of which agent runs inside. Codex inherits them.</div><div class="tp-loc">core/pty-manager.ts:44–51</div></div></div>
+  <div class="tp" data-cat="works"><div class="tp-status"><span class="badge works">Works</span></div><div><div class="tp-name">PTY environment injection</div><div class="tp-impact"><code>DUO_SESSION=1</code>, <code>DUO_SOCKET</code>, <code>DUO_VERSION</code>, <code>TERM_PROGRAM=Duo</code> are set by Duo's pty pool regardless of which agent runs inside. Codex inherits them and can self-detect a Duo session.</div><div class="tp-loc">core/pty-manager.ts:46–50</div></div></div>
   <div class="tp" data-cat="works"><div class="tp-status"><span class="badge works">Works</span></div><div><div class="tp-name">CLI transport (Unix socket + TCP fallback)</div><div class="tp-impact">Connection + retry + sandbox-tolerant fallback are agent-agnostic. The <code>duo</code> binary doesn't care who invokes it.</div><div class="tp-loc">cli/duo.ts (transport)</div></div></div>
 
-  <!-- NO-OP -->
-  <div class="tp" data-cat="noop"><div class="tp-status"><span class="badge noop">No-op</span></div><div><div class="tp-name">The skill (<code>~/.claude/skills/duo/SKILL.md</code>)</div><div class="tp-impact"><strong>The important one.</strong> Codex has no "skills" concept and never loads it → the agent never learns <code>duo</code> exists. The bridge works; nobody told the agent. Silent, not an error.</div><div class="tp-loc">skill/SKILL.md → synced via npm run sync:claude</div></div></div>
-  <div class="tp" data-cat="noop"><div class="tp-status"><span class="badge noop">No-op</span></div><div><div class="tp-name">The subagent (<code>~/.claude/agents/duo.md</code>)</div><div class="tp-impact">Codex has no subagent/delegation primitive. The "delegate Duo round-trips to Haiku" optimization simply doesn't exist; Codex would run verbs inline.</div><div class="tp-loc">agents/duo.md (model: haiku, tools: Bash)</div></div></div>
-  <div class="tp" data-cat="noop"><div class="tp-status"><span class="badge noop">No-op</span></div><div><div class="tp-name">SessionStart hook priming</div><div class="tp-impact">The settings.json SessionStart hook that <code>cat</code>s priming.md is a Claude Code feature. Codex never fires it. (It's the safety-net behind the shim — see "priming shim" under Breaks.)</div><div class="tp-loc">shared/host-api.ts (PrimingInstallStatus)</div></div></div>
-  <div class="tp" data-cat="noop"><div class="tp-status"><span class="badge noop">No-op</span></div><div><div class="tp-name"><code>duo claude-return</code> / <code>shift-return</code></div><div class="tp-impact">Toggles Claude-tab Enter-vs-newline behavior — a quirk of Claude's TUI. Inert/meaningless for a Codex tab; the verbs would just no-op against a non-Claude flavor.</div><div class="tp-loc">cli/duo.ts:680–713 · socket-server (ClaudeKeyPrefs)</div></div></div>
-  <div class="tp" data-cat="noop"><div class="tp-status"><span class="badge noop">No-op</span></div><div><div class="tp-name">Author attribution default (<code>DUO_AUTHOR</code>)</div><div class="tp-impact">CriticMarkup marks default to author <code>claude</code> when the env var is unset. Cosmetic only — a Codex edit would be mislabeled "claude," not broken. Already env-overridable today.</div><div class="tp-loc">cli/duo.ts (DUO_AUTHOR) · socket-server author</div></div></div>
+  <!-- NO-OP (3) -->
+  <div class="tp" data-cat="noop"><div class="tp-status"><span class="badge noop">No-op</span></div><div><div class="tp-name">The subagent (<code>~/.claude/agents/duo.md</code>)</div><div class="tp-impact">Codex has no Claude-style delegation subagent. The skill's "delegate Duo round-trips to a Haiku subagent" optimization is inert under Codex — it would just run verbs inline. (Codex's <code>agents/openai.yaml</code> is skill UI-metadata, not a subagent.)</div><div class="tp-loc">agents/duo.md (model: haiku, tools: Bash)</div></div></div>
+  <div class="tp" data-cat="noop"><div class="tp-status"><span class="badge noop">No-op</span></div><div><div class="tp-name">SessionStart hook priming</div><div class="tp-impact">The <code>settings.json</code> SessionStart hook that <code>cat</code>s priming.md is Claude-Code-specific. Codex has no equivalent lifecycle hook, so it never fires. (It's the safety-net behind the shim — see "priming shim" under Breaks.)</div><div class="tp-loc">shared/host-api.ts (PrimingInstallStatus)</div></div></div>
+  <div class="tp" data-cat="noop"><div class="tp-status"><span class="badge noop">No-op</span></div><div><div class="tp-name"><code>duo claude-return</code> / <code>shift-return</code></div><div class="tp-impact">Toggles a Claude-tab Enter-vs-newline quirk in Claude's TUI. Meaningless for a Codex tab; the verbs would no-op against a non-Claude flavor.</div><div class="tp-loc">cli/duo.ts:680–710</div></div></div>
 
-  <!-- BREAKS -->
-  <div class="tp" data-cat="breaks"><div class="tp-status"><span class="badge breaks">Breaks</span></div><div><div class="tp-name">First-class launch — tab <code>kind:'claude'</code> auto-types <code>claude\n</code></div><div class="tp-impact">The tab-kind enum is <code>'shell' | 'claude'</code>. There's no <code>codex</code> kind, no <code>--codex</code> flag, and the launcher hard-types <code>claude</code>. You can't open Codex as a first-class tab.</div><div class="tp-loc">renderer/App.tsx ~1463 · shared/types.ts (TerminalTabKind)</div></div></div>
-  <div class="tp" data-cat="breaks"><div class="tp-status"><span class="badge breaks">Breaks</span></div><div><div class="tp-name">Priming shim — <code>~/.claude/duo/bin/claude</code> → <code>--append-system-prompt</code></div><div class="tp-impact"><strong>The hardest gap.</strong> The load-bearing priming injects <code>--append-system-prompt "$(cat priming.md)"</code>. <em>Codex has no per-session system-prompt-append flag.</em> A <code>codex</code> shim has nowhere to inject. Priming doesn't port cleanly.</div><div class="tp-loc">electron/install-service.ts (shim, ~862–879)</div></div></div>
+  <!-- BREAKS (9) -->
+  <div class="tp" data-cat="breaks"><div class="tp-status"><span class="badge breaks">Breaks</span></div><div><div class="tp-name">First-class launch — tab <code>kind:'claude'</code> auto-types <code>claude\n</code></div><div class="tp-impact">The tab-kind enum is <code>'shell' | 'claude'</code>; the launcher writes <code>'claude\n'</code> for a claude tab. No <code>codex</code> kind, no <code>--codex</code> flag — you can't open Codex as a first-class tab.</div><div class="tp-loc">shared/types.ts:7 · renderer/App.tsx:1461,1476</div></div></div>
   <div class="tp" data-cat="breaks"><div class="tp-status"><span class="badge breaks">Breaks</span></div><div><div class="tp-name">Presence pill — process basename must equal <code>claude</code></div><div class="tp-impact"><code>hasClaudeDescendant()</code> BFS-matches a process named <code>claude</code>. A <code>codex</code> process never matches → pill stuck on "shell" → the "Send to Duo" gating thinks no agent is live.</div><div class="tp-loc">core/claude-presence.ts:143</div></div></div>
-  <div class="tp" data-cat="breaks"><div class="tp-status"><span class="badge breaks">Breaks</span></div><div><div class="tp-name">Session capture — scans <code>~/.claude/projects/&lt;enc-cwd&gt;/*.jsonl</code></div><div class="tp-impact">Codex stores at <code>~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl</code> — <em>date-indexed, not cwd-indexed</em>, different schema. The cwd scan returns null → <code>lastClaudeSession</code> always null → resume pills never appear for a Codex tab.</div><div class="tp-loc">electron/claude-session-tracker.ts:75</div></div></div>
-  <div class="tp" data-cat="breaks"><div class="tp-status"><span class="badge breaks">Breaks</span></div><div><div class="tp-name">Session resume — writes <code>claude --resume &lt;uuid&gt;</code></div><div class="tp-impact">Hard-coded binary + flag + UUID format. Codex resumes with <code>codex resume &lt;id&gt;</code> / <code>--last</code> and a different id shape. Wrong on all three axes.</div><div class="tp-loc">electron/main.ts:677</div></div></div>
-  <div class="tp" data-cat="breaks"><div class="tp-status"><span class="badge breaks">Breaks</span></div><div><div class="tp-name">Banner title + message count — parse Claude JSONL schema</div><div class="tp-impact">Reads <code>custom-title</code>/<code>ai-title</code>/<code>user</code> entry types + counts <code>user</code> turns. Codex rollout events use a different schema. (Only reached if capture worked — which it doesn't.)</div><div class="tp-loc">electron/claude-session-tracker.ts:139–198</div></div></div>
-  <div class="tp" data-cat="breaks"><div class="tp-status"><span class="badge breaks">Breaks</span></div><div><div class="tp-name">Binary resolution — <code>resolveClaudeBinary()</code> looks for <code>claude</code></div><div class="tp-impact">Walks well-known dirs for a file named <code>claude</code>; gates the install banner + auto-type decision. No Codex equivalent → install/launch logic misfires for a Codex-only user.</div><div class="tp-loc">core/resolve-claude.ts (~104)</div></div></div>
-  <div class="tp" data-cat="breaks"><div class="tp-status"><span class="badge breaks">Breaks</span></div><div><div class="tp-name"><code>duo doctor</code> — checks skill + agent files exist</div><div class="tp-impact">Asserts <code>~/.claude/skills/duo/SKILL.md</code> and <code>~/.claude/agents/duo.md</code>. A Codex-only user sees ✗ red rows — a false failure that reads as "Duo is broken."</div><div class="tp-loc">cli/duo.ts (~1881)</div></div></div>
-  <div class="tp" data-cat="breaks"><div class="tp-status"><span class="badge breaks">Breaks</span></div><div><div class="tp-name">UserClaudePane — the <code>~/.claude</code> navigator</div><div class="tp-impact">Hard-codes <code>~/.claude/{CLAUDE.md, skills, agents}</code> as a curated config surface. A Codex user sees Claude's config (irrelevant to them) or an empty pane, never <code>~/.codex</code>.</div><div class="tp-loc">renderer/hooks/useUserClaudeNavigator.ts:57,118 · UserClaudePane.tsx</div></div></div>
+  <div class="tp" data-cat="breaks"><div class="tp-status"><span class="badge breaks">Breaks</span></div><div><div class="tp-name">Priming shim — <code>~/.claude/duo/bin/claude</code> → <code>--append-system-prompt</code></div><div class="tp-impact"><strong>The one genuinely hard gap.</strong> Duo's load-bearing priming is a PATH-shim that, when <code>DUO_SESSION</code> is set, execs the real binary with <code>--append-system-prompt "$(cat priming.md)"</code> — ephemeral + Duo-session-scoped. <em>Codex has no per-session system-prompt flag</em> (issue #11588, closed/unmerged); its only instruction channel is persistent <code>AGENTS.md</code> files, which aren't Duo-scoped. The mechanism doesn't port — though the skill now covers the main intent (agent knows <code>duo</code>).</div><div class="tp-loc">electron/install-service.ts:865,885</div></div></div>
+  <div class="tp" data-cat="breaks"><div class="tp-status"><span class="badge breaks">Breaks</span></div><div><div class="tp-name">Session capture — scans <code>~/.claude/projects/&lt;enc-cwd&gt;/*.jsonl</code></div><div class="tp-impact">Duo finds the newest transcript by encoding the cwd into a Claude path. Codex stores at <code>~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl</code> — <em>date-bucketed, different schema</em>. The cwd scan returns null → <code>lastClaudeSession</code> stays null → resume pills never appear for a Codex tab.</div><div class="tp-loc">electron/claude-session-tracker.ts:75</div></div></div>
+  <div class="tp" data-cat="breaks"><div class="tp-status"><span class="badge breaks">Breaks</span></div><div><div class="tp-name">Session resume — writes <code>claude --resume &lt;uuid&gt;</code></div><div class="tp-impact">Hard-coded binary + flag + UUID format. Codex resumes with <code>codex resume &lt;id&gt;</code> / <code>--last</code> (natively cwd-aware) and a different id shape. Wrong on all three axes.</div><div class="tp-loc">electron/main.ts:677</div></div></div>
+  <div class="tp" data-cat="breaks"><div class="tp-status"><span class="badge breaks">Breaks</span></div><div><div class="tp-name">Banner title + message count — parse Claude JSONL schema</div><div class="tp-impact">Reads <code>custom-title</code>/<code>ai-title</code>/first-<code>user</code> entries + counts <code>user</code> turns. Codex rollout events use a different schema. (Only reached if capture worked — which it doesn't.)</div><div class="tp-loc">electron/claude-session-tracker.ts:132–160</div></div></div>
+  <div class="tp" data-cat="breaks"><div class="tp-status"><span class="badge breaks">Breaks</span></div><div><div class="tp-name">Binary resolution — <code>resolveClaudeBinary()</code> looks for <code>claude</code></div><div class="tp-impact">Walks well-known dirs + <code>command -v claude</code> for a file named <code>claude</code>; gates the install banner + auto-type decision. No Codex equivalent → install/launch logic misfires for a Codex-only user.</div><div class="tp-loc">core/resolve-claude.ts:75,104</div></div></div>
+  <div class="tp" data-cat="breaks"><div class="tp-status"><span class="badge breaks">Breaks</span></div><div><div class="tp-name"><code>duo doctor</code> — checks skill + agent files exist</div><div class="tp-impact">Asserts <code>~/.claude/skills/duo/SKILL.md</code> and <code>~/.claude/agents/duo.md</code>. A Codex-only user sees ✗ red rows — a false failure that reads as "Duo is broken."</div><div class="tp-loc">cli/duo.ts:1882–1883</div></div></div>
+  <div class="tp" data-cat="breaks"><div class="tp-status"><span class="badge breaks">Breaks</span></div><div><div class="tp-name">UserClaudePane — the <code>~/.claude</code> navigator</div><div class="tp-impact">Root is fixed at <code>~/.claude</code>, curated to <code>CLAUDE.md</code> / <code>skills/</code> / <code>agents/</code>. A Codex user sees Claude's config (irrelevant) or an empty pane, never <code>~/.codex</code> / <code>~/.agents/skills</code>.</div><div class="tp-loc">renderer/hooks/useUserClaudeNavigator.ts:57</div></div></div>
 
-  <!-- GENERALIZABLE -->
-  <div class="tp" data-cat="general"><div class="tp-status"><span class="badge general">General</span></div><div><div class="tp-name">Project marker — <code>CLAUDE.md</code> or <code>.claude/</code></div><div class="tp-impact">The qualification <em>algorithm</em> (git-root OR marker) is already agent-neutral; only the marker <em>names</em> are Claude-ish. Add <code>AGENTS.md</code> / <code>.codex/</code> to the set and it generalizes for free.</div><div class="tp-loc">core/projects-service.ts:107 · shared/projects.ts:214</div></div></div>
-  <div class="tp" data-cat="general"><div class="tp-status"><span class="badge general">General</span></div><div><div class="tp-name">Author identity (<code>duo author</code> + <code>DUO_AUTHOR</code>)</div><div class="tp-impact">Already a generic string channel; just needs the default to derive from the active harness ("codex") instead of literal "claude."</div><div class="tp-loc">cli/duo.ts · socket-server (author)</div></div></div>
+  <!-- GENERALIZABLE (3) -->
+  <div class="tp" data-cat="general"><div class="tp-status"><span class="badge general">General</span></div><div><div class="tp-name">The skill (<code>SKILL.md</code>) — <em>the headline reclassification</em></div><div class="tp-impact"><strong>Cheap, not a no-op.</strong> Codex supports the same <code>SKILL.md</code> open standard with full parity — progressive disclosure, implicit invocation — reading user skills from <code>~/.agents/skills/</code> and repo skills from <code>.agents/skills/</code>. Duo only syncs to <code>~/.claude/skills/</code> today, so Codex doesn't see it yet — the fix is to also write <code>~/.agents/skills/duo/</code> (or ship a Codex plugin), likely near-verbatim.</div><div class="tp-loc">skill/SKILL.md → extend npm run sync:claude</div></div></div>
+  <div class="tp" data-cat="general"><div class="tp-status"><span class="badge general">General</span></div><div><div class="tp-name">Project marker — <code>CLAUDE.md</code> or <code>.claude/</code></div><div class="tp-impact">The qualification <em>algorithm</em> (git-root OR marker) is already agent-neutral; only the marker <em>names</em> are Claude-ish. Add <code>AGENTS.md</code> / <code>.agents/</code> to the set and it generalizes for free.</div><div class="tp-loc">core/projects-service.ts:107–108</div></div></div>
+  <div class="tp" data-cat="general"><div class="tp-status"><span class="badge general">General</span></div><div><div class="tp-name">Author identity (<code>duo author</code> + <code>DUO_AUTHOR</code>)</div><div class="tp-impact">Already a generic string channel, env-overridable today; just derive the default from the active harness instead of literal "claude." Cosmetic — affects CriticMarkup attribution labels.</div><div class="tp-loc">cli/duo.ts:663–676</div></div></div>
 </div>
 
-<h2>3 · Why it's asymmetric — Claude Code vs Codex extension surfaces</h2>
+<h2>3 · Claude Code vs Codex — the surfaces, verified</h2>
 
-<p>The cost isn't symmetric because the two harnesses give Duo very different hooks. Claude Code offers
-<em>three</em> ways to inject context (skill, hook, <code>--append-system-prompt</code>); Codex offers
-essentially one clean <em>shared</em> one (MCP), one repo-invasive one (<code>AGENTS.md</code>), and an opt-in slash prompt.</p>
+<p>The surfaces converged more than expected. <code>SKILL.md</code> and MCP are shared; what stays asymmetric is the
+lifecycle plumbing — ephemeral system-prompt injection, subagents, and the shape of the session store.</p>
 
 <table class="cmp">
   <thead><tr><th>Concept</th><th>Claude Code</th><th>Codex CLI</th><th>Implication for Duo</th></tr></thead>
   <tbody>
     <tr><td class="feat">Binary</td><td><code>claude</code></td><td><code>codex</code></td><td class="dim">Parameterize launch / presence / resolve.</td></tr>
-    <tr><td class="feat">Resume</td><td><code>claude --resume &lt;uuid&gt;</code></td><td><code>codex resume &lt;id&gt;</code> · <code>--last</code></td><td class="dim">Different verb + id shape.</td></tr>
-    <tr><td class="feat">Project instructions</td><td><code>CLAUDE.md</code></td><td><code>AGENTS.md</code> (+ overrides)</td><td class="dim">Add to marker set — cheap.</td></tr>
-    <tr><td class="feat">Home config dir</td><td><code>~/.claude/</code></td><td><code>~/.codex/</code></td><td class="dim">Navigator pane + path assumptions.</td></tr>
-    <tr><td class="feat">Session storage</td><td><code>~/.claude/projects/&lt;enc-cwd&gt;/&lt;uuid&gt;.jsonl</code><br><span class="dim">cwd-indexed</span></td><td><code>~/.codex/sessions/Y/M/D/rollout-*.jsonl</code><br><span class="dim">date-indexed, NOT cwd</span></td><td class="dim"><strong>Structurally different.</strong> Can't map cwd→sessions by path; must read rollout metadata or call <code>codex resume</code>.</td></tr>
-    <tr><td class="feat">Ephemeral system-prompt inject</td><td class="yes">✓ <code>--append-system-prompt</code></td><td class="no">✗ none<br><span class="dim">(model_instructions_file <em>replaces</em>)</span></td><td class="dim"><strong>Priming's hardest gap.</strong> No per-session append channel.</td></tr>
-    <tr><td class="feat">Skills (progressive disclosure)</td><td class="yes">✓ <code>~/.claude/skills/</code></td><td class="no">✗ none</td><td class="dim">Teaching mechanism must change for Codex.</td></tr>
+    <tr><td class="feat">Skills (open standard)</td><td class="yes">✓ <code>~/.claude/skills/</code></td><td class="yes">✓ <code>~/.agents/skills/</code><br><span class="dim">+ repo <code>.agents/skills/</code></span></td><td class="dim"><strong>Same format, progressive disclosure, implicit invocation.</strong> Sync the same file; or ship a plugin.</td></tr>
+    <tr><td class="feat">MCP servers</td><td class="yes">✓ supported</td><td class="yes">✓ <code>~/.codex/config.toml</code></td><td class="dim">Shared public protocol — expose <code>duo</code> as self-describing tools.</td></tr>
+    <tr><td class="feat">Project instructions</td><td><code>CLAUDE.md</code></td><td><code>AGENTS.md</code> (+ overrides; global <code>~/.codex/AGENTS.md</code>)</td><td class="dim">Add to marker set — cheap.</td></tr>
+    <tr><td class="feat">Resume</td><td><code>claude --resume &lt;uuid&gt;</code></td><td><code>codex resume &lt;id&gt;</code> · <code>--last</code> (cwd-aware)</td><td class="dim">Different verb + id; Codex's <code>--last</code> is cwd-scoped natively.</td></tr>
+    <tr><td class="feat">Session storage</td><td><code>~/.claude/projects/&lt;enc-cwd&gt;/&lt;uuid&gt;.jsonl</code><br><span class="dim">cwd-pathed</span></td><td><code>~/.codex/sessions/Y/M/D/rollout-*.jsonl</code><br><span class="dim">date-bucketed (cwd in metadata)</span></td><td class="dim">Can't map cwd→file by path; but <code>codex resume --last</code> already does it.</td></tr>
+    <tr><td class="feat">Per-session system-prompt append</td><td class="yes">✓ <code>--append-system-prompt</code></td><td class="no">✗ none<br><span class="dim">(issue #11588 closed/unmerged; AGENTS.md only)</span></td><td class="dim"><strong>The priming shim's hard gap.</strong> No ephemeral, session-scoped channel.</td></tr>
     <tr><td class="feat">Subagents</td><td class="yes">✓ <code>~/.claude/agents/</code></td><td class="no">✗ none</td><td class="dim">Delegation optimization unavailable.</td></tr>
     <tr><td class="feat">Lifecycle hooks</td><td class="yes">✓ SessionStart (settings.json)</td><td class="no">✗ none equivalent</td><td class="dim">Priming safety-net unavailable.</td></tr>
-    <tr><td class="feat">Custom prompts</td><td>skills / slash</td><td class="meh">≈ <code>~/.codex/prompts/*.md</code><br><span class="dim">slash, frontmatter, $ARGS</span></td><td class="dim">A discoverable, opt-in teaching channel.</td></tr>
-    <tr><td class="feat">MCP servers</td><td class="yes">✓ supported</td><td class="yes">✓ <code>~/.codex/config.toml</code></td><td class="dim"><strong>The one shared, self-describing, public contract.</strong></td></tr>
+    <tr><td class="feat">Skill distribution</td><td>sync / copy</td><td class="meh">≈ plugins</td><td class="dim">Codex plugins bundle skills (+ MCP config) for install.</td></tr>
+    <tr><td class="feat">Home config dir</td><td><code>~/.claude/</code></td><td><code>~/.codex/</code></td><td class="dim">Navigator pane + path assumptions.</td></tr>
   </tbody>
 </table>
 
 <div class="keyline">
-  <strong>Maintenance-burden law.</strong> Anything that reads another tool's <em>private file format</em>
-  (the rollout JSONL schema) or shells its <em>private flags</em> (<code>--append-system-prompt</code>) is a
-  standing drift liability — it breaks silently on the next upstream release. Anything that rides a
-  <em>public contract</em> (a documented subcommand like <code>codex resume --last</code>, an env var, or MCP)
-  is durable. Every option below is graded on which side of that line it sits.
+  <strong>Maintenance-burden law.</strong> Coupling that reads a tool's <em>private file format</em> (the rollout JSONL
+  schema) or shells its <em>private flags</em> (<code>--append-system-prompt</code>, which Codex doesn't even have) is a
+  standing drift liability — it breaks silently on the next upstream release. Coupling that rides a <em>public
+  contract</em> (the <code>SKILL.md</code> standard, a documented subcommand like <code>codex resume --last</code>, env
+  vars, or MCP) is durable. Every option below is graded on which side of that line it sits.
 </div>
 
 <h2>4 · The cost landscape</h2>
 
-<p>Plotting each approach by <em>upfront build</em> (x) against <em>ongoing maintenance</em> (y) sorts them into
-four quadrants. The recommended near-term moves cluster in the cheap-and-durable corner; the strategic bet (MCP)
-trades upfront cost for near-zero drift; the things to <em>avoid</em> sit in the high-drift top band.</p>
+<p>Each approach plotted by <em>upfront build</em> (x) against <em>ongoing maintenance</em> (y). The recommended
+near-term moves cluster in the cheap-and-durable corner; MCP trades upfront cost for near-zero drift; the moves to
+<em>avoid</em> sit in the high-drift band.</p>
 
 <div class="fig">
-<svg viewBox="0 0 700 470" role="img" aria-label="Scatter plot of approaches by upfront cost versus ongoing maintenance">
-  <!-- quadrant tints -->
+<svg viewBox="0 0 700 470" role="img" aria-label="Scatter of approaches by upfront cost versus ongoing maintenance">
   <rect x="70" y="40" width="280" height="180" fill="color-mix(in srgb, #b07527 9%, #fbf8f1)"/>
   <rect x="350" y="40" width="280" height="180" fill="color-mix(in srgb, #b13e3a 8%, #fbf8f1)"/>
   <rect x="70" y="220" width="280" height="180" fill="color-mix(in srgb, #4a7d3e 12%, #fbf8f1)"/>
   <rect x="350" y="220" width="280" height="180" fill="color-mix(in srgb, #3C6E93 9%, #fbf8f1)"/>
-  <!-- axes -->
   <line x1="70" y1="40" x2="70" y2="400" stroke="#9a9080" stroke-width="1.5"/>
   <line x1="70" y1="400" x2="630" y2="400" stroke="#9a9080" stroke-width="1.5"/>
   <text x="350" y="438" text-anchor="middle" font-family="system-ui" font-size="12" font-weight="700" fill="#4a4238">UPFRONT BUILD COST →</text>
   <text x="28" y="220" text-anchor="middle" font-family="system-ui" font-size="12" font-weight="700" fill="#4a4238" transform="rotate(-90 28 220)">ONGOING MAINTENANCE →</text>
-  <!-- quadrant labels -->
   <text x="80" y="58" font-family="system-ui" font-size="10.5" font-weight="700" fill="#9a6a1f">CHEAP BUT DRIFTS ⚠</text>
   <text x="620" y="58" text-anchor="end" font-family="system-ui" font-size="10.5" font-weight="700" fill="#9c3531">COSTLY &amp; DRIFTS ✗</text>
   <text x="80" y="392" font-family="system-ui" font-size="10.5" font-weight="700" fill="#3a6330">CHEAP &amp; DURABLE ✓</text>
   <text x="620" y="392" text-anchor="end" font-family="system-ui" font-size="10.5" font-weight="700" fill="#2f567a">INVEST ONCE, DURABLE</text>
 
-  <!-- points: cx,cy by (upfront,ongoing). x:70..630 maps 0..100; y:400(low)..40(high) -->
-  <!-- core bridge (already done) ~ (5,5) -->
-  <circle cx="98" cy="382" r="7" fill="#4a7d3e"/>
-  <text x="110" y="386" font-family="system-ui" font-size="10.5" fill="#2b2620">Core bridge (free — works today)</text>
-  <!-- graceful degrade lifecycle (15,8) -->
-  <circle cx="154" cy="371" r="7" fill="#4a7d3e"/>
-  <text x="166" y="375" font-family="system-ui" font-size="10.5" fill="#2b2620">Degrade lifecycle on Codex</text>
-  <!-- /duo slash prompt (18,12) -->
-  <circle cx="171" cy="357" r="7" fill="#4a7d3e"/>
-  <text x="183" y="361" font-family="system-ui" font-size="10.5" fill="#2b2620">Ship <tspan font-family="monospace">/duo</tspan> Codex prompt</text>
-  <!-- cheap params: kind+presence+marker (24,16) -->
-  <circle cx="204" cy="343" r="7" fill="#4a7d3e"/>
-  <text x="216" y="347" font-family="system-ui" font-size="10.5" fill="#2b2620">Add codex kind + presence + marker</text>
-  <!-- codex resume --last action (28,22) -->
-  <circle cx="227" cy="322" r="7" fill="#4a7d3e"/>
-  <text x="239" y="326" font-family="system-ui" font-size="10.5" fill="#2b2620">"Resume last" via <tspan font-family="monospace">codex resume --last</tspan></text>
-  <!-- two-adapter abstraction (52,46) -->
-  <circle cx="361" cy="234" r="7" fill="#3C6E93"/>
-  <text x="373" y="238" font-family="system-ui" font-size="10.5" fill="#2b2620">Two-adapter HarnessAdapter</text>
-  <!-- MCP server (70,24) — INVEST ONCE -->
-  <circle cx="462" cy="314" r="9" fill="#3C6E93" stroke="#2b2620" stroke-width="1.5"/>
-  <text x="475" y="312" font-family="system-ui" font-size="10.5" font-weight="700" fill="#2b2620">Duo-as-MCP-server</text>
-  <text x="475" y="325" font-family="system-ui" font-size="9.5" font-style="italic" fill="#6f6557">the durable spine</text>
-  <!-- AGENTS.md auto-inject (30,74) — drift -->
-  <circle cx="238" cy="122" r="7" fill="#b07527"/>
-  <text x="250" y="126" font-family="system-ui" font-size="10.5" fill="#2b2620">Auto-merge AGENTS.md (repo-invasive)</text>
-  <!-- codex session JSONL parser (46,80) — drift -->
-  <circle cx="328" cy="100" r="7" fill="#b07527"/>
-  <text x="200" y="90" text-anchor="end" font-family="system-ui" font-size="10.5" fill="#2b2620">Parse rollout JSONL + rebuild resume list</text>
-  <line x1="205" y1="86" x2="322" y2="98" stroke="#b07527" stroke-width="0.8"/>
-  <!-- pluggable registry (90,90) -->
-  <circle cx="574" cy="58" r="7" fill="#b13e3a"/>
-  <text x="566" y="62" text-anchor="end" font-family="system-ui" font-size="10.5" fill="#2b2620">Pluggable harness registry (community plugins)</text>
+  <!-- green: cheap & durable -->
+  <circle cx="98" cy="383" r="7" fill="#4a7d3e"/>
+  <text x="110" y="387" font-family="system-ui" font-size="10.5" fill="#2b2620">Core bridge (free — works today)</text>
+  <circle cx="150" cy="372" r="7" fill="#4a7d3e"/>
+  <text x="162" y="376" font-family="system-ui" font-size="10.5" fill="#2b2620">Degrade lifecycle gracefully on Codex</text>
+  <circle cx="166" cy="358" r="7" fill="#4a7d3e"/>
+  <text x="178" y="362" font-family="system-ui" font-size="10.5" fill="#2b2620">Sync skill to <tspan font-family="monospace">~/.agents/skills</tspan></text>
+  <circle cx="205" cy="344" r="7" fill="#4a7d3e"/>
+  <text x="217" y="348" font-family="system-ui" font-size="10.5" fill="#2b2620">Add codex kind + presence + marker</text>
+  <circle cx="238" cy="326" r="7" fill="#4a7d3e"/>
+  <text x="250" y="330" font-family="system-ui" font-size="10.5" fill="#2b2620">"Resume last" via <tspan font-family="monospace">codex resume --last</tspan></text>
+
+  <!-- blue: invest once -->
+  <circle cx="361" cy="244" r="7" fill="#3C6E93"/>
+  <text x="373" y="248" font-family="system-ui" font-size="10.5" fill="#2b2620">Two-adapter HarnessAdapter</text>
+  <circle cx="462" cy="316" r="9" fill="#3C6E93" stroke="#2b2620" stroke-width="1.5"/>
+  <text x="475" y="313" font-family="system-ui" font-size="10.5" font-weight="700" fill="#2b2620">Duo-as-MCP-server</text>
+  <text x="475" y="326" font-family="system-ui" font-size="9.5" font-style="italic" fill="#6f6557">the durable spine for tools</text>
+
+  <!-- amber: cheap but drifts -->
+  <circle cx="238" cy="124" r="7" fill="#b07527"/>
+  <text x="250" y="128" font-family="system-ui" font-size="10.5" fill="#2b2620">Auto-merge project <tspan font-family="monospace">AGENTS.md</tspan> (repo-invasive)</text>
+  <circle cx="330" cy="100" r="7" fill="#b07527"/>
+  <text x="200" y="88" text-anchor="end" font-family="system-ui" font-size="10.5" fill="#2b2620">Parse rollout JSONL + rebuild resume list</text>
+  <line x1="205" y1="84" x2="324" y2="97" stroke="#b07527" stroke-width="0.8"/>
+
+  <!-- red: costly & drifts -->
+  <circle cx="574" cy="60" r="7" fill="#b13e3a"/>
+  <text x="566" y="64" text-anchor="end" font-family="system-ui" font-size="10.5" fill="#2b2620">Pluggable harness registry (community plugins)</text>
 </svg>
-<figcaption>Figure 2 — Green = recommended near-term (cheap &amp; durable). Blue = strategic (invest once, low drift). Amber/red = high ongoing tax; reach for only if parity is a hard requirement.</figcaption>
+<figcaption>Figure 2 — Green = recommended near-term (cheap &amp; durable). Blue = strategic (invest once, low drift). Amber/red = high ongoing tax; reach for only if full parity is a hard requirement.</figcaption>
 </div>
 
 <h2>5 · Mockups — the UI decisions</h2>
@@ -433,11 +380,11 @@ trades upfront cost for near-zero drift; the things to <em>avoid</em> sit in the
 <h3>5c · Teaching Codex that <code>duo</code> exists</h3>
 <div class="lanes">
   <div class="lane"><span class="tag warn">No-op</span><h4>Do nothing</h4><p>User manually tells Codex about <code>duo</code> each session. Zero build, zero maintenance — but the autonomous-agent magic silently never happens.</p></div>
-  <div class="lane"><span class="tag good">Codex-native</span><h4><code>/duo</code> slash prompt</h4><p>Ship <code>~/.codex/prompts/duo.md</code>. Discoverable in Codex's slash menu, opt-in, non-invasive. Low build, low drift.</p></div>
-  <div class="lane"><span class="tag warn">Invasive</span><h4>Auto-merge AGENTS.md</h4><p>Write a <code>duo</code> block into the project's <code>AGENTS.md</code>. Automatic, but pollutes the user's repo and drifts. High ongoing tax.</p></div>
-  <div class="lane dur"><span class="tag good">Durable</span><h4>Duo as MCP server</h4><p>Expose the verbs as self-describing MCP tools. Both harnesses discover them automatically via their own config. Bigger build, near-zero drift — collapses Rings&nbsp;1&nbsp;+&nbsp;2 into one neutral mechanism.</p></div>
+  <div class="lane dur"><span class="tag good">Recommended</span><h4>Sync skill → <code>~/.agents/skills</code></h4><p>Ship the existing <code>SKILL.md</code> to <code>~/.agents/skills/duo/</code> (or as a Codex plugin). Open standard, progressive disclosure, implicitly invoked. Near-verbatim; just extend <code>sync:claude</code>.</p></div>
+  <div class="lane"><span class="tag warn">Optional</span><h4>Global <code>~/.codex/AGENTS.md</code></h4><p>For always-on Duo-session behavior the skill can't cover (the shim's old job). Persistent + applies to <em>all</em> Codex sessions, not just Duo's — use sparingly.</p></div>
+  <div class="lane dur"><span class="tag good">Durable</span><h4>Duo as MCP server</h4><p>Expose the verbs as self-describing MCP <em>tools</em> both harnesses auto-discover via their config. Bigger build, near-zero drift.</p></div>
 </div>
-<p class="tl-note">Decision D3 chooses among these (they're not all mutually exclusive — <code>/duo</code> now + MCP later is a sequence).</p>
+<p class="tl-note">Decision D3 chooses among these (not mutually exclusive — sync the skill now + MCP later is a sequence).</p>
 
 <h3>5d · The agent-config navigator pane</h3>
 <div class="mock">
@@ -454,9 +401,9 @@ trades upfront cost for near-zero drift; the things to <em>avoid</em> sit in the
     <div class="mockcol">
       <div class="navpane">
         <div class="nrow head">Agent config · ◆ codex</div>
-        <div class="nrow"><span class="ic">📄</span> AGENTS.md</div>
-        <div class="nrow"><span class="ic">📁</span> prompts/</div>
-        <div class="nrow"><span class="ic">⚙</span> config.toml</div>
+        <div class="nrow"><span class="ic">📄</span> ~/.codex/AGENTS.md</div>
+        <div class="nrow"><span class="ic">📁</span> ~/.agents/skills/</div>
+        <div class="nrow"><span class="ic">⚙</span> ~/.codex/config.toml</div>
       </div>
       <p class="mock-cap">After D7 — pane follows the active tab's harness (or shows both).</p>
     </div>
@@ -471,7 +418,7 @@ trades upfront cost for near-zero drift; the things to <em>avoid</em> sit in the
   <h3 class="q-prompt">What target posture for harness-agnosticism?</h3>
   <p class="q-context">Everything else inherits from this. The trade is reach vs. the standing cost of keeping two (or N) integrations honest as both tools ship weekly.</p>
   <div class="q-options">
-    <label class="q-option"><input type="radio" name="d1" value="A"><div class="q-option-body"><div class="q-option-title">A · Claude-first, Codex-tolerant <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">Core bridge works for Codex; lifecycle features degrade/hide on Codex tabs. Cheap params only (kind, presence, marker). <span class="cost"><span class="up">Upfront ●●○○○</span> <span class="on">Ongoing ●○○○○</span></span></div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="A"><div class="q-option-body"><div class="q-option-title">A · Claude-first, Codex-tolerant <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">Core bridge works for Codex; sync the skill; make cheap params (kind, presence, marker); degrade the hard lifecycle bits on Codex tabs. <span class="cost"><span class="up">Upfront ●●○○○</span> <span class="on">Ongoing ●○○○○</span></span></div></div></label>
     <label class="q-option"><input type="radio" name="d1" value="B"><div class="q-option-body"><div class="q-option-title">B · Agnostic core, two first-class adapters</div><div class="q-option-rationale">Claude + Codex are peers behind a <code>HarnessAdapter</code> interface; both get pill, launch, resume. <span class="cost"><span class="up">Upfront ●●●○○</span> <span class="on">Ongoing ●●●○○</span></span></div></div></label>
     <label class="q-option"><input type="radio" name="d1" value="C"><div class="q-option-body"><div class="q-option-title">C · Pluggable harness registry</div><div class="q-option-rationale">Data-driven adapters; community can add Gemini CLI, aider, etc. Maximum reach, you own a plugin contract + N drifting parsers. <span class="cost"><span class="up">Upfront ●●●●●</span> <span class="on">Ongoing ●●●●●</span></span></div></div></label>
   </div>
@@ -484,21 +431,21 @@ trades upfront cost for near-zero drift; the things to <em>avoid</em> sit in the
   <p class="q-context">Only bites under D1=B/C. Determines how a new harness (or an upstream change) ripples through the codebase.</p>
   <div class="q-options">
     <label class="q-option"><input type="radio" name="d2" value="A"><div class="q-option-body"><div class="q-option-title">A · Inline 2-way branches (<code>if kind==='codex'</code>)</div><div class="q-option-rationale">Fastest to write, but the branches sprawl across pty/presence/tracker/renderer and rot. <span class="cost"><span class="up">Upfront ●○○○○</span> <span class="on">Ongoing ●●●○○</span></span></div></div></label>
-    <label class="q-option"><input type="radio" name="d2" value="B"><div class="q-option-body"><div class="q-option-title">B · <code>HarnessAdapter</code> interface + concrete impls <span class="recommend-tag">Recommended (if agnostic)</span></div><div class="q-option-rationale">One interface: <code>{name, binary, launchCmd, resumeCmd, presenceMatch, configDir, sessionLocator?, primingChannel}</code>. Claude + Codex implement it; call sites stay generic. <span class="cost"><span class="up">Upfront ●●●○○</span> <span class="on">Ongoing ●●○○○</span></span></div></div></label>
-    <label class="q-option"><input type="radio" name="d2" value="C"><div class="q-option-body"><div class="q-option-title">C · Declarative manifest (JSON/TOML descriptor)</div><div class="q-option-rationale">Most flexible/user-extensible, but session-JSONL parsers still need real code per harness → the descriptor leaks. <span class="cost"><span class="up">Upfront ●●●●○</span> <span class="on">Ongoing ●●●○○</span></span></div></div></label>
+    <label class="q-option"><input type="radio" name="d2" value="B"><div class="q-option-body"><div class="q-option-title">B · <code>HarnessAdapter</code> interface + concrete impls <span class="recommend-tag">Recommended if agnostic</span></div><div class="q-option-rationale">One interface: <code>{name, binary, launchCmd, resumeCmd, presenceMatch, configDir, skillDir, sessionLocator?}</code>. Claude + Codex implement it; call sites stay generic. <span class="cost"><span class="up">Upfront ●●●○○</span> <span class="on">Ongoing ●●○○○</span></span></div></div></label>
+    <label class="q-option"><input type="radio" name="d2" value="C"><div class="q-option-body"><div class="q-option-title">C · Declarative manifest (JSON/TOML descriptor)</div><div class="q-option-rationale">Most flexible/user-extensible, but a session-transcript parser still needs real code per harness → the descriptor leaks. <span class="cost"><span class="up">Upfront ●●●●○</span> <span class="on">Ongoing ●●●○○</span></span></div></div></label>
   </div>
   <textarea class="q-notes" data-decision="d2" placeholder="Notes (optional)…"></textarea>
 </section>
 
 <section class="decision-card">
-  <div class="q-title">Decision 3 · The onboarding gap</div>
+  <div class="q-title">Decision 3 · Teaching the agent</div>
   <h3 class="q-prompt">How does Codex learn that <code>duo</code> exists?</h3>
-  <p class="q-context">The single most important question for Codex value: without this the bridge works but the agent never reaches for it. Options aren't mutually exclusive.</p>
+  <p class="q-context">Smaller than feared: Codex supports the <code>SKILL.md</code> open standard (progressive disclosure + implicit invocation) from <code>~/.agents/skills/</code>, so the existing skill ports near-verbatim. Options aren't mutually exclusive.</p>
   <div class="q-options">
     <label class="q-option"><input type="radio" name="d3" value="A"><div class="q-option-body"><div class="q-option-title">A · Nothing — user tells Codex manually</div><div class="q-option-rationale">Zero build/maintenance; loses the autonomous-driving experience. A valid "ship-the-bridge-only" floor. <span class="cost"><span class="up">Upfront ○○○○○</span> <span class="on">Ongoing ○○○○○</span></span></div></div></label>
-    <label class="q-option"><input type="radio" name="d3" value="B"><div class="q-option-body"><div class="q-option-title">B · Ship a <code>/duo</code> Codex slash prompt <span class="recommend-tag">Recommended now</span></div><div class="q-option-rationale"><code>~/.codex/prompts/duo.md</code> — Codex-native, opt-in, non-invasive, discoverable in the slash menu. Mirrors the skill's intent without skills. <span class="cost"><span class="up">Upfront ●○○○○</span> <span class="on">Ongoing ●○○○○</span></span></div></div></label>
-    <label class="q-option"><input type="radio" name="d3" value="C"><div class="q-option-body"><div class="q-option-title">C · Auto-merge a <code>duo</code> block into <code>AGENTS.md</code></div><div class="q-option-rationale">Automatic priming, but writes into the user's repo (commit noise, drift, surprise). Reach for only if auto-on is non-negotiable. <span class="cost"><span class="up">Upfront ●●○○○</span> <span class="on">Ongoing ●●●●○</span></span></div></div></label>
-    <label class="q-option"><input type="radio" name="d3" value="D"><div class="q-option-body"><div class="q-option-title">D · Expose Duo as an MCP server <span class="recommend-tag">Recommended as the spine</span></div><div class="q-option-rationale">Self-describing tools both harnesses auto-discover via their MCP config. Public protocol = near-zero drift. Biggest build; flags the "MCP not included" locked decision (which was about Duo-as-MCP-<em>client</em>, not server — worth re-opening). <span class="cost"><span class="up">Upfront ●●●●○</span> <span class="on">Ongoing ●○○○○</span></span></div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="B"><div class="q-option-body"><div class="q-option-title">B · Sync the skill to <code>~/.agents/skills/duo/</code> (or ship a plugin) <span class="recommend-tag">Recommended now</span></div><div class="q-option-rationale">Same file Claude Code loads, discovered + implicitly invoked by Codex from its own dir. Teach <code>npm run sync:claude</code> to also write <code>~/.agents/skills/</code>; optionally package a Codex plugin for installable distribution. <span class="cost"><span class="up">Upfront ●○○○○</span> <span class="on">Ongoing ●○○○○</span></span></div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="C"><div class="q-option-body"><div class="q-option-title">C · Global <code>~/.codex/AGENTS.md</code> for always-on Duo behavior</div><div class="q-option-rationale">Replaces the priming shim's special job (Codex has no <code>--append-system-prompt</code>). Persistent + applies to all Codex sessions, not just Duo's — use only for must-always-know nudges the skill can't carry. <span class="cost"><span class="up">Upfront ●○○○○</span> <span class="on">Ongoing ●●○○○</span></span></div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="D"><div class="q-option-body"><div class="q-option-title">D · Expose Duo as an MCP server <span class="recommend-tag">Strategic, later</span></div><div class="q-option-rationale">Skills teach <em>instructions</em>; MCP exposes <code>duo</code> as self-describing <em>tools</em> both harnesses auto-discover. Public protocol = near-zero drift. Biggest build; re-opens the "MCP not included" locked decision (which was about Duo-as-MCP-<em>client</em>, not server). <span class="cost"><span class="up">Upfront ●●●●○</span> <span class="on">Ongoing ●○○○○</span></span></div></div></label>
   </div>
   <textarea class="q-notes" data-decision="d3" placeholder="Notes (optional)…"></textarea>
 </section>
@@ -506,7 +453,7 @@ trades upfront cost for near-zero drift; the things to <em>avoid</em> sit in the
 <section class="decision-card">
   <div class="q-title">Decision 4 · Launch</div>
   <h3 class="q-prompt">How do we open Codex as a tab? (mockup 5a)</h3>
-  <p class="q-context">The tab-kind enum is <code>'shell' | 'claude'</code> today. This is a UI + data-model choice.</p>
+  <p class="q-context">The tab-kind enum is <code>'shell' | 'claude'</code> today (shared/types.ts:7). This is a UI + data-model choice.</p>
   <div class="q-options">
     <label class="q-option"><input type="radio" name="d4" value="A"><div class="q-option-body"><div class="q-option-title">A · Add <code>kind:'codex'</code> + <code>--codex</code> flag <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">Parallel to <code>claude</code>: new menu item, <code>codex · cwd</code> label, auto-type <code>codex</code>. Smallest diff; enum grows by one. <span class="cost"><span class="up">Upfront ●●○○○</span> <span class="on">Ongoing ●○○○○</span></span></div></div></label>
     <label class="q-option"><input type="radio" name="d4" value="B"><div class="q-option-body"><div class="q-option-title">B · Generalize to <code>kind:'agent'</code> + <code>agentId</code></div><div class="q-option-rationale">Data-driven launch spec; no enum growth per future agent. Touches more call sites; pairs with D2=B/C. <span class="cost"><span class="up">Upfront ●●●○○</span> <span class="on">Ongoing ●○○○○</span></span></div></div></label>
@@ -518,7 +465,7 @@ trades upfront cost for near-zero drift; the things to <em>avoid</em> sit in the
 <section class="decision-card">
   <div class="q-title">Decision 5 · Presence pill</div>
   <h3 class="q-prompt">How do we detect a live Codex process, and what does the pill say? (mockup 5b)</h3>
-  <p class="q-context">The probe matches <code>comm === 'claude'</code>. The fix is small; the question is how general to make it + the pill copy.</p>
+  <p class="q-context">The probe matches <code>comm === 'claude'</code> (core/claude-presence.ts:143). The fix is small; the question is how general to make it + the pill copy.</p>
   <div class="q-options">
     <label class="q-option"><input type="radio" name="d5" value="A"><div class="q-option-body"><div class="q-option-title">A · Add <code>codex</code> to a static known-agent set <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">One-line matcher change; pill names the matched harness ("Send to Codex"). <span class="cost"><span class="up">Upfront ●○○○○</span> <span class="on">Ongoing ●○○○○</span></span></div></div></label>
     <label class="q-option"><input type="radio" name="d5" value="B"><div class="q-option-body"><div class="q-option-title">B · Per-harness matcher from the adapter (D2)</div><div class="q-option-rationale">Presence string lives on the adapter; cleanest if D1=B. Slightly more wiring. <span class="cost"><span class="up">Upfront ●●○○○</span> <span class="on">Ongoing ●○○○○</span></span></div></div></label>
@@ -530,10 +477,10 @@ trades upfront cost for near-zero drift; the things to <em>avoid</em> sit in the
 <section class="decision-card">
   <div class="q-title">Decision 6 · Session capture &amp; resume</div>
   <h3 class="q-prompt">Do we rebuild resume pills for Codex — and how?</h3>
-  <p class="q-context">This is where the ongoing-maintenance tax is highest. Codex's session store is date-indexed (not cwd-indexed) with a different schema, so per-cwd reconstruction is both harder <em>and</em> a standing drift liability.</p>
+  <p class="q-context">Where the ongoing-maintenance tax is highest. Codex's transcripts are date-bucketed (<code>~/.codex/sessions/Y/M/D/rollout-*.jsonl</code>) with a different schema, so per-cwd reconstruction is both harder <em>and</em> a standing drift liability — but <code>codex resume --last</code> is already cwd-aware.</p>
   <div class="q-options">
-    <label class="q-option"><input type="radio" name="d6" value="A"><div class="q-option-body"><div class="q-option-title">A · Skip rich capture — resume pills just don't show on Codex tabs <span class="recommend-tag">Recommended v1</span></div><div class="q-option-rationale">Graceful no-op. Zero drift tax. Codex users still get the full bridge; they just resume via Codex's own UI. <span class="cost"><span class="up">Upfront ●○○○○</span> <span class="on">Ongoing ○○○○○</span></span></div></div></label>
-    <label class="q-option"><input type="radio" name="d6" value="B"><div class="q-option-body"><div class="q-option-title">B · Offer "Resume last Codex session" via <code>codex resume --last</code></div><div class="q-option-rationale">Public-CLI path (rule-12 aligned): Duo runs the documented subcommand, never parses rollout files. Less rich (no per-session titles) but durable. <span class="cost"><span class="up">Upfront ●●○○○</span> <span class="on">Ongoing ●○○○○</span></span></div></div></label>
+    <label class="q-option"><input type="radio" name="d6" value="A"><div class="q-option-body"><div class="q-option-title">A · Skip rich capture — resume pills just don't show on Codex tabs <span class="recommend-tag">Recommended v1</span></div><div class="q-option-rationale">Graceful no-op. Zero drift tax. Codex users still get the full bridge; they resume via Codex's own UI. <span class="cost"><span class="up">Upfront ●○○○○</span> <span class="on">Ongoing ○○○○○</span></span></div></div></label>
+    <label class="q-option"><input type="radio" name="d6" value="B"><div class="q-option-body"><div class="q-option-title">B · Offer "Resume last Codex session" via <code>codex resume --last</code></div><div class="q-option-rationale">Public-CLI path (rule-12 aligned): Duo runs the documented, cwd-aware subcommand and never parses rollout files. Less rich (no per-session titles) but durable. <span class="cost"><span class="up">Upfront ●●○○○</span> <span class="on">Ongoing ●○○○○</span></span></div></div></label>
     <label class="q-option"><input type="radio" name="d6" value="C"><div class="q-option-body"><div class="q-option-title">C · Full parity — parse <code>rollout-*.jsonl</code> + rebuild the list</div><div class="q-option-rationale">Matches Claude's resume UX exactly, but reverse-engineers a private format that drifts on every Codex release. The top-band cost in Fig.&nbsp;2. <span class="cost"><span class="up">Upfront ●●●○○</span> <span class="on">Ongoing ●●●●●</span></span></div></div></label>
   </div>
   <textarea class="q-notes" data-decision="d6" placeholder="Notes (optional)…"></textarea>
@@ -542,9 +489,9 @@ trades upfront cost for near-zero drift; the things to <em>avoid</em> sit in the
 <section class="decision-card">
   <div class="q-title">Decision 7 · Config pane + doctor</div>
   <h3 class="q-prompt">What happens to the <code>~/.claude</code> navigator pane and <code>duo doctor</code>? (mockup 5d)</h3>
-  <p class="q-context">Both currently assert Claude paths. For a Codex-only user the pane shows the wrong thing and doctor shows false red.</p>
+  <p class="q-context">Both currently assert Claude paths (useUserClaudeNavigator.ts:57; cli/duo.ts:1882). For a Codex-only user the pane shows the wrong thing and doctor shows false red.</p>
   <div class="q-options">
-    <label class="q-option"><input type="radio" name="d7" value="A"><div class="q-option-body"><div class="q-option-title">A · Harness-aware — pane + doctor follow installed/active harness</div><div class="q-option-rationale">Pane shows <code>~/.codex</code> on a Codex tab; doctor only checks paths for harnesses that are installed. Most polished. <span class="cost"><span class="up">Upfront ●●●○○</span> <span class="on">Ongoing ●●○○○</span></span></div></div></label>
+    <label class="q-option"><input type="radio" name="d7" value="A"><div class="q-option-body"><div class="q-option-title">A · Harness-aware — pane + doctor follow installed/active harness</div><div class="q-option-rationale">Pane shows <code>~/.codex</code> + <code>~/.agents/skills</code> on a Codex tab; doctor only checks paths for installed harnesses. Most polished. <span class="cost"><span class="up">Upfront ●●●○○</span> <span class="on">Ongoing ●●○○○</span></span></div></div></label>
     <label class="q-option"><input type="radio" name="d7" value="B"><div class="q-option-body"><div class="q-option-title">B · Unified "agent config" pane listing all installed agents</div><div class="q-option-rationale">One pane, both roots. Nice for mixed users; more design. <span class="cost"><span class="up">Upfront ●●●○○</span> <span class="on">Ongoing ●●○○○</span></span></div></div></label>
     <label class="q-option"><input type="radio" name="d7" value="C"><div class="q-option-body"><div class="q-option-title">C · Minimal — hide pane + skip doctor checks when no Claude install <span class="recommend-tag">Recommended v1</span></div><div class="q-option-rationale">Stops the false-red and the irrelevant pane with near-zero work; upgrade to A later. <span class="cost"><span class="up">Upfront ●○○○○</span> <span class="on">Ongoing ●○○○○</span></span></div></div></label>
   </div>
@@ -554,16 +501,36 @@ trades upfront cost for near-zero drift; the things to <em>avoid</em> sit in the
 <details class="deferred">
   <summary>Recommended throughline (one coherent path)</summary>
   <div class="deferred-body">
-    <p><strong>D1=A · D3=B+plan&nbsp;D · D4=A · D5=A · D6=A&nbsp;(then&nbsp;B) · D7=C&nbsp;(then&nbsp;A).</strong></p>
-    <p>Translation: lean on the already-neutral core; make only the <em>cheap, durable</em> parameterizations
-    (codex tab kind, presence matcher, marker set, neutral author default); teach Codex via a
-    <code>/duo</code> slash prompt now while scoping <strong>Duo-as-MCP-server</strong> as the long-term spine
-    that makes the skill/onboarding question harness-neutral for good. <em>Avoid</em> the high-drift moves —
-    parsing Codex's rollout JSONL and auto-writing AGENTS.md — until parity is a proven user need. Degrade the
-    lifecycle features (resume pills, config pane) on Codex rather than reconstructing them from reverse-engineered
-    state. Net: most of Codex's value ships in a small, low-maintenance diff; the durable bet (MCP) is sequenced, not rushed.</p>
-    <p class="tl-note">If the goal is broader than Codex (Gemini CLI, aider, …), that's the signal to escalate D1→B and D2→B —
-    but only then, since the adapter's ongoing cost is only justified by a third harness.</p>
+    <p><strong>D1=A · D3=B (MCP D later) · D4=A · D5=A · D6=A→B · D7=C→A.</strong></p>
+    <p>Translation: lean on the already-neutral core; teach Codex by <strong>syncing the existing skill to
+    <code>~/.agents/skills/</code></strong> (the format is the shared standard, so near-free); make only the
+    <em>cheap, durable</em> parameterizations (codex tab kind, presence matcher, marker set, neutral author default);
+    and <em>degrade</em> the two genuinely Claude-private features — the always-on priming shim and rich session
+    capture/resume — rather than reverse-engineering Codex's private store (offer <code>codex resume --last</code>
+    instead). Scope <strong>Duo-as-MCP-server</strong> as the longer-term spine for exposing <code>duo</code> as tools.
+    Net: most of Codex's value ships in a small, low-maintenance diff.</p>
+    <p class="tl-note">If the goal is broader than Codex (Gemini CLI, aider, …) — note those also use the
+    <code>~/.agents/skills/</code> standard — that's the signal to escalate D1→B and D2→B, since the adapter's ongoing
+    cost is only justified by a third harness.</p>
+  </div>
+</details>
+
+<details class="deferred">
+  <summary>Verification note — how these claims were checked</summary>
+  <div class="deferred-body">
+    <p><strong>Duo side:</strong> every file:line in the matrix was read from the working tree on branch
+    <code>claude/duo-agent-agnostic-research-9y1t3</code> (e.g. <code>shared/types.ts:7</code> for the tab-kind enum,
+    <code>core/claude-presence.ts:143</code> for the presence match, <code>electron/install-service.ts:885</code> for
+    the priming shim, <code>electron/main.ts:677</code> for resume).</p>
+    <p><strong>Codex side:</strong> skills facts are from OpenAI's <em>Agent Skills</em> docs (open agent-skills
+    standard; user skills at <code>~/.agents/skills/</code>, repo at <code>.agents/skills/</code>; progressive
+    disclosure; implicit invocation; plugins as the distribution unit). The absence of a per-session
+    <code>--append-system-prompt</code> flag was verified against openai/codex issue #11588 (closed, <em>not</em>
+    merged; the issue states Codex customizes instructions only via AGENTS.md). Session storage / resume
+    (<code>~/.codex/sessions/Y/M/D/rollout-*.jsonl</code>; <code>codex resume --last</code>, cwd-aware) per OpenAI's CLI
+    docs. <em>Two earlier drafts of this report mis-stated the skills situation; this revision corrects them.</em></p>
+    <p class="tl-note">Open item to confirm before build: whether Claude Code also reads the standard's
+    <code>~/.agents/skills/</code> location — if so, one shared dir could serve both harnesses and Duo wouldn't dual-write.</p>
   </div>
 </details>
 
@@ -579,7 +546,6 @@ trades upfront cost for near-zero drift; the things to <em>avoid</em> sit in the
 
 <script>
 (function () {
-  // ── Matrix filter ──
   const filters = document.getElementById('filters');
   const tps = Array.from(document.querySelectorAll('#matrix .tp'));
   filters.addEventListener('click', function (e) {
@@ -590,7 +556,6 @@ trades upfront cost for near-zero drift; the things to <em>avoid</em> sit in the
     tps.forEach(tp => tp.classList.toggle('hide', f !== 'all' && tp.dataset.cat !== f));
   });
 
-  // ── Answered count ──
   const cards = Array.from(document.querySelectorAll('.decision-card'));
   const countEl = document.getElementById('answered-count');
   function refreshCount() {
@@ -601,7 +566,6 @@ trades upfront cost for near-zero drift; the things to <em>avoid</em> sit in the
     if (e.target.matches('.decision-card input[type=radio]')) refreshCount();
   });
 
-  // ── Copy decisions payload ──
   const btn = document.getElementById('copy-btn');
   btn.addEventListener('click', async function () {
     const parts = ['# Agent-agnostic Duo — decisions', ''];
