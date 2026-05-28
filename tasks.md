@@ -6,6 +6,28 @@
 
 > Sprint 24 anchor: close the v0.8.0 audit's deferred follow-ups (FOLLOWUP-031 through 040) before any new feature work. ENH-182 was the marquee chapter; Sprint 24 is its polish epilogue. Definition of done: all 10 FOLLOWUPs closed or explicitly deferred-with-reason. Expected cut shape: v0.8.1 PATCH (polish-only) OR v0.9.0 MINOR if a carry-forward capability lands alongside.
 
+### ENH-189: Agent-agnostic Duo — Claude Code + Codex (research)
+
+**Status:** 🆕 **Research delivered 2026-05-27** (branch `claude/duo-agent-agnostic-research-9y1t3`). **Priority:** Strategic / owner-decision-gated. **Effort:** research only; implementation scope depends on D1.
+
+**Ask.** Explore making Duo harness-agnostic across the Claude Code and Codex CLIs: identify what works across both, what no-ops with Codex, and what outright breaks; for each, propose options weighed by upfront vs ongoing maintenance burden.
+
+**Deliverable.** Decision-bearing HTML playground at [`docs/research/agent-agnostic-duo.html`](research/agent-agnostic-duo.html) (Atelier kernel, three-rings + cost-quadrant SVGs, UI mockups, 7 decision cards + Copy-decisions footer, per rule 11).
+
+**Key findings.** The `duo` CLI + Unix-socket bridge are ~90% harness-neutral — Codex over the same socket is byte-identical, and all ~100 verbs (browser/editor/canvas/file/layout/git/project/events) are agent-generic (no Claude branch in the dispatch switch). Claude-coupling concentrates in a thin lifecycle skin, tri-categorized:
+- **Works (4):** socket protocol, ~100 verbs, PTY env injection (`DUO_SESSION`/`DUO_SOCKET`), CLI transport.
+- **No-op (5):** skill (`~/.claude/skills/duo/`), subagent (`agents/duo.md`), SessionStart hook, `claude-return`/`shift-return`, `DUO_AUTHOR` default — Codex silently never loads them. The important one is the skill: the bridge works but the agent is never *told* `duo` exists.
+- **Breaks (8):** tab `kind:'claude'` auto-launch (no `codex` kind), priming shim's `--append-system-prompt` (Codex has no per-session append flag — the hardest gap), presence probe (`comm==='claude'`, `core/claude-presence.ts:143`), session capture (`~/.claude/projects/<enc-cwd>/*.jsonl` vs Codex's date-indexed `~/.codex/sessions/Y/M/D/rollout-*.jsonl`), `claude --resume` (`electron/main.ts:677`), JSONL title/count parsing, `resolveClaudeBinary`, `duo doctor` false-red, UserClaudePane.
+- **Generalizable (2):** project marker (`CLAUDE.md`/`.claude/` → add `AGENTS.md`/`.codex/`), author identity default.
+
+**Maintenance-burden law (the throughline).** Coupling that reads a tool's *private file format* (rollout JSONL) or shells its *private flags* (`--append-system-prompt`) is a standing drift liability; coupling that rides a *public contract* (documented subcommand like `codex resume --last`, env vars, MCP) is durable. **MCP is the one extension surface both harnesses share** — flagged as the durable long-term spine (re-opens the "MCP not included" locked decision, which was about Duo-as-MCP-*client*, not *server*).
+
+**Recommended throughline (owner to confirm via the playground's decision cards):** D1=A (Claude-first, Codex-tolerant) · D3=B+plan-D (`/duo` Codex slash prompt now, scope Duo-as-MCP-server as the spine) · D4=A (add `codex` tab kind) · D5=A (add `codex` to presence matcher) · D6=A→B (skip rich resume; offer `codex resume --last`) · D7=C→A (hide pane/skip doctor checks for non-Claude now). Avoid the high-drift moves (parse rollout JSONL, auto-write AGENTS.md) until parity is a proven need. Escalate D1→B (two-adapter `HarnessAdapter`) only when a *third* harness (Gemini CLI, aider) justifies the abstraction's ongoing cost.
+
+**Next.** Owner walks the playground, picks the decision set, pastes back → that pins implementation scope. No code changes shipped in this sprint (research only).
+
+---
+
 ### ENH-188: Terminal-tab context menu — parity with canvas tabs (reorder + close + copy cwd)
 
 **Status:** 🆕 **Filed + implemented 2026-05-27** (branch `claude/terminal-tabs-context-parity-2lh2X`). **Priority:** Medium (daily-driver ergonomics; the headline gap is "can't reorder terminal tabs"). **Effort:** ~1.5h.
