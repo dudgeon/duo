@@ -307,7 +307,18 @@ export function WorkingPane({
   // Plus onPageFocusGained gets its own log when invoked. After owner
   // walks for 60s, grep [ENH-084-v4] in /tmp/duo-dev-*.log to read the
   // event stream + decide which signal source is the right driver.
+  //
+  // BUG-167 (folded into ENH-182) — opt-in flag. This pass was filed as
+  // "INSTRUMENTATION ONLY" but never re-gated, so it shipped to release
+  // builds and floods the console on every focusin/mousedown/blur. Now
+  // gated behind `localStorage.duo.debug.focus === '1'` (read once on
+  // mount). Silent in release; if the subpane-focus work resumes, set
+  // the flag in DevTools and reload to re-arm the stream. Deliberate
+  // asymmetry: developer-only, no `duo` verb (not a product surface).
   useEffect(() => {
+    let focusDebug = false
+    try { focusDebug = localStorage.getItem('duo.debug.focus') === '1' } catch { /* storage disabled */ }
+    if (!focusDebug) return
     const subpaneOf = (target: EventTarget | null): 'main' | 'aux' | 'neither' => {
       if (!(target instanceof Node)) return 'neither'
       if (mainColRef.current?.contains(target)) return 'main'

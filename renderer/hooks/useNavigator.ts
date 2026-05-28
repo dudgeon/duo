@@ -15,25 +15,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DirEntry } from '@shared/types'
-
-/** Walk up from a now-deleted directory to the nearest ancestor that
- *  still exists on disk. Returns '/' as the final fallback (root always
- *  exists). Used to re-root the navigator when its cwd points at a
- *  directory that was removed out from under it. */
-async function nearestExistingAncestor(deadPath: string): Promise<string> {
-  let cur = deadPath
-  while (true) {
-    const idx = cur.lastIndexOf('/')
-    const parent = idx > 0 ? cur.slice(0, idx) : '/'
-    if (parent === cur) return '/'
-    try {
-      if (await window.electron.files.dirExists(parent)) return parent
-    } catch {
-      /* probe failed — keep walking up */
-    }
-    cur = parent
-  }
-}
+import { findDeadExpandedPaths, nearestExistingAncestor } from './pruneDeadPaths'
 
 const LS_KEY_CWD = 'duo.nav.cwd'
 const LS_KEY_EXPANDED = 'duo.nav.expanded'
@@ -158,6 +140,48 @@ export function useNavigator(initialCwd: string) {
     })
   }, [])
 
+  // BUG-167 (folded into ENH-182) — mount-time prune of persisted
+  // navigator state. The reactive ENOENT heal above only fires when the
+  // user navigates to or expands a dead folder; this one-shot pass
+  // drops ghosts at startup, BEFORE the first project switch
+  // re-subscribes the watcher and triggers the spammy re-list. Same
+  // `dirExists` probe as the reactive heal — a probe failure leaves
+  // entries intact (transient flakes must not wipe state). Reads cwd /
+  // expanded / initialCwd from the mount-time closure so the effect is
+  // intentionally mount-only.
+  const prunedRef = useRef(false)
+  useEffect(() => {
+    if (prunedRef.current) return
+    prunedRef.current = true
+    let cancelled = false
+    const probe = window.electron?.files?.dirExists
+    if (!probe) return
+    void (async () => {
+      // Recover cwd first so the watcher's first subscription sees a
+      // live path. Fallback chain: nearest existing ancestor → initialCwd.
+      try {
+        if (!(await probe(cwd))) {
+          const recovered = await nearestExistingAncestor(cwd, probe, initialCwd)
+          if (!cancelled) setCwd(prev => (prev === cwd ? recovered : prev))
+        }
+      } catch { /* probe unreachable — leave cwd as-is */ }
+      const dead = await findDeadExpandedPaths(expanded, probe)
+      if (cancelled || dead.length === 0) return
+      setExpanded(prev => {
+        const next = new Set(prev)
+        for (const p of dead) next.delete(p)
+        return next
+      })
+      setListings(prev => {
+        const next = new Map(prev)
+        for (const p of dead) next.delete(p)
+        return next
+      })
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Shared helper that (lazily) fetches a directory listing and caches it.
   const ensureListing = useCallback((path: string) => {
     setListings(prev => {
@@ -210,7 +234,11 @@ export function useNavigator(initialCwd: string) {
           })
           setPrimaryPath(prev => (prev === path ? null : prev))
           if (cwdRef.current === path) {
-            void nearestExistingAncestor(path).then(fallback => {
+            void nearestExistingAncestor(
+              path,
+              p => window.electron.files.dirExists(p),
+              '/'
+            ).then(fallback => {
               setCwd(prev => (prev === path ? fallback : prev))
             })
           }

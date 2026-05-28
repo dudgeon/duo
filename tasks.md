@@ -46,6 +46,28 @@
 
 ---
 
+### BUG-167: Navigator ENOENT spam from ghost folders + console-flooding focus instrumentation
+
+**Status:** 🟡 **Fix folded into PR #59 (ENH-182 polish epilogue) 2026-05-28.** **Priority:** Medium (console noise + perceived instability; functionally benign). **Effort:** ~1h.
+
+**Symptom.** Switching between projects in v0.8.2 floods the renderer console with two error classes: repeated `[nav] list failed for …/skills/setup-check-workspace — Error invoking remote method 'files:list': ENOENT`, and per-interaction `[ENH-084-v4] … focusin/mousedown/blur` logs. Both read like instability; both are benign.
+
+**Root cause (nav ENOENT).** `useNavigator` persists every folder ever expanded to `localStorage` (`duo.nav.expanded`) and never prunes it; the persisted `cwd` is restored with no existence check. The watcher effect depends on `[cwd, expanded]`, so each project switch re-subscribes and re-lists the entire expanded set. Any folder deleted/moved since — e.g. a transient skill workspace like `setup-check-workspace` — throws ENOENT on every navigation. Same pattern in `useUserClaudeNavigator`. PR #59's reactive heal cures the spam once the user navigates to the dead folder; this fold-in adds a **proactive mount-time prune** so the ghosts are gone *before* the first project switch.
+
+**Root cause (`[ENH-084-v4]`).** `WorkingPane.tsx` installs document-wide `focusin` / `mousedown` / `blur` listeners that `console.log` on every event — a Sprint 17 "INSTRUMENTATION ONLY" data-capture pass that was never re-gated, so it ships in release builds.
+
+**Fix.** Extracted shared util `renderer/hooks/pruneDeadPaths.ts` (`findDeadExpandedPaths` + `nearestExistingAncestor`, both probe-driven so a transient IPC failure leaves entries intact). Wired into:
+- **`useNavigator`** — mount-time effect that recovers a missing persisted cwd to the nearest existing ancestor (else `initialCwd`) and drops dead `expanded` entries. Composes with PR #59's reactive heal: prune at startup, heal on first failure mid-session.
+- **`useUserClaudeNavigator`** — same prune (no cwd to recover; root is fixed at `~/.claude`).
+- **`WorkingPane.tsx`** — focus instrumentation gated behind opt-in `localStorage.duo.debug.focus === '1'` (read once on mount). Silent in release; recoverable if the subpane-focus work resumes. Deliberate asymmetry: developer-only, no `duo` verb (not a product surface).
+- Replaced the inline `nearestExistingAncestor` in PR #59 with a call to the shared util so the reactive and proactive paths can't drift.
+
+**Tests.** `renderer/hooks/pruneDeadPaths.test.ts` — 8 cases pinning the invariants: dead paths returned, probe failures kept (no speculative drops), empty set short-circuits, parallel probing, ancestor walk recovers + stops at fallback + survives a thrown probe.
+
+**Cross-ref:** ENH-084 (the focus-glow defect whose v4 instrumentation this gates), BUG-039 (the `files.exists` probe pattern reused here for session-restore tab pruning), ENH-182 (project navigation, the surface this fires on). **Closed PR #63** filed the same bug independently (different shape: ENOENT string-match classifier + duplicated mount-prune in both hooks). Closed in favor of this fold-in.
+
+---
+
 ### ENH-188: Terminal-tab context menu — parity with canvas tabs (reorder + close + copy cwd)
 
 **Status:** 🆕 **Filed + implemented 2026-05-27** (branch `claude/terminal-tabs-context-parity-2lh2X`). **Priority:** Medium (daily-driver ergonomics; the headline gap is "can't reorder terminal tabs"). **Effort:** ~1.5h.
