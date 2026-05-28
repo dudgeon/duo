@@ -150,7 +150,7 @@ table.cmp .feat { font-weight: 600; color: var(--ink); }
   <div class="meta">
     <span class="pill">RESEARCH</span>
     <span class="pill">ENH-189</span>
-    Max-effort research sprint · 2026-05-28 (rev 3 — per-Breaks affordance audit) · branch <code>claude/duo-agent-agnostic-research-9y1t3</code>
+    Max-effort research sprint · 2026-05-28 (rev 4 — goal → Codex-primitive alternatives) · branch <code>claude/duo-agent-agnostic-research-9y1t3</code>
   </div>
 </header>
 
@@ -294,6 +294,47 @@ tells it to read <code>.claude/skills/**</code> directly rather than mirror a pa
 <strong>(B)</strong> an <em>end-user's</em> agent driving the Duo <em>app</em> via the <code>duo</code> CLI: solved by
 the shipped <code>skill/SKILL.md</code> installed to the agent's skills dir (<code>~/.claude/skills/duo/</code> and,
 generalized, <code>~/.agents/skills/duo/</code>). D3 below is about (B); the committed AGENTS.md already handles (A).</p>
+
+<h2>2c · Goal → Codex-primitive alternative (decouple intent from mechanism)</h2>
+
+<p>Each Claude feature exists to serve a <em>goal</em>, not to run a specific mechanism. Below, each "Breaks" row is
+restated as its underlying goal, then mapped to the Codex primitive(s) that can serve it. The realization that flips
+§2b's two "None" verdicts: Codex exposes <strong>two integration surfaces</strong>, and "no affordance" is only true of
+the first.</p>
+
+<div class="keyline">
+  <strong>Two integration models.</strong>
+  <strong>(1) Terminal / PTY model</strong> — the user types into <code>codex</code> running in an xterm tab (Duo's
+  locked premise, same as Claude). Machine-readable hooks here are thin: a <code>notify</code> program (fires on
+  <code>agent-turn-complete</code>, payload carries <code>thread-id</code>) + process-tree presence.
+  <strong>(2) Programmatic model</strong> — Duo drives Codex via <code>codex exec --json</code>, the
+  <code>codex app-server</code>, or <code>codex mcp-server</code>, receiving a structured event stream
+  (<code>thread.started</code> with the session id <em>at launch</em>, <code>turn.*</code> / <code>item.*</code> for
+  activity + message count). This is a <em>richer</em> surface than Claude Code exposes — but adopting it changes the UX
+  from "a terminal you type into" to "a service Duo drives," so it's an architectural bet, not a drop-in.
+</div>
+
+<table class="cmp">
+  <thead><tr><th>Feature</th><th>Goal (the intent, not the mechanism)</th><th>Codex-primitive alternative</th></tr></thead>
+  <tbody>
+    <tr><td class="feat">3 · Priming</td><td>When a session starts <em>inside Duo</em>, the agent should know it's in Duo, that the <code>duo</code> CLI exists + how to use it, and any Duo-specific behavior.</td><td><strong>Discovery</strong> → the <code>SKILL.md</code> (implicitly invoked) carries it cross-harness — fold most priming into the skill. <strong>Always-on + Duo-scoped</strong> → no ephemeral flag, but a Duo-managed <code>CODEX_HOME</code> whose <code>AGENTS.md</code> applies only to Duo tabs (symlink the user's real <code>auth.json</code>/<code>config.toml</code> in), or a short global <code>~/.codex/AGENTS.md</code> note. Reserve AGENTS.md for the few always-true nudges.</td></tr>
+    <tr><td class="feat">4 · Session capture</td><td>Know which prior agent session(s) belong to this cwd, so Duo can offer a "resume" affordance across app restarts.</td><td>Don't reconstruct from files — <strong>capture a pointer live.</strong> Terminal model: a Duo-managed <code>notify</code> program (scoped via <code>CODEX_HOME</code> or a <code>$DUO_SESSION</code> check) reports the <code>thread-id</code> on turn-complete; Duo pairs it with the launching tab's cwd (which Duo already knows — <code>notify</code> lacks cwd today, openai/codex#4005). Programmatic model: read <code>thread.started</code> from <code>codex exec --json</code> at launch. Rule-12-clean: a pointer resolved live, no private-file parsing.</td></tr>
+    <tr><td class="feat">6 · Session label + size</td><td>Give each resume affordance a human-recognizable label + a sense of how much work is in it.</td><td><strong>Duo owns the label.</strong> Duo sees the first line the user types into the PTY + the cwd, so it can label without reading Codex files. Size/activity → <code>turn.*</code>/<code>item.*</code> counts (programmatic), or defer entirely to the native <code>codex resume</code> picker (which renders its own labels).</td></tr>
+    <tr><td class="feat">2 · Presence</td><td>Know whether a live agent is listening in the front terminal, to gate + label "Send to agent."</td><td>Terminal model: match the <code>codex</code> process (like <code>claude</code>); optionally a <code>notify</code> ping for "turn done." Programmatic model: <code>turn.started</code>/<code>turn.completed</code> give precise busy/idle.</td></tr>
+    <tr><td class="feat">1 · Launch</td><td>One-click open of a typed agent session the workspace can track.</td><td>Launch <code>codex</code> in the PTY, with a <code>codex</code> tab kind. Direct.</td></tr>
+    <tr><td class="feat">5 · Resume action</td><td>Re-attach to a specific prior session.</td><td><code>codex resume &lt;id&gt;</code> / <code>--last</code> (cwd-aware). Direct.</td></tr>
+    <tr><td class="feat">7 · Binary resolution</td><td>Find the agent binary (install banner + wrapping).</td><td>Resolve <code>codex</code> on PATH / well-known dirs. Direct.</td></tr>
+    <tr><td class="feat">8 · doctor</td><td>Assure the user the Duo↔agent integration is healthy.</td><td>Check <code>~/.codex/</code> + <code>~/.agents/skills/duo</code>; detect the installed harness. Direct.</td></tr>
+    <tr><td class="feat">9 · Config pane</td><td>Quick in-app view/edit of the agent's user-level config.</td><td>Show <code>~/.codex/</code> (config.toml, AGENTS.md, prompts/) + <code>~/.agents/skills/</code>. Direct.</td></tr>
+  </tbody>
+</table>
+
+<p class="tl-note"><strong>Bottom line:</strong> no "Breaks" item is a true dead-end. The two §2b "None" rows (#4, #6) are
+addressable in the terminal model via a Duo-managed <code>notify</code> pointer + Duo-owned labels, and fully in the
+programmatic model via the event stream. The honest cost split: the <em>cheap</em> path (notify pointer + own label)
+stays inside Duo's terminal premise and rule-12 (a live-resolved pointer, no private-file parsing); the <em>rich</em>
+path (programmatic / app-server) is an architectural shift away from raw terminals. Priming (#3) is the only one with
+<em>no</em> clean Duo-scoped ephemeral channel — fold it into the skill rather than reaching for a shim.</p>
 
 <h2>3 · Claude Code vs Codex — the surfaces, verified</h2>
 
@@ -569,7 +610,12 @@ near-term moves cluster in the cheap-and-durable corner; MCP trades upfront cost
     per openai/codex issue #8923; the <code>CODEX_HOME</code> env var + global AGENTS.md / AGENTS.override.md per the
     Codex config + agents_md docs. Session storage / resume
     (<code>~/.codex/sessions/Y/M/D/rollout-*.jsonl</code>; <code>codex resume --last</code>, cwd-aware) per OpenAI's CLI
-    docs. <em>Two earlier drafts mis-stated the skills situation; rev 2 corrected them and rev 3 added the §2b per-Breaks affordance audit.</em></p>
+    docs. The <code>notify</code> program (root key in <code>~/.codex/config.toml</code>; fires on
+    <code>agent-turn-complete</code>; payload carries <code>thread-id</code>, lacks cwd per openai/codex #4005) and the
+    structured event stream (<code>codex exec --json</code> → <code>thread.started</code>/<code>turn.*</code>;
+    <code>codex app-server</code> / <code>codex mcp-server</code>) per the Codex SDK + app-server docs. <em>Two earlier
+    drafts mis-stated the skills situation; rev 2 corrected them, rev 3 added the §2b affordance audit, and rev 4 added
+    §2c goal→primitive alternatives.</em></p>
     <p class="tl-note">Open item to confirm before build: whether Claude Code also reads the standard's
     <code>~/.agents/skills/</code> location — if so, one shared dir could serve both harnesses and Duo wouldn't dual-write.</p>
   </div>
