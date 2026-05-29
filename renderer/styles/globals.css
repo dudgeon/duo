@@ -253,6 +253,20 @@ html.dark {
     user-select: none;
     pointer-events: none;
   }
+  /* BUG-186 follow-up — <pre> code blocks have `overflow: auto` for
+     horizontal scrolling of long lines, which CLIPS the absolutely-
+     positioned gutter ::before (left: -2.75rem is outside the box).
+     Setting `overflow-x: visible` lets the gutter number paint into
+     the editor's left margin. Trade-off: long code lines no longer
+     horizontally scroll while line-numbers are on — acceptable since
+     this is opt-in and the gutter is the more important affordance
+     here. (clip-path: inset(0 0 0 -Xrem) doesn't work — overflow
+     clipping happens BEFORE the clip-path is applied.) Surfaced by
+     v0.8.3 smoke walk: PR #58 shipped with the pre's "13" gutter
+     number invisibly clipped. */
+  [data-line-numbers="true"] .ProseMirror > pre[data-duo-line] {
+    overflow-x: visible;
+  }
 
   /* Titlebar drag region */
   .titlebar-drag {
