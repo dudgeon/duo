@@ -6,13 +6,27 @@
 
 > Sprint 24 anchor: close the v0.8.0 audit's deferred follow-ups (FOLLOWUP-031 through 040) before any new feature work. ENH-182 was the marquee chapter; Sprint 24 is its polish epilogue. Definition of done: all 10 FOLLOWUPs closed or explicitly deferred-with-reason. Expected cut shape: v0.8.1 PATCH (polish-only) OR v0.9.0 MINOR if a carry-forward capability lands alongside.
 
+### ENH-191: Docs deep-clean — audit findings + owner-decision playground
+
+**Status:** 🟡 Awaiting owner decisions (walk the playground). **Filed 2026-05-29.** **Priority:** P0/P1 doc-health — version-drift is systemic. **Effort:** execution depends on the walk.
+
+**Ask.** Deep clean + update of project docs (README, what-duo-does, roadmap, tasks, etc.); consider refactors where appropriate (tasks.md is a 1.2 MB monolith); read `about-duo.md` and propose an ordered, conversational feature walkthrough with screenshots in the same voice as the intro.
+
+**What ran.** A 10-agent read-only audit workflow — 6 doc-cluster auditors + a `tasks.md` refactor design + an `about-duo.md` walkthrough proposal + a synthesis pass. (One cluster, dev-ops docs, failed to return structured output; its scope is partly covered by the synthesis and needs a re-run.)
+
+**Deliverable.** Decision-bearing HTML playground at [`docs/research/docs-deep-clean-decisions.html`](research/docs-deep-clean-decisions.html) (Atelier kernel, 12 decision cards + Copy-decisions footer, per rule 11). Decisions: D1 `tasks.md` refactor (rec: status-based archive split → `tasks-archive.md`) · D2 company-reference scrub · D3 refresh RESUME/active-sprint · D4 hard-gate the stale "chrome" surfaces in cut-version · D5 `what-duo-does.html` renumber · D6 `dev/_archive/` + session-log rolling window · D7 VISION/FIRST-RUN/CLI-COVERAGE accuracy · D8 P2 judgment calls · D9 11 mechanical quick-wins · D10–D12 the `about-duo.md` walkthrough (format / media / proceed).
+
+**Top finding — systemic version drift.** Every "chrome" surface `cut-version` is supposed to refresh has frozen at a different era (what-duo-does footer v0.6.9, roadmap header v0.8.0, RESUME/active-sprint at Sprint 24/v0.8.1) while package.json is v0.8.5. Same class as the `cli/duo.ts` `VERSION='0.1.0'` bug fixed 2026-05-29 (sourced from package.json). D4 (hard-gate in cut-version) is the durable systemic fix.
+
+**Stays open until** the owner walks the playground (`duo open docs/research/docs-deep-clean-decisions.html`), copies decisions back, and the agent executes. Surfaces in every smoke walk until closed (rule 11 + research-report-review-task rule).
+
 ### ENH-189: Agent-agnostic Duo — Claude Code + Codex (research)
 
 **Status:** 🆕 **Research delivered 2026-05-27** (branch `claude/duo-agent-agnostic-research-9y1t3`). **Priority:** Strategic / owner-decision-gated. **Effort:** research only; implementation scope depends on D1.
 
 **Ask.** Explore making Duo harness-agnostic across the Claude Code and Codex CLIs: identify what works across both, what no-ops with Codex, and what outright breaks; for each, propose options weighed by upfront vs ongoing maintenance burden.
 
-**Deliverable.** Decision-bearing HTML playground at [`docs/research/agent-agnostic-duo.html`](research/agent-agnostic-duo.html) (Atelier kernel, three-rings + cost-quadrant SVGs, UI mockups, 7 decision cards + Copy-decisions footer, per rule 11).
+**Deliverable.** Decision-bearing HTML playground at [`docs/research/agent-agnostic-duo.html`](docs/research/agent-agnostic-duo.html) (Atelier kernel, three-rings + cost-quadrant SVGs, UI mockups, 7 decision cards + Copy-decisions footer, per rule 11).
 
 **Key findings.** The `duo` CLI + Unix-socket bridge are ~90% harness-neutral — Codex over the same socket is byte-identical, and all ~100 verbs (browser/editor/canvas/file/layout/git/project/events) are agent-generic (no Claude branch in the dispatch switch). Claude-coupling concentrates in a thin lifecycle skin, tri-categorized:
 - **Works (4):** socket protocol, ~100 verbs, PTY env injection (`DUO_SESSION`/`DUO_SOCKET`), CLI transport.

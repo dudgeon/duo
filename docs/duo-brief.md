@@ -5,7 +5,7 @@
 > **Status:** Stages 1–3 implemented; Stage 5 skill + subagent authored and verified end-to-end.
 > **Last updated:** 2026-04-22
 
-> **Product framing has moved to [docs/VISION.md](docs/VISION.md).** That
+> **Product framing has moved to [docs/VISION.md](VISION.md).** That
 > doc is the current north star — persona, principles, and the flagship
 > "readable terminal + docs-style markdown editor" bet. This brief is
 > retained as the engineering reference for Stages 1–5: the CLI spec (§9),
@@ -14,7 +14,7 @@
 > brief's product framing ("a tool for PMs using Claude Code at Capital
 > One") differs from the vision doc, the vision doc wins.
 
-> This is the full vision brief. For current build state see [the roadmap](docs/roadmap.html). For architecture decisions see [docs/DECISIONS.md](docs/DECISIONS.md). For first-time setup see [docs/FIRST-RUN.md](docs/FIRST-RUN.md). Brainstem.cc / MCP integration mentioned in §3, §8 is a future aspiration — the shipping Skills panel (Stage 4) is CWD-scan only.
+> This is the full vision brief. For current build state see [the roadmap](roadmap.html). For architecture decisions see [docs/DECISIONS.md](DECISIONS.md). For first-time setup see [docs/FIRST-RUN.md](FIRST-RUN.md). Brainstem.cc / MCP integration mentioned in §3, §8 is a future aspiration — the shipping Skills panel (Stage 4) is CWD-scan only.
 
 -----
 
@@ -99,8 +99,8 @@ The following were not directly answered by the owner; reasonable assumptions we
 |-------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------|
 |Name               |`duo` is a working placeholder                                                                                                                             |Stage 5 (skill authoring, since the skill name is user-facing)|
 |Distribution scope |Geoff personal → Trailblazers cohort → broader PM community (staged)                                                                                         |Stage 6 (signing/notarization setup)                          |
-|Layout model       |**Resolved 2026-04-23** — three-column: Files (left) \| Terminal (middle-top) + Agent tools (middle-bottom, collapsible) \| Viewer/Editor (right). See [docs/DECISIONS.md § Layout model](docs/DECISIONS.md). The ten-option mockup at `docs/ux/layout-options.html` is historical.|—                                                             |
-|Working pane model |**Resolved 2026-04-23** — single polymorphic slot on the right, shared across terminal tabs; markdown editor scope is local `.md` files only (Google Docs stays in browser mode via `/export?format=md`). See [docs/DECISIONS.md § Layout model](docs/DECISIONS.md).|—                                                             |
+|Layout model       |**Resolved 2026-04-23** — three-column: Files (left) \| Terminal (middle-top) + Agent tools (middle-bottom, collapsible) \| Viewer/Editor (right). See [docs/DECISIONS.md § Layout model](DECISIONS.md). The ten-option mockup at `docs/ux/layout-options.html` is historical.|—                                                             |
+|Working pane model |**Resolved 2026-04-23** — single polymorphic slot on the right, shared across terminal tabs; markdown editor scope is local `.md` files only (Google Docs stays in browser mode via `/export?format=md`). See [docs/DECISIONS.md § Layout model](DECISIONS.md).|—                                                             |
 |Skills data sources|CWD scan (SKILL.md, .claude/, CLAUDE.md) + brainstem.cc API                                                                                                  |Stage 4                                                       |
 |Starting point     |Greenfield                                                                                                                                                   |—                                                             |
 |Agent topology     |Each terminal tab = independent Claude Code session; all tabs share one browser                                                                              |Stage 1                                                       |
@@ -152,7 +152,7 @@ The following were not directly answered by the owner; reasonable assumptions we
 
 The CLI is the agent’s API surface. It must be stable, predictable, and output in formats Claude Code can parse naturally.
 
-> **Authoritative inventory lives in [docs/CLI-COVERAGE.md](docs/CLI-COVERAGE.md).**
+> **Authoritative inventory lives in [docs/CLI-COVERAGE.md](CLI-COVERAGE.md).**
 > The table below is the Stage-1–3 draft and is preserved as
 > historical context. Commands shipped in later stages
 > (`duo open`, `duo close`, `duo view`, `duo reveal`, `duo ls`,
@@ -416,7 +416,7 @@ If you are a Claude instance picking this up, here’s what you need to know:
 1. **If blocked on an open question in §7, state the assumption and proceed.** Do not stall waiting for clarification on layout, aesthetics, or naming — these can be resolved in-flight.
 1. **Suggested first task:** scaffold the repo per §12, get electron-vite + React + Tailwind running, render a single xterm.js terminal backed by node-pty. One file, one window, one working terminal. Everything else builds from there.
 1. **Before touching Stage 2/3/5, read §17 and `docs/research/vscode-1.110-integrated-browser.md`.** Google Docs read/edit is the flagship success test for this project, and the naive DOM approach does not work — canvas rendering requires the accessibility tree for reads and synthesized input (or the Docs REST API) for writes. The acceptance criteria in §11 Stages 2, 3, and 5 are the go/no-go gates.
-1. **Layout is locked (2026-04-23).** Three-column: Files \| Terminal+Agent tools \| Viewer/Editor. See [docs/DECISIONS.md § Layout model](docs/DECISIONS.md). The ten-option mockup at `docs/ux/layout-options.html` is historical. Today's terminal-left / browser-right shape is a waypoint; the reshape lands with Stage 10.
+1. **Layout is locked (2026-04-23).** Three-column: Files \| Terminal+Agent tools \| Viewer/Editor. See [docs/DECISIONS.md § Layout model](DECISIONS.md). The ten-option mockup at `docs/ux/layout-options.html` is historical. Today's terminal-left / browser-right shape is a waypoint; the reshape lands with Stage 10.
 
 -----
 

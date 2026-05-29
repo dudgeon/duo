@@ -34,7 +34,7 @@ Duo is free, open source, does not capture or send any of your data anywhere, an
 4. **CLI that ties it all together** – \~anything you can do in the app, your Agent can do via CLI.
    - "Open my the roadmap and scroll to the 'open questions' section"
    - "Navigate to the 'tasks' folder, expand it, and tell me what's in there"
-   - "Create a new file, '[product-vision.md](http://product-vision.md)', open it, and collapse the terminal and navigator so I can focus"
+   - "Create a new file, 'product-vision.md', open it, and collapse the terminal and navigator so I can focus"
    - &lt;select element in browser&gt; "Let's make this button inactive until prior steps are completed"
 
 &lt;!-- Feature deep dives — Navigator, Terminal, Canvas (Main vs Split View, Actions, Markdown Editor, HTML Editor, JSON Editor, Browser), CLI — coming soon. --&gt;

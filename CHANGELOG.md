@@ -1819,7 +1819,8 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.8.4...HEAD
+[0.8.4]: https://github.com/dudgeon/duo/compare/v0.8.2...v0.8.4
 [0.8.0]: https://github.com/dudgeon/duo/releases/tag/v0.8.0
 [0.7.10]: https://github.com/dudgeon/duo/releases/tag/v0.7.10
 [0.7.9]: https://github.com/dudgeon/duo/releases/tag/v0.7.9

@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-open-in" content="browser">
+<meta name="duo-editable" content="false">
+<meta name="duo-default-editable" content="false">
+<title>Docs Deep-Clean — Owner Decisions</title>
+<style>
+/* duo-atelier.css — canonical Atelier kernel for Duo HTML playgrounds.
+ *
+ * Inline this stylesheet (copy-paste) into the <style> block of any
+ * playground (docs/research/*.html, planning playgrounds, decision
+ * artifacts per CLAUDE.md § 11). Per-playground overrides go AFTER
+ * this kernel in the same <style> block.
+ *
+ * Atelier color/typography tokens align with Duo's app shell:
+ *   cream paper / orange accent / italic-serif headings.
+ *
+ * Class library (each class is opt-in — only inline what you use):
+ *   header.page-head + .meta + .meta .pill   page banner + pill tags
+ *   .intro                                   leading callout block
+ *   .decision-card                           owner-decision block (with .q-* children)
+ *   .q-options / .q-option / .q-option-body  radio-list pattern
+ *   .q-option-title .recommend-tag           highlight the recommended option
+ *   .q-option-rationale                      per-option explanation
+ *   .q-notes                                 free-form textarea per decision
+ *   details.deferred                         collapsed "extras" / deferred reasoning
+ *   .copy-bar                                sticky Copy-decisions footer
+ *
+ * For per-playground patterns not in the kernel (tables, recipe cards,
+ * timeline diagrams, etc.), author them inline AFTER this block. If
+ * the same pattern recurs across multiple playgrounds, propose adding
+ * it to this kernel.
+ */
+
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+
+  /* Project color system — categorical palette for project-coded UI
+   * (the project filter rail, per-tab/navigator project dots, focus
+   * chips). Six muted "studio" hues, evenly spaced around the wheel but
+   * with the orange/amber band (~15–55°) RESERVED so no project ever
+   * reads as --accent. Mid-value + moderate-chroma so the six read as
+   * one calm family on cream; white text on each clears large-text AA.
+   * Assign hash-stable per project root (same folder → same hue) with
+   * manual override; past six projects, rotate ~12% darker shade
+   * variants before introducing any new hue. Locked via ENH-182 / D9;
+   * see docs/research/project-rail-style-study.html. */
+  --project-pine:   #2E7D74;  /* hue 173° — teal-green */
+  --project-harbor: #3C6E93;  /* hue 206° — slate blue */
+  --project-iris:   #5B57A6;  /* hue 243° — indigo */
+  --project-plum:   #87508F;  /* hue 291° — violet */
+  --project-rose:   #A4506A;  /* hue 345° — dusty rose */
+  --project-moss:   #69763A;  /* hue  75° — olive */
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+body {
+  padding: 32px 40px 96px;
+  max-width: 920px;
+  margin: 0 auto;
+}
+
+/* — Page head — */
+header.page-head {
+  border-bottom: 1px solid var(--paper-rule);
+  padding-bottom: 16px;
+  margin-bottom: 24px;
+}
+header.page-head h1 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-style: italic;
+  font-weight: 500;
+  margin: 0 0 4px;
+  font-size: 24px;
+}
+header.page-head .meta {
+  color: var(--ink-mute);
+  font-size: 13px;
+}
+header.page-head .meta .pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-right: 6px;
+}
+
+/* — Intro block — */
+.intro {
+  background: var(--paper-deep);
+  border: 1px solid var(--paper-rule);
+  border-radius: 6px;
+  padding: 14px 18px;
+  margin-bottom: 28px;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+}
+.intro strong { color: var(--ink); font-weight: 600; }
+
+/* — Headings — */
+h2 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 600;
+  margin: 36px 0 12px;
+  font-size: 19px;
+  border-bottom: 1px solid var(--paper-rule);
+  padding-bottom: 6px;
+}
+h3 {
+  font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+  font-weight: 600;
+  margin: 22px 0 8px;
+  font-size: 15px;
+}
+h4 { margin: 16px 0 6px; font-size: 13.5px; }
+
+/* — Prose — */
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12.5px;
+  background: var(--paper-deep);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+pre {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  padding: 14px 16px;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+
+/* — Decision card (owner-decision block) — */
+.decision-card {
+  background: var(--paper-deep);
+  border: 1.5px solid var(--paper-rule);
+  border-radius: 6px;
+  padding: 16px 18px;
+  margin: 18px 0;
+}
+.decision-card .q-title {
+  font-weight: 700;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  margin: 0 0 6px;
+}
+.decision-card .q-prompt {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 500;
+  font-size: 17px;
+  color: var(--ink);
+  margin: 0 0 12px;
+  line-height: 1.35;
+}
+.decision-card .q-context {
+  font-size: 13px;
+  color: var(--ink-mute);
+  margin: 0 0 14px;
+}
+
+/* — Per-option radio list — */
+.q-options {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+.q-option {
+  display: block;
+  background: var(--paper);
+  border: 1.5px solid var(--paper-rule);
+  border-radius: 5px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] {
+  margin-right: 8px;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+.q-option:has(input[type="radio"]:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--paper));
+}
+.q-option-body {
+  display: inline-block;
+  vertical-align: top;
+  width: calc(100% - 22px);
+}
+.q-option-title {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--ink);
+  margin: 0 0 3px;
+}
+.q-option-title .recommend-tag {
+  font-size: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 6px;
+}
+.q-option-rationale {
+  font-size: 12px;
+  color: var(--ink-soft);
+  line-height: 1.45;
+  margin: 3px 0 0;
+}
+
+/* — Free-form notes per decision — */
+.q-notes {
+  width: 100%;
+  background: var(--paper);
+  border: 1px solid var(--paper-rule);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--ink);
+  resize: vertical;
+  min-height: 50px;
+}
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+
+/* — Deferred / collapsed extras — */
+details.deferred {
+  margin: 22px 0;
+  padding: 12px 16px;
+  background: var(--paper-deep);
+  border: 1px dashed var(--paper-rule);
+  border-radius: 6px;
+}
+details.deferred summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--ink-soft);
+  font-size: 13.5px;
+}
+details.deferred[open] summary { color: var(--ink); }
+details.deferred .deferred-body {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+/* — Sticky Copy-decisions footer — */
+.copy-bar {
+  position: sticky;
+  bottom: 0;
+  margin: 32px -40px -96px;
+  padding: 16px 40px;
+  background: color-mix(in srgb, var(--paper-deep) 96%, transparent);
+  border-top: 1.5px solid var(--paper-rule);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 9px 18px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* ── Per-playground overrides ─────────────────────────────────────── */
+.tag { display:inline-block; font-family:var(--mono); font-size:10.5px; font-weight:600;
+       letter-spacing:.04em; padding:1px 7px; border-radius:10px; vertical-align:middle; }
+.tag-p0 { background:#F2C9C0; color:#7A2E1A; }
+.tag-p1 { background:var(--accent-soft); color:var(--accent-ink); }
+.tag-p2 { background:var(--paper-edge); color:var(--ink-mute); }
+.q-prompt .tag { margin-left:8px; }
+
+.health { background:var(--paper-deep); border:1px solid var(--paper-rule);
+          border-left:3px solid var(--accent); border-radius:6px; padding:16px 20px; margin:18px 0 8px; }
+.health p { margin:0 0 10px; font-size:13.5px; color:var(--ink-soft); }
+.health ul { margin:6px 0 0; }
+.health li { font-size:13px; margin-bottom:5px; }
+.health .lede { font-family:var(--serif); font-size:15px; color:var(--ink); }
+
+.pros-cons { display:grid; grid-template-columns:1fr 1fr; gap:6px 16px; margin:6px 0 0; }
+.pros-cons .pc-pro { font-size:12px; color:var(--ink-soft); }
+.pros-cons .pc-con { font-size:12px; color:var(--ink-mute); }
+.pros-cons .pc-pro::before { content:"+ "; color:var(--pass,#5a7d3a); font-weight:700; }
+.pros-cons .pc-con::before { content:"− "; color:var(--accent-ink); font-weight:700; }
+
+.qwlist { columns:2; column-gap:28px; margin:4px 0 0; padding-left:18px; }
+.qwlist li { font-size:12px; color:var(--ink-soft); margin-bottom:6px; break-inside:avoid; }
+.qwlist code { font-size:11px; }
+
+details.deferred .sample { background:var(--paper); border:1px solid var(--paper-edge);
+       border-radius:5px; padding:10px 14px; margin:8px 0; font-family:var(--serif);
+       font-size:13.5px; line-height:1.55; color:var(--ink-soft); }
+details.deferred .sample .stitle { font-family:var(--sans); font-size:11px; font-weight:600;
+       text-transform:uppercase; letter-spacing:.04em; color:var(--accent-ink); display:block; margin-bottom:5px; }
+.files { font-family:var(--mono); font-size:11px; color:var(--ink-mute); margin-top:8px; }
+
+@media (max-width:640px){ .pros-cons,.qwlist{ grid-template-columns:1fr; columns:1; } }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Docs Deep-Clean — Owner Decisions</h1>
+  <div class="meta">
+    <span class="pill">🟡 AWAITING OWNER</span>
+    <span class="pill">ENH-191</span>
+    2026-05-29 · from the 10-agent docs audit workflow · v0.8.5
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> The read-only docs audit you asked for came back — 6 doc-cluster
+  auditors, a <code>tasks.md</code> refactor design, the <code>about-duo.md</code> walkthrough proposal,
+  and a synthesis pass. This page is where you make the calls before any sweeping edits land. Pick an
+  option per decision, drop notes where useful, hit <strong>Copy decisions</strong> at the bottom, and
+  paste back to me. I'll execute in priority order — P0 first. Nothing below has been changed yet.
+</div>
+
+<div class="health">
+  <p class="lede">The active, agent-facing contract surface is healthy — README, AGENTS.md, the
+  path-scoped rules, DECISIONS.md, and the CLI four-surface mirror are essentially clean. The damage is
+  concentrated in three predictable failure modes:</p>
+  <ul>
+    <li><strong>Version drift (systemic).</strong> Every "chrome" surface the <code>cut-version</code> skill
+      is supposed to refresh has frozen at a <em>different</em> era — <code>what-duo-does.html</code> footer at
+      v0.6.9, the roadmap header at v0.8.0, and both living dev docs (RESUME, active-sprint) pinned to Sprint 24 /
+      v0.8.1 — while we're at v0.8.5. A freshly-compacted agent reading its cold-start doc orients four releases in the past.</li>
+    <li><strong>Two monoliths.</strong> <code>tasks.md</code> (11.3k lines / 1.2 MB — literally Duo's own documented
+      editor worst-case) and <code>session-log.md</code> (4.1k lines) are unbounded; ~71% of <code>tasks.md</code> is
+      closed history, with ~39 still-open entries (several High) buried in a mislabeled "v0.4.2 punch list."</li>
+    <li><strong>Company-reference rule violations</strong> across ~10 active docs (employer name + program codenames),
+      against the repo's own "no company-specific references" rule. (The <code>*.capitalone.com</code> blocklist
+      domains are the one carved-out exception.)</li>
+  </ul>
+  <p style="margin-bottom:0">None of this is data-loss — but the at-a-glance signals you and the agent trust most
+  are the most stale, and the automation that should prevent drift is being skipped. The highest-leverage fix is
+  hard-gating those surfaces in <code>cut-version</code> (D4).</p>
+</div>
+
+<h2>1 · The structural call</h2>
+
+<section class="decision-card">
+  <div class="q-title">DECISION 1 · tasks.md refactor</div>
+  <h3 class="q-prompt">How do we break up the 1.2 MB <code>tasks.md</code> monolith? <span class="tag tag-p1">P1</span></h3>
+  <p class="q-context">386 entries; ~290 closed, ~76 open. 71% of the lines are closed history. The one mechanical
+    consumer (<code>sprint-plan/gather.mjs</code>) filters to open-only and is location-agnostic, so moving closed
+    items out is semantically invisible to it. <strong>The trap:</strong> the "v0.4.2 punch list" (8k lines) hides
+    ~39 still-open entries (BUG-093 renderer crash, etc.) — so any split must go <em>entry-by-entry by status emoji</em>,
+    never by lopping off that section.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d1-refactor" value="A">
+      <div class="q-option-body">
+        <div class="q-option-title">A — Status-based archive split <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Move closed entries (✅/🟢/❌) to a new <code>tasks-archive.md</code>;
+          open work stays in a lean ~3k-line <code>tasks.md</code>. Fold in the cheap hygiene fixes (status legend,
+          fix the stray <code># Document body…</code> H1, reorder sprints newest-first).
+          <div class="pros-cons">
+            <span class="pc-pro">Drops tasks.md 11.3k → ~3k lines; stops being the editor worst-case</span>
+            <span class="pc-con">Must split per-entry, not by section (scriptable, careful)</span>
+            <span class="pc-pro">gather.mjs needs little/no change (already open-only)</span>
+            <span class="pc-con">cut-version/smoke-walk learn one extra grep target</span>
+            <span class="pc-pro">Closed history preserved verbatim; clean stepping-stone to B later</span>
+            <span class="pc-con">Repoint ~2 deep <code>tasks.md#anchor</code> links</span>
+          </div>
+        </div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d1-refactor" value="B">
+      <div class="q-option-body">
+        <div class="q-option-title">B — tasks/ directory (open.md + per-release archives + index)</div>
+        <div class="q-option-rationale">Best long-term scalability; archives partition by release like
+          CHANGELOG. But largest blast radius — gather.mjs needs real rework (glob + dedupe), ~20 bare-path
+          references repoint, and deciding each closed entry's release file is non-trivial. <em>Effort: high.</em>
+          Recommendation: defer until the open backlog alone outgrows one file.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d1-refactor" value="C">
+      <div class="q-option-body">
+        <div class="q-option-title">C — In-place hygiene only (no split)</div>
+        <div class="q-option-rationale">Fix the <code># Document body</code> anomaly, reorder sprints, add a
+          status legend + TOC — but the file stays 11k lines / 1.2 MB. Lowest blast radius, but doesn't solve
+          the core problem; it's a prerequisite, not a destination.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="d1-refactor-notes" placeholder="e.g. 'A now, B once open backlog > 1 file' / naming for the archive file / etc."></textarea>
+</section>
+
+<h2>2 · P0 — do these first</h2>
+
+<section class="decision-card">
+  <div class="q-title">DECISION 2 · Company-reference scrub</div>
+  <h3 class="q-prompt">How aggressively do we scrub employer name + program codenames? <span class="tag tag-p0">P0</span></h3>
+  <p class="q-context">~10 active docs violate the repo's "no company-specific references" rule (employer name,
+    "Trailblazers"/"AIP" codenames). Keep <code>*.capitalone.com</code> blocklist strings — those are the sanctioned
+    exception. Judgment is needed only on <code>duo-brief.md</code> and <code>RESEARCH.md</code> (self-labeled historical snapshots).</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d2-company-scrub" value="SCRUB-ALL">
+      <div class="q-option-body">
+        <div class="q-option-title">Scrub everywhere now <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Mechanical prose swaps in the ~8 living docs ("enterprise distro",
+          "early-adopter cohort"); for the 2 historical snapshots, redact in place. One pass, done.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d2-company-scrub" value="LIVING-ONLY">
+      <div class="q-option-body">
+        <div class="q-option-title">Living docs only; banner the historical ones</div>
+        <div class="q-option-rationale">Scrub active docs; leave <code>duo-brief.md</code>/<code>RESEARCH.md</code>
+          as-is but add a one-line "historical snapshot — predates the no-company-refs rule" banner.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d2-company-scrub" value="HOLD">
+      <div class="q-option-body">
+        <div class="q-option-title">Hold — let me review the list first</div>
+        <div class="q-option-rationale">I'll paste the exact file+line list and you decide per-file.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="d2-company-scrub-notes" placeholder="Preferred generic descriptors? / any references that should stay? / etc."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">DECISION 3 · Living orientation docs</div>
+  <h3 class="q-prompt">Refresh RESUME.md + active-sprint.md to current state? <span class="tag tag-p0">P0</span></h3>
+  <p class="q-context">Both are pinned to Sprint 24 / v0.8.1 (every "state at-a-glance" line is wrong: branch, version,
+    DMGs) and ~80% duplicate each other's sprint tables — which is why they drifted together. To rewrite the "current
+    sprint" scope I need to know <strong>what the current sprint actually is.</strong></p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d3-living-docs" value="INFER">
+      <div class="q-option-body">
+        <div class="q-option-title">Refresh now — infer state from git/CHANGELOG <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">I rewrite the at-a-glance blocks from actual repo state (v0.8.5 in-flight /
+          v0.8.4 last released), collapse the duplicated sprint table to one owner, keep the durable guardrails. I'll
+          mark the "current sprint goal" as TBD for you to confirm.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d3-living-docs" value="TELL-FIRST">
+      <div class="q-option-body">
+        <div class="q-option-title">I'll tell you the current sprint first (notes below)</div>
+        <div class="q-option-rationale">You name the sprint scope/goal; I write it in rather than guessing.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d3-living-docs" value="HOLD">
+      <div class="q-option-body">
+        <div class="q-option-title">Hold</div>
+        <div class="q-option-rationale">Leave both until a dedicated pass.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="d3-living-docs-notes" placeholder="What IS the current sprint / its goal? Which doc should own the sprint table (RESUME vs active-sprint)?"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">DECISION 4 · Stop the drift at its source</div>
+  <h3 class="q-prompt">Hard-gate the stale "chrome" surfaces in the cut-version checklist? <span class="tag tag-p0">P0</span></h3>
+  <p class="q-context">Root cause of the version drift: working-rule 10 says <code>cut-version</code> refreshes these on
+    every cut, but it's being skipped — the canvas footer drifted 16 minor versions. The durable fix is a hard gate:
+    bump <code>what-duo-does.html</code> footer stamp + roadmap header/sidebar counts on EVERY cut, even a stamp-only one,
+    so "newest content == current version" is enforced. (This is the same class as the <code>VERSION='0.1.0'</code> bug
+    I just fixed by sourcing from package.json.)</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d4-cutver-gate" value="GATE-AND-FIX">
+      <div class="q-option-body">
+        <div class="q-option-title">Wire the gate + bring all surfaces current now <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Add the hard gate to <code>cut-version/SKILL.md</code> AND fix today's drift
+          (footer → v0.8.5, roadmap header + sidebar stats).</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d4-cutver-gate" value="FIX-ONLY">
+      <div class="q-option-body">
+        <div class="q-option-title">Just fix today's drift; skip the gate</div>
+        <div class="q-option-rationale">Bump the stamps now but don't change the skill (it'll likely re-drift).</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d4-cutver-gate" value="HOLD">
+      <div class="q-option-body">
+        <div class="q-option-title">Hold</div>
+        <div class="q-option-rationale">Leave for a later pass.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="d4-cutver-gate-notes" placeholder="Any other surfaces to add to the gate? (faq.html What's New, etc.)"></textarea>
+</section>
+
+<h2>3 · P1 — high-value cleanups</h2>
+
+<section class="decision-card">
+  <div class="q-title">DECISION 5 · what-duo-does.html numbering</div>
+  <h3 class="q-prompt">How do we fix the broken item numbering? <span class="tag tag-p1">P1</span></h3>
+  <p class="q-context">16 item numbers are duplicated and the sequence restarts 3 times, breaking the header's own
+    "see item N" promise (e.g. "10" is both "Paste an image" AND "Open a browser tab"). The search JS keys on
+    text + data-keys, never the number, so a renumber needs no script change. Also relocate the orphaned 37c card
+    ("Workspace pill") out of "Files & navigation."</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d5-renumber" value="MONOTONIC">
+      <div class="q-option-body">
+        <div class="q-option-title">Single monotonic 1..116 in document order <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Simple, restores "see item N." Drops the letter-suffix convention (4c, 17a…).</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d5-renumber" value="PREFIXED">
+      <div class="q-option-body">
+        <div class="q-option-title">Section-prefixed IDs (B-3, F-7…)</div>
+        <div class="q-option-rationale">Cross-category collisions become structurally impossible; new items per
+          section don't renumber the world. Slightly more to type when referencing.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d5-renumber" value="LEAVE">
+      <div class="q-option-body">
+        <div class="q-option-title">Leave as-is</div>
+        <div class="q-option-rationale">Accept the broken contract for now.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="d5-renumber-notes" placeholder="Optional notes…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">DECISION 6 · dev-docs archive + session-log</div>
+  <h3 class="q-prompt">Create <code>docs/dev/_archive/</code> and adopt a session-log rolling window? <span class="tag tag-p1">P1</span></h3>
+  <p class="q-context">docs/dev/ interleaves 5 living docs with 6 spent dated one-offs (cert-procurement, enh-183-build-plan,
+    v0.4.2-validation-checklist, v0.6.10-walk-carryover, smoke-checklist-v0.2.0, tasks-roadmap-reconciliation).
+    session-log.md is 4.1k lines and unbounded. File moves can break inbound links, so this needs your nod.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d6-dev-archive" value="FULL">
+      <div class="q-option-body">
+        <div class="q-option-title">Archive the 6 one-offs + prune session-log to a rolling window <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Move spent docs to <code>_archive/</code>; keep ~last 2–3 minor versions in
+          session-log, older to <code>_archive/session-log-pre-v0.6.md</code>; consolidate the orphan <code>walks/</code> dir.
+          I'll audit inbound links before moving.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d6-dev-archive" value="DOCS-ONLY">
+      <div class="q-option-body">
+        <div class="q-option-title">Archive the one-offs only; leave session-log</div>
+        <div class="q-option-rationale">Lower risk; session-log keeps growing.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d6-dev-archive" value="HOLD">
+      <div class="q-option-body">
+        <div class="q-option-title">Hold</div>
+        <div class="q-option-rationale">Leave docs/dev/ as-is.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="d6-dev-archive-notes" placeholder="Any of the 6 'one-offs' you consider still-living? / session-log retention preference?"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">DECISION 7 · Doc-accuracy batch</div>
+  <h3 class="q-prompt">Approve the accuracy refresh of VISION.md, FIRST-RUN.md, and a CLI-COVERAGE re-audit? <span class="tag tag-p1">P1</span></h3>
+  <p class="q-context">VISION.md (oldest key doc) still frames capabilities as "Stages 1-5 shipped, rest aspirational" —
+    never mentions the canvas, JSON viewer, project rail, or workspaces. FIRST-RUN.md Step 5 hard-codes wrong facts
+    (already partly fixed in the version-bug pass). CLI-COVERAGE.md is missing shipped verbs (<code>duo pack</code>,
+    <code>duo html click</code>) and has a duplicate gap row — it's a CLI-the-spec parity miss.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d7-accuracy-batch" value="DO-ALL">
+      <div class="q-option-body">
+        <div class="q-option-title">Do all three <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Refresh VISION framing + add a Last-updated banner pointing to roadmap.html;
+          finish FIRST-RUN; re-audit CLI-COVERAGE against <code>cli/duo.ts</code>. Low controversy, high accuracy payoff.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d7-accuracy-batch" value="PICK">
+      <div class="q-option-body">
+        <div class="q-option-title">Let me pick (notes below)</div>
+        <div class="q-option-rationale">Tell me which of the three to do.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d7-accuracy-batch" value="HOLD">
+      <div class="q-option-body">
+        <div class="q-option-title">Hold</div>
+        <div class="q-option-rationale">Defer.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="d7-accuracy-batch-notes" placeholder="VISION is a north-star doc — want to rewrite the framing yourself, or have me draft and you edit?"></textarea>
+</section>
+
+<h2>4 · P2 + quick wins</h2>
+
+<section class="decision-card">
+  <div class="q-title">DECISION 8 · P2 judgment calls</div>
+  <h3 class="q-prompt">Handle the three P2 judgment items? <span class="tag tag-p2">P2</span></h3>
+  <p class="q-context">(a) Two <code>what-duo-does.html</code> cards describe superseded behavior — the line-numbers card
+    predates BUG-186 (v0.8.4), and the modality/ENH-027 items still cite <code>&lt;meta duo-open-in&gt;</code> though
+    ENH-156 made modality verb-driven. (b) <code>distro-v1-schema.json</code> is promised by two docs but doesn't exist.
+    (c) Assorted broken links in historical/research docs.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d8-p2-calls" value="ALL">
+      <div class="q-option-body">
+        <div class="q-option-title">Fix all three (rewrite cards, resolve schema, fix living-doc links) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Rewrite the superseded cards + re-evaluate whether ENH-027 is already
+          satisfied; for the schema I'll lean to <em>removing/softening</em> the two refs unless you want it authored;
+          fix living-doc links and annotate (don't rewrite) the frozen archives.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d8-p2-calls" value="CARDS-ONLY">
+      <div class="q-option-body">
+        <div class="q-option-title">Just the superseded capability cards</div>
+        <div class="q-option-rationale">Fix the actively-misleading docs; defer schema + links.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d8-p2-calls" value="HOLD">
+      <div class="q-option-body">
+        <div class="q-option-title">Hold all P2</div>
+        <div class="q-option-rationale">Defer the lot.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="d8-p2-calls-notes" placeholder="distro-v1-schema.json: create it, or remove the references? / is ENH-027 (verb-driven modality) already done?"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">DECISION 9 · Quick wins</div>
+  <h3 class="q-prompt">Apply the 11 mechanical quick-wins now? <span class="tag tag-p2">SAFE</span></h3>
+  <p class="q-context">All verified, unambiguous, low-risk — mostly dead-link path fixes and version stamps:</p>
+  <ul class="qwlist">
+    <li><code>what-duo-does.html</code> footer v0.6.9 → v0.8.5</li>
+    <li><code>roadmap.html</code> s14 broken <code>in-progress</code> class → <code>done</code></li>
+    <li><code>duo-brief.md</code> drop leading <code>docs/</code> on 8 self-links</li>
+    <li><code>roadmap.html</code> fix <code>distribution-strategy.md</code> path</li>
+    <li><code>tasks.md</code> L15 fix <code>research/agent-agnostic-duo.html</code> path</li>
+    <li><code>about-duo.md</code> unwrap auto-linkified <code>product-vision.md</code></li>
+    <li><code>CHANGELOG.md</code> add missing <code>[0.8.4]</code> link def + fix Unreleased base</li>
+    <li><code>CLI-COVERAGE.md</code> browser-mode tag v0.7.7 → v0.7.8</li>
+    <li><code>roadmap.html</code> remove contradicting "Last cut v0.6.7" footnote</li>
+    <li>relative-depth link fixes in archived/recap docs</li>
+    <li>(FIRST-RUN + CLI-COVERAGE version examples — already done in the version-bug pass)</li>
+  </ul>
+  <div class="q-options" style="margin-top:12px">
+    <label class="q-option">
+      <input type="radio" name="d9-quickwins" value="APPLY-ALL">
+      <div class="q-option-body">
+        <div class="q-option-title">Apply all now <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Batch them in one commit.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d9-quickwins" value="PICK">
+      <div class="q-option-body">
+        <div class="q-option-title">Let me deselect some (notes)</div>
+        <div class="q-option-rationale">Name any to skip.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d9-quickwins" value="HOLD">
+      <div class="q-option-body">
+        <div class="q-option-title">Hold</div>
+        <div class="q-option-rationale">Defer.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="d9-quickwins-notes" placeholder="Any to skip?"></textarea>
+</section>
+
+<h2>5 · The about-duo.md walkthrough</h2>
+
+<p>This is the deliverable behind <code>about-duo.md</code>'s <code>&lt;!-- Feature deep dives … coming soon --&gt;</code>
+  placeholder. The proposer studied your intro voice and drafted an ordered tour. <strong>Proposed format:</strong>
+  extend <code>about-duo.md</code> <em>inline</em> in markdown (don't spin up a new page) — the placeholder frames this as
+  the same document, and <code>what-duo-does.html</code> already fills the reference-lookup role. Four H2 pillars mirroring
+  your intro's four-item list (Navigator → Terminal → the Canvas family with H3 sub-sections → CLI), tight narrative,
+  screenshots inline, each section closing with a pointer to "What Duo Does" for the exhaustive list.</p>
+
+<details class="deferred">
+  <summary>Read the tone analysis + the 10-section outline with sample prose (in your voice)</summary>
+  <div class="deferred-body">
+    <p style="font-size:12.5px;color:var(--ink-mute)"><strong>Voice:</strong> first-person builder-confessional,
+      problem-first, jargon-light (names tools by what they do), honest about competitors, why-before-how, concrete
+      real examples, dry humor. The proposer's matched register: <em>"I kept losing my place. I'd tell Claude 'look at
+      the third bullet under the second heading' and we'd both spend thirty seconds finding it. So the navigator does
+      that for me now."</em></p>
+
+    <div class="sample"><span class="stitle">1 · Start with the Navigator — it knows where you are</span>
+      The left column is the navigator, and it does two jobs at once. The obvious one: a file tree rooted at your home
+      folder. The less obvious one, and the reason it's first: it's how you tell Claude where you are… a slim ribbon shows
+      your branch and how many files are dirty, and changed files get a small orange dot you can hover for the +42 / -7 diff.</div>
+
+    <div class="sample"><span class="stitle">2 · The Terminal is the main event</span>
+      More of my day happens in the terminal now, so in Duo it sits front and center, tabs across the top like a browser.
+      Each tab is a conversation… the Return key does what your muscle memory expects from Slack — Enter sends,
+      Shift+Enter makes a new line.</div>
+
+    <div class="sample"><span class="stitle">3 · The Canvas: one slot, many shapes</span>
+      The right pane is what I call the canvas — though "canvas" here just means "the slot," not any one tool. Open a
+      markdown file and it becomes a writing surface; an HTML file, a live page; a JSON payload, a collapsible tree.
+      <em>(Then H3 sub-sections:)</em></div>
+
+    <div class="sample"><span class="stitle">3a · The markdown editor that feels like home</span>
+      It's all markdown under the hood — which is what lets the file travel cleanly into git, into Claude's hands. But
+      unless you open the source view you never think about markdown… Select a sentence and ⌘⌥M leaves a comment, exactly
+      like Docs — except the comment lives inside the file as plain text, so Claude can read it and reply.</div>
+
+    <div class="sample"><span class="stitle">3b · The HTML canvas, for things you can see</span>
+      Claude can edit a single section of the page without touching the rest… you can say "rewrite just the pricing table"
+      and it surgically replaces that one block. This is also where that earlier example lands: highlight an element, tell
+      Claude "make this button inactive until the prior steps are done."</div>
+
+    <div class="sample"><span class="stitle">3c · The JSON / YAML viewer, for the configs you inherit</span>
+      You probably don't write JSON, but you get handed it constantly… instead of a wall of brackets you get a collapsible
+      tree, and if you typo something Duo tells you in plain English ("Did you forget a closing brace?").</div>
+
+    <div class="sample"><span class="stitle">3d · The Browser, a real Chrome tab inside the window</span>
+      Highlight anything on a page, or point at a single button with ⌘⇧C, and a "Send → agent" pill appears… (one note for
+      anyone on a locked-down work machine: by default Duo only renders local files and sends real websites to your normal browser).</div>
+
+    <div class="sample"><span class="stitle">3e · Split View, when one file isn't enough</span>
+      Split View puts two documents side-by-side — I use it to read a spec next to the notes I'm taking on it. Press ⌘\ on
+      any open file to send it to the side; it survives a restart.</div>
+
+    <div class="sample"><span class="stitle">3f · Layout &amp; actions: bend the window to the task</span>
+      Reading something long? Give the canvas more room, or collapse the terminal to a rail. Or — the part that ties it all
+      together — just ask Claude ("collapse the terminal and navigator so I can focus").</div>
+
+    <div class="sample"><span class="stitle">4 · The CLI — the thread that sews it all together</span>
+      You will almost never type these commands yourself — they're the hands the agent reaches for when you ask in plain
+      English. "Open my roadmap and scroll to the open-questions section" becomes <code>duo open</code> and
+      <code>duo doc goto</code> under the hood… A normal IDE gives you tools; Duo hands the same tools to the agent sitting
+      next to you. When you ask for something, Claude doesn't describe what to click — it clicks.</div>
+  </div>
+</details>
+
+<details class="deferred">
+  <summary>Read the screenshot plan (9 shots — 7 core + 2 optional)</summary>
+  <div class="deferred-body">
+    <ul style="font-size:12.5px">
+      <li><strong>navigator-git-status</strong> — left column with the git ribbon + dirty dots + a selected row.</li>
+      <li><strong>terminal-tabs-claude</strong> — terminal front-and-center, 2–3 tabs (Claude + shell), foregrounding the tab strip.</li>
+      <li><strong>canvas-markdown-comment</strong> — markdown editor + open comment thread + yellow "just-changed" wash. <em>(Existing image may be reusable — see D11.)</em></li>
+      <li><strong>canvas-html-live</strong> — an HTML file as a live, editable canvas.</li>
+      <li><strong>json-tree-view</strong> — JSON as the collapsible tree (+ optional error-marker variant).</li>
+      <li><strong>browser-inspect-send</strong> — the ⌘⇧C "Send → agent" pill anchored to a highlighted element.</li>
+      <li><strong>split-view-two-files</strong> — two docs side-by-side with the divider.</li>
+      <li><strong>full-window-layout-overview</strong> <em>(optional)</em> — a fresh v0.8.5 three-column hero showing the project rail.</li>
+      <li><strong>cli-transcript</strong> <em>(optional)</em> — Claude running a chain of <code>duo</code> verbs (see D11).</li>
+    </ul>
+  </div>
+</details>
+
+<section class="decision-card">
+  <div class="q-title">DECISION 10 · Walkthrough format &amp; depth</div>
+  <h3 class="q-prompt">Confirm the structure and how deep each section goes?</h3>
+  <p class="q-context">The format recommendation is extend-inline, 4 H2 pillars + nested H3s under the canvas (preserves
+    your "four main features" promise). Depth is the live choice.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d10-wt-format" value="TIGHT">
+      <div class="q-option-body">
+        <div class="q-option-title">Extend inline · tight "core four" narrative <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">1–2 paragraphs per section about the durable pillars + a closing pointer to
+          "What Duo Does." Ages well, doesn't duplicate the per-release inventory.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d10-wt-format" value="FULLER">
+      <div class="q-option-body">
+        <div class="q-option-title">Extend inline · fuller per-feature treatment</div>
+        <div class="q-option-rationale">Names most sub-features. Richer, but overlaps what-duo-does.html and drifts each release.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d10-wt-format" value="NEW-PAGE">
+      <div class="q-option-body">
+        <div class="q-option-title">Separate page instead</div>
+        <div class="q-option-rationale">A standalone walkthrough doc rather than extending about-duo.md.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="d10-wt-format-notes" placeholder="Maintenance: keep it stable/decoupled (recommended), or wire into cut-version so it can't drift?"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">DECISION 11 · Walkthrough media</div>
+  <h3 class="q-prompt">Stills, GIFs, and CLI transcripts — what mix?</h3>
+  <p class="q-context">Several headline features are motion (the yellow wash, the Send→agent pill, panes
+    redistributing, the agent driving the window). Stills render on GitHub and are simple; GIFs sell "the agent has
+    hands" but add weight + a capture pipeline. The intro shows plain-English prompts, not commands.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d11-wt-media" value="GIF-AGENT">
+      <div class="q-option-body">
+        <div class="q-option-title">Stills throughout + GIFs only for the agent moments <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Stills for layout/surfaces; a couple of short GIFs for the CLI/agent-driving
+          moments where motion is the point. No CLI transcript blocks (stay jargon-light, matching the intro).</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d11-wt-media" value="STILLS">
+      <div class="q-option-body">
+        <div class="q-option-title">Stills only</div>
+        <div class="q-option-rationale">Simplest; no capture pipeline. Motion features described in prose.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d11-wt-media" value="RICH">
+      <div class="q-option-body">
+        <div class="q-option-title">GIFs throughout + one CLI transcript</div>
+        <div class="q-option-rationale">Most vivid; heaviest to produce and maintain.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="d11-wt-media-notes" placeholder="Reuse the existing 2026-05-18 images, or capture fresh at v0.8.5? / want a refreshed full-window hero (pre-project-rail)?"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">DECISION 12 · Proceed to write it</div>
+  <h3 class="q-prompt">Should I write the walkthrough now, and capture the screenshots?</h3>
+  <p class="q-context">Screenshots need a running Duo staged into each state (the dev build is up). I can capture the
+    7 core shots, or also the 2 optional ones. Or you may want to eyeball pillar 1 before I write all four.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d12-wt-proceed" value="WRITE-ALL">
+      <div class="q-option-body">
+        <div class="q-option-title">Write all four pillars + capture the 7 core shots <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">I draft the full deep-dive per the decisions above and stage Duo for the core screenshots.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d12-wt-proceed" value="DRAFT-FIRST">
+      <div class="q-option-body">
+        <div class="q-option-title">Draft pillar 1 (Navigator) first — I'll react</div>
+        <div class="q-option-rationale">Lower risk on voice; you approve the register before I do all four.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d12-wt-proceed" value="ALL-SHOTS">
+      <div class="q-option-body">
+        <div class="q-option-title">Write all four + capture all 9 shots (incl. hero + transcript)</div>
+        <div class="q-option-rationale">Full treatment including the optional hero refresh + CLI moment.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="d12-wt-proceed-notes" placeholder="Optional notes…"></textarea>
+</section>
+
+<h2>Anything else</h2>
+<textarea class="q-notes" name="general-notes" placeholder="Priorities, sequencing ('do the walkthrough before the cleanup'), anything the audit missed, a target version to bundle this into…" style="min-height:96px;"></textarea>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0 / 12</span> decided · hit Copy, paste back to Claude</div>
+  <button id="copy-decisions" type="button">Copy decisions</button>
+</div>
+
+<script>
+  (function () {
+    const counter = document.getElementById('answered-count');
+    const button = document.getElementById('copy-decisions');
+
+    const QUESTIONS = [
+      { id: 'd1-refactor',      title: 'D1 · tasks.md refactor' },
+      { id: 'd2-company-scrub', title: 'D2 · Company-reference scrub' },
+      { id: 'd3-living-docs',   title: 'D3 · Living orientation docs (RESUME + active-sprint)' },
+      { id: 'd4-cutver-gate',   title: 'D4 · Hard-gate chrome surfaces in cut-version' },
+      { id: 'd5-renumber',      title: 'D5 · what-duo-does.html numbering' },
+      { id: 'd6-dev-archive',   title: 'D6 · dev-docs archive + session-log window' },
+      { id: 'd7-accuracy-batch',title: 'D7 · Doc-accuracy batch (VISION / FIRST-RUN / CLI-COVERAGE)' },
+      { id: 'd8-p2-calls',      title: 'D8 · P2 judgment calls' },
+      { id: 'd9-quickwins',     title: 'D9 · Quick wins (11 mechanical)' },
+      { id: 'd10-wt-format',    title: 'D10 · Walkthrough format & depth' },
+      { id: 'd11-wt-media',     title: 'D11 · Walkthrough media' },
+      { id: 'd12-wt-proceed',   title: 'D12 · Proceed to write the walkthrough' }
+    ];
+
+    function refreshCount() {
+      let answered = 0;
+      for (const q of QUESTIONS) {
+        if (document.querySelector('input[name="' + q.id + '"]:checked')) answered++;
+      }
+      counter.textContent = answered + ' / ' + QUESTIONS.length;
+    }
+    document.addEventListener('change', refreshCount);
+    refreshCount();
+
+    function buildPayload() {
+      const lines = [];
+      lines.push('DOCS DEEP-CLEAN — DECISIONS (' + new Date().toISOString().slice(0, 10) + ')');
+      lines.push('==================================================');
+      lines.push('');
+      for (const q of QUESTIONS) {
+        const checked = document.querySelector('input[name="' + q.id + '"]:checked');
+        const value = checked ? checked.value : '(no pick)';
+        const notes = (document.querySelector('textarea[name="' + q.id + '-notes"]')?.value || '').trim();
+        lines.push('[' + value.toUpperCase() + '] ' + q.title);
+        if (notes) {
+          for (const line of notes.split('\n')) lines.push('    ' + line);
+        }
+        lines.push('');
+      }
+      const general = (document.querySelector('textarea[name="general-notes"]')?.value || '').trim();
+      if (general) {
+        lines.push('GENERAL NOTES');
+        lines.push('-------------');
+        for (const line of general.split('\n')) lines.push(line);
+        lines.push('');
+      }
+      lines.push('---');
+      lines.push('Source: docs/research/docs-deep-clean-decisions.html (ENH-191)');
+      return lines.join('\n');
+    }
+
+    button.addEventListener('click', async function () {
+      const payload = buildPayload();
+      try {
+        await navigator.clipboard.writeText(payload);
+        button.textContent = 'Copied!';
+        button.classList.add('copied');
+        setTimeout(function () {
+          button.textContent = 'Copy decisions';
+          button.classList.remove('copied');
+        }, 1400);
+      } catch (err) {
+        console.warn('[docs-deep-clean] clipboard.writeText failed:', err);
+        button.textContent = 'Copy failed — see console';
+      }
+    });
+  })();
+</script>
+
+</body>
+</html>

@@ -145,7 +145,7 @@
         directory is exploration-only — not in the Electron build pipeline.
         <br><br>
         <strong>Strategic outcome</strong> →
-        <a href="distribution-strategy.md" style="color: var(--accent-ink);"><code>distribution-strategy.md</code></a>
+        <a href="research/duo-as-chrome-extension/distribution-strategy.md" style="color: var(--accent-ink);"><code>distribution-strategy.md</code></a>
         (or
         <a href="https://github.com/dudgeon/duo/blob/main/docs/research/duo-as-chrome-extension/distribution-strategy.md" style="color: var(--accent-ink);">on GitHub</a>):
         both Duo Desktop and Duo for Chrome ship indefinitely; Electron app is the
@@ -282,7 +282,7 @@
         <li><code>640ec0e</code> — feat(env): Stage 19 Phase 19a env signals (was tagged "Stage 18 Phase 18a" pre-renumber)</li>
         <li>Closed issues: #10, #17, #20, #21, #26 (swept by Team A)</li>
       </ul>
-      <p style="font-size: 12px; color: var(--ink-mute); margin: 10px 0 0;"><strong>Last cut: v0.6.7 — 2026-05-05</strong> (Sprint 6 + Sprint 7 — comments on both surfaces (Stage 14a ✅), Phase 3c browser-tabs-in-Split-View, terminal paste fix, arm64-only distribution; bullet-id duplicate-detect post-rev6 fixes BUG-088/090/087 root cause). Older commits use pre-renumber stage labels — see <a href="dev/roadmap-history.md">docs/dev/roadmap-history.md § Number history</a>.</p>
+      <p style="font-size: 12px; color: var(--ink-mute); margin: 10px 0 0;">Older commits use pre-renumber stage labels — see <a href="dev/roadmap-history.md">docs/dev/roadmap-history.md § Number history</a>.</p>
     </details>
 
     <h2 class="phase-heading" id="phase-foundation">Foundation — shipped + in progress</h2>
@@ -437,7 +437,7 @@
       <div class="comment"><label>Comment</label><textarea data-key="s13" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
     </article>
 
-    <article class="stage in-progress" id="s14" data-id="s14">
+    <article class="stage done" id="s14" data-id="s14">
       <h3><span class="num-badge">Stage 14</span> Editor: track changes + comment rail (markdown binding) <span class="glyph done"></span></h3>
       <div class="status-line">✅ <strong>Shipped v0.7.1 (2026-05-18) — Sprint 18 closed the chapter.</strong> 14a ✅ (v0.6.7 sidecar comments) → 14b ✅ (BUG-138 Phase 1: CriticMarkup parser + 4 marks + tiptap-markdown integration, 65 tests) → 14b/migration ✅ (Phase 2: sidecar→inline auto-migrate + <code>duo author</code>, 22 tests) → 14d ✅ (Phase 3: 6 agent CLI verbs <code>duo doc {insert,delete,substitute,comment,accept,reject}</code>, 31 tests) → 14c ✅ (Phase 4: Suggesting toggle + auto-wrap typed/Backspace + bulk banner + per-suggestion rail + filter chips). Sidecar comments migrate silently to inline CM on first load. <strong>v0.7.2 polish wave (2026-05-18):</strong> Phase 5 threaded-rail display (`buildMarkdownThreads` reads inline marks + `parseRepliesFromBody` splits `↪`-joined bodies back into separate bubbles — closes silent regression where post-Phase-2 inline-only files showed an empty rail); BUG-083 markdown active-thread visual highlight bumped 0.22 → 0.42 alpha + accent box-shadow; `duo doc highlight &lt;file&gt; --text "X"` 7th agent verb closes CLI-parity gap for HighlightMark. cross-refs <a href="https://github.com/dudgeon/duo/issues/6">#6</a></div>
       <p class="blurb"><strong>The shape after 17d-A.</strong> The visual layer (rail, anchor badges, accept-all banner shape, range-mark styling) was the load-bearing part — and most of it now lives in <code>renderer/components/editor/primitives/</code>. The markdown binding is no longer "design + build the rail"; it's just "feed the rail records the markdown editor knows how to mint." That shrinks Stage 14 meaningfully — what's left is a parser + two TipTap marks + a small MD-side adapter.</p>
