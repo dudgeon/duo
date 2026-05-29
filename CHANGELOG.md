@@ -19,8 +19,18 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
+> Empty — v0.8.4 cut 2026-05-28.
+
+## [0.8.4] — 2026-05-28 — Polish patch: quit-loop · source-line gutter · nav heal
+
 ### Fixed
-- **BUG-190** Quitting Duo no longer pops a looping "A JavaScript error occurred in the main process" dialog (`TypeError: Object has been destroyed`). A node-pty data burst during shutdown was hitting `webContents.send` on an already-destroyed window; every async main→renderer send now routes through a guard that no-ops once the window is torn down.
+- **BUG-190** Quitting Duo no longer pops a looping "A JavaScript error occurred in the main process" dialog (`TypeError: Object has been destroyed`). A node-pty data burst during shutdown was hitting `webContents.send` on an already-destroyed window; every async main→renderer send now routes through a guard that no-ops once the window is torn down. (PR #61)
+- **BUG-186** The markdown editor's optional line-number gutter now shows the **true source line** where each top-level block begins (1, 3, 5, 9, 13, 18 — matching what Claude Code's `Read` reports), not the v1 block-counter. Computed by serializing through the save path so the numbers can't drift from disk. Per-inner-line numbering inside code fences / lists / quotes is a tracked v2 follow-up. (PR #58 + smoke-walk follow-up `2817cd5`: `<pre>`'s `overflow: auto` was clipping the gutter number on code blocks — `overflow-x: visible` while line-numbers are on lets it paint into the left margin.)
+- **ENH-182** Project switching no longer leaves stale references to deleted directories. (PR #59) Four heals: reactive nav self-heal on ENOENT (probe-then-prune so transient flakes don't drop state), session-restore cwd falls back to nearest surviving ancestor, ghost-pin drop for pinned roots whose folder was deleted, and an auto-spawn race fix so clicking a project tile focuses the existing in-scope terminal instead of spawning a spurious new one.
+- **BUG-167** Navigator ENOENT spam from ghost folders (folded into PR #59). Proactive mount-time prune drops dead `expanded` entries from persisted localStorage before the user navigates, so the very first project switch is already quiet — complements the reactive heal above. Same prune for `useUserClaudeNavigator`. Plus: the never-re-gated `[ENH-084-v4]` `focusin`/`mousedown`/`blur` instrumentation in `WorkingPane` is now silent in release builds (opt-in behind `localStorage.duo.debug.focus === '1'`).
+
+### Docs
+- **ENH-189** Agent-agnostic Duo research — a decision-bearing HTML playground at `docs/research/agent-agnostic-duo.html` mapping every Claude-coupling point (works / no-op / breaks) under OpenAI's Codex CLI, with cost quadrant + UI mockups + 7 decision cards. The headline finding: the `duo` socket bridge is ~90% harness-neutral; coupling concentrates in a thin lifecycle skin. MCP is flagged as the durable long-term spine. (PR #62 — research only, no code changes.)
 
 ## [0.8.2] — 2026-05-27 — Terminal-tab context menu parity
 

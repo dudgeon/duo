@@ -21,7 +21,24 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.8.2 cut 2026-05-27)*
+> *(empty — v0.8.4 cut 2026-05-28)*
+
+---
+
+## v0.8.4 — 2026-05-28 — Polish patch: quit-loop · source-line gutter · nav heal
+
+**Why this lands here.** Three independent fixes landed in close succession after v0.8.2, each closing a distinct quality gap surfaced over a day of dogfooding: a real user-blocking crash (BUG-190 forced force-quit), a feature whose v1 contract didn't match the file's source lines (BUG-186), and a class of console spam + auto-spawn race tied to deleted-folder state in the project rail (ENH-182 + BUG-167). None was big enough to wait on; together they're worth a patch cut so the "open Duo, switch projects, quit cleanly" loop just works in daily use.
+
+This also follows the master-agent reconciliation pattern: two PRs (#59 and #63) chased the same nav-ENOENT spam from different angles. Rather than landing the broader one and letting the narrower one rot, the focus-instrumentation gate + proactive mount-time prune from #63 were lifted into #59 (the canonical fix), and #63 was closed with the directive documented in its comment trail. Worth flagging because the pattern will repeat — multiple agents fixing overlapping bugs is the steady state once teams adopt Duo.
+
+**Key design decisions.**
+
+1. **Guard the destroyed-window send once, route every caller through it.** `electron/safe-send.ts` factors the `mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()` check into a pure module so vitest can drive the destroyed/null branches without mounting Electron. Every async sink (PtyManager + socket-server EventSinks, BrowserManager state/tabs, nav-pins, claude-presence, git-watch) now uses `makeSafeSend(() => mainWindow)` — closure-over-thunk so a window swap is reflected. The 7 cases include the load-bearing "accessing `webContents` on a torn-down window can ITSELF throw" defensive shape.
+2. **Compute source-line numbers via the same serializer the save path uses.** The previous CSS-counter approach (1, 2, 3…) couldn't reflect blank lines or multi-line blocks. The new `LineNumbers` ProseMirror plugin drives a single `MarkdownSerializerState` across the doc's top-level children and reads byte offsets to derive each block's start line — guaranteed-identical to what lands on disk. Numbers are sparse (1, 3, 5, 9, 13, 18 in the smoke-walk fixture) because blank lines have no row. Sourced from `materializeCriticMarkupToJSON` so CM-bearing buffers track the disk-saved form.
+3. **Two-tier nav heal — proactive mount-time prune + reactive on-failure heal.** Probe-driven (`dirExists` on each persisted-expanded entry), so a transient IPC failure leaves entries intact — empirically catches both the cold-boot ghost case (mount prune) AND the mid-session delete case (reactive heal). Shared util `renderer/hooks/pruneDeadPaths.ts` so the two paths can't drift; 8 unit tests pin the "probe-throw keeps the entry" invariant which is what protects against speculative drops.
+4. **Auto-spawn race suppressed via terminal-cwd-under-root check.** `terminalMembership` is computed from async git/marker probes — so right after a focus click, `visibleTerminals` is transiently empty even when an in-scope terminal exists. The fix: don't auto-spawn while any open terminal's cwd is under the focused root; let membership resolve and the existing terminal get focused. Verified live in the walk: 16 → 16 terminals across 8 project clicks.
+
+**What this is and isn't.** v0.8.4 is a polish patch — no new capability surface, no roadmap stage flips. The interesting capability work this enables sits in the agent-agnostic research (ENH-189) shipped under `docs/research/` — the playground walks the seven decisions that scope the implementation. Owner walks + paste-back pin the next sprint. The smoke-walk-surfaced `<pre>` gutter clip was caught and fixed in the same cut cycle (commit `2817cd5`) — a useful demonstration that walking via computer-use catches CSS regressions that JSON-DOM probes miss, because the data was right but the paint wasn't.
 
 ---
 
