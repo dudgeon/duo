@@ -83,9 +83,15 @@ export function useProjects(args: UseProjectsArgs): UseProjectsResult {
   // mid-probe don't lose entries.
   const [gitResults, setGitResults] = useState<Map<string, GitProbeResult>>(() => new Map())
   const [markerResults, setMarkerResults] = useState<Map<string, boolean>>(() => new Map())
+  // Ghost-pin fix — existence probe results for pinned roots only.
+  // `deriveProjects` drops a pinned root whose folder was deleted
+  // (exists === false); a markerless-but-existing pin still renders
+  // (D12 "pin alone qualifies").
+  const [pinnedExists, setPinnedExists] = useState<Map<string, boolean>>(() => new Map())
   // Track which probes are in-flight per probe-kind to avoid double-probing.
   const gitInFlightRef = useRef<Set<string>>(new Set())
   const markerInFlightRef = useRef<Set<string>>(new Set())
+  const pinnedExistsInFlightRef = useRef<Set<string>>(new Set())
 
   // ── Async probe phase ──────────────────────────────────────────
   //
@@ -166,6 +172,41 @@ export function useProjects(args: UseProjectsArgs): UseProjectsResult {
     }
   }, [terminals, workingTabs, pinnedTabPaths, pinnedProjects, gitResults, markerResults])
 
+  // ── Pinned-root existence probe (ghost-pin fix) ─────────────────
+  //
+  // Only pinned roots can be ghosts: every non-pinned project has a
+  // live terminal/tab cwd under it, so the folder provably exists.
+  // Like the git/marker caches above, we never invalidate — a pin
+  // deleted mid-session drops on the next relaunch (matches this
+  // hook's documented caching contract; the owner can restart).
+  useEffect(() => {
+    const unprobed = [...pinnedProjects].filter(
+      (d) => !pinnedExists.has(d) && !pinnedExistsInFlightRef.current.has(d)
+    )
+    if (unprobed.length === 0) return
+    for (const d of unprobed) pinnedExistsInFlightRef.current.add(d)
+    void Promise.all(
+      unprobed.map(async (dir) => {
+        try {
+          return [dir, await window.electron.files.dirExists(dir)] as const
+        } catch {
+          // Probe unreachable — assume the folder exists so a transient
+          // IPC error never drops a pin.
+          return [dir, true] as const
+        }
+      })
+    ).then((entries) => {
+      setPinnedExists((prev) => {
+        const next = new Map(prev)
+        for (const [k, v] of entries) {
+          next.set(k, v)
+          pinnedExistsInFlightRef.current.delete(k)
+        }
+        return next
+      })
+    })
+  }, [pinnedProjects, pinnedExists])
+
   // ── Pure derivation ────────────────────────────────────────────
   const result = useMemo<DeriveProjectsOutput>(() => {
     return deriveProjects({
@@ -181,10 +222,13 @@ export function useProjects(args: UseProjectsArgs): UseProjectsResult {
         const git = gitResults.get(dir)
         const isGitRoot = !!(git?.isRepo && git.workTreeRoot === dir)
         const hasMarker = markerResults.get(dir) === true
-        return { isGitRoot, hasMarker }
+        // `exists` is only meaningful for pinned roots; undefined for
+        // everything else (deriveProjects only consults it for pins).
+        const exists = pinnedExists.has(dir) ? pinnedExists.get(dir) : undefined
+        return { isGitRoot, hasMarker, exists }
       }
     })
-  }, [terminals, workingTabs, pinnedTabPaths, pinnedProjects, colorOverrides, gitResults, markerResults])
+  }, [terminals, workingTabs, pinnedTabPaths, pinnedProjects, colorOverrides, gitResults, markerResults, pinnedExists])
 
   return result
 }

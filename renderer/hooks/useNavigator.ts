@@ -13,8 +13,9 @@
 // Persistence: Phase 4 uses localStorage for a quick seed across reloads.
 // Phase 7 replaces this with the main-process state.json persistence.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DirEntry } from '@shared/types'
+import { findDeadExpandedPaths, nearestExistingAncestor } from './pruneDeadPaths'
 
 const LS_KEY_CWD = 'duo.nav.cwd'
 const LS_KEY_EXPANDED = 'duo.nav.expanded'
@@ -105,10 +106,15 @@ export function useNavigator(initialCwd: string) {
     try { return localStorage.getItem(LS_KEY_SHOW_DOTFILES) === '1' } catch { return false }
   })
   const [listings, setListings] = useState<NavigatorState['listings']>(() => new Map())
+  // Latest cwd, readable from the stable `ensureListing` callback (whose
+  // deps are []). Lets the ENOENT self-heal decide whether the dead path
+  // is the current cwd without re-creating the callback every navigation.
+  const cwdRef = useRef(cwd)
 
   // Persist whenever relevant state changes. Debounce is minimal because
   // these are tiny writes.
   useEffect(() => {
+    cwdRef.current = cwd
     try { localStorage.setItem(LS_KEY_CWD, cwd) } catch { /* storage full or disabled */ }
   }, [cwd])
   useEffect(() => {
@@ -134,6 +140,48 @@ export function useNavigator(initialCwd: string) {
     })
   }, [])
 
+  // BUG-167 (folded into ENH-182) — mount-time prune of persisted
+  // navigator state. The reactive ENOENT heal above only fires when the
+  // user navigates to or expands a dead folder; this one-shot pass
+  // drops ghosts at startup, BEFORE the first project switch
+  // re-subscribes the watcher and triggers the spammy re-list. Same
+  // `dirExists` probe as the reactive heal — a probe failure leaves
+  // entries intact (transient flakes must not wipe state). Reads cwd /
+  // expanded / initialCwd from the mount-time closure so the effect is
+  // intentionally mount-only.
+  const prunedRef = useRef(false)
+  useEffect(() => {
+    if (prunedRef.current) return
+    prunedRef.current = true
+    let cancelled = false
+    const probe = window.electron?.files?.dirExists
+    if (!probe) return
+    void (async () => {
+      // Recover cwd first so the watcher's first subscription sees a
+      // live path. Fallback chain: nearest existing ancestor → initialCwd.
+      try {
+        if (!(await probe(cwd))) {
+          const recovered = await nearestExistingAncestor(cwd, probe, initialCwd)
+          if (!cancelled) setCwd(prev => (prev === cwd ? recovered : prev))
+        }
+      } catch { /* probe unreachable — leave cwd as-is */ }
+      const dead = await findDeadExpandedPaths(expanded, probe)
+      if (cancelled || dead.length === 0) return
+      setExpanded(prev => {
+        const next = new Set(prev)
+        for (const p of dead) next.delete(p)
+        return next
+      })
+      setListings(prev => {
+        const next = new Map(prev)
+        for (const p of dead) next.delete(p)
+        return next
+      })
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Shared helper that (lazily) fetches a directory listing and caches it.
   const ensureListing = useCallback((path: string) => {
     setListings(prev => {
@@ -157,6 +205,44 @@ export function useNavigator(initialCwd: string) {
           next.set(path, []) // treat errors as empty; UI can surface later
           return next
         })
+        // Self-heal stale references to a deleted directory. A removed
+        // dir keeps firing ENOENT on every watch-resubscribe — once per
+        // project switch — which is the console spam users see. Confirm
+        // the dir is genuinely gone (a transient/permission error must
+        // NOT drop nav state), then prune it from expanded + the listing
+        // cache + selection so it stops being re-listed. If the dead dir
+        // is the current cwd, re-root to the nearest surviving ancestor.
+        void window.electron.files.dirExists(path).then(exists => {
+          if (exists) return
+          setExpanded(prev => {
+            if (!prev.has(path)) return prev
+            const next = new Set(prev)
+            next.delete(path)
+            return next
+          })
+          setListings(prev => {
+            if (!prev.has(path)) return prev
+            const next = new Map(prev)
+            next.delete(path)
+            return next
+          })
+          setSelectedItems(prev => {
+            if (!prev.has(path)) return prev
+            const next = new Map(prev)
+            next.delete(path)
+            return next
+          })
+          setPrimaryPath(prev => (prev === path ? null : prev))
+          if (cwdRef.current === path) {
+            void nearestExistingAncestor(
+              path,
+              p => window.electron.files.dirExists(p),
+              '/'
+            ).then(fallback => {
+              setCwd(prev => (prev === path ? fallback : prev))
+            })
+          }
+        }).catch(() => { /* probe unreachable — leave nav state intact */ })
       }
     )
   }, [])

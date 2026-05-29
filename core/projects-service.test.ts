@@ -299,6 +299,48 @@ describe('deriveProjects — pinned projects (D12)', () => {
     expect(out.projects[0].isGitRoot).toBe(false)
     expect(out.projects[0].hasMarker).toBe(false)
   })
+
+  it('drops a pinned project whose directory was DELETED (exists === false)', () => {
+    // Ghost-pin fix — "pin alone qualifies" holds only while the folder
+    // still exists. A pin to a deleted directory is a ghost tile.
+    const out = deriveProjects({
+      terminals: [],
+      workingTabs: [],
+      pinnedTabPaths: new Set(),
+      pinnedProjects: new Set(['/pinned-deleted']),
+      colorOverrides: {},
+      qualify: () => ({ isGitRoot: false, hasMarker: false, exists: false })
+    })
+    expect(out.projects).toHaveLength(0)
+  })
+
+  it('keeps a pinned project while its existence probe is pending (exists === undefined)', () => {
+    // No-flicker guarantee — undefined exists is treated as "exists",
+    // so a valid pin never blinks out during the async probe window.
+    const out = deriveProjects({
+      terminals: [],
+      workingTabs: [],
+      pinnedTabPaths: new Set(),
+      pinnedProjects: new Set(['/pinned-pending']),
+      colorOverrides: {},
+      qualify: () => ({ isGitRoot: false, hasMarker: false })
+    })
+    expect(out.projects).toHaveLength(1)
+    expect(out.projects[0].root).toBe('/pinned-pending')
+  })
+
+  it('keeps a markerless pin whose directory still exists (exists === true)', () => {
+    const out = deriveProjects({
+      terminals: [],
+      workingTabs: [],
+      pinnedTabPaths: new Set(),
+      pinnedProjects: new Set(['/pinned-extant']),
+      colorOverrides: {},
+      qualify: () => ({ isGitRoot: false, hasMarker: false, exists: true })
+    })
+    expect(out.projects).toHaveLength(1)
+    expect(out.projects[0].root).toBe('/pinned-extant')
+  })
 })
 
 describe('deriveProjects — color assignment (R2)', () => {

@@ -19,9 +19,10 @@
 // so the tree can present a small hand-picked top level on top of
 // otherwise-normal expand-on-click behavior.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DirEntry, FileChangeEvent } from '@shared/types'
 import type { NavigatorState, NavigatorActions } from './useNavigator'
+import { findDeadExpandedPaths } from './pruneDeadPaths'
 
 const LS_KEY_SHOW_ALL = 'duo.userClaude.showAll'
 const LS_KEY_EXPANDED = 'duo.userClaude.expanded'
@@ -97,6 +98,38 @@ export function useUserClaudeNavigator(home: string): UserClaudeNavigatorApi {
         })
       }
     )
+  }, [])
+
+  // BUG-167 (folded into ENH-182) — mount-time prune of persisted
+  // `expanded` paths. Root is fixed at ~/.claude so there's no cwd to
+  // recover, but a persisted entry like `skills/<gone>` /
+  // `agents/<gone>` (workspace deleted between sessions) still gets
+  // re-listed on every re-subscribe and floods the console with ENOENT
+  // until the user happens to collapse it. One-shot probe at startup
+  // drops the dead ones; a probe failure leaves entries intact.
+  const prunedRef = useRef(false)
+  useEffect(() => {
+    if (prunedRef.current) return
+    prunedRef.current = true
+    let cancelled = false
+    const probe = window.electron?.files?.dirExists
+    if (!probe || expanded.size === 0) return
+    void (async () => {
+      const dead = await findDeadExpandedPaths(expanded, probe)
+      if (cancelled || dead.length === 0) return
+      setExpanded(prev => {
+        const next = new Set(prev)
+        for (const p of dead) next.delete(p)
+        return next
+      })
+      setListings(prev => {
+        const next = new Map(prev)
+        for (const p of dead) next.delete(p)
+        return next
+      })
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Always load the user-claude root + any expanded children.

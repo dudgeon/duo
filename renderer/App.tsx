@@ -200,6 +200,35 @@ function makeTab(cwd: string, kind: TerminalTabKind, home: string, lastClaudeSes
 }
 
 /**
+ * A terminal's persisted launch cwd may have been deleted between
+ * sessions. Restoring it verbatim spawns a PTY in a dead directory
+ * (ENOENT) and surfaces a project-rail tile for a folder that no longer
+ * exists. Mirror the BUG-039 file-tab pattern: fall the cwd back to the
+ * nearest surviving ancestor (or `home` if none qualifies). On a probe
+ * error we restore verbatim rather than guess.
+ */
+async function resolveRestorableCwd(cwd: string, home: string): Promise<string> {
+  try {
+    if (await window.electron.files.dirExists(cwd)) return cwd
+  } catch {
+    return cwd
+  }
+  let cur = cwd
+  while (true) {
+    const idx = cur.lastIndexOf('/')
+    const parent = idx > 0 ? cur.slice(0, idx) : '/'
+    if (parent === cur) break
+    try {
+      if (await window.electron.files.dirExists(parent)) return parent
+    } catch {
+      break
+    }
+    cur = parent
+  }
+  return home
+}
+
+/**
  * ENH-096 (B1) — Walk up from `startPath` (a file path) until an
  * `.obsidian/` directory is found at the same level. Returns the
  * directory containing `.obsidian/` (the vault root) or `null` if
@@ -559,7 +588,11 @@ export function App() {
       // initial state. Empty list (first launch) → keep the default
       // single shell tab the constructor seeded.
       if (state.terminals.length > 0) {
-        const restored = state.terminals.map(t => makeTab(t.cwd, t.kind, home, t.lastClaudeSession ?? null))
+        const restored = await Promise.all(
+          state.terminals.map(async t =>
+            makeTab(await resolveRestorableCwd(t.cwd, home), t.kind, home, t.lastClaudeSession ?? null)
+          )
+        )
         setTabs(restored)
         const idx = state.activeTerminalIndex
         if (Number.isInteger(idx) && idx >= 0 && idx < restored.length) {
@@ -1363,11 +1396,28 @@ export function App() {
       // No member terminals — spawn one at the project root. Mark
       // the focus session as auto-spawned BEFORE the state update so
       // the next render (with the new tab in `tabs`) doesn't re-fire.
-      autoSpawnedForRef.current = focusedProject
-      if (lastTabKind === 'claude') {
-        openClaudeIn(focusedProject)
-      } else {
-        openTerminalHere(focusedProject)
+      //
+      // Race guard: `terminalMembership` is computed from async
+      // git/marker probes, so in the probe-pending window right after a
+      // focus click `visibleTerminals` is transiently empty even when an
+      // existing terminal's launch cwd sits under the focused root.
+      // Auto-spawning here would strand the user with a spurious new
+      // terminal while their real one becomes visible-but-inactive a
+      // beat later. Suppress the spawn while any open terminal's cwd is
+      // under the focused root — once membership resolves, the
+      // switch-to-first-visible branch above focuses it. Only spawn when
+      // there's genuinely no terminal under the root (e.g. focusing a
+      // project that has only working tabs open).
+      const hasTerminalUnderRoot = tabs.some(
+        (t) => t.cwd === focusedProject || t.cwd.startsWith(focusedProject + '/')
+      )
+      if (!hasTerminalUnderRoot) {
+        autoSpawnedForRef.current = focusedProject
+        if (lastTabKind === 'claude') {
+          openClaudeIn(focusedProject)
+        } else {
+          openTerminalHere(focusedProject)
+        }
       }
     }
     if (
