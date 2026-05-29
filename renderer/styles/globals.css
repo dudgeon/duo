@@ -223,25 +223,24 @@ html.dark {
   .duo-editor-prose th { background: var(--duo-paper-deep); }
   .duo-editor-prose hr { border-color: var(--duo-paper-rule); }
 
-  /* ENH-069 (v0.6.3) — toggleable line numbers. The wrapper element
-     gets `data-line-numbers="true"` when enabled; CSS counters on the
-     ProseMirror's top-level block children render gutter numbers via
-     `::before`. v1 counts BLOCKS (paragraphs, headings, list items,
-     blockquotes), not visual lines — wrapped paragraphs count as one.
-     "True" visual line numbers (counting wrapped lines) would need a
-     ProseMirror plugin with `view.posAtCoords` walking; queued as a
-     v2 if v1 doesn't solve the user's need. */
+  /* ENH-069 / BUG-186 — toggleable line numbers. The wrapper element
+     gets `data-line-numbers="true"` when enabled; the LineNumbers
+     ProseMirror plugin hangs a `data-duo-line` attribute carrying the
+     TRUE markdown source-line number off each top-level block, and the
+     `::before` renders it. Numbers are sparse on purpose — blank lines
+     and soft-wrapped continuation lines have no visual row — so "editor
+     line N" matches "file line N" (what Claude Code reports). Code
+     fences / lists / quotes show a single number at their starting line
+     for now; per-inner-line numbering is the BUG-186 §v2 follow-up. */
   [data-line-numbers="true"] .ProseMirror {
-    counter-reset: duo-line;
     padding-left: 3rem;
     position: relative;
   }
-  [data-line-numbers="true"] .ProseMirror > * {
-    counter-increment: duo-line;
+  [data-line-numbers="true"] .ProseMirror > [data-duo-line] {
     position: relative;
   }
-  [data-line-numbers="true"] .ProseMirror > *::before {
-    content: counter(duo-line);
+  [data-line-numbers="true"] .ProseMirror > [data-duo-line]::before {
+    content: attr(data-duo-line);
     position: absolute;
     left: -2.75rem;
     top: 0.15em;
