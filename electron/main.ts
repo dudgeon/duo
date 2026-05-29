@@ -729,7 +729,7 @@ async function createWindow(): Promise<void> {
     // ENH-184 (Sprint 23 / v0.8.0) — workspace-pill menu CLI parity.
     getWorkspacePillMenuEnabled: () => getWorkspacePillMenuEnabled(),
     setWorkspacePillMenuEnabled: (enabled: boolean) => setWorkspacePillMenuEnabledCli(enabled)
-  }, navPinsService, eventBus, packLoader)
+  }, navPinsService, eventBus, packLoader, app.getVersion())
   // Stage 12 close — wire the renderer event sink so the socket
   // server can push ambient cues (e.g. CLAUDE_READ_SELECTION when
   // the agent calls `duo selection`). Same one-liner adapter as

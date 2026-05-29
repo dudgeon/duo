@@ -145,7 +145,13 @@ Run in order. Stop on first error.
 
 npm run typecheck                 # blocking — must be clean
 
-npm run build:cli                 # rebuilds cli/duo binary
+npm run build:cli                 # rebuilds cli/duo binary. Bakes
+                                  # package.json's version into the CLI via
+                                  # esbuild define (scripts/build-cli.mjs),
+                                  # so it MUST run AFTER the package.json bump
+                                  # above. There is no separate VERSION
+                                  # constant to edit — the CLI + the app's
+                                  # `duo doctor` ping both track package.json.
 
 # BUG-118 sanity-check — guard against committing a stale binary.
 # v0.6.12 cut shipped a stale cli/duo missing ENH-130 --reveal handling
@@ -171,7 +177,10 @@ on first launch / upgrade. Editing the installed copies directly
 would mean your next `npm run dist` doesn't include the changes.
 Order:
 
-1. `package.json` — version field (if bumping).
+1. `package.json` — version field (if bumping). Single source of truth for
+   the version string: the CLI bakes it in at `build:cli` time (esbuild
+   define) and the app reports it via `app.getVersion()`, so `duo doctor`
+   shows `(matches)`. Must be bumped BEFORE the `npm run build:cli` step above.
 2. `CHANGELOG.md` — move `[Unreleased]` content into a new `[X.Y.Z] — YYYY-MM-DD` section. Add the date. Update the link refs at the bottom. Reset `[Unreleased]` to empty.
 3. `docs/RELEASES.md` — prepend the new prose entry above prior entries (most-recent-first). Clear the `Pending — not yet cut` stash if any of it folded into this cut.
 4. ~~`help/faq.html`~~ retired in v0.6.13 (ENH-135) — moved to `docs/legacy/faq.html`. The "What's new" log lives in `docs/RELEASES.md` (Step 3) and `CHANGELOG.md` (Step 2). Skip this step.

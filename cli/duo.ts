@@ -14,7 +14,13 @@ import * as fs from 'fs'
 import { randomUUID } from 'crypto'
 import type { DuoRequest, DuoResponse } from '../shared/types'
 
-const VERSION = '0.1.0'
+// Injected at build time from package.json by scripts/build-cli.mjs via
+// esbuild `define`, so the CLI version always tracks the real release —
+// no hand-bumped constant to forget. The `typeof` guard keeps a bare
+// `esbuild` invocation (no define) from emitting a ReferenceError: it
+// falls back to a clearly-not-real sentinel instead of a stale literal.
+declare const __DUO_VERSION__: string
+const VERSION = typeof __DUO_VERSION__ !== 'undefined' ? __DUO_VERSION__ : '0.0.0-dev'
 // Stage 18 Phase 18a (D4) — when running inside a Duo PTY, the
 // DUO_SOCKET env var is exported by PtyManager and points at the live
 // socket. Prefer it over the hard-coded path so that future install-
