@@ -430,7 +430,7 @@
   <div class="num">37</div>
   <div>
     <h3>Open a file from Finder into Duo</h3>
-    <p class="why">Duo registers as a macOS Open With candidate for <code>.md</code> and <code>.html</code> files. Right-click any markdown or HTML file in Finder → <strong>Open With</strong> → <strong>Duo</strong>, and the file lands in the working pane via the same smart-routing path as <code>duo open</code> (markdown → editor; HTML → canvas, or browser if its <code>duo-open-in</code> meta says so). Set Duo as the default for an extension via Get Info → Open With → Change All. Cold-start is supported — opening a file from Finder while Duo is closed launches the app and routes the file once the renderer mounts. <strong>v0.6.5+ (signed DMG only)</strong></p>
+    <p class="why">Duo registers as a macOS Open With candidate for <code>.md</code> and <code>.html</code> files. Right-click any markdown or HTML file in Finder → <strong>Open With</strong> → <strong>Duo</strong>, and the file lands in the working pane via the same verb-driven routing as <code>duo open</code> (markdown → editor; HTML → browser pane, interactive). Set Duo as the default for an extension via Get Info → Open With → Change All. Cold-start is supported — opening a file from Finder while Duo is closed launches the app and routes the file once the renderer mounts. <strong>v0.6.5+ (signed DMG only)</strong></p>
     <p class="how"><strong>UI</strong>Right-click a file in Finder → Open With → Duo, or set Duo as default for the extension.</p>
   </div>
 </article>
@@ -813,7 +813,7 @@
   <div class="num">77</div>
   <div>
     <h3>Toggle line numbers in the markdown editor</h3>
-    <p class="why">Small <code>#</code> button in the bottom-left of the editor scroll-host. Click to render line numbers in the left gutter; click again to hide. Counts top-level blocks (paragraphs, headings, list items, blockquotes), one number per block — wrapped paragraphs count as one. Persists per-user across sessions; the same setting applies to every markdown tab.</p>
+    <p class="why">Small <code>#</code> button in the bottom-left of the editor scroll-host. Click to render line numbers in the left gutter; click again to hide. <strong>v0.8.4 (BUG-186):</strong> the gutter shows the TRUE markdown <strong>source</strong> line number for each block — matching what <code>Read</code> / <code>grep</code> see on disk, with a number on <code>&lt;pre&gt;</code> code blocks too — so "go to line N" lines up with the agent's view (replaced the old one-number-per-block counter). Persists per-user across sessions; applies to every markdown tab.</p>
     <p class="how"><strong>UI</strong>Click the <code>#</code> toggle in the bottom-left of any markdown editor tab.</p>
   </div>
 </article>
@@ -1121,11 +1121,11 @@
   </div>
 </article>
 
-<article class="item" data-keys="duo edit canvas flag override modality lock playground browser script blocked inert iframe meta duo-open-in right click context menu enh-097">
+<article class="item" data-keys="duo edit canvas modality playground browser script blocked inert iframe verb-driven enh-156 right click context menu edit in canvas">
   <div class="num">111</div>
   <div>
-    <h3>Edit a playground's source with <code>duo edit --canvas</code></h3>
-    <p class="why">Playgrounds (HTML files declaring <code>&lt;meta name="duo-open-in" content="browser"&gt;</code>) open in the browser pane by default — scripts run, buttons fire, the user interacts with the live surface. To EDIT the playground's source instead, use the canvas-mode override: scripts blocked, buttons render but clicking them places a cursor instead of firing the handler. Two surfaces: <code>duo edit --canvas &lt;path&gt;</code> from the CLI, OR right-click any <code>file://</code> browser tab → "Edit in canvas." Codifies the playground/canvas mental model: playground = browser modality (interactive), canvas = inert edit modality (source-editable).</p>
+    <h3>Edit a playground's source in canvas mode</h3>
+    <p class="why">A playground opens interactive in the browser pane via <code>duo open &lt;path&gt;</code> — scripts run, buttons fire, you interact with the live surface. To EDIT its source instead, <code>duo edit &lt;path&gt;</code> mounts the same HTML in canvas mode: scripts blocked, buttons render but clicking places a cursor (source-editable). <strong>ENH-156 (v0.7.0): modality is verb-driven</strong> — <code>duo open</code> = browser, <code>duo edit</code> = canvas; no <code>&lt;meta name="duo-open-in"&gt;</code> declaration is consulted anymore. You can also right-click any <code>file://</code> browser tab → "Edit in canvas." That's the playground/canvas mental model: playground = browser modality (interactive), canvas = inert edit modality (source-editable).</p>
     <p class="how"><strong>CLI</strong><code>duo edit --canvas /path/to/playground.html</code><br><strong>UI</strong>Right-click a browser tab → "Edit in canvas" (only appears for <code>file://</code> tabs).</p>
   </div>
 </article>
