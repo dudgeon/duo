@@ -9,7 +9,7 @@
 ## Sprint 24 / v0.8.1 — v0.8.x polish wave (starting)
 ### ENH-191: Docs deep-clean — audit findings + owner-decision playground
 
-**Status:** 🟡 Awaiting owner decisions (walk the playground). **Filed 2026-05-29.** **Priority:** P0/P1 doc-health — version-drift is systemic. **Effort:** execution depends on the walk.
+**Status:** ⏳ **Decisions made + executing.** Owner walked the playground 2026-05-31; D1–D9 shipped on branch `fix/cli-version-and-docs-cleanup`; D10/D11 (the about-duo walkthrough's 7 screenshots) are the only remaining step. **Filed 2026-05-29.** **Priority:** P0/P1 doc-health — version-drift is systemic.
 
 **Ask.** Deep clean + update of project docs (README, what-duo-does, roadmap, tasks, etc.); consider refactors where appropriate (tasks.md is a 1.2 MB monolith); read `about-duo.md` and propose an ordered, conversational feature walkthrough with screenshots in the same voice as the intro.
 
