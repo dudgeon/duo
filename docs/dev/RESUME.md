@@ -1,67 +1,20 @@
-# Resume after compaction — Sprint 24 / v0.8.1 (v0.8.x polish wave)
+# Resume after compaction — v0.8.x (docs deep-clean + polish)
 
 **Read this first.** Then in order:
 
-1. [`docs/dev/active-sprint.md`](active-sprint.md) — Sprint 24 starting scope + tiered FOLLOWUP queue + Tier 3 design-decision pendings.
-2. [`CLAUDE.md`](../../CLAUDE.md) § Active sprint — same content, shorter form.
-3. [`tasks.md`](../../tasks.md) — running ledger. Sprint 24 section at the top; Sprint 23 closed with v0.8.0 commit map.
+1. [`docs/dev/active-sprint.md`](active-sprint.md) — **current sprint scope** (that file owns it; this one links there).
+2. [`CLAUDE.md`](../../CLAUDE.md) § Current sprint — shorter form.
+3. [`tasks.md`](../../tasks.md) — open backlog (97 entries; closed history in [`tasks-archive.md`](../../tasks-archive.md) after the ENH-191/D1 split).
 
 ## Where we are
 
-**v0.8.0 shipped + released** (2026-05-25). [GitHub Release](https://github.com/dudgeon/duo/releases/tag/v0.8.0) live with signed-notarized DMG attached. The ENH-182 capstone (project-as-filter-layer) is feature-complete: rail + focus filter + lifecycle/menu + auto-switch + CLI parity + browser-tab filter + ENH-184 workspace pill defeaturing + 4 audit-found BUGs folded in. Dev bumped to **v0.8.1**.
+**v0.8.4 released; v0.8.5 in-flight** (as of 2026-05-31). Sprint 23/24 — ENH-182 (project rail) plus the v0.8.0-era FOLLOWUP-031..040 polish wave — shipped across v0.8.0–v0.8.4.
 
-**Sprint 24 is a focused polish wave.** Goal: close the v0.8.0 audit's deferred follow-ups (FOLLOWUP-031 through 040) before any new feature work. The ENH-182 capstone was the marquee chapter; Sprint 24 is its polish epilogue.
+**Current initiative:** the docs deep-clean (ENH-191) on branch `fix/cli-version-and-docs-cleanup` — a CLI/app version-source fix (`duo --version` + doctor now derive from `package.json`) plus a full project-docs audit executed decision-by-decision. **Current-sprint scope lives in [`active-sprint.md`](active-sprint.md)**; the next *feature*-sprint goal + cut target is **TBD — owner to confirm.**
 
-## Sprint 24 starts here
+## Current sprint scope
 
-### Definition of done
-
-All 10 v0.8.0-era FOLLOWUPs (031–040) closed OR explicitly deferred-with-reason. Tier 1 + 2 are the must-close items; Tier 3 are owner-decision-gated and may stay open.
-
-### Tier 1 — Bundle into one polish commit (~1 hour)
-
-These are 1-line / 5-line fixes; the smoke walk can cover them all as a single rev. Bundle as `chore(v0.8.x-polish): tier-1 followup cleanup`.
-
-- **FOLLOWUP-035** — `handleProjectFocus` dead-code probe. Verify the use site at `renderer/App.tsx` ~901; remove if confirmed dead. **5 min.**
-- **FOLLOWUP-036** — Focus-release chip aria-label polish. `renderer/App.tsx` ~3545 reads "Focused: duo, button, Release focus (duo)" via screen reader — repetitive. Drop visible-text from aria-label OR simplify to "Release focus." **5 min.**
-- **FOLLOWUP-038** — `useWorkspacePillMenuFlag` TS narrowing of `'key' in event` ambiguous between StorageEvent + CustomEvent with `key` field. Practically benign (we dispatch bare CustomEvent); add a code comment explaining intent + acknowledging the narrowing edge case. **5 min.**
-- **FOLLOWUP-040** — Smoke-walk item: with `duo workspace-pill-menu off`, exercise `File → New Workspace` to verify the menu handler still works post-ENH-184 defeaturing. Add to next smoke walk manifest. **5 min.**
-
-### Tier 2 — Single-feature commits (~30–60 min each)
-
-In priority order (highest user-impact first):
-
-- **FOLLOWUP-031** — `MaxListenersExceededWarning` on `terminal:claude-presence-changed` (11/10 listeners). Pre-existing; not new with v0.8.0. Each `useClaudePresence` hook mount registers a listener; with many terminal tabs the count exceeds Node's default 10-listener warning threshold. Fix: hoist subscription to App.tsx + push state via React context (matches `useFrontTerminalClaudeLive` pattern). Eliminates per-TerminalPane listener. **~30 min.** **Biggest user-facing impact** — eliminates a warning that fires routinely in normal use.
-- **FOLLOWUP-032** — Double `duo project close` race. Two parallel CLI calls send two `PROJECTS_CLOSE_REQUEST` events; `handleCloseProject` runs twice; second invocation reads stale `projectCounts.get(root)`; stacks two confirm dialogs if claude-kind. Fix: gate on `inFlightCloseRef.current.has(root)` in `handleCloseProject`. **~20 min.** Low user-impact (rare CLI race) but easy fix.
-- **FOLLOWUP-033** — `duo project list` returns empty silently during 1–2s renderer-boot window. Renderer hasn't pushed first snapshot; main returns empty default — indistinguishable from "no projects open." Fix: add `ready: boolean` to `ProjectsStateSnapshot`; renderer flips to true on first push. CLI emits "renderer not yet ready" warning when false (or blocks until ready, owner decision). **~30 min.**
-
-### Tier 3 — Design-gated (ASK owner before doing)
-
-These need quick owner decisions. **Don't implement without input.**
-
-- **FOLLOWUP-034** — Rail-color rotation past 6 projects. PRD R2 says "rotate shade variants past 6" but didn't specify the shape. 50% collision probability at 4 projects (birthday paradox; P(no collision, N=4, K=6) ≈ 0.278). **Owner decision:** what's the shade variant rule? Lighter / darker / saturation shift / overlay marker?
-- **FOLLOWUP-037** — `useProjects` probe-after-delete cache invalidation. If a pinned project's marker is deleted out-of-Duo mid-session, `markerResults` cache shows `true` → ghost tile persists. Documented limitation today. **Owner decision:** invalidate via fs.watch? Invalidate on focus change? Drop cache periodically? Or leave as-is?
-- **FOLLOWUP-039** — Cross-window race on `duo workspace-pill-menu`. No multi-window today; future-proofing. **Owner decision:** defer until multi-window ships, or pre-emptively use `BroadcastChannel`?
-
-**Default direction if owner unavailable:** defer all three (none user-blocking).
-
-### Sprint-close carry-forward (pick 1-2 if Tiers 1+2 land fast)
-
-In descending priority:
-
-1. **BUG-079** — Ctrl-Tab cycle latency. Sprint 22 walk-1 gave a known-good repro (focus on duo with 1 visible terminal). Sprint 17 instrumentation established total renderer-keydown → switchTab return ≈ 15ms. Hypotheses: modifier release timing, upstream consumer race. Instrumentation step needed.
-2. **ENH-128 walk-4** — HEIC drag-drop verification. Owner-walked only (no code). Closes image-handling cluster.
-3. **ENH-162** — Clone modal destination-collision UX. ~30 min design + impl.
-4. **ENH-148 v2** — Multi-select v2 (⇧-click range + ⌘-A + CLI parity). Bigger; could anchor a MINOR.
-
-### Out of scope (don't pull in)
-
-BUG-093 (no repro) · BUG-122 (needs next-repro log) · ENH-084 v4 (owner walk needed) · ENH-127 (owner declined) · ENH-137 (owner-draft pending) · ENH-141 (cross-machine test) · ENH-157 (medium-architectural; design pending) · FOLLOWUP-021 (edge case) · BUG-024 (stale; re-triage first) · 17a.5 template gallery (big chunk) · Backlinks/graph view (anchor of its own sprint) · GH-CLUSTER-PROTO gate (owner-decision required).
-
-### Expected cut shape
-
-- **v0.8.1 (PATCH)** — Tier 1 + Tier 2 only land. Polish-only release.
-- **v0.9.0 (MINOR)** — Tier 1+2 + a coherent capability (ENH-148 v2 multi-select OR ENH-162 Clone modal) lands alongside.
+Lives in **[`active-sprint.md`](active-sprint.md)** — the running scratchpad owns the prioritized scope so it does not drift across two files. Open engineering work is in [`tasks.md`](../../tasks.md) (97 open entries; harvest with the `sprint-plan` skill). The next feature-sprint goal + cut target is TBD pending owner direction.
 
 ## Critical guardrails for the next agent
 
@@ -139,23 +92,19 @@ The v0.8.0 capstone shipped 4 BUGs fixed that the smoke walk missed entirely. A 
 
 ## State at-a-glance
 
-- **Branch:** `main` at [`e80c508`](https://github.com/dudgeon/duo/commit/e80c508) (chore: bump to v0.8.1). Pushed to origin.
-- **Tags:** `v0.8.0` on `e30adf1` (pushed to origin).
-- **Git status:** working tree clean.
-- **Package version:** 0.8.1 (dev). Cut targets: v0.8.1 PATCH (polish-only) or v0.9.0 MINOR (capability bundle).
-- **Pack version:** `packs/duo-default/PACK.json § version` is 1.0.15 (bumped during v0.8.0 cut; existing users see "What's new" prompt covering project menu / `duo project` CLI / browser-tab filter / passive workspace pill).
-- **dist/:** `Duo-0.8.0-arm64.dmg` (104 MB, signed + notarized + stapled + launch-validated) + prior v0.7.10 + v0.7.9 safety nets.
-- **GitHub Release:** https://github.com/dudgeon/duo/releases/tag/v0.8.0 — live, DMG attached.
-- **Disk free:** check `df -h ~`. If lower than 40GB, run `npm run check:materialization` proactively (iCloud trap.)
+- **Latest release:** **v0.8.4** (tagged). **Package version: v0.8.5** (in-flight).
+- **Active branch:** `fix/cli-version-and-docs-cleanup` (docs deep-clean ENH-191; several commits ahead of `main`, not yet pushed). `main` is at the v0.8.5 bump.
+- **Git status:** run `git status` — verify before assuming clean.
+- **Verify versions:** `duo doctor` should read `0.8.5 (matches)` against a current build (CLI + app both derive the version from `package.json` after the ENH-191 fix).
+- **Disk free:** `df -h ~`; if under ~40 GB run `npm run check:materialization` proactively (iCloud trap — see guardrail § 1).
 
 ## What NOT to do
 
-- **Don't re-cut v0.8.0.** It's tagged + released. Next cut is v0.8.1 (PATCH) or v0.9.0 (MINOR).
+- **Don't re-cut v0.8.4.** It's the latest release; the next cut target (PATCH v0.8.x vs MINOR v0.9.0) is owner-TBD.
 - **Don't bypass the materialization check.** When `predev` warns, run `npm run materialize` before continuing.
 - **Don't toggle `optimize-storage` back to `1`.** It's currently OFF — that's the protective default.
 - **Don't bump package.json during a background DMG build.** See guardrail § 9.
-- **Don't implement Tier 3 FOLLOWUPs (034, 037, 039) without owner input.** They're design-gated.
-- **Don't pull in carry-forward items beyond 1-2.** Sprint 24 is a focused polish wave; resist scope creep.
+- **Don't implement owner-decision-gated items without input** — see the standing-decisions table in [`active-sprint.md`](active-sprint.md).
 - **Don't skip the background audit at smoke-walk time** (per guardrail § 11). Even small sprints benefit.
 
 ## Quick orientation commands
@@ -171,15 +120,15 @@ bash scripts/check-materialization.sh
 # Read sprint state
 cat docs/dev/active-sprint.md
 
-# See the released cut
-gh release view v0.8.0
+# See the latest released cut
+gh release view v0.8.4
 
-# Verify the released DMG opens cleanly
-open dist/Duo-0.8.0-arm64.dmg
+# List released DMGs (if present)
+ls dist/Duo-*.dmg
 ```
 
-## Sprint 24 starting move
+## Starting move
 
-**Recommended first commit:** Tier 1 cleanup bundle. FOLLOWUP-035 + 036 + 038 + 040 in one `chore(v0.8.x-polish): tier-1 followup cleanup` commit. ~1 hour. Gets the trivial-but-tracked items off the board so the FOLLOWUP-031 hoist (the meaty Tier 2 piece) gets undivided attention.
+Read [`active-sprint.md`](active-sprint.md) for the current initiative + scope, then [`tasks.md`](../../tasks.md) for open work. If picking up the docs deep-clean (ENH-191), the decision playground at `docs/research/docs-deep-clean-decisions.html` drives the remaining items.
 
 Welcome aboard.
