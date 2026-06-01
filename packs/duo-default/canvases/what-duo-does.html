@@ -133,7 +133,7 @@
 </article>
 
 <article class="item" data-keys="copy code block button hover clipboard">
-  <div class="num">4b</div>
+  <div class="num">5</div>
   <div>
     <h3>Copy a code block</h3>
     <p class="why">Hover any <code>&lt;pre&gt;</code> in the markdown editor or HTML canvas — a Copy button appears top-right. Click it; the code text lands on your clipboard.</p>
@@ -142,7 +142,7 @@
 </article>
 
 <article class="item" data-keys="find document search ⌘F arrow keys highlight match scroll">
-  <div class="num">4c</div>
+  <div class="num">6</div>
   <div>
     <h3>Find text in the markdown editor</h3>
     <p class="why">⌘F opens a find bar above the prose. Type a query; matches highlight inline with a counter (3/47). ↓ / ↑ (or ▼ / ▲ buttons) navigate to the next/prev match with a smooth scroll. ⎋ closes. Case-sensitive toggle (Aa) is a click. Works in dark mode without the previous contrast issue.</p>
@@ -151,7 +151,7 @@
 </article>
 
 <article class="item" data-keys="indent outdent list cmd cmd+[ cmd+] markdown bullet ordered task canvas html">
-  <div class="num">4d</div>
+  <div class="num">7</div>
   <div>
     <h3>Indent / outdent list items</h3>
     <p class="why">Inside a bullet, ordered, or task list, ⌘] indents the current item (sinks it into a sub-list); ⌘[ outdents (lifts it back). Outside a list the chord no-ops. Familiar from Obsidian / Bear / Notion. Works in both the markdown editor and the HTML canvas (canvas parity shipped <strong>v0.6.5</strong>; markdown editor since <strong>v0.5.3</strong>). Tab / Shift-Tab also indent / outdent inside list items in both surfaces.</p>
@@ -160,7 +160,7 @@
 </article>
 
 <article class="item" data-keys="agent goto heading line anchor scroll editor jump claude">
-  <div class="num">4e</div>
+  <div class="num">8</div>
   <div>
     <h3>Tell the agent to scroll the editor</h3>
     <p class="why">When Claude is working with you on a long doc, this gets it to land you both at the same spot without you having to scroll-and-search. <code>--heading</code> matches by heading text; <code>--line</code> by 1-indexed source line; <code>--anchor</code> by GitHub-slug (so <code>--anchor "bug-038"</code> matches the heading <code>### BUG-038: …</code>). Response includes <code>matched_heading</code> so the agent can confirm it landed on the right entry.</p>
@@ -169,7 +169,7 @@
 </article>
 
 <article class="item" data-keys="agent search find document buffer read-only">
-  <div class="num">4f</div>
+  <div class="num">9</div>
   <div>
     <h3>Have the agent search the editor's live buffer</h3>
     <p class="why">Read-only counterpart to <code>duo doc goto</code>. The agent gets back the matching lines + counts without scrolling you anywhere. Use when the agent needs to know "is this term in the doc, and where?" without disrupting your view.</p>
@@ -178,7 +178,7 @@
 </article>
 
 <article class="item" data-keys="right-click context menu cut copy paste select-all spell-check inspect electron-context-menu">
-  <div class="num">4g</div>
+  <div class="num">10</div>
   <div>
     <h3>Right-click for the usual context menu</h3>
     <p class="why">Right-click anywhere in the markdown editor, HTML canvas, or browser pane to get Cut / Copy / Paste / Select All / Look Up "<em>selection</em>" / Spell-check suggestions. In dev builds you also get Inspect Element. Browser tabs get the link / image variants too (Copy Link, Save Image As, etc.) when you right-click a link or image.</p>
@@ -187,7 +187,7 @@
 </article>
 
 <article class="item" data-keys="copy plain text format strip clipboard cmd-alt-c shortcut">
-  <div class="num">4h</div>
+  <div class="num">11</div>
   <div>
     <h3>Copy without formatting</h3>
     <p class="why">When you copy from a rich source, Duo's "Copy as Plain Text" gives you just the text — no markdown marks, no HTML tags, no bold/italic. Pastes cleanly into terminals, plain-text fields, anywhere you don't want formatting following along.</p>
@@ -196,7 +196,7 @@
 </article>
 
 <article class="item" data-keys="html canvas render edit duo open">
-  <div class="num">5</div>
+  <div class="num">12</div>
   <div>
     <h3>Edit an HTML file as a live canvas</h3>
     <p class="why">Open any <code>.html</code> file as a rendered, editable canvas — what you see is what gets saved. Same toolbar as the markdown editor, plus markdown shortcuts on typing.</p>
@@ -205,7 +205,7 @@
 </article>
 
 <article class="item" data-keys="new file create blank">
-  <div class="num">6</div>
+  <div class="num">13</div>
   <div>
     <h3>Create a new file</h3>
     <p class="why">Make a new markdown file or HTML canvas from a filename interstitial — type the name, hit Enter, start typing.</p>
@@ -214,7 +214,7 @@
 </article>
 
 <article class="item" data-keys="comment thread reply resolve canvas html markdown editor cmd alt m option-m google-docs right click toolbar bidirectional decoration anchor sidecar duo-json reopen rail rail-click body-click visual-association data-duo-has-comment data-duo-comment-active commentmark tiptap missing-001 stage 14a">
-  <div class="num">7</div>
+  <div class="num">14</div>
   <div>
     <h3>Add comments to a document — markdown editor or HTML canvas</h3>
     <p class="why">Both surfaces have the same comment UX. Select text, then any of: press <code>⌘⌥M</code> (Google Docs parity), right-click and pick "Comment", or click the 💬 button on the toolbar. <strong>Markdown comments persist inline as CriticMarkup</strong> (<code>{==anchor==}{&gt;&gt;id|author|ts|body&lt;&lt;}</code>) so they travel with the file — visible to the agent, git-diffable, no sidecar needed. HTML canvas still uses a sidecar. The commented text shows a soft orange highlight. Click rail thread → anchor strengthens; click anchored text → rail thread focuses. Resolve a thread and the body highlight disappears. <strong>v0.7.3:</strong> comments + tracked changes now share a single annotation rail with items interleaved by document position (was two rails side-by-side eating ~560px of width). Replies to existing threads no longer need <code>--anchor</code> — pass <code>--reply-to &lt;c-id&gt;</code> alone and the body lands inside the parent's thread.</p>
@@ -223,7 +223,7 @@
 </article>
 
 <article class="item" data-keys="just-added highlight wash agent edit yellow fade">
-  <div class="num">8</div>
+  <div class="num">15</div>
   <div>
     <h3>See what the agent just changed</h3>
     <p class="why">When Claude pushes an edit (markdown editor or HTML canvas), the changed region paints yellow and fades to transparent over ~6 seconds. Reopening a file within the freshness window repaints recent edits — useful for catching up on background agent work.</p>
@@ -232,7 +232,7 @@
 </article>
 
 <article class="item" data-keys="overwrite save warn dirty agent">
-  <div class="num">9</div>
+  <div class="num">16</div>
   <div>
     <h3>Get warned before an agent overwrites your unsaved edits</h3>
     <p class="why">If you have unsaved changes and the agent tries to write the same file, a banner appears with a preview of the agent's intended write and Apply / Decline buttons. Decline returns an error to the agent saying you declined.</p>
@@ -241,7 +241,7 @@
 </article>
 
 <article class="item" data-keys="paste image cmd v drag drop screenshot saveImageBeside enh-108 followup-014 markdown editor canvas blob url relative path png jpg gif webp svg duo image insert cli verb portable across machines reload survives duoimage nodeview imagehydrate serializer">
-  <div class="num">10</div>
+  <div class="num">17</div>
   <div>
     <h3>Paste an image into a markdown doc or canvas — portable across machines</h3>
     <p class="why">⌘V or drag-drop an image into the markdown editor or HTML canvas — Duo saves it alongside the active doc as <code>image-&lt;YYYYMMDD-HHMMSS&gt;-&lt;hash&gt;.&lt;ext&gt;</code> and inserts it inline. Supported: PNG, JPG, GIF, WEBP, SVG, BMP, TIFF. Pre-v0.6.10 you had to save-to-Desktop → drag-to-Finder → markdown-link-by-hand. Pre-v0.6.11 the markdown source carried <code>![](blob:...)</code> URLs that died on doc reload. <strong>v0.6.11+:</strong> the source carries <code>![](image-&lt;stamp&gt;.png)</code> (relative filename) and a NodeView resolves the path at mount time — files survive reload, git commit, copying to another machine. Untitled buffers warn-and-decline (save the doc first so we know where to put the image).</p>
@@ -250,7 +250,7 @@
 </article>
 
 <article class="item" data-keys="image viewer toolbar zoom fit actual-size copy enh-111 png jpg gif webp svg dimensions readout file size context menu reveal finder">
-  <div class="num">11</div>
+  <div class="num">18</div>
   <div>
     <h3>View images with a real toolbar</h3>
     <p class="why">Open any image (PNG, JPG, GIF, WEBP, SVG) in the working pane and you get a toolbar over the image area: zoom in/out (+/−, ⌘/⌃-wheel), click-toggle fit/manual, fit-to-window, 1:1 actual size, copy-image, dimensions + file-size readout (e.g. "1440 × 900 · 312 KB"). Drag to pan when zoomed past the container.</p>
@@ -259,7 +259,7 @@
 </article>
 
 <article class="item" data-keys="view source raw markdown html cmd opt v enh-117 followup-015 panel fill modal overlay copy serializer pretty printed read only in-place toggle menu tab right-click">
-  <div class="num">12</div>
+  <div class="num">19</div>
   <div>
     <h3>View raw source for the active editor or canvas (read-only)</h3>
     <p class="why">Sometimes you want to see what's ACTUALLY in the file — markdown source (with frontmatter) for the editor, pretty-printed HTML (with <code>data-duo-id</code> attrs and the canonical attribute order) for the canvas. Useful for verifying what a paste / agent edit / autosave actually wrote, or for grabbing a chunk to share. <strong>v0.6.11</strong> shipped v1 as a centered modal; <strong>v0.6.12+</strong> reshapes it as a panel-fill — the source view replaces the prose / canvas area in the same column / dimensions, with three triggers (chord, View menu entry, tab right-click) all hitting the same toggle.</p>
@@ -268,7 +268,7 @@
 </article>
 
 <article class="item" data-keys="json yaml viewer editor tier 3 collapsible tree react-json-view click edit values codemirror raw text source toggle linter inline error markers gutter dot squiggly underline jsonl har webmanifest yml format discriminator autosave large file fallback revert button parser error humanize hint summary enh-110">
-  <div class="num">13</div>
+  <div class="num">20</div>
   <div>
     <h3>Open a JSON or YAML file as a viewer-editor</h3>
     <p class="why">PMs (and everyone else) deal with API responses, configs, webhook payloads, manifests, docker-compose files. Pre-<strong>v0.6.12</strong> they fell through to the "unknown file" preview. <strong>v0.6.12+</strong> ships a Tier 3 collapsible tree (with click-to-edit values, hover-to-copy, type color-coding) for <code>.json</code> / <code>.jsonl</code> / <code>.har</code> / <code>.webmanifest</code> / <code>.yml</code> / <code>.yaml</code>. Single tab kind for both formats — format implicit from path extension. The toolbar <strong>Edit</strong> button flips to a CodeMirror raw-text editor with JSON/YAML syntax highlighting + inline error markers (red gutter dot + squiggly underline at the parser's position + hover tooltip with the full message). Source-mode <strong>Save</strong> button force-saves + flips back to tree if parse succeeds; invalid input shows a three-layer error banner (friendly summary → pattern-matched hint like <em>"Did you forget a closing &#125;?"</em> → faded raw V8 / js-yaml line-column message). <strong>Revert</strong> button restores the last-saved buffer. Files &gt;1 MB drop to a read-only source-only view (tree render cost is prohibitive at scale). Autosave on debounce (800ms) matching the markdown editor.</p>
@@ -277,7 +277,7 @@
 </article>
 
 <article class="item" data-keys="track changes suggesting mode criticmarkup insertion deletion substitution review reviewer mode toggle pencil icon cmd alt t shortcut author dudgeon">
-  <div class="num">14</div>
+  <div class="num">21</div>
   <div>
     <h3>Suggest changes in a markdown doc (track-changes)</h3>
     <p class="why">Toggle the pencil icon in the toolbar (or press <code>⌘⌥T</code>) to enter Suggesting mode. With Suggesting ON, typing wraps your new text as a CriticMarkup insertion (<code>{++…++}</code>) and Backspace/Delete wraps as a deletion (<code>{--…--}</code>) instead of removing characters. A bulk banner above the body shows "N suggestions · Accept all · Reject all"; the per-suggestion rail on the right has ✓/✗ buttons + All/Mine/Agent/Others filter chips so a reviewer can sweep by author. The mode persists per-doc in the sidecar, so you can leave a file in Suggesting=on for the next session. The agent participates via <code>duo doc insert</code> / <code>duo doc delete</code> / <code>duo doc substitute</code> / <code>duo doc highlight</code> / <code>duo doc accept</code> / <code>duo doc reject</code>; everything round-trips through the same CriticMarkup tokens on disk.</p>
@@ -286,7 +286,7 @@
 </article>
 
 <article class="item" data-keys="frontmatter properties panel yaml metadata title author published collapsible edit raw bug-139">
-  <div class="num">15</div>
+  <div class="num">22</div>
   <div>
     <h3>See and edit YAML frontmatter as Properties</h3>
     <p class="why">Every <code>.md</code> with a frontmatter block shows a Properties panel above the prose. Structured key:value rows render the parsed YAML; click the chevron to collapse (state persists per-doc); click "Edit raw" to flip to a YAML textarea with live parse-error feedback. Files without frontmatter show a "+ Add properties" call-to-action. Closes the architectural gap where the markdown editor used to hide the YAML block entirely.</p>
@@ -298,7 +298,7 @@
 <p class="cat-tagline">An embedded Chromium pane. Tabs, address bar, the same shortcuts you'd expect.</p>
 
 <article class="item" data-keys="browser tab open url web new split-button">
-  <div class="num">10</div>
+  <div class="num">23</div>
   <div>
     <h3>Open a browser tab</h3>
     <p class="why">A real Chromium tab inside Duo. Logged-in sessions persist between launches. Local <code>file://</code> tabs auto-reload when the underlying file mutates (<strong>v0.7.1+</strong>) — so an agent editing a playground via the CLI shows the result without you hitting ⌘R.</p>
@@ -307,7 +307,7 @@
 </article>
 
 <article class="item" data-keys="reopen last closed browser tab restore history">
-  <div class="num">10b</div>
+  <div class="num">24</div>
   <div>
     <h3>Reopen the last-closed browser tab</h3>
     <p class="why">Closed something by accident? Same gesture you use in Chrome.</p>
@@ -316,7 +316,7 @@
 </article>
 
 <article class="item" data-keys="address bar url focus type autocomplete history suggestions">
-  <div class="num">11</div>
+  <div class="num">25</div>
   <div>
     <h3>Jump to the address bar</h3>
     <p class="why">Type a URL or search term without reaching for the mouse. Start typing → suggestions from your visited-history match as you type (sorted by recency × visits).</p>
@@ -325,7 +325,7 @@
 </article>
 
 <article class="item" data-keys="navigation back forward reload browser">
-  <div class="num">12</div>
+  <div class="num">26</div>
   <div>
     <h3>Navigate the browser</h3>
     <p class="why">Back, forward, reload — useful when you're asking Claude to drive a multi-step web task.</p>
@@ -334,7 +334,7 @@
 </article>
 
 <article class="item" data-keys="external link default browser open shell">
-  <div class="num">13</div>
+  <div class="num">27</div>
   <div>
     <h3>Open a link in your real browser</h3>
     <p class="why">Off-host or work-restricted URLs (SSO, internal sites, bookmarks-only) belong in your default browser, not Duo's embedded Chromium. Duo will route them out automatically when the domain is on the external list.</p>
@@ -343,7 +343,7 @@
 </article>
 
 <article class="item" data-keys="find in page browser cmd-f search highlight match count next previous">
-  <div class="num">13b</div>
+  <div class="num">28</div>
   <div>
     <h3>Find text on the current page</h3>
     <p class="why">⌘F opens a find bar above the address row when the browser pane is active. Matches highlight on the page; the bar shows "n/m" so you know where you are. Enter or ⌘G goes to the next match; ⇧Enter or ⌘⇧F goes back. ⎋ closes and clears highlights.</p>
@@ -352,7 +352,7 @@
 </article>
 
 <article class="item" data-keys="inspect mode element pick hover freeze enh-159 cmd shift c command-shift-c devtools-parity ship-and-exit pill anchored frozen three-state machine claude selector outline">
-  <div class="num">13c</div>
+  <div class="num">29</div>
   <div>
     <h3>Inspect an element on the page and send it to Claude</h3>
     <p class="why"><strong>v0.7.0:</strong> ⌘⇧C (or <code>duo inspect</code>) puts the browser pane into element-inspect mode. Hover any element on the page to outline it; click to freeze the selection and pin a "Send → agent" pill anchored to the element. ⌘D (or click the pill) ships the element's snapshot — tag name, computed selector, inner text, attributes, page title — to your active Claude terminal. ESC unfreezes without shipping. Three-state machine: idle → hovering → frozen → ship-and-exit. Same egress as text selection's Send → agent pill.</p>
@@ -361,7 +361,7 @@
 </article>
 
 <article class="item" data-keys="navigate focus existing tab url duplicate switch reuse active enh-175">
-  <div class="num">13d</div>
+  <div class="num">30</div>
   <div>
     <h3>Send Claude to a URL without losing your current tab</h3>
     <p class="why"><strong>v0.7.7:</strong> when an agent runs <code>duo navigate &lt;url&gt;</code>, it opens the URL in a new browser tab or focuses an existing matching one (match strips hash + trailing slash). Your active tab stays where you left it. Useful when Claude is doing a side-investigation and you don't want to lose the docs you were reading. The renderer's address bar keeps its older reuse-active-tab behavior — that's an explicit user override.</p>
@@ -370,7 +370,7 @@
 </article>
 
 <article class="item" data-keys="browser mode local-only filtered unfiltered blocklist enh-178 it policy security default external">
-  <div class="num">13e</div>
+  <div class="num">31</div>
   <div>
     <h3>Switch what the embedded browser is allowed to render</h3>
     <p class="why"><strong>v0.7.8:</strong> Duo's embedded browser ships with three URL-filter modes. <strong>local-only</strong> (new default for fresh installs) only renders <code>file://</code> / <code>localhost</code> / <code>127.0.0.1</code> / <code>[::1]</code>; every other URL pops your system browser. <strong>filtered</strong> preserves the legacy behavior — domains listed in <code>~/.claude/duo/external-domains.json</code> pop the system browser, the rest render in Duo. <strong>unfiltered</strong> is the debug escape hatch — any URL renders inside Duo. Switching to <code>unfiltered</code> requires <code>--i-understand</code> on the CLI to bypass an IT-policy warning, because some enterprise environments restrict agent-driven browsing on the open internet.</p>
@@ -382,7 +382,7 @@
 <p class="cat-tagline">The left column is your workspace. The breadcrumb tells you where you are.</p>
 
 <article class="item" data-keys="file tree navigator browse home folder expand">
-  <div class="num">14</div>
+  <div class="num">32</div>
   <div>
     <h3>Browse files</h3>
     <p class="why">Tree rooted at home, expand-collapse, breadcrumb that takes you up the path.</p>
@@ -391,7 +391,7 @@
 </article>
 
 <article class="item" data-keys="file open click navigator working pane">
-  <div class="num">15</div>
+  <div class="num">33</div>
   <div>
     <h3>Open a file by clicking it</h3>
     <p class="why">Markdown files open as the rich editor, HTML files as the canvas, images and PDFs as previews. The right pane gets a new tab; same file in multiple tabs is fine.</p>
@@ -400,7 +400,7 @@
 </article>
 
 <article class="item" data-keys="reveal file path navigator agent">
-  <div class="num">16</div>
+  <div class="num">34</div>
   <div>
     <h3>Have Claude show you a file in the navigator</h3>
     <p class="why">When the agent finds a relevant file, it can scroll the navigator to that path and select the file — useful when you've asked for "the config that controls X."</p>
@@ -409,7 +409,7 @@
 </article>
 
 <article class="item" data-keys="collapse files rail toggle hide layout navigator project name label">
-  <div class="num">17</div>
+  <div class="num">35</div>
   <div>
     <h3>Collapse the file column to a rail</h3>
     <p class="why">More room for the terminal and the working pane when you don't need to navigate. The collapsed rail shows a folder glyph plus a vertical "Navigator: <em>{project_name}</em>" label so you know which project's tree is hiding behind it (useful when you have multiple Duo windows open). Click the rail to expand. <strong>v0.6.5+</strong></p>
@@ -418,7 +418,7 @@
 </article>
 
 <article class="item" data-keys="navigator selection select highlight file folder finder click deselect prominent obvious">
-  <div class="num">17a</div>
+  <div class="num">36</div>
   <div>
     <h3>See and clear navigator selection easily</h3>
     <p class="why">Selected file or folder rows in the navigator paint with a stronger accent fill plus heavier weight (Finder-style — at-a-glance visible). Three ways to clear selection: click the same row again, click any whitespace below the row list, or press Escape. <strong>v0.6.5+</strong></p>
@@ -427,7 +427,7 @@
 </article>
 
 <article class="item" data-keys="finder open with macos default app md html double-click association">
-  <div class="num">17b</div>
+  <div class="num">37</div>
   <div>
     <h3>Open a file from Finder into Duo</h3>
     <p class="why">Duo registers as a macOS Open With candidate for <code>.md</code> and <code>.html</code> files. Right-click any markdown or HTML file in Finder → <strong>Open With</strong> → <strong>Duo</strong>, and the file lands in the working pane via the same smart-routing path as <code>duo open</code> (markdown → editor; HTML → canvas, or browser if its <code>duo-open-in</code> meta says so). Set Duo as the default for an extension via Get Info → Open With → Change All. Cold-start is supported — opening a file from Finder while Duo is closed launches the app and routes the file once the renderer mounts. <strong>v0.6.5+ (signed DMG only)</strong></p>
@@ -436,7 +436,7 @@
 </article>
 
 <article class="item" data-keys="git status ribbon branch dirty ahead behind navigator chip enh-152a peer-repo modified-option-b lucide git-branch icon hover popover">
-  <div class="num">17c</div>
+  <div class="num">38</div>
   <div>
     <h3>See git status at a glance in the Navigator</h3>
     <p class="why"><strong>v0.7.0:</strong> when the Navigator's cwd is inside a git repo, a slim ribbon at the top of the tree shows the branch + dirty / ahead / behind counts (`main · 3 modified · 2 ahead`). Right-click the ribbon for repo-level menu items. When the cwd contains MULTIPLE child folders that are repo roots (e.g. `~/Documents/GitHub` with `duo/`, `figma-cli-skill/`, etc.), each child gets a small right-aligned <code>⎇</code> Lucide git-branch icon — hover the icon to reveal the same chip in a popover below the row. Icon color reflects state: ink-mute (clean), accent (dirty), warn (diverged).</p>
@@ -445,7 +445,7 @@
 </article>
 
 <article class="item" data-keys="dirty dot per-file modified untracked staged deleted renamed unmerged tooltip status-diff enh-152b navigator">
-  <div class="num">17d</div>
+  <div class="num">39</div>
   <div>
     <h3>Dirty-file dots on changed files</h3>
     <p class="why"><strong>v0.7.0:</strong> any file in the Navigator that's dirty per <code>git status</code> gets a small orange dot to the right of its name. Hover the dot for the STATUS-DIFF tooltip — e.g. "Modified · +42 / -7". Refresh is fsevents-driven so dots update within ~150ms of a save (bounded depth, common caches like <code>.next</code> / <code>node_modules</code> ignored). Repo-root folders show their roll-up via the ribbon (item 17c); individual files show their own status.</p>
@@ -454,7 +454,7 @@
 </article>
 
 <article class="item" data-keys="open on github right click context menu copy github url enh-155 enterprise github company">
-  <div class="num">17e</div>
+  <div class="num">40</div>
   <div>
     <h3>Open a file or folder on GitHub from the Navigator</h3>
     <p class="why"><strong>v0.7.0:</strong> right-click any file or folder inside a GitHub-remote repo. Two new menu items: <strong>Open on GitHub</strong> (opens the file's blob page or folder's tree page in your default browser) and <strong>Copy GitHub URL</strong> (clipboard, no browser). Works for github.com AND Enterprise hosts (<code>github.&lt;company&gt;.com</code> auto-detected from the remote URL). Same items show up when right-clicking the git ribbon at the top of the tree.</p>
@@ -463,7 +463,7 @@
 </article>
 
 <article class="item" data-keys="clone github modal file menu cmd shift k command-shift-k repo url owner-repo gh auth probe destination collision pre-flight followup-025 enh-162">
-  <div class="num">17f</div>
+  <div class="num">41</div>
   <div>
     <h3>Clone a GitHub repo from inside Duo</h3>
     <p class="why"><strong>v0.7.0:</strong> File menu → <strong>Clone from GitHub…</strong> opens a modal. Paste a URL (<code>https://github.com/owner/repo</code> or <code>owner/repo</code>) plus a parent directory; the repo name is derived. The Navigator's current cwd is the default parent. Pre-flight collision check fires while you type — if the target folder already exists, an amber warning shows above the inputs with a "Reveal existing folder in Finder" button and the Clone button stays disabled. On success, the Navigator jumps to the new folder. Right-click any folder in the Navigator for "Clone GitHub repo here…" to skip the parent-dir picker.</p>
@@ -472,7 +472,7 @@
 </article>
 
 <article class="item" data-keys="new file folder navigator breadcrumb right-click cmd-n untitled rename inline enh-169">
-  <div class="num">17g</div>
+  <div class="num">42</div>
   <div>
     <h3>Create a new file or folder from the navigator</h3>
     <p class="why"><strong>v0.7.7:</strong> three ways to create a new file or folder without leaving the navigator. Right-click the breadcrumb for <strong>New file here…</strong> / <strong>New folder here…</strong> (uses the right-clicked segment's directory as the default location). File menu has the same two entries (defaults to the currently-focused navigator dir). Or use the chord — <code>⌘N</code> for new file, <code>⌘⇧N</code> for new folder. All three triggers reuse the same flow: inline rename on the new row, validates filename collision, scrolls into view.</p>
@@ -481,7 +481,7 @@
 </article>
 
 <article class="item" data-keys="hidden dotfiles show hide gitignore env config dotfile navigator view menu enh-172">
-  <div class="num">17h</div>
+  <div class="num">43</div>
   <div>
     <h3>Show or hide hidden files (dotfiles)</h3>
     <p class="why"><strong>v0.7.7:</strong> the navigator hides dotfiles (<code>.gitignore</code>, <code>.env</code>, <code>.DS_Store</code>, etc.) by default. Toggle via the View menu's <strong>Show Hidden Files</strong> checkbox, the <code>⌘⇧.</code> chord (Finder convention), or the CLI verb. The <code>.claude</code> and <code>.obsidian</code> directories stay always-visible regardless (Duo + Obsidian-vault workflow needs them).</p>
@@ -490,7 +490,7 @@
 </article>
 
 <article class="item" data-keys="reopen closed tab cmd z undo restore recently closed file browser terminal lifo ring enh-179">
-  <div class="num">17i</div>
+  <div class="num">44</div>
   <div>
     <h3>Reopen the tab you just closed</h3>
     <p class="why"><strong>v0.7.7:</strong> <code>⌘Z</code> reopens the most recently closed tab — works for file tabs (markdown editor / canvas / image / PDF), browser tabs, and terminal tabs. Smart-routed so text undo still wins inside the editor, address bar, dialogs, and the browser pane's own inputs. Bounded to the 10 most recently closed tabs per session.</p>
@@ -499,7 +499,7 @@
 </article>
 
 <article class="item" data-keys="project rail filter focus left bloom quiet pine harbor iris plum rose moss tile claude-md git-repo enh-182">
-  <div class="num">17j</div>
+  <div class="num">45</div>
   <div>
     <h3>See your projects in a left-edge rail</h3>
     <p class="why"><strong>v0.7.10:</strong> a thin left-edge rail surfaces one tile per detected project plus an "All" tile. A folder qualifies as a project when it's a git repo root OR contains <code>CLAUDE.md</code>/<code>.claude/</code> AND you're working in it (at least one terminal cwd or non-pinned tab under it). Tiles render in the locked R1-B "quiet bloom" treatment — paper bg + colored initials + same-hue underline when unfocused. The six hues (pine / harbor / iris / plum / rose / moss) are hash-stable per repo path, so the same project always lights up in the same color. <strong>v0.8.1:</strong> tile labels are now word-aware + collision-free — <code>ai-platform</code> / <code>ai-models</code> / <code>aipm-dashboard</code> / <code>aipm-tools</code> render as <code>AP</code> / <code>AM</code> / <code>AD</code> / <code>AT</code> instead of all collapsing to a duplicate <code>AI</code>. Pure two-phase algorithm (letter-initial ladder, then numeric suffix); see <code>shared/projects.ts § computeProjectAbbreviations</code>.</p>
@@ -508,7 +508,7 @@
 </article>
 
 <article class="item" data-keys="focus project filter hide tabs chip cmd-tab ctrl-tab cycle navigator re-root visible terminals enh-182">
-  <div class="num">17k</div>
+  <div class="num">46</div>
   <div>
     <h3>Focus on one project to hide unrelated tabs</h3>
     <p class="why"><strong>v0.7.10:</strong> click any project tile to focus that project. The tile blooms to full hue + a white left-edge notch; a <code>Focused: &lt;project&gt; ×</code> chip appears in the titlebar. Visibility-only filter: non-member terminal + working tabs disappear from the strips while their PTYs and editor state stay alive in the background. Navigator re-roots to the project root (soft re-root — you can still navigate up/out). Ctrl-Tab cycles only visible terminal tabs. Pinned cross-project tabs (tasks.md, idle-thoughts.md, etc.) stay visible across every focus by design. Click the active tile, the All tile, or the chip × to release.</p>
@@ -517,7 +517,7 @@
 </article>
 
 <article class="item" data-keys="auto-spawn terminal project root focus empty strip lasttabkind enh-182">
-  <div class="num">17l</div>
+  <div class="num">47</div>
   <div>
     <h3>Auto-spawn a terminal when focusing a project with none</h3>
     <p class="why"><strong>v0.7.10:</strong> if you focus on a project that has working tabs but no terminals, Duo automatically spawns a fresh terminal at the project root — kind matches your most recent manual choice (shell or claude). No more empty terminal strip after a project switch. Per-focus-session guard prevents double-spawn on rapid refocus.</p>
@@ -526,7 +526,7 @@
 </article>
 
 <article class="item" data-keys="project rail tile right-click menu pin unpin pinned dot persistent close bulk terminals tabs confirm claude-kind enh-182">
-  <div class="num">17m</div>
+  <div class="num">48</div>
   <div>
     <h3>Pin a project tile + bulk-close from the rail</h3>
     <p class="why"><strong>v0.8.0:</strong> right-click any project tile to manage it. Two items: <strong>Pin to rail</strong> (or Unpin when already pinned) keeps the tile in the rail even after every member tab/terminal closes — useful for projects you re-visit often. Pinned tiles render a small color-matched dot in the top-right corner. <strong>Close N terminals and M tabs</strong> atomically flushes every member tab + terminal in one click; the count is live. When any member terminal is a claude-kind tab, a confirm dialog appears so a misclick doesn't end a live session. The pin set persists in <code>~/.claude/duo/projects.json</code>.</p>
@@ -535,7 +535,7 @@
 </article>
 
 <article class="item" data-keys="project auto-switch focus file open edit different deepest d11 enh-182">
-  <div class="num">17n</div>
+  <div class="num">49</div>
   <div>
     <h3>Open a file from another project → focus auto-switches</h3>
     <p class="why"><strong>v0.8.0:</strong> while focused on one project, opening a file from a different project (via the navigator, <code>duo edit</code>, <code>duo open</code>, ⌘N) auto-switches focus to that file's project. The title-bar focus chip flips, the navigator re-roots, and the visibility filter follows. Reactivating an already-open tab also triggers the switch — the heuristic is "where is the user looking now" not "did a new tab appear."</p>
@@ -544,7 +544,7 @@
 </article>
 
 <article class="item" data-keys="project browser tab file-url filter focus member non-member pinned cross-project http https reference enh-182">
-  <div class="num">17o</div>
+  <div class="num">50</div>
   <div>
     <h3>Browser tabs respect the project focus (file:// only)</h3>
     <p class="why"><strong>v0.8.0:</strong> browser-mode canvas tabs whose URL is a <code>file://</code> path now obey the same focus filter as file editor tabs. Hide a <code>/tmp/test.html</code> tab when you focus the duo project; it reappears in All mode. Non-file URLs (http, https, about, etc.) cross focuses by design — web pages are treated as reference material. Pinned browser tabs (e.g. What Duo Does, the smoke-walk pages) also cross focuses regardless of path.</p>
@@ -553,7 +553,7 @@
 </article>
 
 <article class="item" data-keys="project cli command duo list focus pin unpin close all rail terminal agent enh-182">
-  <div class="num">17p</div>
+  <div class="num">51</div>
   <div>
     <h3>Drive the project rail from the CLI</h3>
     <p class="why"><strong>v0.8.0:</strong> every rail action has a <code>duo project</code> counterpart so agents can drive the focus lens. Name resolution is case-insensitive against unique project names; exact root paths always match.</p>
@@ -568,20 +568,12 @@
   </div>
 </article>
 
-<article class="item" data-keys="workspace pill titlebar passive label file menu defeaturing dropdown disabled enh-184">
-  <div class="num">37c</div>
-  <div>
-    <h3>Workspace pill is a passive label</h3>
-    <p class="why"><strong>v0.8.0:</strong> the title-bar workspace name (next to the macOS traffic lights) is a passive label by default — it shows you which workspace is loaded but clicking it does nothing. All workspace operations route through the File menu (New / Open / Open Recent / Save / Save As). The previous click-to-open-dropdown gesture (ENH-171) lives behind a localStorage flag for users who prefer it.</p>
-    <p class="how"><strong>UI</strong>Use the File menu for workspace ops. <strong>CLI</strong><code>duo workspace-pill-menu on</code> (or off / toggle) to restore the dropdown gesture; <code>duo workspace-pill-menu</code> bare reads current state.</p>
-  </div>
-</article>
 
 <h2 class="cat">Terminal & Claude</h2>
 <p class="cat-tagline">Multiple terminal tabs. Each one knows it's running inside Duo.</p>
 
 <article class="item" data-keys="terminal tab new shell open">
-  <div class="num">18</div>
+  <div class="num">52</div>
   <div>
     <h3>Open a vanilla shell tab</h3>
     <p class="why">A regular zsh / bash session, useful for scripts you don't want Claude in. <strong>v0.8.1:</strong> the new tab inherits the focused terminal's LIVE shell cwd — where you've <code>cd</code>'d to, not where the previous tab launched.</p>
@@ -590,7 +582,7 @@
 </article>
 
 <article class="item" data-keys="terminal paste trailing newline auto execute bracketed paste clipboard chat copy heredoc multi-line bug-094">
-  <div class="num">18b</div>
+  <div class="num">53</div>
   <div>
     <h3>Paste into the terminal without auto-executing</h3>
     <p class="why">When you copy a command from chat or a doc, the source usually appends a trailing newline. Pre-v0.6.7, pasting that into a Duo terminal auto-executed the command before you could read it. Now Duo strips trailing newlines from the clipboard payload (matches Terminal.app's default). Internal newlines stay intact — multi-line paste for Claude Code prompts, heredocs, REPL blocks, and shell scripts still works. <strong>v0.6.7+</strong></p>
@@ -599,7 +591,7 @@
 </article>
 
 <article class="item" data-keys="claude code terminal tab new agent">
-  <div class="num">19</div>
+  <div class="num">54</div>
   <div>
     <h3>Open a Claude tab</h3>
     <p class="why">A new terminal tab that auto-launches Claude Code (when <code>claude</code> is on your PATH). Title shows <code>claude · &lt;basename&gt;</code> until the REPL detects. <strong>v0.8.1:</strong> inherits the focused terminal's LIVE shell cwd (same as the shell variant).</p>
@@ -608,7 +600,7 @@
 </article>
 
 <article class="item" data-keys="terminal tab right click reveal navigator cwd jump enh-115 enh-188 copy cwd close other move left right drag reorder">
-  <div class="num">19b</div>
+  <div class="num">55</div>
   <div>
     <h3>Right-click a terminal tab → menu of verbs</h3>
     <p class="why">Each terminal tab has its own CWD (set when you spawned it). Right-click any tab in the terminal tab strip to open a menu approaching parity with the canvas-tab menu. <strong>v0.6.10:</strong> <em>Reveal in navigator</em> jumps the file tree to that tab's CWD and surfaces the reveal chip — same flow as the CLI's <code>duo reveal</code>. <strong>v0.8.2:</strong> menu adds <em>Copy cwd</em> (puts the tab's cwd on the clipboard), <em>Move tab left / right</em> (position-gated; edges hide the unavailable direction; also via HTML5 drag-and-drop with an accent insertion cue), <em>Close tab</em> (mirror of the × button), and <em>Close other tabs</em> (closes every visible terminal tab except this one — ⌘Z restores from the closed-tab ring). Under project focus, reorder is scoped to the visible subsequence so hidden tabs keep their absolute slots.</p>
@@ -617,7 +609,7 @@
 </article>
 
 <article class="item" data-keys="claude tab return key submit newline shift option enh-142 enh-127 enh-133">
-  <div class="num">19c</div>
+  <div class="num">56</div>
   <div>
     <h3>Tune the Return key in Claude tabs</h3>
     <p class="why">Inside Claude Code tabs only: by default plain <strong>Return</strong> submits (universal terminal behavior); <strong>Shift+Return</strong> inserts a soft newline (matches Slack / Discord / claude.ai-web). If you want the v0.6.13 behavior where Return inserts a newline and ⌘Return submits, you can flip that pref. Shell tabs are never affected. <strong>v0.6.15+</strong></p>
@@ -626,7 +618,7 @@
 </article>
 
 <article class="item" data-keys="settings menu cmd return claude submit toggle bug-154 enh-170 v2 shell tab claudepresence">
-  <div class="num">19d</div>
+  <div class="num">57</div>
   <div>
     <h3>Toggle ⌘Return for Claude submit from the Settings menu</h3>
     <p class="why"><strong>v0.7.7:</strong> the new top-level <strong>Settings</strong> menu (between Edit and View) carries one item: <strong>⌘Return for Claude submit</strong>. Click to toggle. When checked, plain Return inserts a newline and ⌘Return submits — same wire as the CLI override above, just visible. Works in any terminal tab running <code>claude</code> (dedicated <code>kind='claude'</code> tabs and shell tabs where you typed <code>claude</code> by hand — broadened in BUG-154).</p>
@@ -635,7 +627,7 @@
 </article>
 
 <article class="item" data-keys="terminal cwd deleted process exited recovery resilience nearest ancestor amber note bug-165">
-  <div class="num">19e</div>
+  <div class="num">58</div>
   <div>
     <h3>Terminal survives when its working directory disappears</h3>
     <p class="why"><strong>v0.8.1:</strong> if the folder a terminal is spawned in gets deleted (you <code>rm -rf</code> the repo, <code>git checkout</code> a branch without that path, or another tab cleans the directory), the shell no longer dies as <code>[process exited]</code>. Duo walks up to the nearest surviving ancestor, spawns the shell there, and prints a one-line amber notice — <code>[duo] /path/no-longer-exists no longer exists — opened /path instead.</code> — above the first prompt so you know why the cwd jumped. The substituted cwd persists to the tab so future restarts don't re-fail.</p>
@@ -644,7 +636,7 @@
 </article>
 
 <article class="item" data-keys="cycle terminal tabs ctrl tab keyboard">
-  <div class="num">20</div>
+  <div class="num">59</div>
   <div>
     <h3>Cycle terminal tabs from the keyboard</h3>
     <p class="why">Move between active conversations without reaching for the mouse.</p>
@@ -653,7 +645,7 @@
 </article>
 
 <article class="item" data-keys="env duo session detect environment">
-  <div class="num">21</div>
+  <div class="num">60</div>
   <div>
     <h3>Let Claude detect it's running inside Duo</h3>
     <p class="why">Every terminal Duo spawns gets <code>DUO_SESSION</code>, <code>DUO_SOCKET</code>, <code>DUO_VERSION</code>, and <code>TERM_PROGRAM=Duo</code> in its environment. Claude (or any tool) can branch on these to enable Duo-specific behavior.</p>
@@ -665,7 +657,7 @@
 <p class="cat-tagline">Get a quote, an excerpt, or a selection from any pane into the conversation with Claude.</p>
 
 <article class="item" data-keys="send duo selection pill quote excerpt claude-presence gating">
-  <div class="num">22</div>
+  <div class="num">61</div>
   <div>
     <h3>Send a selection to your active terminal</h3>
     <p class="why">Highlight text in the markdown editor, the browser pane, or the HTML canvas — a "Send → agent" pill appears. Click it; the selection lands in your active terminal as quoted text with a path / URL trail so Claude knows where it came from. <strong>v0.5.1+:</strong> the pill only shows when your front terminal has Claude actually running; if you're at a shell prompt the pill stays hidden so you don't accidentally pipe text into a non-Claude session. <strong>v0.7.0:</strong> renamed from "Send → Duo" — generic across whichever agent is in your active terminal (Claude / Codex / etc.).</p>
@@ -674,7 +666,7 @@
 </article>
 
 <article class="item" data-keys="selection format quote literal token agent">
-  <div class="num">23</div>
+  <div class="num">62</div>
   <div>
     <h3>Choose how the agent receives your selection</h3>
     <p class="why">Three formats: provenance + quote (default), literal text only, or an opaque token Claude can dereference. Agents preferring small payloads use the token form and look up the full text via <code>duo selection</code>.</p>
@@ -683,7 +675,7 @@
 </article>
 
 <article class="item" data-keys="selection get current text pane query agent">
-  <div class="num">24</div>
+  <div class="num">63</div>
   <div>
     <h3>Have Claude read your current selection</h3>
     <p class="why">Whatever's selected in any pane — markdown editor, browser, canvas — comes back as JSON: text, surrounding context, anchor (for canvas), URL or path. Used by the agent to answer "summarize what I'm looking at."</p>
@@ -695,7 +687,7 @@
 <p class="cat-tagline">The CLI that lets Claude read and write your live HTML files structurally.</p>
 
 <article class="item" data-keys="duo html query selector dom inspect">
-  <div class="num">25</div>
+  <div class="num">64</div>
   <div>
     <h3>Query the canvas DOM</h3>
     <p class="why">Ask Claude to find elements by CSS selector or by their stable <code>data-duo-id</code> — returns count, sample text, and structural info. Useful for "how many h2s are in this document?"</p>
@@ -704,7 +696,7 @@
 </article>
 
 <article class="item" data-keys="duo html set replace text content edit agent">
-  <div class="num">26</div>
+  <div class="num">65</div>
   <div>
     <h3>Have Claude rewrite a section</h3>
     <p class="why">Replace the inner HTML of a specific element by stable ID. Yellow wash highlights the change; the warn-before-overwrite banner appears if you have unsaved edits.</p>
@@ -713,7 +705,7 @@
 </article>
 
 <article class="item" data-keys="duo html append add insert canvas agent">
-  <div class="num">27</div>
+  <div class="num">66</div>
   <div>
     <h3>Have Claude append content</h3>
     <p class="why">Add new HTML inside an existing element without replacing what's there.</p>
@@ -722,7 +714,7 @@
 </article>
 
 <article class="item" data-keys="duo html remove delete element">
-  <div class="num">28</div>
+  <div class="num">67</div>
   <div>
     <h3>Have Claude remove an element</h3>
     <p class="why">Delete an element by ID. No yellow wash because there's nothing to highlight.</p>
@@ -731,7 +723,7 @@
 </article>
 
 <article class="item" data-keys="duo html attr attribute set canvas">
-  <div class="num">29</div>
+  <div class="num">68</div>
   <div>
     <h3>Have Claude change an attribute</h3>
     <p class="why">Set or unset attributes on an element — a class, a data-*, an href.</p>
@@ -740,7 +732,7 @@
 </article>
 
 <article class="item" data-keys="duo html comments list anchor sidebar agent">
-  <div class="num">30</div>
+  <div class="num">69</div>
   <div>
     <h3>Have Claude leave or list comments</h3>
     <p class="why">Claude can leave a comment anchored to any element (resolved by ID, by selector, or by surrounding text). Or list every thread on the page, filtered by status.</p>
@@ -749,7 +741,7 @@
 </article>
 
 <article class="item" data-keys="duo html click button canvas press tap fly-through harness lesson preview agent walk validate">
-  <div class="num">30b</div>
+  <div class="num">70</div>
   <div>
     <h3>Have Claude click a canvas button</h3>
     <p class="why">Synthesizes a click on any canvas element by ID or CSS selector. The element fires its own click handler — which may emit a <code>data-duo-action</code> event, may invoke an in-page handler, or may do nothing. Used by the lesson fly-through harness to walk every step of a lesson without manual interaction. Read-only op (doesn't generate a <code>recentEdits</code> entry). Pairs with <code>duo events --follow --since</code>: agent subscribes to the lesson's event stream, clicks the next-step button as each <code>step:N-done</code> event fires, advances through the lesson autonomously.</p>
@@ -758,7 +750,7 @@
 </article>
 
 <article class="item" data-keys="playground actions browser pane data-duo-action duo:event live event window.duoplaygroundaction smoke walk worksheet runtime injection cdp file:// browser tab interactive">
-  <div class="num">30c</div>
+  <div class="num">71</div>
   <div>
     <h3>Live events from browser-pane pages</h3>
     <p class="why">Agent-emitted HTML pages opened in Duo's browser pane (smoke walks, sprint plans, retros, custom dashboards) can fire <code>data-duo-action</code> events that Claude sees live via <code>duo events --follow</code> — same vocabulary that's worked in canvas iframes since Stage 23. Click a PASS / FAIL / SKIP radio in a smoke walk, Claude sees the answer in real time; no copy/paste round-trip. Inline JS in the page can also call <code>window.duoPlaygroundAction(jsonBundle)</code> directly to fire structured actions on <code>change</code> / <code>input</code> / <code>blur</code> events that don't fit the click-driven contract. The runtime is injected on every <code>file://</code> page Duo opens; arbitrary http(s) sites stay inert. <strong>v0.6.6+</strong></p>
@@ -770,7 +762,7 @@
 <p class="cat-tagline">A specialized Haiku-powered agent for mechanical Duo work, so Claude doesn't burn its working memory on plumbing.</p>
 
 <article class="item" data-keys="subagent duo haiku claude code skill agent">
-  <div class="num">31</div>
+  <div class="num">72</div>
   <div>
     <h3>Hand off mechanical work to the Duo subagent</h3>
     <p class="why">Tasks like "find the section in this page that mentions X" or "summarize what's selected in the browser" route to a smaller, faster Haiku-powered agent with a bounded context and a Duo-specific prompt. Triggered automatically by Claude Code when the task fits.</p>
@@ -782,7 +774,7 @@
 <p class="cat-tagline">Atelier visual identity — paper-cream surfaces, warm ochre accents, light by default.</p>
 
 <article class="item" data-keys="pane size split divider preset terminal heavy canvas heavy 50 67 33 even 3way 33-33-33 keyboard shortcut layout resize enh-099">
-  <div class="num">51</div>
+  <div class="num">73</div>
   <div>
     <h3>Snap pane sizes (terminal vs canvas)</h3>
     <p class="why">Drag the divider between the terminal column and the working pane to resize, or pick a preset. Range is 20–80% terminal column. Useful when you want to focus reading (canvas-heavy) vs typing (terminal-heavy) without fiddling.</p>
@@ -791,7 +783,7 @@
 </article>
 
 <article class="item" data-keys="auto redistribute panes split open enh-126 33 33 33 50 50 even distribute terminal collapsed canonical layout">
-  <div class="num">51b</div>
+  <div class="num">74</div>
   <div>
     <h3>Opening a file in split view auto-redistributes the panes</h3>
     <p class="why">Pre-v0.6.11, opening a file in split view kept whatever asymmetric divider position you'd last dragged — annoying when you wanted to see both files clearly. <strong>v0.6.11+:</strong> opening a file in split view (any trigger — chord, right-click "Move to Split View," <code>duo split-view open</code>) auto-snaps the columns to the canonical even shape: terminal-visible → ~33/33/33; terminal-collapsed → main+split 50/50. The on-demand sibling for already-open splits is the <code>⌘⌥4</code> chord above.</p>
@@ -800,7 +792,7 @@
 </article>
 
 <article class="item" data-keys="collapse pane button rail terminal canvas hide show full width discovery">
-  <div class="num">52</div>
+  <div class="num">75</div>
   <div>
     <h3>Collapse a pane all the way (terminal or canvas)</h3>
     <p class="why">Two buttons in the titlebar (next to the theme toggle) hide the terminal column or the canvas (right pane) all the way. The collapsed slot becomes a clickable 36px vertical bar with a glyph + serif-italic "terminal" / "canvas" label. Click the bar to restore — Duo remembers your previous split percentage so you don't snap back to 50/50. Distinct from the <code>duo split</code> presets above (which clamp to 20–80%); this is "hide entirely + restore on demand."</p>
@@ -809,7 +801,7 @@
 </article>
 
 <article class="item" data-keys="tab reorder drag rearrange move tab left right pinned working pane menu context">
-  <div class="num">53</div>
+  <div class="num">76</div>
   <div>
     <h3>Reorder tabs in the working pane</h3>
     <p class="why">Drag a tab horizontally onto another to swap positions, or right-click any tab → "Move tab left" / "Move tab right" for keyboard-friendly access. Pinned tabs stay leftmost (cross-zone drags silently rejected); the menu hides options at zone edges so you can't try to move a tab right when it's already rightmost.</p>
@@ -818,7 +810,7 @@
 </article>
 
 <article class="item" data-keys="line numbers markdown editor toggle gutter # hash counter prosemirror block">
-  <div class="num">54</div>
+  <div class="num">77</div>
   <div>
     <h3>Toggle line numbers in the markdown editor</h3>
     <p class="why">Small <code>#</code> button in the bottom-left of the editor scroll-host. Click to render line numbers in the left gutter; click again to hide. Counts top-level blocks (paragraphs, headings, list items, blockquotes), one number per block — wrapped paragraphs count as one. Persists per-user across sessions; the same setting applies to every markdown tab.</p>
@@ -827,7 +819,7 @@
 </article>
 
 <article class="item" data-keys="duo open smart routing markdown md html browser editor file:// path">
-  <div class="num">55</div>
+  <div class="num">78</div>
   <div>
     <h3>Smart <code>duo open</code> for local files</h3>
     <p class="why"><code>duo open ~/path/to/file.md</code> opens in the markdown editor. HTML files open in the browser pane by default (was: gated on <code>&lt;meta duo-open-in&gt;</code> in v0.6.x; <strong>v0.7.0:</strong> verb-driven). Web URLs (http/https) unchanged. The CLI response includes a <code>routedTo</code> field (<code>"editor"</code> or <code>"browser"</code>) so agents know where the file landed. <strong>v0.7.0:</strong> when the target file doesn't exist, returns <code>{ok:false, error:"File not found: ..."}</code> instead of opening a blank tab.</p>
@@ -836,7 +828,7 @@
 </article>
 
 <article class="item" data-keys="duo edit open canvas html source view modify enh-156 verb-driven routing">
-  <div class="num">55b</div>
+  <div class="num">79</div>
   <div>
     <h3>Edit HTML source in canvas mode with <code>duo edit</code></h3>
     <p class="why"><code>duo open foo.html</code> shows the rendered page in the browser pane (scripts run, buttons fire, you interact with the result). <code>duo edit foo.html</code> opens the SAME file in canvas mode (source-editable, scripts blocked, buttons render but clicks place a cursor) so you can modify the HTML. New in v0.7.0 (ENH-156) — the verb decides surface, not a meta tag.</p>
@@ -845,7 +837,7 @@
 </article>
 
 <article class="item" data-keys="split view side by side aux split-view two files canvas right pane companion ⌘\\ ⌘backslash divider drag promote close swap">
-  <div class="num">56</div>
+  <div class="num">80</div>
   <div>
     <h3>Open two files side-by-side in Split View</h3>
     <p class="why">The canvas (right pane) can host a "main" file on the left and an "aux" file on the right. Useful for reading a spec next to its implementation, comparing two drafts, or keeping a smoke-walk page visible while you exercise the file it references. Drag the divider to resize (clamped 20–80%); double-click resets to 50/50. State persists across launch — relaunch Duo and the split is restored. Single-source-of-truth: a file can only be in one pane at a time. <strong>v0.6.5+</strong></p>
@@ -855,7 +847,7 @@
 </article>
 
 <article class="item" data-keys="split view browser tab phase 3c bug-092 worksheet smoke walk dashboard scripted page chromium webcontentsview aux open-browser duo-split-view-open-browser real script execution copy buttons live-event">
-  <div class="num">56b</div>
+  <div class="num">81</div>
   <div>
     <h3>Pin a browser tab to Split View (worksheet next to its target)</h3>
     <p class="why">A browser tab — worksheet, smoke walk, dashboard, any scripted page — can be moved to the Split View aux slot AND stay in a real Chromium tab. Scripts run, Copy buttons work, live <code>duo:event</code> emission still works. Pre-v0.6.7, moving a worksheet to split silently routed it through a script-blocked canvas iframe; that path is gone. <strong>v0.6.7+</strong></p>
@@ -864,7 +856,7 @@
 </article>
 
 <article class="item" data-keys="split view dirty unsaved swap dialog discard cancel data loss aux promote main">
-  <div class="num">57</div>
+  <div class="num">82</div>
   <div>
     <h3>Get a confirm before Split View swaps a dirty aux back to main</h3>
     <p class="why">When the aux pane is showing a file with unsaved edits and you (or the agent) try to open a different file in aux, Duo fires a native macOS confirm dialog: <strong>Cancel</strong> (default — preserves the current state) or <strong>Discard changes</strong> (proceeds with the swap, losing the dirty file's unsaved edits during the pane move). v1 has no Save button — save the file manually first if you want to keep the work. Clean aux files swap silently with no dialog. The dialog fires on swaps; the explicit ✕ "discard split entirely" gesture skips the dialog (you opted in to the discard with the click). <strong>v0.6.5+</strong></p>
@@ -873,7 +865,7 @@
 </article>
 
 <article class="item" data-keys="theme system light dark mode appearance">
-  <div class="num">32</div>
+  <div class="num">83</div>
   <div>
     <h3>Switch theme</h3>
     <p class="why">System (follows OS), light, or dark. The theme button is top-right.</p>
@@ -882,7 +874,7 @@
 </article>
 
 <article class="item" data-keys="cozy mode terminal paper canvas typography">
-  <div class="num">33</div>
+  <div class="num">84</div>
   <div>
     <h3>Cozy terminal mode</h3>
     <p class="why">Flips the terminal from dark inky background to paper canvas — quieter for long reading sessions in markdown-heavy work.</p>
@@ -894,7 +886,7 @@
 <p class="cat-tagline">A few things Claude knows about Duo that humans rarely need to invoke directly.</p>
 
 <article class="item" data-keys="duo cli list verbs help command discovery">
-  <div class="num">34</div>
+  <div class="num">85</div>
   <div>
     <h3>Discover every <code>duo</code> verb</h3>
     <p class="why">Full command reference — useful if you're asking Claude "what can duo do that we haven't tried yet?"</p>
@@ -903,7 +895,7 @@
 </article>
 
 <article class="item" data-keys="duo tabs list tab number switch">
-  <div class="num">35</div>
+  <div class="num">86</div>
   <div>
     <h3>Have Claude switch between tabs</h3>
     <p class="why">Claude can list all tabs (mixed terminal / browser / file types) and switch the active one.</p>
@@ -912,7 +904,7 @@
 </article>
 
 <article class="item" data-keys="duo send text type terminal pty agent">
-  <div class="num">36</div>
+  <div class="num">87</div>
   <div>
     <h3>Have Claude type into a terminal</h3>
     <p class="why">The agent can write text into the active PTY — useful for Claude-spawning-Claude flows or for handing a command to the user to inspect before running.</p>
@@ -921,7 +913,7 @@
 </article>
 
 <article class="item" data-keys="duo key shortcut keystroke send press">
-  <div class="num">37</div>
+  <div class="num">88</div>
   <div>
     <h3>Have Claude press a key</h3>
     <p class="why">Send a single keystroke (with optional modifiers) to the focused pane — useful for triggering shortcuts the agent doesn't have a verb for.</p>
@@ -930,7 +922,7 @@
 </article>
 
 <article class="item" data-keys="doctor health diagnostic sandbox claude code seatbelt tcp fallback transport unix socket capital one enterprise version">
-  <div class="num">37a</div>
+  <div class="num">89</div>
   <div>
     <h3>Diagnose why <code>duo</code> commands are failing</h3>
     <p class="why">When a <code>duo</code> call fails inside Claude Code, the most common cause is the macOS Seatbelt sandbox blocking Unix-domain sockets — the bridge Duo uses by default. <code>duo doctor</code> probes both transports (Unix socket + TCP fallback), reports app/CLI version match, <code>$DUO_SESSION</code> presence, install-path discovery, and skill/agent-file presence. When the Unix socket is blocked but TCP works, it prints a clear "Claude Code sandbox detected (Unix socket blocked) — using TCP fallback" line so the failure mode is named instead of inferred. The sandbox-tolerant TCP fallback ships in v0.4.1; runs transparently without configuration.</p>
@@ -942,7 +934,7 @@
 <p class="cat-tagline">Pin tabs you want always-available; install Duo's skill + agent + CLI in one click.</p>
 
 <article class="item" data-keys="pin tab pinned right click context menu unpin">
-  <div class="num">38</div>
+  <div class="num">90</div>
   <div>
     <h3>Pin a working-pane tab so it stays put</h3>
     <p class="why">Right-click any tab in the right pane (browser, markdown editor, HTML canvas, image, PDF, preview) → Pin. Pinned tabs render with a pin glyph, sort to leftmost in the strip, and gate <code>⌘W</code> behind a confirm modal so you don't dismiss them by reflex. Pin survives Duo restarts (stored at <code>~/.claude/duo/pins.json</code>; matched by URL for browser tabs, by absolute path for file tabs).</p>
@@ -951,7 +943,7 @@
 </article>
 
 <article class="item" data-keys="install banner first launch welcome skill agent path setup add-to-path zshrc bash_profile fish">
-  <div class="num">39</div>
+  <div class="num">91</div>
   <div>
     <h3>Install the skill + subagent + CLI in one click</h3>
     <p class="why">On first launch (and after upgrades), a welcome banner appears at the top of Duo. Click <strong>Install</strong> — it copies the skill to <code>~/.claude/skills/duo/</code>, the subagent to <code>~/.claude/agents/duo.md</code>, the help files to <code>~/.claude/duo/help/</code>, and the <code>duo</code> CLI binary to <code>~/.local/bin/duo</code>. Bootstraps <code>~/.claude/duo/external-domains.json</code> + <code>~/.claude/duo/priming.md</code> if absent (never clobbered) and writes <code>installed.json</code> with the version. v0.3.0 also installs a load-bearing <code>~/.claude/duo/bin/claude</code> shim and a <code>SessionStart</code> hook so claude sessions inside Duo arrive Duo-aware. If <code>~/.local/bin</code> isn't on your shell <code>$PATH</code>, the success banner now shows an <strong>Add to PATH</strong> button — one click appends a fenced <code>export PATH</code> block to your <code>~/.zshrc</code> (or <code>~/.bash_profile</code> / <code>~/.config/fish/config.fish</code>) so <code>duo</code> works from external Terminal/iTerm too. Idempotent — re-runs detect the fence and skip.</p>
@@ -960,7 +952,7 @@
 </article>
 
 <article class="item" data-keys="claude priming context aware shim hook duo-session passive ambient">
-  <div class="num">40</div>
+  <div class="num">92</div>
   <div>
     <h3>Claude sessions inside Duo arrive Duo-aware</h3>
     <p class="why">Every <code>claude</code> session you launch from a Duo terminal starts with knowledge of the workspace it's running in — the <code>duo</code> CLI verbs available, the file tree, the embedded browser, the canvas, the active selection. The agent can prefer <code>duo view</code> over <code>cat</code>, <code>duo selection</code> over scrolling for context, etc. without you typing a primer. Implementation: a PATH shim at <code>~/.claude/duo/bin/claude</code> (installed at first launch) wraps the real binary with <code>--append-system-prompt "$(cat ~/.claude/duo/priming.md)"</code> when <code>$DUO_SESSION</code> is set; a <code>SessionStart</code> hook in <code>~/.claude/settings.json</code> backs it up. Edit <code>priming.md</code> to customize.</p>
@@ -969,7 +961,7 @@
 </article>
 
 <article class="item" data-keys="claude session resume pick up where left off s1 s3 enh-183 workspace switch restore offer pills prior sessions list">
-  <div class="num">40c</div>
+  <div class="num">93</div>
   <div>
     <h3>Pick up where you left off — resume prior Claude sessions</h3>
     <p class="why"><strong>v0.7.9+</strong> Two affordances surface prior Claude sessions in the cwd so you don't have to remember <code>claude --resume &lt;uuid&gt;</code>. <strong>Resume pills (S1):</strong> when you open a fresh shell tab in a folder that has prior Claude sessions on disk, Duo shows a vertical list above the prompt — `Resume previous session` followed by 3 most-recent rows with title + message count + relative time, plus a `show all` link if more exist. Click a row to restore that session. <strong>Restore offer (S3):</strong> when you switch workspaces and a tab that previously hosted Claude reattaches, Duo paints a banner above its xterm — `⏪ This tab had: &lt;title&gt; — [Resume] ×`. Click Resume to fire `claude --resume &lt;uuid&gt;` in the tab. Click × to dismiss for this tab + this Duo run (in-memory only — next workspace restore brings it back). Both surfaces use the D5 read ladder for titles: prefer `customTitle` (you typed `/rename`) over `aiTitle` (Haiku's summary) over first-prompt fallback. Live Claude tabs themselves show no banner — Claude Code's own `✳ &lt;title&gt;` tab title already conveys session identity.</p>
@@ -978,7 +970,7 @@
 </article>
 
 <article class="item" data-keys="workspace save open recent .duo-workspace file menu enh-167 named workspaces bookmark tabs terminals reset new pinned">
-  <div class="num">37a</div>
+  <div class="num">94</div>
   <div>
     <h3>Save your workspace as a file you can re-open later</h3>
     <p class="why"><strong>v0.7.4+</strong> Duo's autosave already persists every open tab and terminal across relaunches — but that's a single rolling state. <strong>Workspace-as-file</strong> lets you bookmark a specific configuration of tabs + terminals + browser pane + splits as a <code>.duo-workspace</code> file you can save anywhere on disk and reopen later. Use it to put down one workspace and pick up another. Title-bar badge shows the loaded workspace's name (right of the macOS traffic lights); blank when untitled. Autosave continues to mirror the active <code>.duo-workspace</code> on every state change, so the file IS the live workspace (not a snapshot of last manual save).</p>
@@ -987,7 +979,7 @@
 </article>
 
 <article class="item" data-keys="new workspace reset live cwd lsof shell terminal pinned tabs survive in-place reset enh-167 v1.1">
-  <div class="num">37b</div>
+  <div class="num">95</div>
   <div>
     <h3>Start a fresh workspace from where you are</h3>
     <p class="why"><strong>v0.7.4+</strong> File &gt; <strong>New Workspace</strong> resets the workspace in-place. When anything is open, it prompts Save / Don't Save / Cancel; on Don't Save, Duo collapses to <strong>one fresh shell terminal at the live CWD</strong> of the previously-frontmost terminal (where you actually <code>cd</code>'d to, not just where the tab spawned), plus any <strong>pinned tabs</strong> (file + browser pins both survive). Active workspace pointer clears, title-bar badge goes blank. Faster than a relaunch (~200ms) and works in dev + packaged builds the same way.</p>
@@ -996,16 +988,24 @@
 </article>
 
 <article class="item" data-keys="workspace switcher dropdown title bar recent workspaces clear enh-171 click open switch">
-  <div class="num">37c</div>
+  <div class="num">96</div>
   <div>
     <h3>Switch workspaces from the title-bar dropdown</h3>
     <p class="why"><strong>v0.7.7:</strong> click the workspace-name badge in the title bar to drop down a switcher. Top of the list: <strong>+ New Workspace</strong> (opens the native Save Workspace As dialog). Below that: your 10 most-recently-opened workspaces (sorted by last-opened-at, missing files silently pruned). At the bottom: <strong>Clear Recent Workspaces</strong>. Click-only for v1 — a chord is queued but the obvious candidates collide with 1Password and other system-level grabs.</p>
     <p class="how"><strong>UI</strong>Click the workspace-name badge in the title bar (right of the macOS traffic lights).</p>
   </div>
 </article>
+<article class="item" data-keys="workspace pill titlebar passive label file menu defeaturing dropdown disabled enh-184">
+  <div class="num">97</div>
+  <div>
+    <h3>Workspace pill is a passive label</h3>
+    <p class="why"><strong>v0.8.0:</strong> the title-bar workspace name (next to the macOS traffic lights) is a passive label by default — it shows you which workspace is loaded but clicking it does nothing. All workspace operations route through the File menu (New / Open / Open Recent / Save / Save As). The previous click-to-open-dropdown gesture (ENH-171) lives behind a localStorage flag for users who prefer it.</p>
+    <p class="how"><strong>UI</strong>Use the File menu for workspace ops. <strong>CLI</strong><code>duo workspace-pill-menu on</code> (or off / toggle) to restore the dropdown gesture; <code>duo workspace-pill-menu</code> bare reads current state.</p>
+  </div>
+</article>
 
 <article class="item" data-keys="claude.md global managed block duo-managed marker hook-independent enterprise non-duo terminal vs code iterm agent worktree session start">
-  <div class="num">40b</div>
+  <div class="num">98</div>
   <div>
     <h3>Claude sessions OUTSIDE Duo also know about Duo</h3>
     <p class="why">A small Duo-awareness block lands in your global <code>~/.claude/CLAUDE.md</code> on first launch. Claude Code reads CLAUDE.md on every session start regardless of which terminal it's running in — Terminal.app, iTerm, VS Code's integrated terminal, agent worktrees not spawned by Duo. The block points at the <code>duo</code> skill, the <code>duo</code> subagent, the sandbox-troubleshooting reference, and the enterprise-deployments reference. Hook-independent — works in enterprise managed Claude Code installs where hooks are policy-disabled. Tagged with a <code>&lt;!-- duo:managed-vX.Y.Z --&gt;</code> marker; subsequent installs version-replace the block in place without touching your other content. Removable — once you delete the block, future installs respect that and never re-add. <strong>v0.6.6+</strong></p>
@@ -1014,7 +1014,7 @@
 </article>
 
 <article class="item" data-keys="canvas action data-duo-action interactive html claude spawn terminal send browser open quiz lesson dashboard">
-  <div class="num">41</div>
+  <div class="num">99</div>
   <div>
     <h3>Canvas pages can drive the workspace (data-duo-action)</h3>
     <p class="why">Add <code>data-duo-action="claude:spawn"</code>, <code>"terminal:send"</code>, or <code>"browser:open"</code> to any clickable element in an HTML canvas; clicking it dispatches the action through Duo's renderer. <code>claude:spawn</code> opens a new Claude tab (optionally with <code>data-cwd</code> + <code>data-cmd</code>); <code>terminal:send</code> writes <code>data-text</code> into the active PTY (with optional <code>data-enter="true"</code> to submit on the user's behalf); <code>browser:open</code> navigates a new browser tab to <code>data-url</code>. Trust gate v1: actions fire only on canvases under <code>~/.claude/duo/</code>. Patterns: quiz with bidirectional Claude↔HTML loop, lesson runner with "next section" buttons, dashboard with starting-point links.</p>
@@ -1023,7 +1023,7 @@
 </article>
 
 <article class="item" data-keys="duo send enter newline submit autocomplete agent return key">
-  <div class="num">42</div>
+  <div class="num">100</div>
   <div>
     <h3>Submit a payload to the terminal on user's behalf with <code>--enter</code></h3>
     <p class="why"><code>duo send --text "…"</code> writes payload at the active terminal's PTY but doesn't press Enter — the user confirms. <code>duo send --text "…" --enter</code> appends a newline so the command runs immediately. Pairs with the canvas <code>data-duo-action="terminal:send" data-enter="true"</code> attribute for the bidirectional Claude↔HTML loop pattern. Use sparingly to plant context for the user; never to issue prompts on their behalf.</p>
@@ -1032,7 +1032,7 @@
 </article>
 
 <article class="item" data-keys="paste plain text shift v match style clipboard">
-  <div class="num">43</div>
+  <div class="num">101</div>
   <div>
     <h3>Paste as plain text with <code>⌘⇧V</code></h3>
     <p class="why">macOS-standard "Paste and Match Style" works in both editors (markdown + HTML canvas). Reads <code>text/plain</code> from the clipboard and inserts without HTML formatting — useful when copying from Google Docs / web pages where the source styles would clash with the editor's own. Regular <code>⌘V</code> in the HTML canvas additionally scrubs inline color and class attributes from pasted HTML so dark-mode bold pastes inherit the canvas's ink token (closes the dark-mode brown-on-brown bug).</p>
@@ -1041,7 +1041,7 @@
 </article>
 
 <article class="item" data-keys="canvas boilerplate atelier defaults dark mode ids ulid duo html new">
-  <div class="num">44</div>
+  <div class="num">102</div>
   <div>
     <h3>New HTML canvases land with IDs + Atelier defaults baked in</h3>
     <p class="why"><code>duo html new &lt;path.html&gt;</code> (and <code>⌘N</code> + a <code>.html</code> filename) now writes a canvas that's already populated with stable <code>data-duo-id</code> ULIDs on body/h1/p AND an inline Atelier-flavored stylesheet (cream paper, ink-soft body, serif headings, body width cap, dark-mode <code>prefers-color-scheme</code> media query, <code>&lt;meta viewport&gt;</code>). The first-open "Add stable IDs to all elements?" prompt is skipped for these canvases — IDs are already there. Styles are local + editable; delete or rewrite at will.</p>
@@ -1050,7 +1050,7 @@
 </article>
 
 <article class="item" data-keys="pin default pinned faq what duo does first launch ~/.claude/duo/pins.json">
-  <div class="num">45</div>
+  <div class="num">103</div>
   <div>
     <h3>FAQ + "What Duo Does" pin themselves on first install</h3>
     <p class="why">Install bootstraps <code>~/.claude/duo/pins.json</code> with the two help URLs pre-pinned. When you open either tab in the browser pane, it renders with the pin glyph + sorts to leftmost in the strip. Browser-pane default landing now prefers the user-installed copy at <code>~/.claude/duo/help/</code> (which the install service writes from the bundle), so the URL match works. Auto-restore on launch waits for Stage 21c session restore; until then, pins are visual.</p>
@@ -1059,7 +1059,7 @@
 </article>
 
 <article class="item" data-keys="navigator dual-pane your claude settings project context user level pedagogy stage 22">
-  <div class="num">46</div>
+  <div class="num">104</div>
   <div>
     <h3>See Claude's user-level + project-level context at a glance</h3>
     <p class="why">The file navigator now splits into two panes vertically. The top pane "Your Claude settings" shows the curated three at <code>~/.claude/</code> — <code>CLAUDE.md</code>, <code>skills/</code>, <code>agents/</code> — with a "Show all" toggle for the rest of <code>~/.claude/</code>. The bottom pane is the project tree with a new "Project Claude context" group above the regular file list (<code>./CLAUDE.md</code>, <code>./.claude/</code>, <code>./tasks.md</code>, <code>./AGENTS.md</code> when they exist). Visual separation = the pedagogy: see that the agent reads from BOTH buckets without learning dotfile conventions. Click any file to open in the WorkingPane.</p>
@@ -1068,7 +1068,7 @@
 </article>
 
 <article class="item" data-keys="update banner github releases version available auto check upstream">
-  <div class="num">47</div>
+  <div class="num">105</div>
   <div>
     <h3>Auto-detect when a new Duo version is available on GitHub</h3>
     <p class="why">A small banner above the WorkingPane queries <code>api.github.com/repos/dudgeon/duo/releases/latest</code> at boot and surfaces "Duo vX.Y.Z is available" with a one-click link to the GitHub Releases page. Distinct from the local-install reminder (which fires when your installed.json drifts from the running app). Per-version dismissal: skipping v0.4.0's banner stays quiet until v0.4.1 ships. Network failures and rate limits silently skip the banner — no worse than today.</p>
@@ -1077,7 +1077,7 @@
 </article>
 
 <article class="item" data-keys="post-redirect chrome banner external duo open default browser tab system stage 25">
-  <div class="num">48</div>
+  <div class="num">106</div>
   <div>
     <h3>Visible "Sent &lt;host&gt; to your default browser" receipt</h3>
     <p class="why">After <code>duo external &lt;url&gt;</code> routes a URL to your system browser (because the host is on <code>external-domains.json</code>), a small banner appears above the WorkingPane: "Sent <code>&lt;host&gt;</code> to your default browser. ⌘Tab to find it." Auto-dismisses after 6s. Solves the invisible-redirect problem: today the click goes somewhere off-screen and you might wonder if anything happened. Optional per-domain reason text from <code>external-domains.json</code>'s extended schema (entries can be a string OR <code>{host, reason?}</code>).</p>
@@ -1086,7 +1086,7 @@
 </article>
 
 <article class="item" data-keys="capitalone external default off-host system browser cap one corp">
-  <div class="num">49</div>
+  <div class="num">107</div>
   <div>
     <h3>Acme web surfaces auto-route to the system browser by default</h3>
     <p class="why">Install bootstraps <code>~/.claude/duo/external-domains.json</code> with <code>*.capitalone.com</code> seeded — Acme's internal sites (which need the corporate-managed browser for SSO + internal CDN certs) auto-route to the system browser without manual config. Existing customized files are never clobbered.</p>
@@ -1095,7 +1095,7 @@
 </article>
 
 <article class="item" data-keys="edit menu paste match style plain text discoverability">
-  <div class="num">50</div>
+  <div class="num">108</div>
   <div>
     <h3>Edit menu "Paste and Match Style" with ⌘⇧V</h3>
     <p class="why">macOS-standard menu item now lives in the Edit menu, accelerator <code>⌘⇧V</code>. Pastes the clipboard's plain-text representation only — no inline color, no class attributes, no foreign-stylesheet chrome. Both editors (markdown + canvas) handle it; whichever has keyboard focus reacts.</p>
@@ -1104,7 +1104,7 @@
 </article>
 
 <article class="item" data-keys="cmd shift a tab search palette quick switcher fuzzy filter open tabs file browser aux split view enh-080">
-  <div class="num">51</div>
+  <div class="num">109</div>
   <div>
     <h3>⌘⇧A opens a quick-switcher palette over every open tab</h3>
     <p class="why">VS Code / Slack muscle memory. <code>⌘⇧A</code> from anywhere — terminal, editor, browser pane — opens a fuzzy-search palette listing every file tab (markdown editor, canvas, image, pdf) and every browser tab (main + aux). Type to filter, arrow keys navigate, Enter switches focus to the chosen tab, Esc dismisses. Aux tabs render with a small "Split" badge and route back to the aux pane on pick (no main-pane promotion). Covers the case where the strip overflows or you've got a tab buried behind 8 others.</p>
@@ -1113,7 +1113,7 @@
 </article>
 
 <article class="item" data-keys="wikilink obsidian vault page name square brackets cmd click cmd+click navigation .obsidian sidecar enh-096">
-  <div class="num">52</div>
+  <div class="num">110</div>
   <div>
     <h3>Obsidian-style wikilinks render in the markdown editor + cmd+click navigates</h3>
     <p class="why">Type <code>[[Page Name]]</code> in any markdown file and the wikilink renders as an Atelier-styled clickable span (no markdown source rewrite — saves verbatim). Vault detection: Duo walks up from the active file's directory looking for a <code>.obsidian/</code> ancestor; the matching directory is the vault root. Resolver matches name with case-insensitive + space/hyphen normalization (more forgiving than Obsidian itself — <code>[[Other Note]]</code> resolves to <code>other-note.md</code>). Sidecar files (<code>note.md.duo.json</code>) hold comments and other Duo metadata; coexist with vaults without git noise (recommend gitignoring <code>*.duo.json</code>). <strong>Cmd+click navigation closed in v0.6.9</strong> — Cmd+click any wikilink to open the linked file as a new tab in the working pane.</p>
@@ -1122,7 +1122,7 @@
 </article>
 
 <article class="item" data-keys="duo edit canvas flag override modality lock playground browser script blocked inert iframe meta duo-open-in right click context menu enh-097">
-  <div class="num">53</div>
+  <div class="num">111</div>
   <div>
     <h3>Edit a playground's source with <code>duo edit --canvas</code></h3>
     <p class="why">Playgrounds (HTML files declaring <code>&lt;meta name="duo-open-in" content="browser"&gt;</code>) open in the browser pane by default — scripts run, buttons fire, the user interacts with the live surface. To EDIT the playground's source instead, use the canvas-mode override: scripts blocked, buttons render but clicking them places a cursor instead of firing the handler. Two surfaces: <code>duo edit --canvas &lt;path&gt;</code> from the CLI, OR right-click any <code>file://</code> browser tab → "Edit in canvas." Codifies the playground/canvas mental model: playground = browser modality (interactive), canvas = inert edit modality (source-editable).</p>
@@ -1131,7 +1131,7 @@
 </article>
 
 <article class="item" data-keys="distro pack distribution cohort plugin pack-builder skill claude-plugin extra-packs requiresDuoVersion atomic install uninstall provenance manifest stage 21d enterprise org community education distribution path drop-in pkg fork compile">
-  <div class="num">54</div>
+  <div class="num">112</div>
   <div>
     <h3>Ship your team's skills + agents + canvases as a Duo distro pack</h3>
     <p class="why">Drop a folder into <code>~/.claude/duo/extra-packs/</code> and Duo discovers it on next launch — auto-installs the plugin's skills + agents into standalone destinations under <code>~/.claude/skills/&lt;distro&gt;-&lt;name&gt;/</code> and <code>~/.claude/agents/&lt;distro&gt;-&lt;name&gt;.md</code> (auto-discoverable in EVERY Claude Code session on the machine, not just sessions launched from Duo). Pack source format = canonical Claude Code plugin shape (<code>.claude-plugin/plugin.json</code> + <code>skills/</code> + <code>agents/</code>) with a <code>duo-extras/</code> subtree for Duo-specific bits (CLAUDE.md snippet, FTUX manifest). Atomic-replace via per-pack provenance manifest. CLAUDE.md merge between distro-managed markers (coexists with Duo's own block + other distros). Three distribution paths: drop-in zip, signed <code>.pkg</code> installer (mass-deployable via Jamf / Munki), fork+compile for shops that can't yet ship signed binaries.</p>
@@ -1140,7 +1140,7 @@
 </article>
 
 <article class="item" data-keys="focus pane chord cmd shift l semicolon quote terminal main aux jump pane-jump enh-098 duo focus-pane CLI parity raycast window manager keyboard navigation">
-  <div class="num">55</div>
+  <div class="num">113</div>
   <div>
     <h3>Jump keyboard focus directly to a named pane</h3>
     <p class="why">Three new chords that go DIRECTLY to a named pane (vs. <code>⌘`</code> which CYCLES through the panes one at a time): <code>⌘⇧L</code> → terminal, <code>⌘⇧;</code> → main working pane, <code>⌘⇧'</code> → split-view aux. Useful when you want to land somewhere specific without arrowing through every intermediate state. CLI parity via <code>duo focus-pane &lt;terminal|main|aux&gt;</code> for agent-driven flows. <code>⌘⇧'</code> is a no-op when split view is closed (logs a console hint); aux-with-browser-tab is no-op'd pending a future browser-pane focus IPC.</p>
@@ -1149,7 +1149,7 @@
 </article>
 
 <article class="item" data-keys="close current tab cmd-w keyboard chord dismiss browser file editor enh-037 enh-143">
-  <div class="num">55b</div>
+  <div class="num">114</div>
   <div>
     <h3>Close the active tab with <code>⌘W</code></h3>
     <p class="why">The universal macOS "close tab" chord works everywhere a tab lives: file editor tabs, HTML canvases, browser tabs, terminal tabs. No confirmation by default — instant dismiss. <strong>Pinned tabs</strong> route through a confirm modal (Cancel / Close anyway) so a reflex <code>⌘W</code> doesn't dismiss a pin. Pairs with <code>⌘⇧⌫</code> below: <code>⌘W</code> closes the tab but leaves the file on disk; <code>⌘⇧⌫</code> moves the file to Trash AND closes the tab.</p>
@@ -1158,7 +1158,7 @@
 </article>
 
 <article class="item" data-keys="cmd shift backspace delete current file confirm trash move enh-102 keyboard chord">
-  <div class="num">56</div>
+  <div class="num">115</div>
   <div>
     <h3>Delete the active file with <code>⌘⇧⌫</code></h3>
     <p class="why">Working-pane file tabs gain a keyboard chord that mirrors the right-click → Move to Trash flow. <code>⌘⇧⌫</code> on an active file tab pops a confirm dialog ("Move &lt;name&gt; to Trash?") with Cancel + Move-to-Trash buttons; on confirm, the file moves to the macOS Trash AND the tab closes. Browser tabs and terminal tabs explicitly out of scope (<code>⌘W</code> already handles tab close). Soft-success on ENOENT — if the file's already gone, the user's intent is still "close this tab," so the chord proceeds to close.</p>
@@ -1167,7 +1167,7 @@
 </article>
 
 <article class="item" data-keys="distro pack builder workshop playground assistant skill scoped CLAUDE.md tutorial enh-106 enterprise pack onboarding scaffold customize validate build smoke distribute">
-  <div class="num">57</div>
+  <div class="num">116</div>
   <div>
     <h3>Workshop for first-time distro pack builders</h3>
     <p class="why">A guided tutorial that wraps the canonical <code>/pack-builder</code> skill with the pacing + decision support a first-time pack builder needs. Lives at <code>distro-pack-builder/</code> in the repo (NOT installed on end-user machines — it's only for people who clone Duo to author packs). Inside: a scoped CLAUDE.md telling Claude "you are helping someone build a Duo distro pack," a README, an 11-step <code>playground.md</code> walking scaffold → customize → validate → build → smoke-install → distribute, and a project-scoped assistant skill (<code>pack-builder-workshop</code>) that activates only when Claude Code's cwd is inside the workshop folder. Defers to the canonical <code>/pack-builder</code> for the actual mechanical work; adds the layered tutorial. Pairs with the existing <code>examples/distro-pack-template/</code> as the copy-and-customize starting point.</p>
