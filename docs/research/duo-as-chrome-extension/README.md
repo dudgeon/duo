@@ -77,7 +77,7 @@ Three forces compound:
 1. **The Electron build carries weight that an extension wouldn't.**
    Notarization, code signing, auto-update, DMG distribution, app
    bundle ID gymnastics — every release of the Duo Electron app has to
-   go through this gauntlet ([Stage 21 cert procurement](../../dev/cert-procurement.md)
+   go through this gauntlet ([Stage 21 cert procurement](../../dev/_archive/cert-procurement.md)
    exists for a reason). A Chrome extension distributes through the
    Web Store with a single signed package and has zero macOS
    notarization surface. This is the strongest "obvious win" on offer.

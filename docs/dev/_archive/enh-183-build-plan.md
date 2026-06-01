@@ -1,7 +1,7 @@
 # ENH-183 Build Plan — Claude session description lifecycle
 
 > Sprint 21 / v0.7.9 marquee. Canonical PRD:
-> [`docs/prd/enh-183-claude-session-lifecycle.html`](../prd/enh-183-claude-session-lifecycle.html).
+> [`docs/prd/enh-183-claude-session-lifecycle.html`](../../prd/enh-183-claude-session-lifecycle.html).
 > Notion mirror: [36a45f48854f81b49571dd1cb12a11e5](https://www.notion.so/36a45f48854f81b49571dd1cb12a11e5).
 > All 13 decisions locked as of 2026-05-24 (D10–D13 via owner Notion comments).
 >
@@ -19,7 +19,7 @@
 
 ## Status
 
-- [x] **C1** — Step 0 empirics ([112e37e](https://github.com/dudgeon/duo/commit/112e37e)) · notes at [`docs/research/enh-183-step-0-empirics.md`](../research/enh-183-step-0-empirics.md)
+- [x] **C1** — Step 0 empirics ([112e37e](https://github.com/dudgeon/duo/commit/112e37e)) · notes at [`docs/research/enh-183-step-0-empirics.md`](../../research/enh-183-step-0-empirics.md)
 - [x] **C2** — Cherry-pick f351719 ([8a0eba2](https://github.com/dudgeon/duo/commit/8a0eba2))
 - [x] **C3** — Polymorphic `SessionHeader` ([b889243](https://github.com/dudgeon/duo/commit/b889243))
 - [x] **C4** — Read ladder (D5) + JSONL-primary derivation (D13) ([5b28629](https://github.com/dudgeon/duo/commit/5b28629))
@@ -31,7 +31,7 @@
 - [x] **C10** — S2 inline rename (contentEditable → /rename PTY inject)
 - [x] **C11** — D2 first-time educational banner
 - [x] **C12** — CLI parity (4 of 7 `duo session ...` verbs; 3 UI-state verbs deferred)
-- [x] **C13** — Smoke walk manifest authored ([`v0.7.9.json`](smoke-walks/v0.7.9.json) → 13 items); owner walk pending
+- [x] **C13** — Smoke walk manifest authored ([`v0.7.9.json`](../smoke-walks/v0.7.9.json) → 13 items); owner walk pending
 
 After C13: propose v0.7.9 cut via `cut-version` skill (per CLAUDE.md § 10).
 
@@ -94,8 +94,8 @@ Test breakdown:
 | No `~/.claude/duo/hydrated-sessions.json` (or similar shadowing) | ✅ `find ~/.claude/duo -name '*hydrat*'` returns empty |
 | No `~/.claude/duo/sessions-*` files | ✅ `find ~/.claude/duo -name '*sessions*'` returns empty |
 | Workspace JSON schema has `lastClaudeSession` as pointer only (no `title`, no `messageCount`) | ✅ `jq '.state.terminals[0]\|keys'` → `["cwd", "kind", "lastClaudeSession", "title"]` — `title` here is the *terminal* title (cwd basename), not a session title |
-| Hydration-already-done tracking is in-memory only | ✅ `alreadyHydrated` Set in [`electron/session-hydrator.ts`](../../electron/session-hydrator.ts); reset on Duo restart by construction |
-| SessionHeader UI state (collapsed/dismissed/pillsVisible) is in-memory only | ✅ [`renderer/store/sessionHeader.ts`](../../renderer/store/sessionHeader.ts) module-scoped `Map`; no persistence |
+| Hydration-already-done tracking is in-memory only | ✅ `alreadyHydrated` Set in [`electron/session-hydrator.ts`](../../../electron/session-hydrator.ts); reset on Duo restart by construction |
+| SessionHeader UI state (collapsed/dismissed/pillsVisible) is in-memory only | ✅ [`renderer/store/sessionHeader.ts`](../../../renderer/store/sessionHeader.ts) module-scoped `Map`; no persistence |
 
 ### Could-not-verify (deferred to C13)
 
@@ -130,7 +130,7 @@ through the Claude binary's strings table + a `find` for existing
 - `sessions-index.json` is **optional and absent from most projects** on
   this machine, including the Duo project itself. Only 2 of ~30
   projects have one. JSONL is the source of truth.
-- The "Renamed via Duo" residue in an existing JSONL ([`-Users-geoffreydudgeon-Documents-GitHub-duo-docs/17d05c98-...jsonl`](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo-docs)) — from the reverted [f351719](https://github.com/dudgeon/duo/commit/f351719) — was unintended free regression evidence: it proved the cherry-pick base from C2 was already writing the right field name.
+- The "Renamed via Duo" residue in an existing JSONL ([`-Users-geoffreydudgeon-Documents-GitHub-duo-docs/17d05c98-...jsonl`](../../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo-docs)) — from the reverted [f351719](https://github.com/dudgeon/duo/commit/f351719) — was unintended free regression evidence: it proved the cherry-pick base from C2 was already writing the right field name.
 
 **Memory codified:** the C1 empirics doc + the CLAUDE.md § 12
 "NO SIDECAR ANTI-PATTERN" rule.
@@ -150,10 +150,10 @@ regardless of session size. Acceptable for per-render IPC.
 
 Three IPCs added in C5/C6/C9 (`readBannerTitle`, `readMessageCount`,
 `listPrior`, `maybeHydrate`). Each required:
-- `IPC` constant in [`shared/types.ts`](../../shared/types.ts)
-- ipcMain handler in [`electron/main.ts`](../../electron/main.ts) with lazy `import()` to avoid pulling claude-session-tracker into the early-boot graph
-- `window.electron.session.*` surface in [`electron/preload.ts`](../../electron/preload.ts) — **relative import (`../shared/host-api`), not `@shared/...`** (preload's tsconfig has a different path-mapping; typecheck error caught the first attempt)
-- `ElectronSessionAPI` interface entry in [`shared/host-api.ts`](../../shared/host-api.ts)
+- `IPC` constant in [`shared/types.ts`](../../../shared/types.ts)
+- ipcMain handler in [`electron/main.ts`](../../../electron/main.ts) with lazy `import()` to avoid pulling claude-session-tracker into the early-boot graph
+- `window.electron.session.*` surface in [`electron/preload.ts`](../../../electron/preload.ts) — **relative import (`../shared/host-api`), not `@shared/...`** (preload's tsconfig has a different path-mapping; typecheck error caught the first attempt)
+- `ElectronSessionAPI` interface entry in [`shared/host-api.ts`](../../../shared/host-api.ts)
 
 The pattern is well-documented in CLAUDE.md § 4 — followed it
 mechanically. Skipping any step is a typecheck or runtime error.
@@ -254,7 +254,7 @@ Build plan said "Click tab → banner expands." That conflicts with
 the existing "Click inactive tab → select" behavior. Resolution:
 **only the ALREADY-active tab toggles on click.** Clicking an
 inactive tab still selects it (no change). Implemented in
-[`renderer/components/TabBar.tsx:200-209`](../../renderer/components/TabBar.tsx). UX is "tab is selected → click to expand banner / re-collapse."
+[`renderer/components/TabBar.tsx:200-209`](../../../renderer/components/TabBar.tsx). UX is "tab is selected → click to expand banner / re-collapse."
 
 ### 12. SessionHeader's S1 pills auto-dismiss on claude-presence change
 
@@ -263,7 +263,7 @@ session → pills auto-dismiss within 200ms." A literal Return-watcher
 would require a PTY-side keystroke hook. Simpler: subscribe to the
 existing `claudePresence` state — when it transitions to
 'claude' / 'starting', the pills auto-dismiss
-([`renderer/components/SessionHeader.tsx:103-108`](../../renderer/components/SessionHeader.tsx)).
+([`renderer/components/SessionHeader.tsx:103-108`](../../../renderer/components/SessionHeader.tsx)).
 
 This is **stricter** than what the PRD asked for (any way claude
 starts, not just first Return). Same UX outcome though — pills go
@@ -356,7 +356,7 @@ autosaves overwrite old values when tabs are reopened.
 Walk-4 surfaced two findings: one bug, one empirical reality
 about the hydrator's actual firing rate.
 
-**15a — `encodeProjectDir` didn't resolve symlinks ([BUG-158](../../tasks.md#bug-158-duo-session-hydrate-fails-on-tmp-cwds--encodeprojectdir-didnt-resolve-symlinks)).**
+**15a — `encodeProjectDir` didn't resolve symlinks ([BUG-158](../../../tasks.md#bug-158-duo-session-hydrate-fails-on-tmp-cwds--encodeprojectdir-didnt-resolve-symlinks)).**
 Owner walked rev4 CLI-HYDRATE: created tab at `/tmp/duo-walk-hydrate`,
 started claude, sent 3 messages (Haiku titled the session "✳ Knock
 knock joke"), ran `duo session hydrate <tabId>` — got `duo: no
@@ -411,7 +411,7 @@ universe is already covered by Haiku before Duo's gate opens.
 `{hydrated: false, reason: 'already-has-aiTitle'}` (common) as
 PASS. Either response proves the verb's detection + gate logic
 works end-to-end. Rev5 manifest reflects this. T3-AUTO-HYDRATION
-(currently deferred behind [FOLLOWUP-028](../../tasks.md#followup-028-t3-auto-hydrator-re-enable-design--input-buffer-race--idle-gate))
+(currently deferred behind [FOLLOWUP-028](../../../tasks.md#followup-028-t3-auto-hydrator-re-enable-design--input-buffer-race--idle-gate))
 faces the same reality — most autosave-triggered hydration
 attempts will gate `'already-has-aiTitle'` and no-op, so the
 re-enable design's risk surface is smaller than originally framed.
@@ -422,7 +422,7 @@ re-enable design's risk surface is smaller than originally framed.
 
 ## C1 — Step 0 empirics — ✅ COMPLETE
 
-**Output:** [`docs/research/enh-183-step-0-empirics.md`](../research/enh-183-step-0-empirics.md).
+**Output:** [`docs/research/enh-183-step-0-empirics.md`](../../research/enh-183-step-0-empirics.md).
 
 **Headline findings (read before C2):**
 
@@ -571,7 +571,7 @@ Click tab to expand banner.
   PtyManager on first Return; renderer toggles `pillsVisible=false` (in-memory only).
 - `electron/pty-manager.ts` — detect Return in user input + emit the IPC
 
-**Mockup reference:** [`docs/research/assets/enh-183-mockups/d10-pills-variants.png`](../research/assets/enh-183-mockups/d10-pills-variants.png)
+**Mockup reference:** [`docs/research/assets/enh-183-mockups/d10-pills-variants.png`](../../research/assets/enh-183-mockups/d10-pills-variants.png)
 (Variant B section, with the corrected "RESUME PREVIOUS SESSION" header).
 
 **Visual ACs:**

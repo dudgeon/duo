@@ -403,7 +403,7 @@ the layering above. 21e implements; the layers were the question.
 - [the roadmap](roadmap.html) — canonical stage tracking
 - [`docs/roadmap.html#s21`](roadmap.html#s21) — Stage 21 stage card with 21e
   sub-stages
-- [`docs/dev/cert-procurement.md`](dev/cert-procurement.md) — Apple
+- [`docs/dev/cert-procurement.md`](dev/_archive/cert-procurement.md) — Apple
   Developer ID cert procurement (required for any signed-cut fork mode)
 - [`docs/DECISIONS.md`](DECISIONS.md) — locked architectural decisions
 - [`README.md`](../README.md) — user-facing install + build instructions
