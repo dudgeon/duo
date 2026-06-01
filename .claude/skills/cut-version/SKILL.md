@@ -184,9 +184,10 @@ Order:
 2. `CHANGELOG.md` — move `[Unreleased]` content into a new `[X.Y.Z] — YYYY-MM-DD` section. Add the date. Update the link refs at the bottom. Reset `[Unreleased]` to empty.
 3. `docs/RELEASES.md` — prepend the new prose entry above prior entries (most-recent-first). Clear the `Pending — not yet cut` stash if any of it folded into this cut.
 4. ~~`help/faq.html`~~ retired in v0.6.13 (ENH-135) — moved to `docs/legacy/faq.html`. The "What's new" log lives in `docs/RELEASES.md` (Step 3) and `CHANGELOG.md` (Step 2). Skip this step.
-5. `packs/duo-default/canvases/what-duo-does.html` (in repo, NOT the `~/.claude/duo/packs/duo-default/canvases/` mirror copy) — for any newly-added capability, insert a numbered entry in the relevant category (Editor / Browser / Canvas / Files / Terminal / Capture-Send / Sessions / etc.). Use plain-English voice with the CLI invocation listed alongside as the "how." Logical ordering, NOT chronological. **Bump `packs/duo-default/PACK.json § version`** so the per-pack-version flag in `installed-packs.json` re-fires for existing users on next launch (ENH-138 — pack-version-bump is the v0.6.13+ replacement for the per-cut faq.html "What's new" surface).
-6. `docs/roadmap.html` — flip stage statuses for anything that landed in this cut. Update the sidebar status counts. (Canonical roadmap; the prior synced-markdown view at `ROADMAP.md` was retired 2026-05-04.)
+5. `packs/duo-default/canvases/what-duo-does.html` (in repo, NOT the `~/.claude/duo/packs/duo-default/canvases/` mirror copy) — for any newly-added capability, insert a numbered entry in the relevant category (Editor / Browser / Canvas / Files / Terminal / Capture-Send / Sessions / etc.). Use plain-English voice with the CLI invocation listed alongside as the "how." Logical ordering, NOT chronological. **Bump `packs/duo-default/PACK.json § version`** so the per-pack-version flag in `installed-packs.json` re-fires for existing users on next launch (ENH-138 — pack-version-bump is the v0.6.13+ replacement for the per-cut faq.html "What's new" surface). **D4 HARD-GATE (ENH-191):** ALWAYS bump the footer version stamp (`This is Duo vX.Y.Z. Last updated YYYY-MM-DD.`) to the new version + date on EVERY cut — even a stamp-only one with no new capability. This footer silently drifted 16 minor versions (v0.6.9 while the project was at v0.8.5) because it was treated as optional; the cut is not done until it reads the current version.
+6. `docs/roadmap.html` — flip stage statuses for anything that landed in this cut. Update the sidebar status counts. (Canonical roadmap; the prior synced-markdown view at `ROADMAP.md` was retired 2026-05-04.) **D4 HARD-GATE (ENH-191):** even when NO stage flips, ALWAYS refresh the header status sub-line to the current version and recompute the sidebar stat counts on EVERY cut — the header drifted to v0.8.0 while the project shipped through v0.8.5.
 7. `docs/dev/session-log.md` — add a one-paragraph entry referencing the cut, the version, and what landed.
+8. **`tasks.md` → `tasks-archive.md` (ENH-191 / D1 — keep the backlog lean).** Any entry whose status you flip to ✅ Shipped / 🟢 / ❌ in this cut MUST move OUT of `tasks.md` (open backlog) and INTO `tasks-archive.md` (closed history). Find this cut's newly-closed: `grep -nE "Status:\*\* (✅\|🟢\|❌)" tasks.md`. Cut each whole `### …` block (heading through the blank line before the next `###`) and append it under its matching section header in `tasks-archive.md`. Open work (🆕 / 🟡 / ⏳ / 🚧 / 🔴 / ⬜ / ⚠️ / 🔵) stays in `tasks.md`. Stage BOTH files in the Step 6 commit. (Why: `tasks.md` was an 11k-line / 1.2 MB monolith — 71% closed history — until the 2026-05-31 split.)
 
 ### Step 4.5 — Build the distributable DMG
 
@@ -392,7 +393,9 @@ distributed manually (or via Stage 21's eventual upload step).
 git add CHANGELOG.md docs/RELEASES.md docs/roadmap.html \
         docs/dev/session-log.md package.json cli/duo \
         packs/duo-default/canvases/what-duo-does.html \
-        packs/duo-default/PACK.json
+        packs/duo-default/PACK.json tasks.md tasks-archive.md
+        # tasks.md + tasks-archive.md: stage both whenever Step 4 item 8
+        # moved newly-closed entries from the open backlog to the archive.
         # Note: ENH-135 retired help/faq.html → docs/legacy/faq.html
         # (no longer cut-relevant). The What Duo Does + PACK.json
         # version bump replace the per-cut faq.html "What's new"

@@ -37,6 +37,9 @@ const today = new Date().toISOString().slice(0, 10)
 const outPath = outArg ?? `docs/dev/worksheets/sprint-plan-v${nextVersion}.json`
 
 // ---------------------------------------------------------------- tasks.md
+// Open backlog only. Closed entries (✅/🟢/❌) live in tasks-archive.md as of
+// 2026-05-31 (ENH-191/D1); this gatherer filters to open status anyway, so it
+// reads just tasks.md — the archive is intentionally not a candidate source.
 
 function parseTasksMd() {
   const path = resolve(repoRoot, 'tasks.md')
