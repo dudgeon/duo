@@ -250,6 +250,20 @@ export function deriveProjects(input: DeriveProjectsInput): DeriveProjectsOutput
 
   const tabMembership: Record<string, string | null> = {}
   for (const tab of workingTabs) {
+    // BUG-193 — a PINNED tab is a cross-project reference (D2): it never
+    // counts toward "working in", so it gets NO membership. Without this,
+    // a pinned tab whose own deepest project isn't in `qualifyingSet`
+    // (pinned tabs are skipped during candidate-gathering above, so their
+    // ancestors are never added) would resolve to the shallowest
+    // qualifying ancestor contributed by some OTHER member — e.g. a
+    // git-repo parent like `~/Documents` — spuriously spawning that parent
+    // as a project tile AND making the D11 auto-switch steal focus to it
+    // whenever the pinned tab is active. Null membership fixes both, and
+    // matches how the visibility filter already special-cases pinned tabs.
+    if (pinnedTabPaths.has(tab.path)) {
+      tabMembership[tab.id] = null
+      continue
+    }
     tabMembership[tab.id] = tab.path
       ? deepestEnclosingRoot(dirname(tab.path), qualifyingSet)
       : null

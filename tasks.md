@@ -70,6 +70,20 @@
 
 ---
 
+### BUG-193: Pinned reference tab spuriously maps to a shallow parent project (phantom parent tile + D11 focus theft)
+
+**Status:** 🟡 **Fix implemented + verified live on branch `claude/kind-goldstine-6904c1` (2026-05-31)** — found during the v0.8.5 BUG-191/192 smoke walk. **Priority:** Medium-High (rail unusable when a git-repo parent + pinned tabs coincide). **Effort:** S.
+
+**Symptom (owner, smoke walk).** Opened a terminal in `~/Documents/GitHub/stoop`; the rail spawned TWO tiles — `stoop` AND `~/Documents` — even though only stoop was opened. Worse: clicking the `stoop` tile, focus was immediately stolen by the `Documents` tile (the navigator briefly re-rooted to stoop, then snapped back to Documents). Documents then dominated focus for all projects.
+
+**Root cause (pre-existing ENH-182; NOT the BUG-191 change — it lives in `deriveProjects`, untouched by that work).** `~/Documents` is itself a git repo, so it qualifies. The stoop terminal's candidate walk adds BOTH `stoop` (marker) and `~/Documents` (git root) to the qualifying set. The owner's pinned reference tabs (`tasks.md`, `idle-thoughts.md` in `~/Documents/GitHub/duo`) are correctly **excluded from candidate-gathering** per D2 — so `…/duo` is never added to the set — but their **membership was still computed** in Step 3 (`shared/projects.ts`). With `…/duo` and `…/GitHub` absent from the set, `deepestEnclosingRoot` walked up to the shallowest qualifying ancestor present — `~/Documents` — and assigned it as the pinned tabs' membership. That spurious membership (a) was added to the project set (Step 4) → the phantom Documents tile, and (b) was read by the D11 auto-switch effect (`renderer/App.tsx`) whenever a pinned tab was active → focus snapped to Documents on every rail click.
+
+**Fix (2026-05-31).** `shared/projects.ts` Step 3 — a pinned tab now gets `tabMembership = null` (it's a cross-project reference with no home project, extending D2 from candidate-gathering to membership). This kills both symptoms at the source: no spurious parent root reaches the project set, and D11 reads `null` for an active pinned tab so it never auto-switches. Safe across all consumers — the visibility filter already special-cases pinned tabs (always visible), and `projectCounts` / the close handler correctly stop counting/closing pinned cross-refs. **Verified live:** the Documents tile disappeared (rail → `[stoop]` only); regression test in `core/projects-service.test.ts` ("BUG-193 — a pinned tab does NOT resolve to a shallow parent seeded by another member") fails pre-fix, passes post-fix; 864/864 tests pass.
+
+**Note.** A separate, debatable question remains (not fixed here): should a giant git-tracked parent like `~/Documents` qualify as a project at all? With this fix it only surfaces when something genuinely non-pinned sits directly in it, which is arguably correct. File a follow-up if the owner wants parent-git-repo suppression.
+
+---
+
 ### BUG-190: Quit-loop crash — "Object has been destroyed" cycling dialog on app quit
 
 **Status:** 🟡 **Fix pushed `claude/duo-quit-loop-bug-OBZHB` 2026-05-27.** **Priority:** High (app un-quittable without force-quit). **Effort:** ~30 min.
