@@ -85,6 +85,25 @@ export function mergeLiveCwdInfo(
   return changed ? out : (prev as Map<string, LiveCwdEntry>)
 }
 
+/**
+ * BUG-194 — whether the focus chip points at a project that no longer
+ * exists. A consequence of BUG-191's live-cwd tracking: when the focused
+ * project's last terminal `cd`s OUT of it, that terminal's membership goes
+ * null and the project drops from the rail — but `focusedProject` still
+ * points at it, so the visibility filter (`membership === focusedProject`)
+ * hides the now-orphaned terminals/tabs. The active terminal "disappears"
+ * and ⌘T / ⌃Tab lose their target. When this returns true the host
+ * releases focus to "All" so those tabs become visible again. Pinned
+ * projects persist in `projectRoots` even with zero members, so focusing a
+ * pinned-but-empty project correctly does NOT release.
+ */
+export function shouldReleaseFocus(
+  focusedProject: string | null,
+  projectRoots: ReadonlyArray<string>
+): boolean {
+  return focusedProject !== null && !projectRoots.includes(focusedProject)
+}
+
 /** BUG-192 — the pure plan for closing every member of a project. The
  *  React handler applies this with a single, un-nested setState burst. */
 export interface ProjectClosePlan {

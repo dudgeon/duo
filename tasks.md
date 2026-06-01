@@ -84,6 +84,18 @@
 
 ---
 
+### BUG-194: Focused project's last terminal cd-d out → terminal tab vanishes (multitab breaks)
+
+**Status:** 🟡 **Fix implemented + verified live on branch `claude/kind-goldstine-6904c1` (2026-06-01)** — direct follow-on regression from BUG-191. **Priority:** High (loses access to a live terminal + breaks ⌘T/⌃Tab). **Effort:** S.
+
+**Symptom (owner, smoke walk).** While focused on a project that had a single terminal, `cd`-ing that terminal OUT into a no-project root cleared the tile as expected — but the active terminal's TAB disappeared too. With the terminal strip empty, ⌘T just replaced the current terminal and ⌃Tab cycled the canvas tabs instead of terminals (multitab effectively dead).
+
+**Root cause (introduced by BUG-191).** Membership now tracks the live shell cwd, so `cd`-ing the focused project's last terminal out drops the project from the rail. But `focusedProject` stayed pinned to the now-gone project, and the visibility filter `visibleTerminals = tabs.filter(t => terminalMembership[t.id] === focusedProject)` (`renderer/App.tsx`) then matched nothing — the orphaned terminal was filtered out of view (still in `tabs`, just hidden), and ⌘T/⌃Tab lost their target. Pre-BUG-191 this couldn't happen because membership was frozen at launch cwd (a cd never changed it).
+
+**Fix (2026-06-01).** New pure `shouldReleaseFocus(focusedProject, projectRoots)` (`shared/project-lifecycle.ts`) + an effect in `renderer/App.tsx` keyed on `[railProjects, focusedProject]` that releases focus to "All" when the focused project is no longer in the rail. All view shows every terminal, so the orphaned terminal reappears and multitab works again. Pinned projects persist in `railProjects` even with zero members, so focusing a pinned-but-empty project correctly does NOT release. **Verified live:** focus released to All after the sole member cd-d out (terminal stays visible); tile clears once the project truly empties. Unit-covered (`shared/project-lifecycle.test.ts`, 4 cases). 868/868 tests pass.
+
+---
+
 ### BUG-190: Quit-loop crash — "Object has been destroyed" cycling dialog on app quit
 
 **Status:** 🟡 **Fix pushed `claude/duo-quit-loop-bug-OBZHB` 2026-05-27.** **Priority:** High (app un-quittable without force-quit). **Effort:** ~30 min.

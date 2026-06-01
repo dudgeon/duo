@@ -3,8 +3,25 @@ import {
   effectiveProjectTerminals,
   mergeLiveCwdInfo,
   planProjectClose,
+  shouldReleaseFocus,
   type LiveCwdEntry
 } from './project-lifecycle'
+
+// ── BUG-194 · shouldReleaseFocus ─────────────────────────────────────
+describe('shouldReleaseFocus (BUG-194 — focus follows a vanishing project)', () => {
+  it('releases focus when the focused project is gone from the rail', () => {
+    expect(shouldReleaseFocus('/p/a', ['/p/b', '/p/c'])).toBe(true)
+  })
+  it('keeps focus when the focused project is still present', () => {
+    expect(shouldReleaseFocus('/p/a', ['/p/a', '/p/b'])).toBe(false)
+  })
+  it('is a no-op in All mode (null focus)', () => {
+    expect(shouldReleaseFocus(null, ['/p/a'])).toBe(false)
+  })
+  it('releases when the rail is empty', () => {
+    expect(shouldReleaseFocus('/p/a', [])).toBe(true)
+  })
+})
 
 // ── BUG-191 · effectiveProjectTerminals ─────────────────────────────
 describe('effectiveProjectTerminals (BUG-191 ghost-tile fix)', () => {

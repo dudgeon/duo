@@ -41,6 +41,7 @@ import {
   effectiveProjectTerminals,
   mergeLiveCwdInfo,
   planProjectClose,
+  shouldReleaseFocus,
   type LiveCwdEntry
 } from '@shared/project-lifecycle'
 
@@ -1067,6 +1068,19 @@ export function App() {
       setFocusedProject(project)
     }
   }, [activeWorking, tabMembership, focusedProject])
+  // BUG-194 — release focus when the focused project vanishes. With
+  // BUG-191's live-cwd tracking, `cd`-ing the focused project's last
+  // terminal OUT of it drops the project from the rail; if focus stayed
+  // pinned to it, the visibility filter (`membership === focusedProject`)
+  // would hide the now-orphaned terminals/tabs — the active terminal
+  // "disappears" and ⌘T / ⌃Tab lose their target. Releasing to All keeps
+  // them visible. Pinned-but-empty projects stay in `railProjects`, so
+  // focusing one correctly does NOT trip this.
+  useEffect(() => {
+    if (shouldReleaseFocus(focusedProject, railProjects.map((p) => p.root))) {
+      setFocusedProject(null)
+    }
+  }, [railProjects, focusedProject])
   // Phase 3c-browser + FOLLOWUP-030 effects live below, after
   // visibleBrowserTabIds + browserTabMembership are declared
   // (declaration order matters; they need to come AFTER the visible
