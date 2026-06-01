@@ -244,7 +244,7 @@ concrete sequence:
    permission justification text for `<all_urls>` and `debugger`.
 7. **Unlisted Web Store upload.** $5 dev account, upload, set to
    unlisted. Get private install URL.
-8. **Stage 21d Trailblazers cohort.** Cohort installs Duo
+8. **Stage 21d Beacon cohort.** Cohort installs Duo
    Desktop.dmg + clicks the unlisted Web Store URL. Both surfaces
    dogfooded simultaneously for ≥30 days.
 

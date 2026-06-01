@@ -59,9 +59,9 @@ organizations. **Start matters more than completion** — kick this off first.
   required if you want the company name on the cert (which is what users see in
   Gatekeeper warnings).
 
-> ⚠️ Capital One context — if there's any chance Duo eventually ships to Capital
-> One internal users under the company name, this should probably be an
-> *organization* enrollment under a Capital One-controlled Apple ID. That's a
+> ⚠️ Acme context — if there's any chance Duo eventually ships to Acme
+> internal users under the company name, this should probably be an
+> *organization* enrollment under an Acme-controlled Apple ID. That's a
 > separate workstream from a personal Developer ID. **Confirm with Geoff which
 > path Stage 21 is targeting before completing enrollment.**
 

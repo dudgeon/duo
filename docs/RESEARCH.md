@@ -161,7 +161,7 @@ the compiled binary will be bundled into the app. `install.sh` symlinks it to
 **Alternative considered: `pkg`** — produces a true self-contained executable
 with Node.js runtime embedded (~40 MB). Unnecessary for this use case since
 macOS ships with Node.js available in most developer setups, and the esbuild
-approach is faster to build and iterate. Revisit for Stage 6 if Trailblazers
+approach is faster to build and iterate. Revisit for Stage 6 if Beacon
 users don't have Node.js.
 
 ---

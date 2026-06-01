@@ -241,7 +241,7 @@ smoothing is additive, never a cage.
   1–5 (terminal + browser + bridge + skill). It remains the authoritative
   reference for the technical architecture and the Google Docs first-class
   read/write path. The product framing in that brief — "a tool for PMs using
-  Claude Code at Capital One" — is narrower than this vision and is
+  Claude Code at Acme" — is narrower than this vision and is
   superseded here. The engineering content is not.
 
 - The README has been reframed to lead with the workspace framing (and

@@ -117,7 +117,7 @@ items):
 | "No Docs REST API escalation path yet" (Backlog) | New `ENH-032` |
 | "First-launch install dialog" (Backlog) | Already implied as Stage 18 — no separate ID |
 | "`duo wait --timeout` race fix" (Backlog) | Already shipped 2026-04-26 (Stage 20) — close out |
-| 21d socket auth + Trailblazers README (Stage 21) | New `ENH-033` (Trailblazers cohort distribution) |
+| 21d socket auth + Beacon README (Stage 21) | New `ENH-033` (Beacon cohort distribution) |
 | Stage 10 dangling backlog items (lines 391–429) | Audit individually next pass |
 
 ### C. Document the convention in CLAUDE.md

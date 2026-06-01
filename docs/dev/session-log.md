@@ -2098,7 +2098,7 @@ pre-bake to main.
   the helper logic collapses into a `--nm-shim` mode in
   `electron/main.ts`, the extension surface lands at top-level
   `extension/` (renamed from `phase0/extension/`).
-- ⬜ **Web Store unlisted upload + Trailblazers cohort dogfood.**
+- ⬜ **Web Store unlisted upload + Beacon cohort dogfood.**
   Phase 7 milestone; runs ≥30 days before public promotion.
   Listing copy + permission justifications + privacy policy
   pre-baked at [`docs/research/duo-as-chrome-extension/web-store-listing.md`](../research/duo-as-chrome-extension/web-store-listing.md).
@@ -2164,7 +2164,7 @@ verified live; one DMG cut at the end.
 
 **Stage flips:** Stage 21c Phase 3 ✅; Stage 21b partial (icon ✅, DMG bg deferred); Stage 26 follow-up cluster (BUG-007/028/029/030) ✅. v0.5.1 closes [issue #27](https://github.com/dudgeon/duo/issues/27).
 
-**What's queued next:** Stage 21d (Trailblazers cohort distribution — socket auth + agent-driven-nav notifications + README). Stage 26 PR 3 (navigator ambient signals + Go-to path). Stage 14 (markdown editor's CommentRail binding via CriticMarkup). CLI `duo terminal claude-state` (ENH-013 follow-up).
+**What's queued next:** Stage 21d (Beacon cohort distribution — socket auth + agent-driven-nav notifications + README). Stage 26 PR 3 (navigator ambient signals + Go-to path). Stage 14 (markdown editor's CommentRail binding via CriticMarkup). CLI `duo terminal claude-state` (ENH-013 follow-up).
 
 ---
 
@@ -2532,8 +2532,8 @@ release."
 **21b/c/d still ⬜** — custom app icon + DMG background,
 `electron-updater` integration with GH-Releases auto-update channel,
 session restore on relaunch (issue #24), browser history persistence
-(issue #27), socket auth token for Trailblazers cohort distribution,
-agent-driven-navigation notifications, Trailblazers README + install
+(issue #27), socket auth token for Beacon cohort distribution,
+agent-driven-navigation notifications, Beacon README + install
 guide. None blocking the v0.4.1 ship; all natural follow-ons for a
 v0.4.2 cut.
 
@@ -2544,7 +2544,7 @@ v0.4.2 cut.
 Owner kicked off the morning with "what's incomplete on the roadmap
 and what should we build next?" The survey landed on Stage 20's
 sandbox-resilience cluster as the highest-leverage next move:
-every Capital One Claude Code session has been silently failing on
+every Acme Claude Code session has been silently failing on
 the Unix socket (default Seatbelt policy blocks them) and the
 `docs/DECISIONS.md` ADR for sandbox-tolerant transport had been
 sitting Open for four days. Owner said "use a worktree", and we
@@ -2584,11 +2584,11 @@ as v0.4.1 (unsigned), then rebase signing on top. We agreed: the
 asymmetric rebase cost (small file-isolated change vs.
 node_modules-deep platform upgrade) makes this the cheaper
 ordering, and the user-value argument is decisive (sandbox
-resilience helps users today; signing helps Trailblazers next
+resilience helps users today; signing helps Beacon next
 month). Cut as proposed.
 
 **Owed.** Real-sandbox confirmation of the TCP fallback comes from
-the owner's next Capital One Claude Code session post-install (we
+the owner's next Acme Claude Code session post-install (we
 smoke-tested via `DUO_TCP_ONLY=1` simulation, not actual sandbox).
 The rest of the Stage 20 cluster is still ⬜: tab numbers in the
 unified strip, terminal selection refinements, `duo reload`,
@@ -2620,7 +2620,7 @@ Architecture: new `useUserClaudeNavigator` hook for the top pane
 `useNavigator` stays for the bottom pane unchanged. Both feed the
 now-exported `<TreeNodes>` primitive in `FileTree.tsx` for the
 recursive tree rendering — adding a third pane in the future (e.g.,
-Stage 18b's "Provided by AIP" badge) is mechanical. The user-claude
+Stage 18b's "Provided by Acme" badge) is mechanical. The user-claude
 pane's curated root is *synthesized* (a hand-picked list of
 CLAUDE.md + skills/ + agents/ constructed from the live
 `~/.claude/` listing) rather than fetched separately, so the pane
@@ -2655,7 +2655,7 @@ domains.json` (extended schema: entries can be `string` OR
 reason? }`. Renderer mounts `<ExternalRedirectedBanner>` with
 most-recent-wins replacement (back-to-back redirects don't stack)
 and 6s auto-dismiss. Install bootstrap seeds the file with
-`*.capitalone.com` per owner request — Cap One Trailblazers'
+`*.capitalone.com` per owner request — Acme's
 internal sites need the corporate-managed browser for SSO + internal
 CDN certs and don't render reliably in the embedded WebContentsView.
 
@@ -3057,7 +3057,7 @@ then feathered into the roadmap as a new stage card or sub-stage.
    `PACK.json` manifest; per-conflict UI in the consent sheet (skip
    all / overwrite all / decide each); provenance manifest at
    `~/.claude/duo/installed-packs.json`. v1 scope: skills + agents.
-   Cap One distro workflow: clone duo + drop `extra-skills/` + `npm
+   Acme distro workflow: clone duo + drop `extra-skills/` + `npm
    run dist`.
 4. **Stage 23 — Canvas actions (Claude ↔ HTML loop).** Convention-
    based `data-duo-action` attribute on canvas HTML buttons; canvas
@@ -3065,7 +3065,7 @@ then feathered into the roadmap as a new stage card or sub-stage.
    needed**. v1 vocabulary: `claude:spawn`, `terminal:send` (with
    optional `\n` via new `duo send --enter` flag), `browser:open`.
    Trust model: path-restricted to `~/.claude/duo/`. Demo lives in
-   the AIP distro's quick-docs as the FTUX welcome page. Bidirectional
+   the Acme distro's quick-docs as the FTUX welcome page. Bidirectional
    loop achievable today — no Claude Code hooks needed.
 5. **Stage 24 — Pin WorkingPane tabs.** Reframed from "quick-docs
    menu" to "pin tabs" — far simpler, same use cases (FTUX welcome,
@@ -3085,7 +3085,7 @@ then feathered into the roadmap as a new stage card or sub-stage.
 **Cross-stage architecture insight:** the FTUX-coordinated trio
 (Stage 23 + 24 + 18 + 18b) ships as a tight set so first-launch
 users see a pinned, action-driven welcome page. This is the
-highest-leverage Trailblazer surface and the recommended next ship
+highest-leverage Beacon surface and the recommended next ship
 sequence.
 
 **Process notes from the conversation:**
@@ -3399,7 +3399,7 @@ closed out.
   + 17d-C are small but their value lights up only when the snippet
   bundle (17d-C) lands first; Stage 21 is mechanical but ships
   distribution. The intent question: which of these maps to a
-  Trailblazer milestone the user is aiming at? If 17d-A was "the
+  Beacon milestone the user is aiming at? If 17d-A was "the
   collab loop closes for canvas," then Stage 14 is "same loop for
   markdown" — does that shape the user's calendar?
 - **★ Stage 11 tail items.** Frontmatter properties panel, drag-drop
@@ -3469,12 +3469,12 @@ closed out.
   defer to when the agent-snippet pattern is in real use?
 
 **Distribution shape**
-- **Trailblazers cohort timing.** Owner pre-work for Stage 21 is
+- **Beacon cohort timing.** Owner pre-work for Stage 21 is
   done. The mechanical sign + notarize is a half-day. The
   consent-sheet + installer (Stage 18) is independent. Which lands
   first for the cohort?
 - **Auth on the Unix socket.** Stage 21 has the launch-time-token
-  bullet; the Trailblazer ergonomics shift in interesting ways
+  bullet; the Beacon ergonomics shift in interesting ways
   once the socket is auth'd (the agent has to learn about the
   token; today's "just send to the path" simplicity goes away).
   Worth thinking about before 21d ships.

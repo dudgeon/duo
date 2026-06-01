@@ -436,7 +436,7 @@ opens DevTools on the same tab. Show a banner in the side panel.
 
 ### Phase 4 — Distribution dry-run
 
-**Question:** Can a Trailblazer install the extension + helper
+**Question:** Can a Beacon install the extension + helper
 without hand-holding?
 
 **Build:** A README with: "(1) install extension from Web Store, (2)
@@ -468,7 +468,7 @@ Electron app installer is one step; extension + helper is two.
   block or audit extensions requesting `debugger`, `nativeMessaging`,
   and `tabs` together — that combination is a credible facsimile of a
   remote-access trojan from a security-tooling perspective. Audit
-  whether any meaningful Trailblazer audience can install this
+  whether any meaningful Beacon audience can install this
   extension without a permission-policy battle.
 
 ### Soft blockers (livable but documented)
@@ -600,7 +600,7 @@ empirical test (same as duo-in-browser — needs managed hardware).
 - **Do not refactor `renderer/` to be host-agnostic.** Same lesson as
   duo-in-browser: the shim approach is faster than the abstraction
   refactor. If the extension shape ships, *then* maybe abstract.
-- **Stage 21d (Trailblazers) is the natural distribution gate to
+- **Stage 21d (Beacon) is the natural distribution gate to
   evaluate against.** If the extension shape's install friction is
-  meaningfully higher than the DMG, Trailblazers is the wrong
+  meaningfully higher than the DMG, Beacon is the wrong
   audience to test it on.

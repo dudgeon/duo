@@ -11,8 +11,8 @@
 > retained as the engineering reference for Stages 1–5: the CLI spec (§9),
 > the architecture (§8), the Google Docs first-class read/write path (§17),
 > and the acceptance criteria (§11) are still authoritative. Where the
-> brief's product framing ("a tool for PMs using Claude Code at Capital
-> One") differs from the vision doc, the vision doc wins.
+> brief's product framing ("a tool for PMs using Claude Code at Acme")
+> differs from the vision doc, the vision doc wins.
 
 > This is the full vision brief. For current build state see [the roadmap](roadmap.html). For architecture decisions see [docs/DECISIONS.md](DECISIONS.md). For first-time setup see [docs/FIRST-RUN.md](FIRST-RUN.md). Brainstem.cc / MCP integration mentioned in §3, §8 is a future aspiration — the shipping Skills panel (Stage 4) is CWD-scan only.
 
@@ -26,11 +26,11 @@ A macOS-native desktop app that pairs multiple Claude Code terminal sessions wit
 
 ## 2. Why This Exists
 
-Geoff leads an “AI in Product” program at Capital One aimed at helping ~2,600 product managers adopt agentic tools. A recurring friction point: PMs working with Claude Code need the agent to interact with web content — especially Google Docs for PRDs, specs, and collaborative artifacts — but today this requires awkward copy/paste, external MCP bridges, or browser automation that breaks on Google SSO.
+Geoff leads an “AI in Product” program at Acme aimed at helping ~2,600 product managers adopt agentic tools. A recurring friction point: PMs working with Claude Code need the agent to interact with web content — especially Google Docs for PRDs, specs, and collaborative artifacts — but today this requires awkward copy/paste, external MCP bridges, or browser automation that breaks on Google SSO.
 
 Duo collapses the terminal + browser + agent-bridge into one signed macOS app that a PM can install by dragging to `/Applications`. No Node setup, no Chrome extensions, no auth dances.
 
-It is also a **personal daily driver** for Geoff. The design choices reflect both roles: shippable quality for a Trailblazers-style cohort, but prototype-speed priorities for the MVP.
+It is also a **personal daily driver** for Geoff. The design choices reflect both roles: shippable quality for a Beacon-style cohort, but prototype-speed priorities for the MVP.
 
 -----
 
@@ -69,7 +69,7 @@ It is also a **personal daily driver** for Geoff. The design choices reflect bot
 
 ## 5. Context on the Owner
 
-Geoff is Senior Director of Digital Product Management at Capital One, Product Lead for Conversational Servicing (US Card). He’s been building toward an “agent-native PM practice” including a four-phase PM upskilling framework for Claude Code, a Trailblazers pilot cohort, and a personal `brainstem.cc` MCP server for cross-session context. He’s technically deep (Python, Shapely/ezdxf, CNC g-code, Cloudflare Workers) and does substantial work in Claude Code directly. This app is both a personal productivity tool and a candidate artifact for his broader PM enablement work.
+Geoff is Senior Director of Digital Product Management at Acme, Product Lead for Conversational Servicing (US Card). He’s been building toward an “agent-native PM practice” including a four-phase PM upskilling framework for Claude Code, a Beacon pilot cohort, and a personal `brainstem.cc` MCP server for cross-session context. He’s technically deep (Python, Shapely/ezdxf, CNC g-code, Cloudflare Workers) and does substantial work in Claude Code directly. This app is both a personal productivity tool and a candidate artifact for his broader PM enablement work.
 
 -----
 
@@ -98,7 +98,7 @@ The following were not directly answered by the owner; reasonable assumptions we
 |Topic              |Status / Assumption                                                                                                                                          |Confirm before                                                |
 |-------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------|
 |Name               |`duo` is a working placeholder                                                                                                                             |Stage 5 (skill authoring, since the skill name is user-facing)|
-|Distribution scope |Geoff personal → Trailblazers cohort → broader PM community (staged)                                                                                         |Stage 6 (signing/notarization setup)                          |
+|Distribution scope |Geoff personal → Beacon cohort → broader PM community (staged)                                                                                         |Stage 6 (signing/notarization setup)                          |
 |Layout model       |**Resolved 2026-04-23** — three-column: Files (left) \| Terminal (middle-top) + Agent tools (middle-bottom, collapsible) \| Viewer/Editor (right). See [docs/DECISIONS.md § Layout model](DECISIONS.md). The ten-option mockup at `docs/ux/layout-options.html` is historical.|—                                                             |
 |Working pane model |**Resolved 2026-04-23** — single polymorphic slot on the right, shared across terminal tabs; markdown editor scope is local `.md` files only (Google Docs stays in browser mode via `/export?format=md`). See [docs/DECISIONS.md § Layout model](DECISIONS.md).|—                                                             |
 |Skills data sources|CWD scan (SKILL.md, .claude/, CLAUDE.md) + brainstem.cc API                                                                                                  |Stage 4                                                       |
@@ -310,7 +310,7 @@ The skill is the spec. If it’s painful to write, the CLI surface is wrong.
 - Auto-update via electron-updater
 - Session restore on relaunch
 - Notifications for agent-driven browser changes
-- **Exit criteria:** A PM in the Trailblazers cohort can install and use without terminal setup.
+- **Exit criteria:** A PM in the Beacon cohort can install and use without terminal setup.
 
 -----
 
@@ -399,7 +399,7 @@ duo/
 - **Accessibility tree (AXTree)** — The structured representation of a page that browsers expose to screen readers, reachable via CDP `Accessibility.getFullAXTree`. For canvas-rendered apps like Google Docs, this tree — not the DOM — is where the actual document content lives. See §17 and `docs/research/vscode-1.110-integrated-browser.md`.
 - **Kix** — Google Docs' editor engine. Renders the document body to a `<canvas>` element with a hidden contenteditable for input. The reason `duo ax` exists.
 - **Brainstem** — Geoff's personal knowledge management system at brainstem.cc, exposed as an MCP server. Relevant for the skills panel's "context" source.
-- **Trailblazers** — Geoff's pilot cohort of Capital One PMs getting early Claude Code access.
+- **Beacon** — Geoff's pilot cohort of Acme PMs getting early Claude Code access.
 
 -----
 

@@ -9,7 +9,7 @@
     "repo": "duo"
   },
   "bootstrap": {
-    "$comment": "Defaults for ~/.claude/duo/external-domains.json (host patterns matched against the hostname of any URL the agent tries to navigate to; matches route via shell.openExternal instead of the embedded browser) and ~/.claude/duo/pins.json (which help-bundle files first-launch pins). v0.4.3 ENH-009 expanded the externalDomains list to cover Slack, Gmail + Google Workspace, Atlassian, Microsoft 365 alongside the existing *.capitalone.com Cap One AIP default.",
+    "$comment": "Defaults for ~/.claude/duo/external-domains.json (host patterns matched against the hostname of any URL the agent tries to navigate to; matches route via shell.openExternal instead of the embedded browser) and ~/.claude/duo/pins.json (which help-bundle files first-launch pins). v0.4.3 ENH-009 expanded the externalDomains list to cover Slack, Gmail + Google Workspace, Atlassian, Microsoft 365 alongside the existing *.capitalone.com Acme default.",
     "externalDomains": [
       "*.capitalone.com",
       "*.slack.com",

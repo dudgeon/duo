@@ -459,7 +459,7 @@ A 30-minute self-paced course can't have a real exam, but you can build in three
 - **Authentication:** Your organization almost certainly routes Claude Code through a managed LLM gateway with SSO (OIDC federation). PMs should expect a one-time SSO flow, not API key management.
 - **Data sensitivity:** *Tell PMs explicitly* what's safe to put in CLAUDE.md and notes (general team context, public product names, role descriptions) and what isn't (PII, NPI, customer data, internal financials, model parameters). Better one explicit list than a vague warning.
 - **Managed settings precedence:** Tell PMs about it so they're not confused when their `disableBypassPermissionsMode` setting won't override; explain that this is *expected* and protective.
-- **Approved MCP servers:** Maintain a Capital-One-specific page listing the currently approved MCP servers. Don't let PMs go fishing.
+- **Approved MCP servers:** Maintain an Acme-specific page listing the currently approved MCP servers. Don't let PMs go fishing.
 - **Network restrictions:** If `npm install` and arbitrary marketplace plugin installs are blocked, say so explicitly and route PMs to the internal mirror or skill-bundle distribution mechanism.
 - **Auto mode availability:** As of early 2026, auto mode is a research preview, not GA on all plans. Be honest about its preview status and admin-controlled availability.
 
