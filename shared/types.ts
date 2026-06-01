@@ -1400,6 +1400,10 @@ export const IPC = {
   // shell cwd (where the user has `cd`'d to), not the launch cwd from
   // the navigator's follow-mode-synced state.
   PTY_LIVE_CWD: 'pty:live-cwd',
+  // BUG-191 — batched, liveness-aware live-cwd lookup for the project
+  // rail. Returns `{alive, cwd}` per tab id so a shell that cd-d away
+  // (cwd changes) or exited (alive:false) stops keeping a ghost tile.
+  PTY_LIVE_CWDS: 'pty:live-cwds',
   PTY_DATA: (id: string) => `pty:data:${id}`,
   PTY_EXIT: (id: string) => `pty:exit:${id}`,
 

@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>Ghost tiles + jitter loop · root cause + fix decisions</title>
+<style>
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+  /* project rail hues (mirror --duo-project-* tokens) */
+  --proj-pine: #4a7d3e;
+  --proj-harbor: #3a6b8a;
+  --proj-iris: #6a5acd;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+body { padding: 32px 40px 96px; max-width: 980px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px; }
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 6px; }
+.intro { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 14px 18px; margin-bottom: 28px; font-size: 13.5px; color: var(--ink-soft); }
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 600; margin: 36px 0 12px; font-size: 19px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px; }
+h3 { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+h4 { margin: 16px 0 6px; font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; }
+p { margin: 8px 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; }
+ul, ol { margin: 8px 0; padding-left: 22px; }
+li { margin: 3px 0; }
+a { color: var(--accent); }
+
+/* confidence + verdict badges */
+.badge { display: inline-block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 10px; vertical-align: middle; }
+.badge.conf-med { background: #f0e2c4; color: var(--warn); }
+.badge.conf-low { background: #f1d9d6; color: var(--fail); }
+.badge.conf-high { background: #d9eccf; color: var(--pass); }
+.badge.confirmed { background: #d9eccf; color: var(--pass); }
+.badge.refuted { background: #ece6d8; color: var(--ink-mute); }
+
+/* root-cause panel */
+.rc { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-left: 4px solid var(--accent); border-radius: 6px; padding: 14px 18px; margin: 14px 0 18px; }
+.rc .rc-cause { font-size: 14.5px; color: var(--ink); }
+.rc .rc-cause strong { color: var(--accent); }
+
+/* evidence list with file refs */
+.evidence { font-size: 12.5px; color: var(--ink-soft); }
+.evidence code { font-size: 11.5px; }
+.evidence li { margin: 4px 0; }
+
+/* triage callout */
+.triage { background: #fdf6e9; border: 1.5px dashed var(--accent); border-radius: 6px; padding: 14px 18px; margin: 16px 0; }
+.triage .t-title { font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; font-size: 12px; margin-bottom: 6px; }
+
+/* rejected hypotheses table */
+.rejected { font-size: 12.5px; color: var(--ink-mute); margin: 10px 0; }
+.rejected .rj { padding: 7px 0; border-bottom: 1px solid var(--paper-edge); }
+.rejected .rj:last-child { border-bottom: none; }
+.rejected .rj .name { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; color: var(--ink-soft); font-weight: 600; }
+
+/* option cards */
+.option-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin: 12px 0 4px; }
+.option-card { background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 12px 15px; }
+.option-card.rec { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 5%, var(--paper)); }
+.option-card .oc-head { font-weight: 600; font-size: 14px; color: var(--ink); margin-bottom: 4px; }
+.option-card .oc-head .letter { display: inline-block; width: 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 5px; background: var(--accent); color: white; font-weight: 700; font-size: 12px; margin-right: 8px; }
+.option-card .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+.option-card .oc-effort { float: right; font-size: 11px; color: var(--ink-mute); font-weight: 600; }
+.option-card .oc-body { font-size: 12.5px; color: var(--ink-soft); margin: 4px 0; }
+.option-card .oc-trade { font-size: 12px; color: var(--ink-mute); margin-top: 4px; }
+.option-card .oc-trade strong { color: var(--ink-soft); }
+.option-card .oc-files { font-size: 11px; color: var(--ink-ghost); margin-top: 4px; }
+.option-card .oc-files code { font-size: 11px; }
+
+/* ── project-tile mockups (mirror the rail) ── */
+.tile-row { display: flex; gap: 24px; align-items: flex-start; margin: 14px 0; flex-wrap: wrap; }
+.tile-demo { text-align: center; }
+.tile { position: relative; width: 44px; height: 44px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: white; margin: 0 auto; }
+.tile .pip { position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; border-radius: 50%; background: white; }
+.tile-demo .cap { font-size: 11px; color: var(--ink-mute); margin-top: 6px; max-width: 150px; }
+.tile-demo .verdict { font-size: 10.5px; font-weight: 700; margin-top: 3px; }
+.tile-demo .verdict.bug { color: var(--fail); }
+.tile-demo .verdict.ok { color: var(--pass); }
+
+/* ── flow / causal-chain diagram ── */
+.chain { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 12px 0; font-size: 12px; }
+.chain .step { background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 7px 11px; color: var(--ink-soft); max-width: 200px; }
+.chain .step.bad { border-color: var(--fail); color: var(--fail); background: #fdf0ef; font-weight: 600; }
+.chain .step code { font-size: 11px; background: var(--paper-deep); }
+.chain .arrow { color: var(--ink-ghost); font-size: 16px; }
+
+/* burst diagram */
+.burst { background: var(--code-bg); color: var(--code-ink); border-radius: 6px; padding: 14px 16px; font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; line-height: 1.7; margin: 12px 0; overflow-x: auto; }
+.burst .hl { color: #f4b860; font-weight: 700; }
+.burst .dim { color: #9a9080; }
+.burst .danger { color: #e88; }
+
+/* ── decision cards (verbatim Atelier kernel) ── */
+.decision-card { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 16px 18px; margin: 18px 0; }
+.decision-card .q-title { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px; }
+.decision-card .q-prompt { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 500; font-size: 17px; color: var(--ink); margin: 0 0 12px; line-height: 1.35; }
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option { display: block; background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 10px 12px; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes { width: 100%; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px; }
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+.copy-bar { position: sticky; bottom: 0; margin: 32px -40px -96px; padding: 16px 40px; background: color-mix(in srgb, var(--paper-deep) 96%, transparent); border-top: 1.5px solid var(--paper-rule); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button { background: var(--accent); color: white; border: none; border-radius: 5px; padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background 0.12s; }
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Ghost tiles + jitter loop · root cause + fix decisions</h1>
+  <div class="meta">
+    <span class="pill">Decision gate</span>
+    <span class="pill">3 questions</span>
+    Filed 2026-05-29 · BUG-191 (ghost tiles) + BUG-192 (jitter loop) · ENH-182 project rail
+  </div>
+</header>
+
+<div class="intro">
+  <strong>Owner report.</strong> <em>"I am still running into an issue with ghost project tiles that persist when no files or terminal tabs from that project are open; I also encountered a recursive jitter loop I needed to force quit when closing a project tile through right click."</em>
+  <br><br>
+  <strong>How this was produced.</strong> A 38-agent root-cause workflow: 5 parallel readers mapped the project-rail subsystems → ranked candidate root causes per bug → each candidate attacked by 3 independent skeptics (reachability · existing-guards · symptom-fidelity); a candidate survives only if fewer than 2 lenses refute it. The headline up front:
+  <ul style="margin: 6px 0 0;">
+    <li><strong>BUG-191 (ghost tiles)</strong> — <span class="badge conf-med">Medium confidence</span> root cause found and <span class="badge confirmed">survived all 3 lenses</span>: a terminal's <code>cwd</code> is frozen at launch, so a shell that <code>cd</code>'d away — or exited — keeps a tile alive forever.</li>
+    <li><strong>BUG-192 (jitter loop)</strong> — <span class="badge conf-low">Low confidence</span>. Honest finding: <em>every</em> concrete loop candidate was refuted by static analysis (they all converge in today's build). The structurally-implicated handler is named, but proving the runaway needs a live repro. Recommended path includes instrumentation.</li>
+  </ul>
+</div>
+
+<!-- ════════════════════════ BUG-191 ════════════════════════ -->
+<h2>BUG-191 · Ghost project tile (zero open members) <span class="badge conf-med">Medium</span></h2>
+
+<div class="rc">
+  <div class="rc-cause">
+    <strong>Root cause — frozen terminal launch-cwd.</strong> A tile renders only if its root owns ≥1 <em>member</em> or is pinned. A terminal's <code>cwd</code> is set <em>once</em> at construction (<code>makeTab</code>) and is <strong>never rewritten</strong> — not when the shell <code>cd</code>s elsewhere, not when the shell process exits. So a terminal whose launch directory was under project A keeps qualifying A on every derive, even after you've navigated away or the shell is dead. A pure zero-member <em>unpinned</em> tile is provably impossible in the derivation layer, so a ghost is always one of three buckets:
+  </div>
+  <ol style="margin: 10px 0 0; font-size: 13px;">
+    <li><strong>Frozen-cwd / dead-shell terminal</strong> still in <code>tabs[]</code> — <span class="badge confirmed">confirmed, refuteCount 0</span> · pip-less · <em>the primary defect.</em></li>
+    <li><strong>Deleted-file working tab</strong> never pruned from <code>fileTabs[]</code> — secondary · pip-less.</li>
+    <li><strong>Pinned tile</strong> — shows the pin pip · working-as-designed (D12) or the FOLLOWUP-037 deleted-marker caveat.</li>
+  </ol>
+</div>
+
+<div class="chain">
+  <span class="step">Open terminal, launch cwd <code>~/GitHub/duo</code> (project A, A's only member)</span>
+  <span class="arrow">→</span>
+  <span class="step">Inside the shell: <code>cd ~</code> &nbsp;<em>(or the shell <code>exit</code>s)</em></span>
+  <span class="arrow">→</span>
+  <span class="step bad"><code>tabs[].cwd</code> still says <code>~/GitHub/duo</code> — never updated</span>
+  <span class="arrow">→</span>
+  <span class="step bad">Tile A persists, pip-less, "0 things open"</span>
+</div>
+
+<div class="triage">
+  <div class="t-title">⟐ Triage first — the pin pip tells you which bucket you're in</div>
+  The single decisive observable is whether the ghost tile shows a small <strong>pin pip</strong> (top-right dot). This determines whether it's even a bug:
+  <div class="tile-row" style="margin-top: 12px;">
+    <div class="tile-demo">
+      <div class="tile" style="background: var(--proj-harbor);">DU</div>
+      <div class="cap">No pip</div>
+      <div class="verdict bug">▶ stale-member BUG-191</div>
+    </div>
+    <div class="tile-demo">
+      <div class="tile" style="background: var(--proj-pine);">AP<span class="pip"></span></div>
+      <div class="cap">Pip present</div>
+      <div class="verdict ok">✓ pinned — by-design / FOLLOWUP-037</div>
+    </div>
+    <div style="flex: 1; min-width: 220px; font-size: 12.5px; color: var(--ink-soft);">
+      <strong>Pip absent</strong> → this is the frozen-cwd / dead-shell bug. Right-click it: a <code>"Close N terminals"</code> with N≥1 confirms a stale terminal; <code>"M tabs"</code> with M≥1 confirms a deleted-file tab.<br>
+      <strong>Pip present</strong> → it's pinned. Check <code>~/.claude/duo/projects.json</code> and whether the folder/marker still exists (FOLLOWUP-037). Not the live defect.
+    </div>
+  </div>
+</div>
+
+<h4>Evidence</h4>
+<ul class="evidence">
+  <li><code>renderer/App.tsx:192-200</code> — <code>makeTab</code> sets <code>cwd</code> once at construction; no later writer (13-site <code>setTabs</code> audit confirms no <code>cwd</code> mutation anywhere).</li>
+  <li><code>renderer/App.tsx:882-885</code> — <code>projectTerminals</code> = unfiltered <code>tabs.map(t =&gt; ({id, cwd}))</code>, carrying the frozen launch cwd straight into derivation.</li>
+  <li><code>shared/types.ts:1398-1402</code> — <code>PTY_LIVE_CWD</code> (the <em>live</em> shell cwd) already exists, but is only read to <em>seed</em> a new tab (<code>App.tsx:1561-1562, 2626-2627</code>) — never written back to the tab.</li>
+  <li><code>renderer/hooks/useTerminal.ts:24-26</code> + <code>renderer/components/TerminalPane.tsx:439-441</code> — both PTY-exit subscribers only <code>writeln('[process exited]')</code>; neither removes the tab nor clears <code>cwd</code> (a dead shell stays a full member).</li>
+  <li><code>renderer/App.tsx:1600</code> — <code>closeTab</code> floor-of-1 guard prevents closing a sole stale terminal, <em>amplifying</em> the ghost.</li>
+  <li><code>shared/projects.ts:247-248, 260-262</code> — <code>terminalMembership</code> derives from <code>t.cwd</code> → re-adds the root on every derive.</li>
+  <li>Secondary (deleted file): <code>renderer/App.tsx:886-892</code> (filter is <code>!!path &amp;&amp; !isNew</code> only — no existence check); <code>MarkdownEditor.tsx:1024-1030</code> (<code>if (event.kind === 'removed') return</code> — a delete does <em>not</em> close the tab); no in-session <code>files.watch</code> prune exists.</li>
+</ul>
+
+<h4>Rejected hypotheses</h4>
+<div class="rejected">
+  <div class="rj"><span class="name">pinned-zero-member-by-design</span> <span class="badge refuted">refuted · symptom</span> — produces a tile <em>with</em> a pip and only via deliberate <code>togglePin</code>; can't be a surprise ghost hit "repeatedly."</div>
+  <div class="rj"><span class="name">deleted-pin-mid-session (FOLLOWUP-037)</span> <span class="badge refuted">refuted · symptom</span> — real but yields a <em>pip-bearing</em> tile and needs pinned + folder-deleted-out-of-band; already triaged Option-D-accepted.</div>
+  <div class="rj"><span class="name">stale-git-marker-cache</span> <span class="badge refuted">refuted · symptom</span> — the cache only <em>sustains</em> a tile that still has a member; it can't create one. A force-multiplier on frozen-cwd, not a standalone cause.</div>
+</div>
+
+<h4>Fix options</h4>
+<div class="option-grid">
+  <div class="option-card rec">
+    <div class="oc-head"><span class="letter">a</span>Track the live shell cwd into membership <span class="recommend-tag">Recommended</span><span class="oc-effort">Effort: M</span></div>
+    <div class="oc-body">Wire the existing <code>PTY_LIVE_CWD</code> channel through <code>useTerminal.ts</code> to update <code>tabs[].cwd</code> (or a new <code>liveCwd</code> field consulted at <code>App.tsx:882-885</code>) when the shell <code>cd</code>s. On PTY exit, drop the tab's project membership or surface a dead-shell affordance.</div>
+    <div class="oc-trade"><strong>Trade-off:</strong> fixes the root perception mismatch — the rail follows where the shell <em>is</em>, not where it <em>started</em> — and covers both the cd-away and shell-exit variants. Cost: new IPC traffic on every cwd change + a dead-shell UX call.</div>
+    <div class="oc-files">Files: <code>renderer/hooks/useTerminal.ts</code>, <code>renderer/App.tsx</code> (882-885 + exit handling), <code>shared/types.ts</code>.</div>
+  </div>
+  <div class="option-card">
+    <div class="oc-head"><span class="letter">b</span>Prune dead members reactively<span class="oc-effort">Effort: M</span></div>
+    <div class="oc-body">On PTY exit, clear the tab's cwd contribution; add a <code>files.watch</code>-driven prune of <code>fileTabs[]</code> on <code>'removed'</code>, mirroring PR #59's navigator self-heal.</div>
+    <div class="oc-trade"><strong>Trade-off:</strong> closes both leaks (dead shell + deleted-file tab) and matches established prior art. Risk: must prune <em>membership</em> without yanking MarkdownEditor's buffer (it deliberately keeps a deleted file open to allow save-to-recreate).</div>
+    <div class="oc-files">Files: <code>renderer/App.tsx</code> (PTY-exit subscriber, new fileTabs prune effect), <code>renderer/components/editor/MarkdownEditor.tsx</code>.</div>
+  </div>
+  <div class="option-card">
+    <div class="oc-head"><span class="letter">c</span>Diagnostics only — explain, don't remove<span class="oc-effort">Effort: S</span></div>
+    <div class="oc-body">Leave membership alone; show the live cwd / <code>[exited]</code> state in the tile's right-click count and add a "this terminal cd'd out of the project" hint.</div>
+    <div class="oc-trade"><strong>Trade-off:</strong> smallest change, zero derivation risk — but the tile still persists, so it likely won't satisfy "stop showing me ghosts."</div>
+    <div class="oc-files">Files: <code>renderer/components/ProjectRail/ProjectRail.tsx</code>, <code>renderer/App.tsx</code> (<code>projectCounts</code>).</div>
+  </div>
+</div>
+
+<!-- ════════════════════════ BUG-192 ════════════════════════ -->
+<h2>BUG-192 · Recursive jitter / force-quit loop on right-click close <span class="badge conf-low">Low</span></h2>
+
+<div class="rc">
+  <div class="rc-cause">
+    <strong>Root cause — not pinned down by static analysis.</strong> Every concrete loop candidate was <span class="badge refuted">refuted across all 3 lenses</span> — they all <em>converge</em> in today's build (value-equality bailouts, monotone probe caches, a raw-cwd guard, and universal <code>focusedProject === null</code> early-returns). The best-supported remaining explanation is the <strong>unguarded cross-store setState burst inside <code>handleCloseProject</code></strong>: <code>setTabs</code> (with a <em>nested</em> <code>setActiveTabId</code> inside its updater) + <code>setFileTabs</code> + <code>setActiveWorking</code> + <code>setFocusedProject</code>, optionally split by an <code>await dialog.confirm</code>, feeding the live effect cluster (browser-redirect machine E5/E6/E7 + auto-spawn E9) while membership probes are still settling — with <strong>no in-flight / re-entrancy guard</strong> (FOLLOWUP-032, never implemented). You <em>did</em> force-quit, so a non-convergent region is reachable in practice; it most likely lives in the burst → effect-cluster interaction under specific timing (closing a <em>non-focused</em> tile keeps focus non-null and voids the convergence proofs, + a browser member tab + probe lag).
+  </div>
+</div>
+
+<div class="burst">
+<span class="dim">// handleCloseProject — App.tsx:1035-1101 — one user right-click fires:</span>
+<span class="danger">await</span> dialog.confirm(...)        <span class="dim">// only if a claude terminal — splits across ticks</span>
+setTabs(prev =&gt; {
+   <span class="hl">setActiveTabId(survivors[0].id)</span>   <span class="danger">// ← nested setState inside a supposed-pure updater</span>
+   <span class="hl">survivors.push(makeTab(home...))</span>   <span class="dim">// floor-of-1 append</span>
+})
+setFileTabs(...)  setActiveWorking({kind:'browser'})  setFocusedProject(null)
+<span class="dim">         ↓ feeds, while probes still settling ↓</span>
+<span class="danger">E5/E6/E7</span> browser-redirect machine  +  <span class="danger">E9</span> auto-spawn   <span class="dim">// no inFlightCloseRef guard · StrictMode off</span>
+</div>
+
+<h4>Evidence</h4>
+<ul class="evidence">
+  <li><code>renderer/App.tsx:1035-1101</code> — <code>handleCloseProject</code>; no <code>inFlightCloseRef</code> (FOLLOWUP-032, <code>tasks.md:386</code>).</li>
+  <li><code>renderer/App.tsx:1064-1075</code> — <code>setTabs</code> updater with a <strong>nested</strong> <code>setActiveTabId</code> (1071-1073) + <code>makeTab</code> append on zero survivors — a setState inside a supposed-pure updater.</li>
+  <li><code>renderer/App.tsx:1049-1060</code> — <code>await dialog.confirm</code> splits the handler across ticks (claude-terminal case only), letting intervening IPC renders land mid-flush.</li>
+  <li><code>renderer/App.tsx:1085-1087</code> vs <code>1458-1471</code> — redundant focus-release (the handler <em>and</em> effect E10 both set focus to <code>null</code>).</li>
+  <li><code>renderer/App.tsx:1242-1346</code> (E5/E6/E7) — browser-redirect state machine; async <code>browser.switchTab</code> re-enters a tick later; convergence is <em>conditional</em> on equality guards.</li>
+  <li><code>renderer/components/ProjectRail/ProjectRail.tsx:184</code> — the Close item gates on <code>n&gt;0||m&gt;0</code> regardless of focus, so a <strong>non-focused-tile close</strong> (focus stays non-null) is reachable and voids the <code>focusedProject===null</code> fixed-point proofs.</li>
+  <li><code>renderer/main.tsx:21-25</code> — StrictMode intentionally off → no double-invoke damping in dev.</li>
+  <li>Echo ruled out: <code>electron/main.ts:1841-1843</code> — the <code>pushState</code> handler is echo-free, so the IPC feedback loop is <em>not</em> the cause.</li>
+</ul>
+
+<h4>Rejected hypotheses <span style="font-weight: 400; font-size: 12px; color: var(--ink-mute);">(all converge in the current build)</span></h4>
+<div class="rejected">
+  <div class="rj"><span class="name">e9-e10 auto-spawn ↔ auto-release ping-pong</span> <span class="badge refuted">refuted · all 3</span> — <code>hasTerminalUnderRoot</code> reads raw <code>cwd</code> (immune to probe lag) + <code>autoSpawnedForRef</code> blocks re-spawn; the cycle's two preconditions can't co-hold. Bounded.</div>
+  <div class="rj"><span class="name">e5-e7 browser-redirect re-arm</span> <span class="badge refuted">refuted</span> — <code>browserTabMembership</code> is a pure synchronous prefix-match; <code>railProjects</code> is invariant to the <code>switchTab</code> round-trip → one-step convergence.</div>
+  <div class="rj"><span class="name">setActiveTabId-inside-setTabs-updater</span> <span class="badge refuted">refuted</span> — a real latent landmine, but inert <em>today</em>: StrictMode off + classic React 18.3 root means the updater runs exactly once. Worst case is a one-render flicker E9 self-repairs.</div>
+  <div class="rj"><span class="name">FOLLOWUP-032 double-invoke</span> <span class="badge refuted">refuted</span> — needs two concurrent close requests (CLI path); a single right-click can't double-invoke, and it converges anyway (idempotent re-flush).</div>
+  <div class="rj"><span class="name">convergent-burst-misread</span> <span class="badge refuted">refuted · symptom</span> — a transient settling flash doesn't need a force-quit; owner distinguishes benign instability from real loops. Must still be falsified live.</div>
+</div>
+
+<h4>Fix options</h4>
+<div class="option-grid">
+  <div class="option-card rec">
+    <div class="oc-head"><span class="letter">a</span>Atomic + re-entrancy-guarded handler <span class="recommend-tag">Recommended</span><span class="oc-effort">Effort: M</span></div>
+    <div class="oc-body">Add an <code>inFlightCloseRef</code> (FOLLOWUP-032's proposed fix) so a second invocation no-ops. Compute <code>survivors</code> <em>before</em> the updater and call <code>setActiveTabId</code> <em>after</em> <code>setTabs</code> (never inside it). Batch all writes in one synchronous continuation; move <code>await dialog.confirm</code> <em>before</em> any snapshot.</div>
+    <div class="oc-trade"><strong>Trade-off:</strong> removes the re-entrancy hazard, the cross-store updater anti-pattern, and the await-split window in one pass — hardens the implicated handler regardless of the exact trigger. Doesn't by itself <em>prove</em> the loop is gone (needs live confirmation), and touches the most load-bearing handler → full smoke-walk.</div>
+    <div class="oc-files">Files: <code>renderer/App.tsx:1035-1101</code>.</div>
+  </div>
+  <div class="option-card">
+    <div class="oc-head"><span class="letter">b</span>Instrument first, then fix<span class="oc-effort">Effort: S + M</span></div>
+    <div class="oc-body">Before changing logic, add a dev-only update-depth counter / effect fire-count log around E5/E7/E9/E10 and reproduce live (per the project's "build the visibility tool first" rule). Capture the actual non-converging edge, then apply the fix.</div>
+    <div class="oc-trade"><strong>Trade-off:</strong> highest diagnostic certainty — turns the Low-confidence root cause into a confirmed one before committing a fix. Costs a round-trip; ships no fix on its own. <em>Given the Low confidence, this is the conservative first move and composes with (a).</em></div>
+    <div class="oc-files">Files: temporary instrumentation in <code>renderer/App.tsx</code> / React DevTools profiler.</div>
+  </div>
+  <div class="option-card">
+    <div class="oc-head"><span class="letter">c</span>Decouple the browser-redirect machine from the close burst<span class="oc-effort">Effort: M</span></div>
+    <div class="oc-body">Gate E6/E7 so they don't re-arm during an in-flight close (read the same <code>inFlightCloseRef</code>); make E7's <code>switchTab</code> fire-and-forget without feeding <code>setFocusedProject</code> back through E5 during a close.</div>
+    <div class="oc-trade"><strong>Trade-off:</strong> targets the specific conditional-convergence region flagged as residual risk; lower blast radius than (a) — but only helps if the loop is in fact in that cluster, and leaves the nested-setState + re-entrancy hazards in place.</div>
+    <div class="oc-files">Files: <code>renderer/App.tsx:1242-1346</code>.</div>
+  </div>
+</div>
+
+<!-- ════════════════════════ Cross-cutting ════════════════════════ -->
+<h2>Cross-cutting — one root family, two faces</h2>
+<p>Both bugs descend from the same design facts: <strong>membership is fully re-derived every render</strong> (<code>shared/projects.ts:259-271</code>), <strong>probe caches are monotone and never invalidate</strong> (<code>useProjects.ts:84-94</code>), and <strong>there is no reactive prune of dead terminals / file-tabs.</strong></p>
+<ul>
+  <li><strong>BUG-191 is the steady-state face</strong> — a stale member lingers in <code>tabs[]</code>/<code>fileTabs[]</code> and quietly keeps a tile alive.</li>
+  <li><strong>BUG-192 is the transition face</strong> — the close mutates those same arrays across multiple stores while membership probes lag, driving the effect cluster.</li>
+</ul>
+<p>Reactively pruning stale members (191-b) shrinks the very arrays the close handler thrashes, <em>narrowing</em> 192's probe-pending window — a mitigation, not a cure (it leaves the re-entrancy / nested-setState hazards). The cleanest combined posture is <strong>191-a (live-cwd tracking) + 192-a (atomic guarded handler)</strong>: the rail reflects live state <em>and</em> the close becomes a single safe transition. The two are independent enough to ship and smoke-walk separately.</p>
+
+<!-- ════════════════════════ Confirmation plan ════════════════════════ -->
+<h2>Confirmation plan <span style="font-weight: 400; font-size: 13px; color: var(--ink-mute);">(this analysis is static — confirm live before/after)</span></h2>
+<h3>BUG-191 — disambiguate the bucket first (it picks which fix matters)</h3>
+<ol>
+  <li>Reproduce a ghost, then <strong>inspect the tile for a pin pip</strong> (<code>duo dom</code> / <code>duo eval</code> against <code>ProjectRail</code>, or screenshot). Pip → pinned case; pip-less → continue.</li>
+  <li>Right-click the ghost and read the "Close N terminals and M tabs" label (or query <code>projectCounts</code>). <code>N≥1</code> = stale terminal; <code>M≥1</code> = stale file tab.</li>
+  <li><strong>Frozen-cwd repro:</strong> open a terminal launched under a git/marker project A (A unpinned, no other members), then inside the shell <code>cd ~</code>. Confirm tile A persists, pip-less, <code>N=1</code>. Repeat letting the shell <code>exit</code> — confirm the dead-shell tab still counts.</li>
+  <li><strong>Deleted-file repro:</strong> open a markdown file under project B (B's only member), <code>rm</code> it from a shell without closing the tab. Confirm tile B persists, <code>M=1</code>.</li>
+  <li><strong>Regression tests:</strong> pure-function test of <code>deriveProjects</code> (a terminal whose cwd no longer maps drops the tile once cwd-tracking lands) + a prune test for a <code>fileTabs</code> entry pointing at a non-existent path. No Electron needed.</li>
+</ol>
+<h3>BUG-192 — confirm the loop, then the fix</h3>
+<ol>
+  <li><strong>Live repro with instrumentation:</strong> <code>npm run dev</code> + React DevTools (or temporary effect fire-count logs + an update-depth counter). Drive the gesture: be focused on a project with an active <code>file://</code> <em>browser</em> member tab, then right-click-close it — <em>and</em> the non-focused-tile variant (close a different project's tile while focused elsewhere). Watch for "Maximum update depth exceeded" / a non-settling fire-count.</li>
+  <li>If it reproduces, capture which effect's setState re-fires — that names the exact edge (expected: E5↔E6↔E7 with async <code>switchTab</code>, or the burst re-entering during the <code>await dialog.confirm</code> window).</li>
+  <li>Apply 192-a, re-run the same repro, confirm a single converging burst and no force-quit.</li>
+  <li><strong>Regression test:</strong> RTL test asserting two in-flight invocations flush once (guard works) + bounded render count after closing a project with a browser member tab. Full <code>/smoke-walk</code> since this touches the most load-bearing handler.</li>
+</ol>
+
+<!-- ════════════════════════ Decisions ════════════════════════ -->
+<h2>Decisions</h2>
+
+<div class="decision-card">
+  <div class="q-title">Q1 · BUG-191 ghost-tile fix</div>
+  <div class="q-prompt">How should we kill the ghost tiles?</div>
+  <p class="q-context">Confirmed root cause (frozen launch-cwd). Assumes the triage shows a <em>pip-less</em> tile — if your ghosts show a pip, this is the FOLLOWUP-037 pinned case instead, note that below.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q1-bug191-fix" value="a-live-cwd">
+      <div class="q-option-body">
+        <div class="q-option-title">a · Track the live shell cwd into membership <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Rail follows where the shell <em>is</em>, not where it started. Covers cd-away + shell-exit. Effort M.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q1-bug191-fix" value="b-reactive-prune">
+      <div class="q-option-body">
+        <div class="q-option-title">b · Prune dead members reactively (PTY-exit + files.watch)</div>
+        <div class="q-option-rationale">Closes both leaks, mirrors PR #59. Must prune membership without yanking the editor buffer. Effort M.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q1-bug191-fix" value="c-diagnostics">
+      <div class="q-option-body">
+        <div class="q-option-title">c · Diagnostics only (explain the ghost, don't remove it)</div>
+        <div class="q-option-rationale">Smallest, zero derivation risk — but the tile still persists. Effort S.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q1-notes" placeholder="Notes / 'combine a+b' / 'my ghost has a pip' ..."></textarea>
+</div>
+
+<div class="decision-card">
+  <div class="q-title">Q2 · BUG-192 jitter-loop approach</div>
+  <div class="q-prompt">How should we approach the force-quit loop, given Low static confidence?</div>
+  <p class="q-context">No candidate survived verification — the loop is real (you force-quit) but its exact edge is timing-dependent. (a) hardens the implicated handler regardless; (b) confirms the edge first.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q2-bug192-approach" value="a-atomic-guard">
+      <div class="q-option-body">
+        <div class="q-option-title">a · Atomic + re-entrancy-guarded handler <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">inFlightCloseRef + hoist setActiveTabId out of the updater + move the confirm before any snapshot. Hardens regardless of trigger. Effort M.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q2-bug192-approach" value="b-instrument-first">
+      <div class="q-option-body">
+        <div class="q-option-title">b · Instrument first, then fix (conservative)</div>
+        <div class="q-option-rationale">Build the visibility tool, repro live, capture the real edge, then apply (a). Highest certainty; composes with (a). Effort S + M.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q2-bug192-approach" value="c-decouple-browser">
+      <div class="q-option-body">
+        <div class="q-option-title">c · Decouple the browser-redirect machine from the close burst</div>
+        <div class="q-option-rationale">Narrow, low blast radius — but only helps if the loop is in that cluster; leaves other hazards. Effort M.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q2-notes" placeholder="Notes / 'do b then a' ..."></textarea>
+</div>
+
+<div class="decision-card">
+  <div class="q-title">Q3 · Sequencing &amp; scope</div>
+  <div class="q-prompt">What order do we tackle these in?</div>
+  <p class="q-context">191 has a confirmed cause and high day-to-day annoyance; 192 is a force-quit but its edge is unconfirmed. They're independent enough to ship separately.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q3-sequencing" value="a-191-then-instrument-192">
+      <div class="q-option-body">
+        <div class="q-option-title">a · Ship 191 now, instrument 192 in parallel <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Bank the confirmed fix immediately; de-risk 192 with eyes-on before committing its handler rewrite.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q3-sequencing" value="b-both-together">
+      <div class="q-option-body">
+        <div class="q-option-title">b · Both together (combined 191-a + 192-a posture)</div>
+        <div class="q-option-rationale">One sprint, one smoke-walk of the whole rail-close surface. Bigger blast radius at once.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q3-sequencing" value="c-192-first">
+      <div class="q-option-body">
+        <div class="q-option-title">c · 192 first — a force-quit outranks an annoyance</div>
+        <div class="q-option-rationale">Severity-led. Accepts working on the Low-confidence bug before the confirmed one.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q3-sequencing" value="d-file-only">
+      <div class="q-option-body">
+        <div class="q-option-title">d · File both, decide at next sprint-plan</div>
+        <div class="q-option-rationale">No work now; BUG-191/192 enter the backlog and get prioritized with everything else.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q3-notes" placeholder="Notes..."></textarea>
+</div>
+
+<div class="copy-bar">
+  <div class="copy-meta">
+    <span id="answered-count">0 / 3</span> decisions answered. Hit Copy, then paste back to Claude.
+  </div>
+  <button id="copy-decisions" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  const counter = document.getElementById('answered-count');
+  const button = document.getElementById('copy-decisions');
+  const QS = [
+    { id: 'q1-bug191-fix', title: 'Q1 · BUG-191 ghost-tile fix' },
+    { id: 'q2-bug192-approach', title: 'Q2 · BUG-192 jitter-loop approach' },
+    { id: 'q3-sequencing', title: 'Q3 · Sequencing & scope' }
+  ];
+  function refresh() {
+    let answered = 0;
+    for (const q of QS) {
+      if (document.querySelector('input[name="' + q.id + '"]:checked')) answered++;
+    }
+    counter.textContent = answered + ' / ' + QS.length;
+  }
+  document.addEventListener('change', refresh);
+  document.addEventListener('input', refresh);
+  refresh();
+  function buildPayload() {
+    const lines = [];
+    lines.push('GHOST TILES + JITTER LOOP — FIX DECISIONS (' + new Date().toISOString().slice(0, 10) + ')');
+    lines.push('BUG-191 (ghost tiles) + BUG-192 (jitter loop)');
+    lines.push('=================================================');
+    lines.push('');
+    for (const q of QS) {
+      const checked = document.querySelector('input[name="' + q.id + '"]:checked');
+      const value = checked ? checked.value : '(no pick)';
+      const notes = (document.querySelector('textarea[name="' + q.id.replace(/^(q\d+)-.+$/, '$1') + '-notes"]')?.value || '').trim();
+      lines.push('[' + value.toUpperCase() + '] ' + q.title);
+      if (notes) for (const line of notes.split('\n')) lines.push('    ' + line);
+      lines.push('');
+    }
+    lines.push('---');
+    lines.push('Source: docs/research/bug-191-192-ghost-tiles-jitter-rootcause.html');
+    return lines.join('\n');
+  }
+  button.addEventListener('click', async () => {
+    const payload = buildPayload();
+    try {
+      await navigator.clipboard.writeText(payload);
+      button.textContent = 'Copied!';
+      button.classList.add('copied');
+      setTimeout(() => {
+        button.textContent = 'Copy decisions';
+        button.classList.remove('copied');
+      }, 2000);
+    } catch (err) {
+      button.textContent = 'Copy failed';
+      console.error(err);
+    }
+  });
+})();
+</script>
+
+</body>
+</html>
