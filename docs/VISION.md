@@ -3,6 +3,11 @@
 > The product north star. For engineering state see [the roadmap](roadmap.html),
 > for locked architectural choices see [DECISIONS.md](DECISIONS.md), for the
 > original engineering brief (historical) see [duo-brief.md](duo-brief.md).
+>
+> **Last updated 2026-05-31.** The vision is intentionally durable; for what's
+> actually shipped today — the rich markdown editor, the HTML canvas, the
+> JSON/YAML viewer, the browser pane, the project rail, and workspaces — see
+> [the roadmap](roadmap.html), the live source of truth.
 
 ---
 
@@ -145,9 +150,10 @@ experience.
 
 ## Supporting capabilities
 
-Ordered by how directly each one serves the primary persona. Some are shipped
-(Stages 1–5); some are aspirational. See [the roadmap](roadmap.html) for
-status.
+Ordered by how directly each one serves the primary persona. Many are now
+shipped (the editor, HTML canvas, agent↔browser pair, file navigator, project
+rail, and workspaces); some remain aspirational. See [the roadmap](roadmap.html)
+for live status.
 
 ### Agent ↔ browser pair
 

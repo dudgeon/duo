@@ -12,8 +12,9 @@
 > what's shipped, what's a gap, and what stage will close each gap.
 > Cross-refs to specific PRDs in [docs/prd/](prd/).
 >
-> **Last updated: 2026-04-26** (Stage 19 rename: `duo term new` →
-> `duo new-tab` with `--kind shell|claude`).
+> **Last updated: 2026-05-31** (ENH-191 / D7 re-audit vs `cli/duo.ts`: added
+> `duo html click` + the `duo pack` family, removed a stale `duo doc find`
+> gap row, corrected the terminal-tab parity note).
 
 ---
 
@@ -91,6 +92,7 @@ for the authoritative usage text.
 | `duo html append --parent <duo-id> --html "…"` | Append a child to the matched parent (Stage 17b). |
 | `duo html remove --id <duo-id>` | Delete the matched element (Stage 17b). |
 | `duo html attr --id <duo-id> [--set k=v ...] [--remove k ...]` | Modify attributes (Stage 17b). |
+| `duo html click --id <duo-id> \| --selector <css>` | **ENH-055** — programmatic click; resolves the target via `--id`/`--selector` and fires the canvas-action delegated dispatcher exactly like a real user click (`data-duo-action` verbs fire, events emit). Used by lesson fly-through harnesses. |
 | `duo html comment --id <duo-id> --body "…"` | Add a comment anchored to the matched element's nearest `data-duo-id` ancestor (Stage 17d). Stored in `<file>.duo.json § comments[]`; the `.html` is never modified. Anchor via `--id`, `--selector <css>`, or `--text "<substring>"`. Body via flag or stdin. Returns `{ok, commentId, anchorId}`. |
 | `duo html comments [--filter all\|open\|resolved]` | List comment threads on the active canvas, sorted in document order (Stage 17d). Each thread: `{id, number, excerpt, resolved, entries: [{id, author, ts, body}]}`. |
 
@@ -115,6 +117,7 @@ for the authoritative usage text.
 | `duo split-view <op> [args]` | ENH-041 / Sprint 3 + Sprint 7 Phase 3c — Split View aux pane (canvas's right-side companion slot). Sub-verbs: `open <path>` (file in aux), `open-browser <id>` (pin browser tab in aux — Phase 3c, browser tab stays a real Chromium tab so scripts run; fixes worksheet-in-split scripted-page case), `close`, `promote`, `resize <pct>`, `state` (or no sub-verb). v1 single-slot. File-aux and browser-aux mutually exclusive — pinning one releases the other. State is renderer-authoritative; main caches snapshot for the no-arg query. Locked spec: `docs/prd/canvas-split-view-research.html`. |
 | `duo events [--follow] [--since <cursor>] [--limit N]` | Stage 27 — stream structured DuoEvents from main's in-memory bus (200-event ring buffer). Snapshot mode prints one JSON line per event from the ring; `--follow` keeps the socket open and pushes each new event as it lands. `--since` resumes from a cursor of the form `<unix-ms>-<seq>`. Producer: canvas-action `duo:event` verb today; renderer / browser / main hooks land as Stage 27.5 follow-ups. |
 | `duo packs` | Stage 18b — list every distro pack at `~/.claude/duo/packs/<name>/`. Returns parsed `PACK.json` plus per-pack `errors[]` (malformed manifests surface as errors, never crash the loader). Cached at app boot. |
+| `duo pack <list\|uninstall>` | **Stage 21d-iii** — distro pack management. `list` returns JSON of installed packs; `uninstall <name> [--remove-folder]` removes a pack (and optionally its folder on disk). (`duo packs` above is the legacy list alias.) |
 | `duo selection-format [a\|b\|c]` | Read or set the Send → Duo payload format (Stage 15 G19, agent-tunable). a = quote + provenance (default), b = literal, c = opaque token. Persisted in renderer localStorage. |
 | `duo send [--text "…"] [--enter]` | Write a payload into the active terminal's PTY (Stage 15 G17). No Enter by default — user confirms. Pass `--enter` to submit on their behalf (Stage 23b — pairs with canvas `data-duo-action="terminal:send" data-enter="true"`). Without `--text`, reads stdin. Returns `{ok, written, terminalId}`. |
 
@@ -190,10 +193,11 @@ Audited against the UI surface as of 2026-04-24. Priorities:
 
 ### Terminal — P0
 
-Today the agent can create new terminal tabs (Stage 19c, shipped
-2026-04-26 — code-side; UI walk pending) but cannot yet close or switch
-existing ones. Since Duo terminals are *the place the agent lives*,
-the close/switch gaps remain the largest parity hole.
+Today the agent can create new terminal tabs (Stage 19c) and close them
+(`duo close-terminal-tab`, FOLLOWUP-020 — shipped). Switching the *focused*
+terminal tab from the CLI is the remaining gap. Since Duo terminals are
+*the place the agent lives*, terminal-tab switching is the parity hole left
+to close.
 
 | Verb | UI parallel | Shape |
 |---|---|---|
@@ -231,7 +235,6 @@ but they're not shipped yet.
 | `duo doc frontmatter get [key]` / `set <key> <value>` | Properties panel (not yet built) | P1 — makes the `duo.trackChanges` flag (and future per-doc settings) agent-legible |
 | `duo doc outline [path]` | Outline sidebar (not yet built) | P1 — returns `[{level, text, line}]` for TOC |
 | `duo doc table <op>` where op = row-above / row-below / row-del / col-left / col-right / col-del / toggle-header / del-table | Table toolbar + `⌥⇧↑↓←→` | P2 — agents can just emit a new markdown table via `replace-selection` |
-| `duo doc find <pattern> [--case-sensitive] [--regex]` | `⌘F` (not yet built) | P2 |
 
 ### Files + navigator — P1
 
