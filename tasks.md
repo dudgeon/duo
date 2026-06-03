@@ -30,7 +30,7 @@
 
 ### BUG-191: Ghost project tile persists with no open files/terminals (frozen launch-cwd)
 
-**Status:** 🟡 **Fix implemented + verified live on branch `claude/kind-goldstine-6904c1` (2026-05-31)** — option (a) live-cwd tracking. Root-caused via 38-agent workflow (5-reader map → ranked hypotheses → 3-lens adversarial verification). **Priority:** Medium (persistent daily annoyance; functionally benign). **Effort:** M.
+**Status:** ✅ **Cut into v0.8.5 (2026-06-02) on agent verification** — option (a) live-cwd tracking. Root-caused via 38-agent workflow (5-reader map → ranked hypotheses → 3-lens adversarial verification). **Priority:** Medium (persistent daily annoyance; functionally benign). **Effort:** M. **Smoke walk v0.8.5: owner SKIP** (didn't hand-walk); owner accepted **agent live-verification (3 ways:** unit tests + socket cd-out/cd-in tile clear+restore + computer-use screenshots**)** as sufficient for the cut.
 
 **Fix (2026-05-31).** Membership now tracks each terminal's LIVE shell cwd, not its frozen launch cwd. New batched, liveness-aware main handler `PTY_LIVE_CWDS` (async `lsof` + a `PtyManager.getLiveness` tri-state so an exited shell drops its tile while a not-yet-spawned tab keeps its launch cwd) — `electron/main.ts`, `core/pty-manager.ts`. Renderer polls it on a visibility-gated 5s interval into a `liveCwdInfo` map that `deriveProjects` consumes via the new pure `effectiveProjectTerminals` (`shared/project-lifecycle.ts`); `mergeLiveCwdInfo` keeps the map reference stable so a steady poll doesn't re-derive every tick (`renderer/App.tsx`). **Verified live:** a shell that `cd`s out of a project clears its tile within the poll window; `cd` back restores it; tiles for `/tmp`-launched terminals canonicalize to `/private/tmp` via the live probe. Unit-covered in `shared/project-lifecycle.test.ts`.
 
@@ -52,7 +52,7 @@
 
 ### BUG-192: Recursive jitter / force-quit loop when closing a project tile via right-click
 
-**Status:** 🟡 **Fix implemented on branch `claude/kind-goldstine-6904c1` (2026-05-31); close path verified responsive** — option (a) atomic + re-entrancy-guarded handler. **Priority:** High (force-quit-level) but **Low static-confidence** on the exact edge. **Effort:** M.
+**Status:** ✅ **Owner-PASS on smoke walk v0.8.5 (2026-06-02).** Fix on branch `claude/kind-goldstine-6904c1` — option (a) atomic + re-entrancy-guarded handler. **Priority:** High (force-quit-level) but was **Low static-confidence** on the exact edge; owner walked the right-click close gesture with no jitter/force-quit. **Effort:** M.
 
 **Fix (2026-05-31).** `handleCloseProject` (`renderer/App.tsx`) now: (1) guards re-entrancy via `inFlightCloseRef` (a second close for the same root no-ops — generalizes [FOLLOWUP-032](#followup-032)); (2) runs `await dialog.confirm` BEFORE any snapshot/mutation, closing the await-split window; (3) hoists `setActiveTabId` OUT of the `setTabs` updater (the nested-setState anti-pattern). Member/survivor/active-shift logic extracted to the pure, unit-tested `planProjectClose` (`shared/project-lifecycle.ts`). **Verified:** a live `duo project close` closes the project, the floor-of-1 holds (fresh shell appended), and the app stays responsive — no loop/hang. The exact original right-click gesture with the owner's specific tab/browser state was not reproduced (it was never deterministic); the structural hazards are removed, so the owner's retry is the final confirmation.
 
@@ -72,7 +72,7 @@
 
 ### BUG-193: Pinned reference tab spuriously maps to a shallow parent project (phantom parent tile + D11 focus theft)
 
-**Status:** 🟡 **Fix implemented + verified live on branch `claude/kind-goldstine-6904c1` (2026-05-31)** — found during the v0.8.5 BUG-191/192 smoke walk. **Priority:** Medium-High (rail unusable when a git-repo parent + pinned tabs coincide). **Effort:** S.
+**Status:** ✅ **Owner-PASS on smoke walk v0.8.5 (2026-06-02).** Fix on branch `claude/kind-goldstine-6904c1` — found during the v0.8.5 BUG-191/192 smoke walk. **Priority:** Medium-High (rail unusable when a git-repo parent + pinned tabs coincide). **Effort:** S.
 
 **Symptom (owner, smoke walk).** Opened a terminal in `~/Documents/GitHub/stoop`; the rail spawned TWO tiles — `stoop` AND `~/Documents` — even though only stoop was opened. Worse: clicking the `stoop` tile, focus was immediately stolen by the `Documents` tile (the navigator briefly re-rooted to stoop, then snapped back to Documents). Documents then dominated focus for all projects.
 
@@ -86,7 +86,7 @@
 
 ### BUG-194: Focused project's last terminal cd-d out → terminal tab vanishes (multitab breaks)
 
-**Status:** 🟡 **Fix implemented + verified live on branch `claude/kind-goldstine-6904c1` (2026-06-01)** — direct follow-on regression from BUG-191. **Priority:** High (loses access to a live terminal + breaks ⌘T/⌃Tab). **Effort:** S.
+**Status:** ✅ **Owner-PASS on smoke walk v0.8.5 (2026-06-02).** Fix on branch `claude/kind-goldstine-6904c1` — direct follow-on regression from BUG-191. **Priority:** High (loses access to a live terminal + breaks ⌘T/⌃Tab). **Effort:** S.
 
 **Symptom (owner, smoke walk).** While focused on a project that had a single terminal, `cd`-ing that terminal OUT into a no-project root cleared the tile as expected — but the active terminal's TAB disappeared too. With the terminal strip empty, ⌘T just replaced the current terminal and ⌃Tab cycled the canvas tabs instead of terminals (multitab effectively dead).
 

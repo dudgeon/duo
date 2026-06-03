@@ -19,7 +19,21 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.8.4 cut 2026-05-28.
+> Empty — v0.8.5 cut 2026-06-02.
+
+## [0.8.5] — 2026-06-02 — Project rail correctness: ghost tiles · close-jitter · phantom parents · multitab
+
+### Fixed
+- **BUG-191** Project rail tiles no longer linger as "ghosts" when no files or terminals from that project are open. A terminal's project membership was frozen at the shell's *launch* directory and never updated — so a shell that `cd`'d away (or whose process exited) kept its tile alive forever. Membership now follows the **live shell cwd**, polled on a visibility-gated interval via a new batched, liveness-aware `PTY_LIVE_CWDS` IPC; an exited shell drops its tile, a `cd` out clears it, a `cd` back restores it.
+- **BUG-192** Right-clicking a project tile and choosing "Close N terminals and M tabs" no longer risks a recursive jitter / force-quit. `handleCloseProject` is now re-entrancy-guarded (`inFlightCloseRef`), runs its confirm dialog *before* any state snapshot, and hoists `setActiveTabId` out of the `setTabs` updater (the nested-setState anti-pattern). The member/survivor/active-shift logic is extracted to a pure, unit-tested `planProjectClose`.
+- **BUG-193** Opening a terminal in a nested repo (e.g. a project inside a git-repo parent like `~/Documents`) no longer spawns a phantom tile for the parent, and clicking the real tile no longer has focus stolen by the parent. Pinned reference tabs now get **null** project membership, so they can't resolve up to a shallow qualifying ancestor and contaminate the project set or the D11 auto-switch.
+- **BUG-194** `cd`-ing the focused project's last terminal out of it no longer hides that terminal's tab (which had broken ⌘T / ⌃Tab multitab). When the focused project drops out of the rail, focus auto-releases to "All" so the orphaned terminal stays visible.
+
+### Notes
+- New pure module `shared/project-lifecycle.ts` (19 unit tests) isolates the membership-input, poll-churn-guard, close-plan, and focus-release logic from React. 868/868 tests pass; typecheck clean.
+- Root-caused via a 38-agent investigation workflow; decision playground at `docs/research/bug-191-192-ghost-tiles-jitter-rootcause.html`.
+
+[0.8.5]: https://github.com/dudgeon/duo/compare/v0.8.4...v0.8.5
 
 ## [0.8.4] — 2026-05-28 — Polish patch: quit-loop · source-line gutter · nav heal
 

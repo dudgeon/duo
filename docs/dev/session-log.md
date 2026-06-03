@@ -18,6 +18,19 @@
 
 ---
 
+## 2026-06-02 (v0.8.5 cut — project rail correctness: ghost tiles · close-jitter · phantom parents · multitab)
+
+**v0.8.5 cut + tagged locally.** PATCH bump (0.8.4 → 0.8.5) — four project-rail correctness fixes on branch `claude/kind-goldstine-6904c1`. Root-caused via a 38-agent investigation workflow (5-reader map → ranked hypotheses → 3-lens adversarial verification); decision playground at `docs/research/bug-191-192-ghost-tiles-jitter-rootcause.html`.
+
+- **BUG-191** ([`c215226`](https://github.com/dudgeon/duo/commit/c215226)) — ghost tiles. Terminal membership was frozen at the shell's launch cwd; now tracks the **live** shell cwd via a new batched, liveness-aware `PTY_LIVE_CWDS` IPC (async `lsof` off the main thread + a `PtyManager` liveness tri-state so an exited shell drops its tile but a not-yet-spawned tab keeps its launch cwd). Renderer polls on a visibility-gated 5s interval into a `liveCwdInfo` map consumed by `deriveProjects` via the pure `effectiveProjectTerminals`; `mergeLiveCwdInfo` keeps the map reference stable to avoid re-derive churn.
+- **BUG-192** ([`c215226`](https://github.com/dudgeon/duo/commit/c215226)) — right-click close jitter/force-quit. `handleCloseProject` now has an `inFlightCloseRef` re-entrancy guard, runs the confirm before any snapshot, and hoists `setActiveTabId` out of the `setTabs` updater. Pure `planProjectClose` extracted.
+- **BUG-193** ([`10faab3`](https://github.com/dudgeon/duo/commit/10faab3)) — phantom parent tile + D11 focus theft. Pinned reference tabs (e.g. tasks.md / idle-thoughts.md under the `~/Documents` git repo) resolved their membership up to the shallow git-repo parent. Fix: pinned tabs get null `tabMembership` in `deriveProjects`. Regression test in `core/projects-service.test.ts`.
+- **BUG-194** ([`573fe3e`](https://github.com/dudgeon/duo/commit/573fe3e)) — regression from BUG-191, caught on the v0.8.5 walk: `cd`-ing the focused project's last terminal out hid the terminal (broke ⌘T/⌃Tab) because the visibility filter matched nothing while focus stayed pinned to the now-gone project. Fix: `shouldReleaseFocus` releases focus to "All" when the focused project drops from the rail.
+- **New pure module** `shared/project-lifecycle.ts` (+19 vitest cases: effectiveProjectTerminals / mergeLiveCwdInfo / planProjectClose / shouldReleaseFocus). 868/868 tests pass; typecheck clean.
+- **Process note.** Smoke walk: BUG-192/193/194 owner-PASS; BUG-191 owner-SKIP but agent-verified live three ways (unit + socket cd-out/cd-in + computer-use screenshots), owner accepted for the cut. Requesting computer-use mid-session (for the BUG-194 visual proof) triggered a macOS TCC reset that blocked `~/Documents` file access for both agent and app until a session restart — drove the rest of the verification over the Duo Unix socket directly (CLI binary was under the blocked tree). Captured a memory lesson on weighing computer-use against protected-folder repos.
+
+---
+
 ## 2026-05-28 (v0.8.4 cut — polish patch: quit-loop · source-line gutter · nav heal)
 
 **v0.8.4 cut + tagged locally.** PATCH bump (0.8.3 → 0.8.4) — four fixes shipped over the last day plus one research doc.
