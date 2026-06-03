@@ -14,6 +14,12 @@ interface Session {
 
 export class PtyManager {
   private sessions = new Map<string, Session>()
+  // BUG-191 — ids whose shell has EXITED. `sessions` is deleted on exit
+  // (so getPid returns null), which is indistinguishable from a tab whose
+  // PTY hasn't spawned yet. Tracking exited ids lets `getLiveness` tell
+  // "dead shell" (drop its project tile) from "pending" (keep the launch
+  // cwd) — see `getLiveness`.
+  private exited = new Set<string>()
   private eventSink: EventSink | null = null
 
   constructor(private readonly appVersion: string) {}
@@ -24,6 +30,8 @@ export class PtyManager {
 
   create(id: string, shell: string = DEFAULT_SHELL, cwd: string = DEFAULT_CWD): void {
     if (this.sessions.has(id)) return
+    // A re-create for this id means it's live again, not exited.
+    this.exited.delete(id)
 
     // Stage 18 Phase 18a — env signals (D1–D3).
     // Every PTY Duo spawns is tagged so child processes (Claude Code,
@@ -72,6 +80,7 @@ export class PtyManager {
     ptyProcess.onExit(({ exitCode }) => {
       this.eventSink?.send(IPC.PTY_EXIT(id), exitCode)
       this.sessions.delete(id)
+      this.exited.add(id) // BUG-191 — remember it died (vs never-spawned)
     })
 
     this.sessions.set(id, { id, pty: ptyProcess, cwd: resolvedCwd })
@@ -141,6 +150,19 @@ export class PtyManager {
    *  live `claude` process. */
   getPid(id: string): number | null {
     return this.sessions.get(id)?.pty.pid ?? null
+  }
+
+  /** BUG-191 — liveness for the project-rail live-cwd batch.
+   *   • 'live'    — session exists; safe to lsof its pid for the cwd.
+   *   • 'exited'  — the shell process exited; the tab keeps no project
+   *                 membership (drops a ghost tile).
+   *   • 'unknown' — no session and never recorded as exited (PTY not
+   *                 spawned yet, or create failed) → caller falls back to
+   *                 the tab's launch cwd rather than dropping its tile. */
+  getLiveness(id: string): 'live' | 'exited' | 'unknown' {
+    if (this.sessions.has(id)) return 'live'
+    if (this.exited.has(id)) return 'exited'
+    return 'unknown'
   }
 
   dispose(): void {

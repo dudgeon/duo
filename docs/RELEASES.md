@@ -21,7 +21,24 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.8.4 cut 2026-05-28)*
+> *(empty — v0.8.5 cut 2026-06-02)*
+
+---
+
+## v0.8.5 — 2026-06-02 — Project rail correctness
+
+**Why this lands here.** The project rail (ENH-182) shipped its lifecycle behavior across v0.8.x, and a day of dogfooding surfaced four correctness bugs clustered tightly around one root: *membership is derived from inputs that don't reflect reality, and churned hardest during close.* They're a coherent chapter — all rail, all membership — so they cut together rather than dribbling out as separate patches.
+
+The two headline bugs are two faces of the same design fact. **BUG-191** (ghost tiles) is the steady-state face: a terminal's `cwd` was frozen at launch, so a shell that wandered off — or died — kept its tile forever. **BUG-192** (close-jitter) is the transition face: the close handler mutated five pieces of state (one `setState` nested inside another's updater) with no re-entrancy guard, which could spin a non-converging render loop severe enough to force-quit. Fixing 191 meant making membership track the *live* shell cwd; that surfaced **BUG-194** (a focused project whose last terminal left would hide the terminal), fixed by releasing focus to "All" when the project vanishes. **BUG-193** (phantom parent tile + focus theft) was a pre-existing latent bug the dogfooding flushed out: pinned reference docs under a git-repo parent resolved their membership up to that parent.
+
+**Key design decisions.**
+
+1. **Track the live shell cwd, don't freeze it.** A new `PTY_LIVE_CWDS` batched IPC resolves each terminal's real cwd + liveness asynchronously (`lsof` off the main thread, never blocking it); the renderer polls it on a visibility-gated 5s interval into a `liveCwdInfo` map that `deriveProjects` consumes via the pure `effectiveProjectTerminals`. A `PtyManager` liveness tri-state distinguishes an *exited* shell (drop its tile) from a *not-yet-spawned* tab (keep its launch cwd) so a fresh tab never flickers.
+2. **Make the close handler atomic and idempotent.** `inFlightCloseRef` guards re-entry, the confirm moves before any snapshot, and the nested `setActiveTabId` is hoisted out of the `setTabs` updater. The pure `planProjectClose` computes members/survivors/active-shift so the React layer just applies a plan.
+3. **Pinned tabs have no home project.** A cross-project reference shouldn't qualify whatever folder it happens to sit under — so pinned tabs get null membership, killing both the phantom parent tile and the D11 focus theft at the source.
+4. **Poll without churn.** `mergeLiveCwdInfo` returns the same map reference when nothing changed, so a steady 5s poll doesn't re-derive the project set every tick.
+
+**What this is and isn't.** v0.8.5 is a correctness patch on the project rail — no new capability surface, no roadmap stage flips. BUG-192/193/194 were owner-PASSed on the smoke walk; BUG-191 (the keystone) was owner-SKIP but agent-verified live three ways (unit tests, socket cd-out/cd-in tile clear+restore, and computer-use screenshots), which the owner accepted for the cut. The investigation that found these is itself a small artifact worth keeping — a 38-agent root-cause workflow whose decision playground lives at `docs/research/bug-191-192-ghost-tiles-jitter-rootcause.html`. One process note for the record: requesting computer-use mid-session to capture the BUG-194 proof triggered a macOS TCC permission reset that temporarily blocked file access to `~/Documents` (where the repo lives) for both the agent and the running app — recovered by restarting the session; worth weighing before reaching for computer-use on a repo under a protected folder.
 
 ---
 

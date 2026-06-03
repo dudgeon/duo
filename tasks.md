@@ -28,6 +28,74 @@
 
 ---
 
+### BUG-191: Ghost project tile persists with no open files/terminals (frozen launch-cwd)
+
+**Status:** ✅ **Cut into v0.8.5 (2026-06-02) on agent verification** — option (a) live-cwd tracking. Root-caused via 38-agent workflow (5-reader map → ranked hypotheses → 3-lens adversarial verification). **Priority:** Medium (persistent daily annoyance; functionally benign). **Effort:** M. **Smoke walk v0.8.5: owner SKIP** (didn't hand-walk); owner accepted **agent live-verification (3 ways:** unit tests + socket cd-out/cd-in tile clear+restore + computer-use screenshots**)** as sufficient for the cut.
+
+**Fix (2026-05-31).** Membership now tracks each terminal's LIVE shell cwd, not its frozen launch cwd. New batched, liveness-aware main handler `PTY_LIVE_CWDS` (async `lsof` + a `PtyManager.getLiveness` tri-state so an exited shell drops its tile while a not-yet-spawned tab keeps its launch cwd) — `electron/main.ts`, `core/pty-manager.ts`. Renderer polls it on a visibility-gated 5s interval into a `liveCwdInfo` map that `deriveProjects` consumes via the new pure `effectiveProjectTerminals` (`shared/project-lifecycle.ts`); `mergeLiveCwdInfo` keeps the map reference stable so a steady poll doesn't re-derive every tick (`renderer/App.tsx`). **Verified live:** a shell that `cd`s out of a project clears its tile within the poll window; `cd` back restores it; tiles for `/tmp`-launched terminals canonicalize to `/private/tmp` via the live probe. Unit-covered in `shared/project-lifecycle.test.ts`.
+
+**Symptom (owner, recurring).** A project tile persists in the rail "when no files or terminal tabs from that project are open."
+
+**Root cause — frozen terminal launch-cwd** (confirmed: survived all three adversarial lenses, `refuteCount 0`). A tile renders only if its root owns ≥1 member or is pinned; a zero-member *unpinned* tile is provably impossible. A terminal's `cwd` is set once in `makeTab` (`renderer/App.tsx:192-200`) and **never rewritten** — not when the shell `cd`s away, not when the shell process exits. So `projectTerminals` (`App.tsx:882-885`, unfiltered `tabs.map(t => ({id, cwd}))`) carries the stale launch cwd into `deriveProjects`, and `terminalMembership` (`shared/projects.ts:247-248, 260-262`) re-qualifies the launch project on every derive. The `closeTab` floor-of-1 guard (`App.tsx:1600`) prevents closing a sole stale terminal, amplifying it. `PTY_LIVE_CWD` (the live shell cwd, `shared/types.ts:1398-1402`) already exists but is only read to *seed* a new tab, never written back. Secondary vector: a working tab whose file was deleted on disk is never pruned from `fileTabs[]` (no in-session `files.watch` prune; `MarkdownEditor.tsx:1024-1030` ignores `'removed'`).
+
+**Triage (decisive observable).** The ghost's **pin pip** (`ProjectRail.tsx:250-256`) splits the cases: **pip-less** → this frozen-cwd/dead-shell bug; **pip present** → pinned tile, i.e. by-design (D12) or [FOLLOWUP-037](#followup-037) (pinned + marker deleted out-of-band) — *not* this bug. Right-click count `N≥1` = stale terminal, `M≥1` = stale file tab.
+
+**Fix options (see playground).** (a) **[rec]** track the live shell cwd into membership (wire `PTY_LIVE_CWD` through `useTerminal.ts` → `tabs[].cwd`; drop membership on PTY exit); (b) prune dead members reactively (PTY-exit + `files.watch` on `'removed'`, mirrors PR #59's navigator self-heal); (c) diagnostics only (explain the ghost, don't remove it).
+
+**Deliverable.** Decision-bearing HTML playground [`docs/research/bug-191-192-ghost-tiles-jitter-rootcause.html`](research/bug-191-192-ghost-tiles-jitter-rootcause.html) (Atelier kernel, pin-pip triage mockup, causal-chain diagram, option cards, 3 decision cards + Copy-decisions footer; per rule 11). **Open via `duo open`, not the Claude preview panel** (clipboard).
+
+**Related.** Distinct from [FOLLOWUP-037](#followup-037) (pip-bearing pinned case). Same stale-persisted-state family as [BUG-167](#bug-167) / PR #59 (the prune pattern option (b) reuses). Shares a root family with [BUG-192](#bug-192) (the *transition* face of the same membership-state design).
+
+**Next.** Owner walks the playground (Q1 fix + Q3 sequencing), pastes decisions back → pins implementation scope. **Review task: surfaces in every smoke walk until owner closes the decision.**
+
+---
+
+### BUG-192: Recursive jitter / force-quit loop when closing a project tile via right-click
+
+**Status:** ✅ **Owner-PASS on smoke walk v0.8.5 (2026-06-02).** Fix on branch `claude/kind-goldstine-6904c1` — option (a) atomic + re-entrancy-guarded handler. **Priority:** High (force-quit-level) but was **Low static-confidence** on the exact edge; owner walked the right-click close gesture with no jitter/force-quit. **Effort:** M.
+
+**Fix (2026-05-31).** `handleCloseProject` (`renderer/App.tsx`) now: (1) guards re-entrancy via `inFlightCloseRef` (a second close for the same root no-ops — generalizes [FOLLOWUP-032](#followup-032)); (2) runs `await dialog.confirm` BEFORE any snapshot/mutation, closing the await-split window; (3) hoists `setActiveTabId` OUT of the `setTabs` updater (the nested-setState anti-pattern). Member/survivor/active-shift logic extracted to the pure, unit-tested `planProjectClose` (`shared/project-lifecycle.ts`). **Verified:** a live `duo project close` closes the project, the floor-of-1 holds (fresh shell appended), and the app stays responsive — no loop/hang. The exact original right-click gesture with the owner's specific tab/browser state was not reproduced (it was never deterministic); the structural hazards are removed, so the owner's retry is the final confirmation.
+
+**Symptom (owner).** Right-clicking a project tile and choosing the close item triggered a recursive/jittering re-render loop severe enough to require a force quit.
+
+**Root cause — not pinned down by static analysis (honest).** Every *concrete* loop candidate was refuted across all three lenses — they each provably converge in today's build (value-equality bailouts, monotone probe caches, the `hasTerminalUnderRoot` raw-cwd guard, universal `focusedProject===null` early-returns). The best-supported remaining explanation is the **unguarded cross-store setState burst in `handleCloseProject`** (`App.tsx:1035-1101`): `setTabs` *with a nested `setActiveTabId` inside its updater* (`1064-1075`) + `setFileTabs` + `setActiveWorking` + `setFocusedProject`, optionally split by an `await dialog.confirm` (`1049-1060`), feeding the live effect cluster (browser-redirect machine E5/E6/E7 at `1242-1346` + auto-spawn E9) while membership probes settle — with **no in-flight/re-entrancy guard** (`inFlightCloseRef`, proposed in [FOLLOWUP-032](#followup-032), never implemented). StrictMode is off (`main.tsx:21-25`, no double-invoke damping) and the Close menu item gates on `n>0||m>0` regardless of focus (`ProjectRail.tsx:184`), so a **non-focused-tile close** keeps focus non-null and voids the convergence proofs. The owner *did* force-quit → a non-convergent region is reachable; it most likely lives in the burst→effect-cluster interaction under specific timing (non-focused close + a `file://` browser member tab + probe lag). IPC echo ruled out: `pushState` is echo-free (`electron/main.ts:1841-1843`).
+
+**Fix options (see playground).** (a) **[rec]** make the handler atomic + re-entrancy-guarded (`inFlightCloseRef`; hoist `setActiveTabId` out of the `setTabs` updater; move the confirm before any snapshot) — hardens regardless of the exact trigger; (b) instrument first, then fix (dev-only update-depth counter / effect fire-count logs, repro live per the "build the visibility tool first" rule, then apply (a)) — the conservative move given Low confidence; (c) decouple the browser-redirect machine from the close burst.
+
+**Deliverable.** Same playground as [BUG-191](#bug-191).
+
+**Related.** Sibling "loop crash" to [BUG-190](#bug-190) but distinct (that is an app-quit `Object has been destroyed` cycle, not a render loop). Overlaps [FOLLOWUP-032](#followup-032) (the `inFlightCloseRef` guard option (a) adds). Shares a root family with [BUG-191](#bug-191) (the *steady-state* face).
+
+**Next.** Owner walks the playground (Q2 approach + Q3 sequencing). Recommend instrument-first to confirm the edge before committing the handler rewrite. **Review task: surfaces in every smoke walk until closed.**
+
+---
+
+### BUG-193: Pinned reference tab spuriously maps to a shallow parent project (phantom parent tile + D11 focus theft)
+
+**Status:** ✅ **Owner-PASS on smoke walk v0.8.5 (2026-06-02).** Fix on branch `claude/kind-goldstine-6904c1` — found during the v0.8.5 BUG-191/192 smoke walk. **Priority:** Medium-High (rail unusable when a git-repo parent + pinned tabs coincide). **Effort:** S.
+
+**Symptom (owner, smoke walk).** Opened a terminal in `~/Documents/GitHub/stoop`; the rail spawned TWO tiles — `stoop` AND `~/Documents` — even though only stoop was opened. Worse: clicking the `stoop` tile, focus was immediately stolen by the `Documents` tile (the navigator briefly re-rooted to stoop, then snapped back to Documents). Documents then dominated focus for all projects.
+
+**Root cause (pre-existing ENH-182; NOT the BUG-191 change — it lives in `deriveProjects`, untouched by that work).** `~/Documents` is itself a git repo, so it qualifies. The stoop terminal's candidate walk adds BOTH `stoop` (marker) and `~/Documents` (git root) to the qualifying set. The owner's pinned reference tabs (`tasks.md`, `idle-thoughts.md` in `~/Documents/GitHub/duo`) are correctly **excluded from candidate-gathering** per D2 — so `…/duo` is never added to the set — but their **membership was still computed** in Step 3 (`shared/projects.ts`). With `…/duo` and `…/GitHub` absent from the set, `deepestEnclosingRoot` walked up to the shallowest qualifying ancestor present — `~/Documents` — and assigned it as the pinned tabs' membership. That spurious membership (a) was added to the project set (Step 4) → the phantom Documents tile, and (b) was read by the D11 auto-switch effect (`renderer/App.tsx`) whenever a pinned tab was active → focus snapped to Documents on every rail click.
+
+**Fix (2026-05-31).** `shared/projects.ts` Step 3 — a pinned tab now gets `tabMembership = null` (it's a cross-project reference with no home project, extending D2 from candidate-gathering to membership). This kills both symptoms at the source: no spurious parent root reaches the project set, and D11 reads `null` for an active pinned tab so it never auto-switches. Safe across all consumers — the visibility filter already special-cases pinned tabs (always visible), and `projectCounts` / the close handler correctly stop counting/closing pinned cross-refs. **Verified live:** the Documents tile disappeared (rail → `[stoop]` only); regression test in `core/projects-service.test.ts` ("BUG-193 — a pinned tab does NOT resolve to a shallow parent seeded by another member") fails pre-fix, passes post-fix; 864/864 tests pass.
+
+**Note.** A separate, debatable question remains (not fixed here): should a giant git-tracked parent like `~/Documents` qualify as a project at all? With this fix it only surfaces when something genuinely non-pinned sits directly in it, which is arguably correct. File a follow-up if the owner wants parent-git-repo suppression.
+
+---
+
+### BUG-194: Focused project's last terminal cd-d out → terminal tab vanishes (multitab breaks)
+
+**Status:** ✅ **Owner-PASS on smoke walk v0.8.5 (2026-06-02).** Fix on branch `claude/kind-goldstine-6904c1` — direct follow-on regression from BUG-191. **Priority:** High (loses access to a live terminal + breaks ⌘T/⌃Tab). **Effort:** S.
+
+**Symptom (owner, smoke walk).** While focused on a project that had a single terminal, `cd`-ing that terminal OUT into a no-project root cleared the tile as expected — but the active terminal's TAB disappeared too. With the terminal strip empty, ⌘T just replaced the current terminal and ⌃Tab cycled the canvas tabs instead of terminals (multitab effectively dead).
+
+**Root cause (introduced by BUG-191).** Membership now tracks the live shell cwd, so `cd`-ing the focused project's last terminal out drops the project from the rail. But `focusedProject` stayed pinned to the now-gone project, and the visibility filter `visibleTerminals = tabs.filter(t => terminalMembership[t.id] === focusedProject)` (`renderer/App.tsx`) then matched nothing — the orphaned terminal was filtered out of view (still in `tabs`, just hidden), and ⌘T/⌃Tab lost their target. Pre-BUG-191 this couldn't happen because membership was frozen at launch cwd (a cd never changed it).
+
+**Fix (2026-06-01).** New pure `shouldReleaseFocus(focusedProject, projectRoots)` (`shared/project-lifecycle.ts`) + an effect in `renderer/App.tsx` keyed on `[railProjects, focusedProject]` that releases focus to "All" when the focused project is no longer in the rail. All view shows every terminal, so the orphaned terminal reappears and multitab works again. Pinned projects persist in `railProjects` even with zero members, so focusing a pinned-but-empty project correctly does NOT release. **Verified live:** focus released to All after the sole member cd-d out (terminal stays visible); tile clears once the project truly empties. Unit-covered (`shared/project-lifecycle.test.ts`, 4 cases). 868/868 tests pass.
+
+---
+
 ### BUG-190: Quit-loop crash — "Object has been destroyed" cycling dialog on app quit
 
 **Status:** 🟡 **Fix pushed `claude/duo-quit-loop-bug-OBZHB` 2026-05-27.** **Priority:** High (app un-quittable without force-quit). **Effort:** ~30 min.

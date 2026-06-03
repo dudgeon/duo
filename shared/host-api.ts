@@ -59,6 +59,12 @@ export interface ElectronPtyAPI {
   // by ⌘T / `duo new-tab` so the new tab opens where the user IS, not
   // where the previous tab LAUNCHED.
   liveCwd: (id: string) => Promise<string | null>
+  // BUG-191 — batched live-cwd + liveness for the project rail. For each
+  // tab id: `alive:false` = the shell exited (no project membership);
+  // `cwd` = the live shell cwd, or null when unknown (fall back to the
+  // tab's launch cwd). lsof runs async + in parallel in main, so this
+  // never blocks the main thread the way the single `liveCwd` can.
+  liveCwds: (ids: string[]) => Promise<Record<string, { alive: boolean; cwd: string | null }>>
   // Note: tab titles come from xterm.js Terminal.onTitleChange() (OSC sequences),
   // not via IPC — no main-process emit needed.
 }

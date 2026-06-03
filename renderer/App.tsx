@@ -37,11 +37,22 @@ import { encodeUtf8 } from './components/editor/markdown-io'
 import { findVaultRoot, resolveWikilinkInVault } from './components/editor/wikilinkResolver'
 import type { TabSession, DirEntry, TerminalTabKind, NewTabResult, PinEntry, SessionState, BrowserTab, ActiveWorkspace } from '@shared/types'
 import { reorderVisible } from '@shared/reorderTabs'
+import {
+  effectiveProjectTerminals,
+  mergeLiveCwdInfo,
+  planProjectClose,
+  shouldReleaseFocus,
+  type LiveCwdEntry
+} from '@shared/project-lifecycle'
 
 // Stage 10 § D32: auto-collapse the Files column on windows narrower than
 // this. The user can manually re-expand; we don't re-collapse again unless
 // the threshold is re-crossed (hysteresis prevents jitter).
 const AUTO_COLLAPSE_WIDTH = 1100
+// BUG-191 — how often to re-probe each terminal's live shell cwd so the
+// project rail tracks where the shell IS, not where it launched. Coarse
+// (lsof is not free) but well under "feels stuck"; gated on tab visibility.
+const LIVE_CWD_POLL_MS = 5000
 
 // Stage 9: cozy-mode persistence keys. Per-tab map survives within a
 // session but tab UUIDs don't span relaunches; the last-choice flag is the
@@ -879,9 +890,14 @@ export function App() {
     () => new Set(pins.filter((p) => p.kind === 'file').map((p) => p.ref)),
     [pins]
   )
+  // BUG-191 — live shell-cwd info per terminal (id → {alive, cwd}),
+  // refreshed by the poll effect below. `deriveProjects` consumes this
+  // via effectiveProjectTerminals so a shell that cd-d away or exited
+  // stops keeping a ghost tile.
+  const [liveCwdInfo, setLiveCwdInfo] = useState<Map<string, LiveCwdEntry>>(() => new Map())
   const projectTerminals = useMemo(
-    () => tabs.map((t) => ({ id: t.id, cwd: t.cwd })),
-    [tabs]
+    () => effectiveProjectTerminals(tabs, liveCwdInfo),
+    [tabs, liveCwdInfo]
   )
   const projectWorkingTabs = useMemo(
     () =>
@@ -890,6 +906,37 @@ export function App() {
         .map((t) => ({ id: t.id, path: t.path })),
     [fileTabs]
   )
+  // BUG-191 — poll each open terminal's real shell cwd (+ liveness) so
+  // the rail follows where the shell IS, not where it launched. Batched +
+  // async in main (lsof never blocks the main thread); merged only when
+  // something actually changed (mergeLiveCwdInfo keeps the map reference
+  // stable) so a steady poll doesn't re-derive the project set every tick.
+  // Re-armed only when the SET of tab ids changes (not on title updates).
+  const tabIdsKey = useMemo(() => tabs.map((t) => t.id).join(','), [tabs])
+  useEffect(() => {
+    const ids = tabIdsKey ? tabIdsKey.split(',') : []
+    if (ids.length === 0) {
+      setLiveCwdInfo((prev) => (prev.size === 0 ? prev : new Map()))
+      return
+    }
+    let cancelled = false
+    const poll = async () => {
+      try {
+        const info = await window.electron.pty.liveCwds(ids)
+        if (!cancelled) setLiveCwdInfo((prev) => mergeLiveCwdInfo(prev, info, ids))
+      } catch {
+        /* transient lsof/IPC failure — keep prior info (launch-cwd fallback) */
+      }
+    }
+    void poll()
+    const handle = window.setInterval(() => {
+      if (!document.hidden) void poll()
+    }, LIVE_CWD_POLL_MS)
+    return () => {
+      cancelled = true
+      window.clearInterval(handle)
+    }
+  }, [tabIdsKey])
   // ENH-182 Phase 3a — persisted projects.json slice (pins + color
   // overrides). Loaded once on mount; subscribes to PROJECTS_CHANGED
   // pushes from main (toggle-pin, set-color-override, Phase 4 CLI
@@ -1021,6 +1068,19 @@ export function App() {
       setFocusedProject(project)
     }
   }, [activeWorking, tabMembership, focusedProject])
+  // BUG-194 — release focus when the focused project vanishes. With
+  // BUG-191's live-cwd tracking, `cd`-ing the focused project's last
+  // terminal OUT of it drops the project from the rail; if focus stayed
+  // pinned to it, the visibility filter (`membership === focusedProject`)
+  // would hide the now-orphaned terminals/tabs — the active terminal
+  // "disappears" and ⌘T / ⌃Tab lose their target. Releasing to All keeps
+  // them visible. Pinned-but-empty projects stay in `railProjects`, so
+  // focusing one correctly does NOT trip this.
+  useEffect(() => {
+    if (shouldReleaseFocus(focusedProject, railProjects.map((p) => p.root))) {
+      setFocusedProject(null)
+    }
+  }, [railProjects, focusedProject])
   // Phase 3c-browser + FOLLOWUP-030 effects live below, after
   // visibleBrowserTabIds + browserTabMembership are declared
   // (declaration order matters; they need to come AFTER the visible
@@ -1032,20 +1092,20 @@ export function App() {
   // Leaves at least one terminal alive — if we'd close every tab in
   // `tabs`, append a fresh shell at the home dir so the strip stays
   // non-empty (the existing closeTab path enforces a floor of 1).
+  // BUG-192 — re-entrancy guard. A second close for the same root (rapid
+  // double-trigger, or the CLI close path racing the right-click menu)
+  // no-ops instead of re-running the multi-store flush mid-flush (the
+  // FOLLOWUP-032 fix, generalized to the UI path).
+  const inFlightCloseRef = useRef<Set<string>>(new Set())
   const handleCloseProject = useCallback(
     async (root: string) => {
+      if (inFlightCloseRef.current.has(root)) return
       const counts = projectCounts.get(root)
       if (!counts || (counts.terminals === 0 && counts.workingTabs === 0)) return
-      // Compute member id sets at click time so a parallel re-render
-      // doesn't shift what we're closing.
-      const memberTermIds = new Set<string>()
-      for (const t of tabs) {
-        if (terminalMembership[t.id] === root) memberTermIds.add(t.id)
-      }
-      const memberFileIds = new Set<string>()
-      for (const ft of fileTabs) {
-        if (tabMembership[ft.id] === root) memberFileIds.add(ft.id)
-      }
+      // BUG-192 — confirm BEFORE taking any snapshot or writing state, so
+      // the `await` can never split a partially-applied flush across
+      // renders (a window the old "snapshot, then await, then mutate"
+      // ordering left open).
       if (counts.hasClaudeKindTerminal) {
         const result = await window.electron.dialog.confirm({
           title: 'Close project?',
@@ -1058,32 +1118,45 @@ export function App() {
         })
         if (result.response !== 1) return
       }
-      // Atomic membership flush. The terminal setter enforces the
-      // floor-of-1; if every existing terminal is a member, append a
-      // fresh shell at home BEFORE filtering so the floor holds.
-      setTabs((prev) => {
-        const survivors = prev.filter((t) => !memberTermIds.has(t.id))
-        if (survivors.length === 0) {
-          survivors.push(makeTab(home, 'shell', home))
+      inFlightCloseRef.current.add(root)
+      try {
+        // Pure plan (member/survivor/active-shift) — no setState nesting.
+        const plan = planProjectClose({
+          tabs,
+          fileTabs,
+          terminalMembership,
+          tabMembership,
+          activeTabId,
+          activeWorkingFileId: activeWorking.kind === 'file' ? activeWorking.id : null,
+          root
+        })
+        const memberTermIds = new Set(plan.memberTermIds)
+        const memberFileIds = new Set(plan.memberFileIds)
+        // Pre-create the floor-of-1 replacement OUTSIDE the updater so its
+        // id is known for the active-tab shift (BUG-192 — never call
+        // setActiveTabId from inside the setTabs updater).
+        const replacement = plan.needsReplacementShell ? makeTab(home, 'shell', home) : null
+        setTabs((prev) => {
+          const survivors = prev.filter((t) => !memberTermIds.has(t.id))
+          return survivors.length === 0 ? [replacement ?? makeTab(home, 'shell', home)] : survivors
+        })
+        if (plan.activeTerminalBecameMember) {
+          setActiveTabId(plan.survivingTermIds[0] ?? replacement?.id ?? activeTabId)
         }
-        // If the active terminal was a member, shift to the first
-        // survivor (whether pre-existing or freshly spawned).
-        if (memberTermIds.has(activeTabId)) {
-          setActiveTabId(survivors[0].id)
+        setFileTabs((prev) => prev.filter((ft) => !memberFileIds.has(ft.id)))
+        // If the active working tab was a member, drop to the browser
+        // surface (matches closeFileTab's degenerate-case behavior).
+        if (plan.activeWorkingFileBecameMember) {
+          setActiveWorking({ kind: 'browser' })
         }
-        return survivors
-      })
-      setFileTabs((prev) => prev.filter((ft) => !memberFileIds.has(ft.id)))
-      // If the active working tab was a member, drop to the browser
-      // surface (matches closeFileTab's degenerate-case behavior).
-      if (activeWorking.kind === 'file' && memberFileIds.has(activeWorking.id)) {
-        setActiveWorking({ kind: 'browser' })
-      }
-      // If the focus chip is on this project, release focus — the
-      // project has zero members now (unless it's pinned, in which
-      // case the tile stays but the focus would be on an empty set).
-      if (focusedProject === root) {
-        setFocusedProject(null)
+        // If the focus chip is on this project, release focus — the
+        // project has zero members now (unless it's pinned, in which case
+        // the tile stays but the focus would be on an empty set).
+        if (focusedProject === root) {
+          setFocusedProject(null)
+        }
+      } finally {
+        inFlightCloseRef.current.delete(root)
       }
     },
     [

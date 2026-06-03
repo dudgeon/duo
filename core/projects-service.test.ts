@@ -178,6 +178,37 @@ describe('deriveProjects — qualification (D2)', () => {
     expect(out.tabMembership.tab1).toBeNull()
   })
 
+  it('BUG-193 — a pinned tab does NOT resolve to a shallow parent seeded by another member', () => {
+    // Real repro: ~/Documents is a git repo (qualifies). A terminal sits
+    // in a sibling marker-project (.../GitHub/stoop), whose candidate walk
+    // adds BOTH stoop AND ~/Documents to the qualifying set. Two pinned
+    // reference tabs live in .../GitHub/duo — their own project, but NOT in
+    // the set (pinned tabs don't gather candidates). Pre-fix, the pinned
+    // tabs resolved up to the shallowest qualifying ancestor (~/Documents),
+    // spuriously spawning a Documents tile AND making D11 steal focus to it.
+    const out = deriveProjects({
+      terminals: [{ id: 't1', cwd: '/docs/GitHub/stoop' }],
+      workingTabs: [
+        { id: 'tabA', path: '/docs/GitHub/duo/tasks.md' },
+        { id: 'tabB', path: '/docs/GitHub/duo/idle.md' }
+      ],
+      pinnedTabPaths: new Set(['/docs/GitHub/duo/tasks.md', '/docs/GitHub/duo/idle.md']),
+      pinnedProjects: new Set(),
+      colorOverrides: {},
+      qualify: makeQualify({
+        '/docs': { isGitRoot: true }, // ~/Documents is itself a git repo
+        '/docs/GitHub/stoop': { hasMarker: true } // sibling marker-project
+        // /docs/GitHub and /docs/GitHub/duo deliberately do NOT qualify
+      })
+    })
+    // Only the deepest project the terminal is actually in — never the parent.
+    expect(out.projects.map((p) => p.root)).toEqual(['/docs/GitHub/stoop'])
+    // Pinned tabs are cross-project references → no membership.
+    expect(out.tabMembership.tabA).toBeNull()
+    expect(out.tabMembership.tabB).toBeNull()
+    expect(out.terminalMembership.t1).toBe('/docs/GitHub/stoop')
+  })
+
   it('non-pinned working tabs DO count toward working-in', () => {
     const out = deriveProjects({
       terminals: [],

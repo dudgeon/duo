@@ -2,7 +2,10 @@ import { app, BrowserWindow, Menu, dialog, ipcMain, nativeImage, nativeTheme, pr
 import type { MenuItemConstructorOptions, WebContents } from 'electron'
 import * as nodeFs from 'fs/promises'
 import * as nodePath from 'path'
-import { execSync } from 'child_process'
+import { execSync, execFile } from 'child_process'
+import { promisify } from 'util'
+
+const execFileAsync = promisify(execFile)
 
 // BUG-148 — suppress EPIPE on stdout/stderr. When the parent process
 // (npm / electron-vite / the launching terminal) detaches or closes
@@ -1240,6 +1243,13 @@ function setupIPC(): void {
     if (!pid) return null
     return getLiveCwdForPid(pid)
   })
+
+  // BUG-191 — batched, non-blocking live-cwd + liveness for the project
+  // rail's ghost-tile fix. The renderer polls this on an interval; see
+  // getLiveCwdsForIds.
+  ipcMain.handle(IPC.PTY_LIVE_CWDS, (_event, { ids }: { ids: string[] }) =>
+    getLiveCwdsForIds(ids)
+  )
 
   // ── Browser ───────────────────────────────────────────────────────────────
 
@@ -2679,6 +2689,44 @@ function getLiveCwdForPid(pid: number): string | null {
   } catch {
     return null
   }
+}
+
+// BUG-191 — async sibling of getLiveCwdForPid. Uses execFile (no shell,
+// args array) and does NOT block the main thread, so the project-rail
+// poll can resolve many terminals' live cwds in parallel.
+async function getLiveCwdForPidAsync(pid: number): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync('lsof', ['-a', '-d', 'cwd', '-p', String(pid), '-Fn'], {
+      timeout: 1000
+    })
+    const line = stdout.split('\n').find((l) => l.startsWith('n'))
+    if (!line) return null
+    const cwd = line.slice(1).trim()
+    return cwd || null
+  } catch {
+    return null
+  }
+}
+
+// BUG-191 — batched live-cwd + liveness for the project rail. 'exited'
+// shells report alive:false (the renderer drops their ghost tile),
+// 'unknown' shells (PTY not spawned yet) report alive:true with a null
+// cwd (renderer keeps the launch cwd), and 'live' shells get an lsof
+// probe. All probes run in parallel so the main thread never blocks.
+async function getLiveCwdsForIds(
+  ids: string[]
+): Promise<Record<string, { alive: boolean; cwd: string | null }>> {
+  const entries = await Promise.all(
+    ids.map(async (id) => {
+      const liveness = ptyManager.getLiveness(id)
+      if (liveness === 'exited') return [id, { alive: false, cwd: null }] as const
+      if (liveness === 'unknown') return [id, { alive: true, cwd: null }] as const
+      const pid = ptyManager.getPid(id)
+      const cwd = pid ? await getLiveCwdForPidAsync(pid) : null
+      return [id, { alive: true, cwd }] as const
+    })
+  )
+  return Object.fromEntries(entries)
 }
 
 // ENH-167 — apply a new SessionState to the running Duo without

@@ -80,6 +80,9 @@ const api: ElectronAPI = {
     liveCwd: (id) =>
       ipcRenderer.invoke(IPC.PTY_LIVE_CWD, { id }),
 
+    liveCwds: (ids) =>
+      ipcRenderer.invoke(IPC.PTY_LIVE_CWDS, { ids }),
+
     onData: (id, cb) => {
       const handler = (_: IpcRendererEvent, data: string) => cb(data)
       ipcRenderer.on(IPC.PTY_DATA(id), handler)
