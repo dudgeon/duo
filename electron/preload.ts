@@ -16,6 +16,10 @@ import type {
   DocGotoResult,
   DocFindRequest,
   DocFindResult,
+  DocEditPlainRequest,
+  DocEditPlainResult,
+  JsonOpRequest,
+  JsonOpResult,
   HtmlOpRequest,
   HtmlOpResult,
   HtmlCommentRequest,
@@ -276,7 +280,7 @@ const api: ElectronAPI = {
     convertImageBytes: (bytes, sourceMime) =>
       ipcRenderer.invoke(IPC.FILES_CONVERT_IMAGE_BYTES, { bytes, sourceMime }),
 
-    watch: async (paths, cb) => {
+    watch: async (paths, cb, opts) => {
       // Give every subscription its own id so pushes can be routed back to
       // the caller's callback. The id lives in the renderer; main process
       // just echoes it on each FILES_CHANGED push.
@@ -285,7 +289,9 @@ const api: ElectronAPI = {
         if (push.id === id) cb(push.event)
       }
       ipcRenderer.on(IPC.FILES_CHANGED, handler)
-      await ipcRenderer.invoke(IPC.FILES_WATCH_START, { id, paths })
+      // ENH-195 B2/B4 — forward the optional ignored-override + parent-watch
+      // flag (single open-file editors pass `{ ignored: [], watchParents: true }`).
+      await ipcRenderer.invoke(IPC.FILES_WATCH_START, { id, paths, ignored: opts?.ignored, watchParents: opts?.watchParents })
       return async () => {
         ipcRenderer.removeListener(IPC.FILES_CHANGED, handler)
         await ipcRenderer.invoke(IPC.FILES_WATCH_STOP, { id })
@@ -431,6 +437,30 @@ const api: ElectronAPI = {
 
     replyDocFind: (result: DocFindResult) => {
       ipcRenderer.send(IPC.EDITOR_DOC_FIND_RESULT, result)
+    },
+
+    // ENH-195 — `duo doc edit` surgical PLAIN replace request/reply.
+    onDocEditPlain: (cb: (req: DocEditPlainRequest) => void) => {
+      const handler = (_: IpcRendererEvent, req: DocEditPlainRequest) => cb(req)
+      ipcRenderer.on(IPC.EDITOR_DOC_EDIT_PLAIN, handler)
+      return () => ipcRenderer.removeListener(IPC.EDITOR_DOC_EDIT_PLAIN, handler)
+    },
+
+    replyDocEditPlain: (result: DocEditPlainResult) => {
+      ipcRenderer.send(IPC.EDITOR_DOC_EDIT_PLAIN_RESULT, result)
+    }
+  },
+
+  // ENH-195 — `duo json set|merge` against the active JSON / YAML viewer.
+  json: {
+    onJsonOp: (cb: (req: JsonOpRequest) => void) => {
+      const handler = (_: IpcRendererEvent, req: JsonOpRequest) => cb(req)
+      ipcRenderer.on(IPC.JSON_OP, handler)
+      return () => ipcRenderer.removeListener(IPC.JSON_OP, handler)
+    },
+
+    replyJsonOp: (result: JsonOpResult) => {
+      ipcRenderer.send(IPC.JSON_OP_RESULT, result)
     }
   },
 

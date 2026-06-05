@@ -10,20 +10,35 @@
 // fade completes. After the fade, the decoration is cleaned up so the
 // decoration set doesn't grow without bound.
 //
-// Stage 17 H20 will add a parallel canvas-side binding that calls
-// `iframeEl.classList.add('duo-just-added')` on the affected element —
-// same CSS, different binding. See `primitives/README.md` for the
-// visual-layer / data-layer contract.
+// ENH-195 D3 — added a PERSIST lifetime for the change-highlight painted
+// when the editor reloads from disk (an agent/external write reconciled by
+// `useDiskReconciliation`). Unlike the 6s timed wash used by `duo doc write`,
+// a persist range HOLDS (no timer) and clears on the user's first
+// doc-changing edit — "here's what changed while you were away," dismissed
+// the moment you engage with the doc. Deletions render as a thin left-margin
+// tick (a widget decoration) since absent text can't be washed. Markdown
+// only; the canvas parity port is tracked as ENH-196.
+//
+// Stage 17 H20 added the parallel canvas-side binding
+// (`renderer/components/Page/justAddedPage.ts`) — same CSS, different binding.
 
 import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
+import type { Transaction } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import type { EditorView } from '@tiptap/pm/view'
 
 interface JustAddedRange {
   /** Stable id so cleanup transactions can target a specific range. */
   id: number
   from: number
   to: number
+  /** 'timed' fades after ~6s (CLI doc-write); 'persist' holds until the
+   *  user's next doc-changing edit (ENH-195 D3 reload highlight). */
+  lifetime: 'timed' | 'persist'
+  /** 'insert' paints an inline wash over [from,to]; 'delete' renders a
+   *  collapsed left-margin tick at `from` (to === from). */
+  kind: 'insert' | 'delete'
 }
 
 interface PluginState {
@@ -36,6 +51,8 @@ interface MetaPayload {
   /** Required for `type === 'add'`. */
   from?: number
   to?: number
+  lifetime?: 'timed' | 'persist'
+  kind?: 'insert' | 'delete'
 }
 
 const justAddedKey = new PluginKey<PluginState>('duoJustAdded')
@@ -56,6 +73,11 @@ declare module '@tiptap/core' {
        *  ~6s, then drops the decoration. Returns true if the range was
        *  valid for the current document. */
       markJustAdded: (from: number, to: number) => ReturnType
+      /** ENH-195 D3 — paint an inserted range that HOLDS (no 6s timer) and
+       *  clears on the user's first doc-changing edit. */
+      markJustAddedPersist: (from: number, to: number) => ReturnType
+      /** ENH-195 D3 — paint a collapsed deletion tick at `pos` (also persist). */
+      markDeletedAtPersist: (pos: number) => ReturnType
     }
   }
 }
@@ -72,21 +94,40 @@ export const JustAdded = Extension.create({
           apply(tr, value) {
             const meta = tr.getMeta(justAddedKey) as MetaPayload | undefined
 
-            // Map existing ranges through this transaction first so
-            // they follow text edits.
-            let next = value.ranges.map(r => ({
-              id: r.id,
+            // ENH-195 D3 — the user's first real edit clears the reload
+            // highlight. A doc-changing transaction that is NOT one of our
+            // own add/remove dispatches drops every persist range. The
+            // reload itself uses setContent(emitUpdate=false) + our own
+            // markJustAddedPersist dispatch (which carries the meta), so the
+            // wash survives the reload and only this branch — a genuine
+            // subsequent keystroke — clears it.
+            let working = value.ranges
+            if (tr.docChanged && !meta) {
+              const filtered = working.filter(r => r.lifetime !== 'persist')
+              if (filtered.length !== working.length) working = filtered
+            }
+
+            // Map existing ranges through this transaction so they follow
+            // text edits.
+            let next = working.map(r => ({
+              ...r,
               from: tr.mapping.map(r.from, -1),
               to: tr.mapping.map(r.to, 1)
-            })).filter(r => r.to > r.from)
+            })).filter(r => r.kind === 'delete' ? true : r.to > r.from)
 
             if (meta?.type === 'add' && meta.from !== undefined && meta.to !== undefined) {
-              next = [...next, { id: meta.id, from: meta.from, to: meta.to }]
+              next = [...next, {
+                id: meta.id,
+                from: meta.from,
+                to: meta.to,
+                lifetime: meta.lifetime ?? 'timed',
+                kind: meta.kind ?? 'insert'
+              }]
             } else if (meta?.type === 'remove') {
               next = next.filter(r => r.id !== meta.id)
             }
 
-            if (next === value.ranges) return value
+            if (next === working && next === value.ranges) return value
             return { ranges: next }
           }
         },
@@ -95,18 +136,26 @@ export const JustAdded = Extension.create({
             const ps = justAddedKey.getState(state)
             if (!ps || ps.ranges.length === 0) return DecorationSet.empty
             const docSize = state.doc.content.size
-            return DecorationSet.create(
-              state.doc,
-              ps.ranges
-                // Clamp to the current doc and skip empty/inverted ranges.
-                .map(r => ({
-                  ...r,
-                  from: Math.max(0, Math.min(r.from, docSize)),
-                  to: Math.max(0, Math.min(r.to, docSize))
-                }))
-                .filter(r => r.to > r.from)
-                .map(r => Decoration.inline(r.from, r.to, { class: 'duo-just-added' }))
-            )
+            const decos: Decoration[] = []
+            for (const r of ps.ranges) {
+              if (r.kind === 'delete') {
+                const pos = Math.max(0, Math.min(r.from, docSize))
+                decos.push(Decoration.widget(pos, () => {
+                  const el = document.createElement('span')
+                  el.className = 'duo-reload-deleted-tick'
+                  el.setAttribute('aria-hidden', 'true')
+                  return el
+                }, { side: -1, key: `del-${r.id}` }))
+                continue
+              }
+              const from = Math.max(0, Math.min(r.from, docSize))
+              const to = Math.max(0, Math.min(r.to, docSize))
+              if (to <= from) continue
+              decos.push(Decoration.inline(from, to, {
+                class: r.lifetime === 'persist' ? 'duo-reload-added' : 'duo-just-added'
+              }))
+            }
+            return decos.length ? DecorationSet.create(state.doc, decos) : DecorationSet.empty
           }
         }
       })
@@ -114,40 +163,43 @@ export const JustAdded = Extension.create({
   },
 
   addCommands() {
-    return {
-      markJustAdded: (from: number, to: number) => ({ tr, dispatch, view }) => {
-        if (to <= from) return false
-        const docSize = tr.doc.content.size
-        const clampedFrom = Math.max(0, Math.min(from, docSize))
-        const clampedTo = Math.max(0, Math.min(to, docSize))
-        if (clampedTo <= clampedFrom) return false
+    const addRange = (
+      from: number,
+      to: number,
+      lifetime: 'timed' | 'persist',
+      kind: 'insert' | 'delete',
+      withTimer: boolean
+    ) => ({ tr, dispatch, view }: { tr: Transaction; dispatch?: (tr: Transaction) => void; view: EditorView }) => {
+      const docSize = tr.doc.content.size
+      const clampedFrom = Math.max(0, Math.min(from, docSize))
+      const clampedTo = Math.max(0, Math.min(to, docSize))
+      if (kind === 'insert' && clampedTo <= clampedFrom) return false
 
-        const id = nextId++
-        if (dispatch) {
-          dispatch(tr.setMeta(justAddedKey, {
-            type: 'add',
-            id,
-            from: clampedFrom,
-            to: clampedTo
-          } satisfies MetaPayload))
+      const id = nextId++
+      if (dispatch) {
+        dispatch(tr.setMeta(justAddedKey, {
+          type: 'add', id, from: clampedFrom, to: clampedTo, lifetime, kind
+        } satisfies MetaPayload))
 
+        if (withTimer) {
           // Schedule cleanup. The timer outlives the dispatch; capturing
           // `view` is fine because PM's view is stable for the editor
           // instance's lifetime (we cleared in destroy of MarkdownEditor).
           window.setTimeout(() => {
-            // Guard against the editor being destroyed before the timer
-            // fires. PM throws if you dispatch on a disposed view.
             if (!view || (view as unknown as { docView: unknown }).docView == null) return
             view.dispatch(
-              view.state.tr.setMeta(justAddedKey, {
-                type: 'remove',
-                id
-              } satisfies MetaPayload)
+              view.state.tr.setMeta(justAddedKey, { type: 'remove', id } satisfies MetaPayload)
             )
           }, CLEANUP_MS)
         }
-        return true
       }
+      return true
+    }
+
+    return {
+      markJustAdded: (from, to) => addRange(from, to, 'timed', 'insert', true),
+      markJustAddedPersist: (from, to) => addRange(from, to, 'persist', 'insert', false),
+      markDeletedAtPersist: (pos) => addRange(pos, pos, 'persist', 'delete', false),
     }
   }
 })

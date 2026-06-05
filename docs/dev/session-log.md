@@ -18,6 +18,16 @@
 
 ---
 
+## 2026-06-05 (v0.9.0 cut — ENH-195: CLI edits · disk-sync · the end of false-positive conflicts)
+
+**What landed.** ENH-195 — owner directive to push agent editing onto the `duo` verbs, make the editors responsive to on-disk changes, and stop the false-positive conflict banners. All three traced to one root: the editor↔disk reconciliation *guessing* echo-vs-external via a hand-tuned normalize against the *serialized* view. The cut: (1) a shared `useDiskReconciliation` hook extracted out of the markdown editor + HTML canvas (+ adopted by the JSON viewer), making the BUG-166 byte-exact parity structural rather than a per-PR mirror discipline — and amending DECISIONS.md:620 to scope the editor/canvas lock to the *editing primitive*, not the reconciliation layer; (2) byte-faithful clean-buffer reload + a markdown change-highlight (washed additions, deletion ticks, persist-until-edit) via `prosemirror-changeset`; (3) three new CLI verbs — `duo status`, `duo doc edit`, `duo json set|merge` (+ a shared `core/json/jsonOps`) — buffer-routed/echo-safe when open; (4) B2–B7 watcher responsiveness incl. live image/PDF/JSON refresh; (5) a warn-only PreToolUse hook + priming/CLAUDE/skill guidance.
+
+**How it was built + verified.** Decisions captured via a rule-11 decision playground (D1 full-suite · D2 guidance+warn-hook · D3 markdown-only highlight · D4 keep-banner · D5 shared hook). Implementation fanned out across parallel agents (PageTab wiring, the 3 verbs + JSON, the guidance docs, the installer) over a hand-built core (the hook + MarkdownEditor extraction + A6 tests). **The decisive step was a 15-agent adversarial review that found + fixed 9 confirmed bugs before the cut** — three high-severity (a `readDiskBody`-side-effect frontmatter clobber → made the helper pure + moved frontmatter adoption into `applyReload(diskBody, rawText)`; a `duo json` source-mode stale-closure edit-drop → `{text}` save override; `__proto__` prototype pollution in `jsonOps` → key guard + a new 12-case test) that the 902 passing tests had masked. Owner chose test-only finalize (no live walk); 914 tests pass, both typecheckers clean, v0.9.0 smoke-walk page generated for later.
+
+**What's owed.** Canvas change-highlight deferred → ENH-196 (DOM diff, not a PM tree). Priming guidance + warn-hook activate only on the next installer run (installer-shipped, not `sync:claude`). Install-service uninstall/`primingStatus` don't yet handle the new PreToolUse entry (minor, idempotent + foreign-safe).
+
+---
+
 ## 2026-06-02 (v0.8.5 cut — project rail correctness: ghost tiles · close-jitter · phantom parents · multitab)
 
 **v0.8.5 cut + tagged locally.** PATCH bump (0.8.4 → 0.8.5) — four project-rail correctness fixes on branch `claude/kind-goldstine-6904c1`. Root-caused via a 38-agent investigation workflow (5-reader map → ranked hypotheses → 3-lens adversarial verification); decision playground at `docs/research/bug-191-192-ghost-tiles-jitter-rootcause.html`.

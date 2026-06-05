@@ -1,4 +1,4 @@
-# Resume after compaction — Sprint 24 / v0.8.1 (v0.8.x polish wave)
+# Resume after compaction — Sprint 24 / v0.8.6 (ENH-195 CLI-edits / disk-sync)
 
 **Read this first.** Then in order:
 
@@ -7,6 +7,8 @@
 3. [`tasks.md`](../../tasks.md) — running ledger. Sprint 24 section at the top; Sprint 23 closed with v0.8.0 commit map.
 
 ## Where we are
+
+**In flight — ENH-195 (CLI-edits / disk-sync).** The dev line is on **v0.8.6** and ENH-195 is the active in-flight chapter on branch `claude/sharp-hamilton-70eb87`. Scope: three new CLI edit verbs (`duo status`, `duo doc edit`, `duo json set`/`merge`), a shared `useDiskReconciliation` hook (extracted across markdown editor + canvas + JSON/YAML viewer — see DECISIONS.md § "Editor / canvas convergence" ENH-195 D5 amendment), read-only viewer watchers, and a `DUO_SESSION`-gated PreToolUse warn hook that fires when an agent `Edit`/`Write`s a file open in Duo. Locked decisions live in [`tasks.md` § ENH-195](../../tasks.md) + the decision playground [`docs/research/enh-195-cli-edits-disk-sync.html`](../research/enh-195-cli-edits-disk-sync.html). The FOLLOWUP-031..040 polish queue below is the prior Sprint 24 chapter — still open, lower priority than ENH-195.
 
 **v0.8.0 shipped + released** (2026-05-25). [GitHub Release](https://github.com/dudgeon/duo/releases/tag/v0.8.0) live with signed-notarized DMG attached. The ENH-182 capstone (project-as-filter-layer) is feature-complete: rail + focus filter + lifecycle/menu + auto-switch + CLI parity + browser-tab filter + ENH-184 workspace pill defeaturing + 4 audit-found BUGs folded in. Dev bumped to **v0.8.1**.
 

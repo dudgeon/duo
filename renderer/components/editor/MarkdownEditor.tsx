@@ -62,11 +62,9 @@ import { NewCommentComposer } from './primitives/NewCommentComposer'
 import { formatSendPayload } from './sendFormat'
 import { useSelectionFormat } from '../../hooks/useSelectionFormat'
 import { matchGlobalShortcut } from '../../keyboard/globalShortcuts'
-import {
-  normalizeForEchoCompare,
-  computeFirstDiffOffset,
-  writeConflictLog
-} from '../../utils/conflictDiagnostic'
+import { normalizeForEchoCompare } from '../../utils/conflictDiagnostic'
+import { useDiskReconciliation } from '../../hooks/useDiskReconciliation'
+import { computeReloadDiff } from './reloadDiff'
 import type { DocWriteRequest, EditorSelectionSnapshot } from '@shared/types'
 import {
   splitFrontmatter,
@@ -96,6 +94,11 @@ import {
   serializeWithCriticMarkup,
   preprocessSubstitutions
 } from './markdownCriticMarkup'
+// ENH-195 — pure surgical PLAIN-text replace for `duo doc edit` (open-
+// file path). Sibling to the CriticMarkup docEdit helpers but produces
+// a literal edited body (no `{~~old~>new~~}` tokens).
+import { plainReplace } from '../../../core/markdown/plainEdit'
+import type { DocEditPlainRequest } from '@shared/types'
 import { migrateSidecarCommentsToInline } from './migrateSidecarComments'
 import { useAuthor } from '../../hooks/useAuthor'
 
@@ -323,14 +326,10 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   const [autosaveOn, toggleAutosave] = useAutosavePreference()
   const autosaveOnRef = useRef(autosaveOn)
   autosaveOnRef.current = autosaveOn
-  // Sprint 6 BUG-085 — external-write reconciliation. When a file we
-  // have open is modified outside of our buffer (Claude's Write tool,
-  // an external editor, `git checkout`), the watcher reads the new
-  // content and either silently reloads (clean buffer) or surfaces
-  // this banner state (dirty buffer). Banner offers two resolutions:
-  // reload from disk (loses local edits) or keep mine (next autosave
-  // overwrites disk).
-  const [externalConflict, setExternalConflict] = useState<{ diskBody: string } | null>(null)
+  // Sprint 6 BUG-085 — external-write reconciliation now lives in the shared
+  // `useDiskReconciliation` hook (ENH-195 D5): it owns the watcher, the echo
+  // gauntlet, the byte-exact baseline, save-pre-reconcile, and the
+  // "changed on disk" banner. The hook is wired up below (after `editor`).
   // ENH-117 — view-source overlay state. Snapshot of `getMarkdown()` +
   // frontmatter taken at chord time; the overlay renders read-only.
   const [viewSource, setViewSource] = useState<string | null>(null)
@@ -418,61 +417,12 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // sidecar.frontmatterPanelCollapsed on load, persists on toggle.
   const [frontmatterCollapsed, setFrontmatterCollapsed] = useState(false)
   const eolRef = useRef<'\n' | '\r\n'>('\n')
-  // The markdown body as it was on disk after the last successful read or
-  // write. Used to compute `dirty` by diffing against the live editor content
-  // and to avoid issuing identical writes.
-  const lastSavedBodyRef = useRef<string>('')
-
-  // BUG-166 (2026-05-26) — the BYTE-EXACT body we last read from
-  // or wrote to disk. Distinct from `lastSavedBodyRef`, which holds the
-  // editor's *serialized* view (TipTap round-trip). The conflict check
-  // ("did disk change externally since we last touched it?") is a question
-  // about disk bytes, not about the editor's normalized view — using the
-  // round-tripped baseline made `normalizeForEchoCompare` whack-a-mole,
-  // because every TipTap serialization quirk that the normalize can't
-  // cancel (`****` → `\*\***`, soft-break collapse mid-list, relative
-  // autolink stripping, etc.) fired a false-positive conflict on the
-  // FIRST save after loading any file that hit the quirk.
-  // Captures: the raw `split.body` on load, the migrated body after the
-  // BUG-138 Phase 2 sidecar→inline auto-migration write, and the just-
-  // written `body` after each successful save. Used as a byte-exact
-  // fast-path in BOTH the save-pre-reconcile and the watcher; the
-  // existing normalize-based check stays as defense-in-depth for the
-  // case where an external agent does a content-preserving touch
-  // (BOM, CRLF, trailing whitespace).
-  const lastSeenDiskBodyRef = useRef<string>('')
-
-  // BUG-099 / save-loop fix — set of body strings we've written recently.
-  // Used by the watcher's echo detection alongside `lastSavedBodyRef` so
-  // a chokidar event that arrives between two consecutive autosaves (or
-  // before `lastSavedBodyRef` is updated post-write) is still recognized
-  // as our own write, not an external change. Each entry expires after
-  // ~2s — long enough to absorb chokidar's `awaitWriteFinish`
-  // stabilityThreshold (150ms) plus typing-debounced retries, short
-  // enough that a true external write isn't masked indefinitely.
-  //
-  // Pre-fix: a chokidar event whose `diskBody` matched a save we issued
-  // milliseconds earlier — but whose body had since been superseded by
-  // another save (so `lastSavedBodyRef.current` had advanced) — was
-  // misclassified as an external write and surfaced the conflict
-  // banner. User clicked "keep mine", that triggered another save,
-  // which triggered another watcher event, looping. Smoke walk
-  // v0.6.8 / ENH-096-WIKILINKS surfaced the loop.
-  const recentlyWrittenBodiesRef = useRef<Map<string, number>>(new Map())
-  const trackRecentlyWritten = useCallback((body: string) => {
-    const map = recentlyWrittenBodiesRef.current
-    map.set(body, Date.now())
-    // Evict expired entries. O(n) per call but n is bounded by the
-    // number of saves within the TTL — typically < 10 even for fast
-    // typists. BUG-122 (Sprint 16) — bumped TTL from 2000ms to 5000ms
-    // after owner repro on a slower work machine; the prior 2s window
-    // wasn't enough to absorb chokidar's `awaitWriteFinish` +
-    // OS-level fs sync delay on every machine.
-    const cutoff = Date.now() - 5000
-    for (const [b, ts] of map) {
-      if (ts < cutoff) map.delete(b)
-    }
-  }, [])
+  // ENH-195 D5 — the on-disk reconciliation baselines (the serialized-view
+  // baseline for the dirty check, the BUG-166 byte-exact baseline for the
+  // conflict check, and the BUG-099 recently-written echo set) all moved into
+  // `useDiskReconciliation`. The hook is wired up below (after `editor`); the
+  // surface reads `recon.getSerializedBaseline()` for its dirty check and
+  // calls `recon.noteLoaded` / `noteSaved` / `noteDiskWrite` to advance them.
 
   // Track the latest path we loaded, so late-arriving reads don't clobber a
   // newer tab open.
@@ -837,6 +787,64 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     })
   }, [editor])
 
+  // ENH-195 — forward-ref to save() (defined far below) so the reconciliation
+  // hook can kick a save on "Keep mine" without a hook→save import cycle.
+  const saveRef = useRef<() => void>(() => {})
+
+  // ENH-195 B4 / D3 — "file removed on disk" + ">50%-of-doc reloaded" strips.
+  const [fileRemoved, setFileRemoved] = useState(false)
+  const [reloadedFlash, setReloadedFlash] = useState(false)
+
+  // ENH-195 D5 — the shared editor↔disk reconciliation primitive. Owns the
+  // chokidar watcher, the echo gauntlet, the byte-exact baseline,
+  // save-pre-reconcile, and the "changed on disk" banner. This surface injects
+  // only its editing contract (serialize / reload + the D3 change-highlight /
+  // frontmatter split / dirty).
+  const recon = useDiskReconciliation({
+    path,
+    isNew: !!isNew,
+    surface: 'markdown',
+    ready: !!editor && loaded,
+    serialize: () => (editor ? serializeWithCriticMarkup(editor) : ''),
+    // PURE — beforeSave's pre-reconcile calls this; a side effect here would
+    // clobber the user's in-progress frontmatter on save (ENH-195 regression
+    // caught in review). Frontmatter adoption happens in applyReload instead.
+    readDiskBody: (raw) => splitFrontmatter(raw).body,
+    applyReload: (diskBody, rawText) => {
+      if (!editor) return
+      // Adopt the reloaded file's frontmatter/eol (this is the ONLY place that
+      // re-derives them on an external reload, now that readDiskBody is pure).
+      const s = splitFrontmatter(rawText)
+      frontmatterRef.current = s.frontmatter
+      setFrontmatterState(s.frontmatter)
+      eolRef.current = s.eol
+      const oldDoc = editor.state.doc
+      editor.commands.setContent(preprocessSubstitutions(diskBody), false)
+      applyCriticMarkupFromText(editor)
+      applyCommentMarksFromSidecar(editor, sidecarRef.current)
+      setThreadsTick(v => v + 1)
+      // ENH-195 D3 — paint what changed (markdown only; canvas → ENH-196).
+      try {
+        const diff = computeReloadDiff(oldDoc, editor.state.doc)
+        if (diff.changedFraction > 0.5) {
+          setReloadedFlash(true)
+          window.setTimeout(() => setReloadedFlash(false), 4000)
+        } else {
+          for (const r of diff.inserted) editor.commands.markJustAddedPersist(r.from, r.to)
+          for (const pos of diff.deletedAt) editor.commands.markDeletedAtPersist(pos)
+        }
+      } catch { /* highlight is best-effort chrome — never block a reload */ }
+    },
+    isDirty: (live, baseline) => live !== baseline,
+    echoEqual: (a, b) => normalizeForEchoCompare(a) === normalizeForEchoCompare(b),
+    onDirtyChange: (d) => setDirty(d),
+    onFileRemoved: setFileRemoved,
+    rebaselineAfterReload: true,
+    triggerSave: () => { void saveRef.current() },
+    appVersion: window.electron?.env?.appVersion ?? '?.?.?',
+    watchOptions: { ignored: [], watchParents: true },
+  })
+
   useEffect(() => {
     if (!editor) return
     let cancelled = false
@@ -859,19 +867,13 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
 
     // New-file mode: don't try to read disk, the file doesn't exist yet.
     // Editor stays empty until the user commits a filename.
-    // BUG-099 fix — clear the recently-written set on path change so
-    // a stale entry from the previously-open file can't masquerade as
-    // an echo for the new path's first watcher event.
-    recentlyWrittenBodiesRef.current.clear()
-    // BUG-166 — reset the byte-exact disk snapshot on path
-    // change for the same reason.
-    lastSeenDiskBodyRef.current = ''
+    // ENH-195 — the recently-written echo set + the byte-exact baseline reset
+    // on path change inside `useDiskReconciliation` (its [path] effect).
     if (isNew) {
       frontmatterRef.current = null
       setFrontmatterState(null)
       setFrontmatterCollapsed(false)
       eolRef.current = '\n'
-      lastSavedBodyRef.current = ''
       editor.commands.setContent('', false)
       setLoaded(true)
       // No-op for the initial mount where we just entered new-file mode.
@@ -945,17 +947,12 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         // producing a spurious dirty state).
         applyCriticMarkupFromText(editor)
 
-        // Capture the serializer's view of the loaded doc as the baseline.
-        // Markdown round-trip isn't byte-exact (list markers, whitespace);
-        // using what the editor itself serializes avoids a spurious "dirty"
-        // state the instant the user types a single character.
-        lastSavedBodyRef.current = serializeWithCriticMarkup(editor)
-        // BUG-166 — also snapshot the RAW disk body. The two
-        // refs answer different questions: `lastSavedBodyRef` tracks
-        // the editor's serialized view (for the dirty check),
-        // `lastSeenDiskBodyRef` tracks the actual disk bytes (for the
-        // conflict check).
-        lastSeenDiskBodyRef.current = split.body
+        // ENH-195 — seed the reconciliation baselines: the serializer's view
+        // of the loaded doc (round-trip-stable, for the dirty check) + the raw
+        // disk body (byte-exact, for the conflict check). Markdown round-trip
+        // isn't byte-exact (list markers, whitespace), so the serialized view
+        // avoids a spurious "dirty" the instant the user types one character.
+        recon.noteLoaded(serializeWithCriticMarkup(editor), split.body)
 
         // Re-apply comment marks for any sidecar entries that didn't
         // migrate (orphans, or — pre-Phase-2 — when migration was
@@ -971,11 +968,11 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         // failure to persist isn't catastrophic (re-runs on next load).
         if (migration.bodyChanged) {
           const migratedFullText = joinFrontmatter(frontmatterRef.current, migration.body, eolRef.current)
-          trackRecentlyWritten(normalizeForEchoCompare(migration.body))
-          // BUG-166 — disk now holds the migrated body, not
-          // the original `split.body`. Advance the snapshot so the
-          // first real save's byte-exact fast-path matches.
-          lastSeenDiskBodyRef.current = migration.body
+          // ENH-195 — disk now holds the migrated body (not `split.body`):
+          // advance the byte-exact baseline + echo set so the migration
+          // write's own watcher event is recognized and the first real save's
+          // fast-path matches. The serialized baseline (seeded above) is left.
+          recon.noteDiskWrite(migration.body)
           void window.electron.files
             .write(path, encodeUtf8(migratedFullText))
             .then(() => {
@@ -1001,204 +998,10 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     return () => { cancelled = true }
   }, [path, editor, isNew])
 
-  // Sprint 6 BUG-085 — external-write reconciliation. Watch the loaded
-  // file for changes. When something OUTSIDE our editor (Claude's
-  // Write tool, an external editor save, `git checkout`) mutates the
-  // file, the editor previously had no idea — buffer stayed stale,
-  // and on the next autosave the agent's edits got silently
-  // overwritten. Now: read the disk content on every change event;
-  // if it matches `lastSavedBodyRef.current` it's our own save
-  // echoing back (no-op); otherwise branch on dirty state. Clean
-  // buffer → silent reload + advance baseline. Dirty buffer →
-  // surface a banner with reload-or-keep-mine choices.
-  //
-  // Skipped in `isNew` mode (no on-disk file to watch) and when the
-  // editor isn't ready yet.
-  useEffect(() => {
-    if (!editor) return
-    if (isNew) return
-
-    let cancelled = false
-    let unwatch: (() => Promise<void>) | null = null
-
-    void window.electron.files.watch([path], (event) => {
-      if (cancelled) return
-      if (event.path !== path) return
-      // 'removed' — file deleted externally. Don't reload (the read
-      // would fail). The user can save to recreate it. This matches
-      // most editors' behavior on external delete.
-      if (event.kind === 'removed') return
-
-      void window.electron.files.read(path).then((res) => {
-        if (cancelled) return
-        const text = decodeUtf8(res.bytes)
-        const split = splitFrontmatter(text)
-        const diskBody = split.body
-
-        // BUG-166 — byte-exact fast-path. If the disk body
-        // is the same bytes we last read or wrote, no external write
-        // happened. This sidesteps `normalizeForEchoCompare` for the
-        // common case (chokidar fires for our own write, or fires
-        // spuriously when something touches mtime without changing
-        // content) and avoids false conflicts when TipTap's round-trip
-        // produced a baseline the normalize can't fully cancel.
-        if (diskBody === lastSeenDiskBodyRef.current) return
-
-        // Echo of our own save — `lastSavedBodyRef.current` was
-        // updated to the freshly-saved body before chokidar fired.
-        // Sprint 11 walk-3 fix (BUG-107) — normalize trailing
-        // whitespace before comparing. BUG-122 (Sprint 16) — widened
-        // the normalize to cover BOM, CRLF→LF, and per-line trailing
-        // whitespace (shared with PageTab via conflictDiagnostic.ts).
-        // The earlier trailing-only normalize wasn't enough on a work
-        // machine that hit a re-surface; the shared helper documents
-        // the trade-offs.
-        if (normalizeForEchoCompare(diskBody) === normalizeForEchoCompare(lastSavedBodyRef.current)) return
-
-        // BUG-099 fix — secondary echo check against the
-        // recently-written set. Catches the race where chokidar's
-        // event arrived between the write completing and
-        // `lastSavedBodyRef.current` being assigned, OR where a
-        // newer save has already advanced the baseline past this
-        // event's body. Without this, the post-fix watcher would
-        // false-positive on rapid consecutive saves.
-        // BUG-122 — also check the normalized form against the
-        // recently-written set, so cloud-sync agents that touch the
-        // file (BOM rewrite, line-ending normalization) don't
-        // false-conflict against our just-written body.
-        if (recentlyWrittenBodiesRef.current.has(diskBody)) return
-        const normalizedDisk = normalizeForEchoCompare(diskBody)
-        for (const writtenBody of recentlyWrittenBodiesRef.current.keys()) {
-          if (normalizeForEchoCompare(writtenBody) === normalizedDisk) return
-        }
-
-        const liveBody = serializeWithCriticMarkup(editor)
-        const isDirty = liveBody !== lastSavedBodyRef.current
-
-        if (!isDirty) {
-          // Clean buffer — silent reload + baseline advance.
-          // BUG-099 diagnostic — log the silent reload so a regression
-          // that masquerades as "silent loss of edits" leaves a trail.
-          console.debug('[BUG-085 reload] external write detected on clean buffer; reloading from disk', {
-            path,
-            diskBodyLength: diskBody.length,
-            baselineLength: lastSavedBodyRef.current.length
-          })
-          frontmatterRef.current = split.frontmatter
-          setFrontmatterState(split.frontmatter)
-          eolRef.current = split.eol
-          editor.commands.setContent(preprocessSubstitutions(diskBody), false)
-          // BUG-138 Phase 1b — apply CriticMarkup→marks before baseline.
-          applyCriticMarkupFromText(editor)
-          lastSavedBodyRef.current = serializeWithCriticMarkup(editor)
-          // BUG-166 — advance the disk snapshot too, so the
-          // next watcher event or save doesn't re-fire on this same
-          // disk content.
-          lastSeenDiskBodyRef.current = diskBody
-        } else {
-          // Dirty buffer — surface conflict; user picks resolution.
-          // BUG-099 diagnostic — log the conflict-surface event with
-          // length+head data so the next reproduction leaves a paper
-          // trail. Don't include full body content to avoid leaking
-          // user data into easily-shared logs.
-          // BUG-122 — enriched diagnostic with firstDiffOffset + diff-
-          // window snippet + tail. One-glance useful in dev console.
-          const ndisk0 = normalizeForEchoCompare(diskBody)
-          const nbase0 = normalizeForEchoCompare(lastSavedBodyRef.current)
-          const fd = computeFirstDiffOffset(ndisk0, nbase0)
-          const w = 40
-          const s0 = fd === null ? 0 : Math.max(0, fd - w)
-          const e0 = fd === null ? 0 : fd + w
-          console.debug('[BUG-085 conflict] dirty buffer + diverged disk; surfacing banner', {
-            path,
-            diskBodyLength: diskBody.length,
-            baselineLength: lastSavedBodyRef.current.length,
-            liveBodyLength: liveBody.length,
-            recentlyWrittenSize: recentlyWrittenBodiesRef.current.size,
-            firstDiffOffset: fd,
-            diskAtDiff: fd === null ? null : ndisk0.slice(s0, e0),
-            baselineAtDiff: fd === null ? null : nbase0.slice(s0, e0),
-            diskTail: ndisk0.slice(-60),
-            baselineTail: nbase0.slice(-60),
-            hint: 'cat ~/.claude/duo/logs/last-conflict.log for full diagnostic'
-          })
-          // BUG-122 — persist diagnostic to disk so owner can fetch
-          // post-repro on a production DMG (no DevTools required).
-          // Compares against the POST-NORMALIZE forms so the
-          // recorded firstDiffOffset matches what the comparison
-          // actually saw. Best-effort; never blocks the banner.
-          const ndisk = normalizeForEchoCompare(diskBody)
-          const nbase = normalizeForEchoCompare(lastSavedBodyRef.current)
-          void writeConflictLog({
-            ts: new Date().toISOString(),
-            path,
-            trigger: 'watcher-dirty',
-            surface: 'markdown',
-            diskLength: diskBody.length,
-            baselineLength: lastSavedBodyRef.current.length,
-            liveLength: liveBody.length,
-            recentlyWrittenSize: recentlyWrittenBodiesRef.current.size,
-            diskHead: ndisk.slice(0, 80),
-            baselineHead: nbase.slice(0, 80),
-            diskTail: ndisk.slice(-80),
-            baselineTail: nbase.slice(-80),
-            firstDiffOffset: computeFirstDiffOffset(ndisk, nbase),
-            appVersion: window.electron?.env?.appVersion ?? '?.?.?'
-          })
-          setExternalConflict({ diskBody })
-        }
-      }).catch(() => { /* file unreadable / mid-rename — ignore */ })
-    }).then((fn) => {
-      if (cancelled) { void fn(); return }
-      unwatch = fn
-    }).catch(() => { /* watcher unavailable — degrade gracefully */ })
-
-    return () => {
-      cancelled = true
-      if (unwatch) void unwatch()
-    }
-  }, [path, editor, isNew])
-
-  // Sprint 6 BUG-085 — conflict-banner resolution handlers.
-  const resolveConflictReload = useCallback(() => {
-    if (!editor || !externalConflict) return
-    editor.commands.setContent(preprocessSubstitutions(externalConflict.diskBody), false)
-    // BUG-138 Phase 1b — apply CriticMarkup→marks before baseline.
-    applyCriticMarkupFromText(editor)
-    lastSavedBodyRef.current = serializeWithCriticMarkup(editor)
-    // BUG-166 — disk snapshot tracks the bytes now in the
-    // editor (which are also what's on disk after the reload).
-    lastSeenDiskBodyRef.current = externalConflict.diskBody
-    // Sprint 6 Phase 4 — re-apply comment marks after setContent
-    // wipes them. Same idempotent pass that runs on initial load.
-    applyCommentMarksFromSidecar(editor, sidecarRef.current)
-    setThreadsTick(v => v + 1)
-    setDirty(false)
-    onDirtyChange?.(false)
-    setExternalConflict(null)
-  }, [editor, externalConflict, onDirtyChange])
-
-  const resolveConflictKeepMine = useCallback(() => {
-    if (!externalConflict) return
-    // Advance the baseline to the disk version. Our buffer differs
-    // from disk (we kept the local edits), so the dirty state stays
-    // true and the immediate save below overwrites disk with the
-    // local version — exactly what "keep mine" means.
-    lastSavedBodyRef.current = externalConflict.diskBody
-    // BUG-166 — also advance the byte-exact snapshot to the
-    // current disk content. The subsequent save will overwrite disk
-    // with our buffer, and the post-write block updates the snapshot
-    // again — but if the save doesn't fire (timing), the watcher's
-    // fast-path needs the right baseline so we don't re-banner.
-    lastSeenDiskBodyRef.current = externalConflict.diskBody
-    setDirty(true)
-    onDirtyChange?.(true)
-    setExternalConflict(null)
-    // Fire the save explicitly. The autosave timer only arms on
-    // editor updates; without an explicit kick here, the dirty
-    // buffer would sit unchanged until the next keystroke.
-    void saveRef.current()
-  }, [externalConflict, onDirtyChange])
+  // ENH-195 D5 — the external-write watcher + conflict-banner resolution
+  // handlers moved into `useDiskReconciliation` (wired above the load
+  // effect). The banner renders from `recon.externalConflict` with
+  // `recon.resolveReload` / `recon.resolveKeepMine`.
 
   // ── Save ─────────────────────────────────────────────────────────────────
   const save = useCallback(async () => {
@@ -1207,124 +1010,22 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
 
     // Pull current body markdown from tiptap-markdown storage.
     const body = serializeWithCriticMarkup(editor)
-    const bodyChanged = body !== lastSavedBodyRef.current
+    const bodyChanged = body !== recon.getSerializedBaseline()
     if (!bodyChanged && !dirty && !sidecarDirtyRef.current) return
 
     setSaving(true)
     try {
-      // Sprint 6 BUG-085 — pre-save reconciliation. The watcher's
-      // chokidar events are debounced and frequently arrive AFTER
-      // the autosave timer has already fired, so an external write
-      // racing against autosave could be silently overwritten before
-      // the watcher's banner ever surfaced. Read disk just before
-      // the write; if disk content has drifted from our baseline
-      // (someone else edited the file since our last load/save),
-      // bail out of this save and route through the same conflict
-      // banner the watcher uses. The user picks the resolution.
+      // ENH-195 — pre-save reconcile through the shared hook: if disk
+      // drifted externally since our baseline it surfaces the banner and
+      // we bail; otherwise it registers the echo (so our own write isn't
+      // misread), then we write and advance both baselines.
       if (bodyChanged) {
-        try {
-          const diskRes = await window.electron.files.read(path)
-          const diskText = decodeUtf8(diskRes.bytes)
-          const diskBody = splitFrontmatter(diskText).body
-          // BUG-166 — byte-exact fast-path. The conflict
-          // check is asking "did disk drift externally since we last
-          // touched it?" That's a question about disk bytes, not
-          // about the editor's serialized view. Pre-fix, the
-          // normalize-based comparison below was the only check, and
-          // it false-positived whenever TipTap's parse/serialize
-          // round-trip produced a baseline with quirks the normalize
-          // couldn't cancel (`****X**` → `\*\***X**`, soft-break
-          // mid-list collapse, relative-path autolink stripping).
-          // Result: first save after opening any file with those
-          // patterns fired the banner. By snapshotting the raw disk
-          // body separately (`lastSeenDiskBodyRef`) on every read +
-          // write, we can answer the real question directly. The
-          // normalize-based check below stays as defense-in-depth
-          // for content-preserving touches (cloud-sync BOM, CRLF).
-          if (diskBody === lastSeenDiskBodyRef.current) {
-            // Disk hasn't changed since we last touched it. Proceed
-            // with the write below.
-          } else {
-          // Sprint 11 walk-3 fix (BUG-107) — disk content may differ
-          // from baseline by trailing whitespace alone. tiptap-markdown's
-          // serializer normalizes trailing blank lines on round-trip
-          // (e.g. `# Index\n\n` from disk → `# Index\n` after parse +
-          // re-serialize). Pre-fix, this caused a false-conflict
-          // banner on first edit of any file with a trailing blank
-          // line. Normalize trailing whitespace before comparing —
-          // anything more substantive is a real conflict and still
-          // surfaces the banner.
-          // BUG-122 — use the shared widened normalize (covers BOM,
-          // CRLF→LF, per-line + doc-end trailing whitespace) so a
-          // cloud-sync agent's harmless touch doesn't trigger a false
-          // save-pre-conflict on the work machine.
-          const ndisk = normalizeForEchoCompare(diskBody)
-          const nbase = normalizeForEchoCompare(lastSavedBodyRef.current)
-          if (ndisk !== nbase) {
-            // BUG-122 — enriched diagnostic. Inline firstDiffOffset +
-            // diff-window snippet (40 chars on each side of the diff
-            // position, post-normalize) so the dev-mode console line
-            // is one-glance useful even without opening the log file.
-            const firstDiff = computeFirstDiffOffset(ndisk, nbase)
-            const diffWindow = 40
-            const start = firstDiff === null ? 0 : Math.max(0, firstDiff - diffWindow)
-            const end = firstDiff === null ? 0 : firstDiff + diffWindow
-            console.log('[BUG-107 save-pre-conflict] real diff', {
-              path,
-              diskBodyLength: diskBody.length,
-              baselineLength: lastSavedBodyRef.current.length,
-              firstDiffOffset: firstDiff,
-              diskAtDiff: firstDiff === null ? null : ndisk.slice(start, end),
-              baselineAtDiff: firstDiff === null ? null : nbase.slice(start, end),
-              diskTail: ndisk.slice(-60),
-              baselineTail: nbase.slice(-60),
-              recentlyWrittenSize: recentlyWrittenBodiesRef.current.size,
-              hint: 'cat ~/.claude/duo/logs/last-conflict.log for full diagnostic'
-            })
-            // BUG-122 — persist the diagnostic to disk so owner can
-            // fetch it on a production DMG without DevTools open.
-            void writeConflictLog({
-              ts: new Date().toISOString(),
-              path,
-              trigger: 'save-pre-reconcile',
-              surface: 'markdown',
-              diskLength: diskBody.length,
-              baselineLength: lastSavedBodyRef.current.length,
-              liveLength: null,
-              recentlyWrittenSize: recentlyWrittenBodiesRef.current.size,
-              diskHead: ndisk.slice(0, 80),
-              baselineHead: nbase.slice(0, 80),
-              diskTail: ndisk.slice(-80),
-              baselineTail: nbase.slice(-80),
-              firstDiffOffset: computeFirstDiffOffset(ndisk, nbase),
-              appVersion: window.electron?.env?.appVersion ?? '?.?.?'
-            })
-            setExternalConflict({ diskBody })
-            return
-          }
-          } // end of `else` block from BUG-155 byte-exact fast-path
-        } catch {
-          // Can't read disk (file deleted, permissions, etc.) — fall
-          // through to write. The write may also fail; the catch below
-          // surfaces the error. Better than silently aborting the save.
-        }
+        if ((await recon.beforeSave(body)) === 'conflict') return
 
         const full = joinFrontmatter(frontmatterRef.current, body, eolRef.current)
         const bytes = encodeUtf8(full)
-        // BUG-099 fix — register our intent to write THIS body BEFORE
-        // the IPC call. If chokidar's event arrives before line 631
-        // (the post-write baseline update) executes, the watcher still
-        // recognizes the disk content as ours via the recently-written
-        // set. Without this, save → write → watcher fires → diskBody
-        // !== lastSavedBodyRef.current (still old) → false conflict.
-        trackRecentlyWritten(body)
         await window.electron.files.write(path, bytes)
-        lastSavedBodyRef.current = body
-        // BUG-166 — the bytes we just wrote are now what's
-        // on disk. Advance the byte-exact snapshot so the watcher's
-        // upcoming event (and the next save's pre-reconcile) take the
-        // fast-path bypass.
-        lastSeenDiskBodyRef.current = body
+        recon.noteSaved(body)
       }
 
       // Sprint 6 Phase 4 — refresh + persist the sidecar. Refresh
@@ -1356,7 +1057,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   }, [editor, path, saving, dirty, onDirtyChange])
 
   // ── Dirty tracking + autosave ────────────────────────────────────────────
-  const saveRef = useRef(save)
+  // ENH-195 — saveRef declared above the reconciliation hook; keep fresh.
   saveRef.current = save
 
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1372,7 +1073,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     const handler = () => {
       if (!loaded) return
       const body = serializeWithCriticMarkup(editor)
-      const isDirty = body !== lastSavedBodyRef.current
+      const isDirty = body !== recon.getSerializedBaseline()
       setDirty(isDirty)
       // Sprint 10 ENH-103 — clear any prior save-failure indicator on
       // the next edit; the pill returns to plain "Save" so the user
@@ -1857,7 +1558,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       try {
         const body = serializeWithCriticMarkup(editor)
         const full = joinFrontmatter(frontmatterRef.current, body, eolRef.current)
-        const isDirty = body !== lastSavedBodyRef.current
+        const isDirty = body !== recon.getSerializedBaseline()
         window.electron.editor.replyDocRead({
           reqId: req.reqId,
           ok: true,
@@ -1921,17 +1622,14 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           const diskBody = diskSplit.body
           const editorBody = serializeWithCriticMarkup(editor)
           if (diskBody !== editorBody) {
-            const editorIsDirty = editorBody !== lastSavedBodyRef.current
+            const editorIsDirty = editorBody !== recon.getSerializedBaseline()
             if (!editorIsDirty) {
               // Clean buffer behind disk — safe to reload.
               frontmatterRef.current = diskSplit.frontmatter
               eolRef.current = diskSplit.eol
               editor.commands.setContent(preprocessSubstitutions(diskBody), false)
-              lastSavedBodyRef.current = serializeWithCriticMarkup(editor)
-              // BUG-166 — advance the byte-exact disk
-              // snapshot in lockstep with the round-tripped baseline,
-              // so the next save's fast-path bypass matches.
-              lastSeenDiskBodyRef.current = diskBody
+              // ENH-195 — advance both reconciliation baselines in lockstep.
+              recon.noteLoaded(serializeWithCriticMarkup(editor), diskBody)
               didReload = true
             } else {
               // Dirty buffer + diverged disk = real conflict. Don't
@@ -2403,6 +2101,61 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     })
   }, [editor, path, isNew, applyDocWrite])
 
+  // ENH-195 — `duo doc edit` surgical PLAIN-text replace (open-file
+  // path). Distinct from onDocWrite (whole-buffer replace, dirty-gated
+  // behind the warning banner) and the disk-only CriticMarkup `doc-
+  // edit` family. The replace is literal (non-CriticMarkup — a direct
+  // accepted edit), applied to the serialized body via the pure
+  // `plainReplace`, then re-parsed into the live buffer. It routes
+  // through the existing echo-safe save (saveRef → recon hook), so it
+  // NEVER writes disk directly — the watcher recognizes the save as our
+  // own echo and doesn't banner. markJustAdded paints the change (the
+  // 6s wash) just like applyDocWrite's replace-all, since this is an
+  // explicit agent edit. NOT gated behind the dirty-buffer banner: a
+  // surgical find/replace is far narrower than a whole-buffer rewrite,
+  // and the recon hook's save-pre-reconcile still protects against a
+  // genuine external-divergence conflict.
+  useEffect(() => {
+    if (!editor || isNew) return
+    return window.electron.editor?.onDocEditPlain((req: DocEditPlainRequest) => {
+      // BUG-144 pattern — silent ignore on path mismatch (an inactive
+      // editor for a different file must not answer).
+      if (req.path && req.path !== path) return
+      try {
+        const body = serializeWithCriticMarkup(editor)
+        const res = plainReplace(body, req.find, req.replace, {
+          occurrence: req.occurrence,
+          all: req.all,
+          atLine: req.atLine
+        })
+        if (!res.changed) {
+          window.electron.editor.replyDocEditPlain({
+            reqId: req.reqId, ok: true, changed: false, replacements: 0, reason: res.reason, path
+          })
+          return
+        }
+        editor.commands.setContent(preprocessSubstitutions(res.body), true)
+        editor.commands.markJustAdded(0, editor.state.doc.content.size)
+        // Echo-safe save (routes through the recon hook). Fire-and-
+        // forget — saveRef.current handles its own errors via setSaveError.
+        void saveRef.current()
+        window.electron.editor.replyDocEditPlain({
+          reqId: req.reqId, ok: true, changed: true, replacements: res.replacements, reason: '', path
+        })
+      } catch (err) {
+        window.electron.editor.replyDocEditPlain({
+          reqId: req.reqId,
+          ok: false,
+          changed: false,
+          replacements: 0,
+          reason: '',
+          path,
+          error: err instanceof Error ? err.message : String(err)
+        })
+      }
+    })
+  }, [editor, path, isNew])
+
   const handlePendingAccept = useCallback(() => {
     const req = pendingWriteRef.current
     if (!req) return
@@ -2520,7 +2273,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           {error}
         </div>
       )}
-      {externalConflict && (
+      {recon.externalConflict && (
         <div className="shrink-0 px-10 py-2.5 text-xs border-b border-amber-900/40 bg-amber-950/30 text-amber-200 flex items-center gap-3">
           <span className="flex-1">
             <strong className="font-semibold">This file changed on disk</strong> while you were editing.
@@ -2528,14 +2281,14 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           </span>
           <button
             type="button"
-            onClick={resolveConflictReload}
+            onClick={recon.resolveReload}
             className="px-2 py-1 rounded border border-amber-800/60 hover:border-amber-700 hover:bg-amber-900/30"
           >
             Reload from disk
           </button>
           <button
             type="button"
-            onClick={resolveConflictKeepMine}
+            onClick={recon.resolveKeepMine}
             className="px-2 py-1 rounded border border-amber-800/60 hover:border-amber-700 hover:bg-amber-900/30"
           >
             Keep mine

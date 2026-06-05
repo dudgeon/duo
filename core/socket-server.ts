@@ -34,6 +34,10 @@ import type {
   DocGotoResult,
   DocFindRequest,
   DocFindResult,
+  DocEditPlainRequest,
+  DocEditPlainResult,
+  JsonOpRequest,
+  JsonOpResult,
   DuoSelection,
   HtmlOpRequest,
   HtmlOpResult,
@@ -75,6 +79,10 @@ export interface NavBridge {
   getCanvasSelection: () => PageSelectionSnapshot | null
   /** Stage 11 § D27 — apply a doc-write to the active editor. */
   docWrite: (req: Omit<DocWriteRequest, 'reqId'>) => Promise<DocWriteResult>
+  /** ENH-195 — apply a `duo doc edit` PLAIN surgical replace to the
+   *  active markdown editor (the OPEN-file path; socket-server routes
+   *  the closed-file case disk-direct via plainEdit.ts). */
+  docEditPlain: (req: Omit<DocEditPlainRequest, 'reqId'>) => Promise<DocEditPlainResult>
   /** ENH-108 — insert an image into the active markdown editor.
    *  Bytes are read from disk by the CLI/main process. Renderer
    *  saves the image alongside the active doc + inserts at caret. */
@@ -164,6 +172,10 @@ export interface NavBridge {
    *  `window.__duoGetLayout()` exposed by App.tsx — always-fresh,
    *  no push-and-cache pipeline needed. */
   getLayout: () => Promise<unknown>
+  /** ENH-195 — `duo status` high-level app snapshot. Computed on-demand
+   *  from the renderer's `window.__duoGetStatus()` (no cache — same
+   *  always-fresh pattern as getLayout). */
+  getStatus: () => Promise<unknown>
   /** ENH-130 — used by `duo edit --reveal` and `duo open --reveal` to
    *  ensure the artifact the agent just created is actually visible
    *  to the user. Reads layout state via getLayout(); if the working
@@ -205,6 +217,10 @@ export interface NavBridge {
    *  canvas. Single discriminated request shape; renderer's PageTab
    *  applies it via htmlOps.executeHtmlOp and replies. */
   htmlOp: (req: Omit<HtmlOpRequest, 'reqId'>) => Promise<HtmlOpResult>
+  /** ENH-195 — apply a `duo json set|merge` op to the active JSON /
+   *  YAML viewer (the OPEN-file path; socket-server routes the closed-
+   *  file case disk-direct). */
+  jsonOp: (req: Omit<JsonOpRequest, 'reqId'>) => Promise<JsonOpResult>
   /** Stage 17d — dispatch a `duo html comment` write. Anchor resolution
    *  happens in the renderer (which knows the live DOM). */
   htmlComment: (req: Omit<HtmlCommentRequest, 'reqId'>) => Promise<HtmlCommentResult>
@@ -254,6 +270,16 @@ export interface NavBridge {
   /** ENH-184 (Sprint 23 / v0.8.0) — workspace-pill menu CLI parity. */
   getWorkspacePillMenuEnabled: () => boolean
   setWorkspacePillMenuEnabled: (enabled: boolean) => { ok: boolean; error?: string }
+}
+
+/** ENH-195 (review) — canonicalize a path for open-vs-closed routing:
+ *  resolve symlinks (best-effort; the file may not exist yet) and case-fold on
+ *  darwin (APFS is case-insensitive by default) so equivalent aliases compare
+ *  equal. Used by `isPathOpenAs`. */
+function canonPath(p: string): string {
+  let resolved = p
+  try { resolved = fs.realpathSync(p) } catch { /* not yet on disk — use as-is */ }
+  return process.platform === 'darwin' ? resolved.toLowerCase() : resolved
 }
 
 export class SocketServer {
@@ -581,6 +607,157 @@ export class SocketServer {
     return { ok: true, changed: true, reason: '', op, path }
   }
 
+  /**
+   * ENH-195 — is `path` currently OPEN in a tab whose kind is in
+   * `kinds`? Reads the live status snapshot (the same source `duo
+   * status` returns) so the open-vs-closed routing decision never
+   * drifts from what the renderer actually has mounted. Any failure
+   * (renderer not ready, malformed snapshot) returns false → the
+   * caller falls back to the disk-direct path, which is always safe.
+   */
+  private async isPathOpenAs(filePath: string, kinds: string[]): Promise<boolean> {
+    try {
+      const status = await this.nav.getStatus() as {
+        tabs?: Array<{ kind?: string; path?: string }>
+      } | null
+      if (!status || !Array.isArray(status.tabs)) return false
+      // ENH-195 (review) — canonicalize both sides before comparing so a
+      // symlinked-dir or case-variant alias (e.g. /tmp→/private/tmp, or an
+      // APFS case-fold) of an OPEN file still routes through the echo-safe
+      // in-buffer path instead of falling to the disk-direct writer.
+      const target = canonPath(filePath)
+      return status.tabs.some(t =>
+        typeof t.path === 'string' && canonPath(t.path) === target &&
+        typeof t.kind === 'string' && kinds.includes(t.kind))
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * ENH-195 — `duo doc edit` surgical PLAIN replace. Routes by open-vs-
+   * closed:
+   *   - OPEN in the markdown editor → delegate to the renderer
+   *     (NavBridge.docEditPlain), which mutates the live buffer and
+   *     kicks an echo-safe save. NEVER writes disk from here in that
+   *     case (the renderer's save owns the write + reconciliation).
+   *   - CLOSED → read the file, split frontmatter, apply plainReplace
+   *     to the body, rejoin + write. Mirrors handleDocEdit's disk path
+   *     but uses the pure `plainReplace` (literal, non-CriticMarkup).
+   */
+  private async handleDocEditPlain(args: Record<string, unknown>): Promise<DocEditPlainResult> {
+    const path = args['path'] as string | undefined
+    const find = args['find'] as string | undefined
+    const replace = args['replace'] as string | undefined
+    if (!path || typeof path !== 'string') throw new Error('doc edit requires a path arg')
+    if (typeof find !== 'string') throw new Error('doc edit requires a --find arg')
+    if (typeof replace !== 'string') throw new Error('doc edit requires a --replace arg')
+    if (!path.endsWith('.md')) {
+      throw new Error(`doc edit only supports .md files (got ${path})`)
+    }
+    const occurrence = typeof args['occurrence'] === 'number' ? args['occurrence'] as number : undefined
+    const all = args['all'] === true
+    const atLine = typeof args['atLine'] === 'number' ? args['atLine'] as number : undefined
+    const req: Omit<DocEditPlainRequest, 'reqId'> = { path, find, replace, occurrence, all, atLine }
+
+    // OPEN in the markdown editor → echo-safe buffer route.
+    if (await this.isPathOpenAs(path, ['editor', 'markdown'])) {
+      const reply = await this.nav.docEditPlain(req)
+      if (!reply.ok) throw new Error(reply.error ?? 'doc edit failed')
+      return reply
+    }
+
+    // CLOSED → disk-direct via the pure plainReplace helper.
+    const frontmatter = await import('./markdown/frontmatter')
+    const { plainReplace } = await import('./markdown/plainEdit')
+    const readResult = await this.files.read(path)
+    const text = new TextDecoder('utf-8').decode(readResult.bytes)
+    const split = frontmatter.splitFrontmatter(text)
+    const res = plainReplace(split.body, find, replace, { occurrence, all, atLine })
+    if (!res.changed) {
+      return { reqId: '', ok: true, changed: false, replacements: 0, reason: res.reason, path }
+    }
+    const fullText = frontmatter.joinFrontmatter(split.frontmatter, res.body, split.eol)
+    await this.files.write(path, new TextEncoder().encode(fullText))
+    return { reqId: '', ok: true, changed: true, replacements: res.replacements, reason: '', path }
+  }
+
+  /**
+   * ENH-195 — `duo json set|merge`. Routes by open-vs-closed:
+   *   - OPEN in the JSON viewer → delegate to the renderer
+   *     (NavBridge.jsonOp); it mutates the live value + kicks an echo-
+   *     safe save. NEVER writes disk from here in that case.
+   *   - CLOSED → read, parse (JSON.parse, or js-yaml for .yaml/.yml),
+   *     apply set/merge, re-serialize (canonical), write. YAML loses
+   *     comments — flagged in the reply reason.
+   */
+  private async handleJsonOp(args: Record<string, unknown>): Promise<JsonOpResult> {
+    const path = args['path'] as string | undefined
+    const op = args['op'] as string | undefined
+    if (!path || typeof path !== 'string') throw new Error('json requires a path arg')
+    if (op !== 'set' && op !== 'merge') throw new Error("json op must be 'set' or 'merge'")
+    const req: Omit<JsonOpRequest, 'reqId'> = {
+      path,
+      op,
+      pointer: args['pointer'] as string | undefined,
+      valueJson: args['valueJson'] as string | undefined,
+      mergeJson: args['mergeJson'] as string | undefined,
+    }
+
+    // OPEN in the JSON viewer → echo-safe buffer route.
+    if (await this.isPathOpenAs(path, ['json'])) {
+      const reply = await this.nav.jsonOp(req)
+      if (!reply.ok) throw new Error(reply.error ?? 'json op failed')
+      return reply
+    }
+
+    // CLOSED → disk-direct.
+    const { applyJsonPointer, deepMerge } = await import('./json/jsonOps')
+    const isYaml = /\.ya?ml$/i.test(path)
+    const readResult = await this.files.read(path)
+    const text = new TextDecoder('utf-8').decode(readResult.bytes)
+    let root: unknown
+    if (isYaml) {
+      const yaml = await import('js-yaml')
+      root = yaml.load(text)
+    } else {
+      root = text.trim() === '' ? {} : JSON.parse(text)
+    }
+
+    if (op === 'set') {
+      const pointer = req.pointer ?? ''
+      let value: unknown
+      try {
+        value = req.valueJson !== undefined ? JSON.parse(req.valueJson) : undefined
+      } catch (e) {
+        throw new Error(`json set: valueJson is not valid JSON: ${(e as Error).message}`)
+      }
+      root = applyJsonPointer(root, pointer, value)
+    } else {
+      let patch: unknown
+      try {
+        patch = req.mergeJson !== undefined ? JSON.parse(req.mergeJson) : undefined
+      } catch (e) {
+        throw new Error(`json merge: mergeJson is not valid JSON: ${(e as Error).message}`)
+      }
+      if (patch === null || typeof patch !== 'object' || Array.isArray(patch)) {
+        throw new Error('json merge: patch must be a JSON object')
+      }
+      root = deepMerge(root, patch)
+    }
+
+    let serialized: string
+    if (isYaml) {
+      const yaml = await import('js-yaml')
+      serialized = yaml.dump(root, { indent: 2, lineWidth: 100, noRefs: true })
+    } else {
+      serialized = JSON.stringify(root, null, 2) + '\n'
+    }
+    await this.files.write(path, new TextEncoder().encode(serialized))
+    const reason = isYaml ? 'YAML serialized — comments and anchor names are not preserved' : ''
+    return { reqId: '', ok: true, changed: true, reason, path }
+  }
+
   private async handle(req: DuoRequest): Promise<DuoResponse> {
     const { id, cmd, args } = req
     try {
@@ -805,6 +982,15 @@ export class SocketServer {
           result = await this.nav.getLayout()
           break
         }
+        case 'status': {
+          // ENH-195 — `duo status`. High-level app snapshot: open
+          // file/browser tabs (dirty / active / pinned), the active
+          // working tab, focused column, theme, terminal-tab count.
+          // Computed on-demand from the renderer's window.__duoGetStatus()
+          // — see App.tsx for the shape. The keystone orientation verb.
+          result = await this.nav.getStatus()
+          break
+        }
 
         case 'text': {
           const selector = args['selector'] as string | undefined
@@ -997,6 +1183,15 @@ export class SocketServer {
           // When the file is open in the editor, the autosave
           // reconciliation flow surfaces the external change.
           result = await this.handleDocEdit(args)
+          break
+        }
+        case 'doc-edit-plain': {
+          // ENH-195 — `duo doc edit` surgical PLAIN replace. Buffer-
+          // routed (echo-safe through the editor's save) when the file
+          // is open; disk-direct via core/markdown/plainEdit.ts when
+          // closed. handleDocEditPlain decides open-vs-closed by reading
+          // the live status snapshot.
+          result = await this.handleDocEditPlain(args)
           break
         }
         case 'image-insert': {
@@ -1331,6 +1526,15 @@ export class SocketServer {
           const reply = await this.nav.htmlOp(args as Omit<HtmlOpRequest, 'reqId'>)
           if (!reply.ok) throw new Error(reply.error ?? 'html-op failed')
           result = reply.result
+          break
+        }
+        case 'json-op': {
+          // ENH-195 — `duo json set|merge`. Buffer-routed (echo-safe
+          // through the JSON viewer's save) when the file is open;
+          // disk-direct (JSON.parse / js-yaml) when closed.
+          // handleJsonOp decides open-vs-closed by reading the live
+          // status snapshot.
+          result = await this.handleJsonOp(args)
           break
         }
         case 'html-comment': {

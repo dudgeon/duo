@@ -1014,6 +1014,45 @@ async function main(): Promise<void> {
             }
             die(`Could not read ${logPath}: ${err?.message ?? err}`)
           }
+        } else if (sub === 'edit') {
+          // ENH-195 — `duo doc edit <file> --find "X" --replace "Y"
+          // [--occurrence N | --all] [--at-line N]`. Surgical PLAIN-text
+          // markdown replace (literal, non-CriticMarkup — a direct
+          // accepted edit). Echo-safe when the file is open in the
+          // editor (buffer-routed through the editor's save), disk-direct
+          // when closed. Distinct from the CriticMarkup verbs above
+          // (insert/delete/substitute), which wrap the change as a
+          // tracked suggestion.
+          const target = subRest.find(a => !a.startsWith('--')) ??
+            die('Usage: duo doc edit <file> --find "X" --replace "Y" [--occurrence N | --all] [--at-line N]')
+          const find = flagValue(subRest, '--find')
+          const replace = flagValue(subRest, '--replace')
+          if (find === undefined) die('duo doc edit requires --find "<text>"')
+          if (replace === undefined) die('duo doc edit requires --replace "<text>" (may be empty to delete the match)')
+          const all = subRest.includes('--all')
+          const occStr = flagValue(subRest, '--occurrence')
+          if (all && occStr !== undefined) {
+            die('duo doc edit: pass --occurrence N OR --all, not both')
+          }
+          const resolved = resolveFilePath(target)
+          const payload: Record<string, unknown> = { path: resolved, find, replace }
+          if (all) payload.all = true
+          if (occStr !== undefined) {
+            const n = Number(occStr)
+            if (!Number.isFinite(n) || n < 1 || !Number.isInteger(n)) {
+              die('--occurrence requires a positive integer')
+            }
+            payload.occurrence = n
+          }
+          const atLineStr = flagValue(subRest, '--at-line')
+          if (atLineStr !== undefined) {
+            const n = Number(atLineStr)
+            if (!Number.isFinite(n) || n < 1 || !Number.isInteger(n)) {
+              die('--at-line requires a positive integer')
+            }
+            payload.atLine = n
+          }
+          out(await send('doc-edit-plain', payload))
         } else if (
           sub === 'insert' || sub === 'delete' || sub === 'substitute' ||
           sub === 'highlight' ||
@@ -1122,7 +1161,7 @@ async function main(): Promise<void> {
 
           out(await send('doc-edit', payload))
         } else {
-          die('Usage: duo doc <write|read|goto|find|conflict-log|insert|delete|substitute|highlight|comment|accept|reject> [...]')
+          die('Usage: duo doc <write|read|goto|find|edit|conflict-log|insert|delete|substitute|highlight|comment|accept|reject> [...]')
         }
         break
       }
@@ -1429,6 +1468,75 @@ async function main(): Promise<void> {
         // navigator state. Pairs with `duo nav-state` (file tree) and
         // `duo dom` (renderer DOM) as the third visibility verb.
         out(await send('layout', {}))
+        break
+      }
+      case 'status': {
+        // ENH-195 — high-level app snapshot: open file/browser tabs
+        // (with per-tab dirty / active / pinned), the active working
+        // tab, focused column, theme, terminal-tab count. The keystone
+        // orientation verb — run it first to see what the user is
+        // looking at. Read live from the renderer (no cache).
+        out(await send('status', {}))
+        break
+      }
+      case 'json': {
+        // ENH-195 — structured edits to a JSON / YAML file.
+        //   duo json set <file> <dotpath> <value>   # set value at path
+        //   duo json merge <file> <patch.json>      # deep-merge object
+        // Echo-safe when the file is open in the JSON viewer (buffer-
+        // routed through its save); disk-direct (JSON.parse / js-yaml)
+        // when closed. <value> is parsed as JSON if it parses, else
+        // treated as a literal string. <dotpath> is dotted with `[n]`
+        // array indices; empty string or '.' targets the root. YAML
+        // round-trips lose comments (noted in the reply reason).
+        const sub = rest[0]
+        const subRest = rest.slice(1)
+        if (sub === 'set') {
+          const file = subRest[0]
+          const pointer = subRest[1]
+          // Everything after the pointer is the value (so unquoted
+          // multi-word strings survive); pointer may be '' or '.'.
+          if (file === undefined || pointer === undefined || subRest.length < 3) {
+            die('Usage: duo json set <file> <dotpath> <value>\n  <dotpath>: dotted with [n] indices; "" or "." = root.\n  <value>: parsed as JSON if valid, else treated as a literal string.')
+          }
+          const rawValue = subRest.slice(2).join(' ')
+          // Try to parse as JSON (number / bool / null / object / array /
+          // quoted string); on failure, treat it as a literal string and
+          // JSON-encode that so the wire payload is always valid JSON.
+          let valueJson: string
+          try {
+            JSON.parse(rawValue)
+            valueJson = rawValue
+          } catch {
+            valueJson = JSON.stringify(rawValue)
+          }
+          const resolved = resolveFilePath(file)
+          out(await send('json-op', { path: resolved, op: 'set', pointer, valueJson }))
+        } else if (sub === 'merge') {
+          const file = subRest[0]
+          const patchPath = subRest[1]
+          if (file === undefined || patchPath === undefined) {
+            die('Usage: duo json merge <file> <patch.json>')
+          }
+          const resolvedPatch = resolveFilePath(patchPath)
+          let mergeJson: string
+          try {
+            mergeJson = fs.readFileSync(resolvedPatch, 'utf8')
+          } catch (err: any) {
+            die(`Could not read patch file ${resolvedPatch}: ${err?.message ?? err}`)
+          }
+          // Validate it parses as JSON before sending (friendlier than a
+          // server-side parse error).
+          try {
+            JSON.parse(mergeJson)
+          } catch (e) {
+            die(`Patch file ${resolvedPatch} is not valid JSON: ${(e as Error).message}`)
+          }
+          const resolved = resolveFilePath(file)
+          out(await send('json-op', { path: resolved, op: 'merge', mergeJson }))
+        } else {
+          die('Usage:\n  duo json set <file> <dotpath> <value>\n  duo json merge <file> <patch.json>')
+        }
         break
       }
       case 'inspect': {
@@ -1944,6 +2052,13 @@ function printDocHelp(sub?: string): void {
   disk first when the editor's clean.`,
     find: `duo doc find [<file>] --query "X" [--case-sensitive]
   Count + locate matches in the editor's serialized body.`,
+    edit: `duo doc edit <file> --find "X" --replace "Y" [--occurrence N | --all] [--at-line N]
+  ENH-195 — surgical PLAIN-text markdown replace (literal, NOT CriticMarkup —
+  a direct accepted edit). Echo-safe when the file is open in the editor;
+  disk-direct when closed. --replace may be empty (= delete the match).
+  Ambiguous multi-match without --occurrence / --all is refused. Use the
+  CriticMarkup verbs (insert/delete/substitute) instead when you want the
+  change to land as a tracked suggestion.`,
     insert: `duo doc insert <file> --text "X" (--after "Y" | --before "Y" | --at-line N) [--occurrence N]
   Wrap NEW text as a CriticMarkup insertion ({++X++}) at the chosen anchor.`,
     delete: `duo doc delete <file> --text "X" [--occurrence N]
@@ -2042,6 +2157,15 @@ COMMANDS
                                    Pairs with \`duo nav-state\` and
                                    \`duo dom\` as the third visibility
                                    verb.
+  status                          ENH-195 — high-level app snapshot:
+                                   every open file + browser tab (with
+                                   per-tab dirty / active / pinned), the
+                                   active working tab, focused column,
+                                   theme, terminal-tab count. The
+                                   keystone orientation verb — run it
+                                   first to see what the user is looking
+                                   at. Coarser than \`duo layout\`; both
+                                   read live from the renderer.
   inspect [--on|--off]            ENH-159b — element-inspect mode in the
                                    active browser pane. No arg toggles;
                                    --on / --off force. While active,
@@ -2149,6 +2273,17 @@ COMMANDS
                                   default. (v1 markdown only; canvas /
                                   browser / terminal find variants
                                   deferred.)
+  doc edit <file> --find "X" --replace "Y" [--occurrence N | --all] [--at-line N]
+                                  ENH-195 — surgical PLAIN-text markdown
+                                  replace (literal, NOT CriticMarkup —
+                                  a direct accepted edit). Echo-safe when
+                                  the file is open in the editor; disk-
+                                  direct when closed. --replace may be ""
+                                  (= delete the match). Multi-match
+                                  without --occurrence / --all is refused
+                                  as ambiguous. Use insert/delete/
+                                  substitute instead for a tracked
+                                  suggestion.
   doc conflict-log                BUG-122 — print the last save-
                                   conflict diagnostic at
                                   ~/.claude/duo/logs/last-conflict.log
@@ -2169,6 +2304,24 @@ COMMANDS
                                   No arg = print state (JSON). With a
                                   name = persist + print. Agents set
                                   their own via the DUO_AUTHOR env var.
+  json set <file> <dotpath> <value>
+                                  ENH-195 — set a value at a dotted path
+                                  in a JSON / YAML file. <dotpath> uses
+                                  dots + [n] indices ("a.b[0].c"); "" or
+                                  "." = root. <value> is parsed as JSON
+                                  if valid (number / bool / null / object
+                                  / array / quoted string), else treated
+                                  as a literal string. Echo-safe when the
+                                  file is open in the JSON viewer; disk-
+                                  direct when closed. YAML round-trips
+                                  lose comments (noted in the reply).
+  json merge <file> <patch.json>  ENH-195 — deep-merge a JSON object
+                                  (read from <patch.json>) into the root
+                                  of a JSON / YAML file. Nested objects
+                                  merge key-by-key; arrays + primitives
+                                  in the patch replace. Same open/closed
+                                  + YAML-comment-loss semantics as
+                                  \`json set\`.
   doc insert <file> --text "X" (--after "Y" | --before "Y" | --at-line N)
                                   BUG-138 Phase 3 — insert "X" as a
                                   CriticMarkup insertion ({++X++}) at

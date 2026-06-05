@@ -21,6 +21,17 @@ description — skipping the disposition is a review-block:
 
 Drift between the two surfaces is acceptable, but must be deliberate.
 
+**Shared reconciliation layer (ENH-195 D5).** The file-watch / echo-detect /
+reload-or-banner pipeline now lives in ONE shared `useDiskReconciliation` hook,
+consumed by the markdown editor, the canvas, AND the JSON/YAML viewer. When you
+touch *reconciliation*, change the hook — its parity disposition is implicitly
+**(a) Mirrored** (one implementation covers all three surfaces). Surface-specific
+*editing* (the `serialize`/`applyReload` callbacks each surface injects, input
+rules, the change-highlight) still follows the (a)/(b)/(c) rule above — e.g. the
+markdown on-reload change-highlight is **(c) Deferred** for the canvas under
+ENH-196. Cross-ref the [DECISIONS.md:620 amendment](../../docs/DECISIONS.md)
+("Editor / canvas convergence" § ENH-195 D5).
+
 ## New WorkingPane tab type — touch every step
 
 1. `shared/types.ts` — add to `WorkingTabType`; audit discriminated unions

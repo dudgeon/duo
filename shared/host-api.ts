@@ -17,6 +17,8 @@ import type {
   DocReadRequest, DocReadResult,
   DocGotoRequest, DocGotoResult,
   DocFindRequest, DocFindResult,
+  DocEditPlainRequest, DocEditPlainResult,
+  JsonOpRequest, JsonOpResult,
   HtmlOpRequest, HtmlOpResult, PageSelectionSnapshot,
   HtmlCommentRequest, HtmlCommentResult,
   HtmlCommentsListRequest, HtmlCommentsListResult,
@@ -272,10 +274,17 @@ export interface ElectronFilesAPI {
    * function. The callback fires on each add/change/remove event.
    * Paths are watched at depth 0 — caller is responsible for also watching
    * the parents of any expanded subtrees.
+   *
+   * ENH-195 B2/B4 — `opts.ignored` overrides the default
+   * `.git`/`.obsidian`/`node_modules` ignore globs (a single open-file editor
+   * passes `[]` so a file inside such a path still watches); `opts.watchParents`
+   * additionally watches each path's parent dir at depth 0 to catch
+   * atomic-rename / delete saves. Existing callers pass two args unchanged.
    */
   watch: (
     paths: string[],
-    cb: (event: FileChangeEvent) => void
+    cb: (event: FileChangeEvent) => void,
+    opts?: { ignored?: (string | RegExp)[]; watchParents?: boolean }
   ) => Promise<() => Promise<void>>
   /** Update the set of watched paths on an existing subscription. */
   updateWatchPaths: (id: string, paths: string[]) => Promise<void>
@@ -349,6 +358,21 @@ export interface ElectronEditorAPI {
   /** ENH-023 — `duo doc find` (markdown editor v1). */
   onDocFind: (cb: (req: DocFindRequest) => void) => () => void
   replyDocFind: (result: DocFindResult) => void
+  /** ENH-195 — `duo doc edit` surgical PLAIN replace. The active
+   *  markdown editor applies the literal find/replace to its live
+   *  buffer, kicks an echo-safe save, and replies. Disk-direct path
+   *  (file not open) is handled in socket-server, not here. */
+  onDocEditPlain: (cb: (req: DocEditPlainRequest) => void) => () => void
+  replyDocEditPlain: (result: DocEditPlainResult) => void
+}
+
+/** ENH-195 — agent structured edits against the active JSON / YAML
+ *  viewer (`duo json set|merge`). Only the active JSON tab subscribes;
+ *  if no JSON viewer is open the CLI request resolves disk-direct in
+ *  socket-server. Mirrors ElectronCanvasAPI's onHtmlOp/replyHtmlOp. */
+export interface ElectronJsonAPI {
+  onJsonOp: (cb: (req: JsonOpRequest) => void) => () => void
+  replyJsonOp: (result: JsonOpResult) => void
 }
 
 /** Stage 17b Phase C — agent ops against the active HTML canvas.
@@ -956,6 +980,8 @@ export interface ElectronAPI {
   nav: ElectronNavAPI
   editor: ElectronEditorAPI
   canvas: ElectronCanvasAPI
+  // ENH-195 — `duo json set|merge` against the active JSON / YAML viewer.
+  json: ElectronJsonAPI
   cozy: ElectronCozyAPI
   /** ENH-172 (Sprint 20) — show/hide hidden-files toggle. */
   hiddenFiles: ElectronHiddenFilesAPI

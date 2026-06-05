@@ -398,8 +398,21 @@ export class FilesService {
     id: string,
     paths: string[],
     wc: WebContents,
-    pushChannel: string
+    pushChannel: string,
+    opts?: { ignored?: (string | RegExp)[]; watchParents?: boolean }
   ): void {
+    // ENH-195 B4 — a single open-file editor passes `watchParents:true` so we
+    // also watch each path's parent dir at depth 0. Some external editors save
+    // by writing a temp file then renaming over the target (atomic replace),
+    // which chokidar surfaces as unlink+add on the FILE path within the parent
+    // dir's watch rather than a `change` on the inode — without the parent
+    // watch the editor would go deaf after such a save. The renderer's
+    // `event.path !== path` filter drops sibling-file noise cheaply.
+    const watchParents = opts?.watchParents ?? false
+    const watchPaths = watchParents
+      ? [...new Set([...paths, ...paths.map(p => path.dirname(p))])]
+      : paths
+
     // Do not watch recursively by default — Stage 10 v1 only watches the
     // currently-visible subtree. Recursive watches on e.g. node_modules are a
     // CPU + event-rate disaster. Callers pass the specific directories they
@@ -410,7 +423,7 @@ export class FilesService {
     // identity fallback handles that case + any non-symlinked path. Either
     // way, the original string is always a valid lookup key.
     const resolvedToOriginal = new Map<string, string>()
-    for (const p of paths) {
+    for (const p of watchPaths) {
       try {
         resolvedToOriginal.set(realpathSync(p), p)
       } catch {
@@ -419,7 +432,7 @@ export class FilesService {
       resolvedToOriginal.set(p, p)
     }
 
-    const fsw = chokidar.watch(paths, {
+    const fsw = chokidar.watch(watchPaths, {
       ignoreInitial: true,
       depth: 0,
       awaitWriteFinish: {
@@ -438,7 +451,12 @@ export class FilesService {
       // regardless of UI visibility. The `.git/` ignore is a
       // long-standing convention for the same reason (any
       // git-tracked vault would also benefit).
-      ignored: [/\.obsidian(\/|$)/, /\.git(\/|$)/, /node_modules(\/|$)/]
+      //
+      // ENH-195 B2 — a caller can override `ignored` (the single open-file
+      // editor passes `[]`) so a file the user explicitly opened that lives
+      // under a `.git`/`.obsidian`/`node_modules` path still emits change
+      // events. The default below stays for the navigator's directory watch.
+      ignored: opts?.ignored ?? [/\.obsidian(\/|$)/, /\.git(\/|$)/, /node_modules(\/|$)/]
     })
 
     const send = (kind: FileChangeEvent['kind'], p: string) => {

@@ -74,10 +74,13 @@ for the authoritative usage text.
 | `duo selection [--pane auto\|editor\|browser\|canvas]` | Active surface's selection. `auto` (default) prefers a non-empty browser highlight, then a non-empty canvas selection, falling back to the editor's cached selection. Returns the unified `DuoSelection` shape (`kind: 'editor' \| 'browser' \| 'page'`). Stage 17c adds the canvas branch. |
 | `duo doc read [path]` | Live editor buffer (frontmatter + body, including unsaved edits). Optional path pins the read to a specific file. |
 | `duo doc write [--replace-selection\|--replace-all] [--text\|stdin]` | Apply text to the active editor |
+| `duo doc edit <file> --find "X" --replace "Y" [--occurrence N\|--all] [--at-line N]` | **ENH-195** — surgical PLAIN-markdown find/replace. Reconciles into the live editor buffer when the file is open (echo-safe via the shared `useDiskReconciliation` hook — no whole-doc resend, so no false-positive conflict banner); disk-direct when closed. `--occurrence N` (1-indexed) / `--all` scope which match(es); `--at-line N` confines to one line. The agent-facing "edit a markdown file that might be open in Duo" verb (vs. raw `Write`/`Edit`). Returns `{ok, changed, replacements, path}`. |
 | `duo doc goto [<path>] --heading "X" \| --line N \| --anchor "Y"` | **ENH-022** — scroll the active editor (or specified file's editor) to a target. `--heading` markdown-only (case-insensitive substring on heading text). `--line` is 1-indexed. `--anchor` matches markdown heading slug OR canvas/HTML element id (`data-duo-id` first, then `id`). |
 | `duo doc find <query> [<path>] [--case-sensitive]` | **ENH-023** — search the markdown editor's live buffer; returns `{matches, first: {line, col}}`. v1 markdown only. |
 | `duo doc conflict-log` | **BUG-122** — dump `~/.claude/duo/logs/last-conflict.log` (the most recent save-conflict diagnostic JSON). Read-only file dump; no IPC. Payload carries `firstDiffOffset` + 80-char head/tail excerpts (post-normalize) so the diff signature is one-glance bisectable without DevTools. Written by markdown editor + HTML canvas on every banner-surfacing (watcher-dirty + save-pre-reconcile branches). |
 | `duo image insert <path> [--alt "…"]` | **ENH-108 + ENH-125** — insert an image from disk into the active markdown editor OR HTML canvas. Source bytes copied alongside the active doc as `image-<YYYYMMDD-HHMMSS>-<hash>.<ext>`, inserted at caret. v0.6.11 closed the editor-canvas gap (ENH-125): canvas now responds too. The inserted markdown / HTML carries the relative filename (FOLLOWUP-014); DuoImage / imageHydrate hydrate it back to a blob URL on render. |
+| `duo json set <file> <dotpath> <value>` | **ENH-195** — structured JSON/YAML edit by dot-path (`<value>` parsed as JSON when it parses, else string). Reconciles into the open JSON/YAML viewer-editor (`kind: 'json'`) via the shared `useDiskReconciliation` hook when open; disk-direct when closed. The agent-facing "edit a `.json`/`.yaml` that might be open in Duo" verb (vs. raw `Write`/`Edit`). **YAML re-serialization drops comments + anchor names** (same caveat as the viewer's source-mode save). Returns `{ok, path}`. |
+| `duo json merge <file> <patch.json>` | **ENH-195** — shallow-merge a JSON patch object into the top level of a `.json`/`.yaml` file. Same open-reconcile / closed-disk behavior + YAML comment-loss caveat as `duo json set`. Returns `{ok, path}`. |
 
 ### HTML canvas (Stage 17)
 
@@ -122,6 +125,7 @@ for the authoritative usage text.
 
 | Verb | What it does |
 |---|---|
+| `duo status` | **ENH-195** — read-only single-shot state dump of every open working-pane file tab: `{ tabs: [{ kind, path?, url?, title, dirty, active, pinned }], active, focusedColumn, theme, … }`. The reliable "is this file open in Duo?" probe (run before any `Write`/`Edit` so an open file routes through the matching `duo doc edit` / `doc write` / `html *` / `json set`/`merge` verb). Useful first command for any agent joining a session. **Distinct from `duo nav state`** (file-TREE selection) and `duo layout` (active-tab + split geometry). |
 | `duo doctor` | Stage 20 — health-check both transports (Unix socket + TCP fallback), report app/CLI version match, `$DUO_SESSION` presence, install path, skill files. First move when a `duo` command fails — names the sandbox failure mode instead of silent failures. Exits 0 if either transport reaches the app. |
 | `duo install [--system]` | Symlink CLI into a sandbox-safe location. ENH-141 default order: `~/.claude/duo/bin/duo` (SHIM_DIR — auto-prepended to PATH inside every Duo PTY by `core/pty-manager.ts`) → `~/.local/bin/duo`. `--system` forces `/usr/local/bin/duo` (sudo + outside Claude Code's sandbox). Prints a shell-rc hint scoped to external Terminal/iTerm use when the dir isn't already on the calling shell's PATH (inside Duo PTYs it always is — no action needed). |
 | `duo git-status [<path>]` | **ENH-152a** — git status snapshot for a directory (defaults to `$HOME`). Returns JSON: `{ isRepo, workTreeRoot, branch, head, dirty, changedCount, ahead, behind, reason? }`. Backs the Navigator root chip (rendered via `formatGitStatusChip` in `shared/host-api.ts`; clean stays invisible per owner directive). Also surfaced to agents for decisions like "is this checkout dirty before I propose an edit?". |
@@ -257,7 +261,7 @@ but they're not shipped yet.
 
 | Verb | Priority | Note |
 |---|---|---|
-| `duo status` | P1 | Single-shot state dump: active tab kinds, focused column, theme, cozy, list of open editor docs with dirty flags. Useful first command for any agent joining a session. |
+| ✅ `duo status` | **Shipped (ENH-195)** | Single-shot state dump: open working-pane file tabs (kind/path/url/title/dirty/active/pinned), focused column, theme. Moved to § 1 Meta. The reliable "is this file open in Duo?" probe agents run before `Write`/`Edit`. |
 | `duo events --follow` | P1 (Stage 15a) | Pull/NDJSON stream of user interactions; already on the roadmap. |
 | `duo notify [--tab] <body>` | P1 (Stage 15b) | macOS notification; already on the roadmap. |
 | `duo tab name <text> [--tab]` | P1 (Stage 15c) | Already on the roadmap. |

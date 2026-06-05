@@ -614,6 +614,10 @@ export function WorkingPane({
         <JsonView
           path={tab.path}
           onDirtyChange={(d) => onTabDirtyChange(tab.id, d)}
+          // ENH-195 — gates the `duo json set|merge` IPC subscription so
+          // only the active viewer responds (same race guard as the
+          // MarkdownEditor / PageTab onImageInsert wiring).
+          isActive={isFileActive(tab.id)}
         />
       )
     }

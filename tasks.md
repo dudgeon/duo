@@ -6,6 +6,52 @@
 
 > Sprint 24 anchor: close the v0.8.0 audit's deferred follow-ups (FOLLOWUP-031 through 040) before any new feature work. ENH-182 was the marquee chapter; Sprint 24 is its polish epilogue. Definition of done: all 10 FOLLOWUPs closed or explicitly deferred-with-reason. Expected cut shape: v0.8.1 PATCH (polish-only) OR v0.9.0 MINOR if a carry-forward capability lands alongside.
 
+### ENH-195: CLI edits · disk-sync responsiveness · false-positive conflicts (one-root-cause cluster)
+
+**Status:** ✅ **Implemented + reviewed 2026-06-05** — all 5 decisions locked (see "Decisions (locked)" below); 914 tests pass + both typecheckers clean. Branch `claude/sharp-hamilton-70eb87`. **Live smoke-walk: owner deferred** (chose test-only finalize; smoke-walk page prepped for later).
+
+**Adversarial review (workflow `wf_cad25190-d7d`, 15 agents) — 9 confirmed bugs fixed before cut.** The review caught what 902 passing tests masked: **(HIGH)** the impure `readDiskBody` clobbered the user's edited frontmatter on save (data loss) → made `readDiskBody` pure + moved frontmatter adoption into `applyReload(diskBody, rawText)`; **(HIGH)** `duo json` in SOURCE mode dropped the edit via stale-closure save → `saveRef.current({ text })` override; **(HIGH)** `applyJsonPointer`/`deepMerge` prototype pollution via `__proto__` (both routes, incl. the Electron main process) → `isUnsafeKey` guard + new `core/json/jsonOps.test.ts` (12 cases); **(HIGH)** `duo json` on an open-but-inactive tab hung 10s + lost the edit → dropped the `isActive` gate (parity with markdown); **(MED)** canvas violated the hook's `ready`-after-`noteLoaded` contract → `baselineSeeded` gate; **(MED)** PdfPreview watcher leak → `cancelled` guard; **(MED)** open/closed routing failed on symlink/case aliases → `canonPath`. The other 11 raw findings were adversarially refuted.
+
+**Activation caveat (owner chose packaged-app):** the new **priming guidance + the warn-hook ship via the installer** (not `sync:claude`), so they activate in live sessions only on the next dev-build first-launch install / Duo reinstall. The CLI verbs + all conflict/responsiveness fixes are in the code and work as soon as a build with this code runs.
+
+**Follow-up (install-service):** uninstall + `primingStatus()` only handle the SessionStart hook, not the new PreToolUse entry — minor asymmetry to fix in a later pass (the entry is idempotent + foreign-safe, so it's non-blocking). **Priority:** High (recurring daily friction — false-positive conflict banners + stale editors + agents bypassing the CLI). **Effort:** L (spans conflict state machines on two surfaces, four file-kind viewers, new CLI verbs, guidance, tests). **Source:** 6-agent codebase map (workflow `wf_84c4a8d2-959`) + 5-agent implementation blueprint (`wf_4488fc57-101`).
+
+**Decisions (locked 2026-06-05, via [`docs/research/enh-195-cli-edits-disk-sync.html`](research/enh-195-cli-edits-disk-sync.html)).** D1 = **full suite** (`duo doc edit` surgical markdown + `duo json` set/merge + `duo status` open-tabs probe). D2 = **guidance + warn-only hook** (fail-open, `DUO_SESSION`-gated PreToolUse nudge on Edit/Write to a Duo-open file). D3 = **highlight-on-reload, markdown only** — canvas highlight parity-deferred to [ENH-196](#enh-196). D4 = **keep the dirty-buffer banner** (BUG-085 lock stands); made rare by routing edits through echo-clean verbs + A3. D5 = **shared `useDiskReconciliation` hook** + a narrow DECISIONS.md:620 amendment scoping the lock to "editing primitive, not reconciliation." Implementation discipline: **A6 integration tests land FIRST**, then the hook refactor under their cover.
+
+**Ask (owner, verbal).** Increase Duo's use of the `duo` CLI verbs for editing (instead of filesystem `Read/Edit/Write`); make the markdown + other canvas editors more responsive to on-disk changes; and do NOT introduce false-positive version conflicts when the user makes a change.
+
+**One root cause (the throughline).** All three symptoms trace to the editor↔disk reconciliation *guessing* whether a disk change is a self-echo or a real external edit, by comparing disk bytes against the editor's **serialized** view through the hand-grown `normalizeForEchoCompare`. That guess (a) false-positives a conflict banner when the serialized view diverges from disk (every TipTap round-trip quirk — goal 3); (b) silently *swallows* a real external edit that happens to normalize-equal the buffer (goal 2 — "editor doesn't notice changes"); (c) is only needed because Claude writes *behind* the editor (goal 1 — there's no surgical markdown verb, no JSON verb, and no way to even ask "is this file open in Duo?"). **BUG-166's byte-exact `lastSeenDiskBodyRef` is incomplete:** the fallback still compares serialized, the **canvas never got the ref** (`PageTab.tsx` — parity miss vs `MarkdownEditor.tsx`), and `applyDocWrite` never echo-registers (so a *sanctioned* `duo doc write` can false-positive in the autosave window). Goals 1 and 3 are entangled exactly as the owner suspected.
+
+**Capability gaps behind goal 1.** No surgical markdown buffer-edit verb (`doc write --replace-selection` targets the *user's* caret; `--replace-all` resends the whole doc); no JSON/YAML edit verb at all; `duo nav state` has **no `working` field** (the skill's "check the working tabs" instruction is unfollowable) and no verb lists open file-tab paths; the "never Write/Edit an open file" rule lives only in the on-demand skill + subagent, while always-loaded `priming.md` omits it and frames `duo edit` as an open/read substitute.
+
+**Responsiveness gaps behind goal 2.** Markdown *does* watch + silent-reload but can swallow real edits (normalize gate) and drops events for the open file if its path matches the `.git/.obsidian/node_modules` ignore; load↔watch race + rename/delete orphan the watcher. **JSON/YAML, image, PDF viewers don't watch at all** — silently stale; JSON is editable+autosave → silent data-loss vector.
+
+**Plan — do regardless of owner answers** (respects all locks): Tier A conflict-correctness (A1 markdown raw-vs-raw fallback · A2 canvas byte-exact ref · A3 `applyDocWrite` echo-register · A4 canvas save uses `normalizeDuoHtml` · A5 deterministic echo-set clear · **A6 integration tests for both state machines**); Tier B responsiveness (editor watcher ignore-override · post-attach catch-up read · rename/delete handling · JSON/image/PDF watchers); Tier C guidance (priming.md + installer template + root CLAUDE.md rule; fix stale `working`-tab refs).
+
+**Locked decisions respected.** Editor/canvas stay parallel — no unify (DECISIONS.md); canvas `data-duo-id`-strip still banners (BUG-125-v2 Q2); no sidecar disk-hash cache (DECISIONS.md / CLAUDE.md §12); **do not widen `normalizeForEchoCompare` again** (retired one-ref/two-purposes anti-pattern — fixes use the byte-exact ref, never a 7th regex).
+
+**4 owner forks (in the playground).** D1 new CLI edit-surface scope (full `doc edit`+`json`+`status` / md+status / status-only) · D2 enforcement (guidance+warn-hook / guidance-only / guidance+block-hook) · D3 clean-buffer reload faithfulness (byte-faithful / keep-swallow-cosmetic) · D4 dirty-buffer agent-write UX (keep-banner / auto-adopt-stash / three-way-merge).
+
+**Deliverable.** Decision-bearing HTML playground [`docs/research/enh-195-cli-edits-disk-sync.html`](research/enh-195-cli-edits-disk-sync.html) (Atelier kernel, entanglement diagram, do-anyway plan tables, locked-constraints callout, 4 decision cards + Copy-decisions footer; per rule 11). **Open via `duo open`, not the Claude preview panel** (clipboard).
+
+**Reopens.** BUG-122 (parked "needs next-repro log" — the owner's report *is* the next repro) and the FOLLOWUP-019/BUG-166 conflict lineage. Test-coverage gap: ~11 conflict bugs, zero integration tests (violates the durable-coverage rule).
+
+**Next.** ✅ Decisions locked 2026-06-05 — in implementation (see status block above + ENH-195 subtasks in the session task list).
+
+---
+
+### ENH-196: Canvas change-highlight on reload (parity follow-on to ENH-195 D3)
+
+**Status:** 🆕 **Filed 2026-06-05 — deferred by owner** (ENH-195 D3 note: "only highlight in markdown; flag as ENH for canvas"). **Priority:** Medium. **Effort:** M. **Parity disposition (renderer-surfaces.md):** (c) **Deferred** — ENH-195 ships the markdown change-highlight (`JustAdded` decoration + `prosemirror-changeset` diff on the clean-buffer reload branch); the canvas (`PageTab` / `justAddedPage.ts`) does not get it in this cut.
+
+**Ask.** Mirror the markdown reload-change-highlight onto the HTML canvas: when an external/agent write reloads a clean canvas, wash the changed elements (`duo-just-added`, persist-until-edit) so the user sees what changed — same UX as the markdown editor's `[HIGHLIGHT-ON-RELOAD]` behavior.
+
+**Why deferred.** Canvas diffing is DOM-level (fuzzier than ProseMirror's `prosemirror-changeset`, which gives inline ranges as positions for free), and the reload is a key-bump remount — so applying transient highlight classes to changed elements after remount needs its own design. `justAddedPage.ts` already has a `recentEdits` freshness-window repaint pattern to build on. Non-blocking; the markdown surface (the high-traffic editing path) carries the feature for v1.
+
+**Cross-refs.** [ENH-195](#enh-195) (parent), `renderer/components/Page/justAddedPage.ts`, `renderer/components/Page/PageTab.tsx` reload branch, DECISIONS.md:620 (editor/canvas parity — this is a deliberate, tracked deferral, not accidental drift).
+
+---
+
 ### ENH-189: Agent-agnostic Duo — Claude Code + Codex (research)
 
 **Status:** 🆕 **Research delivered 2026-05-27** (branch `claude/duo-agent-agnostic-research-9y1t3`). **Priority:** Strategic / owner-decision-gated. **Effort:** research only; implementation scope depends on D1.

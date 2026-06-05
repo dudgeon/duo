@@ -3698,6 +3698,60 @@ export function App() {
     }
   })
 
+  // ENH-195 — `duo status` reads this function via main's
+  // executeJavaScript (getStatusSnapshot). Re-bound on every render so
+  // the closure captures the latest React state — same always-fresh,
+  // no-cache pattern as __duoGetLayout above. Coarser than layout: a
+  // flat list of EVERY open tab (file + browser) with per-tab dirty /
+  // active / pinned, plus the active working tab summary, focused
+  // column, theme, and terminal-tab count. The keystone agent-
+  // orientation verb. Field names mirror the WorkingTab vocabulary.
+  useEffect(() => {
+    const tabSnapshots = [
+      ...fileTabs.map(ft => ({
+        kind: ft.type as string,
+        path: ft.path,
+        title: ft.title,
+        dirty: (dirtyPaths.has(ft.path) || ft.dirty === true),
+        active: (activeWorking.kind === 'file' && activeWorking.id === ft.id),
+        pinned: pinnedFileTabPaths.has(ft.path)
+      })),
+      ...browserTabs.filter(bt => !bt.inAux).map(bt => ({
+        kind: 'browser' as const,
+        url: bt.url,
+        title: bt.title,
+        dirty: false,
+        active: bt.isActive === true,
+        pinned: pinnedBrowserUrls.has(bt.url)
+      }))
+    ]
+    const activeFileTab = activeWorking.kind === 'file'
+      ? fileTabs.find(t => t.id === activeWorking.id)
+      : null
+    const activeBrowserTab = activeWorking.kind === 'browser'
+      ? browserTabs.find(t => t.isActive && !t.inAux)
+      : null
+    const active: Record<string, unknown> | null =
+      activeFileTab
+        ? { kind: activeFileTab.type, path: activeFileTab.path, title: activeFileTab.title }
+        : activeBrowserTab
+          ? { kind: 'browser', url: activeBrowserTab.url, title: activeBrowserTab.title }
+          : null
+    const statusSnapshot = {
+      tabs: tabSnapshots,
+      active,
+      focusedColumn,
+      theme: theme.mode,
+      effectiveTheme: theme.effective,
+      terminalTabsCount: tabs.length,
+      timestamp: Date.now()
+    }
+    ;(window as unknown as { __duoGetStatus?: () => unknown }).__duoGetStatus = () => statusSnapshot
+    return () => {
+      delete (window as unknown as { __duoGetStatus?: () => unknown }).__duoGetStatus
+    }
+  })
+
   // ENH-041 / Sprint 3 — Split View IPC subscribers. CLI verbs `duo
   // split-view open|close|promote|resize` route through main →
   // preload → here. App.tsx is the source of truth for aux state;

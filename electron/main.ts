@@ -103,6 +103,10 @@ import type {
   DocGotoResult,
   DocFindRequest,
   DocFindResult,
+  DocEditPlainRequest,
+  DocEditPlainResult,
+  JsonOpRequest,
+  JsonOpResult,
   HtmlOpRequest,
   HtmlOpResult,
   HtmlCommentRequest,
@@ -156,6 +160,14 @@ const docFindPending = new Map<string, (res: DocFindResult) => void>()
 
 // Stage 17b Phase C — pending `duo html *` ops awaiting a renderer reply.
 const htmlOpPending = new Map<string, (res: HtmlOpResult) => void>()
+
+// ENH-195 — pending `duo doc edit` (PLAIN replace) requests awaiting a
+// renderer reply. Same Map-pairing pattern as docWritePending.
+const docEditPlainPending = new Map<string, (res: DocEditPlainResult) => void>()
+
+// ENH-195 — pending `duo json set|merge` ops awaiting a renderer reply.
+// Same Map-pairing pattern as htmlOpPending.
+const jsonOpPending = new Map<string, (res: JsonOpResult) => void>()
 
 // ENH-108 (Sprint 12) — pending `duo image insert` requests awaiting
 // a renderer reply. Same Map-pairing pattern as docWritePending.
@@ -643,6 +655,8 @@ async function createWindow(): Promise<void> {
     getSelection: getEditorSelection,
     getCanvasSelection: getCanvasSelection,
     docWrite: dispatchDocWrite,
+    // ENH-195 — `duo doc edit` PLAIN replace (open-file path).
+    docEditPlain: dispatchDocEditPlain,
     docRead: dispatchDocRead,
     imageInsert: dispatchImageInsert,
     docGoto: dispatchDocGoto,
@@ -665,6 +679,8 @@ async function createWindow(): Promise<void> {
     queryRendererDom: queryRendererDom,
     openDevTools: openDevToolsForTarget,
     getLayout: getLayoutSnapshot,
+    // ENH-195 — `duo status` high-level app snapshot.
+    getStatus: getStatusSnapshot,
     revealMainPaneIfCollapsed: revealMainPaneIfCollapsed,
     splitViewOpen: splitViewOpen,
     splitViewOpenBrowser: splitViewOpenBrowser,
@@ -681,6 +697,8 @@ async function createWindow(): Promise<void> {
     sendToActiveTerminal: sendToActiveTerminal,
     htmlNew: htmlNew,
     htmlOp: dispatchHtmlOp,
+    // ENH-195 — `duo json set|merge` (open-file path).
+    jsonOp: dispatchJsonOp,
     // ENH-183 C12 — Claude session lifecycle CLI verbs.
     sessionList: async (cwd) => {
       const { listPriorSessions } = await import('./claude-session-tracker')
@@ -1830,8 +1848,10 @@ function setupIPC(): void {
     return updateChecker.maybeRefresh()
   })
 
-  ipcMain.handle(IPC.FILES_WATCH_START, (event, { id, paths }: { id: string; paths: string[] }) => {
-    filesService.startWatch(id, paths, event.sender, IPC.FILES_CHANGED)
+  ipcMain.handle(IPC.FILES_WATCH_START, (event, { id, paths, ignored, watchParents }: { id: string; paths: string[]; ignored?: (string | RegExp)[]; watchParents?: boolean }) => {
+    // ENH-195 B2/B4 — thread the optional ignored-override + parent-watch flag
+    // through to the single open-file editor's watcher.
+    filesService.startWatch(id, paths, event.sender, IPC.FILES_CHANGED, { ignored, watchParents })
   })
 
   ipcMain.handle(IPC.FILES_WATCH_UPDATE, (_event, { id, paths }: { id: string; paths: string[] }) => {
@@ -1939,6 +1959,24 @@ function setupIPC(): void {
     const resolver = htmlOpPending.get(result.reqId)
     if (resolver) {
       htmlOpPending.delete(result.reqId)
+      resolver(result)
+    }
+  })
+
+  // ENH-195 — renderer's reply to a `duo doc edit` PLAIN replace.
+  ipcMain.on(IPC.EDITOR_DOC_EDIT_PLAIN_RESULT, (_event, result: DocEditPlainResult) => {
+    const resolver = docEditPlainPending.get(result.reqId)
+    if (resolver) {
+      docEditPlainPending.delete(result.reqId)
+      resolver(result)
+    }
+  })
+
+  // ENH-195 — renderer's reply to a `duo json set|merge` op.
+  ipcMain.on(IPC.JSON_OP_RESULT, (_event, result: JsonOpResult) => {
+    const resolver = jsonOpPending.get(result.reqId)
+    if (resolver) {
+      jsonOpPending.delete(result.reqId)
       resolver(result)
     }
   })
@@ -3210,6 +3248,23 @@ export async function getLayoutSnapshot(): Promise<unknown> {
   )
 }
 
+// ENH-195 — `duo status` returns a high-level JSON snapshot of the
+// running app (open tabs + dirty/active/pinned, active working tab,
+// focused column, theme, terminal count). App.tsx exposes a renderer-
+// side `window.__duoGetStatus()` that rebuilds it from live React state
+// on every call — same always-fresh, no-cache pattern as
+// `getLayoutSnapshot` / `duo layout`. The keystone agent-orientation
+// verb (no IPC channel — read directly from the renderer).
+export async function getStatusSnapshot(): Promise<unknown> {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    throw new Error('Duo window not ready')
+  }
+  return await mainWindow.webContents.executeJavaScript(
+    'typeof window.__duoGetStatus === "function" ? window.__duoGetStatus() : { error: "renderer not exposing __duoGetStatus — likely renderer not yet mounted" }',
+    true
+  )
+}
+
 // ENH-130 — `duo edit --reveal` / `duo open --reveal` reveal flow.
 // Read layout via the same renderer-side getter ENH-124 uses; if the
 // working pane is collapsed (splitPct >= 75 — terminal-dominant), pull
@@ -3472,6 +3527,52 @@ export function dispatchDocFind(req: Omit<DocFindRequest, 'reqId'>): Promise<Doc
       resolve(res)
     })
     mainWindow!.webContents.send(IPC.EDITOR_DOC_FIND, { ...req, reqId })
+  })
+}
+
+// ENH-195 — dispatch a `duo doc edit` (PLAIN replace) to the active
+// markdown editor and await its reply. Used only on the OPEN-file path
+// (socket-server decides open-vs-closed and routes the disk case
+// through plainEdit.ts itself). The renderer applies the replace, kicks
+// an echo-safe save, and replies. 10s timeout mirrors dispatchDocRead
+// (no human gate — this is an accepted edit, not a banner-able write).
+export function dispatchDocEditPlain(req: Omit<DocEditPlainRequest, 'reqId'>): Promise<DocEditPlainResult> {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return Promise.resolve({ reqId: '', ok: false, changed: false, replacements: 0, reason: '', error: 'Duo window not ready' })
+  }
+  const reqId = `dep_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+  return new Promise<DocEditPlainResult>((resolve) => {
+    const timer = setTimeout(() => {
+      docEditPlainPending.delete(reqId)
+      resolve({ reqId, ok: false, changed: false, replacements: 0, reason: '', error: 'Renderer did not reply within 10s — likely no markdown editor active' })
+    }, 10000)
+    docEditPlainPending.set(reqId, (res) => {
+      clearTimeout(timer)
+      resolve(res)
+    })
+    mainWindow!.webContents.send(IPC.EDITOR_DOC_EDIT_PLAIN, { ...req, reqId })
+  })
+}
+
+// ENH-195 — dispatch a `duo json set|merge` op to the active JSON / YAML
+// viewer and await its reply. OPEN-file path only (socket-server routes
+// the closed case disk-direct). 10s timeout, same rationale as
+// dispatchDocEditPlain.
+export function dispatchJsonOp(req: Omit<JsonOpRequest, 'reqId'>): Promise<JsonOpResult> {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return Promise.resolve({ reqId: '', ok: false, changed: false, reason: '', error: 'Duo window not ready' })
+  }
+  const reqId = `jo_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+  return new Promise<JsonOpResult>((resolve) => {
+    const timer = setTimeout(() => {
+      jsonOpPending.delete(reqId)
+      resolve({ reqId, ok: false, changed: false, reason: '', error: 'Renderer did not reply within 10s — likely no JSON viewer active' })
+    }, 10000)
+    jsonOpPending.set(reqId, (res) => {
+      clearTimeout(timer)
+      resolve(res)
+    })
+    mainWindow!.webContents.send(IPC.JSON_OP, { ...req, reqId })
   })
 }
 

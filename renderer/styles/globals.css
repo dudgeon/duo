@@ -617,6 +617,27 @@ html.dark {
     }
   }
 
+  /* ENH-195 D3 — reload-change highlight (persist until the next user edit)
+     + deletion tick. Distinct from `.duo-just-added` (the 6s CLI-write wash):
+     this HOLDS with no animation so the user can see what an agent/external
+     write just changed, dismissed by their first keystroke. Markdown only;
+     canvas parity deferred (tasks.md ENH-196). */
+  .duo-reload-added {
+    background-color: var(--duo-mark);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04);
+    padding: 0 2px;
+    border-radius: 2px;
+  }
+  .duo-reload-deleted-tick {
+    display: inline-block;
+    width: 2px;
+    height: 1.1em;
+    margin: 0 -1px;
+    vertical-align: text-bottom;
+    background: var(--duo-accent);
+    opacity: 0.7;
+  }
+
   /* Stage 13b — `<WriteWarningBanner>` (editor-agnostic primitive).
      Shows when the agent attempts to write while the human has unsaved
      edits. Both the markdown editor and the Stage 17 HTML canvas

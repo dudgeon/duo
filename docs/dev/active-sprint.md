@@ -1,6 +1,13 @@
-# Active sprint state — Sprint 24 / v0.8.1 (v0.8.x polish wave)
+# Active sprint state — Sprint 24 / v0.8.6 (v0.8.x polish wave)
 
 **Status (2026-05-25):** **v0.8.0 cut + tagged + pushed + released.** [GitHub Release v0.8.0](https://github.com/dudgeon/duo/releases/tag/v0.8.0) live with signed-notarized DMG attached. Dev bumped to v0.8.1. Sprint 24 is a focused polish wave — clean up the v0.8.0 audit's deferred follow-ups (FOLLOWUP-031 through 040) before any new feature work, then triage 1-2 carry-forward items if time allows.
+
+> **In flight (2026-06-04) — [ENH-195](../../tasks.md): CLI-edits / disk-sync / false-positive conflicts.**
+> Owner verbal directive: push agent editing onto the `duo` verbs, make markdown + other
+> canvas editors responsive to on-disk changes, without new false-positive conflicts. One
+> root cause (the editor↔disk echo-guess). Decision playground at
+> [`docs/research/enh-195-cli-edits-disk-sync.html`](../research/enh-195-cli-edits-disk-sync.html)
+> awaiting owner D1–D4.
 
 ## Sprint anchor
 
