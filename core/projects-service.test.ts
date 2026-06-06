@@ -656,39 +656,21 @@ describe('normalize', () => {
 })
 
 describe('ProjectsService', () => {
-  let tmpHome: string
-  let originalHome: string | undefined
+  let tmpDir: string
   let svc: ProjectsService
 
   beforeEach(async () => {
-    originalHome = process.env.HOME
-    tmpHome = await fs.mkdtemp(path.join(os.tmpdir(), 'duo-projects-test-'))
-    process.env.HOME = tmpHome
-    // Re-import to pick up new HOME — but `os.homedir()` is computed
-    // once at import time of projects-service.ts. So the test has to
-    // operate on the original path. We work around by writing
-    // directly to the file the service uses, OR by skipping the
-    // env-rebinding tests when this proves flaky. For now: drive the
-    // service via toggle/setColorOverride and read back.
-    svc = new ProjectsService()
+    // Phase H (ENH-191 Cut 0) — the service now takes an injectable
+    // baseDir, so tests use a hermetic temp dir. This replaces the old
+    // workaround that wrote to the user's REAL ~/.claude/duo/projects.json
+    // (os.homedir() is import-time-bound, so $HOME rebinding never took
+    // effect) and then conditionally cleaned it up.
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'duo-projects-test-'))
+    svc = new ProjectsService(tmpDir)
   })
 
   afterEach(async () => {
-    if (originalHome) process.env.HOME = originalHome
-    await fs.rm(tmpHome, { recursive: true, force: true })
-    // Also clean up the real projects.json the test would have
-    // written under the actual $HOME, since the env-rebind didn't
-    // take effect post-import.
-    const realPath = path.join(os.homedir(), '.claude', 'duo', 'projects.json')
-    try {
-      const raw = await fs.readFile(realPath, 'utf8')
-      const parsed = JSON.parse(raw)
-      if (parsed?.pins?.includes('/test-pin-marker')) {
-        await fs.rm(realPath, { force: true })
-      }
-    } catch {
-      // file not present or unreadable — fine
-    }
+    await fs.rm(tmpDir, { recursive: true, force: true })
   })
 
   it('togglePin adds a pin when absent, removes when present', async () => {
