@@ -8,6 +8,42 @@
 
 import type { Editor } from '@tiptap/react'
 import type { Mark, Node as PMNode } from '@tiptap/pm/model'
+import type { Transaction } from '@tiptap/pm/state'
+
+/**
+ * Delete a tracked-change text range, collapsing the surrounding block when
+ * the range is that block's *entire* content (ENH-195 D3, hardened for the
+ * reload-diff accept/reject round-trip).
+ *
+ * Plain `tr.delete(from, to)` over the text of a whole paragraph leaves an
+ * empty `<paragraph></paragraph>` shell behind — fine for an *inline*
+ * suggestion (delete a few words inside a paragraph that survives), but wrong
+ * when an entire block was inserted or struck (a whole-paragraph deletion, or
+ * a destructive reload that swaps every block). There the block itself must
+ * vanish. We detect "the marked text spans the block end-to-end" and delete
+ * the whole block node (`before(depth)`–`after(depth)`) so it joins away
+ * cleanly; otherwise we fall back to the plain text delete.
+ *
+ * This keeps `acceptAllTrackedChanges` / `rejectAllTrackedChanges` exact
+ * inverses of `applyTrackedDiff` (`trackedDiff.ts`) for block-level changes,
+ * and is a no-op behaviour change for the inline suggestions Phase 4b/4c
+ * stamp (those never cover a block end-to-end together with its boundary).
+ */
+function deleteTrackedRange(tr: Transaction, from: number, to: number): void {
+  const $from = tr.doc.resolve(from)
+  const $to = tr.doc.resolve(to)
+  const spansWholeBlock =
+    $from.parent.isTextblock &&
+    $from.sameParent($to) &&
+    $from.parentOffset === 0 &&
+    $to.parentOffset === $to.parent.content.size &&
+    $from.depth > 0
+  if (spansWholeBlock) {
+    tr.delete($from.before($from.depth), $to.after($to.depth))
+  } else {
+    tr.delete(from, to)
+  }
+}
 
 export interface TrackedRange {
   from: number
@@ -99,7 +135,7 @@ export function acceptAllTrackedChanges(editor: Editor): number {
     if (r.kind === 'insertion' && insMark) {
       tr.removeMark(from, to, insMark)
     } else if (r.kind === 'deletion' && delMark) {
-      tr.delete(from, to)
+      deleteTrackedRange(tr, from, to)
     } else if (r.kind === 'highlight' && hlMark) {
       tr.removeMark(from, to, hlMark)
     }
@@ -127,7 +163,7 @@ export function rejectAllTrackedChanges(editor: Editor): number {
     const from = tr.mapping.map(r.from)
     const to = tr.mapping.map(r.to)
     if (r.kind === 'insertion' && insMark) {
-      tr.delete(from, to)
+      deleteTrackedRange(tr, from, to)
     } else if (r.kind === 'deletion' && delMark) {
       tr.removeMark(from, to, delMark)
     } else if (r.kind === 'highlight' && hlMark) {
@@ -149,7 +185,7 @@ export function acceptTrackedChange(editor: Editor, range: TrackedRange): boolea
   if (range.kind === 'insertion' && schema.marks.insertionMark) {
     tr.removeMark(range.from, range.to, schema.marks.insertionMark)
   } else if (range.kind === 'deletion' && schema.marks.deletionMark) {
-    tr.delete(range.from, range.to)
+    deleteTrackedRange(tr, range.from, range.to)
   } else if (range.kind === 'highlight' && schema.marks.highlightMark) {
     tr.removeMark(range.from, range.to, schema.marks.highlightMark)
   } else {
@@ -165,7 +201,7 @@ export function rejectTrackedChange(editor: Editor, range: TrackedRange): boolea
   const schema = editor.schema
   const tr = editor.state.tr
   if (range.kind === 'insertion' && schema.marks.insertionMark) {
-    tr.delete(range.from, range.to)
+    deleteTrackedRange(tr, range.from, range.to)
   } else if (range.kind === 'deletion' && schema.marks.deletionMark) {
     tr.removeMark(range.from, range.to, schema.marks.deletionMark)
   } else if (range.kind === 'highlight' && schema.marks.highlightMark) {

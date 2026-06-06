@@ -65,6 +65,8 @@ import { matchGlobalShortcut } from '../../keyboard/globalShortcuts'
 import { normalizeForEchoCompare } from '../../utils/conflictDiagnostic'
 import { useDiskReconciliation } from '../../hooks/useDiskReconciliation'
 import { computeReloadDiff } from './reloadDiff'
+import { applyTrackedDiff } from './trackedDiff'
+import type { Node as PMNode } from '@tiptap/pm/model'
 import type { DocWriteRequest, EditorSelectionSnapshot } from '@shared/types'
 import {
   splitFrontmatter,
@@ -794,6 +796,10 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // ENH-195 B4 / D3 — "file removed on disk" + ">50%-of-doc reloaded" strips.
   const [fileRemoved, setFileRemoved] = useState(false)
   const [reloadedFlash, setReloadedFlash] = useState(false)
+  // ENH-195 / v0.9.0 — the user's doc captured the instant BEFORE a destructive
+  // external reload, so the reload banner's "Keep mine" / "View diff" can recover
+  // or diff it. Set in applyReload; read by the banner handlers below.
+  const preReloadDocRef = useRef<PMNode | null>(null)
 
   // ENH-195 D5 — the shared editor↔disk reconciliation primitive. Owns the
   // chokidar watcher, the echo gauntlet, the byte-exact baseline,
@@ -819,6 +825,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       setFrontmatterState(s.frontmatter)
       eolRef.current = s.eol
       const oldDoc = editor.state.doc
+      preReloadDocRef.current = oldDoc   // for the reload banner's Keep-mine / View-diff
       editor.commands.setContent(preprocessSubstitutions(diskBody), false)
       applyCriticMarkupFromText(editor)
       applyCommentMarksFromSidecar(editor, sidecarRef.current)
@@ -827,8 +834,10 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       try {
         const diff = computeReloadDiff(oldDoc, editor.state.doc)
         if (diff.changedFraction > 0.5) {
+          // Destructive reload — most of the doc changed. Surface the recovery
+          // banner (Keep mine / Load new / View diff) and let it PERSIST until
+          // the user picks (no auto-dismiss — it carries actions now).
           setReloadedFlash(true)
-          window.setTimeout(() => setReloadedFlash(false), 4000)
         } else {
           for (const r of diff.inserted) editor.commands.markJustAddedPersist(r.from, r.to)
           for (const pos of diff.deletedAt) editor.commands.markDeletedAtPersist(pos)
@@ -844,6 +853,33 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     appVersion: window.electron?.env?.appVersion ?? '?.?.?',
     watchOptions: { ignored: [], watchParents: true },
   })
+
+  // ENH-195 / v0.9.0 — destructive-overwrite reload banner actions. A reload
+  // where >50% of the doc changed leaves `reloadedFlash` set + the pre-reload
+  // doc in `preReloadDocRef`. The banner (rendered far below) offers three:
+  const handleReloadKeepMine = useCallback(() => {
+    const old = preReloadDocRef.current
+    setReloadedFlash(false)
+    if (!editor || !old) return
+    editor.commands.setContent(old.toJSON(), false)   // restore the user's pre-reload version
+    setDirty(true)
+    void saveRef.current()                            // re-persist it (re-overwrites the external change)
+  }, [editor])
+
+  const handleReloadLoadNew = useCallback(() => {
+    setReloadedFlash(false)                           // keep the disk version (already loaded)
+  }, [])
+
+  const handleReloadViewDiff = useCallback(() => {
+    const old = preReloadDocRef.current
+    setReloadedFlash(false)
+    if (!editor || !old) return
+    // Rebuild the doc as tracked changes (struck old + inserted new); the
+    // SuggestingBanner (Accept all = disk · Reject all = yours) + inline marks
+    // let the user resolve it. Dirty until resolved + saved.
+    applyTrackedDiff(editor, old, { author: authorOrLegacy, ts: new Date().toISOString() })
+    setDirty(true)
+  }, [editor, authorOrLegacy])
 
   useEffect(() => {
     if (!editor) return
@@ -2271,6 +2307,43 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       {error && (
         <div className="shrink-0 px-10 py-2 text-xs text-red-400 border-b border-red-900/40 bg-red-950/20">
           {error}
+        </div>
+      )}
+      {/* ENH-195 / v0.9.0 — destructive external reload: recover your version,
+          take the disk version, or review the change as tracked changes. */}
+      {reloadedFlash && (
+        <div className="shrink-0 px-10 py-2.5 text-xs border-b border-amber-900/40 bg-amber-950/30 text-amber-200 flex items-center gap-3">
+          <span className="flex-1">
+            <strong className="font-semibold">Most of this document was replaced by a change on disk.</strong>{' '}
+            Keep your version, take the new one, or review the differences as tracked changes.
+          </span>
+          <button
+            type="button"
+            onClick={handleReloadKeepMine}
+            className="px-2 py-1 rounded border border-amber-800/60 hover:border-amber-700 hover:bg-amber-900/30"
+          >
+            Keep mine
+          </button>
+          <button
+            type="button"
+            onClick={handleReloadLoadNew}
+            className="px-2 py-1 rounded border border-amber-800/60 hover:border-amber-700 hover:bg-amber-900/30"
+          >
+            Load new
+          </button>
+          <button
+            type="button"
+            onClick={handleReloadViewDiff}
+            className="px-2 py-1 rounded border border-amber-800/60 hover:border-amber-700 hover:bg-amber-900/30"
+          >
+            View diff
+          </button>
+        </div>
+      )}
+      {/* ENH-195 B4 — file deleted on disk; the buffer is preserved (save recreates it). */}
+      {fileRemoved && (
+        <div className="shrink-0 px-10 py-1.5 text-[11px] border-b border-red-900/40 bg-red-950/20 text-red-300">
+          This file was removed on disk. Save to recreate it.
         </div>
       )}
       {recon.externalConflict && (

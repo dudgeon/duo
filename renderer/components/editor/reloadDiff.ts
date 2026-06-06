@@ -27,14 +27,27 @@ export interface ReloadDiff {
 }
 
 /**
+ * Build the prosemirror-changeset ChangeSet for an `oldDoc` → `newDoc` reload.
+ * Models the reload as one whole-document replacement (old content → new
+ * content), then lets ChangeSet's simplification pass condense it into the
+ * minimal set of genuinely-changed ranges. Each `cs.changes[i]` carries
+ * `{fromA, toA, fromB, toB}` — A = oldDoc coords, B = newDoc coords.
+ *
+ * Shared by `computeReloadDiff` (the decoration-layer highlight) and
+ * `applyTrackedDiff` in `trackedDiff.ts` (the accept/reject view). Pure: no
+ * editor, no transaction, no side effects.
+ */
+export function reloadChangeSet(oldDoc: PMNode, newDoc: PMNode): ChangeSet {
+  const replace = new ReplaceStep(0, oldDoc.content.size, new Slice(newDoc.content, 0, 0))
+  return ChangeSet.create(oldDoc).addSteps(newDoc, [replace.getMap()], null)
+}
+
+/**
  * Diff two ProseMirror documents as if `oldDoc` were reloaded into `newDoc`.
  * Pure: no editor, no transaction, no side effects.
  */
 export function computeReloadDiff(oldDoc: PMNode, newDoc: PMNode): ReloadDiff {
-  // Model the reload as one whole-document replacement (old content → new
-  // content), then let ChangeSet simplify it into the genuinely-changed ranges.
-  const replace = new ReplaceStep(0, oldDoc.content.size, new Slice(newDoc.content, 0, 0))
-  const cs = ChangeSet.create(oldDoc).addSteps(newDoc, [replace.getMap()], null)
+  const cs = reloadChangeSet(oldDoc, newDoc)
 
   const inserted: { from: number; to: number }[] = []
   const deletedAt: number[] = []
