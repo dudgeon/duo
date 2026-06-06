@@ -159,6 +159,30 @@
 
 ---
 
+### ENH-199: Serialize the remaining atomic-writer services (ENH-191 Phase H follow-on)
+
+**Status:** 🆕 **Filed 2026-06-06 — follow-on from PR #68 (ENH-191 Phase H, Cut 0).** **Priority:** Medium (latent races, same class as the lost-update bug #68 fixed). **Effort:** M.
+
+**Why.** PR #68 routed the `pins` / `nav-pins` / `projects` / `session-state` writers through the new `core/write-queue.ts` (serial async RMW + collision-proof unique tmp), closing the lost-update race. The same fixed-`.duo.tmp` + unserialized-RMW pattern still lives in **~6 other atomic-writer services** the #68 review flagged: `core/active-workspace-service.ts`, `core/browser-history-service.ts`, `core/workspace-file-service.ts`, `core/workspace-history-service.ts`, `electron/files-service.ts`, and `install-service.ts`'s direct `pins.json` writes (bootstrap/upgrade-only — lower risk). Less likely to interleave today, but the fix's unique-tmp half should reach them too.
+
+**Ask.** Audit which of these are genuinely concurrent vs bootstrap-only; route the concurrent ones through `createWriteQueue()` (or at minimum `uniqueTmpPath()`), with interleave tests mirroring `core/pin-services.test.ts`.
+
+**Cross-refs.** `core/write-queue.ts`, `core/pin-services.test.ts`, PR #68, `docs/prd/enh-191-multi-window.md` → Phase H / risk R6.
+
+---
+
+### ENH-200: Wire `npm run lint` into an enforcement point (the gate is latent)
+
+**Status:** 🆕 **Filed 2026-06-06 — follow-on from PR #69 (functional lint).** **Priority:** Low–Medium. **Effort:** S.
+
+**Why.** PR #69 made `npm run lint` a real, runnable ESLint 8 flat-config gate (0 errors / ~59 warnings today). But **nothing invokes it automatically** — no CI workflow references eslint and there's no pre-commit/pre-push hook — so it only has teeth when run by hand. Duo already has a `predev`/`pretest` hook pattern (`scripts/check-materialization.sh`) to model on.
+
+**Ask.** Add an enforcement point so `eslint .` runs on change — a GitHub Actions lint job (if/when CI exists), a `prepush` hook, or a `lint` step folded into the existing pre-* chain. Keep it error-gating only (warnings stay visible, non-blocking) per #69's lenient posture. Optionally add a `package.json` `engines` field pinning Node ≥18.17, since the ESLint 8 pin is Node-version-coupled.
+
+**Cross-refs.** `eslint.config.mjs`, `package.json` (`lint` script), PR #69.
+
+---
+
 ### ENH-189: Agent-agnostic Duo — Claude Code + Codex (research)
 
 **Status:** 🟡 **Decisions OPEN — merged to `main` 2026-06-06 (PR #64); 7 decision cards (D1–D7) pending owner walk** of [`docs/research/agent-agnostic-duo.html`](research/agent-agnostic-duo.html). Recommended picks are logged below (throughline) but **not yet confirmed** — surfaces in every smoke walk until the owner walks the playground and pastes back the decision set (rule 11 + research-report-review-task rule). Research delivered 2026-05-27 (branch `claude/duo-agent-agnostic-research-9y1t3`). **Priority:** Strategic / owner-decision-gated. **Effort:** research only; implementation scope depends on D1.
