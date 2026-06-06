@@ -546,9 +546,11 @@
 
   <!-- ===================== BEHAVIOR 1: PEEK ===================== -->
   <h2><span class="num">1</span>Temporary widen → ease back (the "peek")</h2>
-  <p class="sub">While the navigator is a <b>collapsed rail</b>, glance at it to widen it
-    just long enough to read names, then let it ease back on its own. Collapse the
-    navigator first (header button or drag) to try it.</p>
+  <p class="sub">Widen the navigator just long enough to read names, then let it ease back
+    to its <b>resting size</b> on its own. Two ways to trigger it: <b>hover the collapsed
+    rail</b>, or <b>drag the right border wider</b> than the resting width. Either way it
+    snaps back ~1s after the cursor leaves the navigator. To make a widen <i>stick</i>,
+    click a file row (pins it) or use the toggle button / ⌘B.</p>
 
   <div class="controls-grid">
     <div class="panel">
@@ -576,10 +578,11 @@
       </div>
 
       <div class="ctl">
-        <label class="k">Linger before snap-back <span class="v" id="v_dwell">1400 ms</span></label>
-        <input type="range" id="r_dwell" min="400" max="5000" step="100" value="1400">
-        <p class="why">The "glance window." This is the duration you weren't sure about —
-          tune it until it feels like enough time to read a name without it overstaying.</p>
+        <label class="k">Linger before snap-back <span class="v" id="v_dwell">1000 ms</span></label>
+        <input type="range" id="r_dwell" min="300" max="3000" step="100" value="1000">
+        <p class="why">The "glance window" — how long after your cursor <b>leaves the
+          navigator</b> before it eases back to its resting size. Your target was ~0.5–2s.
+          Applies to <b>both</b> the hover-peek and a drag that widened the navigator.</p>
       </div>
 
       <div class="ctl">
@@ -632,8 +635,10 @@
 
   <!-- ===================== BEHAVIOR 2: DRAG ===================== -->
   <h2><span class="num">2</span>Drag the right border left → collapse past a threshold</h2>
-  <p class="sub">Grab the navigator's right edge in the mock and drag left. Below the
-    threshold the pane arms a red "release to collapse" zone.</p>
+  <p class="sub">Grab the navigator's right edge and drag left. Below the threshold the pane
+    arms a red "release to collapse" zone. Dragging left but <i>not</i> past the threshold
+    snaps back to the resting size; dragging <i>right</i> (wider) is a temporary peek
+    (behavior 1). Only crossing the threshold changes the resting state.</p>
 
   <div class="controls-grid">
     <div class="panel">
@@ -794,7 +799,7 @@
    ===================================================================== */
 const RAIL = 44, FULL_OPEN = 208, MAX_W = 340;
 const defaults = {
-  peekTrigger: 'hover', hoverIn: 120, dwell: 1400, dwellMode: 'leave',
+  peekTrigger: 'hover', hoverIn: 120, dwell: 1000, dwellMode: 'leave',
   peekW: 200, anim: 220, ease: 'cubic-bezier(.22,.61,.36,1)', commit: true,
   thresh: 96, minW: 150, snapMode: 'release',
   hint: true, resist: false, dragExpand: true,
@@ -811,9 +816,10 @@ const win = document.getElementById('win');
 const paneTerm = document.querySelector('.pane-term');
 const split = document.getElementById('split');
 
-let collapsed = false;     // rail vs open
-let peeking = false;       // transient peek-from-rail
-let openWidth = FULL_OPEN; // committed open width
+let collapsed = false;        // current DISPLAY state: is the rail showing
+let peeking = false;          // currently temporarily widened (will snap back)
+let restingCollapsed = false; // the RESTING state is the rail
+let restingWidth = FULL_OPEN; // the resting open width to snap back to
 let hoverInT = null, dwellT = null;
 let dragging = false, dragStartX = 0, dragStartW = 0, willCollapse = false;
 
@@ -844,20 +850,24 @@ function refreshReadout() {
   readout.innerHTML = `state: <b>${state}</b> · ${w}px`;
 }
 
+// goCollapsed / goOpen COMMIT a new resting state (toggle button, ⌘B,
+// crossing the collapse threshold, or pinning a peek by clicking a row).
 function goCollapsed(animate=true) {
-  clearTimers(); peeking = false; collapsed = true;
+  clearTimers(); peeking = false; collapsed = true; restingCollapsed = true;
   nav.classList.add('collapsed'); nav.classList.remove('peeking','will-collapse');
   setWidth(RAIL, animate); refreshReadout();
 }
 function goOpen(width, animate=true) {
-  clearTimers(); peeking = false; collapsed = false;
-  openWidth = Math.max(cfg.minW, Math.min(MAX_W, width || openWidth));
+  clearTimers(); peeking = false; collapsed = false; restingCollapsed = false;
+  restingWidth = Math.max(cfg.minW, Math.min(MAX_W, width || restingWidth));
   nav.classList.remove('collapsed','peeking','will-collapse');
-  setWidth(openWidth, animate); refreshReadout();
+  setWidth(restingWidth, animate); refreshReadout();
 }
 
 /* =====================================================================
-   PEEK
+   PEEK — a TEMPORARY widen that eases back to the resting state.
+   Entered by hovering the rail OR by dragging the border wider than
+   the resting width. Snaps back cfg.dwell ms after the cursor leaves.
    ===================================================================== */
 function clearTimers() {
   if (hoverInT) { clearTimeout(hoverInT); hoverInT = null; }
@@ -867,21 +877,32 @@ function startDwell() {
   if (dwellT) clearTimeout(dwellT);
   dwellT = setTimeout(() => { if (peeking) snapBack(); }, cfg.dwell);
 }
+// hover-peek from the collapsed rail
 function enterPeek() {
-  if (!collapsed || dragging) return;
-  peeking = true;
+  if (dragging || !restingCollapsed) return;
+  peeking = true; collapsed = false;
+  nav.classList.add('peeking'); nav.classList.remove('collapsed');
+  setWidth(cfg.peekW, true); refreshReadout();
+  if (cfg.dwellMode === 'open') startDwell();
+}
+// arm a peek begun by a widen-drag (pointer is still inside the nav)
+function beginPeekFromDrag() {
+  peeking = true; collapsed = false;
   nav.classList.add('peeking');
-  // keep .collapsed so .nav-rail stays the visible content? No — show full.
-  nav.classList.remove('collapsed');
-  setWidth(cfg.peekW, true);
   refreshReadout();
   if (cfg.dwellMode === 'open') startDwell();
+  // 'leave' mode: snap-back arms when the cursor leaves the navigator
 }
 function snapBack() {
   if (!peeking) return;
-  peeking = false; collapsed = true;
-  nav.classList.add('collapsed'); nav.classList.remove('peeking');
-  setWidth(RAIL, true); refreshReadout();
+  clearTimers(); peeking = false;
+  nav.classList.remove('peeking');
+  if (restingCollapsed) {
+    collapsed = true; nav.classList.add('collapsed'); setWidth(RAIL, true);
+  } else {
+    collapsed = false; nav.classList.remove('collapsed'); setWidth(restingWidth, true);
+  }
+  refreshReadout();
 }
 
 // hover trigger
@@ -902,17 +923,17 @@ nav.addEventListener('mouseleave', () => {
 // click trigger on the rail
 rail.addEventListener('click', (e) => {
   if (dragging) return;
-  if (cfg.peekTrigger === 'hover') { goOpen(openWidth); return; } // hover-mode: click = full open
+  if (cfg.peekTrigger === 'hover') { goOpen(restingWidth); return; } // hover-mode: click = commit open
   // click / both → peek
   if (peeking) snapBack(); else { enterPeek(); if (cfg.dwellMode==='leave') startDwell(); }
 });
 
-// clicking a file row during peek → commit to open
+// clicking a file row during a peek PINS it open (commit) — you reached in
 nav.querySelectorAll('.nav-tree .row').forEach(r => {
   r.addEventListener('click', () => {
     nav.querySelectorAll('.row').forEach(x=>x.classList.remove('active'));
     r.classList.add('active');
-    if (peeking && cfg.commit) goOpen(Math.max(openWidth, cfg.peekW));
+    if (peeking && cfg.commit) goOpen(curWidth());
   });
 });
 
@@ -964,13 +985,24 @@ function finishDrag(e, forceCollapse=false) {
   dragging = false;
   try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
   nav.classList.remove('dragging','will-collapse');
-  const w = curWidth();
-  if (forceCollapse || w < cfg.thresh) {
-    goCollapsed(true);
-  } else {
-    goOpen(Math.max(cfg.minW, w), true);
-  }
   willCollapse = false;
+  const w = curWidth();
+  const baseline = restingCollapsed ? RAIL : restingWidth;
+
+  if (forceCollapse || w < cfg.thresh) {
+    // crossed the collapse threshold → commit collapse
+    goCollapsed(true);
+  } else if (w > baseline + 6) {
+    // dragged WIDER than the resting width → TEMPORARY widen.
+    // Settle at the dragged width, then ease back to resting after the
+    // cursor leaves (this is what was "staying large" before).
+    nav.classList.remove('collapsed'); collapsed = false;
+    setWidth(w, true);
+    beginPeekFromDrag();
+  } else {
+    // narrowed but didn't collapse → snap back to the resting open width
+    goOpen(restingWidth, true);
+  }
 }
 window.addEventListener('pointerup', (e) => finishDrag(e, false));
 
