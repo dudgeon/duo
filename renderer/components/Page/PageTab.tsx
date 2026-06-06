@@ -429,7 +429,11 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, pillLabel, onPlaygro
     readDiskBody: (s) => s,                  // canvas has no frontmatter
     isDirty: (live, base) => live !== '' && normalizeDuoHtml(live) !== normalizeDuoHtml(base),
     echoEqual: (a, b) => normalizeDuoHtml(a) === normalizeDuoHtml(b),   // A4: consistent normalize
-    shouldBannerOnClean: (base, disk) => externalStrippedDuoIds(base, disk),   // BUG-125-v2 Q2 anchor loss
+    // disk-vs-disk: banner iff this external write stripped data-duo-ids that
+    // were ON DISK before (BUG-125-v2 Q2 anchor loss). The hook passes the
+    // byte-exact lastSeenDisk body, NOT the serialized view — the v0.9.0 fix
+    // for the clean-write false-positive (serialized always carries injected ids).
+    shouldBannerOnClean: (lastSeenDisk, disk) => externalStrippedDuoIds(lastSeenDisk, disk),
     onDirtyChange: (d) => setDirty(d),       // clean reload → drop the dirty dot; Keep-mine → re-arm it
     rebaselineAfterReload: false,            // canvas reload is ASYNC (iframe remount) — re-baseline from handleReady
     triggerSave: () => { void saveRef.current() },

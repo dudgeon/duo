@@ -93,12 +93,15 @@ export interface DiskReconciliationOptions {
    *  fallback. Markdown: normalizeForEchoCompare-equal. Canvas: normalizeDuoHtml-
    *  equal. Json: byte-equal. */
   echoEqual: (a: string, b: string) => boolean
-  /** Optional. On a CLEAN buffer where the disk change is cosmetic-equal to
-   *  the baseline, return true to surface the banner ANYWAY (the change would
-   *  still destroy Duo-owned data the baseline owned). Canvas:
-   *  (base, disk) => externalStrippedDuoIds(base, disk) (BUG-125-v2 Q2 anchor
-   *  loss). Omitted by markdown + json. */
-  shouldBannerOnClean?: (baseline: string, disk: string) => boolean
+  /** Optional. On a CLEAN buffer, return true to surface the banner ANYWAY
+   *  instead of byte-faithfully reloading, when adopting the disk bytes would
+   *  destroy Duo-owned data. Receives `(lastSeenDiskBody, newDiskBody)` — BOTH
+   *  byte-exact disk shape, so an ID/round-trip asymmetry in the SERIALIZED
+   *  view can't spuriously fire it (the ENH-195 v0.9.0 canvas false-positive).
+   *  Canvas: externalStrippedDuoIds(lastSeenDisk, disk) → banner iff this write
+   *  removed data-duo-ids that were ON DISK before (BUG-125-v2 Q2 anchor loss).
+   *  Omitted by markdown + json. */
+  shouldBannerOnClean?: (lastSeenDiskBody: string, newDiskBody: string) => boolean
 
   /** Mirror the surface's dirty React state. Called false after a clean
    *  reload, true after Keep-mine. */
@@ -229,16 +232,28 @@ export function useDiskReconciliation(opts: DiskReconciliationOptions): DiskReco
 
     if (!dirty) {
       // CLEAN buffer. The canvas must still banner if the external write
-      // dropped data-duo-id anchors the baseline owned (BUG-125-v2 Q2).
-      if (o.shouldBannerOnClean?.(serializedBaselineRef.current, diskBody)) {
+      // dropped data-duo-id anchors that were PERSISTED ON DISK (BUG-125-v2 Q2).
+      // This is a disk-vs-disk question: compare the byte-exact LAST-SEEN disk
+      // body against the new disk bytes — NOT the serialized baseline.
+      //
+      // ENH-195 v0.9.0 fix: passing `serializedBaselineRef.current` here
+      // false-positived on EVERY clean external write, because the serialized
+      // view always carries auto-injected data-duo-ids (installAutoStampIds runs
+      // before serialize) that the on-disk bytes legitimately lack — so
+      // externalStrippedDuoIds(serialized-with-ids, disk-without-ids) always
+      // reported "stripped". `lastSeenDiskRef` is the same shape as `diskBody`,
+      // so the predicate fires only when a write truly removed on-disk anchors.
+      // Regression-tested: useDiskReconciliation.test.ts canvas
+      // "clean buffer ... external CONTENT edit ... → silent reload".
+      if (o.shouldBannerOnClean?.(lastSeenDiskRef.current, diskBody)) {
         void writeConflictLog({
           ts: new Date().toISOString(), path: o.path, trigger: 'watcher-clean',
           surface: o.surface, diskLength: diskBody.length,
-          baselineLength: serializedBaselineRef.current.length, liveLength: null,
+          baselineLength: lastSeenDiskRef.current.length, liveLength: null,
           recentlyWrittenSize: recentlyWrittenRef.current.size,
-          diskHead: diskBody.slice(0, 80), baselineHead: serializedBaselineRef.current.slice(0, 80),
-          diskTail: diskBody.slice(-80), baselineTail: serializedBaselineRef.current.slice(-80),
-          firstDiffOffset: computeFirstDiffOffset(diskBody, serializedBaselineRef.current),
+          diskHead: diskBody.slice(0, 80), baselineHead: lastSeenDiskRef.current.slice(0, 80),
+          diskTail: diskBody.slice(-80), baselineTail: lastSeenDiskRef.current.slice(-80),
+          firstDiffOffset: computeFirstDiffOffset(diskBody, lastSeenDiskRef.current),
           appVersion: o.appVersion
         })
         setExternalConflict({ diskBody, rawText })

@@ -182,4 +182,42 @@ describe('useDiskReconciliation — canvas (Q2 anchor-loss)', () => {
     expect(view.result.current.externalConflict).toBeNull()
     h.restore()
   })
+
+  // ENH-195 v0.9.0 — the canvas clean-write false-positive regression. The two
+  // tests above seed serialized + disk baselines IDENTICALLY (base, base), which
+  // structurally hid this bug. Production seeds them DIVERGENT: handleReady runs
+  // recon.noteLoaded(initialSerialized, lastSavedRef.current) where
+  // initialSerialized is the ID-INJECTED serialized live DOM but lastSavedRef is
+  // the RAW disk HTML that lacks those injected ids (PageTab.tsx:909). These two
+  // tests pin the disk-vs-disk semantics: banner iff the WRITE removed ids that
+  // were ON DISK — not ids Duo injected in memory.
+  it('clean buffer + external CONTENT edit, disk never carried injected ids → silent reload, NO banner (v0.9.0 false-positive)', async () => {
+    // serialize() (live DOM) carries an auto-injected id the on-disk bytes never had.
+    const h = canvasHarness('<p data-duo-id="n1">hi</p>')
+    h.files.setDiskBytes(PATH, '<p>hi</p>')                       // disk: no ids
+    // Divergent seed, faithful to PageTab.tsx:909 (serialized-with-id, disk-without-id).
+    const view = await mountReady(h.opts, '<p data-duo-id="n1">hi</p>', '<p>hi</p>')
+    h.files.setDiskBytes(PATH, '<p>hi there</p>')                 // external content edit, still no ids
+    await act(async () => { h.files.pushChange(PATH); await flush() })
+    // FAILS on the old code (externalStrippedDuoIds(serialized-with-id, disk-no-id) → banner);
+    // PASSES with the fix (externalStrippedDuoIds(lastSeenDisk='<p>hi</p>', …) → 0 ids → reload).
+    expect(h.applyReload).toHaveBeenCalledWith('<p>hi there</p>', '<p>hi there</p>')
+    expect(view.result.current.externalConflict).toBeNull()
+    h.restore()
+  })
+
+  it('divergent baselines + external write strips a PERSISTED disk id → banner (fix keys off the disk ref, Q2 preserved)', async () => {
+    // serialized baseline carries an extra in-memory injected attr; disk carries
+    // only the PERSISTED id. Stripping the persisted id must still banner — proving
+    // the fix reads lastSeenDiskRef (which holds the persisted id), not a coincidence
+    // of the serialized view. (The existing (base,base) test can't show this.)
+    const h = canvasHarness('<p data-duo-id="n1" data-duo-x="z">hi</p>')
+    h.files.setDiskBytes(PATH, '<p data-duo-id="n1">hi</p>')      // disk: persisted id only
+    const view = await mountReady(h.opts, '<p data-duo-id="n1" data-duo-x="z">hi</p>', '<p data-duo-id="n1">hi</p>')
+    h.files.setDiskBytes(PATH, '<p>hi</p>')                       // external write strips the persisted id
+    await act(async () => { h.files.pushChange(PATH); await flush() })
+    expect(view.result.current.externalConflict).not.toBeNull()
+    expect(h.applyReload).not.toHaveBeenCalled()
+    h.restore()
+  })
 })
