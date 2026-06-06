@@ -311,13 +311,109 @@ html.dark {
     padding: 0;
   }
 
-  /* Resize divider */
+  /* Resize divider + handle affordance (ENH-190).
+     Shared by the terminal↔canvas split divider and the navigator's
+     right-border drag handle: a 1px visible seam, a ~12px invisible hit
+     target (so it's easy to grab), and a hover-reveal grip pill with
+     grab-dots. The visible seam stays a hairline. */
   .split-divider {
-    @apply w-px bg-border cursor-col-resize shrink-0 transition-colors duration-100;
+    @apply relative w-px bg-border cursor-col-resize shrink-0 transition-colors duration-100;
+  }
+  /* widened invisible hit target, centered on the 1px seam */
+  .split-divider::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 12px;
+    transform: translateX(-50%);
   }
   .split-divider:hover,
   .split-divider.dragging {
-    @apply bg-accent w-0.5;
+    @apply bg-accent;
+  }
+
+  /* Navigator right-border drag handle — sits flush inside the pane's right
+     edge (the nav clips overflow, so it must not straddle the seam). */
+  .nav-resize-handle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    height: 100%;
+    width: 12px;
+    cursor: col-resize;
+    z-index: 20;
+  }
+  .nav-resize-handle::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: 1px;
+    background: transparent;
+    transition: background 120ms ease, width 120ms ease;
+  }
+  .nav-resize-handle:hover::after,
+  .nav-resize-handle.dragging::after {
+    background: var(--duo-accent);
+    width: 2px;
+  }
+  .nav-resize-handle.will-collapse::after {
+    background: #c8553d;
+    width: 2px;
+  }
+
+  /* shared grip pill */
+  .resize-grip {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    width: 6px;
+    height: 38px;
+    border-radius: 999px;
+    background: var(--duo-accent);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease;
+  }
+  .resize-grip > i {
+    width: 2px;
+    height: 2px;
+    border-radius: 50%;
+    background: rgba(20, 16, 12, 0.6);
+  }
+  .split-divider:hover .resize-grip,
+  .split-divider.dragging .resize-grip,
+  .nav-resize-handle:hover .resize-grip,
+  .nav-resize-handle.dragging .resize-grip {
+    opacity: 1;
+  }
+
+  /* "release to collapse" hint while dragging the nav border past the threshold */
+  .nav-collapse-hint {
+    position: absolute;
+    top: 8px;
+    right: 6px;
+    z-index: 21;
+    padding: 2px 7px;
+    border-radius: 5px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    color: #fff;
+    background: #c8553d;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4);
+    pointer-events: none;
+    white-space: nowrap;
   }
 
   /* Stage 11 — rich markdown editor prose surface. Tailwind's typography
