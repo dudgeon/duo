@@ -3698,6 +3698,60 @@ export function App() {
     }
   })
 
+  // ENH-195 — `duo status` reads this function via main's
+  // executeJavaScript (getStatusSnapshot). Re-bound on every render so
+  // the closure captures the latest React state — same always-fresh,
+  // no-cache pattern as __duoGetLayout above. Coarser than layout: a
+  // flat list of EVERY open tab (file + browser) with per-tab dirty /
+  // active / pinned, plus the active working tab summary, focused
+  // column, theme, and terminal-tab count. The keystone agent-
+  // orientation verb. Field names mirror the WorkingTab vocabulary.
+  useEffect(() => {
+    const tabSnapshots = [
+      ...fileTabs.map(ft => ({
+        kind: ft.type as string,
+        path: ft.path,
+        title: ft.title,
+        dirty: (dirtyPaths.has(ft.path) || ft.dirty === true),
+        active: (activeWorking.kind === 'file' && activeWorking.id === ft.id),
+        pinned: pinnedFileTabPaths.has(ft.path)
+      })),
+      ...browserTabs.filter(bt => !bt.inAux).map(bt => ({
+        kind: 'browser' as const,
+        url: bt.url,
+        title: bt.title,
+        dirty: false,
+        active: bt.isActive === true,
+        pinned: pinnedBrowserUrls.has(bt.url)
+      }))
+    ]
+    const activeFileTab = activeWorking.kind === 'file'
+      ? fileTabs.find(t => t.id === activeWorking.id)
+      : null
+    const activeBrowserTab = activeWorking.kind === 'browser'
+      ? browserTabs.find(t => t.isActive && !t.inAux)
+      : null
+    const active: Record<string, unknown> | null =
+      activeFileTab
+        ? { kind: activeFileTab.type, path: activeFileTab.path, title: activeFileTab.title }
+        : activeBrowserTab
+          ? { kind: 'browser', url: activeBrowserTab.url, title: activeBrowserTab.title }
+          : null
+    const statusSnapshot = {
+      tabs: tabSnapshots,
+      active,
+      focusedColumn,
+      theme: theme.mode,
+      effectiveTheme: theme.effective,
+      terminalTabsCount: tabs.length,
+      timestamp: Date.now()
+    }
+    ;(window as unknown as { __duoGetStatus?: () => unknown }).__duoGetStatus = () => statusSnapshot
+    return () => {
+      delete (window as unknown as { __duoGetStatus?: () => unknown }).__duoGetStatus
+    }
+  })
+
   // ENH-041 / Sprint 3 — Split View IPC subscribers. CLI verbs `duo
   // split-view open|close|promote|resize` route through main →
   // preload → here. App.tsx is the source of truth for aux state;
@@ -3722,13 +3776,13 @@ export function App() {
   const splitViewMoveTabByPathRef = useRef(splitViewMoveTabByPath)
   splitViewMoveTabByPathRef.current = splitViewMoveTabByPath
 
-  // Phase 3c — same ref pattern for the browser-aux mutation primitive
-  // and the auxBrowserTab state, so the IPC handlers can read the
-  // latest closure / state without re-subscribing on every change.
+  // Phase 3c — ref pattern for the browser-aux mutation primitive so the IPC
+  // handlers read the latest closure without re-subscribing on every change.
+  // (BUG-195: the aux close/promote handlers no longer gate on an auxBrowserTab
+  // ref — they call releaseAuxTab UNCONDITIONALLY, the no-op-or-reconcile that
+  // survives a renderer-reload state desync.)
   const splitViewMoveBrowserTabRef = useRef(splitViewMoveBrowserTab)
   splitViewMoveBrowserTabRef.current = splitViewMoveBrowserTab
-  const auxBrowserTabRef = useRef(auxBrowserTab)
-  auxBrowserTabRef.current = auxBrowserTab
 
   useEffect(() => {
     const offOpen = window.electron.workingAux?.onOpen?.((path) => {
@@ -3745,26 +3799,26 @@ export function App() {
     })
     const offClose = window.electron.workingAux?.onClose?.(() => {
       // Sprint 7 Phase 3c — close clears BOTH file-aux and browser-aux.
-      // If a browser tab is in aux, release it back to main first so
-      // the WCV gets repositioned out of the aux slot bounds.
-      if (auxBrowserTabRef.current) {
-        void window.electron.browser.releaseAuxTab().then(() => {
-          setAuxBrowserTab(null)
-        })
-      }
+      // BUG-195: release UNCONDITIONALLY (releaseAuxTab is a no-op when main
+      // holds no aux tab) rather than gating on `auxBrowserTabRef`. A renderer
+      // reload clears that ref while the BrowserManager keeps `auxTabId`; the
+      // stale gate then skipped the reconcile, leaving the aux WebContentsView
+      // orphaned over the UI (the ghost). Always releasing reconciles main even
+      // when the renderer's view of aux is stale.
+      void window.electron.browser.releaseAuxTab().then(() => {
+        setAuxBrowserTab(null)
+      })
       setAuxState(null)
     })
     const offPromote = window.electron.workingAux?.onPromote?.(() => {
-      // Phase 3c — promote handles BOTH file-aux and browser-aux. If
-      // a browser tab is currently pinned, release it (BrowserManager
-      // handles the WCV reposition + activates the released tab in
-      // main strip). Otherwise the existing file-aux logic.
-      if (auxBrowserTabRef.current) {
-        void window.electron.browser.releaseAuxTab().then(() => {
-          setAuxBrowserTab(null)
-        })
-        return
-      }
+      // Phase 3c — promote handles BOTH file-aux and browser-aux.
+      // BUG-195: release UNCONDITIONALLY (no-op when main holds no browser aux)
+      // so a stale `auxBrowserTabRef` after a renderer reload can't skip the
+      // reconcile and orphan the WCV. The file-aux re-home below is itself a
+      // no-op when there's no file aux (prev === null), so both run safely.
+      void window.electron.browser.releaseAuxTab().then(() => {
+        setAuxBrowserTab(null)
+      })
       setAuxState(prev => {
         if (!prev || prev.paths.length === 0) return null
         const path = prev.paths[prev.activeIndex] ?? prev.paths[0]

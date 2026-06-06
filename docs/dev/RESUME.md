@@ -1,12 +1,12 @@
-# Resume after compaction — v0.8.x (docs deep-clean + polish)
+# Resume after compaction — ENH-195 + ENH-197 + BUG-195 COMPLETE, submitted as a PR (owner integrates on main)
 
-**Read this first.** Then in order:
+**🛑 READ FIRST — current state:**
+ENH-195 (CLI edits / disk-sync / false-positive conflicts) is **complete, validated, and submitted as a PR** from branch `claude/sharp-hamilton-70eb87` for the owner to integrate (version label + merge with other branches) on `main`. Per-item detail is in [`tasks.md`](../../tasks.md) (ENH-195 / ENH-197 / BUG-195 / ENH-198). One-paragraph version:
 
-1. [`docs/dev/active-sprint.md`](active-sprint.md) — **current sprint scope** (that file owns it; this one links there).
-2. [`CLAUDE.md`](../../CLAUDE.md) § Current sprint — shorter form.
-3. [`tasks.md`](../../tasks.md) — open backlog (97 entries; closed history in [`tasks-archive.md`](../../tasks-archive.md) after the ENH-191/D1 split).
-
-## Where we are
+- **Shipped + verified this cycle:** the shared `useDiskReconciliation` hook (markdown + canvas + JSON), D3 markdown change-highlight, 3 verbs (`duo status` / `doc edit` / `json set|merge`), B2–B7 responsiveness, warn-hook + guidance — PLUS the four follow-on fixes that landed AFTER the local v0.9.0 cut: **(1) canvas false-positive fix** (the old blocker — `shouldBannerOnClean` now compares the byte-exact disk baseline, not the ID-injected serialized view; root-caused by a 4-lens workflow, regression-tested, verified live); **(2) ENH-197 "View diff"** (a destructive (>50%) external reload now offers **Keep mine / Load new / View diff**, where View diff rebuilds the doc as accept/rejectable tracked changes via the existing CriticMarkup rail — block-LCS so it reads clean, not char-soup; round-trip tested, verified live all 3 buttons); **(3) BUG-195** (`split-view close` orphaned the aux browser WebContentsView → ghost; the renderer close/promote handlers now call `releaseAuxTab()` unconditionally so a reload-stale ref can't skip the reconcile; verified live); **(4)** the strip-JSX strips + frontmatter-preserve (verified). **923 tests, both typecheckers clean.** v0.9.1-rev2 smoke walk: **VIEW-DIFF + WARN-HOOK both PASS.**
+- **Git:** branch `claude/sharp-hamilton-70eb87` carries `f6e1b36` (release: v0.9.0) → `915af34` (bump v0.9.1) → this session's fix commits. **Owner decides the version label + does the push/release on main** (the local `v0.9.0` tag predates the four fixes).
+- **Tracked for later:** ENH-196 (canvas change-highlight parity), ENH-198 (agent-native CriticMarkup track-changes — agents wrote `<ins>` tags instead of CriticMarkup), the FOLLOWUP-031..040 polish queue below.
+- **Dev-build note:** the worktree has no local `node_modules`; launch dev via `node /Users/geoffreydudgeon/Documents/GitHub/duo/node_modules/electron-vite/bin/electron-vite.js dev` (≡ `npm run dev`). `duo eval` targets the BROWSER pane; `duo dom --js` the renderer shell. Smoke walks run in the **split-view aux** (owner's workflow — see the updated `.claude/skills/smoke-walk/SKILL.md`).
 
 **v0.8.4 released; v0.8.5 in-flight** (as of 2026-05-31). Sprint 23/24 — ENH-182 (project rail) plus the v0.8.0-era FOLLOWUP-031..040 polish wave — shipped across v0.8.0–v0.8.4.
 

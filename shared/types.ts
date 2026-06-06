@@ -273,6 +273,25 @@ export type DuoCommandName =
   // current state; `duo workspace-pill-menu [on|off|toggle]` writes.
   // Persisted in renderer localStorage `duo.workspacePillMenu`.
   | 'workspace-pill-menu'
+  // ENH-195 — `duo status` returns a high-level JSON snapshot of the
+  // running app: open file/browser tabs (with per-tab dirty / active /
+  // pinned), the active working tab, focused column, theme,
+  // terminal-tab count. Read live from the renderer's
+  // `window.__duoGetStatus()` (no main-side cache — same always-fresh
+  // pattern as `duo layout`). The keystone agent-orientation verb.
+  | 'status'
+  // ENH-195 — `duo doc edit <file> --find X --replace Y` is a surgical
+  // PLAIN-text markdown replace (no CriticMarkup — direct accepted
+  // edit; the suggestion-wrapping siblings live under `doc-edit`).
+  // Buffer-routed (echo-safe through the editor's save) when the file
+  // is open; disk-direct via core/markdown/plainEdit.ts when closed.
+  | 'doc-edit-plain'
+  // ENH-195 — `duo json set <file> <dotpath> <value>` /
+  // `duo json merge <file> <patch.json>`. Structured edits to a
+  // JSON / YAML file. Buffer-routed (echo-safe) when the file is open
+  // in the JSON viewer; disk-direct (JSON.parse / js-yaml) when closed.
+  // YAML round-trips lose comments — flagged in the reply reason.
+  | 'json-op'
 
 // ── Stage 18b — Distro skill packs ───────────────────────────────────────────
 // A pack is a directory under `~/.claude/duo/packs/<name>/` carrying a
@@ -919,6 +938,81 @@ export interface DocWriteRequest {
 export interface DocWriteResult {
   reqId: string
   ok: boolean
+  error?: string
+}
+
+// ENH-195 — `duo doc edit` (surgical PLAIN markdown replace). Distinct
+// from DocWriteRequest (whole-buffer replace) and the `doc-edit`
+// CriticMarkup family (suggestion-wrapping). The find/replace text is
+// literal (non-regex); `occurrence` / `all` / `atLine` mirror the
+// `duo doc *` disambiguation model. Buffer-routed when the file is open
+// (echo-safe through the editor's save), disk-direct when closed.
+export interface DocEditPlainRequest {
+  reqId: string
+  /** Absolute path. The renderer handler silently ignores requests
+   *  whose path doesn't match the active editor (BUG-144 pattern). */
+  path: string
+  /** Literal find text (non-regex). */
+  find: string
+  /** Literal replacement. May be '' (delete the match). */
+  replace: string
+  /** Replace only the Nth (1-indexed) occurrence. Ignored when `all`. */
+  occurrence?: number
+  /** Replace every occurrence in scope. */
+  all?: boolean
+  /** Restrict the replace to the single 1-indexed line. */
+  atLine?: number
+}
+
+export interface DocEditPlainResult {
+  reqId: string
+  ok: boolean
+  /** True when the body actually changed. */
+  changed: boolean
+  /** How many occurrences were replaced (0 on any no-op). */
+  replacements: number
+  /** Human-readable no-op reason (empty on success). Mirrors
+   *  PlainEditResult.reason from core/markdown/plainEdit.ts. */
+  reason: string
+  /** Resolved path the edit landed on (open or disk). */
+  path?: string
+  error?: string
+}
+
+// ENH-195 — `duo json set|merge`. Structured edits to a JSON / YAML
+// file. `set` writes `valueJson` (a JSON-encoded value) at the dotted
+// `pointer` (`a.b[0].c`; empty / '.' = root). `merge` deep-merges
+// `mergeJson` (a JSON-encoded object) into the root. Buffer-routed
+// when the JSON viewer has the file open (echo-safe through its save),
+// disk-direct when closed. YAML serialization drops comments — flagged
+// in `reason`.
+export type JsonOpKind = 'set' | 'merge'
+
+export interface JsonOpRequest {
+  reqId: string
+  /** Absolute path. The renderer handler silently ignores requests
+   *  whose path doesn't match the active JSON viewer. */
+  path: string
+  op: JsonOpKind
+  /** `set` only — dotted path (`a.b[0].c`; empty / '.' = root). */
+  pointer?: string
+  /** `set` only — JSON-encoded value to assign at `pointer`. */
+  valueJson?: string
+  /** `merge` only — JSON-encoded object to deep-merge into the root. */
+  mergeJson?: string
+}
+
+export interface JsonOpResult {
+  reqId: string
+  ok: boolean
+  /** True when the parsed value actually changed (best-effort —
+   *  always true on a successful write in v1). */
+  changed: boolean
+  /** Human-readable note (empty on a clean JSON success). Carries the
+   *  "YAML comments not preserved" caveat for .yaml/.yml files. */
+  reason: string
+  /** Resolved path the op landed on (open or disk). */
+  path?: string
   error?: string
 }
 
@@ -1642,9 +1736,22 @@ export const IPC = {
   EDITOR_DOC_FIND: 'editor:doc-find',
   EDITOR_DOC_FIND_RESULT: 'editor:doc-find-result',
 
+  // ENH-195 — `duo doc edit` surgical PLAIN-text replace. main →
+  // renderer applies the replace to the live buffer + echo-safe save;
+  // renderer → main replies. Distinct from the CriticMarkup `doc-edit`
+  // path (disk-only suggestion-wrapping).
+  EDITOR_DOC_EDIT_PLAIN: 'editor:doc-edit-plain',               // main → renderer
+  EDITOR_DOC_EDIT_PLAIN_RESULT: 'editor:doc-edit-plain-result', // renderer → main
+
   // Stage 17b Phase C — agent ops against the active page.
   PAGE_HTML_OP: 'page:html-op',               // main → renderer (apply / read)
   PAGE_HTML_OP_RESULT: 'page:html-op-result', // renderer → main (reply)
+
+  // ENH-195 — `duo json set|merge` against the active JSON / YAML
+  // viewer. main → renderer applies the structured edit + echo-safe
+  // save; renderer → main replies. Mirrors the html-op channel pair.
+  JSON_OP: 'json:op',               // main → renderer (apply)
+  JSON_OP_RESULT: 'json:op-result', // renderer → main (reply)
 
   // ENH-108 (Sprint 12) — `duo image insert <path>` request/reply pair.
   // Main reads source bytes + sends; renderer dispatches to the active

@@ -1,6 +1,6 @@
 {
   "name": "duo",
-  "version": "0.8.6",
+  "version": "0.9.1",
   "description": "macOS desktop app pairing Claude Code terminals with an embedded Chrome browser",
   "repository": {
     "type": "git",
@@ -64,6 +64,8 @@
     "@electron/rebuild": "^3.6.0",
     "@eslint/js": "^8.57.1",
     "@tailwindcss/typography": "^0.5.19",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/react": "^16.3.0",
     "@types/js-yaml": "^4.0.9",
     "@types/jsdom": "^28.0.1",
     "@types/node": "^20.0.0",

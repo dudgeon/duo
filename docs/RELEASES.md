@@ -25,6 +25,21 @@
 
 ---
 
+## v0.9.0 — 2026-06-05 — CLI edits, disk-sync & the end of false-positive conflicts
+
+**Why this lands here, and why it's a MINOR.** Three problems the owner had been living with turned out to share one root: Duo reconciled the editor buffer against disk by *guessing* whether a change was its own save echoing back or a real external edit — and that guess (a) false-fired the "changed on disk" conflict banner on the user's own edits, (b) silently *swallowed* real on-disk changes so the editor looked frozen, and (c) was only needed because agents wrote *behind* the editor instead of *through* it. v0.9.0 fixes the root, not the symptoms, and ships the agent-facing capability that removes the incentive to bypass the editor — a coherent chapter big enough to be a MINOR rather than a patch.
+
+**The key design decisions.**
+1. **One shared reconciliation hook, not two mirrored copies.** The markdown editor and the HTML canvas each carried a near-identical copy of the watch→echo→conflict state machine; two copies is exactly why BUG-166's byte-exact fix landed in markdown but silently skipped the canvas, and why the BUG-085→166 arc kept recurring. v0.9.0 extracts `useDiskReconciliation`, consumed by markdown + canvas + JSON, so parity is structural. This required amending the locked editor/canvas-convergence decision — but only by *scoping* it: the editing primitives stay separate (TipTap vs "the canvas IS the page" is a real difference), only the reconciliation layer is shared, and the shared hook touches zero editing contract.
+2. **Byte-faithful on a clean buffer.** The old normalize gauntlet that suppressed self-echoes also swallowed real external edits that happened to normalize-equal. Now, on a clean buffer, *any* on-disk byte difference reloads; normalize is reserved for self-echo + the dirty-buffer conflict decision. This is what makes "the editor notices changes" true again — and the change-highlight (washed additions, deletion ticks, holding until your next keystroke) makes the reload legible instead of disorienting.
+3. **Give agents the verbs they were missing.** `duo doc edit` (surgical markdown), `duo json set/merge`, and the `duo status` open-tabs probe close the capability gap that made `Edit`/`Write` the path of least resistance. Buffer-routed when the file is open, they're echo-clean by construction. A warn-only PreToolUse hook + priming guidance nudge toward them.
+
+**Verified without a live walk — on purpose.** The owner chose to finalize on tests rather than a live smoke-walk this cut. The conflict logic is pinned by 9 reconciliation integration tests (the first-ever CI coverage for this ~11-bug class), all 914 tests pass, and both typecheckers are clean. The decisive step was a 15-agent adversarial review that found and fixed **9 confirmed bugs before the cut** — three of them high-severity data-loss/security regressions (a frontmatter clobber, a JSON source-mode edit-drop, and prototype pollution in the JSON helpers) that the passing tests had masked. A v0.9.0 smoke-walk page is generated for the owner to walk later.
+
+**What this is and isn't.** It's the structural end of the false-positive conflict class and the agent-edits-through-Duo story for markdown, HTML, and JSON. It is **not** the canvas change-highlight (markdown ships it; canvas is deferred to ENH-196 because its diff substrate is DOM, not a ProseMirror tree), and the warn-hook + priming guidance activate in live sessions only on the next installer run (they ship with the app, not via `sync:claude`). A small install-service follow-up remains: uninstall/`primingStatus` don't yet account for the new PreToolUse entry.
+
+---
+
 ## v0.8.5 — 2026-06-02 — Project rail correctness
 
 **Why this lands here.** The project rail (ENH-182) shipped its lifecycle behavior across v0.8.x, and a day of dogfooding surfaced four correctness bugs clustered tightly around one root: *membership is derived from inputs that don't reflect reality, and churned hardest during close.* They're a coherent chapter — all rail, all membership — so they cut together rather than dribbling out as separate patches.

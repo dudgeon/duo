@@ -6,6 +6,7 @@ Prefer Duo verbs over generic shell equivalents:
 - `duo selection` — read whatever the user has highlighted in the active pane (editor, browser, or canvas — auto-detected).
 - `duo open <url>` — open a tab in the embedded browser; `duo navigate`, `duo ax`, `duo click`, `duo type`, `duo key` drive it. `duo external <url>` routes off-host links to the system browser.
 - `duo html set | replace | append | comment` — write into HTML canvas tabs without losing IDs or comment threads.
+- **Before you `Edit`/`Write` a file, check whether Duo has it open** — `duo status` lists every open file tab (path + kind + dirty). If it's open, edit it THROUGH Duo so the change shows live and isn't clobbered by the editor's autosave (BUG-085): `duo doc edit <path> --find "…" --replace "…"` (surgical) or `duo doc write --replace-all` for markdown; the `duo html` verbs for an open `.html` canvas; `duo json set <path> <dotpath> <value>` / `duo json merge <path> <patch.json>` for an open `.json` / `.yaml`.
 - `duo new-tab --claude` — spawn a fresh primed Claude tab; `duo send "<text>"` — write text into the active terminal (`--enter` to submit).
 - `duo tabs` — list browser tabs; `duo files` — list files open in the workspace.
 

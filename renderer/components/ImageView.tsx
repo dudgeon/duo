@@ -7,7 +7,7 @@
 // leaving Duo.
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import type { WorkingTab, MenuTemplateItem } from '@shared/types'
+import type { WorkingTab, MenuTemplateItem, FileReadResult } from '@shared/types'
 
 const ZOOM_MIN = 0.05
 const ZOOM_MAX = 32
@@ -46,6 +46,10 @@ export function ImageView({ tab }: { tab: WorkingTab }) {
   // schemes regardless of CORS. Blob URLs sidestep all of that by
   // staying same-origin to the renderer.
   const [imgUrl, setImgUrl] = useState<string | null>(null)
+  // ENH-195 (B6) — the currently-live object URL, shared between the
+  // mount-load effect and the disk watcher so whichever sets a new URL
+  // revokes the previous one through a single owner (no double-revoke).
+  const liveUrlRef = useRef<string | null>(null)
 
   // File size readout via files.stat (cheap — no payload transfer).
   useEffect(() => {
@@ -58,34 +62,73 @@ export function ImageView({ tab }: { tab: WorkingTab }) {
     return () => { cancelled = true }
   }, [path])
 
+  // ENH-195 (B6) — swap in a freshly-read frame: build the blob URL,
+  // revoke whatever liveUrlRef pointed at, then publish the new one.
+  // Shared by the mount-load effect and the disk watcher so neither can
+  // double-revoke the other's URL.
+  const applyFrame = useCallback((res: FileReadResult) => {
+    // Slice into a fresh ArrayBuffer-backed Uint8Array — IPC may return
+    // SharedArrayBuffer-backed bytes which BlobPart typing rejects.
+    const safe = new Uint8Array(res.bytes)
+    const blob = new Blob([safe], { type: res.mime })
+    const u = URL.createObjectURL(blob)
+    if (liveUrlRef.current) URL.revokeObjectURL(liveUrlRef.current)
+    liveUrlRef.current = u
+    setImgUrl(u)
+    setBytes(res.size)
+  }, [])
+
   // Load the image via files.read → Blob → object URL. Re-runs on path
-  // change. Cleanup revokes the prior object URL to avoid leaks.
+  // change. Cleanup revokes the live object URL to avoid leaks.
   useEffect(() => {
     let cancelled = false
-    let urlToRevoke: string | null = null
     if (!path) {
       setImgUrl(null)
       return
     }
     void window.electron.files.read(path).then((res) => {
       if (cancelled) return
-      // Slice into a fresh ArrayBuffer-backed Uint8Array — IPC may
-      // return SharedArrayBuffer-backed bytes which BlobPart typing
-      // rejects.
-      const safe = new Uint8Array(res.bytes)
-      const blob = new Blob([safe], { type: res.mime })
-      const u = URL.createObjectURL(blob)
-      urlToRevoke = u
-      setImgUrl(u)
+      applyFrame(res)
     }).catch((err) => {
       console.warn('[ImageView] files.read failed for', path, err)
       if (!cancelled) setImgUrl(null)
     })
     return () => {
       cancelled = true
-      if (urlToRevoke) URL.revokeObjectURL(urlToRevoke)
+      if (liveUrlRef.current) {
+        URL.revokeObjectURL(liveUrlRef.current)
+        liveUrlRef.current = null
+      }
     }
-  }, [path])
+  }, [path, applyFrame])
+
+  // ENH-195 (B6) — read-only disk watcher: re-read + repaint when the
+  // file is re-saved on disk (e.g. an export overwrites it). Mirrors the
+  // markdown editor's reconcile-on-change while staying read-only —
+  // 'removed' leaves the last frame in place (parity with the editor
+  // ignoring deletes), and 'added'/'changed' both reload via files.read,
+  // reusing res.size so no extra files.stat round-trip is needed.
+  useEffect(() => {
+    if (!path) return
+    let cancelled = false
+    let unwatch: (() => Promise<void>) | null = null
+    void window.electron.files.watch([path], (ev) => {
+      if (ev.path !== path) return
+      if (ev.kind === 'removed') return
+      void window.electron.files.read(path).then((res) => {
+        if (cancelled) return
+        applyFrame(res)
+      }).catch((err) => {
+        console.warn('[ImageView] reload after change failed for', path, err)
+      })
+    }).then((fn) => {
+      if (cancelled) { void fn() } else { unwatch = fn }
+    })
+    return () => {
+      cancelled = true
+      if (unwatch) void unwatch()
+    }
+  }, [path, applyFrame])
 
   // Track container size so 'fit' mode can compute a percentage
   // readout that matches what the user sees.

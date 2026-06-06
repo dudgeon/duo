@@ -174,6 +174,12 @@ path-scoped rules under `.claude/rules/` (see above).
    toggle), the agent must be able to do the same from the CLI — UI-only
    features silently break Duo's pair-work premise. Call out deliberate
    asymmetries in the PRD. (Detail + checklists: `.claude/rules/cli-plumbing.md`.)
+   - **4a. Edit open files THROUGH Duo, never around it.** Before `Edit`/`Write`
+     on any file that might be open in Duo, run `duo status` and prefer the
+     matching `duo` verb (`doc edit` / `doc write` · `html *` · `json set` /
+     `merge`). A direct write to an open file fights the editor's autosave
+     (BUG-085) and skips the change-highlight; a `DUO_SESSION`-gated PreToolUse
+     hook warns (never blocks) when it catches this.
 5. **The skill is a first-class deliverable.** Ship both the app and
    `skill/SKILL.md`, or neither.
 6. **State-and-proceed on minor open questions.** If blocked on a

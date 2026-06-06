@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>ENH-195 — CLI edits · disk-sync · false-positive conflicts</title>
+<style>
+/* ===== Atelier kernel (inlined verbatim — skill/references/atelier-css.md) ===== */
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+  --project-pine:   #2E7D74;
+  --project-harbor: #3C6E93;
+  --project-iris:   #5B57A6;
+  --project-plum:   #87508F;
+  --project-rose:   #A4506A;
+  --project-moss:   #69763A;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+body { padding: 32px 40px 96px; max-width: 920px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px; }
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 6px; }
+.intro { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 14px 18px; margin-bottom: 28px; font-size: 13.5px; color: var(--ink-soft); }
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 600; margin: 36px 0 12px; font-size: 19px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px; }
+h3 { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+h4 { margin: 16px 0 6px; font-size: 13.5px; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; }
+pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; line-height: 1.5; background: var(--code-bg); color: var(--code-ink); padding: 14px 16px; border-radius: 6px; overflow-x: auto; }
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+.decision-card { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 16px 18px; margin: 18px 0; }
+.decision-card .q-title { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px; }
+.decision-card .q-prompt { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 500; font-size: 17px; color: var(--ink); margin: 0 0 12px; line-height: 1.35; }
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option { display: block; background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 10px 12px; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes { width: 100%; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px; }
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+details.deferred { margin: 22px 0; padding: 12px 16px; background: var(--paper-deep); border: 1px dashed var(--paper-rule); border-radius: 6px; }
+details.deferred summary { cursor: pointer; font-weight: 600; color: var(--ink-soft); font-size: 13.5px; }
+details.deferred[open] summary { color: var(--ink); }
+details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(--ink-soft); }
+.copy-bar { position: sticky; bottom: 0; margin: 32px -40px -96px; padding: 16px 40px; background: color-mix(in srgb, var(--paper-deep) 96%, transparent); border-top: 1.5px solid var(--paper-rule); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button { background: var(--accent); color: white; border: none; border-radius: 5px; padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background 0.12s; }
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* ===== Per-playground overrides ===== */
+.diagram { line-height: 1.35; }
+.rootcause { background: #fff; border: 1.5px solid var(--paper-rule); border-left: 4px solid var(--accent); border-radius: 6px; padding: 4px 18px 12px; margin: 14px 0 22px; }
+.locked { background: color-mix(in srgb, var(--fail) 6%, var(--paper)); border: 1px solid color-mix(in srgb, var(--fail) 30%, var(--paper-rule)); border-radius: 6px; padding: 12px 18px; margin: 18px 0; font-size: 13px; }
+.locked h3 { margin-top: 4px; color: var(--fail); }
+.locked ul { margin: 6px 0; }
+.tier { border: 1px solid var(--paper-rule); border-radius: 6px; padding: 2px 18px 12px; margin: 14px 0; background: var(--paper-deep); }
+.tier.do-anyway { border-left: 4px solid var(--pass); }
+.tier h3 { display: flex; align-items: center; gap: 8px; }
+.tier .badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 7px; border-radius: 8px; }
+.tier .badge.green { background: color-mix(in srgb, var(--pass) 16%, var(--paper)); color: var(--pass); }
+.tier table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 6px 0; }
+.tier td { padding: 5px 8px; border-bottom: 1px solid var(--paper-edge); vertical-align: top; }
+.tier td.id { font-family: ui-monospace, Menlo, monospace; color: var(--accent); white-space: nowrap; font-size: 11.5px; font-weight: 600; }
+.tier td.goal { white-space: nowrap; font-size: 10.5px; color: var(--ink-mute); text-transform: uppercase; letter-spacing: 0.03em; }
+.goal-tag { display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 7px; margin-right: 4px; }
+.g1 { background: color-mix(in srgb, var(--project-harbor) 16%, var(--paper)); color: var(--project-harbor); }
+.g2 { background: color-mix(in srgb, var(--project-moss) 18%, var(--paper)); color: var(--project-moss); }
+.g3 { background: color-mix(in srgb, var(--project-plum) 16%, var(--paper)); color: var(--project-plum); }
+.fnote { font-size: 12px; color: var(--ink-mute); }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>ENH-195 — CLI edits, disk-sync &amp; false-positive conflicts</h1>
+  <div class="meta">
+    <span class="pill">Decision</span>
+    <span class="pill">ENH-195</span>
+    2026-06-04 (rev 2026-06-05 · +D5 · D3 change-highlight) · v0.8.6 dev · 6-agent codebase map
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> Your three asks — (1) get Duo to edit through the
+  <code>duo</code> CLI verbs instead of the filesystem, (2) make the markdown &amp; other
+  canvas editors notice on-disk changes, (3) stop the false-positive conflict banners —
+  turn out to share <em>one</em> root cause. This page lays out that root cause, the work
+  I'll do regardless of your answers, the locked decisions I'm respecting, and the
+  <strong>5 forks</strong> that genuinely need your call. Pick the radios, hit
+  <em>Copy decisions</em>, paste back, and I execute straight through.
+</div>
+
+<h2>The one root cause</h2>
+<div class="rootcause">
+<p>Duo keeps the editor buffer in sync with disk by <strong>guessing</strong> whether a
+disk change is "our own save echoing back" or "a real external edit." It guesses by
+comparing disk bytes against the editor's <em>serialized</em> view of the document through
+a hand-tuned <code>normalizeForEchoCompare()</code> — a regex stack grown one quirk at a
+time (BOM, CRLF, trailing-ws, soft-breaks, HTML entities, autolinks). That single guess is
+behind all three symptoms:</p>
+<pre class="diagram">
+                       ┌───────────────────────────────────────────┐
+   external write ───▶ │   "echo or real edit?"  guess              │
+   (Claude's Edit,     │   normalize(disk bytes) vs normalize(      │
+    git, cloud sync)   │                 editor's SERIALIZED view)  │
+                       └───────────────────────────────────────────┘
+                          │                 │                  │
+              guesses "real"        guesses "echo"      can't be asked
+              when it's an echo     when it's REAL      "is this file open?"
+                          ▼                 ▼                  ▼
+              ┌────────────────┐  ┌──────────────────┐  ┌────────────────────┐
+              │ GOAL 3         │  │ GOAL 2           │  │ GOAL 1             │
+              │ FALSE-POSITIVE │  │ EDITOR SILENTLY  │  │ Claude writes      │
+              │ conflict banner│  │ SWALLOWS a real  │  │ BEHIND the editor  │
+              │ on your own    │  │ on-disk change   │  │ (no surgical verb, │
+              │ edit           │  │ (looks "frozen") │  │  no open-tab probe)│
+              └────────────────┘  └──────────────────┘  └────────────────────┘
+</pre>
+<p class="fnote"><strong>BUG-166</strong> (2026-05-26) added a byte-exact disk snapshot
+(<code>lastSeenDiskBodyRef</code>) that mostly fixed the markdown false-positive — but the
+fix is <em>incomplete</em>: the fallback path still compares against the serialized view,
+the <strong>HTML canvas never got the byte-exact ref at all</strong>, and the sanctioned
+CLI write path (<code>applyDocWrite</code>) never registers its echo — so even a
+<em>correct</em> <code>duo doc write</code> can false-positive in the autosave window
+("the false positive right after I applied a change"). That last bit is why goals 1 and 3
+are entangled, exactly as you suspected.</p>
+</div>
+
+<h3>Why Claude reaches for the filesystem (goal 1 is a capability gap, not just nagging)</h3>
+<ul>
+  <li><strong>No surgical markdown verb.</strong> <code>duo doc write --replace-selection</code>
+    targets <em>your</em> cursor (the agent can't set it); <code>--replace-all</code> resends the
+    whole doc. "Change line 12 of an open <code>.md</code>" has no good CLI path → Claude uses
+    <code>Edit</code>. (The HTML canvas <em>does</em> have surgical <code>duo html set/replace/append</code>.)</li>
+  <li><strong>JSON/YAML has no edit verb at all.</strong></li>
+  <li><strong>Claude can't even ask "is this file open in Duo?"</strong> The skill tells it to check
+    <code>duo nav state → working tabs</code> — but that field <em>doesn't exist</em>. No verb lists open file tabs.</li>
+  <li><strong>The "never Write/Edit an open file" rule</strong> lives only in the on-demand skill + subagent.
+    The always-loaded <code>priming.md</code> omits it and actively frames <code>duo edit</code> as an
+    <em>open/read</em> substitute → "open with duo, edit with Edit" = the exact bug.</li>
+</ul>
+
+<h2>The plan I'll execute regardless of your answers</h2>
+<p>These are pure correctness / responsiveness fixes with no UX trade-off; they respect
+every locked decision below. (Goal tags: <span class="goal-tag g1">G1 cli</span>
+<span class="goal-tag g2">G2 responsive</span> <span class="goal-tag g3">G3 no-false-pos</span>)</p>
+
+<div class="tier do-anyway">
+  <h3><span class="badge green">Do anyway</span> Tier A — conflict correctness</h3>
+  <p class="fnote"><strong>Shape depends on Decision 5.</strong> If you scope the parallel-surfaces lock (D5 = shared hook), A1/A2/A4/A5 become <em>one</em> implementation both surfaces consume — not two mirrored copies that can drift (the BUG-166 failure).</p>
+  <table>
+    <tr><td class="id">A1</td><td><span class="goal-tag g3">G3</span> Markdown fallback compares <em>raw-vs-raw</em> (<code>lastSeenDiskBodyRef</code>), not vs the serialized view — closes the residual false-positive class BUG-166 left open.</td></tr>
+    <tr><td class="id">A2</td><td><span class="goal-tag g3">G3</span> Port the byte-exact ref to the <strong>canvas</strong> (<code>lastSeenDiskHtmlRef</code>), advanced in lockstep. Parity disposition: <em>mirrored</em>.</td></tr>
+    <tr><td class="id">A3</td><td><span class="goal-tag g3">G3</span><span class="goal-tag g1">G1</span> <code>applyDocWrite</code> + any new edit verb <strong>echo-register</strong> their result, so a sanctioned CLI write can't false-positive in the autosave window.</td></tr>
+    <tr><td class="id">A4</td><td><span class="goal-tag g3">G3</span> Canvas save-pre-reconcile uses <code>normalizeDuoHtml</code> (matching its own watcher) — kills a latent canvas false-positive.</td></tr>
+    <tr><td class="id">A5</td><td><span class="goal-tag g3">G3</span> Echo set clears <em>deterministically</em> on the matching watcher event (cap by count) instead of a 5s timer that expires on big files (the BUG-166 1.2MB case).</td></tr>
+    <tr><td class="id">A6</td><td><span class="goal-tag g3">G3</span> <strong>Integration tests</strong> for both state machines (6 scenarios: silent-reload, dirty-banner, first-save-after-open, rapid-double-save, canvas id-strip, canvas cosmetic) — the durable coverage missing across ~11 bugs.</td></tr>
+  </table>
+</div>
+
+<div class="tier do-anyway">
+  <h3><span class="badge green">Do anyway</span> Tier B — responsiveness</h3>
+  <table>
+    <tr><td class="id">B2</td><td><span class="goal-tag g2">G2</span> Editor watcher stops inheriting the navigator's <code>.git/.obsidian/node_modules</code> ignore for the single open file.</td></tr>
+    <tr><td class="id">B3</td><td><span class="goal-tag g2">G2</span> Post-attach catch-up read closes the load↔watch race (a write right after open is no longer missed).</td></tr>
+    <tr><td class="id">B4</td><td><span class="goal-tag g2">G2</span> Handle rename/delete of the open file (watch the parent dir / re-arm) instead of going deaf.</td></tr>
+    <tr><td class="id">B5</td><td><span class="goal-tag g2">G2</span> <strong>JSON/YAML viewer gets a watcher</strong> + clean-reload + save-pre-reconcile (structural compare for YAML so comments don't false-positive). Fixes today's silent-data-loss path.</td></tr>
+    <tr><td class="id">B6</td><td><span class="goal-tag g2">G2</span> <strong>Image viewer gets a watcher</strong> (read-only reload + size refresh).</td></tr>
+    <tr><td class="id">B7</td><td><span class="goal-tag g2">G2</span> <strong>PDF viewer gets a watcher</strong> (cache-bust the embed on change).</td></tr>
+  </table>
+</div>
+
+<div class="tier do-anyway">
+  <h3><span class="badge green">Do anyway</span> Tier C — guidance (goal 1, the non-forking part)</h3>
+  <table>
+    <tr><td class="id">C-g1</td><td><span class="goal-tag g1">G1</span> Add the "edit through duo verbs, not Write/Edit, for open files" rule to <code>priming.md</code> <em>and the installer template</em> (so it ships to all users) + a one-line rule in root <code>CLAUDE.md</code>.</td></tr>
+    <tr><td class="id">C-g2</td><td><span class="goal-tag g1">G1</span> Fix the stale <code>nav state → working tabs</code> references in <code>SKILL.md</code> + <code>agents/duo.md</code> to point at the real open-tabs verb (see Decision 1).</td></tr>
+  </table>
+</div>
+
+<div class="locked">
+  <h3>Locked decisions I'm respecting (won't touch without your say-so)</h3>
+  <ul>
+    <li><strong>Editor &amp; canvas <u>editing surfaces</u> stay parallel</strong> — TipTap-markdown vs "the canvas IS the page" contentEditable (DECISIONS.md, PRD-H1). I keep the <em>editors</em> separate regardless. <strong>Decision 5</strong> revisits only whether the <em>reconciliation layer</em> (watch/echo/conflict) may be shared — that's the one part of this lock actually in play.</li>
+    <li><strong>Canvas: an external write that strips <code>data-duo-id</code> anchors must still banner</strong> (BUG-125-v2 Q2 — anchor-loss = data loss). Decision 4 touches the edge of this.</li>
+    <li><strong>No sidecar disk-hash cache</strong> (DECISIONS.md / CLAUDE.md §12) — reconciliation refs stay in-memory.</li>
+    <li><strong>Don't widen <code>normalizeForEchoCompare</code> again</strong> — retired anti-pattern (one-ref/two-purposes). Fixes use the byte-exact ref, never a 7th regex.</li>
+  </ul>
+</div>
+
+<h2>The 4 forks I need you to decide</h2>
+
+<section class="decision-card">
+  <div class="q-title">Decision 1 · Goal 1 capability</div>
+  <h3 class="q-prompt">How much new CLI edit-surface should I build?</h3>
+  <p class="q-context">The capability gap is the real reason Claude uses <code>Edit</code>. More surface = more plumbing (each verb spans cli/duo.ts + SKILL.md + agents/duo.md + CLI-COVERAGE.md + the renderer handler), but directly removes the incentive to bypass the editor.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d1-cli-scope" value="full-suite">
+      <div class="q-option-body">
+        <div class="q-option-title">Full suite <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale"><code>duo doc edit --find/--replace [--occurrence]</code> (surgical markdown) + <code>duo json set/merge</code> (JSON/YAML) + <code>duo status</code> (lists open tabs + dirty flags). Closes the gap for every editable kind. Biggest build, but it's the durable fix — and <code>duo status</code> is already specced P1.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d1-cli-scope" value="md-and-status">
+      <div class="q-option-body">
+        <div class="q-option-title">Markdown + status only</div>
+        <div class="q-option-rationale"><code>duo doc edit</code> + <code>duo status</code>; defer <code>duo json</code> (JSON leans on the new watcher + guidance). Covers the common case; smaller blast radius.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d1-cli-scope" value="status-only">
+      <div class="q-option-body">
+        <div class="q-option-title">Status primitive only</div>
+        <div class="q-option-rationale">Just <code>duo status</code> + guidance; no new edit verbs. Smallest. But "change one line" still means <code>--replace-all</code> (whole-doc resend) — the Edit-tool incentive largely survives.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="d1-notes" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 2 · Goal 1 enforcement</div>
+  <h3 class="q-prompt">How hard should Duo push Claude off the filesystem for open files?</h3>
+  <p class="q-context">Guidance alone is weak (the skill may not even load on a plain "edit this file" request). A <code>PreToolUse</code> hook catches it mechanically — but hooks add latency to every edit and live in your <code>settings.json</code>.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d2-enforce" value="guidance-plus-warn">
+      <div class="q-option-body">
+        <div class="q-option-title">Guidance + warn-only hook <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Fix the docs/priming, AND add a <code>PreToolUse</code> hook (gated on <code>DUO_SESSION</code>, fail-open) that <em>warns</em> + suggests the verb when Edit/Write targets a Duo-open file. Mechanical catch, no blocking, no friction if the probe is down.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d2-enforce" value="guidance-only">
+      <div class="q-option-body">
+        <div class="q-option-title">Guidance only — no hook</div>
+        <div class="q-option-rationale">Docs + priming + the new verbs; no <code>settings.json</code> change. Lowest friction, nothing to misfire — but relies entirely on the model heeding text.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d2-enforce" value="guidance-plus-block">
+      <div class="q-option-body">
+        <div class="q-option-title">Guidance + blocking hook</div>
+        <div class="q-option-rationale">Hook <em>blocks</em> (exit 2) the edit and forces the verb. Strongest guarantee, but risks false-blocking a legit edit to a path that merely looks open, and adds sandbox friction.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="d2-notes" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 3 · Goal 2 responsiveness</div>
+  <h3 class="q-prompt">When disk changes externally and your buffer is clean, how should the reload feel?</h3>
+  <p class="q-context">Today a clean-buffer external edit the normalize stack deems "cosmetic" (rewrapped paragraph, CRLF, <code>&lt;</code>↔<code>&amp;lt;</code>, an added autolink) is <em>silently swallowed</em> — the editor never reloads. Since the buffer is clean you lose nothing by reloading; the only real cost of always-reloading is <em>disorientation</em> ("the doc moved under me — what changed?"). A change-highlight removes exactly that cost — and the wash layer already exists (<code>JustAdded</code>, used today for CLI writes), so it's cheaper than it sounds.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d3-clean-reload" value="highlight-on-reload">
+      <div class="q-option-body">
+        <div class="q-option-title">Reload + highlight what changed, until you next edit <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Always reload on any byte change, AND wash the <em>added</em> ranges so you can see what an agent/sync just did; the wash persists until your next edit, then clears. The highlight is a ProseMirror <em>decoration</em> — pure view chrome that never touches the doc, so it can't cause a conflict or alter content. Reuses the existing <code>JustAdded</code> wash + the locked "reach for decorations first" rule; the only new piece is a diff to choose the ranges (<code>prosemirror-changeset</code> → PM positions directly). <strong>Markdown ≈ ½–1 day, low-risk;</strong> canvas a bit more (may land a beat later — parity-deferred).</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d3-clean-reload" value="byte-faithful-silent">
+      <div class="q-option-body">
+        <div class="q-option-title">Reload silently (byte-faithful, no highlight)</div>
+        <div class="q-option-rationale">Always reload on any byte change, but no change-wash. Simplest; the editor always matches disk, but a change off-screen or mid-doc can pass unnoticed. Same reload path — the highlight can be added later without rework.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d3-clean-reload" value="keep-swallow">
+      <div class="q-option-body">
+        <div class="q-option-title">Keep swallowing cosmetic diffs</div>
+        <div class="q-option-rationale">Preserve today's behavior — don't reload when the change is normalize-equal. Least "jumpy," but genuinely-changed-but-cosmetic-looking edits stay invisible until a bigger edit lands; doesn't fix the core "editor doesn't notice changes" complaint.</div>
+      </div>
+    </label>
+  </div>
+  <details class="deferred" style="margin:12px 0 0;">
+    <summary>If you pick highlight — the design defaults I'd use (override in notes)</summary>
+    <div class="deferred-body">
+      <ul>
+        <li><strong>Lifetime:</strong> the wash survives the reload and clears on your first doc-changing edit (your "until buffer changes"). Scrolling/clicking don't clear it.</li>
+        <li><strong>Additions + changes washed; deletions get a thin left-margin tick</strong> (you can't wash absent text). Say the word if you'd rather ignore deletions entirely.</li>
+        <li><strong>Granularity:</strong> inline word-level ranges from the diff (tracked-changes feel), not whole-paragraph blocks.</li>
+        <li><strong>Big rewrites:</strong> if one external write changes more than ~half the doc, skip the wash and show a one-line "reloaded from disk" note instead — washing everything is just noise.</li>
+        <li><strong>Multiple reloads while away:</strong> highlight = diff vs the last version you actually saw, recomputed each reload (two agent writes accumulate, not just the latest).</li>
+        <li><strong>Off-screen changes:</strong> v1 highlights in place; a "↕ N changes from disk" jump-pill is an easy fast-follow.</li>
+        <li><strong>Treatment:</strong> the same accent wash CLI writes use, but steady (no 6s fade) until cleared.</li>
+      </ul>
+    </div>
+  </details>
+  <textarea class="q-notes" name="d3-notes" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 4 · Goal 3 UX (touches a lock)</div>
+  <h3 class="q-prompt">When an <em>agent</em> edit lands on a file you have unsaved edits in, what happens?</h3>
+  <p class="q-context">Today: the "changed on disk — Reload / Keep mine" banner (locked by BUG-085). Once edits route through verbs (echo-clean) + A3 lands, this becomes <em>rare</em> — it only fires on a genuine raw-filesystem divergence. Changing the banner itself means revisiting a locked UX.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d4-dirty-ux" value="keep-banner">
+      <div class="q-option-body">
+        <div class="q-option-title">Keep the banner; just make it rare <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Route agent edits through echo-clean verbs + close the A3 window, so the banner only appears on a true conflict (real raw-fs divergence over unsaved edits). No change to the locked UX.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d4-dirty-ux" value="auto-adopt">
+      <div class="q-option-body">
+        <div class="q-option-title">Auto-adopt the agent edit, stash yours to undo</div>
+        <div class="q-option-rationale">Apply the incoming change and push your unsaved edits onto an undo step. Frictionless, but can surprise you mid-thought. Revisits the BUG-085 lock.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d4-dirty-ux" value="three-way">
+      <div class="q-option-body">
+        <div class="q-option-title">Three-way merge prompt</div>
+        <div class="q-option-rationale">Show a real merge (yours / theirs / base). Richest, but the most build + the most in-the-moment cognitive load. Revisits the lock.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="d4-notes" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 5 · Architecture (you raised this — revisits a lock)</div>
+  <h3 class="q-prompt">Should the watch/echo/conflict machinery be one shared primitive, or stay mirrored across the two surfaces?</h3>
+  <p class="q-context">The DECISIONS.md lock keeps the <em>editing</em> surfaces parallel — TipTap-markdown vs "the canvas IS the page" contentEditable — for sound reasons (PRD-H1: wrapping the canvas in TipTap would schema-rewrite hand-authored HTML). But that rationale is entirely about the <em>editing contract</em>; it never really covered the <strong>reconciliation machinery</strong> (watch disk → echo-vs-external → reload-or-banner), which is the <em>same state machine</em> on both surfaces and differs only in injectable bits (serialize, reload, normalize, dirty-test, the canvas anchor-loss banner). Two divergent copies is exactly <em>why</em> BUG-166's byte-exact fix landed in markdown but silently skipped the canvas. This reshapes how Tier A (A1/A2/A4/A5) is built.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d5-recon-arch" value="shared-hook">
+      <div class="q-option-body">
+        <div class="q-option-title">One shared reconciliation hook <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Extract <code>useDiskReconciliation</code>; both editors <em>and</em> the new JSON watcher consume it, each injecting its own serialize / reload / normalize / dirty-test / anchor-banner. Parity becomes <strong>structural</strong>, not a rule humans forget. It touches <em>zero</em> editing contracts (serialize/reload are delegated back per-surface) — so PRD-H1 and the lock's core reasoning stand; this is a narrow, reversible <em>scoping</em> of the lock to "editing primitive, not reconciliation," recorded as a DECISIONS.md amendment. Lands <em>after</em> the A6 integration tests, which prove behavior is preserved across the refactor of the most-regressed code.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d5-recon-arch" value="keep-mirrored">
+      <div class="q-option-body">
+        <div class="q-option-title">Keep mirrored — lock fully intact (today's plan)</div>
+        <div class="q-option-rationale">A1/A2/A4/A5 land twice (markdown + canvas); the parity <em>rule</em> (declare disposition per PR) is the safety net. Lowest blast radius now, no lock change — but parity stays a human discipline that has already failed once (the BUG-166 canvas miss this whole effort is fixing).</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d5-recon-arch" value="full-unify">
+      <div class="q-option-body">
+        <div class="q-option-title">Fully unify the editing surfaces — not recommended</div>
+        <div class="q-option-rationale">Merge TipTap-markdown and the contentEditable canvas into one editor. This is what the lock <em>correctly</em> forbids: it breaks "the canvas IS the page" (PRD-H1) and is a multi-month rewrite of two mature surfaces. Listed only so it's explicitly on the table and rejected — relaxing the lock does NOT require going this far.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="d5-notes" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<details class="deferred">
+  <summary>Implementation order &amp; risk notes (click to expand)</summary>
+  <div class="deferred-body">
+    <p><strong>Order:</strong> (1) Tier A conflict-correctness + A6 tests <em>first</em> — they harden the most-regressed code and give CI a backstop before anything else moves. (2) Tier C guidance + the <code>duo status</code> primitive (Decision 1) — unblocks reliable "is this open?" detection. (3) New edit verbs per Decision 1. (4) Decision 2 hook (only after <code>duo status</code> exists). (5) Tier B responsiveness across all surfaces. (6) Decisions 3 &amp; 4 behavior. Then typecheck → unit tests → live verify in a dev build of this worktree → <code>/smoke-walk</code> → version cut.</p>
+    <p><strong>Verification caveat:</strong> the Duo currently running is the packaged <code>/Applications/Duo.app</code> (v0.8.5), not a dev build of this worktree. I'll stand up a dev build to verify the changes live before claiming done — I won't kill your running app without asking first.</p>
+    <p><strong>Tracked as ENH-195</strong> in <code>tasks.md</code>; this page is the design-of-record. (I also noticed <code>RESUME.md</code> / <code>active-sprint.md</code> still say "Sprint 24 / v0.8.1" while the repo is on v0.8.6 — I'll fold a doc-sync in.)</p>
+  </div>
+</details>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0 / 5</span> decisions answered</div>
+  <button id="copy-decisions" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  const counter = document.getElementById('answered-count');
+  const button  = document.getElementById('copy-decisions');
+
+  const QUESTIONS = [
+    { id: 'd1-cli-scope',   title: 'Decision 1 · New CLI edit-surface scope' },
+    { id: 'd2-enforce',     title: 'Decision 2 · Goal-1 enforcement strength' },
+    { id: 'd3-clean-reload',title: 'Decision 3 · Clean-buffer reload behavior (+ change-highlight)' },
+    { id: 'd4-dirty-ux',    title: 'Decision 4 · Dirty-buffer agent-write UX' },
+    { id: 'd5-recon-arch',  title: 'Decision 5 · Reconciliation architecture (shared hook vs mirrored)' },
+  ];
+
+  function refreshCount() {
+    let answered = 0;
+    for (const q of QUESTIONS) {
+      if (document.querySelector('input[name="' + q.id + '"]:checked')) answered++;
+    }
+    counter.textContent = answered + ' / ' + QUESTIONS.length;
+  }
+  document.addEventListener('change', refreshCount);
+  document.addEventListener('input', refreshCount);
+  refreshCount();
+
+  function buildPayload() {
+    const lines = [];
+    lines.push('ENH-195 — CLI EDITS / DISK-SYNC / FALSE-POSITIVE CONFLICTS — DECISIONS (' + new Date().toISOString().slice(0, 10) + ')');
+    lines.push('=================================================================================');
+    lines.push('');
+    for (const q of QUESTIONS) {
+      const checked = document.querySelector('input[name="' + q.id + '"]:checked');
+      const value = checked ? checked.value : '(no pick)';
+      const base = (q.id.match(/^(d\d+)/) || [q.id])[0];
+      const notes = (document.querySelector('textarea[name="' + base + '-notes"]')?.value || '').trim();
+      lines.push('[' + value.toUpperCase() + '] ' + q.title);
+      if (notes) for (const line of notes.split('\n')) lines.push('    ' + line);
+      lines.push('');
+    }
+    lines.push('---');
+    lines.push('Source: docs/research/enh-195-cli-edits-disk-sync.html');
+    return lines.join('\n');
+  }
+
+  button.addEventListener('click', async function () {
+    const payload = buildPayload();
+    try {
+      await navigator.clipboard.writeText(payload);
+      button.textContent = 'Copied!';
+      button.classList.add('copied');
+      setTimeout(function () { button.textContent = 'Copy decisions'; button.classList.remove('copied'); }, 2000);
+    } catch (err) {
+      button.textContent = 'Copy failed — paste manually';
+      console.error(err);
+    }
+  });
+})();
+</script>
+
+</body>
+</html>

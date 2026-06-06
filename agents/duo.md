@@ -65,9 +65,11 @@ inside the app, so its presence is the canonical "am I inside Duo" signal.
   (`--replace-selection` or `--replace-all`). Filesystem writes against the
   same path bypass the live TipTap state, conflict with autosave, and can be
   silently overwritten the next time the user types. If you're unsure whether
-  the file is open in the editor, call `duo nav state` first — check the
-  `working` tabs before reaching for `Write`. The conflict banner from
-  BUG-085's v1 fix is a safety net, not the happy path.
+  the file is open in the editor, run `duo status` first — it lists every open
+  file tab with its `path` / `kind` / `dirty` flag. (Do NOT use `duo nav state`
+  for this: it's the file-TREE selection snapshot and has no `working` field —
+  checking it for open tabs never worked.) The conflict banner from BUG-085's
+  v1 fix is a safety net, not the happy path.
 - **Same rule for `.html` files open in Duo's canvas.** Apply mutations via
   the `duo html` verbs (`set` / `replace` / `append` / `remove` / `attr`
   against `data-duo-id` anchors; `new` to seed fresh files). A filesystem
@@ -165,7 +167,8 @@ empty.
 | `duo errors [--since] [--limit]` | Uncaught browser exceptions (separate ring buffer — `Runtime.exceptionThrown`) |
 | `duo network [--since] [--filter <regex>] [--limit]` | HTTP request lifecycle |
 | `duo wait <selector> [--timeout ms]` | Block until element appears |
-| `duo nav state` | `{ cwd, selected, expanded, pinned }` |
+| `duo nav state` | `{ cwd, selected, expanded, pinned }` — file-TREE state, NOT open tabs. For open-tab checks use `duo status`. |
+| `duo status` | **ENH-195** — read-only JSON of every open working-pane file tab: `{ tabs: [{ kind, path?, url?, title, dirty, active, pinned }], active, focusedColumn, theme, … }`. The reliable "is this file open in Duo?" probe — run BEFORE any `Write`/`Edit` so an open file routes through the matching `duo` verb (`doc edit` / `doc write` · `html *` · `json set` / `merge`). |
 | `duo ls [path]` | List directory (defaults to nav cwd) |
 | `duo view <path> [--canvas]` | Legacy verb — open file in Viewer/Editor column. Prefer `duo open` (browser-mode HTML) or `duo edit` (canvas-mode HTML) for ENH-156 verb-driven routing. |
 | `duo edit <path> [--browser] [--reveal]` | **ENH-156** — HTML lands in canvas mode (source-editable, scripts blocked). `.md` → TipTap editor. `--browser` rare override forces browser-mode mount for HTML. `--canvas` accepted as deprecated no-op. |
@@ -184,6 +187,8 @@ empty.
 | `duo selection [--pane auto\|editor\|browser\|canvas]` | Active surface's selection (use when goal references "this", "selected", "here"). `canvas` returns `{kind:'page', path, text, html, anchorId, anchorPath, range, surrounding}` for the active page tab. |
 | `duo doc read [path]` | Live editor buffer (frontmatter + body, including unsaved edits) |
 | `duo doc write [--replace-selection\|--replace-all]` | Apply text to active editor (stdin or `--text`) |
+| `duo doc edit <file> --find "X" --replace "Y" [--occurrence N\|--all] [--at-line N]` | **ENH-195** — surgical PLAIN-markdown find/replace. Reconciles into the live editor when the file is OPEN (echo-safe, no whole-doc resend); edits on disk when CLOSED. Use this — not `Write`/`Edit` — for a markdown file that might be open. |
+| `duo json set <file> <dotpath> <value>` / `duo json merge <file> <patch.json>` | **ENH-195** — structured JSON/YAML edit by dot-path or shallow top-level merge. Reconciles into the open JSON/YAML viewer when OPEN; edits on disk when CLOSED. Use instead of `Write`/`Edit` for `.json` / `.yaml`. YAML re-serialization drops comments. |
 | `duo image insert <path> [--alt "…"]` | ENH-108 + ENH-125 — insert an image into the active markdown editor OR HTML canvas. Source bytes read from disk, copied alongside the active doc as `image-<YYYYMMDD-HHMMSS>-<hash>.<ext>`, inserted at caret. Supported extensions: png, jpg, jpeg, gif, webp, svg, bmp, tiff. Both surfaces respond to the verb in v0.6.11 (canvas parity closed via ENH-125). The persisted source carries the relative filename (FOLLOWUP-014); on render Duo hydrates a blob URL via files.read. |
 | `duo doc goto [<path>] --heading "X" \| --line N \| --anchor "Y"` | ENH-022 — scroll editor to a target. `--heading` markdown-only (case-insensitive substring). `--line` 1-indexed. `--anchor` = markdown heading slug OR canvas/HTML element id (`data-duo-id` first, then `id`). Returns `{ok, path, line?, anchor?}` |
 | `duo doc find <query> [<path>] [--case-sensitive]` | ENH-023 — search markdown editor's live buffer; returns `{ok, path, matches, first: {line, col}}`. v1 markdown only |

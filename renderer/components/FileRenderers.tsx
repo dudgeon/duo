@@ -8,10 +8,29 @@ import type { WorkingTab } from '@shared/types'
 export function PdfPreview({ tab }: { tab: WorkingTab }) {
   // Electron's built-in Chromium ships a PDF viewer; <embed> with the
   // application/pdf type uses it. No extra plugins.
+  // ENH-195 (B7) — cache-bust on disk change so a regenerated PDF refreshes.
+  // The Chromium PDF plugin caches by URL, so we append a changing
+  // `#duobust=N` fragment to force a re-fetch when the watcher fires; the
+  // fragment doesn't affect in-document navigation.
+  const [bust, setBust] = useState(0)
+  useEffect(() => {
+    if (!tab.path) return
+    // ENH-195 (review) — cancelled-flag guard (mirrors ImageView): if the
+    // effect is torn down (unmount / path change) before the async watch()
+    // resolves, unwatch the late-resolving handle immediately so the
+    // main-process FSWatcher + IPC listener don't leak.
+    let cancelled = false
+    let unwatch: (() => Promise<void>) | undefined
+    void window.electron.files.watch([tab.path], ev => {
+      if (ev.path === tab.path && ev.kind !== 'removed') setBust(b => b + 1)
+    }).then(fn => { if (cancelled) void fn(); else unwatch = fn })
+    return () => { cancelled = true; void unwatch?.() }
+  }, [tab.path])
+
   return (
     <div className="flex-1 overflow-hidden bg-surface-0">
       <embed
-        src={'file://' + encodeURI(tab.path ?? '')}
+        src={'file://' + encodeURI(tab.path ?? '') + '#duobust=' + bust}
         type="application/pdf"
         className="w-full h-full"
       />

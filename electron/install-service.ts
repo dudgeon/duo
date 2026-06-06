@@ -104,6 +104,19 @@ const SETTINGS_PATH = path.join(HOME, '.claude', 'settings.json')
 const SHIM_PATH = path.join(SHIM_DIR, 'claude')
 const USER_CLAUDE_MD_PATH = path.join(HOME, '.claude', 'CLAUDE.md')
 
+// ENH-195 — warn-only PreToolUse "open-file guard" hook. The fail-open,
+// DUO_SESSION-gated shell script ships in the repo at
+// skill/hooks/duo-open-file-guard.sh; the installer copies it to
+// HOOKS_DEST_DIR (chmod 755) and registers a PreToolUse entry in
+// ~/.claude/settings.json pointing at PRETOOL_GUARD_COMMAND. The command
+// uses $HOME (not the literal homedir) so the registered settings entry
+// stays portable. Convenience-only — never load-bearing; a write failure
+// is caught + warned and the install continues (mirrors the SessionStart
+// hook's enterprise-locked-settings tolerance).
+const HOOKS_DEST_DIR = path.join(DUO_DIR, 'hooks')
+const PRETOOL_GUARD_DEST = path.join(HOOKS_DEST_DIR, 'duo-open-file-guard.sh')
+const PRETOOL_GUARD_COMMAND = '$HOME/.claude/duo/hooks/duo-open-file-guard.sh'
+
 // Stage 19b — duo-managed SessionStart hook marker. The `_duo` field
 // is sibling to `hooks` inside the array entry so Claude Code's hook
 // runtime ignores it (it only reads recognized fields), and our
@@ -413,6 +426,8 @@ export class InstallService {
       await fs.mkdir(path.join(SKILLS_DUO_DIR, 'references'), { recursive: true })
       await fs.mkdir(AGENTS_DIR, { recursive: true })
       await fs.mkdir(HELP_DEST_DIR, { recursive: true })
+      // ENH-195 — dest dir for the warn-only PreToolUse open-file guard.
+      await fs.mkdir(HOOKS_DEST_DIR, { recursive: true })
 
       // Stage 21e-iii — read previous SHAs from installed.json so we
       // can detect user customizations on upgrade. Will be undefined
@@ -475,6 +490,19 @@ export class InstallService {
         path.join(AGENTS_DIR, 'duo.md'),
         prevShas
       ))
+
+      // ENH-195 — skill/hooks/duo-open-file-guard.sh →
+      // ~/.claude/duo/hooks/duo-open-file-guard.sh. Copied through the
+      // SAME provenance-aware path as every other tracked Duo file (so
+      // customization preservation + orphan cleanup apply), then chmod
+      // 755 — safeOverwriteFile copies the bytes but not the exec bit,
+      // and a PreToolUse hook must be executable.
+      fileResults.push(await this.safeOverwriteFile(
+        path.join(sourceRoot, 'skill', 'hooks', 'duo-open-file-guard.sh'),
+        PRETOOL_GUARD_DEST,
+        prevShas
+      ))
+      await fs.chmod(PRETOOL_GUARD_DEST, 0o755).catch(() => {})
 
       // help/*.html → ~/.claude/duo/help/*.html. User can customize the
       // installed copies; the bundle copies remain as a fallback.
@@ -617,6 +645,24 @@ export class InstallService {
         console.warn(
           '[install] SessionStart hook merge failed (likely enterprise-locked settings.json) — skipping. ' +
           'The PATH shim below remains the primary priming path; hook is a redundant safety net. ' +
+          'Error:',
+          (err as Error)?.message ?? err
+        )
+      }
+
+      // ENH-195 — warn-only PreToolUse open-file-guard hook merge.
+      // Idempotent like the SessionStart merge: replaces our own
+      // duo-tagged PreToolUse entry on re-run; leaves any non-Duo
+      // PreToolUse entries untouched. NON-LOAD-BEARING — the guard is a
+      // convenience nudge, so a write failure (e.g. enterprise-locked
+      // settings.json) must NOT abort the install. Same graceful-failure
+      // pattern as the SessionStart hook above.
+      try {
+        await this.installPreToolUseHook()
+      } catch (err) {
+        console.warn(
+          '[install] PreToolUse open-file-guard hook merge failed (likely enterprise-locked settings.json) — skipping. ' +
+          'The guard is an advisory nudge, never load-bearing; the install proceeds without it. ' +
           'Error:',
           (err as Error)?.message ?? err
         )
@@ -1018,6 +1064,92 @@ exec "$REAL_CLAUDE" --append-system-prompt "$(cat "$PRIMING_FILE")" "$@"
     }
 
     hooks.SessionStart = [...filtered, duoEntry]
+    settings.hooks = hooks
+
+    // Atomic write via tmp + rename so a partial write doesn't corrupt
+    // the user's settings file.
+    await fs.mkdir(path.dirname(SETTINGS_PATH), { recursive: true })
+    const tmpPath = `${SETTINGS_PATH}.tmp-${process.pid}`
+    await fs.writeFile(tmpPath, JSON.stringify(settings, null, 2) + '\n')
+    await fs.rename(tmpPath, SETTINGS_PATH)
+  }
+
+  /**
+   * ENH-195 — idempotent PreToolUse open-file-guard hook merge.
+   *
+   * A near-copy of `installSessionStartHook()` above, targeting
+   * `hooks.PreToolUse` with `matcher: "Edit|Write|MultiEdit"`. Reads
+   * `~/.claude/settings.json` (creates if absent), upserts our duo-tagged
+   * entry, writes back atomically via tmp + rename. Reuses the SAME
+   * `_duo: "managed-v<N>"` marker convention as the SessionStart hook so
+   * subsequent installs find + replace our own entry (refreshing the
+   * version suffix) without disturbing any user-authored PreToolUse
+   * hooks.
+   *
+   * Our prior entry is identified by EITHER the `_duo` marker key OR an
+   * inner `hooks[].command === PRETOOL_GUARD_COMMAND` (catches a
+   * pre-marker / hand-mirrored orphan, exactly like the SessionStart
+   * merge's command-equivalence guard). Foreign entries — anything
+   * without our marker and without our command — pass through untouched.
+   *
+   * The `_duo` marker is a sibling of `hooks`/`matcher` and ignored by
+   * the Claude Code runtime (it only reads recognized keys).
+   */
+  private async installPreToolUseHook(): Promise<void> {
+    let settings: Record<string, unknown> = {}
+    try {
+      const raw = await fs.readFile(SETTINGS_PATH, 'utf8')
+      settings = JSON.parse(raw) as Record<string, unknown>
+      if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+        settings = {}
+      }
+    } catch {
+      // File doesn't exist or isn't valid JSON — start fresh.
+      settings = {}
+    }
+
+    const hooks = (settings.hooks && typeof settings.hooks === 'object'
+      ? settings.hooks as Record<string, unknown>
+      : {}) as Record<string, unknown>
+
+    const existing = Array.isArray(hooks.PreToolUse) ? hooks.PreToolUse as unknown[] : []
+
+    // Drop:
+    //   (a) any prior duo-marked entry (replaced by the fresh entry below
+    //       so the version-suffix stays current), AND
+    //   (b) any orphan unmarked entry that's command-equivalent to our
+    //       guard — a leftover from a pre-marker install or a manual edit
+    //       that mirrored our command. Mirrors installSessionStartHook's
+    //       (a)+(b) filter so re-running never duplicates our entry.
+    const isDuoCommand = (entry: unknown): boolean => {
+      if (!entry || typeof entry !== 'object') return false
+      const inner = (entry as Record<string, unknown>).hooks
+      if (!Array.isArray(inner)) return false
+      return inner.some(h =>
+        h && typeof h === 'object' &&
+        typeof (h as Record<string, unknown>).command === 'string' &&
+        ((h as Record<string, unknown>).command as string) === PRETOOL_GUARD_COMMAND
+      )
+    }
+    const filtered = existing.filter(entry => {
+      if (!entry || typeof entry !== 'object') return true
+      const e = entry as Record<string, unknown>
+      const marker = e[HOOK_MARKER_KEY]
+      const isMarkedDuo = typeof marker === 'string' && marker.startsWith(HOOK_MARKER_PREFIX)
+      const isOrphanDuoCommand = !isMarkedDuo && isDuoCommand(entry)
+      // Drop both — we'll re-add a single freshly-marked entry below.
+      return !(isMarkedDuo || isOrphanDuoCommand)
+    })
+
+    const duoEntry = {
+      [HOOK_MARKER_KEY]: `${HOOK_MARKER_PREFIX}${app.getVersion()}`,
+      matcher: 'Edit|Write|MultiEdit',
+      hooks: [
+        { type: 'command', command: PRETOOL_GUARD_COMMAND }
+      ]
+    }
+
+    hooks.PreToolUse = [...filtered, duoEntry]
     settings.hooks = hooks
 
     // Atomic write via tmp + rename so a partial write doesn't corrupt

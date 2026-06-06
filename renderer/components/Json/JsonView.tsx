@@ -27,6 +27,11 @@ import { linter, type Diagnostic } from '@codemirror/lint'
 import { decodeUtf8, encodeUtf8 } from '../editor/markdown-io'
 import { useAutosavePreference } from '../editor/autosavePreference'
 import { formatFromPath, parseSource, serializeSource, humanizeParseError, type JsonFormat, type ParserErrorDisplay } from './jsonFormat'
+import { useDiskReconciliation } from '../../hooks/useDiskReconciliation'
+// ENH-195 — pure structured-edit helpers shared with the disk-direct
+// path in core/socket-server.ts so the two `duo json` routes can't drift.
+import { applyJsonPointer, deepMerge } from '../../../core/json/jsonOps'
+import type { JsonOpRequest } from '@shared/types'
 
 const AUTOSAVE_DEBOUNCE_MS = 800
 const LARGE_FILE_THRESHOLD = 1024 * 1024 // 1 MB — above this, skip the tree (render cost is prohibitive) and drop to read-only source view.
@@ -87,6 +92,11 @@ function makeLinter(format: JsonFormat) {
 interface JsonViewProps {
   path: string
   onDirtyChange?: (dirty: boolean) => void
+  /** ENH-195 — true when this JSON viewer is the active visible tab.
+   *  Gates the `duo json set|merge` IPC subscription so only the
+   *  user-facing viewer responds (same race guard as MarkdownEditor's
+   *  onImageInsert / PageTab). */
+  isActive?: boolean
 }
 
 interface LoadState {
@@ -103,7 +113,7 @@ interface LoadState {
   readError?: string
 }
 
-export function JsonView({ path, onDirtyChange }: JsonViewProps) {
+export function JsonView({ path, onDirtyChange, isActive }: JsonViewProps) {
   const format: JsonFormat = useMemo(() => formatFromPath(path), [path])
   const [load, setLoad] = useState<LoadState>({ status: 'loading' })
   const [viewMode, setViewMode] = useState<ViewMode>('tree')
@@ -126,6 +136,100 @@ export function JsonView({ path, onDirtyChange }: JsonViewProps) {
 
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // ENH-195 — forward-ref to save() (defined below) so the
+  // reconciliation hook's triggerSave (Keep-mine) can kick a save
+  // without a hook→save import cycle. Mirrors MarkdownEditor's saveRef.
+  const saveRef = useRef<(override?: { text?: string }) => void>(() => {})
+
+  /**
+   * ENH-195 — the text save() WOULD write, computed from the current
+   * view mode WITHOUT mutating state or hitting disk. Used as the
+   * reconciliation hook's `serialize` adapter (its dirty-check baseline)
+   * and as the body passed to `recon.beforeSave`. Returns '' on any
+   * serialize failure (tree value can't serialize, source can't parse)
+   * — the hook treats '' as "nothing to compare", which is correct for
+   * an un-serializable buffer (the save path itself surfaces the error).
+   */
+  const computeSerializedText = useCallback((): string => {
+    try {
+      if (load.status === 'too-large' || load.status === 'read-error') {
+        // Read-only modes never write; the on-disk text IS the baseline.
+        return lastSavedTextRef.current
+      }
+      if (viewMode === 'tree') {
+        return serializeSource(valueRef.current, format)
+      }
+      // Source mode — the canonical (re-serialized) form is what save
+      // writes. If it doesn't parse yet, there's nothing valid to write.
+      const parsed = parseSource(sourceText, format)
+      return serializeSource(parsed, format)
+    } catch {
+      return ''
+    }
+  }, [load.status, viewMode, sourceText, format])
+
+  /**
+   * ENH-195 — re-parse a fresh on-disk text and re-seed the surface
+   * (value + source buffer + load status + view mode), mirroring the
+   * mount-load logic. Used by the reconciliation hook's `applyReload`
+   * (Reload-from-disk / clean byte-faithful reload). Advances
+   * `lastSavedTextRef` (the JsonView-local on-disk mirror); the hook's
+   * own baselines are advanced by its rebaselineAfterReload path
+   * (serialize() is valid synchronously after this). Does NOT write.
+   */
+  const loadFromText = useCallback((text: string) => {
+    lastSavedTextRef.current = text
+    const size = encodeUtf8(text).byteLength
+    if (size > LARGE_FILE_THRESHOLD) {
+      setLoad({ status: 'too-large', rawText: text, size })
+      setSourceText(text)
+      setViewMode('source')
+      return
+    }
+    try {
+      const parsed = parseSource(text, format)
+      valueRef.current = parsed
+      setSourceText(text)
+      if (parsed === null || typeof parsed !== 'object') {
+        // Primitive root — tree can't render it; force source view.
+        setLoad({ status: 'ready', value: parsed, rawText: text, size })
+        setViewMode('source')
+        return
+      }
+      setLoad({ status: 'ready', value: parsed, rawText: text, size })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setSourceText(text)
+      setLoad({ status: 'parse-error', rawText: text, size, parseError: msg })
+      setViewMode('source')
+    }
+  }, [format])
+
+  // ENH-195 — shared editor↔disk reconciliation primitive (D5). Owns the
+  // chokidar watcher, the echo gauntlet, the byte-exact baseline,
+  // save-pre-reconcile, and the "changed on disk" banner — the same one
+  // the markdown editor + canvas consume. JSON injects byte-exact
+  // comparators (echoEqual / isDirty are RAW string compares — NOT the
+  // markdown normalizer; JSON has no cosmetic round-trip noise to
+  // tolerate). readDiskBody is identity (no frontmatter). Ready once the
+  // load settles to a non-loading state.
+  const recon = useDiskReconciliation({
+    path,
+    isNew: false,
+    surface: 'json',
+    ready: load.status === 'ready' || load.status === 'parse-error' || load.status === 'too-large',
+    serialize: () => computeSerializedText(),
+    applyReload: (diskBody) => loadFromText(diskBody),
+    readDiskBody: (raw) => raw,
+    isDirty: (live, base) => live !== base,
+    echoEqual: (a, b) => a === b,
+    onDirtyChange: (d) => setDirty(d),
+    rebaselineAfterReload: true,
+    triggerSave: () => { void saveRef.current() },
+    appVersion: window.electron?.env?.appVersion ?? '?.?.?',
+    watchOptions: { ignored: [], watchParents: true },
+  })
+
   // ── Load on mount / path change ────────────────────────────────────
   useEffect(() => {
     let cancelled = false
@@ -142,6 +246,9 @@ export function JsonView({ path, onDirtyChange }: JsonViewProps) {
 
         if (size > LARGE_FILE_THRESHOLD) {
           // Tier 1+2 fallback — too big for the tree. Read-only source.
+          // ENH-195 — read-only: serialize() returns the on-disk text, so
+          // the serialized baseline equals the disk body.
+          recon.noteLoaded(text, text)
           lastSavedTextRef.current = text
           setLoad({ status: 'too-large', rawText: text, size })
           setSourceText(text)
@@ -154,8 +261,13 @@ export function JsonView({ path, onDirtyChange }: JsonViewProps) {
           // The tree view requires an object root. Primitive roots
           // (just `42` or `"hello"`) fall back to source view.
           if (parsed === null || typeof parsed !== 'object') {
-            lastSavedTextRef.current = text
             valueRef.current = parsed
+            // ENH-195 — seed both baselines. The serialized view (what
+            // save would write) is the canonical re-serialization; the
+            // disk body is `text`. Source mode round-trips to canonical
+            // on save, so the serialized baseline is the canonical form.
+            recon.noteLoaded(serializeSource(parsed, format), text)
+            lastSavedTextRef.current = text
             setLoad({ status: 'ready', value: parsed, rawText: text, size })
             setSourceText(text)
             // Force source view for primitive roots — tree can't render them.
@@ -163,11 +275,16 @@ export function JsonView({ path, onDirtyChange }: JsonViewProps) {
             return
           }
           valueRef.current = parsed
+          recon.noteLoaded(serializeSource(parsed, format), text)
           lastSavedTextRef.current = text
           setSourceText(text)
           setLoad({ status: 'ready', value: parsed, rawText: text, size })
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
+          // ENH-195 — unparseable on load: serialize() returns '' (can't
+          // re-serialize), so seed the serialized baseline as '' and the
+          // disk body as `text`. A subsequent fix + save advances both.
+          recon.noteLoaded('', text)
           lastSavedTextRef.current = text
           setSourceText(text)
           setLoad({ status: 'parse-error', rawText: text, size, parseError: msg })
@@ -225,7 +342,14 @@ export function JsonView({ path, onDirtyChange }: JsonViewProps) {
     }
 
     try {
+      // ENH-195 — pre-save reconcile through the shared hook: if disk
+      // drifted externally since our baseline it surfaces the banner and
+      // we bail; otherwise it registers the echo so our own write isn't
+      // misread as an external change by the watcher.
+      if ((await recon.beforeSave(text)) === 'conflict') return
       await window.electron.files.write(path, encodeUtf8(text))
+      // ENH-195 — advance both baselines (JsonView-local + the hook's).
+      recon.noteSaved(text)
       lastSavedTextRef.current = text
       setSourceText(text)
       setDirty(false)
@@ -233,10 +357,110 @@ export function JsonView({ path, onDirtyChange }: JsonViewProps) {
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : String(err))
     }
+    // recon's methods (beforeSave/noteSaved) are stable closures; the
+    // recon object literal is new each render but reading .beforeSave /
+    // .noteSaved live is safe (matches MarkdownEditor's save, which also
+    // omits recon from its deps).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, format, viewMode, sourceText, load.status])
 
-  const saveRef = useRef(save)
+  // ENH-195 — saveRef declared above the reconciliation hook; keep it
+  // pointed at the latest save closure.
   saveRef.current = save
+
+  // ENH-195 — `duo json set|merge` handler (open-file buffer path).
+  // Gated on PATH only (file tabs stay mounted, so one JsonView owns the
+  // path). Applies the structured edit to the live parsed value via the
+  // shared pure helpers (matching the disk-direct path in socket-server
+  // byte-for-byte), updates both views, and routes through the existing
+  // echo-safe save() — NEVER writes disk directly (the recon hook
+  // recognizes the save as our own echo).
+  useEffect(() => {
+    return window.electron.json?.onJsonOp((req: JsonOpRequest) => {
+      // ENH-195 (review) — gate on PATH only, NOT isActive: file tabs stay
+      // mounted (display:none) so exactly one JsonView owns this path, and an
+      // inactive-but-open tab must still answer `duo json` (matches markdown's
+      // onDocEditPlain). Gating on isActive made the op hang 10s + lose the edit.
+      if (req.path !== path) return
+      const replyOk = (changed: boolean, reason: string) =>
+        window.electron.json.replyJsonOp({ reqId: req.reqId, ok: true, changed, reason, path })
+      const replyErr = (error: string) =>
+        window.electron.json.replyJsonOp({ reqId: req.reqId, ok: false, changed: false, reason: '', path, error })
+
+      // Read-only / unreadable modes can't accept structured edits.
+      if (load.status === 'too-large') {
+        replyErr('file is open read-only (too large for structured edit)')
+        return
+      }
+      if (load.status === 'read-error') {
+        replyErr('file could not be read')
+        return
+      }
+
+      try {
+        // Build a clean root from the CURRENT buffer state (captures
+        // unsaved source-mode edits too). computeSerializedText throws-
+        // safely → '' on an un-parseable source buffer; guard that.
+        const currentText = computeSerializedText()
+        const root: unknown = currentText.trim() === ''
+          ? (req.op === 'merge' ? {} : undefined)
+          : parseSource(currentText, format)
+
+        let nextRoot: unknown
+        if (req.op === 'set') {
+          let value: unknown
+          try {
+            value = req.valueJson !== undefined ? JSON.parse(req.valueJson) : undefined
+          } catch (e) {
+            replyErr(`valueJson is not valid JSON: ${e instanceof Error ? e.message : String(e)}`)
+            return
+          }
+          nextRoot = applyJsonPointer(root, req.pointer ?? '', value)
+        } else {
+          let patch: unknown
+          try {
+            patch = req.mergeJson !== undefined ? JSON.parse(req.mergeJson) : undefined
+          } catch (e) {
+            replyErr(`mergeJson is not valid JSON: ${e instanceof Error ? e.message : String(e)}`)
+            return
+          }
+          if (patch === null || typeof patch !== 'object' || Array.isArray(patch)) {
+            replyErr('merge patch must be a JSON object')
+            return
+          }
+          nextRoot = deepMerge(root, patch)
+        }
+
+        // Re-serialize canonically + push into both views, then save
+        // through the echo-safe path.
+        const nextText = serializeSource(nextRoot, format)
+        valueRef.current = nextRoot
+        setSourceText(nextText)
+        // If the new root is a renderable object, keep load.value fresh
+        // so a tree re-render shows the change; otherwise leave status.
+        if (nextRoot !== null && typeof nextRoot === 'object') {
+          setLoad((prev) => prev.status === 'ready'
+            ? { ...prev, value: nextRoot, rawText: nextText }
+            : prev)
+        }
+        setDirty(true)
+        setSaveError(null)
+        setSourceParseError(null)
+        // ENH-195 (review) — pass the freshly-computed text as an override so
+        // save() writes THIS edit, not the stale-closure sourceText (which in
+        // SOURCE mode — primitive roots, parse-error buffers, the Edit toggle —
+        // would silently drop the op while still replying ok).
+        void saveRef.current({ text: nextText })
+
+        const reason = format === 'yaml'
+          ? 'YAML serialized — comments and anchor names are not preserved'
+          : ''
+        replyOk(true, reason)
+      } catch (err) {
+        replyErr(err instanceof Error ? err.message : String(err))
+      }
+    })
+  }, [path, load.status, format, computeSerializedText])
 
   // ── Push dirty up to the tab strip ─────────────────────────────────
   useEffect(() => {
@@ -425,6 +649,32 @@ export function JsonView({ path, onDirtyChange }: JsonViewProps) {
           </button>
         </div>
       </div>
+
+      {/* ENH-195 — "changed on disk" reconciliation banner (shared hook).
+          Same amber treatment + Reload / Keep-mine affordances as the
+          markdown editor. */}
+      {recon.externalConflict && (
+        <div className="shrink-0 px-3 py-2 text-xs border-b border-amber-900/40 bg-amber-950/30 text-amber-200 flex items-center gap-3">
+          <span className="flex-1">
+            <strong className="font-semibold">This file changed on disk</strong> while you were editing.
+            Reload (loses your edits) or keep yours (next save will overwrite the new disk version).
+          </span>
+          <button
+            type="button"
+            onClick={recon.resolveReload}
+            className="px-2 py-1 rounded border border-amber-800/60 hover:border-amber-700 hover:bg-amber-900/30"
+          >
+            Reload from disk
+          </button>
+          <button
+            type="button"
+            onClick={recon.resolveKeepMine}
+            className="px-2 py-1 rounded border border-amber-800/60 hover:border-amber-700 hover:bg-amber-900/30"
+          >
+            Keep mine
+          </button>
+        </div>
+      )}
 
       {/* Body */}
       <div className="min-h-0 flex-1 overflow-auto">

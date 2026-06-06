@@ -71,11 +71,7 @@ import { injectCodeBlockCopyButtons, injectCodeBlockCopyStyle } from '../editor/
 import { formatCanvasSendPayload } from '../editor/sendFormat'
 import { useSelectionFormat } from '../../hooks/useSelectionFormat'
 import { decodeUtf8, encodeUtf8 } from '../editor/markdown-io'
-import {
-  normalizeForEchoCompare,
-  computeFirstDiffOffset,
-  writeConflictLog
-} from '../../utils/conflictDiagnostic'
+import { useDiskReconciliation } from '../../hooks/useDiskReconciliation'
 import { normalize as normalizeDuoHtml, externalStrippedDuoIds } from '../../../core/html/duo-normalize'
 import type {
   PageSelectionSnapshot,
@@ -327,17 +323,24 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, pillLabel, onPlaygro
   const [initialHtml, setInitialHtml] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
-  // FOLLOWUP-019 — external-write conflict state. Mirrors MarkdownEditor's
-  // BUG-085 banner. `diskHtml` is the just-read disk content; the banner
-  // offers "Reload from disk" (clobbers local edits) or "Keep mine" (next
-  // save overwrites disk with local). `reloadKey` is bumped on reload so
-  // the iframe remounts cleanly — RenderedPage's wire effect doesn't
-  // re-fire on srcDoc change alone (deps don't include initialHtml), so
-  // the contenteditable + observers would attach to the OLD body without
-  // a key bump. Same approach as a manual remount; user loses iframe
-  // scroll/selection state on reload, which is expected.
-  const [externalConflict, setExternalConflict] = useState<{ diskHtml: string } | null>(null)
+  // ENH-195 D5 — external-write reconciliation (the chokidar watcher, the echo
+  // gauntlet, the byte-exact baseline, save-pre-reconcile, and the "changed on
+  // disk" conflict banner state) now lives in the shared `useDiskReconciliation`
+  // hook, wired up below. The banner renders from `recon.externalConflict` with
+  // `recon.resolveReload` / `recon.resolveKeepMine`.
+  // `reloadKey` is bumped on reload so the iframe remounts cleanly —
+  // RenderedPage's wire effect doesn't re-fire on srcDoc change alone (deps
+  // don't include initialHtml), so the contenteditable + observers would attach
+  // to the OLD body without a key bump. Same approach as a manual remount; user
+  // loses iframe scroll/selection state on reload, which is expected.
   const [reloadKey, setReloadKey] = useState(0)
+  // ENH-195 (review) — the reconciliation hook requires `ready` to flip true
+  // only AFTER the surface has seeded its baseline via noteLoaded, so the
+  // watcher's B3 catch-up read reconciles against a seeded byte-exact baseline
+  // (not '') and no-ops. The canvas seeds in handleReady (async iframe mount),
+  // so gate `ready` on this flag — NOT on `initialHtml !== null`, which flips
+  // before the handshake and could force a spurious remount / false banner.
+  const [baselineSeeded, setBaselineSeeded] = useState(false)
   // ENH-117 — view-source overlay state. Snapshot of canvas's serialized
   // (pretty-printed) HTML at chord time; the overlay renders read-only.
   const [viewSource, setViewSource] = useState<string | null>(null)
@@ -403,27 +406,41 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, pillLabel, onPlaygro
   // or write. Diff against this to compute `dirty`.
   const lastSavedRef = useRef<string>('')
 
-  // FOLLOWUP-019 — mirror BUG-099's recentlyWrittenBodiesRef into the
-  // canvas. Set of HTML strings we've written recently with a 2s TTL.
-  // Used by the watcher's echo detection alongside `lastSavedRef` so a
-  // chokidar event that arrives between two consecutive autosaves (or
-  // before `lastSavedRef` is updated post-write) is still recognized as
-  // our own write. Same race window as the markdown-editor case: save#1
-  // writes html "A" (baseline=A), save#2 writes html "B" (baseline=B),
-  // chokidar fires for save#1 with disk="A" — but baseline is now "B"
-  // — without the recently-written set this surfaces a false conflict.
-  const recentlyWrittenHtmlRef = useRef<Map<string, number>>(new Map())
-  const trackRecentlyWrittenHtml = useCallback((html: string) => {
-    const map = recentlyWrittenHtmlRef.current
-    map.set(html, Date.now())
-    // BUG-122 (Sprint 16) — TTL bumped from 2000ms to 5000ms after
-    // owner repro of the markdown variant. Same conservative widening
-    // applied here for parity.
-    const cutoff = Date.now() - 5000
-    for (const [h, ts] of map) {
-      if (ts < cutoff) map.delete(h)
-    }
-  }, [])
+  // ENH-195 — forward-ref to save() (defined far below) so the reconciliation
+  // hook can kick a save on "Keep mine" without a hook→save import cycle.
+  // Hoisted above the hook; `saveRef.current = save` is set once `save` exists.
+  const saveRef = useRef<() => void>(() => {})
+
+  // ENH-195 D5 — the shared editor↔disk reconciliation primitive. Owns the
+  // chokidar watcher, the echo gauntlet, the byte-exact baseline (the canvas
+  // never had one before — A2), save-pre-reconcile, and the "changed on disk"
+  // banner. This surface injects only its editing contract (serialize / reload
+  // via the reloadKey remount / duo-html dirty + echo equality). `lastSavedRef`
+  // stays the LOCAL dirty baseline for handleChange + handleReady; the hook
+  // re-baselines through handleReady's async handshake (rebaselineAfterReload:
+  // false) because the iframe remount is async.
+  const recon = useDiskReconciliation({
+    path,
+    isNew: false,
+    surface: 'canvas',
+    ready: baselineSeeded,                  // true only after handleReady→noteLoaded (review)
+    serialize: () => canvasRef.current?.serialize() ?? '',
+    applyReload: (diskHtml) => { lastSavedRef.current = diskHtml; baselinedRef.current = false; setInitialHtml(diskHtml); setReloadKey(k => k + 1) },
+    readDiskBody: (s) => s,                  // canvas has no frontmatter
+    isDirty: (live, base) => live !== '' && normalizeDuoHtml(live) !== normalizeDuoHtml(base),
+    echoEqual: (a, b) => normalizeDuoHtml(a) === normalizeDuoHtml(b),   // A4: consistent normalize
+    // disk-vs-disk: banner iff this external write stripped data-duo-ids that
+    // were ON DISK before (BUG-125-v2 Q2 anchor loss). The hook passes the
+    // byte-exact lastSeenDisk body, NOT the serialized view — the v0.9.0 fix
+    // for the clean-write false-positive (serialized always carries injected ids).
+    shouldBannerOnClean: (lastSeenDisk, disk) => externalStrippedDuoIds(lastSeenDisk, disk),
+    onDirtyChange: (d) => setDirty(d),       // clean reload → drop the dirty dot; Keep-mine → re-arm it
+    rebaselineAfterReload: false,            // canvas reload is ASYNC (iframe remount) — re-baseline from handleReady
+    triggerSave: () => { void saveRef.current() },
+    appVersion: window.electron?.env?.appVersion ?? '?.?.?',
+    watchOptions: { ignored: [], watchParents: true },
+  })
+
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // BUG-033 v1 (a) — block autosave while a pending agent write
   // (`pendingHtmlOp`) is on screen waiting for user accept/decline.
@@ -559,6 +576,9 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, pillLabel, onPlaygro
     // FOLLOWUP-014/walk-2 — reset baseline gate per path so the new
     // doc's first handleReady captures its own pretty-printed baseline.
     baselinedRef.current = false
+    // ENH-195 (review) — un-seed so the hook's watcher tears down until the
+    // new path's handleReady re-seeds (honors the ready-after-noteLoaded contract).
+    setBaselineSeeded(false)
     sidecarRef.current = emptySidecar()
     sidecarDirtyRef.current = false
 
@@ -587,207 +607,20 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, pillLabel, onPlaygro
         setError(err instanceof Error ? err.message : String(err))
       }
     )
-    // FOLLOWUP-019 — fresh path, fresh recently-written set + clear any
-    // stale conflict from the prior path.
-    recentlyWrittenHtmlRef.current.clear()
-    setExternalConflict(null)
+    // ENH-195 — the recently-written echo set + the byte-exact baseline + any
+    // stale banner from the prior path reset inside `useDiskReconciliation`
+    // (its [path] effect). The hook re-seeds its baselines via the
+    // handleReady → recon.noteLoaded handshake once the new iframe mounts.
     return () => { cancelled = true }
   }, [path])
 
-  // FOLLOWUP-019 — mirror BUG-085's external-write reconciliation to the
-  // canvas. Subscribe to fs change events for the loaded path. On change:
-  //   - read disk; if it matches `lastSavedRef.current` (or the recently-
-  //     written echo set) → ignore (our own save echoing back).
-  //   - if the canvas buffer is clean → silent reload by bumping
-  //     `reloadKey` (forces RenderedPage remount + fresh wire effect) and
-  //     advancing `lastSavedRef`.
-  //   - if the canvas buffer is dirty → surface the conflict banner;
-  //     user picks reload-or-keep-mine.
-  // Skipped until the initial HTML has loaded (no point watching a path
-  // we haven't read yet).
-  useEffect(() => {
-    if (initialHtml === null) return
-
-    let cancelled = false
-    let unwatch: (() => Promise<void>) | null = null
-
-    void window.electron.files.watch([path], (event) => {
-      if (cancelled) return
-      if (event.path !== path) return
-      // External delete — don't reload (read would fail). The user can
-      // save to recreate. Matches MarkdownEditor's behavior + most
-      // editors' convention on external delete.
-      if (event.kind === 'removed') return
-
-      void window.electron.files.read(path).then((res) => {
-        if (cancelled) return
-        const diskHtml = decodeUtf8(res.bytes)
-
-        // Echo of our own save. BUG-122 — widened normalize covers
-        // BOM, CRLF→LF, per-line trailing + doc-end trailing
-        // whitespace (shared with MarkdownEditor via
-        // conflictDiagnostic.ts). The original trailing-only normalize
-        // re-surfaced in v0.6.14 on owner's work machine; the wider
-        // form catches the cloud-sync agent's harmless touches.
-        if (normalizeForEchoCompare(diskHtml) === normalizeForEchoCompare(lastSavedRef.current)) return
-
-        // Secondary echo check against the recently-written set
-        // (BUG-099 mirror). Catches the race where chokidar's event
-        // arrived between the write completing and `lastSavedRef`
-        // being assigned, OR where a newer save has already advanced
-        // the baseline past this event's body. BUG-122 — also check
-        // the normalized form against the recently-written set so a
-        // cloud-sync touch that adds/removes BOM doesn't false-conflict.
-        if (recentlyWrittenHtmlRef.current.has(diskHtml)) return
-        const normalizedDisk = normalizeForEchoCompare(diskHtml)
-        for (const writtenHtml of recentlyWrittenHtmlRef.current.keys()) {
-          if (normalizeForEchoCompare(writtenHtml) === normalizedDisk) return
-        }
-
-        const handle = canvasRef.current
-        const liveHtml = handle?.serialize() ?? ''
-        // BUG-125 v2 — dirty check uses normalize() so user edits that
-        // only differ from baseline in duo-injected attrs (data-duo-id
-        // re-stamp) don't read as dirty.
-        const isDirty = liveHtml !== '' && normalizeDuoHtml(liveHtml) !== normalizeDuoHtml(lastSavedRef.current)
-
-        // BUG-125 v2 — additional clean-buffer reload path: even when
-        // disk-byte-unequal to baseline, if normalize() matches, the
-        // external write didn't change user-meaningful content
-        // (probably just stripped duo-injections). Silent reload —
-        // this is the exact case the v0.7.0 walk caught.
-        // EXCEPTION: Q2 = "conflict-banner" — if disk strips
-        // data-duo-id anchors that the baseline owned, surface the
-        // conflict so user can pick (preserves comment-anchor data).
-        if (!isDirty && normalizeDuoHtml(diskHtml) === normalizeDuoHtml(lastSavedRef.current)) {
-          if (externalStrippedDuoIds(lastSavedRef.current, diskHtml)) {
-            // Anchor-loss case — fall through to dirty path so the
-            // banner fires. The user's buffer IS still effectively
-            // clean, but the external write would lose anchor data.
-            console.debug('[BUG-125 v2] external write stripped duo-id anchors; surfacing conflict for owner choice', {
-              path,
-              baselineLength: lastSavedRef.current.length,
-              diskLength: diskHtml.length
-            })
-            setExternalConflict({ diskHtml })
-            return
-          }
-          // Pure cosmetic normalize-equal — silent reload.
-          console.debug('[BUG-125 v2 reload] disk differs byte-wise but normalizes to baseline; silent reload', {
-            path,
-            diskHtmlLength: diskHtml.length,
-            baselineLength: lastSavedRef.current.length
-          })
-          lastSavedRef.current = diskHtml
-          baselinedRef.current = false
-          setInitialHtml(diskHtml)
-          setReloadKey(k => k + 1)
-          return
-        }
-
-        if (!isDirty) {
-          // Clean buffer — silent reload. Set the new initialHtml +
-          // bump reloadKey to force RenderedPage to remount with
-          // fresh wire state. The user keeps no dirty changes
-          // (otherwise we'd be in the dirty branch), so nothing is
-          // lost. Diagnostic mirrors MarkdownEditor's BUG-085 line.
-          console.debug('[FOLLOWUP-019 reload] external write detected on clean canvas; reloading from disk', {
-            path,
-            diskHtmlLength: diskHtml.length,
-            baselineLength: lastSavedRef.current.length
-          })
-          lastSavedRef.current = diskHtml
-          baselinedRef.current = false
-          setInitialHtml(diskHtml)
-          setReloadKey(k => k + 1)
-        } else {
-          // Dirty buffer — surface conflict; user picks resolution.
-          // Diagnostic mirrors MarkdownEditor's. Length + head excerpt
-          // only; no full body content (privacy).
-          // BUG-122 — enriched diagnostic with firstDiffOffset + diff
-          // window + tail; mirrors MarkdownEditor's BUG-085 conflict line.
-          const ndisk0 = normalizeForEchoCompare(diskHtml)
-          const nbase0 = normalizeForEchoCompare(lastSavedRef.current)
-          const fd = computeFirstDiffOffset(ndisk0, nbase0)
-          const w = 40
-          const s0 = fd === null ? 0 : Math.max(0, fd - w)
-          const e0 = fd === null ? 0 : fd + w
-          console.debug('[FOLLOWUP-019 conflict] dirty canvas + diverged disk; surfacing banner', {
-            path,
-            diskHtmlLength: diskHtml.length,
-            baselineLength: lastSavedRef.current.length,
-            liveHtmlLength: liveHtml.length,
-            recentlyWrittenSize: recentlyWrittenHtmlRef.current.size,
-            firstDiffOffset: fd,
-            diskAtDiff: fd === null ? null : ndisk0.slice(s0, e0),
-            baselineAtDiff: fd === null ? null : nbase0.slice(s0, e0),
-            diskTail: ndisk0.slice(-60),
-            baselineTail: nbase0.slice(-60),
-            hint: 'cat ~/.claude/duo/logs/last-conflict.log for full diagnostic'
-          })
-          // BUG-122 — persist diagnostic to ~/.claude/duo/logs/
-          // last-conflict.log so owner can fetch it post-repro on a
-          // production DMG without DevTools open. Best-effort.
-          const ndisk = normalizeForEchoCompare(diskHtml)
-          const nbase = normalizeForEchoCompare(lastSavedRef.current)
-          void writeConflictLog({
-            ts: new Date().toISOString(),
-            path,
-            trigger: 'watcher-dirty',
-            surface: 'canvas',
-            diskLength: diskHtml.length,
-            baselineLength: lastSavedRef.current.length,
-            liveLength: liveHtml.length,
-            recentlyWrittenSize: recentlyWrittenHtmlRef.current.size,
-            diskHead: ndisk.slice(0, 80),
-            baselineHead: nbase.slice(0, 80),
-            diskTail: ndisk.slice(-80),
-            baselineTail: nbase.slice(-80),
-            firstDiffOffset: computeFirstDiffOffset(ndisk, nbase),
-            appVersion: window.electron?.env?.appVersion ?? '?.?.?'
-          })
-          setExternalConflict({ diskHtml })
-        }
-      }).catch(() => { /* file unreadable / mid-rename — ignore */ })
-    }).then((fn) => {
-      if (cancelled) { void fn(); return }
-      unwatch = fn
-    }).catch(() => { /* watcher unavailable — degrade gracefully */ })
-
-    return () => {
-      cancelled = true
-      if (unwatch) void unwatch()
-    }
-  }, [path, initialHtml])
-
-  // FOLLOWUP-019 — conflict-banner resolution handlers.
-  const resolveConflictReload = useCallback(() => {
-    if (!externalConflict) return
-    // Reload by re-seeding initialHtml + remounting RenderedPage.
-    // Dirty state clears because the user is choosing to drop edits.
-    lastSavedRef.current = externalConflict.diskHtml
-    baselinedRef.current = false
-    setInitialHtml(externalConflict.diskHtml)
-    setReloadKey(k => k + 1)
-    setDirty(false)
-    onDirtyChange?.(false)
-    setExternalConflict(null)
-  }, [externalConflict, onDirtyChange])
-
-  const resolveConflictKeepMine = useCallback(() => {
-    if (!externalConflict) return
-    // Advance the baseline to the disk version so the next save's
-    // pre-reconciliation check passes. Buffer differs from disk
-    // (we kept local edits), so dirty stays true and the immediate
-    // save below overwrites disk with the local version — that's
-    // exactly what "keep mine" means. Explicit save kick because
-    // the autosave timer only arms on edits.
-    lastSavedRef.current = externalConflict.diskHtml
-    setDirty(true)
-    onDirtyChange?.(true)
-    setExternalConflict(null)
-    void saveRef.current()
-  }, [externalConflict, onDirtyChange])
+  // ENH-195 D5 — the external-write watcher + conflict-banner resolution
+  // handlers moved into `useDiskReconciliation` (wired above). The watcher,
+  // the byte-exact + recently-written echo gauntlet, the clean/dirty reload-
+  // vs-banner decision, and the BUG-125-v2 anchor-loss path all live in the
+  // hook now (the canvas injects its `isDirty` / `echoEqual` / `applyReload` /
+  // `shouldBannerOnClean` contract). The banner renders from
+  // `recon.externalConflict` with `recon.resolveReload` / `recon.resolveKeepMine`.
 
   const save = useCallback(async () => {
     const handle = canvasRef.current
@@ -803,70 +636,17 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, pillLabel, onPlaygro
       // .html first; if it succeeds, persist the sidecar. Order matters
       // because the sidecar is meaningless without the canvas file.
       if (htmlChanged) {
-        // FOLLOWUP-019 — pre-save reconciliation (mirror BUG-085's
-        // save-side check). chokidar events are debounced and frequently
-        // arrive AFTER the autosave timer has fired; without this read,
-        // an external write racing autosave could be silently overwritten
-        // before the watcher's banner ever surfaced. Read disk just
-        // before writing; if it drifted from baseline, bail and route
-        // through the same conflict banner the watcher uses.
-        try {
-          const diskRes = await window.electron.files.read(path)
-          const diskHtml = decodeUtf8(diskRes.bytes)
-          // BUG-122 — widened normalize (shared with MarkdownEditor).
-          const ndisk = normalizeForEchoCompare(diskHtml)
-          const nbase = normalizeForEchoCompare(lastSavedRef.current)
-          if (ndisk !== nbase) {
-            // BUG-122 — enriched inline diagnostic.
-            const fd = computeFirstDiffOffset(ndisk, nbase)
-            const w = 40
-            const s0 = fd === null ? 0 : Math.max(0, fd - w)
-            const e0 = fd === null ? 0 : fd + w
-            console.debug('[FOLLOWUP-019 save-pre-conflict] disk diverged from baseline', {
-              path,
-              diskHtmlLength: diskHtml.length,
-              baselineLength: lastSavedRef.current.length,
-              firstDiffOffset: fd,
-              diskAtDiff: fd === null ? null : ndisk.slice(s0, e0),
-              baselineAtDiff: fd === null ? null : nbase.slice(s0, e0),
-              diskTail: ndisk.slice(-60),
-              baselineTail: nbase.slice(-60),
-              recentlyWrittenSize: recentlyWrittenHtmlRef.current.size,
-              hint: 'cat ~/.claude/duo/logs/last-conflict.log for full diagnostic'
-            })
-            // BUG-122 — persist diagnostic to disk for production
-            // post-repro inspection (no DevTools required).
-            void writeConflictLog({
-              ts: new Date().toISOString(),
-              path,
-              trigger: 'save-pre-reconcile',
-              surface: 'canvas',
-              diskLength: diskHtml.length,
-              baselineLength: lastSavedRef.current.length,
-              liveLength: null,
-              recentlyWrittenSize: recentlyWrittenHtmlRef.current.size,
-              diskHead: ndisk.slice(0, 80),
-              baselineHead: nbase.slice(0, 80),
-              diskTail: ndisk.slice(-80),
-              baselineTail: nbase.slice(-80),
-              firstDiffOffset: computeFirstDiffOffset(ndisk, nbase),
-              appVersion: window.electron?.env?.appVersion ?? '?.?.?'
-            })
-            setExternalConflict({ diskHtml })
-            return
-          }
-        } catch {
-          // Can't read disk (file deleted, permissions, etc.) — fall
-          // through to write. The write may also fail; the catch below
-          // surfaces the error. Better than silently aborting the save.
-        }
+        // ENH-195 — pre-save reconcile through the shared hook: it reads
+        // disk, runs the byte-exact fast-path then the normalize fallback,
+        // and registers the echo (so our own write isn't misread). If disk
+        // drifted externally since our baseline it surfaces the banner and
+        // we bail; otherwise we write and advance both baselines.
+        if ((await recon.beforeSave(html)) === 'conflict') return
 
-        // FOLLOWUP-019 — register the just-serialized HTML in the
-        // recently-written set BEFORE the write IPC. If chokidar fires
-        // before the post-write baseline update lands, the watcher's
-        // secondary echo check recognizes the disk content as ours.
-        trackRecentlyWrittenHtml(html)
         await window.electron.files.write(path, encodeUtf8(html))
+        // Advance the hook's baselines (serialized + byte-exact + echo) AND
+        // the LOCAL dirty baseline (`lastSavedRef`, read by handleChange).
+        recon.noteSaved(html)
         lastSavedRef.current = html
       }
       // Sidecar (17b Phase B) — write alongside whenever it has pending
@@ -888,7 +668,8 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, pillLabel, onPlaygro
     }
   }, [path, saving, dirty, onDirtyChange])
 
-  const saveRef = useRef(save)
+  // ENH-195 — saveRef declared above the reconciliation hook; keep it fresh
+  // so the hook's "Keep mine" trigger always kicks the latest save closure.
   saveRef.current = save
 
   const handleChange = useCallback(() => {
@@ -1120,7 +901,21 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, pillLabel, onPlaygro
     // data loss. baselinedRef resets on path change (effect below).
     if (!baselinedRef.current) {
       const initialSerialized = canvasRef.current?.serialize()
-      if (initialSerialized) lastSavedRef.current = initialSerialized
+      if (initialSerialized) {
+        // ENH-195 — async-reload handshake. Because the hook runs with
+        // `rebaselineAfterReload: false` (the iframe remount is async), it
+        // does NOT re-serialize after applyReload. Seed it here instead:
+        // `lastSavedRef.current` still holds the RAW disk HTML set at
+        // load/applyReload (the byte-exact baseline), and `initialSerialized`
+        // is the serialized live DOM (the round-trip-stable dirty baseline).
+        // Must read lastSavedRef.current BEFORE the local re-baseline below
+        // overwrites it.
+        recon.noteLoaded(initialSerialized, lastSavedRef.current)
+        lastSavedRef.current = initialSerialized
+        // ENH-195 (review) — baseline is now seeded; let the hook's watcher
+        // arm (its B3 catch-up read will byte-exact-no-op against the seed).
+        setBaselineSeeded(true)
+      }
       baselinedRef.current = true
     }
 
@@ -2011,7 +1806,7 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, pillLabel, onPlaygro
           {error}
         </div>
       )}
-      {externalConflict && (
+      {recon.externalConflict && (
         <div className="shrink-0 px-10 py-2.5 text-xs border-b border-amber-900/40 bg-amber-950/30 text-amber-200 flex items-center gap-3">
           <span className="flex-1">
             <strong className="font-semibold">This file changed on disk</strong> while you were editing.
@@ -2019,14 +1814,14 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, pillLabel, onPlaygro
           </span>
           <button
             type="button"
-            onClick={resolveConflictReload}
+            onClick={recon.resolveReload}
             className="px-2 py-1 rounded border border-amber-800/60 hover:border-amber-700 hover:bg-amber-900/30"
           >
             Reload from disk
           </button>
           <button
             type="button"
-            onClick={resolveConflictKeepMine}
+            onClick={recon.resolveKeepMine}
             className="px-2 py-1 rounded border border-amber-800/60 hover:border-amber-700 hover:bg-amber-900/30"
           >
             Keep mine

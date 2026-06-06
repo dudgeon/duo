@@ -1,15 +1,17 @@
-# Active sprint state — v0.8.x (docs deep-clean + polish)
+# Active sprint state — ENH-195 + ENH-197 + BUG-195 COMPLETE → PR (owner integrates on main)
 
-**Status (2026-05-31):** **v0.8.4 released** (last tag); `package.json` at
-**v0.8.5** in-flight. The Sprint 23/24 chapters — ENH-182 (project rail) plus
-the v0.8.0-era FOLLOWUP-031..040 polish wave — shipped across v0.8.0–v0.8.4.
+> **✅ CURRENT (2026-06-06) — [ENH-195](../../tasks.md) complete + submitted as a PR.**
+> The v0.9.0 pre-walk blocker (canvas false-positive) is root-caused + FIXED, and three more items
+> landed + were verified live: **canvas fix** (disk-vs-disk `shouldBannerOnClean`), **ENH-197 View diff**
+> (destructive-overwrite → Keep mine / Load new / View diff as accept/rejectable tracked changes),
+> **BUG-195** (split-view-close ghost — `releaseAuxTab` now unconditional), plus the strip-JSX strips
+> + frontmatter-preserve. **923 tests + both typecheckers clean.** v0.9.1-rev2 smoke walk (run in the
+> split-view aux per the owner's workflow): **VIEW-DIFF + WARN-HOOK both PASS.** Branch
+> `claude/sharp-hamilton-70eb87` submitted as a **PR** — owner decides the version label + merges with
+> other branches + does the push/release on `main`. Tracked for later: ENH-196, ENH-198.
 
-**Current initiative:** the **docs deep-clean (ENH-191)** on branch
-`fix/cli-version-and-docs-cleanup`: a CLI/app version-source fix (`duo --version`
-+ doctor now derive from `package.json`) plus a full project-docs audit being
-executed decision-by-decision — `tasks.md` split (open/archive), company-ref
-scrub, the cut-version drift hard-gate, doc-accuracy fixes, and the `about-duo.md`
-feature walkthrough.
+> _Below: the prior Sprint-24 v0.8.x polish-wave content (FOLLOWUP-031..040) — lower priority than
+> finishing ENH-195; the "v0.8.6 polish wave" framing predates the v0.9.0 cut._
 
 ## Sprint anchor
 

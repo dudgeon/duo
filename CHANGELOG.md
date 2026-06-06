@@ -19,7 +19,32 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.8.5 cut 2026-06-02.
+> Empty — v0.9.0 cut 2026-06-05.
+
+## [0.9.0] — 2026-06-05 — ENH-195: CLI edits, disk-sync & the end of false-positive conflicts
+
+### Added
+- **`duo status`** — JSON snapshot of every open working-pane file tab (`path` / `kind` / `dirty` / `active`). The reliable "is this file open in Duo?" probe agents lacked (`duo nav state` never had an open-tabs field).
+- **`duo doc edit <file> --find … --replace … [--occurrence N | --all] [--at-line N]`** — surgical markdown edit. Buffer-routed (echo-safe, no conflict banner) when the file is open in the editor; disk-direct when closed. Closes the capability gap that made agents reach for raw `Edit`/`Write` on open docs.
+- **`duo json set <file> <dotpath> <value>` / `duo json merge <file> <patch.json>`** — structured JSON/YAML edits by dotted path (`a.b[0].c`) or shallow merge; routed into the open viewer when open, disk-direct when closed.
+- **Change-highlight on reload (markdown).** When an external/agent write reloads the editor, added text is washed and removed text gets a left-margin tick; the highlight holds until your next keystroke. A reload that changes >50% of the doc shows a one-line "reloaded from disk" note instead of washing everything.
+- **Live refresh for the JSON/YAML, image, and PDF viewers** — they now watch disk and update when the file changes underneath them (previously silently stale; the JSON viewer could even clobber an external edit on its next autosave).
+- **A "file removed on disk" affordance** in the markdown editor instead of silently editing a phantom buffer.
+- **Warn-only `PreToolUse` hook + priming/CLAUDE/skill guidance** steering agents to edit open files through the `duo` verbs (ships via the installer; activates on next install — it warns, never blocks).
+
+### Changed
+- **Editor↔disk reconciliation is now one shared `useDiskReconciliation` hook** consumed by the markdown editor, the HTML canvas, and the JSON viewer — replacing two divergent per-surface copies. On a **clean** buffer, any on-disk change reloads byte-faithfully (a real external edit is never silently swallowed); the hand-tuned normalize gauntlet is reserved for self-echo suppression + the dirty-buffer conflict decision. The HTML canvas gains the byte-exact baseline it never had (the BUG-166 fix that previously only reached markdown).
+- **DECISIONS.md editor/canvas-convergence lock amended** — scoped to the *editing primitive* (TipTap vs "the canvas IS the page" contentEditable stay separate); the *reconciliation layer* may be — and now is — shared.
+
+### Fixed
+- **The recurring false-positive "changed on disk" conflict banner** (the multi-sprint BUG-085 → BUG-166 arc) is structurally resolved: markdown↔canvas reconciliation parity is now guaranteed by a single shared code path rather than a per-PR mirroring discipline that kept being missed.
+- (caught + fixed by a pre-cut adversarial review) frontmatter is no longer lost when you edit a Properties-panel field + the body then save; `duo json` no longer silently drops the edit in source mode; `duo json` on an open-but-inactive tab no longer hangs 10s and loses the edit; a PDF-viewer watcher leak and a symlink/case-alias routing miss were also fixed.
+
+### Security
+- **`duo json set`/`merge` reject `__proto__` / `constructor` / `prototype`** path and patch keys, preventing prototype pollution of the renderer **or the Electron main process** (the disk-direct path runs in main) via a crafted pointer or merge patch.
+
+### Deferred
+- Canvas change-highlight on reload (the markdown editor ships it) → tracked as ENH-196.
 
 ## [0.8.5] — 2026-06-02 — Project rail correctness: ghost tiles · close-jitter · phantom parents · multitab
 

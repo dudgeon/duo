@@ -118,8 +118,10 @@ export interface ConflictDiagnostic {
    *  read-disk-before-write found drift. `watcher-clean` is the
    *  no-banner reload path (logged for completeness but no UI surface). */
   trigger: 'watcher-clean' | 'watcher-dirty' | 'save-pre-reconcile'
-  /** Editor surface — markdown editor or HTML canvas (FOLLOWUP-019). */
-  surface: 'markdown' | 'canvas'
+  /** Editor surface — markdown editor, HTML canvas (FOLLOWUP-019), or
+   *  JSON/YAML viewer (ENH-195 — all three now share the
+   *  `useDiskReconciliation` hook). */
+  surface: 'markdown' | 'canvas' | 'json'
   /** Lengths in characters (not bytes). */
   diskLength: number
   baselineLength: number

@@ -294,6 +294,15 @@
   </div>
 </article>
 
+<article class="item" data-keys="reload disk sync external agent write conflict banner highlight change watch responsive live refresh duo doc edit json status enh-195">
+  <div class="num">16</div>
+  <div>
+    <h3>Edits from disk or an agent show up live</h3>
+    <p class="why">When something outside the editor changes a file you have open — an agent, another editor, <code>git</code>, a cloud sync — Duo reloads it in place and highlights what changed (added text washed, removed lines ticked in the margin) until your next keystroke. If you had unsaved edits, you get a "changed on disk — reload or keep mine" choice instead of silent loss. The same live refresh now covers the JSON/YAML, image, and PDF viewers. <strong>v0.9.0</strong> rebuilt this on one shared reconciliation core, ending a long tail of false-positive "changed on disk" banners.</p>
+    <p class="how"><strong>Automatic</strong> — nothing to invoke. Agents should edit open files <em>through</em> Duo so the change shows live: <code>duo doc edit &lt;file&gt; --find … --replace …</code>, <code>duo json set|merge &lt;file&gt; …</code>, or the <code>duo html</code> verbs; <code>duo status</code> lists what's open.</p>
+  </div>
+</article>
+
 <h2 class="cat">Browsing the web</h2>
 <p class="cat-tagline">An embedded Chromium pane. Tabs, address bar, the same shortcuts you'd expect.</p>
 
