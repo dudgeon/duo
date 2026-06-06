@@ -16,6 +16,8 @@
 
 **Deferred.** Collapse-button icon refresh (behavior 4 in the prototype: replace the split-pane glyph in `TabBar.tsx` + `WorkingTabStrip.tsx`) — not in the owner's locked settings. Prototype + gallery remain at [`docs/research/navigator-peek-collapse-prototype.html`](research/navigator-peek-collapse-prototype.html); recommended pick was **Panel + chevron**.
 
+**Docs.** Locked-scope PRD at [`docs/prd/enh-190-navigator-resize-peek.md`](prd/enh-190-navigator-resize-peek.md) (D1–D9 decisions + smoke-walk checklist). The tuning prototype is the durably-archived design artifact in `docs/research/`.
+
 ---
 
 ## Sprint 24 / v0.8.1 — v0.8.x polish wave (starting)
