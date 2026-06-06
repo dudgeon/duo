@@ -194,16 +194,68 @@
   }
   .nav-full { display: flex; flex-direction: column; height: 100%; }
 
-  /* Drag handle on the navigator's right border */
+  /* ---- Resizable-divider affordance (behavior 3) ----
+     A widened invisible hit target + a thin visible seam + an optional
+     grip pill. Shared by the navigator's right border (.nav-handle, which
+     also does drag-to-collapse) and the terminal↔canvas divider
+     (.split-divider). Driven by --hit / --fade vars + dv-* classes on #win. */
+  .split-divider {
+    position: relative; flex: 0 0 1px; width: 1px; align-self: stretch;
+    background: var(--paper-rule); cursor: col-resize; z-index: 7;
+  }
+  .split-divider::before {            /* invisible widened hit target */
+    content: ""; position: absolute; top: 0; bottom: 0; left: 50%;
+    width: var(--hit, 12px); transform: translateX(-50%);
+  }
+  .split-divider::after {             /* the visible seam line */
+    content: ""; position: absolute; top: 0; bottom: 0; left: 50%;
+    width: 1px; transform: translateX(-50%); background: var(--paper-rule);
+    transition: width var(--fade, 120ms) ease, background var(--fade, 120ms) ease;
+  }
+
+  /* The nav lives behind overflow:hidden, so the handle + grip must hug the
+     INNER right edge (no straddling the seam, or they'd be clipped in half). */
   .nav-handle {
-    position: absolute; top: 0; right: -3px; width: 9px; height: 100%;
+    position: absolute; top: 0; right: 0; width: var(--hit, 12px); height: 100%;
     cursor: col-resize; z-index: 8;
   }
   .nav-handle::after {
-    content: ""; position: absolute; top: 0; left: 3px; width: 2px; height: 100%;
-    background: transparent; transition: background 120ms;
+    content: ""; position: absolute; top: 0; bottom: 0; right: 0;
+    width: 1px; background: transparent;
+    transition: width var(--fade, 120ms) ease, background var(--fade, 120ms) ease;
   }
-  .nav-handle:hover::after, .nav.dragging .nav-handle::after { background: var(--accent); }
+  .nav-handle .grip { left: auto; right: 2px; transform: translateY(-50%); }
+
+  /* the grip pill (shared between both dividers) */
+  .grip {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px; width: 7px; height: 40px; border-radius: 100px;
+    background: var(--accent); box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    opacity: 0; pointer-events: none; transition: opacity var(--fade, 120ms) ease;
+  }
+  .grip i { width: 2px; height: 2px; border-radius: 50%; background: rgba(20,16,12,0.62); }
+  #win:not(.dv-dots) .grip i { display: none; }
+
+  /* style = pill → reveal the grip; thicken/bar → grow the seam line */
+  .dv-pill .split-divider:hover .grip,
+  .dv-pill .nav-handle:hover .grip,
+  .dv-pill.dv-always .split-divider .grip,
+  .dv-pill.dv-always .nav-handle .grip { opacity: 1; }
+
+  .dv-thicken .split-divider:hover::after,
+  .dv-thicken.dv-always .split-divider::after,
+  .dv-thicken .nav-handle:hover::after,
+  .dv-thicken.dv-always .nav-handle::after { width: 3px; background: var(--accent); }
+
+  .dv-bar .split-divider:hover::after,
+  .dv-bar.dv-always .split-divider::after,
+  .dv-bar .nav-handle:hover::after,
+  .dv-bar.dv-always .nav-handle::after { width: var(--hit, 12px); background: var(--accent-soft); }
+
+  /* while actively dragging, the seam stays lit regardless of style */
+  .nav.dragging .nav-handle::after,
+  .split-divider.dragging::after { width: 3px; background: var(--accent); }
 
   /* "Release to collapse" hint overlay */
   .collapse-hint {
@@ -222,7 +274,7 @@
   }
 
   /* ---- Terminal pane ---- */
-  .pane-term { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; background: var(--term-bg); }
+  .pane-term { flex: 0 0 auto; min-width: 0; display: flex; flex-direction: column; background: var(--term-bg); }
   .pane-tabbar {
     height: 32px; flex: 0 0 auto;
     display: flex; align-items: center; gap: 2px;
@@ -251,7 +303,7 @@
 
   /* ---- Canvas pane (light) ---- */
   .pane-canvas { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column;
-    border-left: 1px solid var(--paper-rule); background: var(--canvas-paper); }
+    background: var(--canvas-paper); }
   .canvas-tabbar {
     height: 32px; flex: 0 0 auto; display: flex; align-items: center; gap: 2px;
     padding: 0 6px; border-bottom: 1px solid #e3dcc8; background: #f2ecdc;
@@ -394,7 +446,8 @@
 
 <div class="intro">
   <strong>What this is.</strong> A working mock of Duo's three panes — navigator
-  · terminal · canvas — wired with the two behaviors you asked for, plus a swap-in
+  · terminal · canvas — wired with the navigator behaviors you asked for (peek-to-widen,
+  drag-to-collapse), hover-reveal resize handles on the draggable seams, plus a swap-in
   gallery for the collapse-button icons. Everything below the stage is a dial.
   <span class="hint">Nothing here touches the real app yet; tune it, copy your
   settings back to me, and I'll wire the winning numbers into <code>FilesPane.tsx</code>.</span>
@@ -407,7 +460,7 @@
       <span class="lbl">Live mock — peek the rail, or drag the navigator's right border left to collapse it</span>
       <span class="state-readout" id="readout">state: <b>open</b> · 208px</span>
     </div>
-    <div class="duo-window" id="win">
+    <div class="duo-window dv-pill dv-dots" id="win">
 
       <!-- NAVIGATOR -->
       <div class="nav animate" id="nav" style="width:208px">
@@ -447,7 +500,7 @@
         </div>
 
         <div class="collapse-hint"><span>Release to collapse</span></div>
-        <div class="nav-handle" id="handle"></div>
+        <div class="nav-handle" id="handle"><span class="grip"><i></i><i></i><i></i></span></div>
       </div>
 
       <!-- TERMINAL -->
@@ -467,6 +520,9 @@
           <div><span class="pr">duo&nbsp;❯</span> <span style="color:var(--term-fg)">▍</span></div>
         </div>
       </div>
+
+      <!-- TERMINAL ↔ CANVAS divider (resizable, behavior 3) -->
+      <div class="split-divider" id="split"><span class="grip"><i></i><i></i><i></i></span></div>
 
       <!-- CANVAS -->
       <div class="pane-canvas">
@@ -642,8 +698,75 @@
     </div>
   </div>
 
+  <!-- ===================== BEHAVIOR 3: RESIZE HANDLES ===================== -->
+  <h2><span class="num">3</span>Resize-handle affordance on pane dividers</h2>
+  <p class="sub">Hairline dividers are fiddly to grab. Hover the <b>navigator's right
+    border</b> or the <b>terminal ↔ canvas divider</b> in the mock above — a handle appears
+    and the click target quietly widens (the visible line stays thin). Tune how big the
+    target is, how the handle looks, and when it shows.</p>
+
+  <div class="controls-grid">
+    <div class="panel">
+      <div class="ph-cap">Hit target</div>
+      <h3>How easy it is to grab</h3>
+      <p class="desc">The catch area grows; the seam itself stays a hairline.</p>
+
+      <div class="ctl">
+        <label class="k">Hit-target width <span class="v" id="v_hit">12 px</span></label>
+        <input type="range" id="r_hit" min="2" max="28" step="1" value="12">
+        <p class="why">The invisible grabbable zone, centered on the 1px seam. ~12–16px
+          is the sweet spot between "easy to land on" and "accidental drags."</p>
+      </div>
+
+      <div class="ctl">
+        <label class="k">Reveal</label>
+        <div class="seg" data-seg="dvReveal">
+          <button data-val="hover" class="on">On hover</button>
+          <button data-val="always">Always visible</button>
+        </div>
+        <p class="why">Hover keeps the chrome quiet until you reach for it; always-visible
+          trades calm for discoverability.</p>
+      </div>
+
+      <div class="ctl">
+        <label class="k">Fade-in <span class="v" id="v_fade">120 ms</span></label>
+        <input type="range" id="r_fade" min="0" max="400" step="10" value="120">
+        <p class="why">How fast the handle materializes on hover.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph-cap">Appearance</div>
+      <h3>What the handle looks like</h3>
+      <p class="desc">Hover a divider in the mock to preview each style live.</p>
+
+      <div class="ctl">
+        <label class="k">Handle style</label>
+        <div class="seg" data-seg="dvStyle">
+          <button data-val="pill" class="on">Grip pill</button>
+          <button data-val="thicken">Thicken line</button>
+          <button data-val="bar">Fill bar</button>
+        </div>
+        <p class="why">Grip pill = a floating rounded handle (reads most "grabbable").
+          Thicken = the seam grows to a 3px accent line. Fill = the whole hit zone tints.</p>
+      </div>
+
+      <div class="ctl">
+        <label class="toggle"><input type="checkbox" id="t_dots" checked><span class="tk"></span>
+          Grip dots on the pill</label>
+        <p class="why">The ⋮ texture that says "drag me." Only affects the grip-pill style.</p>
+      </div>
+
+      <div class="ctl" style="margin-top:18px">
+        <button class="btn" id="centerSplit">Re-center the split</button>
+      </div>
+      <p class="why" style="margin-top:8px">Same treatment drives the navigator's
+        drag-to-collapse border (behavior 2) — tune once, both seams agree.</p>
+    </div>
+  </div>
+
   <!-- ===================== ICONS ===================== -->
-  <h2><span class="num">3</span>Collapse-button icons for terminal &amp; canvas</h2>
+  <h2><span class="num">4</span>Collapse-button icons for terminal &amp; canvas</h2>
   <p class="sub">The current glyph is a split-pane diagram with one cell filled — it reads
     as a <i>state picture</i>, not an <i>action</i>. Below, each set is rendered live in the
     mock's tab bars (terminal collapse folds <b>left</b>, canvas collapse folds <b>right</b>).
@@ -675,6 +798,8 @@ const defaults = {
   peekW: 200, anim: 220, ease: 'cubic-bezier(.22,.61,.36,1)', commit: true,
   thresh: 96, minW: 150, snapMode: 'release',
   hint: true, resist: false, dragExpand: true,
+  // behavior 3 — resize-handle affordance
+  dvHit: 12, dvFade: 120, dvStyle: 'pill', dvReveal: 'hover', dvDots: true,
 };
 let cfg = { ...defaults };
 
@@ -682,6 +807,9 @@ const nav = document.getElementById('nav');
 const rail = document.getElementById('rail');
 const handle = document.getElementById('handle');
 const readout = document.getElementById('readout');
+const win = document.getElementById('win');
+const paneTerm = document.querySelector('.pane-term');
+const split = document.getElementById('split');
 
 let collapsed = false;     // rail vs open
 let peeking = false;       // transient peek-from-rail
@@ -695,6 +823,15 @@ let dragging = false, dragStartX = 0, dragStartW = 0, willCollapse = false;
 function applyAnimVars() {
   nav.style.setProperty('--anim', cfg.anim + 'ms');
   nav.style.setProperty('--ease', cfg.ease);
+}
+function applyDv() {
+  win.style.setProperty('--hit', cfg.dvHit + 'px');
+  win.style.setProperty('--fade', cfg.dvFade + 'ms');
+  win.classList.toggle('dv-pill', cfg.dvStyle === 'pill');
+  win.classList.toggle('dv-thicken', cfg.dvStyle === 'thicken');
+  win.classList.toggle('dv-bar', cfg.dvStyle === 'bar');
+  win.classList.toggle('dv-always', cfg.dvReveal === 'always');
+  win.classList.toggle('dv-dots', cfg.dvDots);
 }
 function setWidth(px, animate) {
   nav.classList.toggle('animate', !!animate && !dragging);
@@ -838,6 +975,39 @@ function finishDrag(e, forceCollapse=false) {
 window.addEventListener('pointerup', (e) => finishDrag(e, false));
 
 /* =====================================================================
+   TERMINAL ↔ CANVAS split resize (behavior 3 — the live divider)
+   ===================================================================== */
+const MIN_PANE = 150;
+let splitDrag = false, sStartX = 0, sStartW = 0;
+
+function centerSplit() {
+  const avail = win.clientWidth - nav.offsetWidth - 1; // minus the divider
+  paneTerm.style.flex = '0 0 auto';
+  paneTerm.style.width = Math.round(avail / 2) + 'px';
+}
+function splitMax() { return win.clientWidth - nav.offsetWidth - 1 - MIN_PANE; }
+
+split.addEventListener('pointerdown', (e) => {
+  splitDrag = true;
+  sStartX = e.clientX; sStartW = paneTerm.offsetWidth;
+  split.classList.add('dragging');
+  split.setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+window.addEventListener('pointermove', (e) => {
+  if (!splitDrag) return;
+  let w = sStartW + (e.clientX - sStartX);
+  w = Math.max(MIN_PANE, Math.min(splitMax(), w));
+  paneTerm.style.width = w + 'px';
+});
+window.addEventListener('pointerup', (e) => {
+  if (!splitDrag) return;
+  splitDrag = false; split.classList.remove('dragging');
+  try { split.releasePointerCapture(e.pointerId); } catch (_) {}
+});
+document.getElementById('centerSplit').addEventListener('click', centerSplit);
+
+/* =====================================================================
    BUTTONS
    ===================================================================== */
 document.getElementById('headCollapse').addEventListener('click', () => goCollapsed(true));
@@ -849,7 +1019,7 @@ document.getElementById('forceOpen').addEventListener('click', () => goOpen(FULL
    ===================================================================== */
 function bindRange(id, key, fmt) {
   const r = document.getElementById('r_'+id), v = document.getElementById('v_'+id);
-  const upd = () => { cfg[key] = +r.value; v.textContent = fmt(r.value); applyAnimVars(); };
+  const upd = () => { cfg[key] = +r.value; v.textContent = fmt(r.value); applyAnimVars(); applyDv(); };
   r.addEventListener('input', upd); upd();
 }
 bindRange('hoverIn','hoverIn', x=>x+' ms');
@@ -858,22 +1028,25 @@ bindRange('peekW','peekW', x=>x+' px');
 bindRange('anim','anim', x=>x+' ms');
 bindRange('thresh','thresh', x=>x+' px');
 bindRange('minW','minW', x=>x+' px');
+bindRange('hit','dvHit', x=>x+' px');
+bindRange('fade','dvFade', x=>x+' ms');
 
 document.querySelectorAll('.seg').forEach(seg => {
   const key = seg.dataset.seg;
   seg.querySelectorAll('button').forEach(b => {
     b.addEventListener('click', () => {
       seg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
-      b.classList.add('on'); cfg[key] = b.dataset.val; applyAnimVars();
+      b.classList.add('on'); cfg[key] = b.dataset.val; applyAnimVars(); applyDv();
     });
   });
 });
 function bindToggle(id, key) {
   const t = document.getElementById(id);
-  t.addEventListener('change', () => cfg[key] = t.checked);
+  t.addEventListener('change', () => { cfg[key] = t.checked; applyDv(); });
 }
 bindToggle('t_commit','commit'); bindToggle('t_hint','hint');
 bindToggle('t_resist','resist'); bindToggle('t_dragExpand','dragExpand');
+bindToggle('t_dots','dvDots');
 
 document.getElementById('resetDefaults').addEventListener('click', () => {
   cfg = { ...defaults };
@@ -881,6 +1054,7 @@ document.getElementById('resetDefaults').addEventListener('click', () => {
   const set=(id,val)=>{const el=document.getElementById('r_'+id); el.value=val; el.dispatchEvent(new Event('input'));};
   set('hoverIn',cfg.hoverIn); set('dwell',cfg.dwell); set('peekW',cfg.peekW);
   set('anim',cfg.anim); set('thresh',cfg.thresh); set('minW',cfg.minW);
+  set('hit',cfg.dvHit); set('fade',cfg.dvFade);
   // segs
   document.querySelectorAll('.seg').forEach(seg=>{
     const key=seg.dataset.seg;
@@ -891,7 +1065,8 @@ document.getElementById('resetDefaults').addEventListener('click', () => {
   document.getElementById('t_hint').checked=cfg.hint;
   document.getElementById('t_resist').checked=cfg.resist;
   document.getElementById('t_dragExpand').checked=cfg.dragExpand;
-  applyAnimVars(); goOpen(FULL_OPEN,true);
+  document.getElementById('t_dots').checked=cfg.dvDots;
+  applyAnimVars(); applyDv(); goOpen(FULL_OPEN,true); centerSplit();
 });
 
 /* =====================================================================
@@ -983,6 +1158,13 @@ function buildPayload(withIcon) {
     `  release-zone hint:  ${cfg.hint ? 'on' : 'off'}`,
     `  rubber-band resist: ${cfg.resist ? 'on' : 'off'}`,
     `  rail edge re-opens: ${cfg.dragExpand ? 'on' : 'off'}`,
+    '',
+    '— Resize-handle affordance (nav border + terminal↔canvas divider) —',
+    `  hit-target width:   ${cfg.dvHit} px  (seam stays 1px)`,
+    `  reveal:             ${cfg.dvReveal === 'hover' ? 'on hover' : 'always visible'}`,
+    `  fade-in:            ${cfg.dvFade} ms`,
+    `  handle style:       ${cfg.dvStyle === 'pill' ? 'grip pill' : cfg.dvStyle === 'thicken' ? 'thicken line' : 'fill bar'}`,
+    `  grip dots:          ${cfg.dvDots ? 'on' : 'off'}`,
   ];
   if (withIcon) {
     lines.push('', '— Collapse-button icon —', `  pick: ${s.name} (${s.id})`);
@@ -1004,8 +1186,10 @@ document.getElementById('copyBtn2').addEventListener('click', (e) => {
    BOOT
    ===================================================================== */
 applyAnimVars();
+applyDv();
 applyIcon('panel-chevron');
 goOpen(FULL_OPEN, false);
+centerSplit();
 refreshReadout();
 </script>
 </body>
