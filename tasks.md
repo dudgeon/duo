@@ -209,6 +209,20 @@
 
 ---
 
+### ENH-202: View diff on the dirty-buffer conflict banner (unify to 3 buttons)
+
+**Status:** ✅ **Shipped 2026-06-06 (v0.9.x).** Implemented same-session per owner preference on the v0.9.1 walk; owner re-walk (rev3) pending.
+
+**Why.** The dirty-buffer conflict (PRD §3.2) was the only 2-button banner left (Reload / Keep mine); the destructive-overwrite banner (§3.3) had 3 (Keep mine / Load new / View diff). Owner on the v0.9.1-rev2 walk: *"3 button appeared — I think this is preferable; why do we want 2 button instead?"* The 2-button was the conservative choice (a dirty buffer is a 3-way situation, and a general 3-way merge UI is a non-goal), but View-diff in the dirty case is a well-defined **2-way** (your unsaved content vs disk), so unifying is a strict improvement.
+
+**What shipped.** The dirty banner now offers **Keep mine / Reload from disk / View diff**. New `useDiskReconciliation.dismissConflict(diskBody)` (clears the banner + rebaselines both refs to disk so accept-all = byte-exact no-op, reject-all = clean overwrite) + a unit test; `MarkdownEditor.handleConflictViewDiff` (captures the unsaved doc, swaps in disk content, `applyTrackedDiff(yours → disk)`). **936/936 tests + typecheck clean; the 3-button render verified live on a genuine dirty conflict.**
+
+**Parity.** (b) surface-specific — markdown only; the HTML canvas has no CriticMarkup tracked-changes rail, so its dirty banner stays the two-action Reload / Keep-mine. PRD §3.2 updated.
+
+**Cross-refs.** [ENH-195](#enh-195), [ENH-197](#enh-197), `renderer/hooks/useDiskReconciliation.ts`, `renderer/components/editor/MarkdownEditor.tsx`, `docs/prd/enh-195-disk-sync-conflict-resolution.md` §3.2.
+
+---
+
 ### ENH-189: Agent-agnostic Duo — Claude Code + Codex (research)
 
 **Status:** 🟡 **Decisions OPEN — merged to `main` 2026-06-06 (PR #64); 7 decision cards (D1–D7) pending owner walk** of [`docs/research/agent-agnostic-duo.html`](research/agent-agnostic-duo.html). Recommended picks are logged below (throughline) but **not yet confirmed** — surfaces in every smoke walk until the owner walks the playground and pastes back the decision set (rule 11 + research-report-review-task rule). Research delivered 2026-05-27 (branch `claude/duo-agent-agnostic-research-9y1t3`). **Priority:** Strategic / owner-decision-gated. **Effort:** research only; implementation scope depends on D1.
