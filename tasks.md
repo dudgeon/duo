@@ -144,7 +144,7 @@
 
 ### ENH-189: Agent-agnostic Duo — Claude Code + Codex (research)
 
-**Status:** 🆕 **Research delivered 2026-05-27** (branch `claude/duo-agent-agnostic-research-9y1t3`). **Priority:** Strategic / owner-decision-gated. **Effort:** research only; implementation scope depends on D1.
+**Status:** 🟡 **Decisions OPEN — merged to `main` 2026-06-06 (PR #64); 7 decision cards (D1–D7) pending owner walk** of [`docs/research/agent-agnostic-duo.html`](research/agent-agnostic-duo.html). Recommended picks are logged below (throughline) but **not yet confirmed** — surfaces in every smoke walk until the owner walks the playground and pastes back the decision set (rule 11 + research-report-review-task rule). Research delivered 2026-05-27 (branch `claude/duo-agent-agnostic-research-9y1t3`). **Priority:** Strategic / owner-decision-gated. **Effort:** research only; implementation scope depends on D1.
 
 **Ask.** Explore making Duo harness-agnostic across the Claude Code and Codex CLIs: identify what works across both, what no-ops with Codex, and what outright breaks; for each, propose options weighed by upfront vs ongoing maintenance burden.
 
