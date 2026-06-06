@@ -183,6 +183,32 @@
 
 ---
 
+### ENH-201: Rework or remove the red "Release to collapse" navigator affordance (ENH-190 follow-up)
+
+**Status:** 🆕 **Filed 2026-06-06 — owner, on the v0.9.1 smoke-walk.** **Priority:** Low (polish; owner: "it's fine for now"). **Effort:** S.
+
+**Why.** During ENH-190 drag-to-collapse, the navigator's right border turns red with a "Release to collapse" hint. Owner on the walk: *"need a followup ENH to rework the red 'release to collapse' UI; or eliminate it; but it's fine for now."* The red reads as an error/destructive cue for a non-destructive action.
+
+**Ask.** Rework the affordance (calmer color/treatment or a different cue) or remove it — owner picks during the rework. Non-blocking for the v0.9.x cut.
+
+**Cross-refs.** [ENH-190](#enh-190), `renderer/components/FilesPane.tsx` (`willCollapse` state + red border), `renderer/styles/globals.css` (`.nav-resize-handle.will-collapse`).
+
+---
+
+### BUG-197: Navigator rail-peek commits on a whitespace click but NOT on a file/folder click
+
+**Status:** 🆕 **Filed 2026-06-06 — owner, on the v0.9.1 smoke-walk (ENH-190).** **Priority:** Medium (the documented commit gesture is partly broken). **Effort:** S–M.
+
+**Symptom (owner).** While the rail is peeked open, clicking empty body whitespace correctly commits the peek (stays expanded) — but **clicking a file or folder row does NOT also commit the peek** (it should). Owner: *"click in white space persists the expand; clicking in file or folder should but does not also persist the expand."* Non-blocking.
+
+**Likely cause.** The peek-commit handler (ENH-190, `FilesPane.tsx`) fires on a body click, but a file/folder row's own click handler (open/select/toggle) stops propagation or runs first, so the commit path isn't reached on a row click.
+
+**Expected (ENH-190 lock).** "Rail-peek commit = click anywhere in the body (not a header button)" — a file/folder row IS in the body, so it should commit the peek *while also* performing its open/toggle.
+
+**Cross-refs.** [ENH-190](#enh-190), `renderer/components/FilesPane.tsx` (peek-commit handler + tree-row click handlers).
+
+---
+
 ### ENH-189: Agent-agnostic Duo — Claude Code + Codex (research)
 
 **Status:** 🟡 **Decisions OPEN — merged to `main` 2026-06-06 (PR #64); 7 decision cards (D1–D7) pending owner walk** of [`docs/research/agent-agnostic-duo.html`](research/agent-agnostic-duo.html). Recommended picks are logged below (throughline) but **not yet confirmed** — surfaces in every smoke walk until the owner walks the playground and pastes back the decision set (rule 11 + research-report-review-task rule). Research delivered 2026-05-27 (branch `claude/duo-agent-agnostic-research-9y1t3`). **Priority:** Strategic / owner-decision-gated. **Effort:** research only; implementation scope depends on D1.
