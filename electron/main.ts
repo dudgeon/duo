@@ -1631,15 +1631,6 @@ function setupIPC(): void {
     broadcastProjectsChanged(next)
     return next
   })
-  ipcMain.handle(
-    IPC.PROJECTS_SET_COLOR_OVERRIDE,
-    async (_event, { root, colorIndex }: { root: string; colorIndex: number | null }) => {
-      const next = await projectsService.setColorOverride(root, colorIndex)
-      broadcastProjectsChanged(next)
-      return next
-    }
-  )
-
   // ENH-151 — clone wrapper (gh + git fallback) + gh-auth probe.
   ipcMain.handle(IPC.GIT_CLONE, async (_event, req: import('../shared/host-api').CloneRequest) => {
     const { runClone } = await import('../core/git/clone')

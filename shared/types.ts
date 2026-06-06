@@ -603,8 +603,7 @@ export interface Project {
   isGitRoot: boolean
   /** Whether `root` contains `CLAUDE.md` or `.claude/`. */
   hasMarker: boolean
-  /** 0..5 index into the six --project-* hues. Hash-stable per root
-   *  (R2) unless overridden in `ProjectsFile.colorOverrides`. */
+  /** 0..5 index into the six --project-* hues. Hash-stable per root (R2). */
   colorIndex: number
   /** D12 — true when this root is in the persisted pin set, so the
    *  tile stays in the rail even when no tabs are open. */
@@ -612,16 +611,12 @@ export interface Project {
 }
 
 // ENH-182 — persisted slice at ~/.claude/duo/projects.json. Pins keep
-// a project tile in the rail when no tabs reference it; color
-// overrides let the user lock a hue when the hash-stable default
-// collides with the muscle memory they want.
+// a project tile in the rail when no tabs reference it. (Manual color
+// overrides were cut in ENH-191 P0 — project colors are hash-stable only.)
 export interface ProjectsFile {
   version: number
   /** Absolute paths of pinned project roots. Order = insertion order. */
   pins: string[]
-  /** Map of project root → colorIndex (0..5), overriding the hash
-   *  default. Keyed by absolute path. */
-  colorOverrides: Record<string, number>
 }
 
 // ENH-182 Phase 4 — renderer-authoritative snapshot of the live
@@ -1958,11 +1953,10 @@ export const IPC = {
   // useProjects when the navigator listing isn't sufficient (e.g.
   // user just opened a file under ~/.claude without navigating).
   PROJECTS_HAS_MARKER: 'projects:has-marker',
-  // ENH-182 Phase 3 — persisted projects.json slice (pins + color
-  // overrides). Renderer → main.
+  // ENH-182 Phase 3 — persisted projects.json slice (pins). Renderer → main.
+  // (Manual color-override IPC cut in ENH-191 P0 — colors are hash-stable.)
   PROJECTS_READ: 'projects:read',
   PROJECTS_TOGGLE_PIN: 'projects:toggle-pin',
-  PROJECTS_SET_COLOR_OVERRIDE: 'projects:set-color-override',
   // ENH-182 Phase 3 — main → renderer push after any mutation
   // (toggle-pin, set-color-override, or a Phase 4 CLI verb), carrying
   // the fresh ProjectsFile so subscribers can update without polling.

@@ -49,9 +49,6 @@ export interface UseProjectsArgs {
    *  right-click menu. Pinned projects persist in the rail even
    *  with zero open member tabs/terminals. */
   pinnedProjects?: ReadonlySet<string>
-  /** Phase 3a (R2) — explicit color-index override map. Wins over
-   *  the `hashColorIndex(root)` default. */
-  colorOverrides?: Readonly<Record<string, number>>
 }
 
 export interface UseProjectsResult {
@@ -62,19 +59,16 @@ export interface UseProjectsResult {
   tabMembership: Record<string, string | null>
 }
 
-// Stable empty fallbacks so callers that omit `pinnedProjects` /
-// `colorOverrides` don't churn the `deriveProjects` memo identity
-// on every render.
+// Stable empty fallback so callers that omit `pinnedProjects` don't
+// churn the `deriveProjects` memo identity on every render.
 const EMPTY_PROJECT_SET: ReadonlySet<string> = new Set<string>()
-const EMPTY_COLOR_OVERRIDES: Readonly<Record<string, number>> = Object.freeze({})
 
 export function useProjects(args: UseProjectsArgs): UseProjectsResult {
   const {
     terminals,
     workingTabs,
     pinnedTabPaths,
-    pinnedProjects = EMPTY_PROJECT_SET,
-    colorOverrides = EMPTY_COLOR_OVERRIDES
+    pinnedProjects = EMPTY_PROJECT_SET
   } = args
 
   // Probe caches. Each map<dir, result> grows as the async probes
@@ -214,7 +208,6 @@ export function useProjects(args: UseProjectsArgs): UseProjectsResult {
       workingTabs,
       pinnedTabPaths,
       pinnedProjects,
-      colorOverrides,
       qualify: (dir: string) => {
         if (isExcludedFromQualification(dir, HOME_DIR)) {
           return { isGitRoot: false, hasMarker: false }
@@ -228,7 +221,7 @@ export function useProjects(args: UseProjectsArgs): UseProjectsResult {
         return { isGitRoot, hasMarker, exists }
       }
     })
-  }, [terminals, workingTabs, pinnedTabPaths, pinnedProjects, colorOverrides, gitResults, markerResults, pinnedExists])
+  }, [terminals, workingTabs, pinnedTabPaths, pinnedProjects, gitResults, markerResults, pinnedExists])
 
   return result
 }

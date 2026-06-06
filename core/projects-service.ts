@@ -13,7 +13,7 @@ import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
 import type { ProjectsFile } from '../shared/types'
-import { NUM_PROJECT_COLORS, normalizeProjectsFile } from '../shared/projects'
+import { normalizeProjectsFile } from '../shared/projects'
 import { createWriteQueue, uniqueTmpPath } from './write-queue'
 
 const DEFAULT_DIR = path.join(os.homedir(), '.claude', 'duo')
@@ -42,10 +42,9 @@ export type { Project, ProjectsFile } from '../shared/types'
 export class ProjectsService {
   private readonly dir: string
   private readonly file: string
-  // Phase H (ENH-191 Cut 0) — serialize the read-modify-write so a
+  // Phase H (ENH-191 Cut 0) — serialize togglePin's read-modify-write so a
   // socket toggle + a renderer-click toggle (or two windows) cannot
-  // interleave at the await points and lose an update. Covers BOTH
-  // mutators (togglePin + setColorOverride) since they share `read`.
+  // interleave at the await points and lose an update.
   private readonly enqueue = createWriteQueue()
 
   // `baseDir` is injectable for tests (avoids polluting the real
@@ -61,7 +60,7 @@ export class ProjectsService {
       const parsed = JSON.parse(raw) as Partial<ProjectsFile>
       return normalizeProjectsFile(parsed)
     } catch {
-      return { version: SCHEMA_VERSION, pins: [], colorOverrides: {} }
+      return { version: SCHEMA_VERSION, pins: [] }
     }
   }
 
@@ -76,25 +75,6 @@ export class ProjectsService {
             ? [...current.pins.slice(0, idx), ...current.pins.slice(idx + 1)]
             : [...current.pins, root]
       }
-      await this.write(next)
-      return next
-    })
-  }
-
-  async setColorOverride(root: string, colorIndex: number | null): Promise<ProjectsFile> {
-    return this.enqueue(async () => {
-      const current = await this.read()
-      const overrides = { ...current.colorOverrides }
-      if (colorIndex === null) {
-        delete overrides[root]
-      } else if (
-        Number.isInteger(colorIndex) &&
-        colorIndex >= 0 &&
-        colorIndex < NUM_PROJECT_COLORS
-      ) {
-        overrides[root] = colorIndex
-      }
-      const next: ProjectsFile = { ...current, colorOverrides: overrides }
       await this.write(next)
       return next
     })
