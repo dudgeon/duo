@@ -995,6 +995,6 @@ clarifies and supersedes that framing.
 
 **Why locked.** A 15-agent adversarial audit (2026-06-05) confirmed the architecture is sound (verdict: *trustworthy-with-fixes*); the corrections were additive hardening (PRD Appendix D). Full rationale, file:line anchors, NFRs, and the per-phase plan live in the PRD.
 
-**Note.** "ENH-191" collides with the "Docs deep-clean" entry in `tasks.md` — pending owner reconciliation (renumber one, or disambiguate).
+**Note (resolved 2026-06-06, owner): multi-window owns ENH-191.** The pre-existing "Docs deep-clean" entry in `tasks.md` is to be renumbered (merge-session / owner action on `main`).
 
 **Decision owner:** Geoff.

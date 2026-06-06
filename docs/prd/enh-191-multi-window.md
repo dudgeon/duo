@@ -966,4 +966,4 @@ Captured as the build proceeds — technical findings and process lessons. Newes
 - **Harness discipline holds.** Every extracted module (`safe-send` → `window-registry` → `window-teardown`) ships node-env tests with negative controls **proven to fail when the guard is defeated** — the only automated catch for the focus-substitution / double-stop foot-guns.
 
 **Open process item**
-- **ENH number collision.** `tasks.md` already uses ENH-191 for "Docs deep-clean"; this feature reused the number (and shipped Phase H / PR #68 under it). Needs owner reconciliation — renumber one or disambiguate.
+- **ENH number — RESOLVED (owner, 2026-06-06): multi-window keeps ENH-191.** Phase H / PR #68 already shipped under it. Follow-up (merge session / owner, on `main`): renumber the pre-existing *"Docs deep-clean"* entry in `tasks.md` to clear the collision.
