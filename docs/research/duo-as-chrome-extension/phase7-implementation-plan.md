@@ -284,7 +284,7 @@ Phase 7 is done when:
 
 - ✅ Test matrix above all-green
 - ✅ Unlisted Web Store listing live with private install URL
-- ✅ Stage 21d Trailblazers cohort can install both shapes from a
+- ✅ Stage 21d Beacon cohort can install both shapes from a
   single set of instructions and have everything work first try
 - ✅ `phase0/helper/` and `phase0/cli/` directories are gone
 - ✅ `cli/duo` handles `chrome:` and `embedded:` prefixes correctly

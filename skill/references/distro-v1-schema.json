@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://duo.dev/schemas/distro-v1.json",
+  "title": "Duo distro pack manifest — DISTRO.json (v1)",
+  "description": "The Duo integration manifest for a distro pack's `duo-extras/` subtree (Stage 21d). IMPORTANT: identity fields (name, version, description, author, homepage) live in `.claude-plugin/plugin.json`, NOT here. This file declares only Duo-specific install behavior. Reference schema for authors + agents; intentionally lenient (extra fields are allowed so newer Duo versions can add behavior without invalidating older packs).",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "URI of this schema (https://duo.dev/schemas/distro-v1.json)."
+    },
+    "$comment": {
+      "type": "string",
+      "description": "Free-form note; conventionally reminds authors that identity lives in plugin.json."
+    },
+    "requiresDuoVersion": {
+      "type": "string",
+      "description": "semver range the pack requires of the host Duo install, e.g. \">=0.8.0\" or \">=0.6.7 <0.9.0\". The installer refuses packs whose range excludes the running Duo version."
+    },
+    "openOnFirstLaunch": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Pack-relative canvas/file paths auto-opened the first time this pack@version is seen (keyed in installed-packs.json)."
+    },
+    "pinnedFiles": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Pack-relative paths pinned in the working-pane tab strip on install."
+    },
+    "claudeMdSnippet": {
+      "type": "boolean",
+      "description": "When true, merge the pack's CLAUDE.md snippet into ~/.claude/CLAUDE.md between distro-managed markers (re-runs on upgrade)."
+    },
+    "primingAdditions": {
+      "type": "boolean",
+      "description": "When true, append the pack's priming additions to ~/.claude/duo/priming.md."
+    },
+    "externalDomainsAdditions": {
+      "type": "boolean",
+      "description": "When true, merge the pack's external-domain entries into ~/.claude/duo/external-domains.json (never clobbers an existing customized file)."
+    }
+  }
+}

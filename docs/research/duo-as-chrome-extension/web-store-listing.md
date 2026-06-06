@@ -13,7 +13,7 @@
 | Category | Developer Tools |
 | Language | English (United States) |
 | Pricing | Free |
-| Visibility (initial) | Unlisted (Trailblazers cohort) |
+| Visibility (initial) | Unlisted (Beacon cohort) |
 | Visibility (eventual) | Public — gated on cohort dogfood signal per `distribution-strategy.md` Phase 8 |
 | Website | https://github.com/dudgeon/duo |
 | Support email | dudgeon@gmail.com (or a project-specific alias) |
@@ -263,7 +263,7 @@ Capture flow:
       `cd phase0/extension && zip -r ../../duo-extension-vX.X.X.zip .`
 - [ ] Upload the CRX to the Web Store dashboard
 - [ ] Set visibility to **Unlisted** (not Public)
-- [ ] Save the install URL — share with the Trailblazers cohort
+- [ ] Save the install URL — share with the Beacon cohort
 - [ ] Wait for review (3-5 business days typical for unlisted)
 - [ ] Once approved, run Phase 8 cohort dogfood for ≥30 days
 - [ ] Promote to Public per the strategy doc's gate criteria

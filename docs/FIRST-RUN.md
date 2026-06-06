@@ -133,7 +133,7 @@ npm run build:cli
 ```bash
 # Verify
 file cli/duo              # should say "... ASCII text executable"
-node cli/duo --version    # should print 0.1.0
+node cli/duo --version    # prints the current version (matches package.json)
 ```
 
 Install it so it's on your PATH:
@@ -148,10 +148,10 @@ node cli/duo install
 Verify:
 ```bash
 which duo          # should print /usr/local/bin/duo
-duo --version      # should print 0.1.0
+duo --version      # prints the current version (matches the running app)
 ```
 
-**Pass check:** `duo --version` returns `0.1.0` from any directory.
+**Pass check:** `duo --version` returns the current version — the same string the Duo app reports (see `duo doctor`) — from any directory.
 
 ---
 

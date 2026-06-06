@@ -77,7 +77,7 @@ Three forces compound:
 1. **The Electron build carries weight that an extension wouldn't.**
    Notarization, code signing, auto-update, DMG distribution, app
    bundle ID gymnastics — every release of the Duo Electron app has to
-   go through this gauntlet ([Stage 21 cert procurement](../../dev/cert-procurement.md)
+   go through this gauntlet ([Stage 21 cert procurement](../../dev/_archive/cert-procurement.md)
    exists for a reason). A Chrome extension distributes through the
    Web Store with a single signed package and has zero macOS
    notarization surface. This is the strongest "obvious win" on offer.
@@ -436,7 +436,7 @@ opens DevTools on the same tab. Show a banner in the side panel.
 
 ### Phase 4 — Distribution dry-run
 
-**Question:** Can a Trailblazer install the extension + helper
+**Question:** Can a Beacon install the extension + helper
 without hand-holding?
 
 **Build:** A README with: "(1) install extension from Web Store, (2)
@@ -468,7 +468,7 @@ Electron app installer is one step; extension + helper is two.
   block or audit extensions requesting `debugger`, `nativeMessaging`,
   and `tabs` together — that combination is a credible facsimile of a
   remote-access trojan from a security-tooling perspective. Audit
-  whether any meaningful Trailblazer audience can install this
+  whether any meaningful Beacon audience can install this
   extension without a permission-policy battle.
 
 ### Soft blockers (livable but documented)
@@ -600,7 +600,7 @@ empirical test (same as duo-in-browser — needs managed hardware).
 - **Do not refactor `renderer/` to be host-agnostic.** Same lesson as
   duo-in-browser: the shim approach is faster than the abstraction
   refactor. If the extension shape ships, *then* maybe abstract.
-- **Stage 21d (Trailblazers) is the natural distribution gate to
+- **Stage 21d (Beacon) is the natural distribution gate to
   evaluate against.** If the extension shape's install friction is
-  meaningfully higher than the DMG, Trailblazers is the wrong
+  meaningfully higher than the DMG, Beacon is the wrong
   audience to test it on.

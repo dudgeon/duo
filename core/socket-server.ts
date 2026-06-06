@@ -55,7 +55,7 @@ import type {
   NavPinEntry,
   WorkingAuxSnapshot
 } from '../shared/types'
-import { SOCKET_PATH, PORT_FILE, APP_VERSION } from './constants'
+import { SOCKET_PATH, PORT_FILE } from './constants'
 
 export interface NavBridge {
   /** Returns the most recent snapshot pushed by the renderer. */
@@ -282,7 +282,12 @@ export class SocketServer {
     private readonly nav: NavBridge,
     private readonly navPins: NavPinsService,
     private readonly events: EventBus,
-    private readonly packs: PackLoader
+    private readonly packs: PackLoader,
+    // Real running app version (app.getVersion() → package.json), injected
+    // from electron/main.ts. Returned by the `ping` handler so `duo doctor`
+    // compares it against the CLI's build-time version and flags a stale
+    // binary symlink. Mirrors the `new PtyManager(app.getVersion())` pattern.
+    private readonly appVersion: string
   ) {}
 
   /** Stage 12 close — install a renderer-push callback. */
@@ -593,7 +598,7 @@ export class SocketServer {
           // up before bothering with any real command. Returns the
           // running app's version so the CLI can flag mismatches when
           // a stale binary symlink is pointing at an older bundle.
-          result = { version: APP_VERSION }
+          result = { version: this.appVersion }
           break
         }
         case 'navigate': {

@@ -127,6 +127,9 @@ description: Generate an interactive HTML smoke-walk page for the user to valida
 
 **For a first walk (no prior `rev`):** read entries in `tasks.md`
 flipped to `✅ Shipped <today's date>` since the last release tag.
+(Newly-shipped ✅ entries stay in `tasks.md` until the cut-version skill
+archives them to `tasks-archive.md` — ENH-191/D1 — so this pre-cut read is
+correct; older closed history lives in the archive, not the open backlog.)
 Cross-check the most recent dated section in
 `docs/dev/session-log.md`. Cover every BUG-/ENH- that plausibly
 needs user-side verification — small refactors fold into the

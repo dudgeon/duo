@@ -830,8 +830,7 @@ before the flagship pair; transport + install changes land with the
  Stage 18 / Stage 21 sequence (split 2026-04-26 — see the roadmap).
 
 **Problem statement.** Claude Code runs each Bash tool invocation inside
-a macOS Seatbelt-based sandbox. Enterprise deployments (e.g. Capital
-One) have this enabled by default. The sandbox:
+a macOS Seatbelt-based sandbox. Enterprise deployments (e.g. Acme) have this enabled by default. The sandbox:
 
 - **Blocks filesystem writes outside the current working directory.**
   Reads outside cwd are generally allowed.

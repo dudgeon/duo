@@ -36,7 +36,7 @@ Two skill packs that ship as part of the v0.6.0 install bundle:
   click-through interactive.
 - **Pack B — `claude-code-basics`** (multi-canvas, derived from
   `untitled-folder/claude-code-basics-temp.md`). Target: PMs (the
-  Capital One AIP audience). Validates the multi-canvas pack-with-
+  Acme audience). Validates the multi-canvas pack-with-
   shared-skill case.
 
 Both packs are FTUX defaults (`PACK.json § defaults`) — auto-open as
@@ -56,7 +56,7 @@ a fix or a deferred follow-up.
 | D# | Decision | Rationale |
 |---|---|---|
 | **D28.1** | Tutorial v1 = click-through interactive with paint regions + form-input pushback. | Owner verbatim: "Click through interactives, with panes that duo can paint within/populate, and with ui elements the user can populate and push to duo for the next steps; sometimes duo will reveal prebuilt content progressively in the canvas, other times it will need to respond and generate content interactively." |
-| **D28.2** | Lessons distribute as Stage 18b skill packs. | Owner picked the skill-pack-shaped option in the AUQ. Reuses the install/upgrade machinery. Future enterprise distros (Cap One AIP, Trailblazers) ship their own packs the same way. |
+| **D28.2** | Lessons distribute as Stage 18b skill packs. | Owner picked the skill-pack-shaped option in the AUQ. Reuses the install/upgrade machinery. Future enterprise distros (Acme, Beacon) ship their own packs the same way. |
 | **D28.3** | FTUX surfacing = preinstalled default tabs that auto-open on first launch only. User dismisses by closing the tab. Closed tabs do NOT reopen on next launch. | Owner verbatim: "duo coming installed with N default content tabs, eg a ftux/duo at a glance canvas; user acknowledges via button and duo closes; it does not reload on next app launch if not reopened." Leans on existing pin/close/session-restore primitives — no new tutorial-state infra. |
 | **D28.4** | Skill packs loadable from arbitrary URLs (e.g. enterprise GitHub). | Owner verbatim: "I could also imagine wanting to send a user a link to a skill pack in the enterprises GitHub instance and it being super easy for the user to load it up in duo." Stage 18b's `duo pack install <url>` is the primary surface. |
 | **D28.5** | Lean on enduring primitives, not use-case-specific config. | Owner verbatim: "we should build and use enduring primitives like pinning and closing, and not rely on too much use case specific config and logic if it can be avoided." Translation: a tutorial is "just a canvas + skill, marked as default-on-first-launch." No tutorial-progress engine, no tutorial-specific state machine in main, no tutorial-typed tab kind. |
@@ -67,7 +67,7 @@ a fix or a deferred follow-up.
 
 ### Audience
 
-CLI-noob users new to Claude Code. Probably the GA/Trailblazers
+CLI-noob users new to Claude Code. Probably the GA/Beacon
 audience: PMs, designers, non-engineers exposed to Claude Code for
 the first time.
 
@@ -212,7 +212,7 @@ the pack — accessible from any CWD.
 
 ### Audience
 
-PMs (the Capital One AIP cohort and Trailblazers). The canonical
+PMs (the Acme cohort and Beacon). The canonical
 content source is `untitled-folder/claude-code-basics-temp.md` — a
 research-backed Claude Code 101 curriculum designed for a 30-minute
 self-paced experience with seven concept families and five

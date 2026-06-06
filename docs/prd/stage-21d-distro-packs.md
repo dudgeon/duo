@@ -23,8 +23,8 @@
 to users without forcing a recompile or a rebrand,** with low LOE
 per Duo release on the distro side.
 
-The motivating example: a corporate platform team (e.g. a Cap One
-AIP-style group, or an internal training program) wants every team
+The motivating example: a corporate platform team (e.g. an Acme
+Acme-style group, or an internal training program) wants every team
 member's Duo to ship with the team's skills, playgrounds, canvas
 templates, FTUX welcome canvases, and CLAUDE.md guidance — without
 the team having to maintain a fork of the Duo source code.
@@ -61,7 +61,7 @@ Layer 4 / Stage 21e fork land:
 
 Distros that need any of these maintain a Layer 4 fork of the Duo
 repo (and HOW-TO-FORK.md already documents that path). Most
-distros — including the AIP-style motivating example — don't need
+distros — including the Acme-style motivating example — don't need
 any of these. Owner-confirmed (2026-05-06): no rebrand required.
 
 ### Deferred to a later stage
@@ -196,8 +196,8 @@ trusted internal repo.
 {
   "name": "aip-corporate",
   "version": "1.0.0",
-  "description": "AIP Platform team's Duo customization pack",
-  "author": { "name": "AIP Platform Team", "email": "aip-platform@example.com" },
+  "description": "Acme Platform team's Duo customization pack",
+  "author": { "name": "Acme Platform Team", "email": "aip-platform@example.com" },
   "homepage": "https://internal.example.com/aip/duo-pack"
 }
 ```
@@ -216,7 +216,7 @@ This serves as the **canonical identity** for the pack — `name` is the distro 
     "playgrounds/dashboard.html"
   ],
   "pinnedFiles": [
-    { "path": "canvases/welcome.html", "title": "AIP Welcome" }
+    { "path": "canvases/welcome.html", "title": "Acme Welcome" }
   ],
   "claudeMdSnippet": true,
   "primingAdditions": true,
@@ -287,7 +287,7 @@ manifest schema. Owns identity:
 Owns Duo behaviors only (no identity duplication):
 
 - `requiresDuoVersion` — npm-style range. **Hard-blocks install
-  if Duo doesn't satisfy.** Banner: "AIP Pack 1.0 requires Duo
+  if Duo doesn't satisfy.** Banner: "Acme Pack 1.0 requires Duo
   ≥0.6.7 <0.8; running 0.8.0. Update the pack or downgrade Duo."
 - `openOnFirstLaunch` — relative paths (under `duo-extras/`) that
   auto-open as canvas / playground tabs on FIRST detection of
@@ -370,7 +370,7 @@ postinstall, OR from the bundled-distro path):
    - Updates of an existing pack do NOT re-fire FTUX (already-fired
      flag stays true).
 
-8. **Notify:** banner / toast: "AIP Corporate pack 1.0 installed —
+8. **Notify:** banner / toast: "Acme Corporate pack 1.0 installed —
    N new canvases, M new skills." Skills are immediately available
    in any running Claude Code session via Claude Code's live skill
    watcher (no restart required).
@@ -389,7 +389,7 @@ folder from `~/.claude/duo/extra-packs/`.
 5. Remove the distro's external-domains entries.
 6. Pinned files: leave in place if user has interacted with them
    (per pin-history); remove if untouched.
-7. Banner: "AIP Corporate pack removed."
+7. Banner: "Acme Corporate pack removed."
 
 User-customized files (e.g. user edited the installed
 `~/.claude/skills/aip-corporate-make-page/SKILL.md` after install)
@@ -407,7 +407,7 @@ Atomic replace per owner-locked semantic:
 1. Uninstall the old version (steps above).
 2. Install the new version.
 3. FTUX does NOT re-fire (pack-name already in
-   `distroFtuxFired[]`). Banner: "AIP Corporate pack updated to 1.1."
+   `distroFtuxFired[]`). Banner: "Acme Corporate pack updated to 1.1."
 
 If the pack-name changes (rare; e.g. fork rename), the install
 pipeline treats it as a fresh install and FTUX fires.
@@ -446,7 +446,7 @@ it available without extra setup.
 
 ### What the skill does
 
-1. **Scaffold a new pack.** `Build me an AIP corporate distro pack`
+1. **Scaffold a new pack.** `Build me an Acme corporate distro pack`
    → Claude follows the skill to create a folder structure with:
    - `.claude-plugin/plugin.json` (canonical Claude Code manifest;
      scaffolded with stub identity fields).

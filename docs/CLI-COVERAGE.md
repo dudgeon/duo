@@ -12,8 +12,9 @@
 > what's shipped, what's a gap, and what stage will close each gap.
 > Cross-refs to specific PRDs in [docs/prd/](prd/).
 >
-> **Last updated: 2026-04-26** (Stage 19 rename: `duo term new` →
-> `duo new-tab` with `--kind shell|claude`).
+> **Last updated: 2026-05-31** (ENH-191 / D7 re-audit vs `cli/duo.ts`: added
+> `duo html click` + the `duo pack` family, removed a stale `duo doc find`
+> gap row, corrected the terminal-tab parity note).
 
 ---
 
@@ -91,6 +92,7 @@ for the authoritative usage text.
 | `duo html append --parent <duo-id> --html "…"` | Append a child to the matched parent (Stage 17b). |
 | `duo html remove --id <duo-id>` | Delete the matched element (Stage 17b). |
 | `duo html attr --id <duo-id> [--set k=v ...] [--remove k ...]` | Modify attributes (Stage 17b). |
+| `duo html click --id <duo-id> \| --selector <css>` | **ENH-055** — programmatic click; resolves the target via `--id`/`--selector` and fires the canvas-action delegated dispatcher exactly like a real user click (`data-duo-action` verbs fire, events emit). Used by lesson fly-through harnesses. |
 | `duo html comment --id <duo-id> --body "…"` | Add a comment anchored to the matched element's nearest `data-duo-id` ancestor (Stage 17d). Stored in `<file>.duo.json § comments[]`; the `.html` is never modified. Anchor via `--id`, `--selector <css>`, or `--text "<substring>"`. Body via flag or stdin. Returns `{ok, commentId, anchorId}`. |
 | `duo html comments [--filter all\|open\|resolved]` | List comment threads on the active canvas, sorted in document order (Stage 17d). Each thread: `{id, number, excerpt, resolved, entries: [{id, author, ts, body}]}`. |
 
@@ -110,11 +112,12 @@ for the authoritative usage text.
 | `duo claude-return [submit\|newline]` | **v0.6.15** — Claude-tab plain Return behavior. Default `submit` (xterm passthrough). `newline` activates the ENH-127 v2 override (writes ESC+CR; Claude reads as multi-line newline; ⌘Return submits). Stored in localStorage `duo.claudeReturn.v1`. |
 | `duo shift-return [submit\|newline]` | **v0.6.15** — Claude-tab Shift+Return behavior. Default `newline` (matches Slack/Discord/claude.ai-web). `submit` disables the override. Stored in localStorage `duo.shiftReturn.v1`. |
 | `duo hidden-files [show\|hide\|toggle]` | **ENH-172 (Sprint 20 / v0.7.7)** — show / hide dotfiles in the navigator. CLI parity with View → Show Hidden Files menu + ⌘⇧. chord (Finder convention). Persists in localStorage `duo.nav.showDotfiles`. `.claude` + `.obsidian` are always visible regardless (always-visible carve-outs in FileTree's `shouldShow()`). `duo nav-state` also returns `showDotfiles: boolean` for snapshot-style reads. No arg = print state. |
-| `duo browser-mode [unfiltered\|filtered\|local-only]` | **ENH-178 (Sprint 20 / v0.7.7)** — three-mode embedded-browser URL filter. **Default: `local-only`** (`file://` + `localhost` + `127.0.0.1` + `[::1]` render in Duo; everything else pops the system browser). `filtered` is the legacy behavior (consult `~/.claude/duo/external-domains.json`). `unfiltered` is debug-only and requires `--i-understand` (IT-policy warning printed otherwise). Persists in renderer localStorage `duo.browserMode`. No arg = print `{ mode }`. |
+| `duo browser-mode [unfiltered\|filtered\|local-only]` | **ENH-178 (v0.7.8)** — three-mode embedded-browser URL filter. **Default: `local-only`** (`file://` + `localhost` + `127.0.0.1` + `[::1]` render in Duo; everything else pops the system browser). `filtered` is the legacy behavior (consult `~/.claude/duo/external-domains.json`). `unfiltered` is debug-only and requires `--i-understand` (IT-policy warning printed otherwise). Persists in renderer localStorage `duo.browserMode`. No arg = print `{ mode }`. |
 | `duo split <pct\|preset>` | **ENH-014 + ENH-099** — set split-pane percentage (terminal column as % of split container; clamped 20–80). Numeric arg or named preset (`even`, `terminal-heavy`, `canvas-heavy`, `terminal`, `canvas`, `3way`). The `3way` preset is the on-demand sibling of ENH-126: snaps to outer 33/67 + inner aux 50/50 (canonical 3-pane even). Mirrors View → Pane size menu and ⌘⌥1/2/3/4/0/9. |
 | `duo split-view <op> [args]` | ENH-041 / Sprint 3 + Sprint 7 Phase 3c — Split View aux pane (canvas's right-side companion slot). Sub-verbs: `open <path>` (file in aux), `open-browser <id>` (pin browser tab in aux — Phase 3c, browser tab stays a real Chromium tab so scripts run; fixes worksheet-in-split scripted-page case), `close`, `promote`, `resize <pct>`, `state` (or no sub-verb). v1 single-slot. File-aux and browser-aux mutually exclusive — pinning one releases the other. State is renderer-authoritative; main caches snapshot for the no-arg query. Locked spec: `docs/prd/canvas-split-view-research.html`. |
 | `duo events [--follow] [--since <cursor>] [--limit N]` | Stage 27 — stream structured DuoEvents from main's in-memory bus (200-event ring buffer). Snapshot mode prints one JSON line per event from the ring; `--follow` keeps the socket open and pushes each new event as it lands. `--since` resumes from a cursor of the form `<unix-ms>-<seq>`. Producer: canvas-action `duo:event` verb today; renderer / browser / main hooks land as Stage 27.5 follow-ups. |
 | `duo packs` | Stage 18b — list every distro pack at `~/.claude/duo/packs/<name>/`. Returns parsed `PACK.json` plus per-pack `errors[]` (malformed manifests surface as errors, never crash the loader). Cached at app boot. |
+| `duo pack <list\|uninstall>` | **Stage 21d-iii** — distro pack management. `list` returns JSON of installed packs; `uninstall <name> [--remove-folder]` removes a pack (and optionally its folder on disk). (`duo packs` above is the legacy list alias.) |
 | `duo selection-format [a\|b\|c]` | Read or set the Send → Duo payload format (Stage 15 G19, agent-tunable). a = quote + provenance (default), b = literal, c = opaque token. Persisted in renderer localStorage. |
 | `duo send [--text "…"] [--enter]` | Write a payload into the active terminal's PTY (Stage 15 G17). No Enter by default — user confirms. Pass `--enter` to submit on their behalf (Stage 23b — pairs with canvas `data-duo-action="terminal:send" data-enter="true"`). Without `--text`, reads stdin. Returns `{ok, written, terminalId}`. |
 
@@ -164,7 +167,7 @@ heuristics. Set in `electron/pty-manager.ts` (D1–D3 in
 | `DUO_SOCKET` | absolute path to `duo.sock` | The CLI prefers this over its hard-coded fallback path (D4). |
 | `DUO_PORT_FILE` | absolute path to `duo.port` (Stage 20) | Optional override for the TCP-fallback port file. Production paths use the default `~/Library/Application Support/duo/duo.port`; tests / smokes can point this elsewhere. |
 | `DUO_TCP_ONLY` | `1` to force the CLI past the Unix socket | Stage 20 — used by smoke tests / sandbox emulation to verify the TCP fallback wires up end-to-end. Production users should not set this. |
-| `DUO_VERSION` | `app.getVersion()` (e.g. `0.1.0`) | Lets the agent reason about feature availability per Duo build. |
+| `DUO_VERSION` | `app.getVersion()` (e.g. `0.8.5`) | Lets the agent reason about feature availability per Duo build. |
 | `TERM_PROGRAM` | `Duo` | Mixed-case to match `Apple_Terminal` / `iTerm.app` / `vscode`. Tools that already key off `TERM_PROGRAM` (Powerlevel10k, oh-my-zsh, Starship) get a clean signal alongside the agent. |
 
 **Smoke check.** Inside a Duo terminal: `env | grep ^DUO_` returns the
@@ -190,10 +193,11 @@ Audited against the UI surface as of 2026-04-24. Priorities:
 
 ### Terminal — P0
 
-Today the agent can create new terminal tabs (Stage 19c, shipped
-2026-04-26 — code-side; UI walk pending) but cannot yet close or switch
-existing ones. Since Duo terminals are *the place the agent lives*,
-the close/switch gaps remain the largest parity hole.
+Today the agent can create new terminal tabs (Stage 19c) and close them
+(`duo close-terminal-tab`, FOLLOWUP-020 — shipped). Switching the *focused*
+terminal tab from the CLI is the remaining gap. Since Duo terminals are
+*the place the agent lives*, terminal-tab switching is the parity hole left
+to close.
 
 | Verb | UI parallel | Shape |
 |---|---|---|
@@ -231,7 +235,6 @@ but they're not shipped yet.
 | `duo doc frontmatter get [key]` / `set <key> <value>` | Properties panel (not yet built) | P1 — makes the `duo.trackChanges` flag (and future per-doc settings) agent-legible |
 | `duo doc outline [path]` | Outline sidebar (not yet built) | P1 — returns `[{level, text, line}]` for TOC |
 | `duo doc table <op>` where op = row-above / row-below / row-del / col-left / col-right / col-del / toggle-header / del-table | Table toolbar + `⌥⇧↑↓←→` | P2 — agents can just emit a new markdown table via `replace-selection` |
-| `duo doc find <pattern> [--case-sensitive] [--regex]` | `⌘F` (not yet built) | P2 |
 
 ### Files + navigator — P1
 

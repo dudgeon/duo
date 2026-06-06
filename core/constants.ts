@@ -2,7 +2,9 @@ import { homedir } from 'os'
 import { join } from 'path'
 
 export const APP_NAME = 'Duo'
-export const APP_VERSION = '0.1.0'
+// APP_VERSION removed 2026-05-29: it drifted (hardcoded '0.1.0' vs package
+// 0.8.5). The real version now flows app.getVersion() → SocketServer ctor
+// (the `duo doctor` ping); the CLI bakes it via esbuild define. SoT: package.json.
 
 export const DUO_DIR = join(homedir(), 'Library', 'Application Support', 'duo')
 export const SOCKET_PATH = join(DUO_DIR, 'duo.sock')

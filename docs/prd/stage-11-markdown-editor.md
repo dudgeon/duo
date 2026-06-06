@@ -300,7 +300,7 @@ Total: ~14–16 PRs. Sequenced so that 11a unlocks real usage and every sub-stag
 - **CriticMarkup in nested blocks.** Comments inside list items, table cells, footnotes. TipTap marks inside nodes with constrained schemas need care. Parser test-cases for each combination before 11d ships.
 - **Schema rigidity vs. markdown flexibility.** ProseMirror demands every node be declared. Rare markdown (e.g. raw HTML blocks, reference-style links) needs explicit schema entries or an "unknown block" passthrough node that renders as a monospace read-only block with "edit source." Resolve during 11a.
 - **Agent-write arrives mid-keystroke.** Race between user typing and `duo doc write`. Hold agent writes for ~300ms after last keystroke; if that doesn't suffice, queue and apply at the next idle moment with the D24 banner.
-- **Open question — author identity.** D18 uses the macOS user. When Duo grows a `duo login` concept for Trailblazers (Stage 6 / 14), revisit.
+- **Open question — author identity.** D18 uses the macOS user. When Duo grows a `duo login` concept for Beacon (Stage 6 / 14), revisit.
 - **Open question — comment threading.** Adjacent `{>>...<<}` marks render as a thread via a convention. If threads prove fragile in use, add a Duo-specific threading convention inside the prefix (e.g. `[geoff · ts · reply-to:abc]`). Still spec-compliant. Decide after 11d usage.
 - **Open question — outline-driven reorder semantics.** Dragging a section header moves "everything until the next same-or-higher heading." Edge case: trailing content after the last heading. Spec exact behavior at 11e kickoff.
 

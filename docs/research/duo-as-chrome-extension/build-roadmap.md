@@ -109,7 +109,7 @@ Only proceed past each gate on a green light.
 | **G1** | End of Stage A | Smoke matrix passes; no Electron-app regressions | Roll back the refactor, investigate. |
 | **G2** | End of Stage B Phase 0 | SW + helper survive 30 min idle | Close research; add closing addendum to README. |
 | **G3** | End of Stage C MVP demo | Phase 8 demo runs end-to-end | Identify load-bearing failures; decide stay-here vs. continue. |
-| **G4** | End of Stage D | Trailblazer pilot can run for a week without owner intervention | Polish loop; don't expand scope until stable. |
+| **G4** | End of Stage D | Beacon pilot can run for a week without owner intervention | Polish loop; don't expand scope until stable. |
 | **G5** | End of Stage F | Feature parity sufficient for the user audience we picked | Take a breath before public distribution. |
 
 **G2 is the load-bearing gate.** If Phase 0 fails, ~80% of the plan
@@ -343,7 +343,7 @@ The Phase 8 demo runs end-to-end without papercuts:
 **Detail level:** Medium. Production-ready foundation before
 expanding scope.
 
-**Outcome:** A Trailblazer pilot can run for a week without the
+**Outcome:** A Beacon pilot can run for a week without the
 owner needing to debug helper-died papercuts or restart the
 extension.
 
@@ -413,7 +413,7 @@ faster than smoke-matrix walks.
 
 ### Stage D exit criteria (Gate G4)
 
-- Pilot user (Trailblazer) runs the extension for 7 days without
+- Pilot user (Beacon) runs the extension for 7 days without
   the project owner intervening.
 - No "helper died, restart Chrome" reports.
 - All `core/` unit tests pass on CI.
@@ -572,11 +572,11 @@ shape).
 - Privacy policy and permission justifications.
 - Support contact and bug-report URL.
 
-#### G2 — Trailblazer pilot announcement (~0.5 day)
+#### G2 — Beacon pilot announcement (~0.5 day)
 
-Stage 21d in the existing roadmap is the Trailblazer cohort. The
+Stage 21d in the existing roadmap is the Beacon cohort. The
 extension shape rides on that pilot but with a separate install
-flow. Add a second README to the Trailblazer onboarding doc.
+flow. Add a second README to the Beacon onboarding doc.
 
 #### G3 — Helper PKG public release infrastructure (~1 day)
 
@@ -604,7 +604,7 @@ First-launch banner in the side panel:
 ### Stage G exit criteria
 
 - Public Web Store listing live.
-- A non-Trailblazer user finds, installs, and uses the extension
+- A non-Beacon user finds, installs, and uses the extension
   without owner intervention.
 
 ---
@@ -719,7 +719,7 @@ Each decision is small, but they compound:
   popup-window-first.
 - **End of C (G3):** Promote to a roadmap stage card on
   [`docs/roadmap.html`](../../roadmap.html), or keep as research?
-- **End of D (G4):** Open the Trailblazer pilot, or polish more?
+- **End of D (G4):** Open the Beacon pilot, or polish more?
 - **End of F (G5):** What's deliberately staying Electron-only?
 - **Stage H:** The long-term strategic call.
 
@@ -737,7 +737,7 @@ Each decision is small, but they compound:
   stages are less so by design — we'll know more about the right
   UX once Stage C ships and users are using it.
 - **Pricing / packaging.** If the extension ships under a different
-  distribution model (e.g., free, paid tier, Trailblazer-only), that
+  distribution model (e.g., free, paid tier, Beacon-only), that
   decision is a separate strategic conversation.
 - **Internationalization, accessibility audit, security review.**
   These cross-cut every stage; surface them as their own pre-

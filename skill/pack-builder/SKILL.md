@@ -1,6 +1,6 @@
 ---
 name: pack-builder
-description: Author, validate, and build a Duo distro pack — a Claude Code plugin folder with a Duo `duo-extras/` subtree that ships an organization's skills + agents + canvases + CLAUDE.md guidance to a canonical signed Duo install. Use when a user says "build a distro pack for X", "make an AIP-flavored Duo", "package my team's skills as a Duo plugin", or "scaffold a new distro pack." Pairs with the duo-pack-service install pipeline (Stage 21d-i) and the `duo pack list / uninstall` CLI verbs.
+description: Author, validate, and build a Duo distro pack — a Claude Code plugin folder with a Duo `duo-extras/` subtree that ships an organization's skills + agents + canvases + CLAUDE.md guidance to a canonical signed Duo install. Use when a user says "build a distro pack for X", "make an Acme-flavored Duo", "package my team's skills as a Duo plugin", or "scaffold a new distro pack." Pairs with the duo-pack-service install pipeline (Stage 21d-i) and the `duo pack list / uninstall` CLI verbs.
 ---
 
 # Pack-builder skill — Duo distro packs
@@ -127,7 +127,7 @@ Run a structural + manifest check before distributing:
 # Pack-builder is a skill, not a binary — Claude walks the validation
 # steps based on this skill's contract. Trigger it with prompts like:
 #   "validate this distro pack: ~/Documents/aip-corporate/"
-#   "is the AIP pack ready to ship?"
+#   "is the Acme pack ready to ship?"
 ```
 
 Validation steps the skill walks:

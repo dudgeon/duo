@@ -1,7 +1,7 @@
 # How to fork Duo
 
 This doc lives at the intersection of "Duo is one person's side project today"
-and "Duo could be the substrate for a Capital One Trailblazers distro tomorrow."
+and "Duo could be the substrate for an Acme distro tomorrow."
 It exists to give would-be forkers — internal enterprise teams, individuals,
 other organizations — a clear-eyed picture of *what's possible today*, *what's
 coming*, and *how the layers compose*.
@@ -34,7 +34,7 @@ https://github.com/dudgeon/duo/releases/latest
 **What's in:** the canonical Duo experience as Geoff ships it. App icon,
 bundled skill (`skill/SKILL.md`, agent, the `duo-default` pack with
 `what-duo-does.html`, `canvas-actions-demo.html` in help/), `*.capitalone.com` seeded into
-the external-domains bootstrap (Cap One context — see § "What's hard-coded
+the external-domains bootstrap (Acme context — see § "What's hard-coded
 today" below), `dudgeon/duo` as the auto-update upstream.
 
 **What's out:** anything organization-specific that isn't in upstream. No way
@@ -250,9 +250,9 @@ those updates (provenance manifest tracks them).
 the build-time bake-in step. Stage 21e-iii adds the provenance protection
 so upstream binary updates don't clobber your pack's files.
 
-The Cap One AIP starter pack is the motivating example — Trailblazers'
-PMs install AIP's branded Duo DMG, which is upstream Duo plus AIP's
-`extra-skills/cap-one-aip/PACK.json`. AIP doesn't run their own update
+The Acme starter pack is the motivating example — Beacon's
+PMs install Acme's branded Duo DMG, which is upstream Duo plus Acme's
+`extra-skills/cap-one-aip/PACK.json`. Acme doesn't run their own update
 server.
 
 ---
@@ -315,7 +315,7 @@ updates.
 | I just want to try Duo | 0 |
 | I want to add my favorite skill, edit my priming, customize my pinned tabs | 1 |
 | I'm a team lead and want my team's onboarding skills available without making everyone rebuild | 2 (when 18b ships) |
-| I'm an internal AIP-style team distributing a curated DMG with our skill pack | 3 (when 18b ships) |
+| I'm an internal Acme-style team distributing a curated DMG with our skill pack | 3 (when 18b ships) |
 | I'm an enterprise team that wants Duo internal-only with my company's identity, my own update channel, my own internal release schedule | 4 (when 21e ships) |
 | I'm an enterprise team that ships my own DMG AND want my users to have per-individual customization | 5 (when 21e + 18b ship) |
 
@@ -384,7 +384,7 @@ of which fork mode you're in).
 ## Why Stage 21e isn't ✅ today
 
 The gap between "Duo runs on Geoff's laptop" and "Duo is the substrate for
-the Cap One Trailblazers distro" is more than just a config knob — it's a
+the Acme distro" is more than just a config knob — it's a
 trust contract. **A forker has to be able to merge upstream without losing
 their identity, AND a forker's users have to be able to customize their
 install without losing those customizations on upstream binary updates.**
@@ -403,7 +403,7 @@ the layering above. 21e implements; the layers were the question.
 - [the roadmap](roadmap.html) — canonical stage tracking
 - [`docs/roadmap.html#s21`](roadmap.html#s21) — Stage 21 stage card with 21e
   sub-stages
-- [`docs/dev/cert-procurement.md`](dev/cert-procurement.md) — Apple
+- [`docs/dev/cert-procurement.md`](dev/_archive/cert-procurement.md) — Apple
   Developer ID cert procurement (required for any signed-cut fork mode)
 - [`docs/DECISIONS.md`](DECISIONS.md) — locked architectural decisions
 - [`README.md`](../README.md) — user-facing install + build instructions

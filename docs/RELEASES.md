@@ -965,7 +965,7 @@ The closing chapter of the image-handling arc that started in v0.6.10 — paste-
 
 **Three known issues ship.** ENH-091 (caret on fresh canvas) had two fix attempts that didn't move the live behavior — the unit tests pass, the live iframe doesn't follow. Diagnostic plan recorded; next sprint. ENH-096 wikilinks render perfectly but cmd+click navigation is still routing wrong somewhere between the WikilinkDecorations handleClick and App.tsx's listener — owner blessed shipping the visual but flagged the half-feature as **Sprint 9 P0**: close the click handler OR strip the decoration entirely (false affordance worse than no affordance). Plus BUG-100/101/102 — known shape, non-blocking.
 
-**What this is and isn't.** v0.6.8 is the substrate cut. It's not the cohort-distribution release: that comes when an actual non-Geoff machine installs `Duo.app` + a real distro pack + uses the agent loop end-to-end. The plumbing is in place. The next sprint's job is to (1) close ENH-096 wikilinks to a fully-working state, (2) chase ENH-091 caret in the live iframe, and (3) find a real distro use case (Cap One AIP starter pack? a community-built lesson pack?) and walk the cross-machine flow.
+**What this is and isn't.** v0.6.8 is the substrate cut. It's not the cohort-distribution release: that comes when an actual non-Geoff machine installs `Duo.app` + a real distro pack + uses the agent loop end-to-end. The plumbing is in place. The next sprint's job is to (1) close ENH-096 wikilinks to a fully-working state, (2) chase ENH-091 caret in the live iframe, and (3) find a real distro use case (Acme starter pack? a community-built lesson pack?) and walk the cross-machine flow.
 
 ---
 
@@ -1365,7 +1365,7 @@ codebase but no further work is scheduled until owner re-prioritizes.
 
 ### Queued next
 
-- Cohort distribution / Trailblazers (Stage 21d) — socket auth,
+- Cohort distribution / Beacon (Stage 21d) — socket auth,
   agent-driven-nav notifications, README.
 - The remaining v0.5.4-walk-filed paper-cuts: ENH-032 (terminal
   locale documentation in install path).
@@ -1440,7 +1440,7 @@ that loop.
 
 **Not in this cut:** Stage 17 sub-phases (17d-B / 17d-C / 17e),
 Stage 14 (track changes), Stage 16 (external-write reconciliation),
-Stage 21d (Trailblazers cohort distribution). ENH-027
+Stage 21d (Beacon cohort distribution). ENH-027
 (canvas-default routing for local HTML via
 `<meta name="duo-open-in">`) is held until Stage 17e,
 cross-referenced in both roadmap files.
@@ -1542,7 +1542,7 @@ gone, the editor surfaces have the polish that makes the agent
 loop feel intentional rather than improvised, and the Send → Duo
 pill stops misfiring.
 
-**This isn't** the cut that closes Stage 21 (21d Trailblazers
+**This isn't** the cut that closes Stage 21 (21d Beacon
 cohort distribution remains; 21b DMG background remains a small
 visual asset deferred from this cut), and it isn't the one that
 flips Stage 14 / Stage 16 (the markdown editor's CommentRail
@@ -1551,7 +1551,7 @@ v0.6.0 conversations.
 
 ### Queued next
 
-- **Stage 21d** (Trailblazers cohort) — socket auth token + agent-
+- **Stage 21d** (Beacon cohort) — socket auth token + agent-
   driven-nav notifications + README. Last item before the cohort
   can receive the build.
 - **Stage 26 PR 3** (navigator ambient signals + Go-to path) —
@@ -1634,7 +1634,7 @@ fork-config schema, the Pinned section's CLI verbs, or the navigator
 gesture model. v1.0 is the line where these promises start.
 
 This is also **not the cohort distribution release**. Stage 21d
-(socket auth + Trailblazers README + agent-driven-nav notifications)
+(socket auth + Beacon README + agent-driven-nav notifications)
 is still ⬜. v0.5.x or v0.6.0 will cover that work.
 
 ### Auto-update
@@ -1934,7 +1934,7 @@ Second: **the alternative was waiting for the full Stage 21
 distribution-polish cluster.** Auto-update + session restore are 21c
 Phase 1+2; Phase 3 (browser history) is independent and can ship
 later; 21b (custom app icon) is design-blocked; 21d (socket auth)
-is Trailblazers-distro work that doesn't gate daily-driver
+is Beacon-distro work that doesn't gate daily-driver
 ergonomics; 21e (fork-friendly architecture) is in flight on its own
 branch. Cutting v0.4.2 now means the auto-update foundation exists
 for v0.5.0+ to flow into automatically.
@@ -1990,7 +1990,7 @@ flight on the `stage-21e-fork-friendly` branch.
 
 The "sandbox-resilience" release. Closes the silent-failure mode
 where every `duo` command died inside a sandboxed Claude Code
-session — the default Seatbelt policy in Capital One (and other
+session — the default Seatbelt policy in Acme (and other
 enterprise) Claude Code installs blocks Unix-domain sockets, and
 Duo's entire agent-side bridge ran on one. Three pieces moved:
 
@@ -2026,7 +2026,7 @@ the 10s socket cap and fails with "Timeout waiting for response"
 while the renderer is still polling. CLI socket cap is now
 `max(explicit + 5s buffer, default)`.
 
-**Why this lands here, vs. later.** Every Capital One Claude Code
+**Why this lands here, vs. later.** Every Acme Claude Code
 session has been failing silently — sandbox resilience helps users
 today. Stage 21 (signing + notarization + auto-update) is in
 flight on a parallel branch with an Electron 24→26 upgrade in
@@ -2044,7 +2044,7 @@ unified strip, terminal selection refinements, `duo reload`,
 pane-aware zoom shortcuts per issues #22 / #23, PTY-side sandbox
 audit per issue #12) still ⬜. Real-sandbox confirmation of the
 TCP fallback (vs. the `DUO_TCP_ONLY=1` simulation used here)
-comes from the owner's own Capital One Claude Code sessions
+comes from the owner's own Acme Claude Code sessions
 post-install. The DMG ships unsigned; Stage 21 lands the signed
 + notarized build.
 
@@ -2092,7 +2092,7 @@ distinct behavior.
   (project CWD, follow-mode, pin still toggleable). Both feed a
   shared `<TreeNodes>` primitive in `FileTree.tsx` (now exported)
   for recursive rendering, so adding a third pane in the future
-  (e.g., Stage 18b's "Provided by AIP" group) is mechanical. The
+  (e.g., Stage 18b's "Provided by Acme" group) is mechanical. The
   user-claude pane's curated root is *synthesized* (a hand-picked
   list of `CLAUDE.md` + `skills/` + `agents/` constructed from the
   live root listing) rather than fetched separately, so the pane
@@ -2166,7 +2166,7 @@ distinct behavior.
 navigator can SEE the user-level + project-level context buckets at
 a glance, without scrolling, without learning that `~/.claude` is
 where Claude reads context from. The version where DMG releases
-self-announce on GitHub. The version where Cap One Trailblazers
+self-announce on GitHub. The version where Acme
 don't have to manually configure off-host routing for their
 internal sites. The version where "Sent X to your default browser"
 gives a visible receipt.
@@ -2175,7 +2175,7 @@ gives a visible receipt.
 signed cut runs the next time the keychain prompt can be answered
 in real-time). Doesn't ship Stage 14a (markdown comments —
 MISSING-001 still queued). Doesn't ship Stage 18b distro skill
-packs (the "Provided by AIP" badge in the navigator is queued for
+packs (the "Provided by Acme" badge in the navigator is queued for
 that stage). Doesn't ship Stage 19d mid-tab launch-claude banner
 (deferred from this sprint per scope).
 
@@ -2271,7 +2271,7 @@ Doesn't yet auto-restore browser tabs across launches (Stage
 ## v0.3.0 — 2026-04-26
 
 The Duo-aware-Claude release. Where v0.2.0 was the first release a
-Trailblazer could install in one click, v0.3.0 is the first release
+Beacon could install in one click, v0.3.0 is the first release
 where every Claude session inside Duo arrives already aware of the
 workspace it's running inside — and where the chronic keyboard-
 shortcut regression family that's plagued every prior cut becomes
@@ -2402,7 +2402,7 @@ ENH-002 (paste as plain text + ⌘⇧V across editors). All filed in
 ## v0.2.0 — 2026-04-26
 
 The FTUX foundation. v0.1.0 was the inaugural inventory snapshot;
-v0.2.0 is the first release where a Trailblazer could actually pick
+v0.2.0 is the first release where a Beacon could actually pick
 up Duo and use it without a developer hand-holding them through
 manual filesystem setup.
 
@@ -2429,7 +2429,7 @@ single coherent surface a new user can land on.
 ### What v0.2.0 is and isn't
 
 **Is:** the first release where a fresh `Duo.app` install gets a
-Trailblazer to a working state in one click. Welcome banner
+Beacon to a working state in one click. Welcome banner
 installs the skill / subagent / help-files into `~/.claude/` and the
 `duo` CLI binary into `~/.local/bin/`. Default browser landing is the
 FAQ instead of about:blank. Pin support means a reference HTML can
@@ -2446,7 +2446,7 @@ v0.1.0 still owed in eyes-on form.
 **🔖 Owner-flagged priority:** **Stage 19b** at the top.
 
 - **Stage 19b — passive priming (PRIORITY).** SessionStart hook + PATH shim + `priming.md` in `~/.claude/`. The remaining piece of the Stage 19 family: when a Claude Code session starts inside a Duo PTY, hand it Duo-specific priming (skill discovery hints, `duo` CLI on PATH already, ambient context) so the agent doesn't need to be told "you're in Duo." Originally specced to fold into the Stage 18 installer; keeping it 19b keeps the flag visible.
-- **Stage 18b** — distro skill packs (`extra-skills/` + `PACK.json` + per-conflict consent UI). Cap One AIP starter pack is the worked example.
+- **Stage 18b** — distro skill packs (`extra-skills/` + `PACK.json` + per-conflict consent UI). Acme starter pack is the worked example.
 - **Stage 23** — canvas actions (`data-duo-action` Claude↔HTML loop). Pairs with 18b for the FTUX welcome page.
 - **Stage 25** — post-redirect chrome banner (small, ~80 LOC).
 - **Stage 19d** — mid-tab launch-claude banner (small, for shell-tab discovery).
@@ -2473,8 +2473,8 @@ Two months of build with no prior version-management discipline
 left the project in a state where "what shipped when" lived only in
 `docs/dev/session-log.md` and the roadmap's stage-status flips. As
 the FTUX-coordinated trio (Stage 18 + 18b + 23 + 24) approaches —
-the first real Trailblazer-facing surface — version discipline
-becomes load-bearing: a Trailblazer who installs Duo and reports a
+the first real Beacon-facing surface — version discipline
+becomes load-bearing: a Beacon who installs Duo and reports a
 bug needs to be able to say "I'm on v0.x" and have that mean
 something. Cutting v0.1.0 *before* Stage 18 ships means the process
 is exercised on low-stakes ground (no users yet, mistakes
@@ -2487,7 +2487,7 @@ working version-cut machinery behind it.
 - **Duo subagent uses Haiku 4.5, not Sonnet** (Stage 5 v2). The PRD's "~85% token reduction" hypothesis didn't survive synthetic measurement (FOLLOWUP-003 — Claude Code already routes mechanical work to Haiku, so the subagent stacks a second Haiku layer rather than replacing Sonnet). Qualitative wins (bounded context per task, specialized prompt, clear contract) carried the architecture instead.
 - **HTML canvas serializer scrubs runtime classes** (Stage 17c). The "saved file is just HTML" guarantee is load-bearing — the canvas is supposed to feel like a primitive, not a system. Comment chrome (`data-duo-comment-anchor`, `duo-comment-anchor` class) and just-added wash (`duo-just-added` class) NEVER leak to disk. V27 in the verification punch list watches this; if it ever fails, the canvas's "primitive" framing is lost.
 - **CSS Custom Highlight Registry for blurred selection** (Stage 17c). When the user selects text in the canvas and clicks into the terminal, the selection still paints in the Atelier mark color. Implemented via the Highlight Registry API (Chromium 105+) — no DOM mutation, no false-dirty. The fallback (span overlay) would dirty the buffer; that's the V20 watch.
-- **`duo external` routes off-host URLs through the OS default browser** (Stage 5 v2). Trailblazers are PMs at Cap One — they have corporate-managed browsers with internal sites, SSO, and bookmarks. Duo's embedded Chromium can't replicate that surface, so the explicit decision was: Duo is for in-loop work (browse → quote → ask Claude); off-host links go to the user's real browser via `shell.openExternal`.
+- **`duo external` routes off-host URLs through the OS default browser** (Stage 5 v2). Beacon members are PMs at Acme — they have corporate-managed browsers with internal sites, SSO, and bookmarks. Duo's embedded Chromium can't replicate that surface, so the explicit decision was: Duo is for in-loop work (browse → quote → ask Claude); off-host links go to the user's real browser via `shell.openExternal`.
 
 ### What v0.1.0 is and isn't
 

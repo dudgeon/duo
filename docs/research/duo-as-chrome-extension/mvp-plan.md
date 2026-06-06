@@ -11,7 +11,7 @@ analysis; this one is the actual build sequence.
 > `build-roadmap.md` first for the full picture; come here for
 > phase-level detail.
 
-**Outcome we're building toward:** A Trailblazer can install the
+**Outcome we're building toward:** A Beacon can install the
 extension + helper in under five minutes, run a Claude Code agent in
 the side-panel terminal, edit a markdown file the agent opens in a
 new browser tab, and watch the agent take a screenshot of their
@@ -472,9 +472,9 @@ phase that catches each one:
 | 360px terminal too cramped even with hover navigator | Soft | Phase 1 |
 | Native Messaging 1MB message ceiling on large file reads | Soft | Phase 4 |
 | `chrome.debugger` yellow banner intolerable for ambient agent use | Soft | Phase 6 |
-| Two-step install too friction-heavy for Trailblazers | Soft | Phase 7 |
+| Two-step install too friction-heavy for Beacon | Soft | Phase 7 |
 | File-conflict UX (two tabs of same file) ugly | Soft | Phase 4 |
-| Enterprise extension policy blocks the permission set | Hard | Out of MVP — pre-Trailblazer audit |
+| Enterprise extension policy blocks the permission set | Hard | Out of MVP — pre-Beacon audit |
 
 ---
 
@@ -483,7 +483,7 @@ phase that catches each one:
 The MVP is done when **all** of the following are true:
 
 1. Phase 0 passed and the SW + helper survive 30+ min of real idle.
-2. A Trailblazer-shaped friend installs both pieces in <5 minutes
+2. A Beacon-shaped friend installs both pieces in <5 minutes
    without hand-holding from the project owner.
 3. The Phase 8 demo runs end-to-end without a single
    reconnect-the-helper papercut.
@@ -524,7 +524,7 @@ The MVP, if it works, retires that ongoing cost going forward.
 - **Roadmap promotion.** This is research. If the MVP succeeds, the
   next conversation is "do we promote this to a Stage card on
   [`docs/roadmap.html`](../../roadmap.html), and how does it
-  sequence against the existing Trailblazer / Stage 21 work?" Not a
+  sequence against the existing Beacon / Stage 21 work?" Not a
   Phase 8 task.
 - **Skill / agent docs.** The `skill/` and `agents/duo.md` work for
   the extension's CLI verbs is post-MVP. The current verbs in

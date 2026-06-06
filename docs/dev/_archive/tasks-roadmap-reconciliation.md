@@ -70,7 +70,7 @@ existing `**Status:**` and `**Priority:**` fields:
 **Status:** 🆕 Filed · held until Stage 17e
 **Priority:** Medium-High
 **Filed:** 2026-04-30
-**Stage:** [Stage 17e — Polish + scripts + source view](../roadmap.html#phase-17e--polish--scripts--source-view-2-prs)
+**Stage:** [Stage 17e — Polish + scripts + source view](../../roadmap.html#phase-17e--polish--scripts--source-view-2-prs)
 ```
 
 When the work is a free-floating ENH/BUG with no obvious stage
@@ -82,7 +82,7 @@ add a "Linked items" footer enumerating the BUG/ENH IDs that
 block-on / block-this stage:
 
 ```md
-| **17** | ... | 🟡 ... | **Linked items:** [ENH-027](tasks.md#enh-027), [MISSING-001](tasks.md#missing-001) |
+| **17** | ... | 🟡 ... | **Linked items:** [ENH-027](../tasks.md#enh-027), [MISSING-001](../tasks.md#missing-001) |
 ```
 
 For the HTML roadmap, the card gets a small `<ul class="linked">`
@@ -117,7 +117,7 @@ items):
 | "No Docs REST API escalation path yet" (Backlog) | New `ENH-032` |
 | "First-launch install dialog" (Backlog) | Already implied as Stage 18 — no separate ID |
 | "`duo wait --timeout` race fix" (Backlog) | Already shipped 2026-04-26 (Stage 20) — close out |
-| 21d socket auth + Trailblazers README (Stage 21) | New `ENH-033` (Trailblazers cohort distribution) |
+| 21d socket auth + Beacon README (Stage 21) | New `ENH-033` (Beacon cohort distribution) |
 | Stage 10 dangling backlog items (lines 391–429) | Audit individually next pass |
 
 ### C. Document the convention in CLAUDE.md
