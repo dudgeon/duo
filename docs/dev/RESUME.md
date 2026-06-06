@@ -1,14 +1,12 @@
-# Resume after compaction — Sprint 24 / v0.8.6 (ENH-195 CLI-edits / disk-sync)
+# Resume after compaction — ENH-195 + ENH-197 + BUG-195 COMPLETE, submitted as a PR (owner integrates on main)
 
-**Read this first.** Then in order:
+**🛑 READ FIRST — current state:**
+ENH-195 (CLI edits / disk-sync / false-positive conflicts) is **complete, validated, and submitted as a PR** from branch `claude/sharp-hamilton-70eb87` for the owner to integrate (version label + merge with other branches) on `main`. Per-item detail is in [`tasks.md`](../../tasks.md) (ENH-195 / ENH-197 / BUG-195 / ENH-198). One-paragraph version:
 
-1. [`docs/dev/active-sprint.md`](active-sprint.md) — Sprint 24 starting scope + tiered FOLLOWUP queue + Tier 3 design-decision pendings.
-2. [`CLAUDE.md`](../../CLAUDE.md) § Active sprint — same content, shorter form.
-3. [`tasks.md`](../../tasks.md) — running ledger. Sprint 24 section at the top; Sprint 23 closed with v0.8.0 commit map.
-
-## Where we are
-
-**In flight — ENH-195 (CLI-edits / disk-sync).** The dev line is on **v0.8.6** and ENH-195 is the active in-flight chapter on branch `claude/sharp-hamilton-70eb87`. Scope: three new CLI edit verbs (`duo status`, `duo doc edit`, `duo json set`/`merge`), a shared `useDiskReconciliation` hook (extracted across markdown editor + canvas + JSON/YAML viewer — see DECISIONS.md § "Editor / canvas convergence" ENH-195 D5 amendment), read-only viewer watchers, and a `DUO_SESSION`-gated PreToolUse warn hook that fires when an agent `Edit`/`Write`s a file open in Duo. Locked decisions live in [`tasks.md` § ENH-195](../../tasks.md) + the decision playground [`docs/research/enh-195-cli-edits-disk-sync.html`](../research/enh-195-cli-edits-disk-sync.html). The FOLLOWUP-031..040 polish queue below is the prior Sprint 24 chapter — still open, lower priority than ENH-195.
+- **Shipped + verified this cycle:** the shared `useDiskReconciliation` hook (markdown + canvas + JSON), D3 markdown change-highlight, 3 verbs (`duo status` / `doc edit` / `json set|merge`), B2–B7 responsiveness, warn-hook + guidance — PLUS the four follow-on fixes that landed AFTER the local v0.9.0 cut: **(1) canvas false-positive fix** (the old blocker — `shouldBannerOnClean` now compares the byte-exact disk baseline, not the ID-injected serialized view; root-caused by a 4-lens workflow, regression-tested, verified live); **(2) ENH-197 "View diff"** (a destructive (>50%) external reload now offers **Keep mine / Load new / View diff**, where View diff rebuilds the doc as accept/rejectable tracked changes via the existing CriticMarkup rail — block-LCS so it reads clean, not char-soup; round-trip tested, verified live all 3 buttons); **(3) BUG-195** (`split-view close` orphaned the aux browser WebContentsView → ghost; the renderer close/promote handlers now call `releaseAuxTab()` unconditionally so a reload-stale ref can't skip the reconcile; verified live); **(4)** the strip-JSX strips + frontmatter-preserve (verified). **923 tests, both typecheckers clean.** v0.9.1-rev2 smoke walk: **VIEW-DIFF + WARN-HOOK both PASS.**
+- **Git:** branch `claude/sharp-hamilton-70eb87` carries `f6e1b36` (release: v0.9.0) → `915af34` (bump v0.9.1) → this session's fix commits. **Owner decides the version label + does the push/release on main** (the local `v0.9.0` tag predates the four fixes).
+- **Tracked for later:** ENH-196 (canvas change-highlight parity), ENH-198 (agent-native CriticMarkup track-changes — agents wrote `<ins>` tags instead of CriticMarkup), the FOLLOWUP-031..040 polish queue below.
+- **Dev-build note:** the worktree has no local `node_modules`; launch dev via `node /Users/geoffreydudgeon/Documents/GitHub/duo/node_modules/electron-vite/bin/electron-vite.js dev` (≡ `npm run dev`). `duo eval` targets the BROWSER pane; `duo dom --js` the renderer shell. Smoke walks run in the **split-view aux** (owner's workflow — see the updated `.claude/skills/smoke-walk/SKILL.md`).
 
 **v0.8.0 shipped + released** (2026-05-25). [GitHub Release](https://github.com/dudgeon/duo/releases/tag/v0.8.0) live with signed-notarized DMG attached. The ENH-182 capstone (project-as-filter-layer) is feature-complete: rail + focus filter + lifecycle/menu + auto-switch + CLI parity + browser-tab filter + ENH-184 workspace pill defeaturing + 4 audit-found BUGs folded in. Dev bumped to **v0.8.1**.
 

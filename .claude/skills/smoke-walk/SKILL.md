@@ -389,25 +389,38 @@ in the gate condition itself. The Walk-1 fix for ENH-183 was in
 `electron/main.ts`'s `setEnrichBeforePersistHook`, not in the
 SessionHeader component.
 
-### 5. Open the smoke walk page in the browser pane
+### 5. Open the smoke walk page in the SPLIT-VIEW AUX
+
+The owner runs the walk in the **Split View aux pane** — walk sheet pinned
+in the aux, main pane left FREE for the validation tasks (opening fixtures,
+`duo edit`, side-by-side checks). Open it THERE, not in the main pane. It's
+a browser tab (NOT canvas — the page uses `navigator.clipboard.writeText`,
+which needs Chromium's user-gesture clipboard access), then pinned into aux:
 
 ```bash
-duo open docs/dev/smoke-walks/v<VERSION>.html
+duo open docs/dev/smoke-walks/v<VERSION>.html   # opens as a browser tab
+duo tabs                                         # find the "Smoke walk · v<VERSION>" tab id
+duo split-view open-browser <id>                 # pin THAT tab into the aux pane
 ```
 
-Browser pane (not canvas) is required — the page uses
-`navigator.clipboard.writeText`, which needs Chromium's
-user-gesture clipboard access.
-
-**Verify the page is the active visible tab BEFORE handoff:**
+**Verify it landed in the aux BEFORE handoff — with the RIGHT probes.**
+Because the sheet is in the aux, `duo url` / `duo title` / `duo tab` report
+the MAIN pane, NOT the walk sheet — do NOT use them to verify here. Use:
 
 ```bash
-duo url     # confirm matches file://.../v<VERSION>.html
-duo title   # confirm matches the manifest's `title`
+duo split-view state   # aux.activePath must == the walk .html; aux.activeKind: "browser"
+duo eval '(() => (document.querySelector("h1")||{}).textContent)()'
+                       # duo eval targets the AUX (scripting) tab → must print "Smoke walk · v<VERSION>"
 ```
 
-If either doesn't match, re-issue `duo open` or fall back to the
-preflight probe.
+`duo eval` targets the aux browser page; `duo dom --js` targets the renderer
+React shell. Don't cross them — that burned a debugging loop on the v0.9.1 walk.
+
+**Stale-aux recovery.** Session-restore can wedge a tab into a half-aux
+state (`duo tabs` shows `inAux: true` while `duo split-view state` shows
+`aux: null`, and `duo tab <n>` errors *"pinned in Split View aux"*). Don't
+fight it — close that tab and re-open fresh: `duo close <staleId>` →
+`duo open <walk.html>` → `duo tabs` → `duo split-view open-browser <newId>`.
 
 ### 5b. Verify the app is in a CLEAN state before handoff
 
@@ -421,10 +434,21 @@ Quick-pass version:
 
 1. `duo doctor` clean.
 2. `duo nav-state` returns OK.
-3. **Exercise the worksheet primitive itself** — toggle a radio
-   + add a note + click Copy via `duo eval`, verify
-   localStorage round-trip + clipboard via `pbpaste`. Catches
-   localStorage-key collisions (BUG-110), clipboard permission
+3. **Exercise the worksheet primitive itself** — via `duo eval`
+   (it targets the aux walk sheet, per § 5): select a radio, then
+   click the **"Copy results"** button — NOT a per-step
+   backtick-command Copy button (those also render as "Copy"; match
+   `textContent === "Copy results"`) — and confirm the captured
+   payload is the `[PASS]/[FAIL]` block. Eval-context
+   `navigator.clipboard.writeText` throws *"Document is not
+   focused"*, so STUB it to capture the payload
+   (`navigator.clipboard.writeText = t => { captured = t; return Promise.resolve(); }`).
+   Then verify the localStorage round-trip — the per-version key is
+   `worksheet:smoke-walk-v<VERSION>`; confirm it's DISTINCT from any
+   older walk's key (the BUG-110 collision guard) and that the write
+   landed (it's debounced ~1s, so read after a short delay). Reset to
+   fresh (uncheck + `localStorage.removeItem`) so the owner walks
+   clean. Catches localStorage-key collisions, clipboard permission
    failures, secure-context drift.
 4. **Walk EVERY CLI-testable step in the manifest.** Per the HARD
    RULE at the top of this skill — if a step can be run via `duo
@@ -454,11 +478,10 @@ Quick-pass version:
 
 Brief handoff — the page itself is the spec:
 
-> Smoke walk page is open as a browser tab titled
-> **"Smoke walk v<VERSION>"**. Click it in the working-pane tab
-> strip if the page isn't already showing. For each item: mark
-> Pass or Fail, add notes if anything's off. When done, click
-> **"Copy results"** at the bottom and paste back here.
+> Smoke walk **v<VERSION>** is pinned in the **Split View aux pane**
+> (main pane left free for your validation tasks). For each item: mark
+> Pass or Fail, add notes if anything's off. When done, click **"Copy
+> results"** at the bottom and paste back here.
 
 If verification was impossible (no computer-use AND CLI
 preflight skipped a step), say so EXPLICITLY in the first

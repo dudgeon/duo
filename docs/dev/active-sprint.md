@@ -1,13 +1,17 @@
-# Active sprint state — Sprint 24 / v0.8.6 (v0.8.x polish wave)
+# Active sprint state — ENH-195 + ENH-197 + BUG-195 COMPLETE → PR (owner integrates on main)
 
-**Status (2026-05-25):** **v0.8.0 cut + tagged + pushed + released.** [GitHub Release v0.8.0](https://github.com/dudgeon/duo/releases/tag/v0.8.0) live with signed-notarized DMG attached. Dev bumped to v0.8.1. Sprint 24 is a focused polish wave — clean up the v0.8.0 audit's deferred follow-ups (FOLLOWUP-031 through 040) before any new feature work, then triage 1-2 carry-forward items if time allows.
+> **✅ CURRENT (2026-06-06) — [ENH-195](../../tasks.md) complete + submitted as a PR.**
+> The v0.9.0 pre-walk blocker (canvas false-positive) is root-caused + FIXED, and three more items
+> landed + were verified live: **canvas fix** (disk-vs-disk `shouldBannerOnClean`), **ENH-197 View diff**
+> (destructive-overwrite → Keep mine / Load new / View diff as accept/rejectable tracked changes),
+> **BUG-195** (split-view-close ghost — `releaseAuxTab` now unconditional), plus the strip-JSX strips
+> + frontmatter-preserve. **923 tests + both typecheckers clean.** v0.9.1-rev2 smoke walk (run in the
+> split-view aux per the owner's workflow): **VIEW-DIFF + WARN-HOOK both PASS.** Branch
+> `claude/sharp-hamilton-70eb87` submitted as a **PR** — owner decides the version label + merges with
+> other branches + does the push/release on `main`. Tracked for later: ENH-196, ENH-198.
 
-> **In flight (2026-06-04) — [ENH-195](../../tasks.md): CLI-edits / disk-sync / false-positive conflicts.**
-> Owner verbal directive: push agent editing onto the `duo` verbs, make markdown + other
-> canvas editors responsive to on-disk changes, without new false-positive conflicts. One
-> root cause (the editor↔disk echo-guess). Decision playground at
-> [`docs/research/enh-195-cli-edits-disk-sync.html`](../research/enh-195-cli-edits-disk-sync.html)
-> awaiting owner D1–D4.
+> _Below: the prior Sprint-24 v0.8.x polish-wave content (FOLLOWUP-031..040) — lower priority than
+> finishing ENH-195; the "v0.8.6 polish wave" framing predates the v0.9.0 cut._
 
 ## Sprint anchor
 
