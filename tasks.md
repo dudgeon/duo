@@ -2,6 +2,20 @@
 
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Pruning policy.** Closed entries stay until the lesson migrates to [DECISIONS.md](http://DECISIONS.md) / [CLAUDE.md](http://CLAUDE.md) plumbing checklist / smoke-checklist (then they're prune candidates). The Sprint 15 cleanup pass (2026-05-10) trimmed BUG-001..BUG-017 (697 lines from the v0.3 / v0.4 era; lessons live in [DECISIONS.md](http://DECISIONS.md) / plumbing checklists / the smoke-checklist). Cross-references to those IDs may still appear inline in other entries as historical citations — see git history before commit `<v0.6.13-cleanup>` for the original writeups. Next prune candidate: closed BUG-018..BUG-040 era entries once their lessons similarly internalize.
 
+### ENH-190: Navigator peek + drag-to-collapse + collapse-button icon refresh (prototype)
+
+**Status:** 🆕 **Prototype delivered 2026-06-06** (branch `claude/file-nav-auto-collapse-vaN3Y`). **Priority:** Owner-tuning-gated. **Effort:** S–M once dials are picked.
+
+**Ask (owner).** The navigator is a binary 44px↔208px toggle today. Add (1) a **peek** — while collapsed, temporarily widen to read names, then ease back after a dwell window; (2) **drag-to-collapse** — drag the right border left, and past a threshold it collapses to the rail; (3) better **collapse-button icons** for terminal + canvas (the current split-pane glyph reads as state, not action).
+
+**Deliverable.** Functional tuning prototype at [`docs/research/navigator-peek-collapse-prototype.html`](research/navigator-peek-collapse-prototype.html) — a live three-pane Duo mock wired with both behaviors plus a swap-in icon gallery, with sliders/toggles for every parameter (hover-in delay, dwell/snap-back, peek width, easing, collapse threshold, min width, rubber-band, snap-on-release vs live) and a Copy-settings footer that round-trips the tuned values + icon pick back to the conversation.
+
+**Current values to wire (post-tuning).** Rail 44px / full 208px / 150ms width transition (`FilesPane.tsx:128,125`); collapse via ⌘B + header button + `AUTO_COLLAPSE_WIDTH=1100` window-resize trigger (`App.tsx`). No drag-resize exists yet. Recommended icon pick in the gallery: **Panel + chevron** (VS Code / Finder sidebar-toggle metaphor).
+
+**Next.** Owner drives the mock, copies tuned settings → that pins the implementation: a drag handle on the navigator's right border, a peek state machine in `useNavigator` / `FilesPane`, and the chosen `CollapseButton` glyph mirrored into `TabBar.tsx` + `WorkingTabStrip.tsx`.
+
+---
+
 ## Sprint 24 / v0.8.1 — v0.8.x polish wave (starting)
 
 > Sprint 24 anchor: close the v0.8.0 audit's deferred follow-ups (FOLLOWUP-031 through 040) before any new feature work. ENH-182 was the marquee chapter; Sprint 24 is its polish epilogue. Definition of done: all 10 FOLLOWUPs closed or explicitly deferred-with-reason. Expected cut shape: v0.8.1 PATCH (polish-only) OR v0.9.0 MINOR if a carry-forward capability lands alongside.
