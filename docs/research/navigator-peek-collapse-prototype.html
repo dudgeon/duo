@@ -489,6 +489,7 @@
             <div class="row indent active"><span class="dot" style="background:var(--accent)"></span><span class="nm">FilesPane.tsx</span></div>
             <div class="row indent"><span class="glyph">▸</span><span class="nm">components</span></div>
             <div class="row indent2"><span class="dot" style="background:var(--ink-ghost)"></span><span class="nm">WorkingTabStrip.tsx</span></div>
+            <div class="row indent2" title="useNavigatorAutoCollapse.test.ts"><span class="dot" style="background:var(--ink-ghost)"></span><span class="nm">useNavigatorAutoCollapse.test.ts</span></div>
             <div class="row indent2"><span class="dot" style="background:var(--ink-ghost)"></span><span class="nm">FileTree.tsx</span></div>
             <div class="row indent"><span class="glyph">▸</span><span class="nm">hooks</span></div>
             <div class="row"><span class="glyph">▾</span><span class="nm">docs</span></div>
@@ -545,12 +546,18 @@
 <div class="wrap">
 
   <!-- ===================== BEHAVIOR 1: PEEK ===================== -->
-  <h2><span class="num">1</span>Temporary widen → ease back (the "peek")</h2>
-  <p class="sub">Widen the navigator just long enough to read names, then let it ease back
-    to its <b>resting size</b> on its own. Two ways to trigger it: <b>hover the collapsed
-    rail</b>, or <b>drag the right border wider</b> than the resting width. Either way it
-    snaps back ~1s after the cursor leaves the navigator. To make a widen <i>stick</i>,
-    click a file row (pins it) or use the toggle button / ⌘B.</p>
+  <h2><span class="num">1</span>Temporary widen → ease back</h2>
+  <p class="sub">The navigator has exactly two resting sizes — <b>rail (44px)</b> and
+    <b>expanded (208px)</b>; there is no persistent custom width. Sometimes the expanded
+    navigator truncates a long file name, so you need to <b>temporarily</b> widen it. Two
+    independent triggers, both of which snap back on their own:</p>
+  <ul class="sub" style="margin-top:-8px">
+    <li><b>Core — drag the expanded border wider</b> to un-truncate names, then it eases
+      back to 208px ~1s after the cursor leaves the navigator.</li>
+    <li><b>Rail peek</b> — hover the collapsed rail to glance at names, then it eases back
+      to the rail. (Dragging the rail open is intentionally <i>not</i> supported — use the
+      toggle button / ⌘B, or click a file during a peek, to expand for real.)</li>
+  </ul>
 
   <div class="controls-grid">
     <div class="panel">
@@ -602,10 +609,10 @@
       <p class="desc">How wide the peek gets and how it moves.</p>
 
       <div class="ctl">
-        <label class="k">Peek width <span class="v" id="v_peekW">200 px</span></label>
+        <label class="k">Rail-peek width <span class="v" id="v_peekW">200 px</span></label>
         <input type="range" id="r_peekW" min="120" max="320" step="4" value="200">
-        <p class="why">Rail is 44px. Peek can be narrower than a full open (208px) —
-          just enough to read names — or match it.</p>
+        <p class="why">How wide the <b>collapsed-rail hover-peek</b> opens to (rail is 44px).
+          The expanded-border drag-widen, by contrast, follows your cursor up to ~340px.</p>
       </div>
 
       <div class="ctl">
@@ -648,15 +655,9 @@
       <div class="ctl">
         <label class="k">Collapse threshold <span class="v" id="v_thresh">96 px</span></label>
         <input type="range" id="r_thresh" min="56" max="180" step="4" value="96">
-        <p class="why">Drag the border narrower than this and releasing collapses to the
-          rail. Wider, and it just resizes.</p>
-      </div>
-
-      <div class="ctl">
-        <label class="k">Minimum open width <span class="v" id="v_minW">150 px</span></label>
-        <input type="range" id="r_minW" min="120" max="208" step="2" value="150">
-        <p class="why">The narrowest the navigator will rest at when you <i>don't</i>
-          collapse. Drag below this and you're in collapse territory.</p>
+        <p class="why">Drag the expanded border narrower than this and releasing collapses
+          to the rail. Drag left but stop above it, and it snaps back to 208px (the navigator
+          has no persistent custom width — only rail or expanded).</p>
       </div>
 
       <div class="ctl">
@@ -686,13 +687,6 @@
           Rubber-band resistance near threshold</label>
         <p class="why">Adds drag-friction in the danger zone so you have to mean it —
           like the iOS "stretch past the edge" feel.</p>
-      </div>
-
-      <div class="ctl">
-        <label class="toggle"><input type="checkbox" id="t_dragExpand" checked><span class="tk"></span>
-          Dragging the rail edge re-opens it</label>
-        <p class="why">When collapsed, the same edge handle can be dragged right to
-          expand again — symmetric gesture, no need to hunt for the button.</p>
       </div>
 
       <div class="ctl" style="margin-top:18px">
@@ -779,9 +773,9 @@
 
   <div class="icon-gallery" id="iconGallery"></div>
 
-  <p class="foot-note">All three behaviors are independent — you can ship peek without
-    drag-collapse, or adopt an icon set on its own. The Copy button hands me every dial
-    plus your icon pick.</p>
+  <p class="foot-note">These behaviors are independent — temporary-widen, drag-collapse,
+    resize-handle affordance, and the icon set can each ship on their own. The Copy button
+    hands me every dial plus your icon pick.</p>
 </div>
 
 <!-- ===================== COPY BAR ===================== -->
@@ -801,8 +795,8 @@ const RAIL = 44, FULL_OPEN = 208, MAX_W = 340;
 const defaults = {
   peekTrigger: 'hover', hoverIn: 120, dwell: 1000, dwellMode: 'leave',
   peekW: 200, anim: 220, ease: 'cubic-bezier(.22,.61,.36,1)', commit: true,
-  thresh: 96, minW: 150, snapMode: 'release',
-  hint: true, resist: false, dragExpand: true,
+  thresh: 96, snapMode: 'release',
+  hint: true, resist: false,
   // behavior 3 — resize-handle affordance
   dvHit: 12, dvFade: 120, dvStyle: 'pill', dvReveal: 'hover', dvDots: true,
 };
@@ -816,10 +810,12 @@ const win = document.getElementById('win');
 const paneTerm = document.querySelector('.pane-term');
 const split = document.getElementById('split');
 
+// The navigator has exactly two RESTING states: rail (44) or expanded
+// (FULL_OPEN). There is no persistent custom width — every drag-widen is
+// temporary and eases back to FULL_OPEN.
 let collapsed = false;        // current DISPLAY state: is the rail showing
 let peeking = false;          // currently temporarily widened (will snap back)
-let restingCollapsed = false; // the RESTING state is the rail
-let restingWidth = FULL_OPEN; // the resting open width to snap back to
+let restingCollapsed = false; // is the RESTING state the rail?
 let hoverInT = null, dwellT = null;
 let dragging = false, dragStartX = 0, dragStartW = 0, willCollapse = false;
 
@@ -857,11 +853,10 @@ function goCollapsed(animate=true) {
   nav.classList.add('collapsed'); nav.classList.remove('peeking','will-collapse');
   setWidth(RAIL, animate); refreshReadout();
 }
-function goOpen(width, animate=true) {
+function goOpen(animate=true) {
   clearTimers(); peeking = false; collapsed = false; restingCollapsed = false;
-  restingWidth = Math.max(cfg.minW, Math.min(MAX_W, width || restingWidth));
   nav.classList.remove('collapsed','peeking','will-collapse');
-  setWidth(restingWidth, animate); refreshReadout();
+  setWidth(FULL_OPEN, animate); refreshReadout();
 }
 
 /* =====================================================================
@@ -900,7 +895,7 @@ function snapBack() {
   if (restingCollapsed) {
     collapsed = true; nav.classList.add('collapsed'); setWidth(RAIL, true);
   } else {
-    collapsed = false; nav.classList.remove('collapsed'); setWidth(restingWidth, true);
+    collapsed = false; nav.classList.remove('collapsed'); setWidth(FULL_OPEN, true);
   }
   refreshReadout();
 }
@@ -923,7 +918,7 @@ nav.addEventListener('mouseleave', () => {
 // click trigger on the rail
 rail.addEventListener('click', (e) => {
   if (dragging) return;
-  if (cfg.peekTrigger === 'hover') { goOpen(restingWidth); return; } // hover-mode: click = commit open
+  if (cfg.peekTrigger === 'hover') { goOpen(); return; } // hover-mode: click rail = expand for real
   // click / both → peek
   if (peeking) snapBack(); else { enterPeek(); if (cfg.dwellMode==='leave') startDwell(); }
 });
@@ -933,7 +928,7 @@ nav.querySelectorAll('.nav-tree .row').forEach(r => {
   r.addEventListener('click', () => {
     nav.querySelectorAll('.row').forEach(x=>x.classList.remove('active'));
     r.classList.add('active');
-    if (peeking && cfg.commit) goOpen(curWidth());
+    if (peeking && cfg.commit) goOpen();
   });
 });
 
@@ -943,16 +938,16 @@ nav.querySelectorAll('.nav-tree .row').forEach(r => {
 function curWidth() { return parseFloat(getComputedStyle(nav).width); }
 
 handle.addEventListener('pointerdown', (e) => {
-  // if collapsed and drag-expand disabled, ignore
-  if (collapsed && !peeking && !cfg.dragExpand) return;
+  // The navigator only resizes from its EXPANDED resting state. Dragging
+  // the rail open is intentionally unsupported (use the toggle / ⌘B).
+  if (restingCollapsed) return;
   dragging = true; willCollapse = false;
   dragStartX = e.clientX;
-  dragStartW = collapsed && !peeking ? RAIL : curWidth();
+  dragStartW = curWidth();
   nav.classList.add('dragging');
   nav.classList.remove('animate');
-  // a peek being dragged becomes a normal resize
+  // cancel any in-flight rail-peek timers; this is now a deliberate drag
   if (peeking) { peeking = false; nav.classList.remove('peeking'); clearTimers(); }
-  if (collapsed) nav.classList.remove('collapsed');
   handle.setPointerCapture(e.pointerId);
   e.preventDefault();
 });
@@ -962,10 +957,11 @@ window.addEventListener('pointermove', (e) => {
   let raw = dragStartW + (e.clientX - dragStartX);
   raw = Math.max(20, Math.min(MAX_W, raw));
 
-  // rubber-band: below minW, apply resistance toward the rail
+  // rubber-band: approaching the collapse threshold, add friction so you
+  // have to mean it before tipping into collapse
   let shown = raw;
-  if (cfg.resist && raw < cfg.minW) {
-    shown = cfg.minW - (cfg.minW - raw) * 0.45;
+  if (cfg.resist && raw < cfg.thresh) {
+    shown = cfg.thresh - (cfg.thresh - raw) * 0.5;
     shown = Math.max(RAIL - 4, shown);
   }
 
@@ -987,21 +983,18 @@ function finishDrag(e, forceCollapse=false) {
   nav.classList.remove('dragging','will-collapse');
   willCollapse = false;
   const w = curWidth();
-  const baseline = restingCollapsed ? RAIL : restingWidth;
-
   if (forceCollapse || w < cfg.thresh) {
     // crossed the collapse threshold → commit collapse
     goCollapsed(true);
-  } else if (w > baseline + 6) {
-    // dragged WIDER than the resting width → TEMPORARY widen.
-    // Settle at the dragged width, then ease back to resting after the
-    // cursor leaves (this is what was "staying large" before).
-    nav.classList.remove('collapsed'); collapsed = false;
+  } else if (w > FULL_OPEN + 6) {
+    // dragged WIDER than the 208px resting size → TEMPORARY widen.
+    // Settle at the dragged width, then ease back to 208 after the cursor
+    // leaves (the core "un-truncate a long name" gesture).
     setWidth(w, true);
     beginPeekFromDrag();
   } else {
-    // narrowed but didn't collapse → snap back to the resting open width
-    goOpen(restingWidth, true);
+    // narrowed but didn't collapse → snap straight back to 208 (no custom width)
+    goOpen(true);
   }
 }
 window.addEventListener('pointerup', (e) => finishDrag(e, false));
@@ -1044,7 +1037,7 @@ document.getElementById('centerSplit').addEventListener('click', centerSplit);
    ===================================================================== */
 document.getElementById('headCollapse').addEventListener('click', () => goCollapsed(true));
 document.getElementById('forceCollapse').addEventListener('click', () => goCollapsed(true));
-document.getElementById('forceOpen').addEventListener('click', () => goOpen(FULL_OPEN, true));
+document.getElementById('forceOpen').addEventListener('click', () => goOpen(true));
 
 /* =====================================================================
    CONTROL WIRING
@@ -1059,7 +1052,6 @@ bindRange('dwell','dwell', x=>x+' ms');
 bindRange('peekW','peekW', x=>x+' px');
 bindRange('anim','anim', x=>x+' ms');
 bindRange('thresh','thresh', x=>x+' px');
-bindRange('minW','minW', x=>x+' px');
 bindRange('hit','dvHit', x=>x+' px');
 bindRange('fade','dvFade', x=>x+' ms');
 
@@ -1077,7 +1069,7 @@ function bindToggle(id, key) {
   t.addEventListener('change', () => { cfg[key] = t.checked; applyDv(); });
 }
 bindToggle('t_commit','commit'); bindToggle('t_hint','hint');
-bindToggle('t_resist','resist'); bindToggle('t_dragExpand','dragExpand');
+bindToggle('t_resist','resist');
 bindToggle('t_dots','dvDots');
 
 document.getElementById('resetDefaults').addEventListener('click', () => {
@@ -1085,7 +1077,7 @@ document.getElementById('resetDefaults').addEventListener('click', () => {
   // ranges
   const set=(id,val)=>{const el=document.getElementById('r_'+id); el.value=val; el.dispatchEvent(new Event('input'));};
   set('hoverIn',cfg.hoverIn); set('dwell',cfg.dwell); set('peekW',cfg.peekW);
-  set('anim',cfg.anim); set('thresh',cfg.thresh); set('minW',cfg.minW);
+  set('anim',cfg.anim); set('thresh',cfg.thresh);
   set('hit',cfg.dvHit); set('fade',cfg.dvFade);
   // segs
   document.querySelectorAll('.seg').forEach(seg=>{
@@ -1096,9 +1088,8 @@ document.getElementById('resetDefaults').addEventListener('click', () => {
   document.getElementById('t_commit').checked=cfg.commit;
   document.getElementById('t_hint').checked=cfg.hint;
   document.getElementById('t_resist').checked=cfg.resist;
-  document.getElementById('t_dragExpand').checked=cfg.dragExpand;
   document.getElementById('t_dots').checked=cfg.dvDots;
-  applyAnimVars(); applyDv(); goOpen(FULL_OPEN,true); centerSplit();
+  applyAnimVars(); applyDv(); goOpen(true); centerSplit();
 });
 
 /* =====================================================================
@@ -1172,24 +1163,24 @@ ICON_SETS.forEach(s => {
 function buildPayload(withIcon) {
   const s = ICON_SETS.find(x=>x.id===chosenIcon);
   const lines = [
-    'NAVIGATOR PEEK + DRAG-COLLAPSE — tuned settings (ENH-190)',
+    'NAVIGATOR TEMPORARY-WIDEN + DRAG-COLLAPSE — tuned settings (ENH-190)',
+    '  Model: two resting sizes only — rail (44) / expanded (208). No persistent custom width.',
     '',
-    '— Peek (temporary widen → ease back) —',
-    `  trigger:            ${cfg.peekTrigger}`,
+    '— Temporary widen → ease back (snaps to resting after cursor leaves) —',
+    `  applies to:         drag the EXPANDED border wider + hover the collapsed rail`,
+    `  rail-peek trigger:  ${cfg.peekTrigger}`,
     `  hover-in delay:     ${cfg.hoverIn} ms`,
     `  linger / snap-back: ${cfg.dwell} ms`,
-    `  snap-back clock:    ${cfg.dwellMode === 'leave' ? 'starts when cursor leaves' : 'starts when peek opens'}`,
-    `  peek width:         ${cfg.peekW} px  (rail ${RAIL} / full ${FULL_OPEN})`,
+    `  snap-back clock:    ${cfg.dwellMode === 'leave' ? 'starts when cursor leaves' : 'starts when widen begins'}`,
+    `  rail-peek width:    ${cfg.peekW} px  (rail ${RAIL} / expanded ${FULL_OPEN})`,
     `  animation:          ${cfg.anim} ms · ${cfg.ease}`,
-    `  click row pins open: ${cfg.commit ? 'yes' : 'no'}`,
+    `  click row expands:  ${cfg.commit ? 'yes' : 'no'}`,
     '',
-    '— Drag-to-collapse —',
+    '— Drag-to-collapse (expanded border → left) —',
     `  collapse threshold: ${cfg.thresh} px`,
-    `  min open width:     ${cfg.minW} px`,
     `  collapse fires:     ${cfg.snapMode === 'release' ? 'on release' : 'the moment you cross'}`,
     `  release-zone hint:  ${cfg.hint ? 'on' : 'off'}`,
     `  rubber-band resist: ${cfg.resist ? 'on' : 'off'}`,
-    `  rail edge re-opens: ${cfg.dragExpand ? 'on' : 'off'}`,
     '',
     '— Resize-handle affordance (nav border + terminal↔canvas divider) —',
     `  hit-target width:   ${cfg.dvHit} px  (seam stays 1px)`,
@@ -1220,7 +1211,7 @@ document.getElementById('copyBtn2').addEventListener('click', (e) => {
 applyAnimVars();
 applyDv();
 applyIcon('panel-chevron');
-goOpen(FULL_OPEN, false);
+goOpen(false);
 centerSplit();
 refreshReadout();
 </script>
