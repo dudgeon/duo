@@ -78,6 +78,25 @@ describe('useDiskReconciliation — markdown', () => {
     h.restore()
   })
 
+  it('dismissConflict (ENH-202 "View diff") → clears banner + rebaselines to disk so the resolved save proceeds', async () => {
+    const h = markdownHarness('alpha')
+    const view = await mountReady(h.opts, 'alpha', 'alpha')
+    act(() => { h.state.live = 'alpha LOCAL unsaved edit' })          // dirty buffer
+    h.files.setDiskBytes(PATH, 'alpha REMOTE rewrite')
+    await act(async () => { h.files.pushChange(PATH); await flush() })
+    expect(view.result.current.externalConflict).toEqual({ diskBody: 'alpha REMOTE rewrite', rawText: 'alpha REMOTE rewrite' })
+    // "View diff": the surface swaps the disk content in as tracked changes, then
+    // dismissConflict clears the banner and moves BOTH baselines to the disk body.
+    act(() => { view.result.current.dismissConflict('alpha REMOTE rewrite') })
+    expect(view.result.current.externalConflict).toBeNull()
+    // Baseline now = disk, so saving the resolved doc (accept-all=disk OR
+    // reject-all=yours) sees disk byte-exact and proceeds — no false re-conflict.
+    let verdict: 'proceed' | 'conflict' = 'conflict'
+    await act(async () => { verdict = await view.result.current.beforeSave('alpha resolved body') })
+    expect(verdict).toBe('proceed')
+    h.restore()
+  })
+
   it('first-save TipTap round-trip artifact (soft-break) → NO banner via byte-exact (BUG-166)', async () => {
     // Loaded: disk has a soft-break; the serialized view collapsed it to a space.
     const h = markdownHarness('line one line two')

@@ -131,6 +131,12 @@ export interface DiskReconciliation {
   resolveReload: () => void
   /** Banner "Keep mine" — overwrite disk on the next (immediately kicked) save. */
   resolveKeepMine: () => void
+  /** Banner "View diff" (ENH-202) — the SURFACE swaps in the disk content as
+   *  accept/rejectable tracked changes (Accept-all = disk, Reject-all = yours);
+   *  this only clears the banner and advances BOTH baselines to `diskBody`, so a
+   *  later accept-all save is a byte-exact no-op and a reject-all save overwrites
+   *  disk cleanly. No save is kicked (the surface marks the buffer dirty). */
+  dismissConflict: (diskBody: string) => void
   /** Pre-save gate. Call inside save() AFTER computing `body = serialize()`
    *  and confirming the body changed, BEFORE the write IPC. Reads disk, runs
    *  the byte-exact fast-path then the echoEqual fallback, and registers the
@@ -394,6 +400,18 @@ export function useDiskReconciliation(opts: DiskReconciliationOptions): DiskReco
     })
   }, [])
 
+  // ENH-202 — "View diff" on the dirty-buffer banner. The surface has already
+  // swapped the disk content into the editor as accept/rejectable tracked
+  // changes; we just clear the banner and advance both baselines to the disk
+  // body (mirrors resolveKeepMine's baseline move, minus the save) so the
+  // eventual accept-all save is a byte-exact no-op and reject-all overwrites
+  // disk cleanly.
+  const dismissConflict = useCallback((diskBody: string) => {
+    serializedBaselineRef.current = diskBody
+    lastSeenDiskRef.current = diskBody
+    setExternalConflict(null)
+  }, [])
+
   const noteSaved = useCallback((body: string) => {
     serializedBaselineRef.current = body
     lastSeenDiskRef.current = body
@@ -416,6 +434,7 @@ export function useDiskReconciliation(opts: DiskReconciliationOptions): DiskReco
     externalConflict,
     resolveReload,
     resolveKeepMine,
+    dismissConflict,
     beforeSave,
     noteSaved,
     noteLoaded,

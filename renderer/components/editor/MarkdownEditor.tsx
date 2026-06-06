@@ -881,6 +881,29 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     setDirty(true)
   }, [editor, authorOrLegacy])
 
+  // ENH-202 — "View diff" on the DIRTY-buffer conflict banner. Unlike the
+  // destructive-overwrite case (already reloaded to disk), here the editor still
+  // holds the user's UNSAVED edits. Capture them, swap in the disk content (same
+  // content/frontmatter/criticmarkup steps as applyReload, minus the highlight/
+  // destructive-flash chrome), then rebuild as accept/rejectable tracked changes:
+  // your text struck → disk text inserted (Accept-all = disk, Reject-all = yours).
+  const handleConflictViewDiff = useCallback(() => {
+    const conflict = recon.externalConflict
+    if (!editor || !conflict) return
+    const old = editor.state.doc                       // the user's unsaved doc
+    const s = splitFrontmatter(conflict.rawText)
+    frontmatterRef.current = s.frontmatter
+    setFrontmatterState(s.frontmatter)
+    eolRef.current = s.eol
+    editor.commands.setContent(preprocessSubstitutions(conflict.diskBody), false)
+    applyCriticMarkupFromText(editor)
+    applyCommentMarksFromSidecar(editor, sidecarRef.current)
+    setThreadsTick(v => v + 1)
+    applyTrackedDiff(editor, old, { author: authorOrLegacy, ts: new Date().toISOString() })
+    setDirty(true)
+    recon.dismissConflict(conflict.diskBody)           // clear banner + baselines = disk
+  }, [editor, recon, authorOrLegacy])
+
   useEffect(() => {
     if (!editor) return
     let cancelled = false
@@ -2350,8 +2373,15 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         <div className="shrink-0 px-10 py-2.5 text-xs border-b border-amber-900/40 bg-amber-950/30 text-amber-200 flex items-center gap-3">
           <span className="flex-1">
             <strong className="font-semibold">This file changed on disk</strong> while you were editing.
-            Reload (loses your edits) or keep yours (next save will overwrite the new disk version).
+            Keep yours, take the disk version, or review the change as tracked changes.
           </span>
+          <button
+            type="button"
+            onClick={recon.resolveKeepMine}
+            className="px-2 py-1 rounded border border-amber-800/60 hover:border-amber-700 hover:bg-amber-900/30"
+          >
+            Keep mine
+          </button>
           <button
             type="button"
             onClick={recon.resolveReload}
@@ -2361,10 +2391,10 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           </button>
           <button
             type="button"
-            onClick={recon.resolveKeepMine}
+            onClick={handleConflictViewDiff}
             className="px-2 py-1 rounded border border-amber-800/60 hover:border-amber-700 hover:bg-amber-900/30"
           >
-            Keep mine
+            View diff
           </button>
         </div>
       )}
