@@ -19,7 +19,26 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.9.0 cut 2026-06-05.
+> Empty — v0.9.1 cut 2026-06-06.
+
+## [0.9.1] — 2026-06-06 — Navigator resize affordances · View-diff conflict resolution · parallel-PR integration
+
+### Added
+- **Navigator temporary-widen, hover-peek & drag-to-collapse (ENH-190).** Drag the expanded navigator's right border wider to un-truncate a long filename — it eases back to the resting width after the cursor leaves. Hover the collapsed rail to peek it open; click anywhere in the body to keep it open. Drag the border left past ~96px to collapse. A hover-reveal grip pill marks the navigator border *and* the terminal↔canvas divider.
+- **"View diff" conflict resolution (ENH-197 + ENH-202).** A destructive external overwrite — *and* a genuine unsaved-edits conflict — now offer **Keep mine / Reload from disk / View diff**. "View diff" rebuilds the document as accept/reject-able tracked changes (Accept-all = the disk version, Reject-all = yours) through the existing CriticMarkup suggesting rail.
+- **A real, runnable `npm run lint` gate (#69).** ESLint 8 flat config (typescript-eslint + react-hooks) where `npm run lint` had been a silent no-op.
+
+### Changed
+- **CLI & app version derive from `package.json` (#65).** `duo --version` / `duo doctor` were hardcoded to `0.1.0`; the version is now baked from `package.json` at build, so `duo doctor` reports the real running version and flags a stale binary.
+- **Shared on-disk writers are serialized (ENH-191 Phase H, #68).** The pins / nav-pins / projects services route their async read-modify-write through a per-resource write-queue + collision-proof temp path, closing a latent lost-update race.
+- **Project-docs deep-clean (ENH-191, #65).** `tasks.md` split into a lean backlog + `tasks-archive.md`; company-specific references scrubbed; RESUME / active-sprint / CLI-COVERAGE / VISION refreshed; the `what-duo-does` walkthrough renumbered.
+
+### Fixed
+- **`split-view close` orphaned an aux browser tab's WebContentsView (BUG-195)** — a reload-stale ref left a ghost view composited over the UI; close/promote now reconcile unconditionally.
+- **Canvas clean-write false-positive (ENH-195 follow-up)** — the canvas conflict check compares the byte-exact disk baseline, not the id-injected serialized view, so a clean external write reloads silently instead of false-bannering.
+
+### Docs / research
+- **Agent-agnostic Duo report (ENH-189, #64)** — a re-verified audit of which Duo touchpoints work / no-op / break under Codex (decision cards pending owner walk).
 
 ## [0.9.0] — 2026-06-05 — ENH-195: CLI edits, disk-sync & the end of false-positive conflicts
 

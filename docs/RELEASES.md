@@ -21,7 +21,19 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.8.5 cut 2026-06-02)*
+> *(empty — v0.9.1 cut 2026-06-06)*
+
+---
+
+## v0.9.1 — 2026-06-06 — Navigator resize affordances · View-diff conflict resolution · parallel-PR integration
+
+**Why this lands here, and why it's a MINOR.** v0.9.1 is the convergence point for a batch of work that developed in parallel branches and merged together: the navigator resize affordances (ENH-190), the completion of ENH-195's conflict-resolution arc (the ENH-197 "View diff" banner, extended to the dirty-buffer case as ENH-202), the BUG-195 split-view ghost fix, and three supporting changesets that landed alongside — the ENH-191 docs deep-clean + CLI version-source fix (#65), the ENH-191 Phase H write-queue (#68), and a functional lint gate (#69). New user-visible capability (navigator gestures + richer conflict resolution) makes it a MINOR, not a patch.
+
+**The key decisions baked in.**
+1. **Three buttons everywhere on a conflict (ENH-202).** The owner walked the v0.9.0 conflict UX and preferred the destructive-overwrite banner's three options (Keep mine / Reload / View diff) over the dirty-buffer banner's binary choice. The 2-button design was the conservative call — a dirty buffer is a 3-way situation and a general merge UI is a non-goal — but "View diff" is a well-defined 2-way (your unsaved content vs disk), so unifying is a strict improvement. The HTML canvas stays 2-button: it has no tracked-changes rail.
+2. **Integrate-and-verify over merge-and-hope.** The parallel PRs were trial-integrated in a throwaway worktree (clean merge + typecheck + full test suite) before landing on `main`, so the only conflicts resolved were documentation, never code.
+
+**What this is and isn't.** This closes the ENH-195/197/202 conflict-resolution chapter and ships the navigator polish. Still queued: the ENH-189 agent-agnostic decisions (a research playground awaiting an owner walk), canvas change-highlight parity (ENH-196), and two navigator polish follow-ups surfaced on the walk (ENH-201 red-collapse-cue rework, BUG-197 peek-commit on a file/folder click).
 
 ---
 
