@@ -14,9 +14,9 @@ import * as path from 'path'
 import * as os from 'os'
 import type { ProjectsFile } from '../shared/types'
 import { NUM_PROJECT_COLORS, normalizeProjectsFile } from '../shared/projects'
+import { createWriteQueue, uniqueTmpPath } from './write-queue'
 
-const PROJECTS_DIR = path.join(os.homedir(), '.claude', 'duo')
-const PROJECTS_PATH = path.join(PROJECTS_DIR, 'projects.json')
+const DEFAULT_DIR = path.join(os.homedir(), '.claude', 'duo')
 const SCHEMA_VERSION = 1
 
 // Re-export pure helpers so existing imports of this file keep working.
@@ -40,9 +40,24 @@ export type { Project, ProjectsFile } from '../shared/types'
  * file returns the empty default).
  */
 export class ProjectsService {
+  private readonly dir: string
+  private readonly file: string
+  // Phase H (ENH-191 Cut 0) — serialize the read-modify-write so a
+  // socket toggle + a renderer-click toggle (or two windows) cannot
+  // interleave at the await points and lose an update. Covers BOTH
+  // mutators (togglePin + setColorOverride) since they share `read`.
+  private readonly enqueue = createWriteQueue()
+
+  // `baseDir` is injectable for tests (avoids polluting the real
+  // ~/.claude/duo); production constructs it no-arg.
+  constructor(baseDir: string = DEFAULT_DIR) {
+    this.dir = baseDir
+    this.file = path.join(baseDir, 'projects.json')
+  }
+
   async read(): Promise<ProjectsFile> {
     try {
-      const raw = await fs.readFile(PROJECTS_PATH, 'utf8')
+      const raw = await fs.readFile(this.file, 'utf8')
       const parsed = JSON.parse(raw) as Partial<ProjectsFile>
       return normalizeProjectsFile(parsed)
     } catch {
@@ -51,41 +66,51 @@ export class ProjectsService {
   }
 
   async togglePin(root: string): Promise<ProjectsFile> {
-    const current = await this.read()
-    const idx = current.pins.indexOf(root)
-    const next: ProjectsFile = {
-      ...current,
-      pins:
-        idx >= 0
-          ? [...current.pins.slice(0, idx), ...current.pins.slice(idx + 1)]
-          : [...current.pins, root]
-    }
-    await this.write(next)
-    return next
+    return this.enqueue(async () => {
+      const current = await this.read()
+      const idx = current.pins.indexOf(root)
+      const next: ProjectsFile = {
+        ...current,
+        pins:
+          idx >= 0
+            ? [...current.pins.slice(0, idx), ...current.pins.slice(idx + 1)]
+            : [...current.pins, root]
+      }
+      await this.write(next)
+      return next
+    })
   }
 
   async setColorOverride(root: string, colorIndex: number | null): Promise<ProjectsFile> {
-    const current = await this.read()
-    const overrides = { ...current.colorOverrides }
-    if (colorIndex === null) {
-      delete overrides[root]
-    } else if (
-      Number.isInteger(colorIndex) &&
-      colorIndex >= 0 &&
-      colorIndex < NUM_PROJECT_COLORS
-    ) {
-      overrides[root] = colorIndex
-    }
-    const next: ProjectsFile = { ...current, colorOverrides: overrides }
-    await this.write(next)
-    return next
+    return this.enqueue(async () => {
+      const current = await this.read()
+      const overrides = { ...current.colorOverrides }
+      if (colorIndex === null) {
+        delete overrides[root]
+      } else if (
+        Number.isInteger(colorIndex) &&
+        colorIndex >= 0 &&
+        colorIndex < NUM_PROJECT_COLORS
+      ) {
+        overrides[root] = colorIndex
+      }
+      const next: ProjectsFile = { ...current, colorOverrides: overrides }
+      await this.write(next)
+      return next
+    })
   }
 
   private async write(file: ProjectsFile): Promise<void> {
-    await fs.mkdir(PROJECTS_DIR, { recursive: true })
-    const tmp = PROJECTS_PATH + '.duo.tmp'
-    await fs.writeFile(tmp, JSON.stringify(file, null, 2) + '\n')
-    await fs.rename(tmp, PROJECTS_PATH)
+    await fs.mkdir(this.dir, { recursive: true })
+    const tmp = uniqueTmpPath(this.file)
+    try {
+      await fs.writeFile(tmp, JSON.stringify(file, null, 2) + '\n')
+      await fs.rename(tmp, this.file)
+    } catch (err) {
+      // Best-effort cleanup so a failed write doesn't orphan a unique tmp.
+      await fs.rm(tmp, { force: true }).catch(() => {})
+      throw err
+    }
   }
 }
 

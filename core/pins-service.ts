@@ -25,9 +25,9 @@ import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
 import type { PinEntry } from '../shared/types'
+import { createWriteQueue, uniqueTmpPath } from './write-queue'
 
-const PINS_DIR = path.join(os.homedir(), '.claude', 'duo')
-const PINS_PATH = path.join(PINS_DIR, 'pins.json')
+const DEFAULT_DIR = path.join(os.homedir(), '.claude', 'duo')
 const SCHEMA_VERSION = 1
 
 interface PinsFile {
@@ -36,9 +36,23 @@ interface PinsFile {
 }
 
 export class PinsService {
+  private readonly dir: string
+  private readonly file: string
+  // Phase H (ENH-191 Cut 0) — serialize the read-modify-write so a
+  // socket toggle + a renderer-click toggle (or two windows) cannot
+  // interleave at the await points and lose an update.
+  private readonly enqueue = createWriteQueue()
+
+  // `baseDir` is injectable for tests (avoids polluting the real
+  // ~/.claude/duo); production constructs it no-arg.
+  constructor(baseDir: string = DEFAULT_DIR) {
+    this.dir = baseDir
+    this.file = path.join(baseDir, 'pins.json')
+  }
+
   async list(): Promise<PinEntry[]> {
     try {
-      const raw = await fs.readFile(PINS_PATH, 'utf8')
+      const raw = await fs.readFile(this.file, 'utf8')
       const parsed = JSON.parse(raw) as Partial<PinsFile>
       if (!Array.isArray(parsed.pins)) return []
       // Filter out malformed entries defensively rather than throwing —
@@ -56,20 +70,28 @@ export class PinsService {
   }
 
   async toggle(entry: PinEntry): Promise<PinEntry[]> {
-    const current = await this.list()
-    const idx = current.findIndex(p => p.kind === entry.kind && p.ref === entry.ref)
-    const next = idx >= 0
-      ? [...current.slice(0, idx), ...current.slice(idx + 1)]
-      : [...current, entry]
-    await this.write(next)
-    return next
+    return this.enqueue(async () => {
+      const current = await this.list()
+      const idx = current.findIndex(p => p.kind === entry.kind && p.ref === entry.ref)
+      const next = idx >= 0
+        ? [...current.slice(0, idx), ...current.slice(idx + 1)]
+        : [...current, entry]
+      await this.write(next)
+      return next
+    })
   }
 
   private async write(pins: PinEntry[]): Promise<void> {
-    await fs.mkdir(PINS_DIR, { recursive: true })
+    await fs.mkdir(this.dir, { recursive: true })
     const file: PinsFile = { version: SCHEMA_VERSION, pins }
-    const tmp = PINS_PATH + '.duo.tmp'
-    await fs.writeFile(tmp, JSON.stringify(file, null, 2) + '\n')
-    await fs.rename(tmp, PINS_PATH)
+    const tmp = uniqueTmpPath(this.file)
+    try {
+      await fs.writeFile(tmp, JSON.stringify(file, null, 2) + '\n')
+      await fs.rename(tmp, this.file)
+    } catch (err) {
+      // Best-effort cleanup so a failed write doesn't orphan a unique tmp.
+      await fs.rm(tmp, { force: true }).catch(() => {})
+      throw err
+    }
   }
 }

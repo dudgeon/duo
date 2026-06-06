@@ -39,6 +39,7 @@ import * as path from 'path'
 import * as os from 'os'
 import type { SessionState } from '../shared/types'
 import { EMPTY_SESSION_STATE } from '../shared/types'
+import { uniqueTmpPath } from './write-queue'
 
 const SESSION_DIR = path.join(os.homedir(), '.claude', 'duo')
 const SESSION_PATH = path.join(SESSION_DIR, 'session-state.json')
@@ -194,9 +195,14 @@ export class SessionStateService {
       }
     }
 
+    // Phase H (ENH-191 Cut 0) — unique tmp suffix so two atomic writes
+    // (e.g. two Duo processes) never race the same rename target. The
+    // `writing` flag above already serializes flushes WITHIN this
+    // process; the unique tmp covers the cross-process case. (P4 adds
+    // the per-window compose-flush + its concurrent-flush test.)
+    const tmp = uniqueTmpPath(SESSION_PATH, 'tmp')
     try {
       await fs.mkdir(SESSION_DIR, { recursive: true })
-      const tmp = SESSION_PATH + '.tmp'
       await fs.writeFile(tmp, JSON.stringify(state, null, 2), 'utf8')
       await fs.rename(tmp, SESSION_PATH)
       // ENH-167 v1.2 — mirror to the active .duo-session if there is
@@ -211,6 +217,9 @@ export class SessionStateService {
         }
       }
     } catch (err) {
+      // Phase H — best-effort cleanup so a failed write doesn't orphan
+      // the unique tmp file.
+      await fs.rm(tmp, { force: true }).catch(() => {})
       // Persistent failure — log and move on. We don't bubble; the
       // renderer doesn't have a meaningful response to "save failed."
       console.warn('[session-state] save failed:', (err as Error)?.message ?? err)
