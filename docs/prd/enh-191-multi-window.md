@@ -19,13 +19,13 @@
 |---|---|---|
 | Cut 0 | **Phase H** — write-serialization hardening (R6) | ✅ **Shipped** — PR #68 (merged) |
 | (infra) | lint gate restored (`eslint` was undeclared / uninstalled) | ✅ Shipped — PR #69 (merged) |
-| Cut 1 | **P0** — routing-assertion harness + color-override cut | 🚧 **In progress** — seam 1 `WindowRegistry` ✅ · seam 2 `window-teardown` ✅ · seam 3 color-override cut ✅ · seam 4 smoke steps ⬜ |
-| Cut 1 | **P1** — lift app services + split `closed` handler | ⬜ Not started |
+| Cut 1 | **P0** — routing-assertion harness + color-override cut | ✅ **Seams complete** — `WindowRegistry` ✅ · `window-teardown` ✅ · color-override cut ✅ · smoke-checklist legs ✅ (the live single-window + Leg-B walk happens at the Cut 1 boundary) |
+| Cut 1 | **P1** — lift app services + split `closed` handler | ⬜ **Next** — first wiring into `main.ts`; the Cut 1 merge + run-on-`main` test point |
 | Cut 2 | **P2 + P3** — registry adoption (134 sites) + cache/event sweep | ⬜ Not started |
 | Cut 3 | **P4** — `{windows: WindowState[]}` session envelope | ⬜ Not started |
 | Cut 4a / 4b | **P5a / P5b** — open window 2 + terminal-origin + `--window` | ⬜ Not started |
 
-**Last updated:** 2026-06-06 (after P0 seam 3 — color-override cut). Update this table at each seam/cut boundary; lessons accrue in Appendix E.
+**Last updated:** 2026-06-06 (P0 seams complete; P1 next). Update this table at each seam/cut boundary; lessons accrue in Appendix E.
 
 ---
 
