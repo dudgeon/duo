@@ -977,3 +977,24 @@ clarifies and supersedes that framing.
   pieces (code sign, notarize, electron-updater) downstream of Stage 18.
 
 **Decision owner:** Geoff.
+
+---
+
+### Multi-window: registry-of-one spine + single socket (ENH-191)
+
+**Status:** 🟢 Locked (2026-06-05, owner — audit-confirmed). 🚧 In progress (Cut 0 shipped; live status in the PRD).
+**Source of truth:** [`docs/prd/enh-191-multi-window.md`](prd/enh-191-multi-window.md) — scope, phases, NFRs, risks, lessons. This entry is the ADR-altitude summary; the PRD carries the detail.
+
+**Decision.** Convert Duo from single-window to **N independent windows**, each its own workspace (focus, navigator cwd, `.duo-workspace`, pins, terminals, browser pane), under these locked invariants:
+
+- **Registry-of-one spine.** Replace the single `let mainWindow` global with a `WindowRegistry` (`Map<windowId, WindowContext>`). At N=1 `only()` returns the same sole window, so the refactor lands **behind one window, byte-identical**, across zero-user-visible cuts (P0–P4) before any second window opens (P5).
+- **Identity, not focus.** Every default-target send resolves by IDENTITY — `registry.only()` (app-wide) / `event.sender` (per-window) / `registry.all()` (shared-state broadcast) — **never** `getFocusedWindow()`, which silently drops backgrounded sends.
+- **Single Unix socket** (locked). One socket; the CLI addresses any window via a `DUO_WINDOW` terminal-origin PTY stamp + explicit `--window` + a `duo windows` verb.
+- **Per-window vs shared boundary.** *Per-window:* `BrowserManager` + `CdpBridge` (WebContentsView physics), the 12 state caches, presence probe, active-workspace pointer. *Shared (injected, never re-constructed per window):* the `persist:duo-browser` cookie/SSO partition + `duo-asset` protocol handler, `BrowserHistoryService`, `SocketServer`, `PtyManager` (one pool + `Session.ownerWindowId`), `ExternalDomainsService`, and the `projects.json` / `pins.json` / `nav-pins.json` identity files.
+- **Sequence.** Six cuts — Cut 0 = Phase H (write-serialization, **shipped**), Cut 1 = P0+P1, Cut 2 = P2+P3, Cut 3 = P4 (session envelope), Cut 4a/4b = P5a/P5b (the only user-visible cuts). **No shippable focused-window-CLI midpoint.**
+
+**Why locked.** A 15-agent adversarial audit (2026-06-05) confirmed the architecture is sound (verdict: *trustworthy-with-fixes*); the corrections were additive hardening (PRD Appendix D). Full rationale, file:line anchors, NFRs, and the per-phase plan live in the PRD.
+
+**Note.** "ENH-191" collides with the "Docs deep-clean" entry in `tasks.md` — pending owner reconciliation (renumber one, or disambiguate).
+
+**Decision owner:** Geoff.
