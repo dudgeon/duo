@@ -4096,6 +4096,7 @@ export function App() {
             revealChip={revealChip}
             onDismissRevealChip={() => setRevealChip(null)}
             onToggleCollapsed={() => setFilesCollapsed(prev => !prev)}
+            onSetCollapsed={(v) => setFilesCollapsed(v)}
             // Stage 26 PR 3 item 2 — front terminal's launch CWD,
             // surfaced to FileTree as an ambient highlight on the
             // matching folder row. Resolves to the active tab's
@@ -4253,9 +4254,13 @@ export function App() {
           </div>
 
           <div
-            className="split-divider"
+            className={['split-divider', isDraggingSplit ? 'dragging' : ''].join(' ')}
             onMouseDown={onDividerMouseDown}
-          />
+          >
+            {/* ENH-190 — hover-reveal grip-pill affordance (shared with the
+                navigator's right-border handle). */}
+            <span className="resize-grip" aria-hidden="true"><i /><i /><i /></span>
+          </div>
 
           {/* BUG-031 — drag overlay. While the divider is being dragged,
               this transparent layer sits over iframes/canvases so

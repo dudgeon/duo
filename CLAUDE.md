@@ -229,6 +229,16 @@ path-scoped rules under `.claude/rules/` (see above).
     (radios + `.q-notes`), a sticky `.copy-bar` that round-trips decisions to
     clipboard. File it as a tracked ENH in `tasks.md`. Markdown is for
     no-decision content (implementation notes, locked-scope PRDs, ledgers).
+    - **In a cloud / web Claude session, hand the reviewer a rendered preview
+      link.** The owner can't open a local file path from a remote session, and
+      GitHub renders committed HTML as *source*, not a page. After you commit +
+      push the artifact to the working branch, give them a CDN-rendered URL:
+      `https://raw.githack.com/<owner>/<repo>/<branch>/<path>` (e.g.
+      `…/dudgeon/duo/claude/my-branch/docs/research/foo.html`). It serves the
+      file with the right content-type so interactive JS runs. After any new
+      push, a hard-reload (or bumping a `?v=N` query) busts githack's cache.
+      Put the same link in the PR body so the artifact is reviewable without a
+      clone or merge.
 12. **No sidecar anti-pattern — state lives where it belongs.** Before adding
     any Duo-owned file/cache that mirrors another system's state, ask: *would
     this drift from the source of truth?* Read external state live every time

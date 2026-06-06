@@ -2,6 +2,23 @@
 
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
+### ENH-190: Navigator temporary-widen + drag-to-collapse + resize-handle affordance
+
+**Status:** 🟡 **Implemented 2026-06-06, pending owner smoke-walk** (branch `claude/file-nav-auto-collapse-vaN3Y`). Prototype + locked-decision tuning preceded it. **Priority:** Owner-requested. **Effort:** M. **Icon refresh (behavior 4) NOT in the locked set — deferred.**
+
+**Ask (owner).** The navigator is a binary 44px↔208px toggle today. Add (1) **temporary widen → ease back** — drag the *expanded* border wider to un-truncate a long name, plus a *collapsed-rail* hover-peek, both easing back to the resting size after the cursor leaves; (2) **drag-to-collapse** — drag the expanded border left past a threshold → collapse on release; (3) **hover-reveal resize handles** — a grip-pill appears on the navigator border + terminal↔canvas divider and the click target widens while the seam stays a hairline.
+
+**Locked tuning (owner, 2026-06-06).** Two resting sizes only (rail 44 / expanded 208), no persistent custom width. Rail-peek: hover trigger, 260ms hover-in, 1500ms snap-back after cursor leaves, 200px peek, 220ms ease-out. Rail-peek commit: **click anywhere**. Drag-collapse: 96px threshold, fires on release, release-zone hint on, rubber-band off. Resize handle: 12px hit target, hover reveal, 120ms fade, grip pill + dots.
+
+**Implementation.** Transient peek/drag width is local to `FilesPane.tsx` (state machine: `override`/`peekActive`/`widenActive`/`willCollapse` + a right-border `.nav-resize-handle` with pointer capture); the persistent resting state stays `filesCollapsed` in `App.tsx` (new `onSetCollapsed` prop). Shared grip-pill affordance (`.resize-grip`, `.nav-resize-handle`, `.split-divider::before` hit target) added to `globals.css` and applied to the terminal↔canvas `.split-divider` in `App.tsx`. Constants/locked values live at the top of `FilesPane.tsx`. Typecheck clean.
+
+**Owed.** Smoke-walk on a real Mac dev session (couldn't run Electron in the Linux remote sandbox where this was authored) before any version cut. **CLI parity note:** the transient widen/peek/resize-grip are mouse affordances with no persistent state — the persistent collapse/expand already has its toggle; no new CLI verb needed.
+
+**Deferred.** Collapse-button icon refresh (behavior 4 in the prototype: replace the split-pane glyph in `TabBar.tsx` + `WorkingTabStrip.tsx`) — not in the owner's locked settings. Prototype + gallery remain at [`docs/research/navigator-peek-collapse-prototype.html`](research/navigator-peek-collapse-prototype.html); recommended pick was **Panel + chevron**.
+
+**Docs.** Locked-scope PRD at [`docs/prd/enh-190-navigator-resize-peek.md`](prd/enh-190-navigator-resize-peek.md) (D1–D9 decisions + smoke-walk checklist). The tuning prototype is the durably-archived design artifact in `docs/research/`.
+
+---
 
 > Sprint 24 anchor: close the v0.8.0 audit's deferred follow-ups (FOLLOWUP-031 through 040) before any new feature work. ENH-182 was the marquee chapter; Sprint 24 is its polish epilogue. Definition of done: all 10 FOLLOWUPs closed or explicitly deferred-with-reason. Expected cut shape: v0.8.1 PATCH (polish-only) OR v0.9.0 MINOR if a carry-forward capability lands alongside.
 

@@ -3,7 +3,8 @@
 // + collapsed rail. Contents drive pending-CWD for new terminal tabs and
 // file-open requests for the working pane (wired in App.tsx).
 
-import { forwardRef, useImperativeHandle, useRef } from 'react'
+import { forwardRef, useImperativeHandle, useRef, useState, useCallback, useEffect } from 'react'
+import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, TransitionEvent as ReactTransitionEvent } from 'react'
 import { Breadcrumb, type BreadcrumbHandle } from './Breadcrumb'
 import { FileTree } from './FileTree'
 import { PinnedNav } from './PinnedNav'
@@ -13,6 +14,21 @@ import type { DirEntry, NavPinEntry } from '@shared/types'
 import type { NavigatorState, NavigatorActions } from '../hooks/useNavigator'
 import type { NavPinsApi } from '../hooks/useNavPins'
 import type { UserClaudeNavigatorApi } from '../hooks/useUserClaudeNavigator'
+
+// ─── ENH-190 — locked navigator sizing + temporary-widen timing ──────────
+// The navigator has exactly two RESTING sizes: rail (44) and expanded (208).
+// There is no persistent custom width — any widen (a rail hover-peek or
+// dragging the expanded border wider) is transient and eases back. Only
+// crossing the collapse threshold while dragging changes the resting state.
+const NAV_RAIL_W = 44
+const NAV_EXPANDED_W = 208
+const NAV_PEEK_W = 200            // rail hover-peek opens to this
+const NAV_MAX_W = 360             // ceiling for a drag-widen
+const NAV_COLLAPSE_THRESHOLD = 96 // drag the expanded border below this → collapse on release
+const NAV_HOVER_IN_MS = 260       // rest on the rail this long before it peeks
+const NAV_SNAP_BACK_MS = 1500     // ease back this long after the cursor leaves
+const NAV_ANIM_MS = 220
+const NAV_EASE = 'cubic-bezier(.22,.61,.36,1)'
 
 interface FilesPaneProps {
   collapsed: boolean
@@ -36,6 +52,10 @@ interface FilesPaneProps {
   /** Flip collapsed state. Needed as a click-to-expand affordance so users
    *  stuck with \u2318B swallowed by an editor tab (bold) always have an escape. */
   onToggleCollapsed: () => void
+  /** ENH-190 \u2014 set the resting collapsed state explicitly. Used by the
+   *  right-border drag handle: drag past the threshold \u2192 onSetCollapsed(true);
+   *  click-anywhere to commit a rail-peek \u2192 onSetCollapsed(false). */
+  onSetCollapsed: (collapsed: boolean) => void
   /** Stage 26 PR 3 item 2 \u2014 front terminal's launch CWD. Threaded
    *  through to FileTree so folder rows whose path matches render an
    *  ambient accent dot. `null` when no terminal exists or its cwd
@@ -83,6 +103,7 @@ export const FilesPane = forwardRef<FilesPaneHandle, FilesPaneProps>(function Fi
   revealChip,
   onDismissRevealChip,
   onToggleCollapsed,
+  onSetCollapsed,
   activeTerminalCwd = null,
   openFilePaths,
   activeFilePath = null,
@@ -100,6 +121,129 @@ export const FilesPane = forwardRef<FilesPaneHandle, FilesPaneProps>(function Fi
       requestAnimationFrame(() => breadcrumbRef.current?.focusEdit())
     }
   }), [collapsed, onToggleCollapsed])
+
+  // ─── ENH-190: temporary-widen (peek) + drag-collapse ───────────────────
+  // `override` carries the transient px width during a peek/drag; null means
+  // "use the resting width" (collapsed ? rail : expanded). peekActive marks a
+  // rail hover-peek; widenActive marks an expanded drag-widen awaiting
+  // snap-back. Both ease back to resting NAV_SNAP_BACK_MS after the cursor
+  // leaves the navigator.
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const [override, setOverride] = useState<number | null>(null)
+  const [peekActive, setPeekActive] = useState(false)
+  const [widenActive, setWidenActive] = useState(false)
+  const [willCollapse, setWillCollapse] = useState(false)
+  const draggingRef = useRef(false)
+  const dragStartXRef = useRef(0)
+  const dragStartWRef = useRef(0)
+  const hoverInRef = useRef<number | null>(null)
+  const dwellRef = useRef<number | null>(null)
+
+  const clearHoverIn = () => { if (hoverInRef.current != null) { window.clearTimeout(hoverInRef.current); hoverInRef.current = null } }
+  const clearDwell = () => { if (dwellRef.current != null) { window.clearTimeout(dwellRef.current); dwellRef.current = null } }
+  // Clear timers on unmount.
+  useEffect(() => () => { clearHoverIn(); clearDwell() }, [])
+  // Reset transient state whenever the resting collapsed state changes
+  // (⌘B, the View menu, AUTO_COLLAPSE on window resize, or our own
+  // commit/collapse calls). External toggles still animate via the resting
+  // width; this just clears any stale peek/widen bookkeeping + timers.
+  useEffect(() => {
+    clearHoverIn(); clearDwell()
+    setPeekActive(false); setWidenActive(false); setWillCollapse(false)
+    setOverride(null)
+  }, [collapsed])
+
+  const enterPeek = useCallback(() => {
+    if (!collapsed || draggingRef.current) return
+    setPeekActive(true)
+    setOverride(NAV_PEEK_W)
+  }, [collapsed])
+
+  const snapBack = useCallback(() => {
+    clearDwell()
+    setPeekActive(false)
+    setWidenActive(false)
+    setOverride(collapsed ? NAV_RAIL_W : NAV_EXPANDED_W)
+  }, [collapsed])
+
+  const onRootMouseEnter = () => {
+    if (draggingRef.current) return
+    if (peekActive || widenActive) { clearDwell(); return } // re-entry keeps it open
+    if (collapsed) {
+      clearHoverIn()
+      hoverInRef.current = window.setTimeout(() => enterPeek(), NAV_HOVER_IN_MS)
+    }
+  }
+  const onRootMouseLeave = () => {
+    clearHoverIn()
+    if (peekActive || widenActive) {
+      clearDwell()
+      dwellRef.current = window.setTimeout(() => snapBack(), NAV_SNAP_BACK_MS)
+    }
+  }
+  // Locked commit mechanism: while peeking the rail, a click anywhere in the
+  // body (not a header button) makes it stay open.
+  const onRootClick = (e: ReactMouseEvent) => {
+    clearHoverIn() // a click to expand the rail must cancel a pending peek
+    if (!peekActive) return
+    if ((e.target as HTMLElement).closest('button')) return
+    clearDwell()
+    setPeekActive(false)
+    setOverride(NAV_EXPANDED_W)
+    onSetCollapsed(false)
+  }
+  const onRootTransitionEnd = (e: ReactTransitionEvent) => {
+    if (e.propertyName !== 'width') return
+    if (!draggingRef.current && !peekActive && !widenActive) setOverride(null)
+  }
+
+  const onHandlePointerDown = (e: ReactPointerEvent) => {
+    if (collapsed) return // no drag-expand from the rail (locked decision)
+    e.preventDefault()
+    draggingRef.current = true
+    dragStartXRef.current = e.clientX
+    dragStartWRef.current = rootRef.current?.offsetWidth ?? NAV_EXPANDED_W
+    clearHoverIn(); clearDwell()
+    setPeekActive(false); setWidenActive(false)
+    // Re-render now (with draggingRef true) so the width transition is off
+    // before the first move — the drag should track the pointer 1:1.
+    setOverride(dragStartWRef.current)
+    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch { /* ignore */ }
+  }
+  const onHandlePointerMove = (e: ReactPointerEvent) => {
+    if (!draggingRef.current) return
+    let w = dragStartWRef.current + (e.clientX - dragStartXRef.current)
+    w = Math.max(30, Math.min(NAV_MAX_W, w))
+    setOverride(w)
+    setWillCollapse(w < NAV_COLLAPSE_THRESHOLD)
+  }
+  const onHandlePointerUp = (e: ReactPointerEvent) => {
+    if (!draggingRef.current) return
+    draggingRef.current = false
+    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId) } catch { /* ignore */ }
+    const w = rootRef.current?.offsetWidth ?? NAV_EXPANDED_W
+    setWillCollapse(false)
+    if (w < NAV_COLLAPSE_THRESHOLD) {
+      onSetCollapsed(true)          // crossed the threshold → collapse
+      setOverride(NAV_RAIL_W)
+    } else if (w > NAV_EXPANDED_W + 6) {
+      setWidenActive(true)          // temporary widen → snaps back on cursor-leave
+      setOverride(w)
+    } else {
+      setOverride(NAV_EXPANDED_W)   // narrowed but didn't collapse → back to 208
+    }
+  }
+
+  const showRail = collapsed && !peekActive
+  const widthPx = override != null ? override : (collapsed ? NAV_RAIL_W : NAV_EXPANDED_W)
+  const rootStyle: CSSProperties = {
+    width: `${widthPx}px`,
+    flexShrink: 0,
+    transition: draggingRef.current
+      ? 'border-color 150ms'
+      : `width ${NAV_ANIM_MS}ms ${NAV_EASE}, border-color 150ms`,
+    ...(willCollapse ? { borderRightColor: '#C8553D' } : {})
+  }
 
   return (
     <div
@@ -122,13 +266,18 @@ export const FilesPane = forwardRef<FilesPaneHandle, FilesPaneProps>(function Fi
         // the existing tinted-header pattern: header chrome tints +
         // left edge stripes when focused = whole pane reads as
         // "this is the focused column."
-        'flex flex-col h-full bg-surface-1 border-r border-l-2 transition-[width,border-color] duration-150',
+        'relative flex flex-col h-full bg-surface-1 border-r border-l-2',
         focused ? 'border-r-accent border-l-accent' : 'border-r-border border-l-transparent'
       ].join(' ')}
-      style={{ width: collapsed ? '44px' : '208px', flexShrink: 0 }}
+      style={rootStyle}
+      ref={rootRef}
+      onMouseEnter={onRootMouseEnter}
+      onMouseLeave={onRootMouseLeave}
+      onClick={onRootClick}
+      onTransitionEnd={onRootTransitionEnd}
       aria-label="Files"
     >
-      {collapsed ? (
+      {showRail ? (
         <CollapsedRail
           onExpand={onToggleCollapsed}
           projectName={state.cwd.split('/').filter(Boolean).pop() ?? '/'}
@@ -226,6 +375,28 @@ export const FilesPane = forwardRef<FilesPaneHandle, FilesPaneProps>(function Fi
             focused={focused}
           />
         </div>
+      )}
+
+      {/* ENH-190 — right-border drag handle. Drag wider to un-truncate a
+          long name (snaps back), or drag left past the threshold to
+          collapse. Hidden when collapsed — there's no drag-expand from the
+          rail (locked decision). Carries the hover-reveal grip-pill
+          affordance shared with the terminal↔canvas divider. */}
+      {!collapsed && (
+        <div
+          className={['nav-resize-handle', willCollapse ? 'will-collapse' : ''].join(' ')}
+          onPointerDown={onHandlePointerDown}
+          onPointerMove={onHandlePointerMove}
+          onPointerUp={onHandlePointerUp}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize navigator (drag left past the edge to collapse)"
+        >
+          <span className="resize-grip" aria-hidden="true"><i /><i /><i /></span>
+        </div>
+      )}
+      {willCollapse && (
+        <div className="nav-collapse-hint" aria-hidden="true">Release to collapse</div>
       )}
     </div>
   )

@@ -1,0 +1,1320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-open-in" content="browser">
+<meta name="duo-editable" content="false">
+<title>Navigator peek + drag-collapse — tuning prototype</title>
+<style>
+  /* ----------------------------------------------------------------
+     Dark Duo palette (from renderer/styles/globals.css :root.dark).
+     This is a FUNCTIONAL prototype that mimics the running app, so it
+     uses the app's own dark tokens rather than the cream Atelier paper
+     — fidelity beats consistency here. The control panel borrows the
+     Atelier serif-label / accent-pill language so it still feels like
+     a Duo planning surface.
+     ---------------------------------------------------------------- */
+  :root {
+    --paper: #1A1611;
+    --paper-deep: #13100C;
+    --paper-edge: #26201A;
+    --paper-rule: #352D23;
+    --ink: #F0E9D6;
+    --ink-soft: #C8BD9E;
+    --ink-mute: #8A7E66;
+    --ink-ghost: #5A5142;
+    --accent: #E08F4A;
+    --accent-soft: #3F2A18;
+    --accent-ink: #F2D2A8;
+    --term-bg: #0C0A07;
+    --term-fg: #E9DEC2;
+    --surface-1: #1E1812;      /* navigator bg */
+    --surface-2: #251E16;
+    --surface-3: #2E2619;
+    --canvas-paper: #FBF8EE;   /* canvas shows light HTML pages */
+    --canvas-ink: #2B2620;
+    --good: #5FA86A;
+    --danger: #C8553D;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--paper-deep);
+    color: var(--ink-soft);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    padding-bottom: 88px; /* room for the sticky copy bar */
+  }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 22px; }
+
+  header.page-head {
+    padding: 26px 22px 14px;
+    max-width: 1180px; margin: 0 auto;
+  }
+  header.page-head h1 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 27px;
+    letter-spacing: 0.1px;
+    color: var(--ink);
+    margin: 0 0 8px;
+  }
+  .meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    color: var(--ink-mute); font-size: 12.5px; }
+  .pill {
+    display: inline-block; padding: 2px 9px; border-radius: 100px;
+    background: var(--accent-soft); color: var(--accent-ink);
+    font-size: 11px; font-weight: 600; letter-spacing: 0.4px;
+    text-transform: uppercase;
+  }
+  .intro {
+    max-width: 1180px; margin: 14px auto 0; padding: 0 22px;
+    color: var(--ink-soft); font-size: 14.5px;
+  }
+  .intro strong { color: var(--ink); }
+  .intro .hint { color: var(--ink-mute); font-size: 13px; }
+
+  h2 {
+    font-family: var(--serif); font-weight: 600; font-size: 19px;
+    color: var(--ink); margin: 34px 0 4px;
+    padding-bottom: 7px; border-bottom: 1px solid var(--paper-rule);
+  }
+  h2 .num { color: var(--accent); font-size: 14px; margin-right: 8px;
+    font-family: var(--mono); }
+  .sub { color: var(--ink-mute); font-size: 13px; margin: 6px 0 16px; }
+
+  /* ============================================================
+     THE LIVE STAGE — a sticky three-pane Duo mock
+     ============================================================ */
+  .stage-dock {
+    position: sticky; top: 0; z-index: 30;
+    background: var(--paper-deep);
+    padding: 10px 22px 12px;
+    border-bottom: 1px solid var(--paper-rule);
+    box-shadow: 0 10px 22px -14px rgba(0,0,0,0.8);
+  }
+  .stage-dock .wrap { max-width: 1180px; }
+  .stage-label {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 7px;
+  }
+  .stage-label .lbl {
+    font-family: var(--serif); font-style: italic; color: var(--ink-mute);
+    font-size: 13px;
+  }
+  .state-readout {
+    font-family: var(--mono); font-size: 11.5px; color: var(--ink-mute);
+    background: var(--paper); border: 1px solid var(--paper-rule);
+    padding: 3px 9px; border-radius: 5px;
+  }
+  .state-readout b { color: var(--accent-ink); font-weight: 600; }
+
+  .duo-window {
+    display: flex; height: 340px;
+    border: 1px solid var(--paper-rule); border-radius: 8px;
+    overflow: hidden; background: var(--term-bg);
+    user-select: none;
+  }
+
+  /* ---- Navigator (the star of the show) ---- */
+  .nav {
+    position: relative;
+    flex: 0 0 auto;
+    width: 208px;
+    background: var(--surface-1);
+    border-right: 1px solid var(--paper-rule);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    will-change: width;
+  }
+  .nav.animate { transition: width var(--anim, 220ms) var(--ease, cubic-bezier(.22,.61,.36,1)); }
+  .nav.dragging { transition: none; }
+  .nav.peeking { box-shadow: 6px 0 20px -8px rgba(0,0,0,0.7); z-index: 5; }
+  .nav.will-collapse { background: var(--surface-2); }
+
+  .nav-head {
+    display: flex; align-items: center; gap: 4px;
+    height: 34px; padding: 0 4px 0 10px;
+    border-bottom: 1px solid var(--paper-rule);
+    flex: 0 0 auto;
+  }
+  .nav-crumb {
+    flex: 1; min-width: 0;
+    font-size: 12px; color: var(--ink-soft);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-weight: 500;
+  }
+  .icon-btn {
+    flex: 0 0 auto;
+    width: 26px; height: 26px; border-radius: 5px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: transparent; border: 0; cursor: pointer;
+    color: var(--ink-mute);
+  }
+  .icon-btn:hover { background: var(--surface-3); color: var(--ink); }
+  /* "keep open" commit button — only shown during a rail-peek in button mode */
+  .keep-open-btn { display: none; color: var(--accent); }
+  .nav.show-keep .keep-open-btn { display: inline-flex; }
+  .nav.show-keep .keep-open-btn { background: var(--accent-soft); }
+
+  .nav-tree { flex: 1; overflow: hidden; padding: 6px 0; }
+  .row {
+    display: flex; align-items: center; gap: 7px;
+    height: 24px; padding: 0 10px;
+    font-size: 12.5px; color: var(--ink-soft);
+    white-space: nowrap; cursor: pointer;
+  }
+  .row:hover { background: var(--surface-2); }
+  .row.active { background: var(--accent-soft); color: var(--accent-ink); }
+  .row .glyph { flex: 0 0 auto; color: var(--ink-mute); width: 14px; text-align: center; }
+  .row.indent { padding-left: 24px; }
+  .row.indent2 { padding-left: 38px; }
+  .row .nm { overflow: hidden; text-overflow: ellipsis; }
+  .dot { width: 6px; height: 6px; border-radius: 2px; flex: 0 0 auto; }
+
+  /* The collapsed rail (44px) */
+  .nav-rail {
+    position: absolute; inset: 0;
+    display: none;
+    flex-direction: column; align-items: center;
+    padding-top: 10px; gap: 8px;
+    cursor: pointer; color: var(--ink-mute);
+  }
+  .nav.collapsed .nav-rail { display: flex; }
+  .nav.collapsed .nav-full { display: none; }
+  .nav-rail:hover { color: var(--ink-soft); }
+  .nav-rail .vlabel {
+    font-family: var(--serif); font-style: italic; font-size: 12px;
+    color: var(--ink-mute); margin-top: 4px;
+    writing-mode: vertical-rl; transform: rotate(180deg);
+    letter-spacing: 0.4px; white-space: nowrap;
+  }
+  .nav-full { display: flex; flex-direction: column; height: 100%; }
+
+  /* ---- Resizable-divider affordance (behavior 3) ----
+     A widened invisible hit target + a thin visible seam + an optional
+     grip pill. Shared by the navigator's right border (.nav-handle, which
+     also does drag-to-collapse) and the terminal↔canvas divider
+     (.split-divider). Driven by --hit / --fade vars + dv-* classes on #win. */
+  .split-divider {
+    position: relative; flex: 0 0 1px; width: 1px; align-self: stretch;
+    background: var(--paper-rule); cursor: col-resize; z-index: 7;
+  }
+  .split-divider::before {            /* invisible widened hit target */
+    content: ""; position: absolute; top: 0; bottom: 0; left: 50%;
+    width: var(--hit, 12px); transform: translateX(-50%);
+  }
+  .split-divider::after {             /* the visible seam line */
+    content: ""; position: absolute; top: 0; bottom: 0; left: 50%;
+    width: 1px; transform: translateX(-50%); background: var(--paper-rule);
+    transition: width var(--fade, 120ms) ease, background var(--fade, 120ms) ease;
+  }
+
+  /* The nav lives behind overflow:hidden, so the handle + grip must hug the
+     INNER right edge (no straddling the seam, or they'd be clipped in half). */
+  .nav-handle {
+    position: absolute; top: 0; right: 0; width: var(--hit, 12px); height: 100%;
+    cursor: col-resize; z-index: 8;
+  }
+  .nav-handle::after {
+    content: ""; position: absolute; top: 0; bottom: 0; right: 0;
+    width: 1px; background: transparent;
+    transition: width var(--fade, 120ms) ease, background var(--fade, 120ms) ease;
+  }
+  .nav-handle .grip { left: auto; right: 2px; transform: translateY(-50%); }
+
+  /* the grip pill (shared between both dividers) */
+  .grip {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px; width: 7px; height: 40px; border-radius: 100px;
+    background: var(--accent); box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    opacity: 0; pointer-events: none; transition: opacity var(--fade, 120ms) ease;
+  }
+  .grip i { width: 2px; height: 2px; border-radius: 50%; background: rgba(20,16,12,0.62); }
+  #win:not(.dv-dots) .grip i { display: none; }
+
+  /* style = pill → reveal the grip; thicken/bar → grow the seam line */
+  .dv-pill .split-divider:hover .grip,
+  .dv-pill .nav-handle:hover .grip,
+  .dv-pill.dv-always .split-divider .grip,
+  .dv-pill.dv-always .nav-handle .grip { opacity: 1; }
+
+  .dv-thicken .split-divider:hover::after,
+  .dv-thicken.dv-always .split-divider::after,
+  .dv-thicken .nav-handle:hover::after,
+  .dv-thicken.dv-always .nav-handle::after { width: 3px; background: var(--accent); }
+
+  .dv-bar .split-divider:hover::after,
+  .dv-bar.dv-always .split-divider::after,
+  .dv-bar .nav-handle:hover::after,
+  .dv-bar.dv-always .nav-handle::after { width: var(--hit, 12px); background: var(--accent-soft); }
+
+  /* while actively dragging, the seam stays lit regardless of style */
+  .nav.dragging .nav-handle::after,
+  .split-divider.dragging::after { width: 3px; background: var(--accent); }
+
+  /* "Release to collapse" hint overlay */
+  .collapse-hint {
+    position: absolute; inset: 0; z-index: 9;
+    display: none; align-items: center; justify-content: center;
+    background: rgba(200,85,61,0.10);
+    border-right: 2px solid var(--danger);
+    pointer-events: none;
+  }
+  .nav.will-collapse .collapse-hint { display: flex; }
+  .collapse-hint span {
+    font-size: 10.5px; font-weight: 600; color: #f0b4a6;
+    background: rgba(19,16,12,0.85); border: 1px solid var(--danger);
+    padding: 4px 8px; border-radius: 5px; text-align: center;
+    writing-mode: vertical-rl; transform: rotate(180deg); letter-spacing: 0.5px;
+  }
+
+  /* ---- Terminal pane ---- */
+  .pane-term { flex: 0 0 auto; min-width: 0; display: flex; flex-direction: column; background: var(--term-bg); }
+  .pane-tabbar {
+    height: 32px; flex: 0 0 auto;
+    display: flex; align-items: center; gap: 2px;
+    padding: 0 6px; border-bottom: 1px solid var(--paper-rule);
+    background: var(--paper-deep);
+  }
+  .tab {
+    font-size: 11.5px; color: var(--ink-mute);
+    padding: 4px 10px; border-radius: 5px 5px 0 0;
+  }
+  .tab.on { color: var(--ink); background: var(--term-bg); }
+  .spacer { flex: 1; }
+  .sep { width: 1px; height: 13px; background: var(--paper-rule); margin: 0 5px; }
+  .collapse-pane-btn {
+    width: 26px; height: 24px; border-radius: 5px; border: 0; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: transparent; color: var(--ink-mute);
+  }
+  .collapse-pane-btn:hover { background: var(--surface-3); color: var(--ink); }
+  .term-body {
+    flex: 1; padding: 10px 12px; font-family: var(--mono); font-size: 11.5px;
+    color: var(--term-fg); line-height: 1.7; overflow: hidden;
+  }
+  .term-body .pr { color: var(--accent); }
+  .term-body .mut { color: var(--ink-ghost); }
+
+  /* ---- Canvas pane (light) ---- */
+  .pane-canvas { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column;
+    background: var(--canvas-paper); }
+  .canvas-tabbar {
+    height: 32px; flex: 0 0 auto; display: flex; align-items: center; gap: 2px;
+    padding: 0 6px; border-bottom: 1px solid #e3dcc8; background: #f2ecdc;
+  }
+  .canvas-tabbar .tab { color: #8a7e62; }
+  .canvas-tabbar .tab.on { color: var(--canvas-ink); background: var(--canvas-paper); }
+  .canvas-tabbar .sep { background: #e0d8c2; }
+  .canvas-tabbar .collapse-pane-btn { color: #8a7e62; }
+  .canvas-tabbar .collapse-pane-btn:hover { background: #e7e0cd; color: var(--canvas-ink); }
+  .canvas-body { flex: 1; padding: 16px 18px; color: var(--canvas-ink); overflow: hidden; }
+  .canvas-body h3 { font-family: var(--serif); margin: 0 0 8px; font-size: 17px; }
+  .canvas-body p { font-size: 12.5px; color: #5a513f; margin: 0 0 8px; }
+  .canvas-body .ph { height: 8px; border-radius: 4px; background: #ece4d2; margin: 7px 0; }
+  .canvas-body .ph.s { width: 60%; }
+
+  /* ============================================================
+     CONTROLS
+     ============================================================ */
+  .controls-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
+    margin-top: 4px;
+  }
+  @media (max-width: 860px) { .controls-grid { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--paper); border: 1px solid var(--paper-rule);
+    border-radius: 9px; padding: 16px 18px;
+  }
+  .panel h3 {
+    margin: 0 0 3px; font-family: var(--serif); font-size: 15.5px; color: var(--ink);
+  }
+  .panel .ph-cap { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px;
+    color: var(--accent); font-family: var(--mono); margin-bottom: 10px; }
+  .panel .desc { font-size: 12.5px; color: var(--ink-mute); margin: 0 0 14px; }
+
+  /* commit-mode explanation cards (only the selected one shows) */
+  .commit-modes { margin: 4px 0 2px; }
+  .commit-modes .cm {
+    display: none; font-size: 12.5px; color: var(--ink-soft);
+    background: var(--paper-deep); border: 1px solid var(--paper-rule);
+    border-left: 3px solid var(--accent); border-radius: 6px; padding: 10px 13px;
+  }
+  .commit-modes .cm.on { display: block; }
+  .commit-modes .cm b { color: var(--ink); }
+
+  .ctl { margin-bottom: 15px; }
+  .ctl:last-child { margin-bottom: 0; }
+  .ctl label.k {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 12.5px; color: var(--ink-soft); margin-bottom: 6px;
+  }
+  .ctl label.k .v { font-family: var(--mono); color: var(--accent-ink);
+    font-size: 12px; background: var(--accent-soft); padding: 1px 7px; border-radius: 4px; }
+  .ctl .why { font-size: 11.5px; color: var(--ink-ghost); margin: 5px 0 0; }
+
+  input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+
+  .seg { display: inline-flex; border: 1px solid var(--paper-rule); border-radius: 7px;
+    overflow: hidden; background: var(--paper-deep); flex-wrap: wrap; }
+  .seg button {
+    border: 0; background: transparent; color: var(--ink-mute);
+    font-size: 12px; padding: 6px 11px; cursor: pointer; font-family: var(--sans);
+    border-right: 1px solid var(--paper-rule);
+  }
+  .seg button:last-child { border-right: 0; }
+  .seg button.on { background: var(--accent); color: #18120b; font-weight: 600; }
+
+  .toggle { display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: 12.5px;
+    color: var(--ink-soft); }
+  .toggle input { width: 0; height: 0; opacity: 0; position: absolute; }
+  .toggle .tk {
+    width: 34px; height: 19px; border-radius: 100px; background: var(--paper-edge);
+    border: 1px solid var(--paper-rule); position: relative; transition: background 140ms; flex: 0 0 auto;
+  }
+  .toggle .tk::after { content: ""; position: absolute; top: 1.5px; left: 1.5px;
+    width: 14px; height: 14px; border-radius: 50%; background: var(--ink-mute); transition: 140ms; }
+  .toggle input:checked + .tk { background: var(--accent-soft); }
+  .toggle input:checked + .tk::after { transform: translateX(15px); background: var(--accent); }
+
+  .btn {
+    font-family: var(--sans); font-size: 12.5px; cursor: pointer;
+    background: var(--paper-edge); color: var(--ink-soft);
+    border: 1px solid var(--paper-rule); border-radius: 6px; padding: 7px 13px;
+  }
+  .btn:hover { background: var(--surface-3); color: var(--ink); }
+  .btn.primary { background: var(--accent); color: #18120b; border-color: var(--accent); font-weight: 600; }
+  .btn.primary:hover { background: #eaa05f; }
+
+  /* ============================================================
+     ICON GALLERY
+     ============================================================ */
+  .icon-gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  @media (max-width: 720px) { .icon-gallery { grid-template-columns: 1fr; } }
+  .icon-card {
+    border: 1px solid var(--paper-rule); border-radius: 9px; padding: 14px 16px;
+    background: var(--paper); cursor: pointer; transition: border-color 120ms, background 120ms;
+    display: flex; flex-direction: column; gap: 9px;
+  }
+  .icon-card:hover { border-color: var(--ink-mute); }
+  .icon-card.sel { border-color: var(--accent); background: linear-gradient(0deg, var(--accent-soft), var(--paper) 70%); }
+  .icon-card .ic-top { display: flex; align-items: center; justify-content: space-between; }
+  .icon-card .ic-name { font-family: var(--serif); font-size: 14.5px; color: var(--ink); }
+  .icon-card .ic-name .recommend-tag {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.5px; color: #18120b;
+    background: var(--accent); padding: 1px 6px; border-radius: 100px; margin-left: 7px;
+    vertical-align: middle; }
+  .icon-card .ic-pick { font-size: 11px; color: var(--ink-mute); font-family: var(--mono); }
+  .icon-card.sel .ic-pick { color: var(--accent-ink); }
+  .ic-demo { display: flex; align-items: center; gap: 16px; padding: 6px 0; }
+  .ic-pair { display: flex; align-items: center; gap: 8px; }
+  .ic-chip {
+    width: 30px; height: 28px; border-radius: 6px; border: 1px solid var(--paper-rule);
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--ink-soft); background: var(--paper-deep);
+  }
+  .ic-chip.light { background: #f2ecdc; border-color: #e0d8c2; color: #5a513f; }
+  .ic-cap { font-size: 11px; color: var(--ink-mute); }
+  .ic-why { font-size: 11.5px; color: var(--ink-ghost); margin: 0; }
+
+  /* ============================================================
+     COPY BAR
+     ============================================================ */
+  .copy-bar {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
+    background: var(--paper); border-top: 1px solid var(--paper-rule);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 13px 26px; gap: 14px;
+    box-shadow: 0 -10px 24px -16px rgba(0,0,0,0.85);
+  }
+  .copy-bar .cb-meta { font-size: 12.5px; color: var(--ink-mute); }
+  .copy-bar .cb-meta b { color: var(--ink-soft); }
+  .copy-bar .cb-actions { display: flex; gap: 10px; }
+  .btn.copied { background: var(--good); border-color: var(--good); color: #0e1a0f; }
+
+  code { font-family: var(--mono); font-size: 12px; background: var(--paper-edge);
+    padding: 1px 5px; border-radius: 4px; color: var(--accent-ink); }
+  .foot-note { color: var(--ink-ghost); font-size: 12px; margin: 28px 0 14px; }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Navigator peek &amp; drag-collapse — tuning prototype</h1>
+  <div class="meta">
+    <span class="pill">Prototype</span>
+    <span class="pill" style="background:var(--surface-3);color:var(--ink-soft)">ENH-190</span>
+    2026-06-06 · drive the live mock, tune the dials, pick an icon set, hit <b>Copy</b>
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> A working mock of Duo's three panes — navigator
+  · terminal · canvas — wired with the navigator behaviors you asked for (peek-to-widen,
+  drag-to-collapse), hover-reveal resize handles on the draggable seams, plus a swap-in
+  gallery for the collapse-button icons. Everything below the stage is a dial.
+  <span class="hint">Nothing here touches the real app yet; tune it, copy your
+  settings back to me, and I'll wire the winning numbers into <code>FilesPane.tsx</code>.</span>
+</div>
+
+<!-- ===================== STICKY LIVE STAGE ===================== -->
+<div class="stage-dock">
+  <div class="wrap">
+    <div class="stage-label">
+      <span class="lbl">Live mock — peek the rail, or drag the navigator's right border left to collapse it</span>
+      <span class="state-readout" id="readout">state: <b>open</b> · 208px</span>
+    </div>
+    <div class="duo-window dv-pill dv-dots" id="win">
+
+      <!-- NAVIGATOR -->
+      <div class="nav animate" id="nav" style="width:208px">
+        <!-- collapsed rail -->
+        <div class="nav-rail" id="rail">
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+            <path d="M3 4.5A1.5 1.5 0 0 1 4.5 3h4l1.5 1.5h5.5A1.5 1.5 0 0 1 17 6v9.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 15.5v-11Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+          </svg>
+          <span class="vlabel">Navigator: duo</span>
+        </div>
+
+        <!-- full navigator -->
+        <div class="nav-full">
+          <div class="nav-head">
+            <span class="nav-crumb" title="~/duo">~ / duo</span>
+            <button class="icon-btn keep-open-btn" id="keepOpenBtn" title="Keep navigator open">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="2.5" width="11" height="9" rx="1.5" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="2.5" width="3.5" height="9" fill="currentColor" opacity="0.55"/><path d="M4.4 5.4 L6.6 7 L4.4 8.6" stroke="currentColor" stroke-width="1.25" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="icon-btn" title="Pin">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 8.5v2.2M4 2.5h4M6 2.5v5l-1.8 1.5h3.6L6 7.5v-5Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round"/></svg>
+            </button>
+            <button class="icon-btn" id="headCollapse" title="Collapse navigator (⌘B)">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="2.5" width="11" height="9" rx="1.5" stroke="currentColor" stroke-width="1.2"/><rect x="1.5" y="2.5" width="3.5" height="9" fill="currentColor" opacity="0.55"/></svg>
+            </button>
+          </div>
+          <div class="nav-tree">
+            <div class="row"><span class="glyph">▸</span><span class="nm">.claude</span></div>
+            <div class="row"><span class="glyph">▾</span><span class="nm">renderer</span></div>
+            <div class="row indent active"><span class="dot" style="background:var(--accent)"></span><span class="nm">FilesPane.tsx</span></div>
+            <div class="row indent"><span class="glyph">▸</span><span class="nm">components</span></div>
+            <div class="row indent2"><span class="dot" style="background:var(--ink-ghost)"></span><span class="nm">WorkingTabStrip.tsx</span></div>
+            <div class="row indent2" title="useNavigatorAutoCollapse.test.ts"><span class="dot" style="background:var(--ink-ghost)"></span><span class="nm">useNavigatorAutoCollapse.test.ts</span></div>
+            <div class="row indent2"><span class="dot" style="background:var(--ink-ghost)"></span><span class="nm">FileTree.tsx</span></div>
+            <div class="row indent"><span class="glyph">▸</span><span class="nm">hooks</span></div>
+            <div class="row"><span class="glyph">▾</span><span class="nm">docs</span></div>
+            <div class="row indent"><span class="glyph">▸</span><span class="nm">research</span></div>
+            <div class="row"><span class="dot" style="background:var(--ink-ghost)"></span><span class="nm">CLAUDE.md</span></div>
+            <div class="row"><span class="dot" style="background:var(--ink-ghost)"></span><span class="nm">package.json</span></div>
+            <div class="row"><span class="glyph">▸</span><span class="nm">node_modules</span></div>
+          </div>
+        </div>
+
+        <div class="collapse-hint"><span>Release to collapse</span></div>
+        <div class="nav-handle" id="handle"><span class="grip"><i></i><i></i><i></i></span></div>
+      </div>
+
+      <!-- TERMINAL -->
+      <div class="pane-term">
+        <div class="pane-tabbar">
+          <span class="tab on">claude — duo</span>
+          <span class="tab">zsh</span>
+          <span class="spacer"></span>
+          <span class="sep"></span>
+          <button class="collapse-pane-btn" id="termCollapseBtn" title="Hide terminal column (canvas takes full width)"></button>
+        </div>
+        <div class="term-body">
+          <div><span class="pr">duo&nbsp;❯</span> npm run dev</div>
+          <div class="mut">  vite ready · electron main booted</div>
+          <div><span class="pr">duo&nbsp;❯</span> duo nav-state</div>
+          <div class="mut">  navigator: open · width 208px · pinned false</div>
+          <div><span class="pr">duo&nbsp;❯</span> <span style="color:var(--term-fg)">▍</span></div>
+        </div>
+      </div>
+
+      <!-- TERMINAL ↔ CANVAS divider (resizable, behavior 3) -->
+      <div class="split-divider" id="split"><span class="grip"><i></i><i></i><i></i></span></div>
+
+      <!-- CANVAS -->
+      <div class="pane-canvas">
+        <div class="canvas-tabbar">
+          <button class="collapse-pane-btn" id="canvasCollapseBtn" title="Hide canvas (terminal takes full width)"></button>
+          <span class="sep"></span>
+          <span class="tab on">roadmap.html</span>
+        </div>
+        <div class="canvas-body">
+          <h3>Duo roadmap</h3>
+          <p>Canvas pane — a page renders here. The collapse button (top-left of this strip) folds the canvas to the right.</p>
+          <div class="ph"></div><div class="ph"></div><div class="ph s"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <!-- ===================== BEHAVIOR 1: PEEK ===================== -->
+  <h2><span class="num">1</span>Temporary widen → ease back</h2>
+  <p class="sub">The navigator has exactly two resting sizes — <b>rail (44px)</b> and
+    <b>expanded (208px)</b>; there is no persistent custom width. Sometimes the expanded
+    navigator truncates a long file name, so you need to <b>temporarily</b> widen it. Two
+    independent triggers, both of which snap back on their own:</p>
+  <ul class="sub" style="margin-top:-8px">
+    <li><b>Core — drag the expanded border wider</b> to un-truncate names, then it eases
+      back to 208px ~1s after the cursor leaves the navigator.</li>
+    <li><b>Rail peek</b> — hover the collapsed rail to glance at names, then it eases back
+      to the rail. (Dragging the rail open is intentionally <i>not</i> supported.) To make a
+      peek <i>stay</i> open, see <b>“Make a peek stay open”</b> below — that's the
+      click-to-commit problem you flagged.</li>
+  </ul>
+
+  <div class="controls-grid">
+    <div class="panel">
+      <div class="ph-cap">Trigger &amp; timing</div>
+      <h3>How the peek opens &amp; closes</h3>
+      <p class="desc">The two dials that matter most: how eager the peek is to open,
+        and how long it lingers before snapping shut.</p>
+
+      <div class="ctl">
+        <label class="k">Peek trigger</label>
+        <div class="seg" data-seg="peekTrigger">
+          <button data-val="hover" class="on">Hover</button>
+          <button data-val="click">Click rail</button>
+          <button data-val="both">Either</button>
+        </div>
+        <p class="why">Hover = effortless but can fire by accident. Click = deliberate,
+          trackpad-friendly. "Either" lets hover preview and click pin.</p>
+      </div>
+
+      <div class="ctl">
+        <label class="k">Hover-in delay <span class="v" id="v_hoverIn">120 ms</span></label>
+        <input type="range" id="r_hoverIn" min="0" max="600" step="20" value="120">
+        <p class="why">How long you must rest on the rail before it peeks. Higher =
+          fewer accidental opens when your cursor just passes through.</p>
+      </div>
+
+      <div class="ctl">
+        <label class="k">Linger before snap-back <span class="v" id="v_dwell">1000 ms</span></label>
+        <input type="range" id="r_dwell" min="300" max="3000" step="100" value="1000">
+        <p class="why">The "glance window" — how long after your cursor <b>leaves the
+          navigator</b> before it eases back to its resting size. Your target was ~0.5–2s.
+          Applies to <b>both</b> the hover-peek and a drag that widened the navigator.</p>
+      </div>
+
+      <div class="ctl">
+        <label class="k">Snap-back clock starts…</label>
+        <div class="seg" data-seg="dwellMode">
+          <button data-val="leave" class="on">When cursor leaves</button>
+          <button data-val="open">When peek opens</button>
+        </div>
+        <p class="why">"When cursor leaves" keeps it open as long as you hover (classic).
+          "When peek opens" gives a fixed glance window regardless of the cursor.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph-cap">Feel</div>
+      <h3>Width &amp; animation</h3>
+      <p class="desc">How wide the peek gets and how it moves.</p>
+
+      <div class="ctl">
+        <label class="k">Rail-peek width <span class="v" id="v_peekW">200 px</span></label>
+        <input type="range" id="r_peekW" min="120" max="320" step="4" value="200">
+        <p class="why">How wide the <b>collapsed-rail hover-peek</b> opens to (rail is 44px).
+          The expanded-border drag-widen, by contrast, follows your cursor up to ~340px.</p>
+      </div>
+
+      <div class="ctl">
+        <label class="k">Animation duration <span class="v" id="v_anim">220 ms</span></label>
+        <input type="range" id="r_anim" min="60" max="600" step="10" value="220">
+        <p class="why">Glide time for peek-open, snap-back, and drag-collapse snaps.</p>
+      </div>
+
+      <div class="ctl">
+        <label class="k">Easing</label>
+        <div class="seg" data-seg="ease">
+          <button data-val="cubic-bezier(.22,.61,.36,1)" class="on">Ease-out</button>
+          <button data-val="cubic-bezier(.34,1.56,.64,1)">Springy</button>
+          <button data-val="ease">Linear-ish</button>
+        </div>
+        <p class="why">Ease-out feels native; springy adds a touch of overshoot.</p>
+      </div>
+
+      <div class="ctl">
+        <p class="why" style="margin-top:2px">How a peek becomes <i>permanent</i> is its own
+          decision — set it in <b>“Make a peek stay open”</b> directly below.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Behavior 1b: committing a peek (the click-to-stay problem) ===== -->
+  <div class="panel" style="margin-top:18px">
+    <div class="ph-cap">Click-to-stay</div>
+    <h3>Make a peek stay open (commit)</h3>
+    <p class="desc">The snag you hit: hovering the rail opens a peek, which swaps the rail
+      out for the full tree — so the rail you'd click to keep it open is already gone, and
+      your click lands in the file list. Each option restores a reliable "keep it open"
+      action. Collapse the navigator, hover to peek, then try committing the selected way.</p>
+
+    <div class="ctl">
+      <label class="k">Commit mechanism</label>
+      <div class="seg" data-seg="commitMode">
+        <button data-val="button" class="on">“Keep open” button</button>
+        <button data-val="anywhere">Click anywhere</button>
+        <button data-val="row">Click a file row</button>
+        <button data-val="dwell">Dwell inside</button>
+      </div>
+    </div>
+
+    <div class="commit-modes">
+      <div class="cm" data-cm="button"><b>“Keep open” button (recommended).</b> A keep-open
+        control (panel-with-right-chevron, accent-tinted) appears in the peek's header. Click it
+        to lock the navigator open. Explicit and discoverable, with zero accidental commits;
+        hovering away still snaps back. Watch the header when you peek.</div>
+      <div class="cm" data-cm="anywhere"><b>Click anywhere.</b> Once peeked, a click anywhere in
+        the navigator body — a file row or empty space — locks it open. Closest to "just click
+        the thing," but opening a file from a peek also pins the nav open (can't glance-and-go).</div>
+      <div class="cm" data-cm="row"><b>Click a file row.</b> Selecting a file/folder during a peek
+        both opens it and locks the nav open; clicking empty space or hovering does not. Lets you
+        glance freely and commit only when you actually reach for something.</div>
+      <div class="cm" data-cm="dwell"><b>Dwell inside.</b> No click — keep your cursor inside the
+        peeked navigator for the lock-in delay and it commits; a quick glance still snaps back.
+        Feels effortless but is the least predictable (and can fight the snap-back timer).</div>
+    </div>
+
+    <div class="ctl" style="margin-top:14px; max-width:420px">
+      <label class="k">Dwell-to-commit delay <span class="v" id="v_commitDwell">700 ms</span></label>
+      <input type="range" id="r_commitDwell" min="300" max="2000" step="50" value="700">
+      <p class="why">Lock-in time for the <b>Dwell inside</b> option (ignored by the others).</p>
+    </div>
+  </div>
+
+  <!-- ===================== BEHAVIOR 2: DRAG ===================== -->
+  <h2><span class="num">2</span>Drag the right border left → collapse past a threshold</h2>
+  <p class="sub">Grab the navigator's right edge and drag left. Below the threshold the pane
+    arms a red "release to collapse" zone. Dragging left but <i>not</i> past the threshold
+    snaps back to the resting size; dragging <i>right</i> (wider) is a temporary peek
+    (behavior 1). Only crossing the threshold changes the resting state.</p>
+
+  <div class="controls-grid">
+    <div class="panel">
+      <div class="ph-cap">Threshold</div>
+      <h3>Where collapse triggers</h3>
+
+      <div class="ctl">
+        <label class="k">Collapse threshold <span class="v" id="v_thresh">96 px</span></label>
+        <input type="range" id="r_thresh" min="56" max="180" step="4" value="96">
+        <p class="why">Drag the expanded border narrower than this and releasing collapses
+          to the rail. Drag left but stop above it, and it snaps back to 208px (the navigator
+          has no persistent custom width — only rail or expanded).</p>
+      </div>
+
+      <div class="ctl">
+        <label class="k">Collapse fires…</label>
+        <div class="seg" data-seg="snapMode">
+          <button data-val="release" class="on">On release</button>
+          <button data-val="live">The moment you cross</button>
+        </div>
+        <p class="why">"On release" lets you back out by dragging right again before
+          letting go. "The moment you cross" collapses instantly mid-drag.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph-cap">Affordance</div>
+      <h3>Feedback while dragging</h3>
+
+      <div class="ctl">
+        <label class="toggle"><input type="checkbox" id="t_hint" checked><span class="tk"></span>
+          Show "release to collapse" zone</label>
+        <p class="why">Tints the pane red with a label once you're below the threshold,
+          so collapse never feels like an accident.</p>
+      </div>
+
+      <div class="ctl">
+        <label class="toggle"><input type="checkbox" id="t_resist"><span class="tk"></span>
+          Rubber-band resistance near threshold</label>
+        <p class="why">Adds drag-friction in the danger zone so you have to mean it —
+          like the iOS "stretch past the edge" feel.</p>
+      </div>
+
+      <div class="ctl" style="margin-top:18px">
+        <button class="btn" id="forceCollapse">Collapse navigator</button>
+        <button class="btn" id="forceOpen">Open navigator</button>
+        <button class="btn" id="resetDefaults">Reset all dials</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== BEHAVIOR 3: RESIZE HANDLES ===================== -->
+  <h2><span class="num">3</span>Resize-handle affordance on pane dividers</h2>
+  <p class="sub">Hairline dividers are fiddly to grab. Hover the <b>navigator's right
+    border</b> or the <b>terminal ↔ canvas divider</b> in the mock above — a handle appears
+    and the click target quietly widens (the visible line stays thin). Tune how big the
+    target is, how the handle looks, and when it shows.</p>
+
+  <div class="controls-grid">
+    <div class="panel">
+      <div class="ph-cap">Hit target</div>
+      <h3>How easy it is to grab</h3>
+      <p class="desc">The catch area grows; the seam itself stays a hairline.</p>
+
+      <div class="ctl">
+        <label class="k">Hit-target width <span class="v" id="v_hit">12 px</span></label>
+        <input type="range" id="r_hit" min="2" max="28" step="1" value="12">
+        <p class="why">The invisible grabbable zone, centered on the 1px seam. ~12–16px
+          is the sweet spot between "easy to land on" and "accidental drags."</p>
+      </div>
+
+      <div class="ctl">
+        <label class="k">Reveal</label>
+        <div class="seg" data-seg="dvReveal">
+          <button data-val="hover" class="on">On hover</button>
+          <button data-val="always">Always visible</button>
+        </div>
+        <p class="why">Hover keeps the chrome quiet until you reach for it; always-visible
+          trades calm for discoverability.</p>
+      </div>
+
+      <div class="ctl">
+        <label class="k">Fade-in <span class="v" id="v_fade">120 ms</span></label>
+        <input type="range" id="r_fade" min="0" max="400" step="10" value="120">
+        <p class="why">How fast the handle materializes on hover.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph-cap">Appearance</div>
+      <h3>What the handle looks like</h3>
+      <p class="desc">Hover a divider in the mock to preview each style live.</p>
+
+      <div class="ctl">
+        <label class="k">Handle style</label>
+        <div class="seg" data-seg="dvStyle">
+          <button data-val="pill" class="on">Grip pill</button>
+          <button data-val="thicken">Thicken line</button>
+          <button data-val="bar">Fill bar</button>
+        </div>
+        <p class="why">Grip pill = a floating rounded handle (reads most "grabbable").
+          Thicken = the seam grows to a 3px accent line. Fill = the whole hit zone tints.</p>
+      </div>
+
+      <div class="ctl">
+        <label class="toggle"><input type="checkbox" id="t_dots" checked><span class="tk"></span>
+          Grip dots on the pill</label>
+        <p class="why">The ⋮ texture that says "drag me." Only affects the grip-pill style.</p>
+      </div>
+
+      <div class="ctl" style="margin-top:18px">
+        <button class="btn" id="centerSplit">Re-center the split</button>
+      </div>
+      <p class="why" style="margin-top:8px">Same treatment drives the navigator's
+        drag-to-collapse border (behavior 2) — tune once, both seams agree.</p>
+    </div>
+  </div>
+
+  <!-- ===================== ICONS ===================== -->
+  <h2><span class="num">4</span>Collapse-button icons for terminal &amp; canvas</h2>
+  <p class="sub">The current glyph is a split-pane diagram with one cell filled — it reads
+    as a <i>state picture</i>, not an <i>action</i>. Below, each set is rendered live in the
+    mock's tab bars (terminal collapse folds <b>left</b>, canvas collapse folds <b>right</b>).
+    The glyph points toward the edge the pane folds into. Click a card to apply it.</p>
+
+  <div class="icon-gallery" id="iconGallery"></div>
+
+  <p class="foot-note">These behaviors are independent — temporary-widen, drag-collapse,
+    resize-handle affordance, and the icon set can each ship on their own. The Copy button
+    hands me every dial plus your icon pick.</p>
+</div>
+
+<!-- ===================== COPY BAR ===================== -->
+<div class="copy-bar">
+  <div class="cb-meta">Icon set: <b id="cb-icon">—</b> · tune the dials, then copy</div>
+  <div class="cb-actions">
+    <button class="btn" id="copyBtn2">Copy settings</button>
+    <button class="btn primary" id="copyBtn">Copy settings &amp; icon pick</button>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   CONFIG + STATE
+   ===================================================================== */
+const RAIL = 44, FULL_OPEN = 208, MAX_W = 340;
+const defaults = {
+  peekTrigger: 'hover', hoverIn: 120, dwell: 1000, dwellMode: 'leave',
+  peekW: 200, anim: 220, ease: 'cubic-bezier(.22,.61,.36,1)',
+  commitMode: 'button', commitDwell: 700,
+  thresh: 96, snapMode: 'release',
+  hint: true, resist: false,
+  // behavior 3 — resize-handle affordance
+  dvHit: 12, dvFade: 120, dvStyle: 'pill', dvReveal: 'hover', dvDots: true,
+};
+let cfg = { ...defaults };
+
+const nav = document.getElementById('nav');
+const rail = document.getElementById('rail');
+const handle = document.getElementById('handle');
+const readout = document.getElementById('readout');
+const win = document.getElementById('win');
+const paneTerm = document.querySelector('.pane-term');
+const split = document.getElementById('split');
+const navFull = nav.querySelector('.nav-full');
+const keepOpenBtn = document.getElementById('keepOpenBtn');
+
+// The navigator has exactly two RESTING states: rail (44) or expanded
+// (FULL_OPEN). There is no persistent custom width — every drag-widen is
+// temporary and eases back to FULL_OPEN.
+let collapsed = false;        // current DISPLAY state: is the rail showing
+let peeking = false;          // currently temporarily widened (will snap back)
+let restingCollapsed = false; // is the RESTING state the rail?
+let hoverInT = null, dwellT = null, commitDwellT = null;
+
+// Show the "keep open" header button only during a RAIL peek in button mode.
+function updateKeepBtn() {
+  nav.classList.toggle('show-keep',
+    peeking && restingCollapsed && cfg.commitMode === 'button');
+}
+let dragging = false, dragStartX = 0, dragStartW = 0, willCollapse = false;
+
+/* =====================================================================
+   WIDTH / STATE APPLICATION
+   ===================================================================== */
+function applyAnimVars() {
+  nav.style.setProperty('--anim', cfg.anim + 'ms');
+  nav.style.setProperty('--ease', cfg.ease);
+}
+function applyDv() {
+  win.style.setProperty('--hit', cfg.dvHit + 'px');
+  win.style.setProperty('--fade', cfg.dvFade + 'ms');
+  win.classList.toggle('dv-pill', cfg.dvStyle === 'pill');
+  win.classList.toggle('dv-thicken', cfg.dvStyle === 'thicken');
+  win.classList.toggle('dv-bar', cfg.dvStyle === 'bar');
+  win.classList.toggle('dv-always', cfg.dvReveal === 'always');
+  win.classList.toggle('dv-dots', cfg.dvDots);
+}
+function setWidth(px, animate) {
+  nav.classList.toggle('animate', !!animate && !dragging);
+  nav.style.width = px + 'px';
+}
+function refreshReadout() {
+  let state = collapsed ? 'rail' : (peeking ? 'peek' : 'open');
+  let w = collapsed && !peeking ? RAIL : Math.round(parseFloat(nav.style.width));
+  if (willCollapse) state = 'will-collapse';
+  readout.innerHTML = `state: <b>${state}</b> · ${w}px`;
+}
+
+// goCollapsed / goOpen COMMIT a new resting state (toggle button, ⌘B,
+// crossing the collapse threshold, or pinning a peek by clicking a row).
+function goCollapsed(animate=true) {
+  clearTimers(); peeking = false; collapsed = true; restingCollapsed = true;
+  nav.classList.add('collapsed'); nav.classList.remove('peeking','will-collapse');
+  setWidth(RAIL, animate); refreshReadout(); updateKeepBtn();
+}
+function goOpen(animate=true) {
+  clearTimers(); peeking = false; collapsed = false; restingCollapsed = false;
+  nav.classList.remove('collapsed','peeking','will-collapse');
+  setWidth(FULL_OPEN, animate); refreshReadout(); updateKeepBtn();
+}
+
+/* =====================================================================
+   PEEK — a TEMPORARY widen that eases back to the resting state.
+   Entered by hovering the rail OR by dragging the border wider than
+   the resting width. Snaps back cfg.dwell ms after the cursor leaves.
+   ===================================================================== */
+function clearTimers() {
+  if (hoverInT)     { clearTimeout(hoverInT);     hoverInT = null; }
+  if (dwellT)       { clearTimeout(dwellT);       dwellT = null; }
+  if (commitDwellT) { clearTimeout(commitDwellT); commitDwellT = null; }
+}
+function startDwell() {
+  if (dwellT) clearTimeout(dwellT);
+  dwellT = setTimeout(() => { if (peeking) snapBack(); }, cfg.dwell);
+}
+// "dwell inside to commit" — staying in the peek long enough locks it open
+function startCommitDwell() {
+  if (commitDwellT) clearTimeout(commitDwellT);
+  commitDwellT = setTimeout(() => {
+    if (peeking && restingCollapsed) goOpen();
+  }, cfg.commitDwell);
+}
+// hover-peek from the collapsed rail
+function enterPeek() {
+  if (dragging || !restingCollapsed) return;
+  peeking = true; collapsed = false;
+  nav.classList.add('peeking'); nav.classList.remove('collapsed');
+  setWidth(cfg.peekW, true); refreshReadout(); updateKeepBtn();
+  if (cfg.dwellMode === 'open') startDwell();
+  if (cfg.commitMode === 'dwell') startCommitDwell();
+}
+// arm a peek begun by a widen-drag (expanded resting → commit modes N/A)
+function beginPeekFromDrag() {
+  peeking = true; collapsed = false;
+  nav.classList.add('peeking');
+  refreshReadout(); updateKeepBtn();
+  if (cfg.dwellMode === 'open') startDwell();
+  // 'leave' mode: snap-back arms when the cursor leaves the navigator
+}
+function snapBack() {
+  if (!peeking) return;
+  clearTimers(); peeking = false;
+  nav.classList.remove('peeking');
+  if (restingCollapsed) {
+    collapsed = true; nav.classList.add('collapsed'); setWidth(RAIL, true);
+  } else {
+    collapsed = false; nav.classList.remove('collapsed'); setWidth(FULL_OPEN, true);
+  }
+  refreshReadout(); updateKeepBtn();
+}
+
+// hover trigger
+rail.addEventListener('mouseenter', () => {
+  if (!collapsed && !peeking) return;
+  if (cfg.peekTrigger === 'click') return;
+  if (hoverInT) clearTimeout(hoverInT);
+  hoverInT = setTimeout(enterPeek, cfg.hoverIn);
+});
+// while peeking, hovering the full nav keeps it alive (leave-mode) and, in
+// dwell-commit mode, (re)starts the lock-in timer
+nav.addEventListener('mouseenter', () => {
+  if (peeking && cfg.dwellMode === 'leave' && dwellT) { clearTimeout(dwellT); dwellT = null; }
+  if (peeking && restingCollapsed && cfg.commitMode === 'dwell') startCommitDwell();
+});
+nav.addEventListener('mouseleave', () => {
+  if (hoverInT) { clearTimeout(hoverInT); hoverInT = null; }
+  if (commitDwellT) { clearTimeout(commitDwellT); commitDwellT = null; } // leaving cancels a pending lock-in
+  if (peeking && cfg.dwellMode === 'leave') startDwell();
+});
+// click trigger on the rail (only reachable before a peek opens)
+rail.addEventListener('click', (e) => {
+  if (dragging) return;
+  if (cfg.peekTrigger === 'hover') { goOpen(); return; } // hover-mode: click rail = expand for real
+  // click / both → peek
+  if (peeking) snapBack(); else { enterPeek(); if (cfg.dwellMode==='leave') startDwell(); }
+});
+
+// the "keep open" button — commit a rail-peek to expanded
+keepOpenBtn.addEventListener('click', (e) => { e.stopPropagation(); goOpen(); });
+
+// clicking a file row: open the file; commit the peek in row / anywhere modes
+nav.querySelectorAll('.nav-tree .row').forEach(r => {
+  r.addEventListener('click', () => {
+    nav.querySelectorAll('.row').forEach(x=>x.classList.remove('active'));
+    r.classList.add('active');
+    if (peeking && restingCollapsed &&
+        (cfg.commitMode === 'row' || cfg.commitMode === 'anywhere')) goOpen();
+  });
+});
+
+// "click anywhere" mode — any click in the peeked body (not a header button) commits
+navFull.addEventListener('click', (e) => {
+  if (e.target.closest('button')) return; // header buttons run their own handlers
+  if (peeking && restingCollapsed && cfg.commitMode === 'anywhere') goOpen();
+});
+
+/* =====================================================================
+   DRAG TO RESIZE / COLLAPSE
+   ===================================================================== */
+function curWidth() { return parseFloat(getComputedStyle(nav).width); }
+
+handle.addEventListener('pointerdown', (e) => {
+  // The navigator only resizes from its EXPANDED resting state. Dragging
+  // the rail open is intentionally unsupported (use the toggle / ⌘B).
+  if (restingCollapsed) return;
+  dragging = true; willCollapse = false;
+  dragStartX = e.clientX;
+  dragStartW = curWidth();
+  nav.classList.add('dragging');
+  nav.classList.remove('animate');
+  // cancel any in-flight rail-peek timers; this is now a deliberate drag
+  if (peeking) { peeking = false; nav.classList.remove('peeking'); clearTimers(); }
+  handle.setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+
+window.addEventListener('pointermove', (e) => {
+  if (!dragging) return;
+  let raw = dragStartW + (e.clientX - dragStartX);
+  raw = Math.max(20, Math.min(MAX_W, raw));
+
+  // rubber-band: approaching the collapse threshold, add friction so you
+  // have to mean it before tipping into collapse
+  let shown = raw;
+  if (cfg.resist && raw < cfg.thresh) {
+    shown = cfg.thresh - (cfg.thresh - raw) * 0.5;
+    shown = Math.max(RAIL - 4, shown);
+  }
+
+  willCollapse = shown < cfg.thresh;
+  nav.classList.toggle('will-collapse', willCollapse && cfg.hint);
+
+  setWidth(shown, false);
+  refreshReadout();
+
+  if (cfg.snapMode === 'live' && willCollapse) {
+    finishDrag(e, true);
+  }
+});
+
+function finishDrag(e, forceCollapse=false) {
+  if (!dragging) return;
+  dragging = false;
+  try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
+  nav.classList.remove('dragging','will-collapse');
+  willCollapse = false;
+  const w = curWidth();
+  if (forceCollapse || w < cfg.thresh) {
+    // crossed the collapse threshold → commit collapse
+    goCollapsed(true);
+  } else if (w > FULL_OPEN + 6) {
+    // dragged WIDER than the 208px resting size → TEMPORARY widen.
+    // Settle at the dragged width, then ease back to 208 after the cursor
+    // leaves (the core "un-truncate a long name" gesture).
+    setWidth(w, true);
+    beginPeekFromDrag();
+  } else {
+    // narrowed but didn't collapse → snap straight back to 208 (no custom width)
+    goOpen(true);
+  }
+}
+window.addEventListener('pointerup', (e) => finishDrag(e, false));
+
+/* =====================================================================
+   TERMINAL ↔ CANVAS split resize (behavior 3 — the live divider)
+   ===================================================================== */
+const MIN_PANE = 150;
+let splitDrag = false, sStartX = 0, sStartW = 0;
+
+function centerSplit() {
+  const avail = win.clientWidth - nav.offsetWidth - 1; // minus the divider
+  paneTerm.style.flex = '0 0 auto';
+  paneTerm.style.width = Math.round(avail / 2) + 'px';
+}
+function splitMax() { return win.clientWidth - nav.offsetWidth - 1 - MIN_PANE; }
+
+split.addEventListener('pointerdown', (e) => {
+  splitDrag = true;
+  sStartX = e.clientX; sStartW = paneTerm.offsetWidth;
+  split.classList.add('dragging');
+  split.setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+window.addEventListener('pointermove', (e) => {
+  if (!splitDrag) return;
+  let w = sStartW + (e.clientX - sStartX);
+  w = Math.max(MIN_PANE, Math.min(splitMax(), w));
+  paneTerm.style.width = w + 'px';
+});
+window.addEventListener('pointerup', (e) => {
+  if (!splitDrag) return;
+  splitDrag = false; split.classList.remove('dragging');
+  try { split.releasePointerCapture(e.pointerId); } catch (_) {}
+});
+document.getElementById('centerSplit').addEventListener('click', centerSplit);
+
+/* =====================================================================
+   BUTTONS
+   ===================================================================== */
+document.getElementById('headCollapse').addEventListener('click', () => goCollapsed(true));
+document.getElementById('forceCollapse').addEventListener('click', () => goCollapsed(true));
+document.getElementById('forceOpen').addEventListener('click', () => goOpen(true));
+
+/* =====================================================================
+   CONTROL WIRING
+   ===================================================================== */
+function bindRange(id, key, fmt) {
+  const r = document.getElementById('r_'+id), v = document.getElementById('v_'+id);
+  const upd = () => { cfg[key] = +r.value; v.textContent = fmt(r.value); applyAnimVars(); applyDv(); };
+  r.addEventListener('input', upd); upd();
+}
+bindRange('hoverIn','hoverIn', x=>x+' ms');
+bindRange('dwell','dwell', x=>x+' ms');
+bindRange('peekW','peekW', x=>x+' px');
+bindRange('anim','anim', x=>x+' ms');
+bindRange('thresh','thresh', x=>x+' px');
+bindRange('commitDwell','commitDwell', x=>x+' ms');
+bindRange('hit','dvHit', x=>x+' px');
+bindRange('fade','dvFade', x=>x+' ms');
+
+// reflect the selected commit mechanism in the explanation cards + keep button
+function updateCommitUI() {
+  document.querySelectorAll('.commit-modes .cm').forEach(el =>
+    el.classList.toggle('on', el.dataset.cm === cfg.commitMode));
+  updateKeepBtn();
+}
+
+document.querySelectorAll('.seg').forEach(seg => {
+  const key = seg.dataset.seg;
+  seg.querySelectorAll('button').forEach(b => {
+    b.addEventListener('click', () => {
+      seg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
+      b.classList.add('on'); cfg[key] = b.dataset.val;
+      applyAnimVars(); applyDv(); updateCommitUI();
+    });
+  });
+});
+function bindToggle(id, key) {
+  const t = document.getElementById(id);
+  t.addEventListener('change', () => { cfg[key] = t.checked; applyDv(); });
+}
+bindToggle('t_hint','hint');
+bindToggle('t_resist','resist');
+bindToggle('t_dots','dvDots');
+
+document.getElementById('resetDefaults').addEventListener('click', () => {
+  cfg = { ...defaults };
+  // ranges
+  const set=(id,val)=>{const el=document.getElementById('r_'+id); el.value=val; el.dispatchEvent(new Event('input'));};
+  set('hoverIn',cfg.hoverIn); set('dwell',cfg.dwell); set('peekW',cfg.peekW);
+  set('anim',cfg.anim); set('thresh',cfg.thresh); set('commitDwell',cfg.commitDwell);
+  set('hit',cfg.dvHit); set('fade',cfg.dvFade);
+  // segs
+  document.querySelectorAll('.seg').forEach(seg=>{
+    const key=seg.dataset.seg;
+    seg.querySelectorAll('button').forEach(b=>b.classList.toggle('on', b.dataset.val===cfg[key]));
+  });
+  // toggles
+  document.getElementById('t_hint').checked=cfg.hint;
+  document.getElementById('t_resist').checked=cfg.resist;
+  document.getElementById('t_dots').checked=cfg.dvDots;
+  applyAnimVars(); applyDv(); updateCommitUI(); goOpen(true); centerSplit();
+});
+
+/* =====================================================================
+   ICON GALLERY
+   Author the LEFT (fold-left) glyph only; mirror for the canvas (right).
+   ===================================================================== */
+const ICON_SETS = [
+  { id:'current', name:'Current', tag:'', recommend:false,
+    why:'Split-pane diagram, one cell filled. Reads as a state picture — "which side is hidden" — not an action.',
+    glyph:`<rect x="1.5" y="2.5" width="3.6" height="9" rx="0.6" fill="currentColor"/><rect x="6" y="2.5" width="6.5" height="9" rx="0.6" stroke="currentColor" stroke-width="1.1" fill="none"/>` },
+
+  { id:'panel-chevron', name:'Panel + chevron', tag:'RECOMMENDED', recommend:true,
+    why:'A panel outline with the folding edge as a solid bar and a chevron aimed into it — the VS Code / macOS sidebar-toggle metaphor people already know. Direction + action both legible.',
+    glyph:`<rect x="1.5" y="2.5" width="11" height="9" rx="1.6" stroke="currentColor" stroke-width="1.15"/><rect x="1.5" y="2.5" width="3.4" height="9" fill="currentColor" opacity="0.5"/><path d="M9.6 5.4 L7.4 7 L9.6 8.6" stroke="currentColor" stroke-width="1.25" fill="none" stroke-linecap="round" stroke-linejoin="round"/>` },
+
+  { id:'chevron-wall', name:'Chevron into wall', tag:'', recommend:false,
+    why:'A single chevron pushing toward a wall at the edge. Minimal, unmistakably directional, no panel chrome.',
+    glyph:`<line x1="3" y1="2.6" x2="3" y2="11.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10.5 3.8 L6 7 L10.5 10.2" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>` },
+
+  { id:'double-chevron', name:'Double chevron', tag:'', recommend:false,
+    why:'Two stacked chevrons — the universal "collapse / push shut" glyph (think «« fast-rewind). Compact and very directional, but no surface metaphor.',
+    glyph:`<path d="M7 3.8 L3.4 7 L7 10.2 M11.4 3.8 L7.8 7 L11.4 10.2" stroke="currentColor" stroke-width="1.35" fill="none" stroke-linecap="round" stroke-linejoin="round"/>` },
+
+  { id:'arrow-bar', name:'Arrow to bar', tag:'', recommend:false,
+    why:'A horizontal arrow driving into a bar at the edge. The strongest "this thing moves over there and tucks away" read; a touch heavier than a chevron.',
+    glyph:`<line x1="2.6" y1="2.8" x2="2.6" y2="11.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M12 7 L5.2 7 M7.6 4.6 L5 7 L7.6 9.4" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>` },
+
+  { id:'bracket-fold', name:'Folding bracket', tag:'', recommend:false,
+    why:'A bracket the pane folds behind, with an inward chevron. Quiet and modern; slightly more abstract about what is collapsing.',
+    glyph:`<path d="M5.5 2.6 L3 2.6 L3 11.4 L5.5 11.4" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M11 5 L8.6 7 L11 9" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>` },
+];
+
+let chosenIcon = 'panel-chevron';
+
+function svg(glyph, mirror) {
+  const inner = mirror ? `<g transform="translate(14,0) scale(-1,1)">${glyph}</g>` : glyph;
+  return `<svg width="15" height="15" viewBox="0 0 14 14" fill="none">${inner}</svg>`;
+}
+function applyIcon(setId) {
+  const s = ICON_SETS.find(x=>x.id===setId); if (!s) return;
+  chosenIcon = setId;
+  // terminal collapse = fold LEFT (left glyph); canvas = fold RIGHT (mirror)
+  document.getElementById('termCollapseBtn').innerHTML   = svg(s.glyph, false);
+  document.getElementById('canvasCollapseBtn').innerHTML = svg(s.glyph, true);
+  document.getElementById('cb-icon').textContent = s.name;
+  document.querySelectorAll('.icon-card').forEach(c =>
+    c.classList.toggle('sel', c.dataset.icon === setId));
+}
+
+const gallery = document.getElementById('iconGallery');
+ICON_SETS.forEach(s => {
+  const card = document.createElement('div');
+  card.className = 'icon-card'; card.dataset.icon = s.id;
+  card.innerHTML = `
+    <div class="ic-top">
+      <span class="ic-name">${s.name}${s.recommend?'<span class="recommend-tag">Recommended</span>':''}</span>
+      <span class="ic-pick">${s.id==='current'?'baseline':'select'}</span>
+    </div>
+    <div class="ic-demo">
+      <div class="ic-pair"><span class="ic-chip">${svg(s.glyph,false)}</span><span class="ic-cap">terminal → fold left</span></div>
+      <div class="ic-pair"><span class="ic-chip light">${svg(s.glyph,true)}</span><span class="ic-cap">canvas → fold right</span></div>
+    </div>
+    <p class="ic-why">${s.why}</p>`;
+  card.addEventListener('click', () => applyIcon(s.id));
+  gallery.appendChild(card);
+});
+
+/* =====================================================================
+   COPY
+   ===================================================================== */
+function buildPayload(withIcon) {
+  const s = ICON_SETS.find(x=>x.id===chosenIcon);
+  const lines = [
+    'NAVIGATOR TEMPORARY-WIDEN + DRAG-COLLAPSE — tuned settings (ENH-190)',
+    '  Model: two resting sizes only — rail (44) / expanded (208). No persistent custom width.',
+    '',
+    '— Temporary widen → ease back (snaps to resting after cursor leaves) —',
+    `  applies to:         drag the EXPANDED border wider + hover the collapsed rail`,
+    `  rail-peek trigger:  ${cfg.peekTrigger}`,
+    `  hover-in delay:     ${cfg.hoverIn} ms`,
+    `  linger / snap-back: ${cfg.dwell} ms`,
+    `  snap-back clock:    ${cfg.dwellMode === 'leave' ? 'starts when cursor leaves' : 'starts when widen begins'}`,
+    `  rail-peek width:    ${cfg.peekW} px  (rail ${RAIL} / expanded ${FULL_OPEN})`,
+    `  animation:          ${cfg.anim} ms · ${cfg.ease}`,
+    '',
+    '— Commit a rail-peek (make it stay open) —',
+    `  mechanism:          ${ {button:'“keep open” button', anywhere:'click anywhere', row:'click a file row', dwell:'dwell inside'}[cfg.commitMode] }`,
+    `  dwell-to-commit:    ${cfg.commitDwell} ms  (dwell mode only)`,
+    '',
+    '— Drag-to-collapse (expanded border → left) —',
+    `  collapse threshold: ${cfg.thresh} px`,
+    `  collapse fires:     ${cfg.snapMode === 'release' ? 'on release' : 'the moment you cross'}`,
+    `  release-zone hint:  ${cfg.hint ? 'on' : 'off'}`,
+    `  rubber-band resist: ${cfg.resist ? 'on' : 'off'}`,
+    '',
+    '— Resize-handle affordance (nav border + terminal↔canvas divider) —',
+    `  hit-target width:   ${cfg.dvHit} px  (seam stays 1px)`,
+    `  reveal:             ${cfg.dvReveal === 'hover' ? 'on hover' : 'always visible'}`,
+    `  fade-in:            ${cfg.dvFade} ms`,
+    `  handle style:       ${cfg.dvStyle === 'pill' ? 'grip pill' : cfg.dvStyle === 'thicken' ? 'thicken line' : 'fill bar'}`,
+    `  grip dots:          ${cfg.dvDots ? 'on' : 'off'}`,
+  ];
+  if (withIcon) {
+    lines.push('', '— Collapse-button icon —', `  pick: ${s.name} (${s.id})`);
+  }
+  return lines.join('\n');
+}
+function flash(btn) {
+  const t = btn.textContent; btn.textContent = 'Copied ✓'; btn.classList.add('copied');
+  setTimeout(()=>{ btn.textContent = t; btn.classList.remove('copied'); }, 1600);
+}
+document.getElementById('copyBtn').addEventListener('click', (e) => {
+  navigator.clipboard.writeText(buildPayload(true)); flash(e.currentTarget);
+});
+document.getElementById('copyBtn2').addEventListener('click', (e) => {
+  navigator.clipboard.writeText(buildPayload(false)); flash(e.currentTarget);
+});
+
+/* =====================================================================
+   BOOT
+   ===================================================================== */
+applyAnimVars();
+applyDv();
+updateCommitUI();
+applyIcon('panel-chevron');
+goOpen(false);
+centerSplit();
+refreshReadout();
+</script>
+</body>
+</html>
