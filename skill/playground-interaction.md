@@ -247,7 +247,7 @@ ring; older events are evicted.
 
 ```bash
 duo events --follow | while IFS= read -r line; do
-  case $(jq -r '.event.name // empty' <<< "$line") in
+  case $(jq -r '.name // empty' <<< "$line") in
     "lesson-step-1-next")
       duo html set --selector '[data-duo-pane="body"]' \
                    --content '<p>Step 2 — install the CLI…</p>'
@@ -264,8 +264,8 @@ done
 
 ```bash
 duo events --follow | while IFS= read -r line; do
-  if [[ $(jq -r '.event.name' <<< "$line") == "user-introduced" ]]; then
-    name=$(jq -r '.event.payload.value' <<< "$line")
+  if [[ $(jq -r '.name' <<< "$line") == "user-introduced" ]]; then
+    name=$(jq -r '.payload.value' <<< "$line")
     duo html set --selector '[data-duo-pane="greeting"]' \
                  --content "<p>Hello, $name. Let's begin.</p>"
   fi
@@ -361,5 +361,6 @@ against an existing page, you are interacting (this file).
   vocabulary, templates, anti-patterns) and lessons.
 - `playground-interaction.md` — this file: OPEN / READ / DRIVE an
   existing page or playground.
-- `skill/SKILL.md` § Command reference — `duo html *`, `duo open`,
-  `duo edit`, `duo events`, `duo selection`, `duo status`.
+- [`references/cli-reference.md`](references/cli-reference.md) — the full
+  `duo` verb reference (`duo html *`, `duo open`, `duo edit`, `duo events`,
+  `duo selection`, `duo status`, …).
