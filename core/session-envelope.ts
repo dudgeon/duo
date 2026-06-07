@@ -61,3 +61,57 @@ export function composeEnvelope(
     windows
   }
 }
+
+/**
+ * One window's restorable slice (a flat v1 SessionState) → a WindowState for the
+ * envelope. Doc-level fields (version/savedAt/appVersion) are dropped — they live
+ * at the envelope level. `windowId` is supplied by the caller; `bounds` +
+ * `activeWorkspace` carry over from `prev` (this window's last WindowState) so a
+ * renderer flat-save (which knows neither) can't wipe main-side geometry / the
+ * active-workspace pointer. At P4 both default to null (seam 6 populates
+ * activeWorkspace; P5 populates bounds).
+ */
+export function flatToWindowState(
+  flat: SessionState,
+  windowId: number,
+  prev?: WindowState | null
+): WindowState {
+  return {
+    windowId,
+    bounds: prev?.bounds ?? null,
+    activeWorkspace: prev?.activeWorkspace ?? null,
+    terminals: flat.terminals,
+    activeTerminalIndex: flat.activeTerminalIndex,
+    browserTabs: flat.browserTabs,
+    activeBrowserIndex: flat.activeBrowserIndex,
+    fileTabs: flat.fileTabs,
+    activeWorking: flat.activeWorking,
+    navigatorPath: flat.navigatorPath,
+    aux: flat.aux ?? null
+  }
+}
+
+/**
+ * A WindowState → the flat v1 SessionState the renderer IPC + .duo-workspace
+ * contract still expects (the envelope is purely the session-state.json on-disk
+ * shape). The window-only fields (windowId/bounds/activeWorkspace) are dropped;
+ * doc-level savedAt/appVersion are re-attached from `meta`.
+ */
+export function windowStateToFlat(
+  ws: WindowState,
+  meta: { savedAt: string; appVersion: string }
+): SessionState {
+  return {
+    version: 1,
+    savedAt: meta.savedAt,
+    appVersion: meta.appVersion,
+    terminals: ws.terminals,
+    activeTerminalIndex: ws.activeTerminalIndex,
+    browserTabs: ws.browserTabs,
+    activeBrowserIndex: ws.activeBrowserIndex,
+    fileTabs: ws.fileTabs,
+    activeWorking: ws.activeWorking,
+    navigatorPath: ws.navigatorPath,
+    aux: ws.aux ?? null
+  }
+}

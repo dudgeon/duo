@@ -2024,8 +2024,12 @@ function setupIPC(): void {
   ipcMain.handle(IPC.SESSION_STATE_LOAD, () => {
     return sessionStateService.load()
   })
-  ipcMain.handle(IPC.SESSION_STATE_SAVE, (_event, state: import('../shared/types').SessionState) => {
-    sessionStateService.save(state)
+  ipcMain.handle(IPC.SESSION_STATE_SAVE, (event, state: import('../shared/types').SessionState) => {
+    // ENH-191 P4 — key the per-window save by the CALLING renderer's window
+    // (event.sender). At N=1 this resolves the sole window (== defaultWindowId);
+    // the fallback covers the edge where fromWebContents misses.
+    const wid = BrowserWindow.fromWebContents(event.sender)?.id ?? defaultWindowId(registry) ?? 1
+    sessionStateService.save(state, wid)
   })
 
   // ENH-183 C5 — banner-title + message-count lookups against Claude's
@@ -2857,7 +2861,9 @@ export async function openWorkspaceFile(filePath: string, opts: { skipPrompt?: b
     try {
       const snapshot = await dispatchSessionSnapshot()
       if (snapshot) {
-        sessionStateService.save(snapshot)
+        // ENH-191 P4 — main-driven save targets the sole window (P5 threads
+        // the workspace-switching window's id).
+        sessionStateService.save(snapshot, defaultWindowId(registry) ?? 1)
         await sessionStateService.flush()
       }
     } catch (err) {
@@ -3040,7 +3046,9 @@ async function applyNewSessionState(state: import('../shared/types').SessionStat
   if (!win || win.isDestroyed()) return
 
   // Save the new state so the reloaded renderer reads it.
-  sessionStateService.save(state)
+  // ENH-191 P4 — main-driven workspace-apply targets the sole window (P5
+  // threads the window the workspace was applied to).
+  sessionStateService.save(state, defaultWindowId(registry) ?? 1)
   await sessionStateService.flush()
 
   // Tear down current browser tabs. Closing each tab cleanly via
