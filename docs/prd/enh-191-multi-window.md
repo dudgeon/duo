@@ -20,12 +20,12 @@
 | Cut 0 | **Phase H** — write-serialization hardening (R6) | ✅ **Shipped** — PR #68 (merged) |
 | (infra) | lint gate restored (`eslint` was undeclared / uninstalled) | ✅ Shipped — PR #69 (merged) |
 | Cut 1 | **P0** — routing-assertion harness + color-override cut | ✅ **Seams complete** — `WindowRegistry` ✅ · `window-teardown` ✅ · color-override cut ✅ · smoke-checklist legs ✅ (the live single-window + Leg-B walk happens at the Cut 1 boundary) |
-| Cut 1 | **P1** — lift app services + split `closed` handler | ✅ **Seams complete on dev** — P1a (external-domains + PTY sink) · P1b (SocketServer → app scope via getter-thunks; 29 sites) · P1c (split `closed`; app teardown at `before-quit` ONLY) · P1d (boot-race + dock-reopen harness). **949 tests** green, typecheck + lint clean. Live app smoke (incl. close→dock-reopen) + run-on-`main` at the Cut 1 boundary. |
+| Cut 1 | **P1** — lift app services + split `closed` handler | ✅ **Seams complete on dev** — P1a (external-domains + PTY sink) · P1b (SocketServer → app scope via getter-thunks; 29 sites) · P1c (split `closed`; app teardown at `before-quit` ONLY) · P1d (boot-race + dock-reopen harness). **949 tests** green, typecheck + lint clean. **Live smoke PASSED on the dev build (2026-06-07):** backgrounded-CLI ✓ · close→dock-reopen ✓ (socket stayed UP windowless, `app.activate`→createWindow reopened cleanly, CLI re-resolved) · quit-no-crash ✓ (⌘Q → exit 0, socket+port files unlinked). Cut 1 merge + run-on-`main` pending. |
 | Cut 2 | **P2 + P3** — registry adoption (134 sites) + cache/event sweep | ⬜ Not started |
 | Cut 3 | **P4** — `{windows: WindowState[]}` session envelope | ⬜ Not started |
 | Cut 4a / 4b | **P5a / P5b** — open window 2 + terminal-origin + `--window` | ⬜ Not started |
 
-**Last updated:** 2026-06-06 (P1 seams complete on dev — socket lift + teardown split; 949 tests green; live smoke + Cut 1 merge pending). Update this table at each seam/cut boundary; lessons accrue in Appendix E.
+**Last updated:** 2026-06-07 (P1 seams complete on dev + **live smoke PASSED**; Cut 1 merge + run-on-`main` pending). Update this table at each seam/cut boundary; lessons accrue in Appendix E.
 
 ---
 
