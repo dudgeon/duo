@@ -30,7 +30,13 @@ BUG-157) form a single-smoke-walk cluster. **BUG-093 must LEAD with a computer-u
 (synthetic events made FOLLOWUP-013 a false-negative) and pairs with BUG-100's aux work.
 Open backlog after the sweep: **45 entries** in [`tasks.md`](../../tasks.md) (harvest with
 the `sprint-plan` skill). Cut target is the owner's call — likely a v0.9.x PATCH once the
-S-cluster lands. **None of the 8 is implemented yet** — this sprint is scoped + PRD'd, not built.
+S-cluster lands.
+
+**Implementation status (2026-06-07, branch `claude/amazing-goodall-39846b`):** 6 of 8 built.
+- ✅ **Verified live:** BUG-197 (DOM proof) · FOLLOWUP-031 (regression test) · FOLLOWUP-033 (boot-window catch) · FOLLOWUP-036 (a11y) · BUG-157 (browser smoke).
+- 🟡 **Built, owner smoke-walk owed:** BUG-100 (aux Send→Duo pill — typecheck-clean; needs a live-Claude + aux text-selection to confirm the pill, which I can't drive without computer-use on the dev Electron).
+- ↗ **Handed off:** ENH-198 → PR #74 via comment (the "ENH-203 skill overhaul" owns skill/SKILL.md, agents/duo.md, cli/duo.ts, CLAUDE.md, CLI-COVERAGE — editing them here would conflict).
+- ⛔ **Not started:** BUG-093 (Move-to-Split-View crash) — its PRD requires a computer-use crash repro before the `flushSync` fix; can't be driven on the dev Electron, so left for a session where the repro is available. Also filed this session: **ENH-205** (the real per-tab MaxListeners leak — 10 channels, found while verifying FOLLOWUP-031). My ENH-203 (clean-buffer save) renumbered → **ENH-206** to yield 203 to PR #74.
 
 > **This doc owns current-sprint scope.** [`RESUME.md`](RESUME.md) is the
 > cold-start orientation (durable guardrails + state-at-a-glance) and links here
