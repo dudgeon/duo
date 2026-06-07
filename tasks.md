@@ -29,7 +29,7 @@
 ## Sprint 24 / v0.8.1 — v0.8.x polish wave (starting)
 ### ENH-191: Docs deep-clean — audit findings + owner-decision playground
 
-**Status:** ⏳ **Decisions made + executing.** Owner walked the playground 2026-05-31; D1–D9 shipped on branch `fix/cli-version-and-docs-cleanup`; D10/D11 (the about-duo walkthrough's 7 screenshots) are the only remaining step. **Filed 2026-05-29.** **Priority:** P0/P1 doc-health — version-drift is systemic.
+**Status:** ✅ **Shipped — D1–D9 decisions walked (owner, 2026-05-31) + executed/verified.** The about-duo walkthrough screenshots (D10–D12) are split to [ENH-204](#enh-204) — they need a fixture project to populate the surfaces first (not a quick hit) and do NOT gate smoke walks. **Filed 2026-05-29.** **Priority:** P0/P1 doc-health. Pending archive-sweep to tasks-archive.md.
 
 **Ask.** Deep clean + update of project docs (README, what-duo-does, roadmap, tasks, etc.); consider refactors where appropriate (tasks.md is a 1.2 MB monolith); read `about-duo.md` and propose an ordered, conversational feature walkthrough with screenshots in the same voice as the intro.
 
@@ -39,8 +39,20 @@
 
 **Top finding — systemic version drift.** Every "chrome" surface `cut-version` is supposed to refresh has frozen at a different era (what-duo-does footer v0.6.9, roadmap header v0.8.0, RESUME/active-sprint at Sprint 24/v0.8.1) while package.json is v0.8.5. Same class as the `cli/duo.ts` `VERSION='0.1.0'` bug fixed 2026-05-29 (sourced from package.json). D4 (hard-gate in cut-version) is the durable systemic fix.
 
-**Stays open until** the owner walks the playground (`duo open docs/research/docs-deep-clean-decisions.html`), copies decisions back, and the agent executes. Surfaces in every smoke walk until closed (rule 11 + research-report-review-task rule).
+**Decision gate CLOSED** — the owner walked the playground 2026-05-31 and D1–D9 were executed, so this no longer surfaces in smoke walks. The sole carry-forward (the about-duo screenshots) lives in [ENH-204](#enh-204), a normal backlog item that does not nag.
 
+
+### ENH-204: about-duo.md walkthrough screenshots (ENH-191 D10–D12 carry-forward)
+
+**Status:** 🆕 **Filed 2026-06-06 — split from ENH-191** (the docs deep-clean's only remaining step). **Priority:** Low (doc polish). **Effort:** M — NOT a quick hit.
+
+**Why split.** ENH-191's D1–D9 decisions shipped + were verified, but the about-duo walkthrough (D10–D12) needs ~7 app screenshots, and capturing them is **not a quick hit**: the surfaces (markdown editor with a comment thread, HTML canvas, JSON tree, browser send-to-agent, Split View, etc.) must be populated first, which means **building a fixture project / sample workspace** to screenshot against. Carrying it inside ENH-191 made the whole docs deep-clean nag every smoke walk; split out, it is a normal backlog item that does NOT gate cuts or walks.
+
+**What's needed.** (1) Build a small fixture project / sample workspace that exercises each surface in `about-duo.md`'s walkthrough; (2) capture the ~7 screenshots per the slug plan in `docs/research/docs-deep-clean-decisions.html` § screenshot plan; (3) drop them into a docs assets dir + replace the `*[Screenshot: …]*` placeholders in `docs/about-duo.md` (lines ~68/74/80/86/92) + remove the line-100 placeholder comment.
+
+**Cross-refs.** [ENH-191](#enh-191) (parent — decisions D1–D9 shipped), `docs/about-duo.md`, `docs/research/docs-deep-clean-decisions.html` § screenshot plan.
+
+---
 
 ### ENH-196: Canvas change-highlight on reload (parity follow-on to ENH-195 D3)
 
@@ -251,7 +263,7 @@
 
 ### BUG-190: Quit-loop crash — "Object has been destroyed" cycling dialog on app quit
 
-**Status:** 🟡 **Fix pushed `claude/duo-quit-loop-bug-OBZHB` 2026-05-27.** **Priority:** High (app un-quittable without force-quit). **Effort:** ~30 min.
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** safeSend guard present at electron/main.ts:276 routed through every async sink; commit f3b2dc6 (PR #61) is an ancestor of main; CHANGELOG v0.8.4:85 +  _(was: 🟡 Fix pushed claude/duo-quit-loop-bug-OBZHB 2026-05-27…)_
 
 > **Renumbered BUG-189 → BUG-190 (PR #61 review).** This PR opened before [ENH-189](#enh-189) ([#62](https://github.com/dudgeon/duo/pull/62)) landed on `main`; ENH-189 claimed the next-free id while #61 sat open. Same shared BUG/ENH counter, same collision pattern as the [ENH-187 → ENH-188 rename](#enh-188) the prior sprint; moved to the next free id, BUG-190.
 
@@ -269,7 +281,7 @@
 
 ### BUG-167: Navigator ENOENT spam from ghost folders + console-flooding focus instrumentation
 
-**Status:** 🟡 **Fix folded into PR #59 (ENH-182 polish epilogue) 2026-05-28.** **Priority:** Medium (console noise + perceived instability; functionally benign). **Effort:** ~1h.
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** renderer/hooks/pruneDeadPaths.ts (findDeadExpandedPaths + nearestExistingAncestor) exists with 8 passing tests and the [ENH-084-v4] instrumentation is _(was: 🟡 Fix folded into PR #59 (ENH-182 polish epilogue) 202…)_
 
 **Symptom.** Switching between projects in v0.8.2 floods the renderer console with two error classes: repeated `[nav] list failed for …/skills/setup-check-workspace — Error invoking remote method 'files:list': ENOENT`, and per-interaction `[ENH-084-v4] … focusin/mousedown/blur` logs. Both read like instability; both are benign.
 
@@ -291,7 +303,7 @@
 
 ### ENH-188: Terminal-tab context menu — parity with canvas tabs (reorder + close + copy cwd)
 
-**Status:** 🆕 **Filed + implemented 2026-05-27** (branch `claude/terminal-tabs-context-parity-2lh2X`). **Priority:** Medium (daily-driver ergonomics; the headline gap is "can't reorder terminal tabs"). **Effort:** ~1.5h.
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** Shipped as the entire v0.8.2 release (CHANGELOG line 93, commit 69a18d3 ancestor of main): TabBar.tsx has onReorderTab/onCloseOthers + the distinct x- _(was: 🆕 Filed + implemented 2026-05-27 (branch claude/termin…)_
 
 > **Renumbered ENH-187 → ENH-188 (PR #60 review).** The branch was cut from pre-v0.8.1 main; ENH-187 was meanwhile taken by the shipped `⌘T`/`duo new-tab` live-cwd-inheritance feature (v0.8.1, commit `0d303e1`). Different surface, so this work moved to the next free id, ENH-188.
 
@@ -323,7 +335,7 @@
 
 ### BUG-165: Terminal stuck on "[process exited]" when its cwd was deleted
 
-**Status:** 🟡 **Fix pushed `claude/terminal-process-exit-DFgEw` 2026-05-26.** **Priority:** High (terminal unusable, no recovery even on restart). **Effort:** ~45 min.
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** core/cwd-utils.ts:24 resolveExistingCwd is called at core/pty-manager.ts:66 (with the amber substitution note + PR #56 ESC-stripping safe()) and core/ _(was: 🟡 Fix pushed claude/terminal-process-exit-DFgEw 2026-0…)_
 
 **Symptom (owner repro 2026-05-26).** Terminal sat in a repo dir; owner ran a command that deleted that dir out from under the shell. Terminal showed `[process exited]` and never recovered — every relaunch re-spawned into the same dead path and exited immediately. DevTools also showed `[nav] list failed for /Users/.../aipm/main … ENOENT: no such file or directory, scandir` (the navigator hitting the same dead path — separate symptom, not fixed here).
 
@@ -343,7 +355,7 @@
 
 ### FOLLOWUP-041: Navigator `files:list` should fall back like the terminal on a deleted cwd
 
-**Status:** 🆕 **Filed 2026-05-26** (PR #56 review, owner request). **Priority:** Medium (half of the two-pane "where am I?" experience stays broken after BUG-165). **Effort:** ~30-45 min + live walk.
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** The requested navigator fallback shipped in PR #59 (commit 6586264) at renderer/hooks/useNavigator.ts:208-247 — on files.list ENOENT it probes dirExis _(was: 🆕 Filed 2026-05-26 (PR #56 review, owner request). Pri…)_
 
 **Symptom.** BUG-165 fixed the terminal recovering from a deleted cwd, but the navigator still ENOENTs: `[nav] list failed for /Users/.../aipm/main … ENOENT: no such file or directory, scandir`. The FileTree's `files:list` IPC hits the same dead path and the tree renders empty/errored.
 
@@ -355,7 +367,7 @@
 
 ### ENH-186: Project rail tile abbreviations — word-aware + collision-free
 
-**Status:** 🆕 **Filed + implemented 2026-05-26** (branch `claude/projects-filter-abbreviations-FKeyl`). **Priority:** Medium (daily-driver legibility). **Effort:** ~1.5h.
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** computeProjectAbbreviations is implemented at shared/projects.ts:393 and wired into ProjectRail.tsx:81 with 19 passing tests in shared/projects.test.t _(was: 🆕 Filed + implemented 2026-05-26 (branch claude/projec…)_
 
 **Symptom.** The project rail (ENH-182) labels each tile with `name.slice(0, 2)` — the first two characters of the folder name (`ProjectRail.tsx` ~155). Many projects begin with `ai` / `aipm`, so the rail showed a stack of identical, useless **“AI”** tiles. The abbreviation carries no information when several projects share a two-character prefix.
 
@@ -457,7 +469,7 @@
 
 ### FOLLOWUP-032: Double `duo project close` race
 
-**Status:** 🆕 **Filed 2026-05-25** (v0.8.0 audit, Tier 2). **Priority:** Low (rare CLI race). **Effort:** \~20 min.
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** The proposed inFlightCloseRef guard is fully implemented in handleCloseProject (renderer/App.tsx:1099 useRef, :1102 early-return-if-has, :1121 add, :1 _(was: 🆕 Filed 2026-05-25 (v0.8.0 audit, Tier 2). Priority: L…)_
 
 **Symptom.** `electron/main.ts:309-317` `requestProjectClose` just sends an IPC event; no lock. Two parallel CLI calls send two `PROJECTS_CLOSE_REQUEST` events, renderer's `handleCloseProject` runs twice. The second invocation reads stale `projectCounts.get(root)` (still has live counts; React state hasn't re-derived yet from the first close), shows a second confirm dialog.
 
@@ -682,7 +694,7 @@ Sprint 22 finishing work for ENH-184 (handoff to whichever Claude picks it up): 
 
 ### FOLLOWUP-028: T3 auto-hydrator re-enable design — input-buffer race + idle-gate
 
-**Status:** 🆕 **Filed** 2026-05-24. Carries forward across compaction. Blocks T3 re-enable.
+**Status:** ❌ **Closed — archive-sweep 2026-06-06.** The T3 auto-hydration feature it designs was dropped, not deferred — electron/main.ts:479 'T3 auto-hydration dropped … injection gone', and tasks.md:6 _(was: 🆕 Filed 2026-05-24. Carries forward across compaction.…)_
 
 **Origin.** [BUG-156](#bug-156-claude-crashed-mid-session-during-enh-183-rev3-t3-walk--root-cause-ptyresize0-0)'s defensive disable. Even though the root cause was `pty.resize(0,0)` (not the hydrator's `/rename` injection), the T3 path still has unaddressed UX risks that prevent safe re-enable:
 
@@ -734,7 +746,7 @@ Sprint 22 finishing work for ENH-184 (handoff to whichever Claude picks it up): 
 
 ### ENH-184: Workspace pill defeaturing — passive label only + fix "+" handler routing
 
-**Status:** 🟡 **Filed 2026-05-24 — queued for Sprint 22.** Working-tree changes started this sprint (uncommitted on `main`); finishing deferred to keep v0.7.9 narrow.
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** Shipped in commit 282b0bc 'feat(ENH-184): finish workspace pill defeaturing + CLI parity' — flag is now consumed (renderer/App.tsx:3952 onClick gated  _(was: 🟡 Filed 2026-05-24 — queued for Sprint 22. Working-tre…)_
 
 **Origin.** [Notion idle thoughts](https://www.notion.so/Duo-Idle-Thoughts-34d45f48854f8032ba68fae6dc0473fe) bullet 2026-05-24:
 
@@ -791,7 +803,7 @@ Sprint 22 finishing work for ENH-184 (handoff to whichever Claude picks it up): 
 
 ### FOLLOWUP-023: chokidar reload after reply misclassifies CriticMarkup
 
-**Status:** 🆕 **Filed 2026-05-19** (this session). Sub-bug surfaced while verifying BUG-143 live.
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** ENH-195's shared useDiskReconciliation reload path (landed 2026-06-05/06, after the 2026-05-19 filing) replaces the whole doc with raw disk text via s _(was: 🆕 Filed 2026-05-19 (this session). Sub-bug surfaced wh…)_
 
 **Symptom.** Right after `duo doc comment --reply-to` writes the parent token with an extended body containing `\n↪`, the editor's chokidar watcher fires, `setContent + applyCriticMarkupFromText` runs, and the tracked-changes rail temporarily shows pre-existing {==X==} highlights as new `+ ins` cards (e.g. "TRACK CHANGES (2)" became "(4)" with the comment-anchor highlights misclassified as insertions). Close-reopen the file → rail renders correctly.
 
@@ -813,7 +825,7 @@ Sprint 22 finishing work for ENH-184 (handoff to whichever Claude picks it up): 
 
 ### ENH-181: Resume-banner inline rename + collapse toggle — folded into ENH-183
 
-**Status:** 🟡 **Filed 2026-05-23 · folded into [ENH-183](#enh-183) 2026-05-24.** Original scope below preserved for historical reference. The inline rename + collapse toggle behaviors now live in ENH-183 § S2 (collapsed/expanded/edit mode).
+**Status:** ❌ **Closed — archive-sweep 2026-06-06.** ENH-181's scope (S2 inline rename + collapse toggle) was explicitly Dropped in the ENH-183 Option A pare — tasks.md:624 'S2 inline rename (click title _(was: 🟡 Filed 2026-05-23 · folded into [ENH-183](#enh-183) 2…)_
 
 **What it does.** The resume banner ENH-177 paints (post-workspace-switch) gains two new affordances:
 
@@ -842,7 +854,7 @@ Sprint 22 finishing work for ENH-184 (handoff to whichever Claude picks it up): 
 
 ### ENH-177: Restore Claude session across workspace switch — folded into ENH-183
 
-**Status:** 🟡 **Filed 2026-05-23 · folded into [ENH-183](#enh-183) 2026-05-24.** Original ENH-177 scope (workspace-resume banner) now lives as **S3 (restore-offer)** in the ENH-183 canonical PRD. Implementation still cherry-picks [f351719](https://github.com/dudgeon/duo/commit/f351719) as Step 1; ENH-183 then layers the S0/S1/S2 states + hydration triggers on top. Original entry text below preserved for historical reference.
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** ENH-177's scope (S3 workspace-switch restore-offer banner) was Kept and shipped in v0.7.9 — tasks.md:615 lists 'S3 restore offer' under Kept, SessionH _(was: 🟡 Filed 2026-05-23 · folded into [ENH-183](#enh-183) 2…)_
 
 **\[Original entry — historical\] · 2026-05-23 · built + reverted pre-cut — queued for re-ship next sprint with ENH-180 folded in.** Implementation landed at [f351719](https://github.com/dudgeon/duo/commit/f351719); reverted at [49f4644](https://github.com/dudgeon/duo/commit/49f4644) so v0.7.7 cuts without the banner. Capture path (`electron/claude-session-tracker.ts` + `enrichBeforePersistHook`) and banner UI (`ClaudeResumeBanner.tsx`) are in git history; cherry-pick or re-implement Sprint 21 after owner walks the workspace-switch-and-back flow live. **ENH-180 closed and absorbed into this re-ship** — banner reads `~/.claude/projects/<encoded-cwd>/sessions-index.json` for its title (prefers `customName` &gt; `summary` &gt; short UUID fallback); see mockup (archived). **ENH-181 also bundled** — inline rename via PTY `/rename` (gated on claudePresence), collapse-to-tab-marker toggle, Esc cancels edit. Owner ask: *"when a terminal tab had an active claude session in it, and the user switches to a different workspace and come back, their claude session appears to be lost; I want us to know (eg via workspace autosave metadata) when a given terminal tab last had an active claude session, ideally an identifier for that claude session (I'm not sure if this is exposed), such that on session restart we can either run 'claude resume {session}', or remind the user that they can (with a non-annoying banner)."*
 
@@ -872,7 +884,7 @@ Sprint 22 finishing work for ENH-184 (handoff to whichever Claude picks it up): 
 
 ### ENH-174: Disable TipTap autolink — bare URLs / filenames stop auto-converting to markdown links
 
-**Status:** 🆕 **Owner-locked 2026-05-23** — implementation queued. Surfaced during [BUG-155](#bug-155-false-positive-file-changed-on-disk-dialog-from-tiptap-markdown-autolink-round-trip) verification. Owner directive: *"I do want to avoid [filename.md](http://filename.md) conversion false positives; I am comfortable with users needing to manually set a url as a linked url via cmd-k or direct md notation."*
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** renderer/components/editor/MarkdownEditor.tsx:487 sets autolink: false live inside Link.configure({}) (ENH-174 comment at 479-486, openOnClick:false a _(was: 🆕 Owner-locked 2026-05-23 — implementation queued. Sur…)_
 
 **Scope.** Set `autolink: false` in `Link.configure({})` at `renderer/components/editor/MarkdownEditor.tsx:498`. Bare URL-shaped text (`prd.md`, `example.com`, `foo.org/path`) will no longer be auto-converted to a link mark on parse, so it stays as plain text on serialize. Source markdown stays byte-stable.
 
@@ -902,7 +914,7 @@ Sprint 22 finishing work for ENH-184 (handoff to whichever Claude picks it up): 
 
 ### ENH-169: Navigator-side new-file / new-folder UX
 
-**Status:** ⬜ Planned — Sprint 20 / v0.7.7.
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** All three triggers shipped: chords at globalShortcuts.ts:221 (⌘N) and :229-230 (⌘⇧N→newFolder, collision resolved per comment), File menu at App.tsx:2 _(was: ⬜ Planned — Sprint 20 / v0.7.7.…)_
 
 **Scope.** Three triggers, one shared modal+flow for creating files/folders in the navigator:
 
@@ -956,7 +968,7 @@ All 4  Mine  Agent 1  Others 1
 
 ### ENH-166: Unify comment + tracked-changes rails into one column
 
-**Status:** ⏳ **Filed + implemented 2026-05-19** (this session). Owner directive: *"in 0.7.2, comments and tracked changes live in their own rails; this takes up too much width; we need to combine these into a single rail, where comments and tracked changes coexist."*
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** renderer/components/editor/UnifiedAnnotationRail.tsx exists (6.9KB), imported at MarkdownEditor.tsx:31 and rendered at :2499 merging TrackedRange[] +  _(was: ⏳ Filed + implemented 2026-05-19 (this session). Owner …)_
 
 **Symptom (v0.7.2 and prior).** The markdown editor renders TWO side-by-side rails as flex children of the prose+rails row in `renderer/components/editor/MarkdownEditor.tsx`: the BUG-138 Phase 4e per-suggestion track-changes rail (\~variable width, no explicit cap) AND the Sprint 6 Phase 4 / MISSING-001 comment rail (`.duo-comment-rail` = 280px fixed). When a file has both a tracked change and a comment, \~560px of horizontal width disappears from the prose column on a typical wide-editor session.
 
@@ -1137,7 +1149,7 @@ Rationale:
 
 ### ENH-107: Terminal tab strip — context-menu commands to move tabs left / right
 
-**Status:** ⬜ DRAFT — needs refinement before code. **Priority:** Medium-Low (working-pane tabs already have drag-and-drop reorder via ENH-042; terminal tabs have neither drag-reorder nor context-menu reorder today, so users with 3+ terminal tabs have no way to reorganize them). **Filed:** 2026-05-08 (idle-thoughts sweep).
+**Status:** 🟢 **Closed — archive-sweep 2026-06-06.** Superseded by ENH-188 shipped v0.8.2 (CHANGELOG.md:96, session-log.md:85, PR #60 commit 69a18d3); TabBar.tsx:267-268 already pushes 'Move tab left'/'M _(was: ⬜ DRAFT — needs refinement before code. Priority: Mediu…)_
 
 **What's wanted.** Right-click on a terminal tab in `TerminalPane.tsx` → context menu with at minimum two entries: `Move tab left` (disabled when tab is at index 0) and `Move tab right` (disabled when tab is at last index).
 
@@ -1161,7 +1173,7 @@ Rationale:
 
 ### ENH-108: Paste-image handling — markdown editor + HTML canvas (save to active file's parent dir)
 
-**Status:** ⬜ DRAFT — needs refinement before code. **Owner-directive P0 for Sprint 9 (high priority).Priority:** **High** — owner explicit "high priority item to the roadmap / include in the next sprint" (idle-thoughts sweep, 2026-05-08). Closes a workflow-defining gap: today, dropping an image into a doc means save-to-Desktop → drag-to-finder → markdown-link-by-hand. After this lands, ⌘V into either editor surface "just works" the way Obsidian / Notion users expect. **Filed:** 2026-05-08 (idle-thoughts sweep).
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** Fully shipped: markdown handlePaste at MarkdownEditor.tsx:663 + handleDrop :692 + duo-image-insert :2110, canvas pagePaste.ts paste/drop branches, IPC _(was: ⬜ DRAFT — needs refinement before code. Owner-directive…)_
 
 **What's wanted.** In BOTH the markdown editor (`MarkdownEditor.tsx`) and the HTML canvas (`RenderedPage.tsx` iframe), paste-from-clipboard with image data should:
 
@@ -1244,7 +1256,7 @@ Parity disposition **(a) Mirrored**. Durable coverage: hook-level regression tes
 
 ### ENH-112: Distro Pack Builder Workshop — repo-resident playground doc + assistant skill
 
-**Status:** 🟡 **LANDED in Sprint 9 (2026-05-07)** — initial scaffolding shipped. Workshop folder `distro-pack-builder/` carries scoped [CLAUDE.md](http://CLAUDE.md) + [README.md](http://README.md) + step-by-step [playground.md](http://playground.md) (11 steps from scaffold-from-template through cohort distribution) + project-scoped assistant skill at `.claude/skills/pack-builder-workshop/SKILL.md`. Does NOT ship to end-user machines (npm sync:claude unchanged); only people who clone Duo and open Claude in the workshop folder pick it up. Root [CLAUDE.md](http://CLAUDE.md) updated to reference the new folder. Refines as real pack builders surface friction. **Priority:** Sprint 9 P1 (locked 2026-05-07 sprint-plan session — owner directive). **Filed:** 2026-05-07.
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** All four scaffolding artifacts are on disk — distro-pack-builder/{CLAUDE.md 5.5KB, README.md 3.7KB, playground.md 15KB} plus the project-scoped assist _(was: 🟡 LANDED in Sprint 9 (2026-05-07) — initial scaffoldin…)_
 
 **Verification owed.** A real pack builder (or owner) walking the playground end-to-end on a non-Geoff machine. Closes the FOLLOWUP-011 cross-machine-validation gap simultaneously. Scaffolding is in place; walking it surfaces real-builder friction the v1 doc doesn't anticipate.
 
@@ -1321,7 +1333,7 @@ Promoted 2026-05-04 after owner asked "I thought we shipped comments a long time
 ## Follow-ups (open · process / docs)
 ### FOLLOWUP-002: Harden `agents/duo.md` session guard against Bash-allowlist denial
 
-**Status:** ⏳ Open (low priority — corner case) **Priority:** Low **Filed:** 2026-04-26 late-evening, during Stage 5 v2 live walks
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** The prescribed hardening is verbatim live in agents/duo.md:34-40 — 'If you cannot run the check (permission-denied, command not found, or otherwise fa _(was: ⏳ Open (low priority — corner case) Priority: Low Filed…)_
 
 **What.** When the agent's session-guard bash command (`[ -n "$DUO_SESSION" ] && echo "in_duo" || echo "not_in_duo"`) is permission-denied — typically because a user wrote a tight `Bash(duo *)` allowlist that doesn't cover `[`/`echo`/compound commands — the agent currently proceeds with the task anyway. C5 walk surfaced this: with `--allowedTools "Bash(duo *)"` the guard check was denied 3 times, then the agent fell through to `duo doc read /tmp/foo.md` and reported the file's contents.
 
@@ -1351,7 +1363,7 @@ Promoted 2026-05-04 after owner asked "I thought we shipped comments a long time
 
 ### FOLLOWUP-004: Visual smoke of Stage 5 v2 + Stage 15.1 (CLI half + pill UI) via computer-use
 
-**Status:** ⏳ Open (deferred — user couldn't approve computer-use access in the spawning session) **Priority:** Low (CLI surface is verified via API responses; this would only catch UI/renderer regressions) **Filed:** 2026-04-26 late-evening, after `request_access` for Electron timed out
+**Status:** 🟢 **Closed — archive-sweep 2026-06-06.** A one-time deferred verification-only pass (its body: 'Affected files: none directly. Just a verification pass') filed at v0.4.x because Electron requ _(was: ⏳ Open (deferred — user couldn't approve computer-use a…)_
 
 **What.** Run the visual sanity pass on the live Duo app to confirm:
 
@@ -1713,7 +1725,7 @@ After 092 + 093 + 094 ship, ENH-043 = refactor `worksheet/generate.mjs` to emit 
 
 ### ENH-077: System dialog icon — verify production behavior, file polish if dev-only
 
-**Status:** 🟡 Code-path verified clean (2026-05-03 — Sprint 3 sweep). DMG smoke-verify owed in v0.6.4 cut to formally close. **Priority:** Low (cosmetic; only visible in dev) **Filed:** 2026-05-02 (v0.6.3 walk-2 W2-V4 owner notes)
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** Production behavior is structurally guaranteed and the code path is verified clean: build/icon.icns is a real multi-resolution icon ('ic12' type, 1.4M _(was: 🟡 Code-path verified clean (2026-05-03 — Sprint 3 swee…)_
 
 **Owner observation (verbatim):** "can we update the icon that displays in system dialogs?"
 
@@ -1773,7 +1785,7 @@ Filed as a discussion item, not a task. No code change unless the owner picks a 
 
 ### BUG-073: HTML canvas bullet rendering — `-` should produce a dashed bullet style, not the default round bullet
 
-**Status:** 🆕 Filed (surfaced in v0.6.4 smoke walk, BUG-061 row). **Priority:** Low-Medium (cosmetic; functionality is fine — list creation triggers correctly. The marker character should hint at the visual style the way Markdown previewers (GitHub, Bear, Notion) do.) **Filed:** 2026-05-03 (owner smoke walk note).
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** markdownShortcuts.ts:75 derives the marker (ch==='-'?'dash':ch==='+'?'plus':'asterisk'), line 290 stamps data-list-marker on the <ul>, and shared/html _(was: 🆕 Filed (surfaced in v0.6.4 smoke walk, BUG-061 row). …)_
 
 **Owner observation (verbatim):** *"partial pass; '-' should render as dashed bullet, not round bullet; all other cases pass"*
 
@@ -1902,7 +1914,7 @@ Filed as a discussion item, not a task. No code change unless the owner picks a 
 
 ### ENH-115: Right-click terminal tab → "Reveal in navigator" (focus nav on tab's CWD)
 
-**Status:** 🆕 Filed 2026-05-09 (Sprint 12 P1 — landing alongside image v2 + BUG-108). **Priority:** **Medium** — small QoL bridge between the terminal column and the navigator. The terminal tab already knows its `cwd`; the navigator already knows how to navigate-to a path; today there's no gesture to connect them. **Filed:** 2026-05-09.
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** TabBar.tsx:263 pushes {id:'reveal-cwd', label:'Reveal in navigator'} and dispatches it at :285-286 via onRevealCwd?.(tab.cwd), wired to nav navigateTo _(was: 🆕 Filed 2026-05-09 (Sprint 12 P1 — landing alongside i…)_
 
 **What's wanted.** Right-click any tab in the terminal tab strip → context menu with at least one entry: **"Reveal in navigator"** (working name). Clicking it calls `nav.actions.navigateTo(tab.cwd)` — same code path that `duo reveal` already uses — and surfaces the existing reveal chip so the user sees what just changed.
 
@@ -1936,7 +1948,7 @@ Recommend "Reveal in navigator" for the v1 label; revisit during the smoke walk 
 
 ### ENH-123: `duo devtools` — open the renderer's DevTools from CLI (Sprint 12 walk-rev3 retro)
 
-**Status:** 🆕 Filed 2026-05-09 from same-day retro. **Priority:** Medium — backstop for the 5% of cases where ENH-122's targeted query isn't enough and you need the full DevTools UI (Network tab, full Elements tree, breakpoints). **Filed:** 2026-05-09.
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** duo devtools fully plumbed all four surfaces: cli/duo.ts:1458 parses --browser-pane/--close, core/socket-server.ts:975 dispatches to nav.openDevTools, _(was: 🆕 Filed 2026-05-09 from same-day retro. Priority: Medi…)_
 
 **What's wanted.** `duo devtools` opens DevTools on the main renderer (default). `duo devtools --browser-pane` opens DevTools on the active browser pane's WebContentsView. `duo devtools --close` closes any open DevTools. One-line implementation: `mainWindow.webContents.openDevTools({ mode: 'right' })`.
 
@@ -1944,7 +1956,7 @@ Recommend "Reveal in navigator" for the v1 label; revisit during the smoke walk 
 
 ### ENH-124: `duo layout` — structured snapshot of working pane state (Sprint 12 walk-rev3 retro)
 
-**Status:** 🆕 Filed 2026-05-09 from same-day retro. **Priority:** Medium — third missing tool exposed by today's diagnosis. \~20 min wasted on misreading the layout from screenshot pixels: I assumed the working pane was a single full-width slot when it was actually a split view with the image-viewer squished to \~80px wide. A structured layout snapshot would have made this immediately obvious. **Filed:** 2026-05-09.
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** duo layout fully plumbed: cli/duo.ts:1472 → core/socket-server.ts:983 → main.ts:3241 getLayoutSnapshot reading renderer/App.tsx:3695 window.duoGetLayo _(was: 🆕 Filed 2026-05-09 from same-day retro. Priority: Medi…)_
 
 **What's wanted.** `duo layout` returns JSON describing the WorkingPane's current state:
 
@@ -2013,7 +2025,7 @@ Reuses existing state via `nav-state` + new IPC for working-pane state. Removes 
 
 ### ENH-157: Comments in the browser pane — CDP-injected sidecar overlay for `file://` HTML
 
-**Status:** 🆕 Filed Sprint 18 (2026-05-16) as the prioritized follow-up to ENH-156. **Priority:** P1 for Sprint 18 — once ENH-156 ships, the "make artifact + open + comment" outcome only fully closes when comments work on browser-pane HTML. Without this, `duo html comment` on a `duo open`-mounted file requires the caller to first `duo edit` (mode-switch friction). **Filed:** 2026-05-16.
+**Status:** 🟡 **Needs owner guidance (2026-06-06)** — owner flagged during a+b sprint planning: this is the highest-user-value backlog item but L-effort with new CDP-overlay-injection risk, so it needs an owner direction/prioritization decision before implementation. **NOT in the current sprint.** Originally 🆕 Filed Sprint 18 (2026-05-16) as the prioritized follow-up to ENH-156 — once ENH-156 shipped, the "make artifact + open + comment" outcome only fully closes when comments work on browser-pane HTML (without this, `duo html comment` on a `duo open`-mounted file requires a `duo edit` mode-switch first). **Filed:** 2026-05-16.
 
 **Origin.** Owner directive during ENH-156 scoping: *"will add comment still work in the duo browser? this is important — we (user and claude) still need to be able to add/view comments to local html in the duo browser."* Verified the gap: `dispatchHtmlComment` in `electron/main.ts:2114` only reaches PageTab (`renderer/components/Page/PageTab.tsx:1724`). BrowserRenderer + browser-manager have NO comment listener. Browser-pane comments don't work today — and never did. ENH-156 makes the gap more visible by moving the HTML default to browser.
 
@@ -2048,7 +2060,7 @@ Reuses existing state via `nav-state` + new IPC for working-pane state. Removes 
 
 ### ENH-155: Right-click GitHub menu on FileTree + bounce-list update — "Open on GitHub" + "Copy GitHub URL"
 
-**Status:** 🆕 Filed Sprint 17 (2026-05-13) on branch `claude/github-integration-planning-rPdVY`. Picked by owner as candidate "C+D" in the GitHub-integration cluster AUQ. Independent of ENH-150 (no Doctor / probe dependency). Ships in parallel with ENH-151 / ENH-152 / ENH-154. **Priority:** P2 — small surface, high "feels right" payoff. Half-day to a day. **Filed:** 2026-05-13.
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** Shipped in commit 391b6a6; FileTree.tsx:905-906 pushes 'Open on GitHub' + 'Copy GitHub URL' menu items, electron/main.ts:1457 FILESOPENEXTERNALURL han _(was: 🆕 Filed Sprint 17 (2026-05-13) on branch claude/github…)_
 
 **What ships.**
 
@@ -2192,7 +2204,7 @@ Reuses existing state via `nav-state` + new IPC for working-pane state. Removes 
 
 ### ENH-148: Navigator multi-select v2 — ⇧-click range + ⌘-A select-all (deferred from ENH-147 v1)
 
-**Status:** 🆕 Filed Sprint 17 commit 4 (2026-05-11). ENH-147 v1 shipped ⌘-click + multi-row trash; this entry is the deferred v2 work. **Priority:** Medium — completes the standard Finder multi-select pattern. **Filed:** 2026-05-11.
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** Shipped in commit 59a4617 'feat(ENH-148): multi-select v2'; all three parts present — FileTree.tsx:718 extendSelectionTo (⇧-click range) + :758 select _(was: 🆕 Filed Sprint 17 commit 4 (2026-05-11). ENH-147 v1 sh…)_
 
 **Scope.**
 
@@ -2214,7 +2226,7 @@ Reuses existing state via `nav-state` + new IPC for working-pane state. Removes 
 
 ### BUG-137: Markdown link editing — `[text](url)` not parsed; ⌘K is a no-op
 
-**Status:** 🟡 **Shipped 2026-05-18; v0.7.1 walk-1 FAIL → fixes shipped same-day.** Walk-1 surfaced four sub-issues: (1) link displayed the URL instead of the bracketed text, (2) no hover tooltip showing the URL, (3) ⌘K reported as no-op, (4) owner-added scope: clicking the toolbar link button on an existing link should edit (in-place) instead of being a no-op. Plus a fifth owner ask: collapsible track-changes rail (filed as part of BUG-138 follow-ups). Walk-1 fixes:
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** Fix commits 43bfdaa→30ed3e1→ecea6e8→a5cda5b are all ancestors of HEAD; renderer/components/editor/extensions/MarkdownLinkShortcuts.ts implements the c _(was: 🟡 Shipped 2026-05-18; v0.7.1 walk-1 FAIL → fixes shipp…)_
 
 - **(1) URL-as-text** — root cause: `markInputRule` picks the LAST capture group as the kept text. My regex captured `[(text), (url)]` → URL was kept. Walk-1 fix: replaced `markInputRule` with a custom `InputRule` whose handler does `tr.replaceWith(range, schema.text(match[1], [linkType.create({ href: match[2] })]))`. Now the matched `[text](url)` becomes just `text` with the link mark.
 - **(2) Tooltip** — `@tiptap/extension-link` renders `<a href="…">text</a>` with no title attribute. Walk-1 fix: `.extend({ renderHTML({ HTMLAttributes }) { return ['a', { ...HTMLAttributes, title: HTMLAttributes.href ?? null }, 0] } })` chained onto `Link.configure(...)` so every link gets its href as a native browser tooltip.
@@ -2245,7 +2257,7 @@ Wired into `MarkdownEditor.tsx`'s extensions array right after `Link.configure(.
 
 ### BUG-135: Git ribbon (and dependent menu actions) activate for navigator cwd even when cwd is not a repo root
 
-**Status:** 🆕 **Filed 2026-05-18 (post-v0.7.0-cut).** Sprint 18 pull (owner-confirmed 2026-05-18). **Priority:** Medium — alignment fix; ribbon should match per-folder icon's strictness.
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** Fix commit b7801ba 'fix(BUG-135): git ribbon suppresses when the climb crosses a peer-repo container' is an ancestor of HEAD; renderer/components/File _(was: 🆕 Filed 2026-05-18 (post-v0.7.0-cut). Sprint 18 pull (…)_
 
 **Symptom.** Owner screenshot: navigator at `~/Documents/GitHub/stoop`. Git ribbon at the top reads `⎇ Documents · main · 34 m…` — claims `stoop` is part of the `~/Documents` repo. Right-click context menu items "Open on GitHub" + "Copy GitHub URL" also activate for files inside `stoop`. But `stoop` itself isn't a repo root.
 
@@ -2282,7 +2294,7 @@ For duo project: cwd=`~/Documents/GitHub/duo/electron`, repo=`~/Documents/GitHub
 
 ### BUG-130: Browser pane `file://` tabs don't auto-reload when the underlying file is mutated via CLI
 
-**Status:** 🆕 Filed 2026-05-17 (discovered during v0.7.0-rev4 walk of ENH-159 v2 inspect mode). Filed to roadmap as **L2-PLAYGROUND-AUTORELOAD** — architectural, not QOL. **Priority:** **High (architectural).** Owner framing: *"if we are going to use chromium for playground, with the agent mutating the playground, refreshing needs to be automated, or we need to use something other than chromium for playgrounds.*"**Filed:** 2026-05-17. **Roadmap entry:** `docs/roadmap.html § L2-PLAYGROUND-AUTORELOAD`.
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** Fix commit 2c4571c 'fix(BUG-130): browser pane auto-reloads file:// tabs when the underlying file mutates' is an ancestor of HEAD; electron/browser-ma _(was: 🆕 Filed 2026-05-17 (discovered during v0.7.0-rev4 walk…)_
 
 **Symptom.** Owner during ENH-159 v2 inspect walk: *"in the 2nd or third step, where you add a button to the html canvas via cli, the button did not immediately appear — user had to manually hit refresh."*
 
@@ -2316,7 +2328,7 @@ Compare with **canvas mode** (kind: 'page'): canvas mounts a contentEditable ifr
 
 ### BUG-128: `docs/research/integration-primitive-design.html` playground renders blank
 
-**Status:** 🟡 Filed 2026-05-16 (discovered during v0.7.0 walk). **Post-walk investigation 2026-05-16: NOT REPRODUCING** in current session. **Priority:** Medium — blocks ENH-150 owner decisions. Without the playground rendering, the 4 decisions can't be walked. **Filed:** 2026-05-16.
+**Status:** 🟢 **Closed — archive-sweep 2026-06-06.** tasks-archive.md:6909 states 'With BUG-129 fixed, BUG-128 closes as no-repro by construction'; BUG-129 (duo open missing-file → blank tab) was fixed i _(was: 🟡 Filed 2026-05-16 (discovered during v0.7.0 walk). Po…)_
 
 **Symptom.** Owner during v0.7.0 walk: *"playground is actual blank page"*. `duo open docs/research/integration-primitive-design.html` lands in the browser pane (per ENH-156 default), but the page itself shows no content.
 
@@ -2431,7 +2443,7 @@ Owner's "delete current tab" phrasing might mean:
 
 ### ENH-130: Agent-built-artifact auto-reveal + default playground chrome
 
-**Status:** 🆕 Filed 2026-05-10 from owner directive (Sprint 14 expansion). **Priority:** **High** — workflow-defining. When the agent says "I made you X", the user shouldn't have to hunt for it. **Filed:** 2026-05-10.
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** Both parts shipped — Part A (--reveal) at CHANGELOG.md:862 / session-log.md:848 (v0.6.12) with core/socket-server.ts:817 revealMainPaneIfCollapsed; Pa _(was: 🆕 Filed 2026-05-10 from owner directive (Sprint 14 exp…)_
 
 **Owner directive (verbatim):** *"when user says 'make me a playground/html file/markdown doc that does x', even if canvas pane is collapsed, default behavior should be for duo, when complete, to expand the canvas, open the work product in the main pane (browser tab if playground) and bring focus to it. By default, playgrounds should include a 'send to Claude' and copy results/output button. Pull in work to enable this and encode the behavior."*
 
@@ -2629,7 +2641,7 @@ Bar visual:
 
 ### FOLLOWUP-006: Increase the autosave delay (or add a "test mode" knob) so the dirty-replace dialog can be smoke-tested
 
-**Status:** ⏳ Open (low-priority test-tooling improvement). **Filed:** 2026-05-03 (owner v0.6.4 smoke walk skipped Phase 3c-iii because saves are too fast).
+**Status:** 🟢 **Closed — archive-sweep 2026-06-06.** Done-another-way: the filed need ('a deterministic way to keep a buffer dirty so the dirty-replace dialog can be smoke-tested') is now satisfied by EN _(was: ⏳ Open (low-priority test-tooling improvement). Filed: …)_
 
 **Owner observation (verbatim):** *"saving is too fast to test; please make a todo for a separate session (this is not urgent) to increase autosave delay to allow testing"*
 
@@ -2756,7 +2768,7 @@ For the boilerplate `<h1>title</h1><p></p>`, the last block is the empty `<p>`. 
 
 ### ENH-096: Obsidian-vault-friendly editor (wikilinks + vault quick switcher + sidecar convention)
 
-**Status:** 🟡 **PARTIAL — Sprint 9 walk-1 surfaced second root cause; walk-1 fix landed.** Tier A + B1 wikilink rendering shipped in v0.6.8; cmd+click click-handler fix landed in Sprint 9 walk-0; vault-root walker fix landed in Sprint 9 walk-1. Awaiting walk-2 verification. B2 + B4 still deferred.
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** roadmap.html:134 records 'v0.6.9 ENH-096 wikilinks cmd+click closure (P0 carry-over)' + 'v0.6.10 ENH-096 B.2/B.4 + ENH-105 autocomplete cluster'; wiki _(was: 🟡 PARTIAL — Sprint 9 walk-1 surfaced second root cause…)_
 
 **Sprint 9 walk-1 user-verified failure 2026-05-07.** Owner ran the smoke walk; cmd+click was still no-op. Owner-provided console log (`/Users/geoffreydudgeon/Downloads/localhost-1778149539006.log`) showed the click handler IS firing AND the dispatch IS reaching the App.tsx listener — every cmd+click logged `[ENH-096] No vault root found; cannot resolve wikilink: <name>`. So the walk-0 click-handler fix was correct + working; the bug surfaced was downstream in `findVaultRoot`.
 
@@ -2867,7 +2879,7 @@ For the boilerplate `<h1>title</h1><p></p>`, the last block is the empty `<p>`. 
 
 ### ENH-094: Inject the playground runtime into browser-pane pages via CDP
 
-**Status:** 🆕 Filed (Sprint 4 close-out 2026-05-04 — playground architecture decomposition). **Priority:** High (third leg of the ENH-043 meta-initiative — without this, playground primitives stay canvas-tab-only). **Filed:** 2026-05-04.
+**Status:** ✅ **Closed — archive-sweep 2026-06-06.** Shipped v0.6.6 (first triage mislabeled obsolete — it is actually shipped): proposed PLAYGROUNDRUNTIMEIIFE at electron/cdp-bridge.ts:704, injected on  _(was: 🆕 Filed (Sprint 4 close-out 2026-05-04 — playground ar…)_
 
 **Problem.** The playground action runtime (`installPlaygroundActions(doc, opts)`) lives in the canvas iframe's `contentDocument` — it doesn't reach browser-pane pages. Smoke walks (and any worksheet that needs `<script>` execution privileges Chromium grants browser tabs but not canvas iframes) are hosted in browser tabs, so they can't access the playground vocabulary today. With ENH-092 + ENH-093 the verbs exist; this ENH puts them in scope for browser-pane pages.
 
