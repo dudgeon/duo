@@ -358,7 +358,7 @@ export function setProjectFocus(
   if (!mainWindow || mainWindow.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  mainWindow.webContents.send(IPC.PROJECTS_SET_FOCUS, { root })
+  resolveDefault(registry)?.webContents.send(IPC.PROJECTS_SET_FOCUS, { root })
   return { ok: true }
 }
 export function requestProjectClose(
@@ -367,7 +367,7 @@ export function requestProjectClose(
   if (!mainWindow || mainWindow.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  mainWindow.webContents.send(IPC.PROJECTS_CLOSE_REQUEST, { root })
+  resolveDefault(registry)?.webContents.send(IPC.PROJECTS_CLOSE_REQUEST, { root })
   return { ok: true }
 }
 // ENH-184 (Sprint 23 / v0.8.0) — workspace-pill click-to-open-menu
@@ -384,7 +384,7 @@ export function setWorkspacePillMenuEnabledCli(
   if (!mainWindow || mainWindow.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  mainWindow.webContents.send(IPC.WORKSPACE_PILL_MENU_SET, { enabled })
+  resolveDefault(registry)?.webContents.send(IPC.WORKSPACE_PILL_MENU_SET, { enabled })
   return { ok: true }
 }
 /** Resolve a name-or-root argument against the cached project list.
@@ -879,7 +879,7 @@ async function createWindow(): Promise<WindowContext> {
           // honors duo-open-in meta. Most pack canvases will land in
           // the canvas tab; templates that opt into browser routing
           // get there via the meta hint without bespoke wiring here.
-          mainWindow?.webContents.send(IPC.NAV_EDIT, absPath)
+          safeSend(IPC.NAV_EDIT, absPath)
         }
         await installedPacksService.markFirstLaunched(m.name, m.version)
       }
@@ -1261,7 +1261,7 @@ app.whenReady().then(async () => {
     // view state lives on the renderer side).
     focusPane: (target) => {
       if (!mainWindow) return { ok: false, error: 'main window not ready' }
-      mainWindow.webContents.send(IPC.PANE_FOCUS_JUMP, target)
+      resolveDefault(registry)?.webContents.send(IPC.PANE_FOCUS_JUMP, target)
       return { ok: true, target }
     },
     pushNavPinsChanged: (pins) => {
@@ -2306,12 +2306,12 @@ function installAppMenu(): void {
         {
           label: 'New File…',
           accelerator: 'CmdOrCtrl+N',
-          click: () => mainWindow?.webContents.send(IPC.NEW_FILE_REQUEST)
+          click: () => safeSend(IPC.NEW_FILE_REQUEST)
         },
         {
           label: 'New Folder…',
           accelerator: 'CmdOrCtrl+Shift+N',
-          click: () => mainWindow?.webContents.send(IPC.NEW_FOLDER_REQUEST)
+          click: () => safeSend(IPC.NEW_FOLDER_REQUEST)
         },
         { type: 'separator' },
         // ENH-167 — workspace-as-file. Save the open tabs + terminals
@@ -2367,7 +2367,7 @@ function installAppMenu(): void {
           label: 'Paste and Match Style',
           accelerator: 'CmdOrCtrl+Shift+V',
           click: () => {
-            mainWindow?.webContents.send(IPC.PASTE_PLAIN_REQUEST)
+            safeSend(IPC.PASTE_PLAIN_REQUEST)
           }
         },
         // ENH-030 — "Copy as Plain Text" with ⌘⌥C as a parallel for
@@ -2441,7 +2441,7 @@ function installAppMenu(): void {
           click: () => {
             // Renderer flips authoritative state, then echoes back via
             // COZY_STATE_PUSH so the checkmark tracks the truth.
-            mainWindow?.webContents.send(IPC.COZY_TOGGLE)
+            safeSend(IPC.COZY_TOGGLE)
           }
         },
         {
@@ -2485,7 +2485,7 @@ function installAppMenu(): void {
           label: 'Toggle pane focus',
           accelerator: 'CmdOrCtrl+`',
           click: () => {
-            mainWindow?.webContents.send(IPC.PANE_TOGGLE_FOCUS)
+            safeSend(IPC.PANE_TOGGLE_FOCUS)
           }
         },
         { type: 'separator' },
@@ -2541,7 +2541,7 @@ function installAppMenu(): void {
           // menu entry is for discoverability + mouse-driven trigger;
           // the chord remains the power-user accelerator.
           label: 'View source',
-          click: () => mainWindow?.webContents.send(IPC.VIEW_SOURCE_REQUEST)
+          click: () => safeSend(IPC.VIEW_SOURCE_REQUEST)
         },
         { type: 'separator' },
         // BUG-084 fix (v0.6.7) — Reload + Force Reload removed.
@@ -2643,7 +2643,7 @@ function applyWindowTitle(): void {
   }
   // Push to renderer (drives the in-app titlebar badge).
   try {
-    mainWindow.webContents.send(IPC.WORKSPACE_FILE_ACTIVE_CHANGED, active)
+    safeSend(IPC.WORKSPACE_FILE_ACTIVE_CHANGED, active)
   } catch (err) {
     // Renderer not ready yet (boot path) — harmless; the renderer
     // pulls via `sessionFile.active()` on mount.
@@ -3084,7 +3084,7 @@ export function sendReveal(path: string): { ok: boolean; error?: string } {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  mainWindow.webContents.send(IPC.NAV_REVEAL, path)
+  resolveDefault(registry)?.webContents.send(IPC.NAV_REVEAL, path)
   return { ok: true }
 }
 
@@ -3142,7 +3142,7 @@ export function sendView(path: string, mode?: 'canvas' | 'browser'): { ok: boole
   // payload; otherwise keep the bare-string payload for backwards
   // compat with existing renderer subscribers (NAV_VIEW / NAV_EDIT
   // both originally took a plain `path: string`).
-  mainWindow.webContents.send(IPC.NAV_VIEW, mode ? { path, mode } : path)
+  resolveDefault(registry)?.webContents.send(IPC.NAV_VIEW, mode ? { path, mode } : path)
   return { ok: true }
 }
 
@@ -3150,7 +3150,7 @@ export function sendEdit(path: string, mode?: 'canvas' | 'browser'): { ok: boole
   if (!mainWindow || mainWindow.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  mainWindow.webContents.send(IPC.NAV_EDIT, mode ? { path, mode } : path)
+  resolveDefault(registry)?.webContents.send(IPC.NAV_EDIT, mode ? { path, mode } : path)
   return { ok: true }
 }
 
@@ -3180,7 +3180,7 @@ export function setThemeMode(mode: ThemeMode): { ok: boolean; error?: string } {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  mainWindow.webContents.send(IPC.THEME_SET, mode)
+  resolveDefault(registry)?.webContents.send(IPC.THEME_SET, mode)
   return { ok: true }
 }
 
@@ -3200,7 +3200,7 @@ export function setClaudeReturnMode(mode: import('../shared/types').ClaudeReturn
   if (!mainWindow || mainWindow.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  mainWindow.webContents.send(IPC.CLAUDE_KEY_PREFS_SET, { claudeReturn: mode })
+  resolveDefault(registry)?.webContents.send(IPC.CLAUDE_KEY_PREFS_SET, { claudeReturn: mode })
   return { ok: true }
 }
 
@@ -3211,7 +3211,7 @@ export function setShiftReturnMode(mode: import('../shared/types').ShiftReturnMo
   if (!mainWindow || mainWindow.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  mainWindow.webContents.send(IPC.CLAUDE_KEY_PREFS_SET, { shiftReturn: mode })
+  resolveDefault(registry)?.webContents.send(IPC.CLAUDE_KEY_PREFS_SET, { shiftReturn: mode })
   return { ok: true }
 }
 
@@ -3227,7 +3227,7 @@ export function setHiddenFiles(value: boolean | 'toggle'): { ok: boolean; error?
   if (!mainWindow || mainWindow.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  mainWindow.webContents.send(IPC.HIDDEN_FILES_SET, { value })
+  resolveDefault(registry)?.webContents.send(IPC.HIDDEN_FILES_SET, { value })
   return { ok: true }
 }
 
@@ -3235,8 +3235,9 @@ export function setHiddenFiles(value: boolean | 'toggle'): { ok: boolean; error?
 // the renderer. Renderer caches the value in localStorage so it
 // survives reloads + is consulted by future address-bar affordances.
 export function pushBrowserMode(mode: import('../shared/types').BrowserMode): void {
-  if (!mainWindow || mainWindow.isDestroyed()) return
-  mainWindow.webContents.send(IPC.BROWSER_MODE_PUSH, { mode })
+  // ENH-191 P2 (class-i, fire-and-forget) — safeSend resolves the sole window
+  // via the registry + guards destroyed-state; no explicit window check needed.
+  safeSend(IPC.BROWSER_MODE_PUSH, { mode })
 }
 
 // BUG-138 Phase 2 — `duo author` reads the cached value; writes
@@ -3260,7 +3261,7 @@ export function setAuthor(author: string): { ok: boolean; error?: string } {
   // Update the cache eagerly so `duo author` reads the new value even
   // before the renderer's AUTHOR_STATE_PUSH echo arrives.
   authorState = { author: trimmed }
-  mainWindow.webContents.send(IPC.AUTHOR_SET, trimmed)
+  resolveDefault(registry)?.webContents.send(IPC.AUTHOR_SET, trimmed)
   return { ok: true }
 }
 
@@ -3276,7 +3277,7 @@ export function setSplit(pct: number): { ok: boolean; pct?: number; error?: stri
   if (!mainWindow || mainWindow.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  mainWindow.webContents.send(IPC.SPLIT_SET, clamped)
+  resolveDefault(registry)?.webContents.send(IPC.SPLIT_SET, clamped)
   return { ok: true, pct: clamped }
 }
 
@@ -3288,7 +3289,7 @@ export function setLayout3wayEven(): { ok: boolean; error?: string } {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  mainWindow.webContents.send(IPC.LAYOUT_3WAY_EVEN)
+  resolveDefault(registry)?.webContents.send(IPC.LAYOUT_3WAY_EVEN)
   return { ok: true }
 }
 
@@ -3488,7 +3489,7 @@ export function splitViewOpen(path: string): { ok: boolean; error?: string } {
   } else if (expanded.startsWith('~/')) {
     expanded = join(homedir(), expanded.slice(2))
   }
-  mainWindow.webContents.send(IPC.WORKING_AUX_OPEN, expanded)
+  resolveDefault(registry)?.webContents.send(IPC.WORKING_AUX_OPEN, expanded)
   return { ok: true }
 }
 
@@ -3513,7 +3514,7 @@ export function splitViewOpenBrowser(browserTabId: number): { ok: boolean; error
   if (!tabs.some(t => t.id === browserTabId)) {
     return { ok: false, error: `No browser tab with id ${browserTabId}` }
   }
-  mainWindow.webContents.send(IPC.WORKING_AUX_OPEN_BROWSER, browserTabId)
+  resolveDefault(registry)?.webContents.send(IPC.WORKING_AUX_OPEN_BROWSER, browserTabId)
   return { ok: true }
 }
 
@@ -3521,7 +3522,7 @@ export function splitViewClose(): { ok: boolean; error?: string } {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  mainWindow.webContents.send(IPC.WORKING_AUX_CLOSE, null)
+  resolveDefault(registry)?.webContents.send(IPC.WORKING_AUX_CLOSE, null)
   return { ok: true }
 }
 
@@ -3532,7 +3533,7 @@ export function closeActiveWorkingTab(): { ok: boolean; error?: string } {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  mainWindow.webContents.send(IPC.NAV_CLOSE_ACTIVE_WORKING_TAB, null)
+  resolveDefault(registry)?.webContents.send(IPC.NAV_CLOSE_ACTIVE_WORKING_TAB, null)
   return { ok: true }
 }
 
@@ -3543,7 +3544,7 @@ export function closeTerminalTab(n?: number): { ok: boolean; error?: string } {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  mainWindow.webContents.send(IPC.NAV_CLOSE_TERMINAL_TAB, typeof n === 'number' ? { n } : null)
+  resolveDefault(registry)?.webContents.send(IPC.NAV_CLOSE_TERMINAL_TAB, typeof n === 'number' ? { n } : null)
   return { ok: true }
 }
 
@@ -3557,7 +3558,7 @@ export function openCloneModal(opts?: { path?: string }): { ok: boolean; error?:
     return { ok: false, error: 'Duo window not ready' }
   }
   const payload = opts?.path ? { path: opts.path } : null
-  mainWindow.webContents.send(IPC.NAV_OPEN_CLONE_MODAL, payload)
+  resolveDefault(registry)?.webContents.send(IPC.NAV_OPEN_CLONE_MODAL, payload)
   return { ok: true }
 }
 
@@ -3565,7 +3566,7 @@ export function splitViewPromote(): { ok: boolean; error?: string } {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  mainWindow.webContents.send(IPC.WORKING_AUX_PROMOTE, null)
+  resolveDefault(registry)?.webContents.send(IPC.WORKING_AUX_PROMOTE, null)
   return { ok: true }
 }
 
@@ -3581,7 +3582,7 @@ export function splitViewResize(pct: number): { ok: boolean; pct?: number; error
   if (!mainWindow || mainWindow.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  mainWindow.webContents.send(IPC.WORKING_AUX_RESIZE, clamped)
+  resolveDefault(registry)?.webContents.send(IPC.WORKING_AUX_RESIZE, clamped)
   return { ok: true, pct: clamped }
 }
 
@@ -3603,7 +3604,7 @@ export function setSelectionFormat(format: SelectionFormat): { ok: boolean; erro
   if (!mainWindow || mainWindow.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  mainWindow.webContents.send(IPC.SELECTION_FORMAT_SET, format)
+  resolveDefault(registry)?.webContents.send(IPC.SELECTION_FORMAT_SET, format)
   return { ok: true }
 }
 
@@ -3864,7 +3865,7 @@ export async function htmlNew(absPath: string, title?: string): Promise<{ ok: bo
     const html = htmlBoilerplate(docTitle)
     const bytes = new TextEncoder().encode(html)
     await filesService.write(absPath, bytes)
-    mainWindow.webContents.send(IPC.NAV_EDIT, absPath)
+    resolveDefault(registry)?.webContents.send(IPC.NAV_EDIT, absPath)
     return { ok: true, path: absPath }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
