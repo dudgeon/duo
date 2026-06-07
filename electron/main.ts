@@ -456,6 +456,16 @@ sessionStateService.setMirrorHook(async (state) => {
   await workspaceFileService.save(active.path, active.name, state, app.getVersion())
 })
 
+// ENH-191 P4 seam 6 (item 8) — the session envelope is the per-window
+// persistence home for the active-workspace pointer. Resolve it LIVE from each
+// window's WindowContext at compose time (registry.get(windowId)) so it rides
+// into THAT window's WindowState on every flush. Read live → no drift vs the
+// standalone active-workspace.json, which stays written for back-compat /
+// Cut-3 revert. At N=1 this resolves the sole window.
+sessionStateService.setActiveWorkspaceResolver(
+  (windowId) => registry.get(windowId)?.activeWorkspace ?? null
+)
+
 // ENH-177 (Sprint 20 / v0.7.7) — enrich each terminal entry with the
 // latest detected Claude session ID for its cwd before persisting.
 // Runs inside sessionStateService.flush() (debounced 250ms) so it
@@ -655,6 +665,15 @@ async function createWindow(): Promise<WindowContext> {
   const ctx: WindowContext = { id: winId, window: mainWindow }
   registry.register(ctx)
 
+  // ENH-191 P5a (S2) — per-window send funnel. The per-window callbacks defined
+  // below (browser state/tabs, the presence onChange, did-finish-load opens)
+  // fire for THIS window's events, so they must send to THIS window — NOT the
+  // default `safeSend`, which resolves `registry.only()` and THROWS once a
+  // second window registers (the P3 fail-loud placeholder this seam consumes).
+  // Byte-identical at N=1: ctx IS the sole window, so ctxSend hits the same
+  // target `safeSend` did.
+  const ctxSend = makeSafeSend(() => ctx.window)
+
   // ENH-191 P2 (item 7) — snapshot the cold-boot Finder open-file stash into a
   // per-window local and clear the module global immediately, so a reentrant
   // createWindow (window 2, P5a) can't replay window 1's pending open. The
@@ -667,9 +686,15 @@ async function createWindow(): Promise<WindowContext> {
   // `await` it before any other window setup; subsequent updates
   // (after Save / Open) call applyWindowTitle() to mutate live.
   await activeWorkspaceService.load()
-  // ENH-191 P3-S10 — seed THIS window's per-window active-workspace pointer
-  // from the shared service before the first title paint.
-  ctx.activeWorkspace = activeWorkspaceService.get()
+  // ENH-191 P3-S10 / P4 seam 6 (item 8) — seed THIS window's per-window
+  // active-workspace pointer before the first title paint. P4 makes the SESSION
+  // ENVELOPE the persistence home (the standalone active-workspace.json is a
+  // single slot two windows would clobber), so prefer the envelope's per-window
+  // pointer; fall back to the shared service for back-compat (pre-v2 installs /
+  // Cut-3 revert). [N=1: createWindow runs once so windows[0] IS this window;
+  // P5's reentrant createWindow must select windows[restoreIndex] instead.]
+  const restoredWindows = await sessionStateService.loadWindows()
+  ctx.activeWorkspace = restoredWindows[0]?.activeWorkspace ?? activeWorkspaceService.get()
   applyWindowTitle(ctx)
 
   // ENH-191 P1 — `ptyManager` owner-routing wiring + the `ExternalDomainsService`
@@ -702,8 +727,8 @@ async function createWindow(): Promise<WindowContext> {
   const browserManager = new BrowserManager(
     mainWindow,
     cdpBridge,
-    (state: BrowserState) => safeSend(IPC.BROWSER_STATE, state),
-    (tabs: BrowserTab[]) => safeSend(IPC.BROWSER_TABS, tabs),
+    (state: BrowserState) => ctxSend(IPC.BROWSER_STATE, state),
+    (tabs: BrowserTab[]) => ctxSend(IPC.BROWSER_TABS, tabs),
     browserHistory,
     externalDomainsService
   )
@@ -791,11 +816,13 @@ async function createWindow(): Promise<WindowContext> {
     // The enrichment hook (sessionStateService below) gates UUID
     // capture on membership in this set; without it, S3 fires on
     // tabs that never actually ran Claude.
-    const activeId = activeTerminalIdCache.getDefault(registry)
+    // ENH-191 P5a (S2) — THIS window's active terminal (not registry.only(),
+    // which throws at N>1). Byte-identical at N=1 (winId === the sole window).
+    const activeId = activeTerminalIdCache.getOrDefault(winId)
     if ((state === 'claude' || state === 'starting') && activeId) {
       ctx.tabsThatHostedClaude?.add(activeId)
     }
-    safeSend(IPC.TERMINAL_CLAUDE_PRESENCE_CHANGED, state)
+    ctxSend(IPC.TERMINAL_CLAUDE_PRESENCE_CHANGED, state)
     const live = state === 'claude' || state === 'starting'
     // ENH-191 P1b — cdpBridge is now a nullable module global; a presence
     // tick after a window close would TypeError on a bare call. Optional-
@@ -931,7 +958,7 @@ async function createWindow(): Promise<WindowContext> {
           // honors duo-open-in meta. Most pack canvases will land in
           // the canvas tab; templates that opt into browser routing
           // get there via the meta hint without bespoke wiring here.
-          safeSend(IPC.NAV_EDIT, absPath)
+          ctxSend(IPC.NAV_EDIT, absPath)
         }
         await installedPacksService.markFirstLaunched(m.name, m.version)
       }
@@ -1364,6 +1391,15 @@ app.whenReady().then(async () => {
     () => { try { return registry.only()?.id } catch { return undefined } }
   )
   socketServer.start()
+
+  // ENH-191 P4 — a renderer asks for ITS window id synchronously at preload
+  // (sendSync) so per-window localStorage keys namespace by the SAME id the
+  // registry routes by. Registered ONCE here at app-boot scope (NOT inside
+  // createWindow) so a reentrant createWindow / dock-reopen (P5) doesn't
+  // double-register; event.sender resolves the calling window every time.
+  ipcMain.on(IPC.WINDOW_GET_ID, (event) => {
+    event.returnValue = BrowserWindow.fromWebContents(event.sender)?.id ?? -1
+  })
 
   void createWindow()
 
@@ -2015,8 +2051,12 @@ function setupIPC(): void {
   ipcMain.handle(IPC.SESSION_STATE_LOAD, () => {
     return sessionStateService.load()
   })
-  ipcMain.handle(IPC.SESSION_STATE_SAVE, (_event, state: import('../shared/types').SessionState) => {
-    sessionStateService.save(state)
+  ipcMain.handle(IPC.SESSION_STATE_SAVE, (event, state: import('../shared/types').SessionState) => {
+    // ENH-191 P4 — key the per-window save by the CALLING renderer's window
+    // (event.sender). At N=1 this resolves the sole window (== defaultWindowId);
+    // the fallback covers the edge where fromWebContents misses.
+    const wid = BrowserWindow.fromWebContents(event.sender)?.id ?? defaultWindowId(registry) ?? 1
+    sessionStateService.save(state, wid)
   })
 
   // ENH-183 C5 — banner-title + message-count lookups against Claude's
@@ -2848,7 +2888,9 @@ export async function openWorkspaceFile(filePath: string, opts: { skipPrompt?: b
     try {
       const snapshot = await dispatchSessionSnapshot()
       if (snapshot) {
-        sessionStateService.save(snapshot)
+        // ENH-191 P4 — main-driven save targets the sole window (P5 threads
+        // the workspace-switching window's id).
+        sessionStateService.save(snapshot, defaultWindowId(registry) ?? 1)
         await sessionStateService.flush()
       }
     } catch (err) {
@@ -3031,7 +3073,9 @@ async function applyNewSessionState(state: import('../shared/types').SessionStat
   if (!win || win.isDestroyed()) return
 
   // Save the new state so the reloaded renderer reads it.
-  sessionStateService.save(state)
+  // ENH-191 P4 — main-driven workspace-apply targets the sole window (P5
+  // threads the window the workspace was applied to).
+  sessionStateService.save(state, defaultWindowId(registry) ?? 1)
   await sessionStateService.flush()
 
   // Tear down current browser tabs. Closing each tab cleanly via

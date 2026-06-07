@@ -17,12 +17,25 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DirEntry } from '@shared/types'
 import { findDeadExpandedPaths, nearestExistingAncestor } from './pruneDeadPaths'
 
-const LS_KEY_CWD = 'duo.nav.cwd'
-const LS_KEY_EXPANDED = 'duo.nav.expanded'
-const LS_KEY_PINNED = 'duo.nav.pinned'
+// ENH-191 P4 (seam 3b) — cwd + expanded are per-window navigation STATE (each
+// window browses its own location/tree), so they namespace by THIS window's id
+// (preload-injected as window.electron.env.windowId == the main-process
+// registry id). pinned + showDotfiles are GLOBAL prefs and stay on the shared
+// (un-namespaced) keys below. The v2 cwd/expanded keys seed once from the old
+// shared v1 keys (read-only) to preserve the initial restore; the v1 keys are
+// left UNWRITTEN so a Cut-3 revert reads them untouched (PRD §7.5).
+const NAV_WINDOW_ID: number = (() => {
+  const id = typeof window !== 'undefined' ? window.electron?.env?.windowId : undefined
+  return typeof id === 'number' && id > 0 ? id : 1
+})()
+const LS_KEY_CWD = `duo.nav.v2.w${NAV_WINDOW_ID}.cwd`
+const LS_KEY_CWD_LEGACY = 'duo.nav.cwd'
+const LS_KEY_EXPANDED = `duo.nav.v2.w${NAV_WINDOW_ID}.expanded`
+const LS_KEY_EXPANDED_LEGACY = 'duo.nav.expanded'
+const LS_KEY_PINNED = 'duo.nav.pinned'             // GLOBAL pref — stays shared
 // ENH-172 (Sprint 20) — persist the show-hidden-files toggle so the
 // View menu checkbox / ⌘⇧. chord / CLI verb survive relaunches.
-const LS_KEY_SHOW_DOTFILES = 'duo.nav.showDotfiles'
+const LS_KEY_SHOW_DOTFILES = 'duo.nav.showDotfiles' // GLOBAL pref — stays shared
 
 export interface NavigatorState {
   cwd: string
@@ -81,7 +94,7 @@ export interface NavigatorActions {
 
 export function useNavigator(initialCwd: string) {
   const [cwd, setCwd] = useState<string>(() => {
-    try { return localStorage.getItem(LS_KEY_CWD) || initialCwd } catch { return initialCwd }
+    try { return localStorage.getItem(LS_KEY_CWD) || localStorage.getItem(LS_KEY_CWD_LEGACY) || initialCwd } catch { return initialCwd }
   })
   // ENH-147 — canonical multi-select map. Singular `selected` is derived
   // below for back-compat (computePendingCwd, CLI nav-state, anywhere
@@ -92,7 +105,7 @@ export function useNavigator(initialCwd: string) {
   const [primaryPath, setPrimaryPath] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(() => {
     try {
-      const raw = localStorage.getItem(LS_KEY_EXPANDED)
+      const raw = localStorage.getItem(LS_KEY_EXPANDED) ?? localStorage.getItem(LS_KEY_EXPANDED_LEGACY)
       return raw ? new Set<string>(JSON.parse(raw)) : new Set<string>()
     } catch {
       return new Set<string>()
