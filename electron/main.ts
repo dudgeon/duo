@@ -2212,8 +2212,9 @@ function setupIPC(): void {
   // the renderer's matchMedia, so we have to set it dynamically:
   //   - 'system' \u2192 follow OS (renderer's media query reflects OS)
   //   - 'light' / 'dark' \u2192 force that mode
-  ipcMain.on(IPC.THEME_STATE_PUSH, (_event, snapshot: ThemeStateSnapshot) => {
-    themeStateCache.set(defaultWindowId(registry), snapshot)
+  ipcMain.on(IPC.THEME_STATE_PUSH, (event, snapshot: ThemeStateSnapshot) => {
+    const id = BrowserWindow.fromWebContents(event.sender)?.id
+    themeStateCache.set(id, snapshot)
     if (snapshot.mode === 'system' || snapshot.mode === 'light' || snapshot.mode === 'dark') {
       nativeTheme.themeSource = snapshot.mode
     }
@@ -2258,8 +2259,9 @@ function setupIPC(): void {
   // Stage 15 G17 \u2014 active terminal-tab id push from the renderer.
   // ENH-013 \u2014 the payload also carries `kind` so the claude-presence
   // probe can arm its starting-grace window for kind=='claude' tabs.
-  ipcMain.on(IPC.TERMINAL_ACTIVE_PUSH, (_event, payload: { id: string | null; kind: 'claude' | 'shell' | null }) => {
-    activeTerminalIdCache.set(defaultWindowId(registry), payload.id)
+  ipcMain.on(IPC.TERMINAL_ACTIVE_PUSH, (event, payload: { id: string | null; kind: 'claude' | 'shell' | null }) => {
+    const id = BrowserWindow.fromWebContents(event.sender)?.id
+    activeTerminalIdCache.set(id, payload.id)
     const pid = payload.id ? ptyManager.getPid(payload.id) : null
     claudePresence.setTarget({ pid, kind: payload.kind })
   })
