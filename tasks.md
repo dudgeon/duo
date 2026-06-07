@@ -102,6 +102,22 @@
 
 ---
 
+### BUG-196: Reloading a browser tab pinned in the Split-View aux may crash the dev app
+
+**Status:** 🆕 **Filed 2026-06-06 — needs repro confirmation.** **Priority:** Medium (if it reproduces — a reload shouldn't take the app down). **Effort:** S–M (investigation).
+
+**Symptom (observed once, v0.9.1 smoke-walk setup).** With the smoke-walk page pinned in the Split-View aux (browser kind), running `duo eval "location.reload()"` (which targets the **aux WebContentsView**, not the renderer shell) was immediately followed by the dev app going DOWN — socket `ECONNREFUSED`, no Electron process, and the dev log ended with no crash stack (clean-ish exit). Restart was clean.
+
+**Suspected cause.** Aux-WCV lifecycle (same neighborhood as BUG-195's stale-aux-ref ghost). Reloading a WebContentsView that's composited into the aux may dispose/re-create it in a way the main process doesn't survive. Could also be dev-mode-only (electron-vite + `file://` reload) rather than a packaged-app bug.
+
+**Repro to confirm.** `duo open <some.html>` → `duo split-view open-browser <id>` → `duo eval "location.reload()"`. Watch for socket drop. Compare against reloading the **renderer shell** (`duo dom --js "location.reload()"`), which is the smoke-walk skill's intended reload and did NOT crash in prior walks.
+
+**Workaround.** Don't reload an aux-pinned browser tab; close + re-open it instead. The smoke-walk skill's §4b reload targets the renderer shell via `duo dom --js`, not the aux via `duo eval` — keep them distinct.
+
+**Cross-refs.** [BUG-195](#bug-195) (aux-WCV stale-ref ghost), `renderer/App.tsx` (aux close/promote handlers), `electron/browser-manager.ts` (`releaseAuxTab`), `core/socket-server.ts`.
+
+---
+
 
 ### ENH-189: Agent-agnostic Duo — Claude Code + Codex (research)
 
