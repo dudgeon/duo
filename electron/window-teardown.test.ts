@@ -49,26 +49,30 @@ describe('window-teardown — per-window vs app teardown (ENH-191 P0)', () => {
     expect(f.disposeExternal).toHaveBeenCalledTimes(1)
   })
 
-  // NEGATIVE CONTROL (double-dispose / the quit-loop class): a last-window
-  // `closed` followed by `before-quit` must NOT double-stop the socket.
-  // Remove the `appTornDown` guard in window-teardown.ts and this goes red.
-  it('teardownApp is idempotent — closed THEN before-quit does not double-stop', () => {
+  // NEGATIVE CONTROL (double-dispose / the quit-loop class): teardownApp must
+  // be idempotent — a second call stops the socket only once, in any order.
+  // In the WIRED code (ENH-191 P1) the `closed` handler NEVER calls teardownApp,
+  // so production fires it exactly ONCE at before-quit; this guard defends a
+  // future re-entry (a non-darwin window-all-closed→quit that also reaches it,
+  // or a mistakenly re-added last-window branch). Remove the `appTornDown` guard
+  // in window-teardown.ts and this goes red.
+  it('teardownApp is idempotent — a second call does not double-stop', () => {
     const f = fakes()
     const t = makeWindowTeardown()
-    t.teardownApp(appServices(f)) // last-window close
-    t.teardownApp(appServices(f)) // before-quit
+    t.teardownApp(appServices(f)) // first firing (production: before-quit)
+    t.teardownApp(appServices(f)) // a hypothetical second firing — must no-op
     expect(f.stopSocket).toHaveBeenCalledTimes(1)
     expect(f.disposeExternal).toHaveBeenCalledTimes(1)
   })
 
-  // NEGATIVE CONTROL (missed-dispose): the full last/only-window teardown
-  // must fire EVERY effect at least once. A variant that skips any one
-  // (e.g. forgets external.dispose) trips one of these.
-  it('last/only window: window + app teardown fire every effect (no missed dispose)', () => {
+  // NEGATIVE CONTROL (missed-dispose): across a window teardown AND the
+  // before-quit app teardown, EVERY effect must fire at least once. A variant
+  // that skips any one (e.g. forgets external.dispose) trips one of these.
+  it('window teardown + before-quit app teardown fire every effect (no missed dispose)', () => {
     const f = fakes()
     const t = makeWindowTeardown()
-    t.teardownWindow(1, perWindow(f))
-    t.teardownApp(appServices(f)) // isLastWindow → app teardown too
+    t.teardownWindow(1, perWindow(f)) // a window closes
+    t.teardownApp(appServices(f)) // later: before-quit app teardown
     expect(f.detach).toHaveBeenCalled()
     expect(f.disposeBrowser).toHaveBeenCalled()
     expect(f.stopSocket).toHaveBeenCalled()
@@ -78,9 +82,10 @@ describe('window-teardown — per-window vs app teardown (ENH-191 P0)', () => {
   it('a non-last window close does NOT stop app services', () => {
     const f = fakes()
     const t = makeWindowTeardown()
-    // P1's split handler calls teardownWindow always, teardownApp only on
-    // last-window/before-quit. Closing a non-last window must leave the
-    // shared socket + external-domains service running.
+    // P1's split handler calls teardownWindow on EVERY close; teardownApp runs
+    // only at before-quit (NOT on last-window-close — darwin keeps the app
+    // alive for dock-reopen). So a window close must leave the shared socket +
+    // external-domains service running.
     t.teardownWindow(2, perWindow(f))
     expect(f.stopSocket).not.toHaveBeenCalled()
     expect(f.disposeExternal).not.toHaveBeenCalled()
