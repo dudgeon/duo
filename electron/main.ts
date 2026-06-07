@@ -556,31 +556,16 @@ async function createWindow(): Promise<void> {
   await activeWorkspaceService.load()
   applyWindowTitle()
 
-  // Move A2 — PtyManager talks to the UI through an EventSink. The
-  // adapter is one line in Electron (webContents.send); a future
-  // extension helper would wrap a Native Messaging port write instead.
-  ptyManager.setEventSink({
-    send: (channel, payload) => safeSend(channel, payload)
-  })
-
-  // BUG-040 — external-domains routing service. Loaded once at boot;
-  // file-watched so user edits to ~/.claude/duo/external-domains.json
-  // take effect without a relaunch. Passed to BrowserManager so it
-  // can intercept user-driven navigations + popups, AND retained here
-  // so the agent path (openExternalUrl) can reuse the same matcher
-  // for the post-redirect banner reason lookup.
-  //
-  // ENH-021 v2 (2026-04-30) — pass the Vite-injected bundled defaults
-  // so the runtime can self-heal an empty / missing file at boot.
-  // The install-service's bootstrap+merge path (ENH-021 v1) only
-  // fires on user-clicked install; existing users with a populated-
-  // but-empty file (a state we discovered during the v0.5.3 smoke
-  // walk) never triggered it and ended up with zero routing.
-  externalDomainsService = new ExternalDomainsService({
-    defaults: __DUO_BOOTSTRAP_EXTERNAL_DOMAINS__
-  })
-  await externalDomainsService.load()
-  externalDomainsService.watch()
+  // ENH-191 P1 — `ptyManager.setEventSink` + the `ExternalDomainsService`
+  // construction were lifted OUT of createWindow() to app-boot scope
+  // (app.whenReady, just before the createWindow call) so a reentrant
+  // createWindow (P2) can't re-register the PTY sink or re-construct the
+  // external-domains watcher. Behavior-identical at N=1. This invariant
+  // documents the new ordering contract (whenReady constructs it first)
+  // AND re-narrows the `| null` module global for the BrowserManager arg.
+  if (!externalDomainsService) {
+    throw new Error('[main] createWindow ran before app-boot externalDomainsService init')
+  }
 
   // Browser manager owns WebContentsViews and forwards state to renderer.
   //
@@ -1155,6 +1140,25 @@ app.whenReady().then(async () => {
   } catch (err) {
     console.warn('[main] failed to install context menu:', err)
   }
+  // ENH-191 P1 — window-independent services lifted out of createWindow()
+  // to app-boot scope: construct ONCE so a reentrant createWindow (P2)
+  // can't re-register the PTY sink or re-construct the external-domains
+  // watcher. Behavior-identical at N=1.
+  //
+  // PtyManager → UI EventSink (one safeSend adapter). safeSend reads the
+  // live window dynamically, so registering before the window exists is
+  // safe — null sends no-op via the BUG-190 guard.
+  ptyManager.setEventSink({
+    send: (channel, payload) => safeSend(channel, payload)
+  })
+  // BUG-040 / ENH-021 v2 — external-domains routing service (file-watched;
+  // self-heals an empty/missing file from the Vite-injected defaults).
+  externalDomainsService = new ExternalDomainsService({
+    defaults: __DUO_BOOTSTRAP_EXTERNAL_DOMAINS__
+  })
+  await externalDomainsService.load()
+  externalDomainsService.watch()
+
   void createWindow()
 
   // BUG-124 — ensure ~/.claude/duo/logs/ exists at boot so the renderer's
