@@ -129,6 +129,8 @@ The old P2 "convert all reads to `only()`" instruction silently collapsed class 
 
 ### Verified magnitudes (anchored against live code at spec-authoring time)
 
+> **⚠️ These are spec-authoring-time (v0.8.x) values.** P0 + P1 have since shipped on `claude/enh-191-multiwindow`; for the **current** spine anchors + the P2 grep-gate floor (now **41**), see **Appendix A → "Post-P1 re-baseline."** Re-grep against this branch's HEAD before depending on any line number below.
+
 | Quantity | Value | Anchor |
 |---|---|---|
 | `let mainWindow` declaration | 1 | `electron/main.ts:249` |
@@ -359,6 +361,8 @@ Then **Cut 4a (P5a — first user-facing release):** `/smoke-walk` via Skill too
 ### Optional follow-on (post-P5, non-gating — flag as ENH in `tasks.md`)
 
 N-writer hardening of `browser-history.json` (low-frequency append corruption) and the C10/C11 menu-accelerator + native-dialog focused-window sweep (menu items at `main.ts:2107`/`:2168`/`:2242`/`:2286`/`:2342` still `mainWindow?.webContents.send`; dialogs at `:1564`/`:2496`/`:2608`/`:2645` parented to `mainWindow`) can trail as a cleanup cut. They need only the P2 registry seam and are independent of the critical path. The P2 grep-gate (widened to dialog-parent + executeJavaScript) prevents *new* regressions here in the interim; the *existing* menu/dialog sites should be swept to focused-window resolution (the `:2182` "Copy as Plain Text" pattern) before they become user-visible wrong-window bugs.
+
+**`app.requestSingleInstanceLock()` (discovered during P1 — pre-existing).** Duo has no single-instance lock, so two processes (or a relaunch before the old one exits) both reach `SocketServer.startUnix()` (`unlinkSync` stale → `listen`), the second silently unlinking the first's `duo.sock` + `duo.port` and hijacking the `duo` bridge. P1 made the *within-process* single-construction safe (`SocketServer.start()` is now idempotent), but the **cross-process** race remains. Add `requestSingleInstanceLock` (focus the existing window on a second launch) to close it mechanically; until then the "no stray Electron + socket DOWN" pre-flight stays a HARD gate before every dev launch. (Also in Appendix E deferred follow-ups.)
 
 ---
 
@@ -859,6 +863,28 @@ These are the exact-line corrections folded into this revision. The spec instruc
 - The `'35 ipcMain.on'` decorative row from the draft is **dropped** — the real combined `ipcMain.on/.handle` count is 100+; it is irrelevant to the sweep, which iterates the explicit **13 PUSH + 10 reqId** named lists. Do not use a raw `ipcMain` count to scope P3.
 - Grep-gate baseline **32** (29 `mainWindow.webContents.send` + 3 `.executeJavaScript`) is `mainWindow`-specific and verified exactly; ignore any "~60 / 67 webContents.send" figure from upstream notes — that counts ALL `webContents.send` (a different, larger surface) and is not the gate baseline. **[v2 correction: the true baseline is 40 — the 8 optional-chain `mainWindow?.webContents.send` sites were uncounted; see §5.3 / §8.4.4 / Appendix D.]**
 
+### Post-P1 re-baseline (2026-06-06 — dev branch `claude/enh-191-multiwindow` after P1a–P1d)
+
+P1 shipped, so the spine anchors moved again **and the socket left `createWindow` entirely**. **P2 must re-grep against this branch's HEAD, not `main`** — these are the dev-branch values:
+
+| Anchor | Draft / v2 | Now (post-P1) | Note |
+|---|---|---|---|
+| `let mainWindow` decl | :249 → :252 | **:265** | |
+| `safeSend = makeSafeSend(() => mainWindow)` | :261 | **:277** | the identity-resolve seam (cardinal rule) |
+| `async function createWindow` | :509 | **:556** | |
+| `mainWindow.on('closed')` | :956 | **:896** | **per-window teardown only** now (P1c) |
+| `void createWindow()` (boot) | :1137 | **:1237** | |
+| `app.on('activate')` zero-window guard | :1187 | **:1286–:1287** | the dock-reopen path P1 made safe |
+| `getFocusedWebContents()` (the ONE menu item — leave it) | :2182 | **:2313** | still exactly **1** |
+| `getFocusedWindow()` for sends | 0 | **0** | cardinal rule holds |
+| `new SocketServer(...)` | :635 (in `createWindow`) | **:1124 (in `whenReady`)** | **LIFTED** out of `createWindow` (P1b) — no longer per-window |
+| `externalDomainsService = new …` | :564 (in `createWindow`) | **:1106 (in `whenReady`)** | lifted (P1a) |
+| `ptyManager.setEventSink` | :547 (in `createWindow`) | **:1101 (in `whenReady`)** | lifted (P1a) |
+| raw `grep -c mainWindow` (LINE count) | 134 | **143** | a LINE count, not read-sites — scope P2 by the guard cluster + send taxonomy, **not** this number |
+| grep-gate baseline `mainWindow??.webContents.(send\|executeJavaScript)` | 40 (v2) | **41** | 29 `.send` + 8 `?.send` + 4 `.executeJavaScript`; one `.executeJavaScript` site drifted in since v2 — use **41** as the P2 grep-gate floor |
+
+The `createWindow`-local anchors the draft cited for P1 work (`SocketServer` :635, `ExternalDomainsService` :564, `PtyManager.setEventSink` :547, the three `closed`-handler teardowns :960–962) are now **historical** — P1a/P1b lifted those constructions to `whenReady`; P1c split the handler. As-shipped shape lives in commits `bb52a30` (P1b+P1c), `b68f998` (P1d tests), `def6596` + `b9d315e` (docs + review follow-ups).
+
 ## Appendix B — New files this spec introduces (one-glance)
 
 | File | Kind | Phase |
@@ -955,6 +981,7 @@ These are the exact-line corrections folded into this revision. The spec instruc
 Captured as the build proceeds — technical findings and process lessons. Newest first.
 
 **Process / workflow**
+- **`lsof` the socket owner before quitting/removing it — don't assume "packaged Duo."** During P1 dev, a peer agent's `npm run dev` (electron-vite in the primary checkout) owned `duo.sock`; assuming the owner was the packaged Duo, quitting "Duo" + `rm`-ing `duo.sock`/`duo.port` broke the *peer's* `duo` bridge (Unix path + TCP port-file both gone — only a dev restart rebinds). The "never leave multiple Duo dev instances" hazard cuts both ways: verify the socket's actual owner (`lsof <sock>`) before touching it. Reinforces the case for `app.requestSingleInstanceLock` (§4 Optional follow-on).
 - **Worktree isolation is non-negotiable.** Dual-window dev MUST live in a dedicated worktree on a dedicated branch (`claude/enh-191-multiwindow`); a separate session owns `main` + merges. When work briefly ran in the *primary* checkout, a concurrent session's commit (`BUG-196`) tangled onto a feature branch — exactly the contention worktrees prevent.
 - **Commit planning artifacts immediately.** This PRD was nearly lost — it sat uncommitted in a worktree that, like a sibling, was later deleted. Rescued via PR #71, then consolidated onto the dev branch (this copy). Never leave a source-of-truth doc only in a disposable worktree.
 - **Re-grep anchors per phase; don't trust magnitude counts.** The v1 spec's headline numbers were wrong (Appendix C/D): "134 read-sites" is a line count (~128 reads); guards are 46 not ~30. Anchors drift every release (0.8.5 → 0.8.6 → 0.9.1) — re-baseline per seam.
