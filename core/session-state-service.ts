@@ -70,7 +70,6 @@ import {
 
 const SESSION_DIR = path.join(os.homedir(), '.claude', 'duo')
 const SESSION_PATH = path.join(SESSION_DIR, 'session-state.json')
-const SESSION_V1_BAK_PATH = SESSION_PATH + '.v1.bak'
 
 /** Single-flight write coalescing. The renderer can spam saves
  *  during e.g. tab drags; we coalesce all pending writes into one
@@ -116,6 +115,21 @@ export class SessionStateService {
   // enrich against window 2's presence, not window 1's.]
   private enrichBeforePersistHook: ((state: SessionState) => Promise<SessionState>) | null = null
 
+  // ENH-191 P4 — the on-disk paths are injectable (default = the real
+  // ~/.claude/duo/session-state.json) so the node-env tests can point the
+  // service at an isolated temp dir with REAL fs (no mocking — the actual
+  // write/migrate/backup path is exercised). Production constructs
+  // `new SessionStateService()` and gets the default.
+  private readonly sessionPath: string
+  private readonly sessionDir: string
+  private readonly v1BakPath: string
+
+  constructor(sessionPath: string = SESSION_PATH) {
+    this.sessionPath = sessionPath
+    this.sessionDir = path.dirname(sessionPath)
+    this.v1BakPath = sessionPath + '.v1.bak'
+  }
+
   setMirrorHook(fn: ((state: SessionState) => Promise<void>) | null): void {
     this.mirrorHook = fn
   }
@@ -129,7 +143,7 @@ export class SessionStateService {
    *  unknown-version file yields [] (caller falls back to empty state). */
   private async readDoc(): Promise<{ windows: WindowState[]; meta: { savedAt: string; appVersion: string } }> {
     try {
-      const raw = await fs.readFile(SESSION_PATH, 'utf8')
+      const raw = await fs.readFile(this.sessionPath, 'utf8')
       const parsed = JSON.parse(raw) as unknown
       const version = (parsed as { version?: unknown } | null)?.version
       if (version !== 1 && version !== SESSION_ENVELOPE_VERSION) {
@@ -230,11 +244,11 @@ export class SessionStateService {
       // (e.g. two Duo processes) never race the same rename target. The
       // `writing` flag above serializes flushes WITHIN this process; the
       // unique tmp covers the cross-process case.
-      const tmp = uniqueTmpPath(SESSION_PATH, 'tmp')
+      const tmp = uniqueTmpPath(this.sessionPath, 'tmp')
       try {
-        await fs.mkdir(SESSION_DIR, { recursive: true })
+        await fs.mkdir(this.sessionDir, { recursive: true })
         await fs.writeFile(tmp, JSON.stringify(envelope, null, 2), 'utf8')
-        await fs.rename(tmp, SESSION_PATH)
+        await fs.rename(tmp, this.sessionPath)
         // ENH-167 v1.2 — mirror the sole/first window's flat state to the
         // active .duo-workspace if one is loaded. [N=1; P5 mirrors
         // per-window-workspace once each window owns its own workspace.]
@@ -272,13 +286,13 @@ export class SessionStateService {
     if (this.v1BackupDone) return
     this.v1BackupDone = true
     try {
-      await fs.access(SESSION_V1_BAK_PATH)
+      await fs.access(this.v1BakPath)
       return // already backed up in a prior run — true write-once
     } catch { /* no backup yet — fall through */ }
     try {
-      const existing = await fs.readFile(SESSION_PATH, 'utf8')
+      const existing = await fs.readFile(this.sessionPath, 'utf8')
       if ((JSON.parse(existing) as { version?: unknown })?.version === 1) {
-        await fs.writeFile(SESSION_V1_BAK_PATH, existing, 'utf8')
+        await fs.writeFile(this.v1BakPath, existing, 'utf8')
         console.log('[session-state] backed up v1 session to session-state.json.v1.bak before v2 migration')
       }
     } catch { /* no existing file / not v1 / unreadable — nothing to back up */ }

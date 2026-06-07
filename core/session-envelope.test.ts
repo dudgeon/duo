@@ -9,6 +9,8 @@ import {
   migrateFlatToEnvelope,
   readEnvelopeWindows,
   composeEnvelope,
+  flatToWindowState,
+  windowStateToFlat,
   SESSION_ENVELOPE_VERSION,
 } from './session-envelope'
 
@@ -103,5 +105,62 @@ describe('session-envelope — read/compose (ENH-191 P4 seam 1)', () => {
     const windows: WindowState[] = migrateFlatToEnvelope(FLAT_V1).windows
     const env = composeEnvelope(windows, { savedAt: 's', appVersion: 'a' })
     expect(env).toEqual({ version: 2, savedAt: 's', appVersion: 'a', windows })
+  })
+})
+
+describe('session-envelope — flat <-> WindowState converters (ENH-191 P4 seam 5)', () => {
+  const meta = { savedAt: FLAT_V1.savedAt, appVersion: FLAT_V1.appVersion }
+
+  it('round-trips flat -> WindowState -> flat identically (no per-window field lost)', () => {
+    const ws = flatToWindowState(FLAT_V1, 7)
+    const back = windowStateToFlat(ws, meta)
+    expect(back).toEqual(FLAT_V1)
+  })
+
+  it('flatToWindowState drops doc-level fields and stamps windowId + null geometry', () => {
+    const ws = flatToWindowState(FLAT_V1, 7)
+    expect(ws.windowId).toBe(7)
+    expect(ws.bounds).toBeNull()
+    expect(ws.activeWorkspace).toBeNull()
+    expect('version' in ws).toBe(false)
+    expect('savedAt' in ws).toBe(false)
+    expect('appVersion' in ws).toBe(false)
+  })
+
+  it('flatToWindowState carries bounds + activeWorkspace over from prev (renderer save cannot wipe them)', () => {
+    const prev = {
+      ...flatToWindowState(FLAT_V1, 7),
+      bounds: { x: 1, y: 2, width: 3, height: 4 },
+      activeWorkspace: { path: '/w.duo-workspace', name: 'W' } as WindowState['activeWorkspace'],
+    }
+    const next = flatToWindowState({ ...FLAT_V1, navigatorPath: '/moved' }, 7, prev)
+    expect(next.navigatorPath).toBe('/moved') // renderer slice updated
+    expect(next.bounds).toEqual({ x: 1, y: 2, width: 3, height: 4 }) // main-side fields preserved
+    expect(next.activeWorkspace).toEqual({ path: '/w.duo-workspace', name: 'W' })
+  })
+
+  it('windowStateToFlat re-attaches doc meta and drops window-only fields', () => {
+    const ws = flatToWindowState(FLAT_V1, 7)
+    const back = windowStateToFlat(ws, { savedAt: 'S', appVersion: 'A' })
+    expect(back.version).toBe(1)
+    expect(back.savedAt).toBe('S')
+    expect(back.appVersion).toBe('A')
+    expect('windowId' in back).toBe(false)
+    expect('bounds' in back).toBe(false)
+    expect('activeWorkspace' in back).toBe(false)
+  })
+
+  // NEGATIVE CONTROL for the single-composed-writer rule: composing ALL windows
+  // keeps both; a per-window flush that composes ONLY its own window drops the
+  // other (the C8 lost-update the single writer prevents — service-level proof
+  // is in session-state-service.test.ts's concurrent-flush pair).
+  it('composing all windows keeps both; a per-window compose drops the other', () => {
+    const a = flatToWindowState({ ...FLAT_V1, navigatorPath: '/a' }, 1)
+    const b = flatToWindowState({ ...FLAT_V1, navigatorPath: '/b' }, 2)
+    const both = composeEnvelope([a, b], meta)
+    expect(both.windows.map((w) => w.windowId)).toEqual([1, 2]) // both survive
+
+    const onlyB = composeEnvelope([b], meta) // the per-window-flush bug
+    expect(onlyB.windows.map((w) => w.windowId)).toEqual([2]) // window 1 LOST
   })
 })
