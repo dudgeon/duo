@@ -86,6 +86,26 @@ describe('window-teardown — per-window vs app teardown (ENH-191 P0)', () => {
     expect(f.disposeExternal).not.toHaveBeenCalled()
   })
 
+  // ENH-191 P1 dock-reopen regression (the gap the v2 adversary flagged —
+  // there was previously NO activate/reopen/reset case here). On macOS,
+  // closing the only window does NOT quit; the user dock-reopens via
+  // app.on('activate') → createWindow(). Because the socket is app-lifetime
+  // (constructed once in whenReady, stopped ONLY in before-quit), window
+  // closes must NEVER touch it — otherwise the CLI bridge dies after the
+  // first close and the reopened window has no socket. This pins THAT model:
+  // app teardown is quit-only; any number of window closes leave it running.
+  it('app-lifetime socket: window closes never stop app services; only before-quit does (dock-reopen safe)', () => {
+    const f = fakes()
+    const t = makeWindowTeardown()
+    t.teardownWindow(1, perWindow(f)) // close the only window (red light)
+    expect(f.stopSocket).not.toHaveBeenCalled() // socket stays UP for dock-reopen
+    t.teardownWindow(2, perWindow(f)) // reopen (new id) then close again
+    expect(f.stopSocket).not.toHaveBeenCalled() // still UP across the cycle
+    t.teardownApp(appServices(f)) // before-quit — the ONLY app teardown
+    expect(f.stopSocket).toHaveBeenCalledTimes(1)
+    expect(f.disposeExternal).toHaveBeenCalledTimes(1)
+  })
+
   it('no-ops cleanly when optional resources/services are absent', () => {
     const t = makeWindowTeardown()
     expect(() => t.teardownWindow(1, {})).not.toThrow()
