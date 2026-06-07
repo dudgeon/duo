@@ -59,6 +59,7 @@ import { PtyManager } from '../core/pty-manager'
 import { BrowserManager } from './browser-manager'
 import { CdpBridge } from './cdp-bridge'
 import { makeSafeSend } from './safe-send'
+import { makeWindowTeardown } from './window-teardown'
 import { SocketServer, ensureSocketDir } from '../core/socket-server'
 import { FilesService } from './files-service'
 import { PinsService } from '../core/pins-service'
@@ -274,6 +275,12 @@ let mainWindow: BrowserWindow | null = null
 // through this guard. Pure-logic factory lives in ./safe-send so it can
 // be exercised from a vitest node env (see safe-send.test.ts).
 const safeSend = makeSafeSend(() => mainWindow)
+
+// ENH-191 P1c — single teardown orchestrator for the whole app lifecycle.
+// MUST be module scope: the closed handler AND before-quit share its
+// appTornDown / tornDownWindows guards — that shared state is what makes the
+// closed→before-quit double-stop impossible. Do NOT move inside createWindow.
+const windowTeardown = makeWindowTeardown()
 // ENH-081 (v0.6.4) — Finder double-click / drag-onto-Dock landing
 // strip. macOS fires `app.on('open-file')` for paths the user opened
 // via the OS shell. On cold start the event can fire before
@@ -489,8 +496,33 @@ sessionStateService.setEnrichBeforePersistHook(async (state) => {
   return { ...state, terminals: enriched }
 })
 let browserManager: BrowserManager | null = null
+// ENH-191 P1b — cdpBridge promoted from a createWindow-local const to a
+// module global so the app-scoped SocketServer's getCdp() thunk can read
+// the current window's bridge lazily. Per-window: assigned in createWindow,
+// nulled in the closed handler (alongside browserManager).
+let cdpBridge: CdpBridge | null = null
 let socketServer: SocketServer | null = null
 let externalDomainsService: ExternalDomainsService | null = null
+
+// ENH-191 P1b — the app-scoped SocketServer's getter-thunks. The socket is
+// constructed once in app.whenReady (before any window); these resolve the
+// CURRENT window's per-window bridges lazily, per CLI command, inside
+// handle(). They throw only on a programming error (a command arriving
+// before createWindow has assigned them) — contained by handle()'s
+// try/catch as a clean {ok:false}. At P2 (multi-window) these become the
+// single swap point: () => registry.only()!.cdpBridge / .browserManager.
+function resolveCdpBridge(): CdpBridge {
+  if (!cdpBridge) {
+    throw new Error('[main] SocketServer.getCdp() ran before createWindow assigned cdpBridge')
+  }
+  return cdpBridge
+}
+function resolveBrowserManager(): BrowserManager {
+  if (!browserManager) {
+    throw new Error('[main] SocketServer.getBrowser() ran before createWindow assigned browserManager')
+  }
+  return browserManager
+}
 
 // Stage 27 — process-wide event bus. Singleton; lives forever. Any
 // subsystem that wants to surface a structured event to subscribers
@@ -578,7 +610,10 @@ async function createWindow(): Promise<void> {
   const persistedAtBoot = await sessionStateService.load().catch(() => ({ browserTabs: [], activeBrowserIndex: 0 } as { browserTabs: { url: string; title: string }[]; activeBrowserIndex: number }))
   const hasPersistedSession = persistedAtBoot.browserTabs.length > 0
 
-  const cdpBridge = new CdpBridge()
+  // ENH-191 P1b — assign the module global (was a local const) so the
+  // app-scoped socket's getCdp() thunk can resolve it. Non-null for the
+  // rest of createWindow (fresh assignment, no intervening await).
+  cdpBridge = new CdpBridge()
   browserManager = new BrowserManager(
     mainWindow,
     cdpBridge,
@@ -630,120 +665,11 @@ async function createWindow(): Promise<void> {
     mainWindow?.webContents.focus()
   })
 
-  // Socket server starts listening; CLI connects here
-  ensureSocketDir()
-  socketServer = new SocketServer(cdpBridge, browserManager, filesService, {
-    getState: getNavState,
-    reveal: sendReveal,
-    view: sendView,
-    edit: sendEdit,
-    getSelection: getEditorSelection,
-    getCanvasSelection: getCanvasSelection,
-    docWrite: dispatchDocWrite,
-    // ENH-195 — `duo doc edit` PLAIN replace (open-file path).
-    docEditPlain: dispatchDocEditPlain,
-    docRead: dispatchDocRead,
-    imageInsert: dispatchImageInsert,
-    docGoto: dispatchDocGoto,
-    docFind: dispatchDocFind,
-    getTheme: getThemeState,
-    setTheme: setThemeMode,
-    // BUG-138 Phase 2 — author identity (CriticMarkup attribution).
-    getAuthor: getAuthorState,
-    setAuthor: setAuthor,
-    // Sprint 16 / v0.6.15 — Claude-tab Enter key prefs.
-    getClaudeKeyPrefs: getClaudeKeyPrefsState,
-    setClaudeReturn: setClaudeReturnMode,
-    setShiftReturn: setShiftReturnMode,
-    // ENH-172 (Sprint 20) — show/hide hidden-files toggle.
-    setHiddenFiles: setHiddenFiles,
-    // ENH-178 (Sprint 20) — browser-mode push (CLI → renderer echo).
-    pushBrowserMode: pushBrowserMode,
-    setSplit: setSplit,
-    setLayout3wayEven: setLayout3wayEven,
-    queryRendererDom: queryRendererDom,
-    openDevTools: openDevToolsForTarget,
-    getLayout: getLayoutSnapshot,
-    // ENH-195 — `duo status` high-level app snapshot.
-    getStatus: getStatusSnapshot,
-    revealMainPaneIfCollapsed: revealMainPaneIfCollapsed,
-    splitViewOpen: splitViewOpen,
-    splitViewOpenBrowser: splitViewOpenBrowser,
-    splitViewClose: splitViewClose,
-    closeActiveWorkingTab: closeActiveWorkingTab,
-    closeTerminalTab: closeTerminalTab,
-    openCloneModal: openCloneModal,
-    splitViewPromote: splitViewPromote,
-    splitViewResize: splitViewResize,
-    getSplitViewState: getSplitViewState,
-    openExternal: openExternalUrl,
-    getSelectionFormat: getSelectionFormatState,
-    setSelectionFormat: setSelectionFormat,
-    sendToActiveTerminal: sendToActiveTerminal,
-    htmlNew: htmlNew,
-    htmlOp: dispatchHtmlOp,
-    // ENH-195 — `duo json set|merge` (open-file path).
-    jsonOp: dispatchJsonOp,
-    // ENH-183 C12 — Claude session lifecycle CLI verbs.
-    sessionList: async (cwd) => {
-      const { listPriorSessions } = await import('./claude-session-tracker')
-      return listPriorSessions(cwd)
-    },
-    sessionResume: (tabId, uuid) => {
-      const cwd = ptyManager.getCwd(tabId)
-      if (cwd === null) return { ok: false, error: `tabId not found: ${tabId}` }
-      if (!/^[0-9a-f-]{36}$/.test(uuid)) return { ok: false, error: `uuid must be a UUID, got: ${uuid}` }
-      ptyManager.write(tabId, `claude --resume ${uuid}\n`)
-      return { ok: true }
-    },
-    // ENH-183 pared 2026-05-25 (Option A): sessionRename + sessionHydrate
-    // removed. Force-rename unnecessary (Haiku covers it); inline rename
-    // surface dropped with S2. Users type `/rename` directly in Claude.
-    htmlComment: dispatchHtmlComment,
-    htmlCommentsList: dispatchHtmlCommentsList,
-    newTab: dispatchNewTab,
-    // ENH-098 (Sprint 9) — `duo focus-pane <name>` bridge. Renderer's
-    // focusPane() owns the actual focus shift; main just pushes the
-    // target name over PANE_FOCUS_JUMP. The bridge return value is
-    // synchronous {ok: true} — the renderer's no-aux-open guard fires
-    // a console.info hint there rather than a sync error here (split-
-    // view state lives on the renderer side).
-    focusPane: (target) => {
-      if (!mainWindow) return { ok: false, error: 'main window not ready' }
-      mainWindow.webContents.send(IPC.PANE_FOCUS_JUMP, target)
-      return { ok: true, target }
-    },
-    pushNavPinsChanged: (pins) => {
-      safeSend(IPC.NAV_PINS_CHANGED, pins)
-    },
-    // ENH-167 — workspace-as-file CLI parity.
-    workspaceSave: async (opts) => saveWorkspaceFile(opts),
-    workspaceOpen: async (path) => openWorkspaceFile(path, { skipPrompt: true }),
-    workspaceListRecent: async () => workspaceHistoryService.listSorted(),
-    workspaceCurrent: async () => { await activeWorkspaceService.load(); return activeWorkspaceService.get() },
-    workspaceNew: async () => newWorkspaceReset({ skipPrompt: true }),
-    // ENH-182 Phase 4 — project rail CLI parity.
-    getProjectsState: () => getProjectsState(),
-    resolveProjectRef: (ref: string) => resolveProjectRef(ref),
-    setProjectFocus: (root: string | null) => setProjectFocus(root),
-    requestProjectClose: (root: string) => requestProjectClose(root),
-    projectsTogglePin: async (root: string) => {
-      const next = await projectsService.togglePin(root)
-      broadcastProjectsChanged(next)
-      return next
-    },
-    // ENH-184 (Sprint 23 / v0.8.0) — workspace-pill menu CLI parity.
-    getWorkspacePillMenuEnabled: () => getWorkspacePillMenuEnabled(),
-    setWorkspacePillMenuEnabled: (enabled: boolean) => setWorkspacePillMenuEnabledCli(enabled)
-  }, navPinsService, eventBus, packLoader, app.getVersion())
-  // Stage 12 close — wire the renderer event sink so the socket
-  // server can push ambient cues (e.g. CLAUDE_READ_SELECTION when
-  // the agent calls `duo selection`). Same one-liner adapter as
-  // PtyManager's setEventSink.
-  socketServer.setEventSink((channel, payload) => {
-    safeSend(channel, payload)
-  })
-  socketServer.start()
+  // ENH-191 P1b — the SocketServer (construct + setEventSink + start) was
+  // LIFTED OUT of createWindow to app-boot scope (app.whenReady, just before
+  // the createWindow call) so it is app-lifetime, not per-window. Keeping it
+  // here would re-bind the socket on every dock-reopen (app.activate →
+  // createWindow) and break the CLI bridge. See whenReady below.
 
   if (process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
@@ -773,7 +699,10 @@ async function createWindow(): Promise<void> {
     }
     safeSend(IPC.TERMINAL_CLAUDE_PRESENCE_CHANGED, state)
     const live = state === 'claude' || state === 'starting'
-    cdpBridge.setClaudeLive(live)
+    // ENH-191 P1b — cdpBridge is now a nullable module global; a presence
+    // tick after a window close would TypeError on a bare call. Optional-
+    // chain mirrors the existing 'if (browserManager)' guard below.
+    cdpBridge?.setClaudeLive(live)
     // BUG-133 — also broadcast to ALL browser tabs (not just the
     // CdpBridge-attached one). Fixes the stale `__duoClaudeLive` gate
     // on non-active panes (main pane keeps showing the pill after
@@ -959,14 +888,29 @@ async function createWindow(): Promise<void> {
     })
   }
 
+  // ENH-191 P1c — capture the BrowserWindow id while the window is alive.
+  // The 'closed' event fires AFTER the native window is destroyed, so
+  // reading mainWindow.id inside the handler can throw 'Object has been
+  // destroyed'. (P2 keys the window registry on this same id.)
+  const winId = mainWindow.id
   mainWindow.on('closed', () => {
-    socketServer?.stop()
-    browserManager?.dispose()
-    externalDomainsService?.dispose()
+    // Per-window teardown — ALWAYS, idempotent per id. Detaches CDP then
+    // disposes the BrowserManager (dispose() also calls cdp.detach(), which
+    // is idempotent via its isAttached() guard — the extra detach no-ops).
+    windowTeardown.teardownWindow(winId, {
+      browserManager: browserManager ?? undefined,
+      cdpBridge: cdpBridge ?? undefined
+    })
+    // App-scoped singletons (socket, external-domains) are NOT torn down
+    // here. On macOS, closing the only window does NOT quit (window-all-
+    // closed no-ops on darwin); the user can dock-reopen via app.on(
+    // 'activate') → createWindow(). Stopping the socket here would leave the
+    // CLI bridge permanently DOWN after the first close — it's whenReady-
+    // scoped now, not re-created per window. App teardown lives ONLY in
+    // before-quit. See ENH-191 P1 PRD / DECISIONS.md.
     mainWindow = null
     browserManager = null
-    socketServer = null
-    externalDomainsService = null
+    cdpBridge = null
   })
 }
 
@@ -1159,6 +1103,131 @@ app.whenReady().then(async () => {
   await externalDomainsService.load()
   externalDomainsService.watch()
 
+  // ENH-191 P1b — SocketServer lifted here from createWindow. App-scoped:
+  // constructed ONCE, before any window. The per-window CdpBridge /
+  // BrowserManager are resolved lazily via the resolveCdpBridge /
+  // resolveBrowserManager getter-thunks (the makeSafeSend(() => mainWindow)
+  // seam) — at P2 these swap to the window registry with zero churn here.
+  // Stopped ONLY in before-quit (app-lifetime), so a dock-reopen
+  // (app.activate → createWindow) keeps the CLI bridge alive. DECISIONS.md
+  // locks single-construction; SocketServer.start() is idempotent as
+  // belt-and-suspenders. `ping` / `duo doctor` answers mid-boot (it never
+  // touches cdp/browser); any other command arriving before createWindow
+  // assigns the bridges resolves to a clean {ok:false} via handle()'s catch.
+  ensureSocketDir()
+  socketServer = new SocketServer(resolveCdpBridge, resolveBrowserManager, filesService, {
+    getState: getNavState,
+    reveal: sendReveal,
+    view: sendView,
+    edit: sendEdit,
+    getSelection: getEditorSelection,
+    getCanvasSelection: getCanvasSelection,
+    docWrite: dispatchDocWrite,
+    // ENH-195 — `duo doc edit` PLAIN replace (open-file path).
+    docEditPlain: dispatchDocEditPlain,
+    docRead: dispatchDocRead,
+    imageInsert: dispatchImageInsert,
+    docGoto: dispatchDocGoto,
+    docFind: dispatchDocFind,
+    getTheme: getThemeState,
+    setTheme: setThemeMode,
+    // BUG-138 Phase 2 — author identity (CriticMarkup attribution).
+    getAuthor: getAuthorState,
+    setAuthor: setAuthor,
+    // Sprint 16 / v0.6.15 — Claude-tab Enter key prefs.
+    getClaudeKeyPrefs: getClaudeKeyPrefsState,
+    setClaudeReturn: setClaudeReturnMode,
+    setShiftReturn: setShiftReturnMode,
+    // ENH-172 (Sprint 20) — show/hide hidden-files toggle.
+    setHiddenFiles: setHiddenFiles,
+    // ENH-178 (Sprint 20) — browser-mode push (CLI → renderer echo).
+    pushBrowserMode: pushBrowserMode,
+    setSplit: setSplit,
+    setLayout3wayEven: setLayout3wayEven,
+    queryRendererDom: queryRendererDom,
+    openDevTools: openDevToolsForTarget,
+    getLayout: getLayoutSnapshot,
+    // ENH-195 — `duo status` high-level app snapshot.
+    getStatus: getStatusSnapshot,
+    revealMainPaneIfCollapsed: revealMainPaneIfCollapsed,
+    splitViewOpen: splitViewOpen,
+    splitViewOpenBrowser: splitViewOpenBrowser,
+    splitViewClose: splitViewClose,
+    closeActiveWorkingTab: closeActiveWorkingTab,
+    closeTerminalTab: closeTerminalTab,
+    openCloneModal: openCloneModal,
+    splitViewPromote: splitViewPromote,
+    splitViewResize: splitViewResize,
+    getSplitViewState: getSplitViewState,
+    openExternal: openExternalUrl,
+    getSelectionFormat: getSelectionFormatState,
+    setSelectionFormat: setSelectionFormat,
+    sendToActiveTerminal: sendToActiveTerminal,
+    htmlNew: htmlNew,
+    htmlOp: dispatchHtmlOp,
+    // ENH-195 — `duo json set|merge` (open-file path).
+    jsonOp: dispatchJsonOp,
+    // ENH-183 C12 — Claude session lifecycle CLI verbs.
+    sessionList: async (cwd) => {
+      const { listPriorSessions } = await import('./claude-session-tracker')
+      return listPriorSessions(cwd)
+    },
+    sessionResume: (tabId, uuid) => {
+      const cwd = ptyManager.getCwd(tabId)
+      if (cwd === null) return { ok: false, error: `tabId not found: ${tabId}` }
+      if (!/^[0-9a-f-]{36}$/.test(uuid)) return { ok: false, error: `uuid must be a UUID, got: ${uuid}` }
+      ptyManager.write(tabId, `claude --resume ${uuid}\n`)
+      return { ok: true }
+    },
+    // ENH-183 pared 2026-05-25 (Option A): sessionRename + sessionHydrate
+    // removed. Force-rename unnecessary (Haiku covers it); inline rename
+    // surface dropped with S2. Users type `/rename` directly in Claude.
+    htmlComment: dispatchHtmlComment,
+    htmlCommentsList: dispatchHtmlCommentsList,
+    newTab: dispatchNewTab,
+    // ENH-098 (Sprint 9) — `duo focus-pane <name>` bridge. Renderer's
+    // focusPane() owns the actual focus shift; main just pushes the
+    // target name over PANE_FOCUS_JUMP. The bridge return value is
+    // synchronous {ok: true} — the renderer's no-aux-open guard fires
+    // a console.info hint there rather than a sync error here (split-
+    // view state lives on the renderer side).
+    focusPane: (target) => {
+      if (!mainWindow) return { ok: false, error: 'main window not ready' }
+      mainWindow.webContents.send(IPC.PANE_FOCUS_JUMP, target)
+      return { ok: true, target }
+    },
+    pushNavPinsChanged: (pins) => {
+      safeSend(IPC.NAV_PINS_CHANGED, pins)
+    },
+    // ENH-167 — workspace-as-file CLI parity.
+    workspaceSave: async (opts) => saveWorkspaceFile(opts),
+    workspaceOpen: async (path) => openWorkspaceFile(path, { skipPrompt: true }),
+    workspaceListRecent: async () => workspaceHistoryService.listSorted(),
+    workspaceCurrent: async () => { await activeWorkspaceService.load(); return activeWorkspaceService.get() },
+    workspaceNew: async () => newWorkspaceReset({ skipPrompt: true }),
+    // ENH-182 Phase 4 — project rail CLI parity.
+    getProjectsState: () => getProjectsState(),
+    resolveProjectRef: (ref: string) => resolveProjectRef(ref),
+    setProjectFocus: (root: string | null) => setProjectFocus(root),
+    requestProjectClose: (root: string) => requestProjectClose(root),
+    projectsTogglePin: async (root: string) => {
+      const next = await projectsService.togglePin(root)
+      broadcastProjectsChanged(next)
+      return next
+    },
+    // ENH-184 (Sprint 23 / v0.8.0) — workspace-pill menu CLI parity.
+    getWorkspacePillMenuEnabled: () => getWorkspacePillMenuEnabled(),
+    setWorkspacePillMenuEnabled: (enabled: boolean) => setWorkspacePillMenuEnabledCli(enabled)
+  }, navPinsService, eventBus, packLoader, app.getVersion())
+  // Stage 12 close — wire the renderer event sink so the socket
+  // server can push ambient cues (e.g. CLAUDE_READ_SELECTION when
+  // the agent calls `duo selection`). Same one-liner adapter as
+  // PtyManager's setEventSink.
+  socketServer.setEventSink((channel, payload) => {
+    safeSend(channel, payload)
+  })
+  socketServer.start()
+
   void createWindow()
 
   // BUG-124 — ensure ~/.claude/duo/logs/ exists at boot so the renderer's
@@ -1226,6 +1295,19 @@ app.whenReady().then(async () => {
 app.on('before-quit', async () => {
   claudePresence.stop()
   ptyManager.dispose()
+  // ENH-191 P1c — app-scoped teardown on the ONLY quit path. On darwin
+  // window-all-closed does NOT fire on Cmd+Q (BUG-119 above), and the closed
+  // handler deliberately does NOT stop the socket (app-lifetime), so THIS is
+  // the sole place the socket + external-domains are torn down. teardownApp's
+  // appTornDown latch keeps it single-firing even if a non-darwin window-all-
+  // closed→quit path also reaches it. Synchronous + before the first await so
+  // socket.stop happens regardless of window-close interleaving.
+  windowTeardown.teardownApp({
+    socket: socketServer ?? undefined,
+    external: externalDomainsService ?? undefined
+  })
+  socketServer = null
+  externalDomainsService = null
   await filesService.dispose()
   await sessionStateService.flush()
   await browserHistory.flush()

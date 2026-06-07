@@ -302,8 +302,17 @@ export class SocketServer {
   private eventSink: ((channel: string, payload: unknown) => void) | null = null
 
   constructor(
-    private readonly cdp: CdpBridge,
-    private readonly browser: BrowserManager,
+    // ENH-191 P1b — cdp/browser are reached via getter-thunks, not held
+    // directly. The socket is app-scoped (constructed ONCE in
+    // app.whenReady, before any window); the per-window CdpBridge /
+    // BrowserManager are resolved lazily, per CLI command, inside handle().
+    // At P2 these thunks swap to () => registry.only()!.cdpBridge /
+    // .browserManager with zero further churn here. Mirrors main.ts's
+    // makeSafeSend(() => mainWindow) seam. The thunks throw only on a
+    // programming error (a command arriving before createWindow assigns
+    // them) — contained by handle()'s try/catch as a clean {ok:false}.
+    private readonly getCdp: () => CdpBridge,
+    private readonly getBrowser: () => BrowserManager,
     private readonly files: FilesService,
     private readonly nav: NavBridge,
     private readonly navPins: NavPinsService,
@@ -322,6 +331,12 @@ export class SocketServer {
   }
 
   start(): void {
+    // ENH-191 P1 — idempotent. The socket is app-scoped: constructed and
+    // started exactly ONCE in app.whenReady, never per-window. This no-op
+    // guard means a reentrant createWindow (P2 multi-window) physically
+    // cannot re-bind / unlink the live socket. DECISIONS.md locks the
+    // single-construction invariant; this enforces it mechanically.
+    if (this.unixServer) return
     this.startUnix()
     this.startTcp()
   }
@@ -797,7 +812,7 @@ export class SocketServer {
           if (url.startsWith('/') || url.startsWith('~') || url.startsWith('./') || url.startsWith('../')) {
             throw new Error(`'duo navigate' expects a URL (this is a BROWSER-PANE verb). To move the file navigator to a path, use 'duo reveal <path>'. To open a local file, use 'duo open <path>' (browser-mode) or 'duo edit <path>' (canvas-/editor-mode).`)
           }
-          result = await this.browser.navigateOrFocus(url)
+          result = await this.getBrowser().navigateOrFocus(url)
           break
         }
         case 'open': {
@@ -875,7 +890,7 @@ export class SocketServer {
           if (!resolvedLocally) {
             // http(s) URLs + bare hostnames (already https://-prefixed by
             // resolveOpenTarget on the CLI side) all land here.
-            const browserResult = await this.browser.openTab(url)
+            const browserResult = await this.getBrowser().openTab(url)
             // FOLLOWUP-027 — when local-only / filtered mode bounces the
             // URL externally, openTab returns `{ok, url, routedTo:
             // 'system-browser'}` without creating an embedded tab. Pass
@@ -930,23 +945,23 @@ export class SocketServer {
           // place. Pair for `duo navigate` that doesn't require a URL;
           // closes the Stage 8 iteration flow ("agent emits HTML →
           // user clicks → agent edits → user clicks reload").
-          this.browser.reload()
+          this.getBrowser().reload()
           // Capture state via the existing public getters so the
           // response shape matches `navigate` — agents that chain
           // `duo navigate` → `duo reload` keep getting the same
           // `{url, title}` shape. (Reload is async at the WebContents
           // layer; the response captures the BEFORE-reload state,
           // which is the same URL the user is reloading.)
-          const state = this.browser.getState()
+          const state = this.getBrowser().getState()
           result = { ok: true, url: state.url, title: state.title }
           break
         }
         case 'url':
-          result = this.browser.getActiveUrl()
+          result = this.getBrowser().getActiveUrl()
           break
 
         case 'title':
-          result = this.browser.getActiveTitle()
+          result = this.getBrowser().getActiveTitle()
           break
 
         case 'dom': {
@@ -968,7 +983,7 @@ export class SocketServer {
               all: args['all'] as boolean | undefined
             })
           } else {
-            result = await this.cdp.getDOM()
+            result = await this.getCdp().getDOM()
           }
           break
         }
@@ -999,46 +1014,46 @@ export class SocketServer {
 
         case 'text': {
           const selector = args['selector'] as string | undefined
-          result = await this.cdp.getText(selector)
+          result = await this.getCdp().getText(selector)
           break
         }
         case 'ax': {
           const selector = args['selector'] as string | undefined
           const format = (args['format'] as string | undefined) ?? 'md'
-          const tree = await this.cdp.getAxTree(selector)
-          result = format === 'json' ? tree : this.cdp.axToMarkdown(tree)
+          const tree = await this.getCdp().getAxTree(selector)
+          result = format === 'json' ? tree : this.getCdp().axToMarkdown(tree)
           break
         }
         case 'focus': {
           const selector = args['selector'] as string
           if (!selector) throw new Error('focus requires a selector arg')
-          result = await this.cdp.focus(selector)
+          result = await this.getCdp().focus(selector)
           break
         }
         case 'type': {
           const text = args['text'] as string
           if (typeof text !== 'string') throw new Error('type requires a text arg')
-          result = await this.cdp.insertText(text)
+          result = await this.getCdp().insertText(text)
           break
         }
         case 'key': {
           const name = args['key'] as string
           if (!name) throw new Error('key requires a key name arg')
           const modifiers = (args['modifiers'] as string[] | undefined) ?? []
-          result = await this.cdp.dispatchKey(name, modifiers)
+          result = await this.getCdp().dispatchKey(name, modifiers)
           break
         }
         case 'console': {
           const since = args['since'] as number | undefined
           const level = args['level'] as ConsoleLevel[] | undefined
           const limit = args['limit'] as number | undefined
-          result = this.cdp.getConsole({ since, level, limit })
+          result = this.getCdp().getConsole({ since, level, limit })
           break
         }
         case 'errors': {
           const since = args['since'] as number | undefined
           const limit = args['limit'] as number | undefined
-          result = this.cdp.getErrors({ since, limit })
+          result = this.getCdp().getErrors({ since, limit })
           break
         }
         case 'network': {
@@ -1050,54 +1065,54 @@ export class SocketServer {
             try { filter = new RegExp(filterStr) }
             catch (e) { throw new Error(`Invalid filter regex: ${(e as Error).message}`) }
           }
-          result = this.cdp.getNetwork({ since, filter, limit })
+          result = this.getCdp().getNetwork({ since, filter, limit })
           break
         }
         case 'click': {
           const selector = args['selector'] as string
           if (!selector) throw new Error('click requires a selector arg')
-          result = await this.cdp.click(selector)
+          result = await this.getCdp().click(selector)
           break
         }
         case 'fill': {
           const selector = args['selector'] as string
           const value = args['value'] as string
           if (!selector || value === undefined) throw new Error('fill requires selector and value args')
-          result = await this.cdp.fill(selector, value)
+          result = await this.getCdp().fill(selector, value)
           break
         }
         case 'eval': {
           const js = args['js'] as string
           if (!js) throw new Error('eval requires a js arg')
-          result = await this.cdp.evalJS(js)
+          result = await this.getCdp().evalJS(js)
           break
         }
         case 'screenshot': {
           const selector = args['selector'] as string | undefined
-          result = await this.cdp.screenshot(selector)  // returns base64 PNG
+          result = await this.getCdp().screenshot(selector)  // returns base64 PNG
           break
         }
         case 'tabs':
-          result = this.browser.getTabs()
+          result = this.getBrowser().getTabs()
           break
 
         case 'tab': {
           const n = args['n'] as number
           if (typeof n !== 'number' || isNaN(n)) throw new Error('tab requires a numeric n arg')
-          result = await this.browser.switchTab(n)
+          result = await this.getBrowser().switchTab(n)
           break
         }
         case 'close': {
           const n = args['n'] as number
           if (typeof n !== 'number' || isNaN(n)) throw new Error('close requires a numeric n arg')
-          result = await this.browser.closeTab(n)
+          result = await this.getBrowser().closeTab(n)
           break
         }
         case 'wait': {
           const selector = args['selector'] as string
           const timeout = args['timeout'] as number | undefined
           if (!selector) throw new Error('wait requires a selector arg')
-          result = await this.cdp.waitForSelector(selector, timeout)
+          result = await this.getCdp().waitForSelector(selector, timeout)
           break
         }
         // Stage 10 Phase 6 — navigator + file-surface commands
@@ -1143,11 +1158,11 @@ export class SocketServer {
             const ed = this.nav.getSelection()
             resolved = ed ? { kind: 'editor', ...ed } : null
           } else if (pane === 'browser') {
-            resolved = await this.cdp.getBrowserSelection().catch(() => null)
+            resolved = await this.getCdp().getBrowserSelection().catch(() => null)
           } else if (pane === 'canvas') {
             resolved = this.nav.getCanvasSelection()
           } else {
-            const browser = await this.cdp.getBrowserSelection().catch(() => null)
+            const browser = await this.getCdp().getBrowserSelection().catch(() => null)
             if (browser && browser.text) {
               resolved = browser
             } else {
@@ -1359,12 +1374,12 @@ export class SocketServer {
           // surfaces share one wire.
           const mode = args['mode'] as string | undefined
           if (mode === undefined) {
-            result = { mode: this.browser.getBrowserMode() }
+            result = { mode: this.getBrowser().getBrowserMode() }
           } else {
             if (mode !== 'unfiltered' && mode !== 'filtered' && mode !== 'local-only') {
               throw new Error("browser-mode value must be 'unfiltered', 'filtered', or 'local-only'")
             }
-            this.browser.setBrowserMode(mode)
+            this.getBrowser().setBrowserMode(mode)
             // Echo to the renderer so its cached value (used for the
             // address-bar affordances) stays fresh.
             this.nav.pushBrowserMode?.(mode)
@@ -1399,7 +1414,7 @@ export class SocketServer {
           if (args['off'] === true) next = false
           else if (args['on'] === true) next = true
           else next = 'toggle'
-          const active = this.browser.setInspectMode(next)
+          const active = this.getBrowser().setInspectMode(next)
           result = { active }
           break
         }
