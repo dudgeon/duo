@@ -83,6 +83,7 @@ import {
 import { UpdateChecker } from '../core/update-checker'
 import { initAutoUpdater } from './auto-updater'
 import { SessionStateService } from '../core/session-state-service'
+import { SettingsService } from '../core/settings-service'
 import { WorkspaceFileService } from '../core/workspace-file-service'
 import { WorkspaceHistoryService } from '../core/workspace-history-service'
 import { ActiveWorkspaceService } from '../core/active-workspace-service'
@@ -94,7 +95,7 @@ import { ExternalDomainsService } from '../core/external-domains-service'
 import { EventBus, type DuoEventSource } from '../core/event-bus'
 import { PackLoader } from '../core/pack-loader'
 import { InstalledPacksService } from '../core/installed-packs-service'
-import { IPC } from '../shared/types'
+import { IPC, EMPTY_SESSION_STATE } from '../shared/types'
 import { htmlBoilerplate } from '../shared/html-boilerplate'
 import type {
   BrowserBounds,
@@ -435,6 +436,9 @@ const updateChecker = new UpdateChecker(app.getVersion())
 // when the renderer asks; subsequent calls return cached results.
 void updateChecker.loadCache()
 const sessionStateService = new SessionStateService()
+// ENH-191 P5a (S1/S3) — app settings (the multiWindow flag, default ON).
+// Loaded at boot; gates openNewWindow (the "New Window" menu + `duo window new`).
+const settingsService = new SettingsService()
 // ENH-167 — workspace-as-file singletons. workspaceFileService is
 // stateless (just save/load a .duo-workspace envelope);
 // workspaceHistoryService lazy-loads on first read;
@@ -627,7 +631,12 @@ let hiddenFilesMenuItemId: string | null = null
 // Updated in the push handler below.
 let claudeReturnMenuItemId: string | null = null
 
-async function createWindow(): Promise<WindowContext> {
+async function createWindow(opts: { restore?: boolean } = {}): Promise<WindowContext> {
+  // ENH-191 P5a (S3) — `restore` (default true) is the BOOT path: restore the
+  // persisted session (browser tabs, pins, active workspace). A New-Window open
+  // passes restore:false for a BLANK window (NFR-6.2 — not cloning window 1's
+  // content). Byte-identical at N=1: boot uses the default true.
+  const restore = opts.restore ?? true
   const mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -693,8 +702,11 @@ async function createWindow(): Promise<WindowContext> {
   // pointer; fall back to the shared service for back-compat (pre-v2 installs /
   // Cut-3 revert). [N=1: createWindow runs once so windows[0] IS this window;
   // P5's reentrant createWindow must select windows[restoreIndex] instead.]
-  const restoredWindows = await sessionStateService.loadWindows()
-  ctx.activeWorkspace = restoredWindows[0]?.activeWorkspace ?? activeWorkspaceService.get()
+  // ENH-191 P5a (S3) — a blank New-Window has no persisted workspace.
+  const restoredWindows = restore ? await sessionStateService.loadWindows() : []
+  ctx.activeWorkspace = restore
+    ? (restoredWindows[0]?.activeWorkspace ?? activeWorkspaceService.get())
+    : null
   applyWindowTitle(ctx)
 
   // ENH-191 P1 — `ptyManager` owner-routing wiring + the `ExternalDomainsService`
@@ -848,7 +860,7 @@ async function createWindow(): Promise<WindowContext> {
     // decision and the actual restore use the same data.
     if (browserManager) {
       try {
-        if (hasPersistedSession) {
+        if (restore && hasPersistedSession) {
           await browserManager.restoreFromSession(persistedAtBoot.browserTabs, persistedAtBoot.activeBrowserIndex)
         }
       } catch (err) {
@@ -878,7 +890,7 @@ async function createWindow(): Promise<WindowContext> {
       // because session-state survives upgrades too. This trims the
       // BUG-057 mechanism to fresh-app-only — which is when it
       // actually matters.
-      if (!hasPersistedSession) {
+      if (restore && !hasPersistedSession) {
         try {
           const pinnedEntries = await pinsService.list()
           const browserPins = pinnedEntries.filter(p => p.kind === 'browser')
@@ -1042,11 +1054,34 @@ async function createWindow(): Promise<WindowContext> {
     // this empties the registry, so registry.only() is undefined until the
     // next createWindow (dock-reopen).
     registry.unregister(winId)
+    // ENH-191 P5a (S3) — drop any blank-window marker for this id.
+    blankWindowIds.delete(winId)
   })
 
   // ENH-191 P2 — the context was registered early (right after window creation)
   // with its managers attached at construction; just return it.
   return ctx
+}
+
+// ENH-191 P5a (S3) — windowIds opened BLANK via openNewWindow (not boot
+// restore). Their renderer's SESSION_STATE_LOAD returns empty so a new window
+// doesn't clone window 1's session (NFR-6.2). Cleared on window close.
+const blankWindowIds = new Set<number>()
+
+// ENH-191 P5a (S3) — the reentrant "New Window" entry. Gated on the multiWindow
+// setting (default ON; user can disable in Settings). Returns a structured
+// result so the CLI verb (`duo window new`) reports a clean "disabled" error
+// rather than a silent no-op (CLI-parity, CLAUDE.md §4). The menu item AND the
+// verb both call THIS, so behavior is identical. New window opens blank
+// (restore:false) to its default cwd. [Behavior-changing — needs the
+// two-window smoke-walk; not autonomously verifiable.]
+async function openNewWindow(): Promise<{ ok: boolean; error?: string }> {
+  if (!settingsService.get().multiWindow) {
+    return { ok: false, error: 'multi-window is disabled (enable it in Settings)' }
+  }
+  const newCtx = await createWindow({ restore: false })
+  blankWindowIds.add(newCtx.id)
+  return { ok: true }
 }
 
 app.whenReady().then(async () => {
@@ -1400,6 +1435,9 @@ app.whenReady().then(async () => {
   ipcMain.on(IPC.WINDOW_GET_ID, (event) => {
     event.returnValue = BrowserWindow.fromWebContents(event.sender)?.id ?? -1
   })
+
+  // ENH-191 P5a (S1/S3) — load the multiWindow flag before any window opens.
+  await settingsService.load()
 
   void createWindow()
 
@@ -2048,7 +2086,14 @@ function setupIPC(): void {
   })
 
   // Stage 21c Phase 2 — session state restored across relaunches.
-  ipcMain.handle(IPC.SESSION_STATE_LOAD, () => {
+  ipcMain.handle(IPC.SESSION_STATE_LOAD, (event) => {
+    // ENH-191 P5a (S3) — a blank New-Window gets empty state so it doesn't
+    // clone window 1's session (NFR-6.2). The boot/restored window loads
+    // normally. Byte-identical at N=1 (no blank windows → load()).
+    const wid = BrowserWindow.fromWebContents(event.sender)?.id
+    if (wid !== undefined && blankWindowIds.has(wid)) {
+      return { ...EMPTY_SESSION_STATE }
+    }
     return sessionStateService.load()
   })
   ipcMain.handle(IPC.SESSION_STATE_SAVE, (event, state: import('../shared/types').SessionState) => {
