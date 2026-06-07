@@ -21,14 +21,21 @@
 
 ## Where things stand (2026-06-07)
 
-- Branch `claude/enh-191-multiwindow`, origin HEAD **`189d663`** — rebased onto
-  `main` (incl. #74 ENH-203), **0 behind / 58 ahead**. 1057 tests green,
-  typecheck clean, lint 0-errors, `check:routing` baseline 0, `check:skill-currency` PASS.
+- Branch `claude/enh-191-multiwindow`, origin HEAD **`8266924`**. 1075 tests
+  green, typecheck clean, `check:routing` baseline 0.
 - **P0–P3 SHIPPED** (the registry-of-one read-model — see `enh-191-p3-seam-plan.md`
-  + PRD §8.1; adversarial-verify SHIP, 0 blockers).
-- **P4 IN PROGRESS** — the persistence layer for per-window state (closes the C8 +
-  C13 data-corruption hard gate). Renderer + `SessionStateService`, pure-function
-  testable, byte-identical at one window.
+  + PRD §8.1; adversarial-verify SHIP, 0 blockers). **P0–P3 spine handed off for
+  merge** at the boundary commit `997f8e4` via branch `claude/enh-191-p0-p3`
+  (the separate merge session opens that PR; this session keeps building +
+  rebases when it lands).
+- **P4 COMPLETE** (all 6 seams, this session) — the persistence layer for
+  per-window state (closes the C8 + C13 data-corruption hard gate). Renderer +
+  `SessionStateService`, byte-identical at one window. **Code-complete; the Cut-3
+  smoke-walk + cut are the SEPARATE session's job, NOT this one.**
+- **NOW: P5** — the FIRST user-visible release (flag-gated). See "Then P5" below
+  + PRD §4 P5. Execute continuously; pause ONLY for a genuine NEW owner-decision
+  the PRD doesn't lock (P5 has a few — flag default, entry-point UX, the
+  `duo events` per-window decision).
 
 ## Gate (run INSIDE the worktree; vitest excludes `.claude/worktrees/**` from the primary root)
 `cd /Users/geoffreydudgeon/Documents/GitHub/duo/.claude/worktrees/enh-191 && npm run typecheck && npm run check:routing && npm run test:run`
@@ -44,7 +51,7 @@ v1-flat → v2-envelope migration. Added `WindowState` / `SessionEnvelope` /
 `pruneByTab(map, liveIds)` — the C13 fix (each window owns its own byTab map; the
 prune can't touch another window's entries). 5 tests (prune-isolation + shared-map-deletes-other-window control).
 
-### [ ] Seam 3 — localStorage triage (move per-window keys OFF the shared bus)
+### [x] Seam 3 — localStorage triage (move per-window keys OFF the shared bus) — DONE (`6e6b8e7` windowId plumbing + `3b9b7e0` triage)
 RE-GREP these (drifted): `renderer/App.tsx` — `COZY_BY_TAB_KEY` (~:60),
 `FONT_BUMP_BY_TAB_KEY` (~:66), load (~:152/:165), cozy toggle + the prune
 (~:2736-2779 — wire it to `pruneByTab` from seam 2), fontBump setItem (~:3207);
@@ -59,7 +66,7 @@ RE-GREP these (drifted): `renderer/App.tsx` — `COZY_BY_TAB_KEY` (~:60),
 - The prune (`:2685-2710`-era) must operate on per-window state so window A's
   prune can't delete window B's entries.
 
-### [ ] Seam 4 — `SessionStateService` adopts the v2 envelope
+### [x] Seam 4 — `SessionStateService` adopts the v2 envelope — DONE (`339e140`)
 `core/session-state-service.ts` — `SCHEMA_VERSION` (~:46) → **2**; `load` (~:83)
 reads BOTH shapes via `readEnvelopeWindows` (migrate v1→v2) + field-validates each
 `WindowState` (mirror the current field-by-field defensive copy); `flush` (~:175)
@@ -77,7 +84,7 @@ composes ALL windows via `composeEnvelope` behind the SINGLE serialized writer.
   guard (~:89-90) → returns empty, no destructive overwrite (already the behavior;
   add the test).
 
-### [ ] Seam 5 — migration / prune-isolation / downgrade / concurrent-flush tests
+### [x] Seam 5 — migration / prune-isolation / downgrade / concurrent-flush tests — DONE (`024ecec`; +injectable path)
 Pure node-env. Migration round-trip + a persisted-field-drop negative control
 (seam 1 covers the envelope; add the service-load round-trip). Prune-isolation
 (seam 2 covers the fn; add the App.tsx wiring test if feasible). Downgrade
@@ -85,7 +92,7 @@ Pure node-env. Migration round-trip + a persisted-field-drop negative control
 saves both survive the single composed writer; negative control — per-window
 `writing` flags FAIL it.
 
-### [ ] Seam 6 — persist the per-window active-workspace pointer in each `WindowState`
+### [x] Seam 6 — persist the per-window active-workspace pointer in each `WindowState` — DONE (`8266924`)
 P3-S10's persistence home (PRD item 8). At compose, fold `ctx.activeWorkspace`
 into that window's `WindowState.activeWorkspace`; at restore, seed
 `ctx.activeWorkspace` from it. Extend the migration round-trip test to assert it
