@@ -190,7 +190,7 @@ const sessionSnapshotPending = new Map<string, (state: import('../shared/types')
 
 // Stage 11 \u00a7 D33d \u2014 most recent theme state pushed by the renderer.
 // Drives `duo theme` reads. Renderer is the source of truth.
-let themeState: ThemeStateSnapshot = { mode: 'system', effective: 'dark' }
+const themeStateCache = new WindowKeyedCache<ThemeStateSnapshot>(() => ({ mode: 'system', effective: 'dark' }))
 
 // Sprint 16 / v0.6.15 \u2014 most recent Claude-tab Enter key prefs pushed
 // by the renderer. Drives `duo claude-return` / `duo shift-return`
@@ -207,9 +207,9 @@ const claudeKeyPrefsStateCache = new WindowKeyedCache<import('../shared/types').
 // on mount. Default '' until the renderer's first pushState arrives.
 // `duo author` reads from this cache; `duo author "<name>"` re-emits
 // to the renderer over AUTHOR_SET which then persists to localStorage.
-let authorState: import('../shared/types').AuthorStateSnapshot = {
+const authorStateCache = new WindowKeyedCache<import('../shared/types').AuthorStateSnapshot>(() => ({
   author: ''
-}
+}))
 
 // Stage 15 G19 — Send → Duo payload format. Renderer is the source of
 // truth (persisted in localStorage); main caches the latest snapshot
@@ -2211,7 +2211,7 @@ function setupIPC(): void {
   //   - 'system' \u2192 follow OS (renderer's media query reflects OS)
   //   - 'light' / 'dark' \u2192 force that mode
   ipcMain.on(IPC.THEME_STATE_PUSH, (_event, snapshot: ThemeStateSnapshot) => {
-    themeState = snapshot
+    themeStateCache.set(defaultWindowId(registry), snapshot)
     if (snapshot.mode === 'system' || snapshot.mode === 'light' || snapshot.mode === 'dark') {
       nativeTheme.themeSource = snapshot.mode
     }
@@ -2232,7 +2232,7 @@ function setupIPC(): void {
   // BUG-138 Phase 2 — author identity push from the renderer.
   ipcMain.on(IPC.AUTHOR_STATE_PUSH, (_event, snapshot: import('../shared/types').AuthorStateSnapshot) => {
     if (snapshot && typeof snapshot.author === 'string') {
-      authorState = snapshot
+      authorStateCache.set(defaultWindowId(registry), snapshot)
     }
   })
 
@@ -3219,7 +3219,7 @@ export function getCanvasSelection(): PageSelectionSnapshot | null {
  * renderer is busy.
  */
 export function getThemeState(): ThemeStateSnapshot {
-  return themeState
+  return themeStateCache.getDefault(registry)
 }
 
 export function setThemeMode(mode: ThemeMode): { ok: boolean; error?: string } {
@@ -3297,7 +3297,7 @@ export function pushBrowserMode(mode: import('../shared/types').BrowserMode): vo
 // dispatch AUTHOR_SET to the renderer which persists to localStorage
 // and pushes a fresh state back over AUTHOR_STATE_PUSH.
 export function getAuthorState(): import('../shared/types').AuthorStateSnapshot {
-  return authorState
+  return authorStateCache.getDefault(registry)
 }
 
 export function setAuthor(author: string): { ok: boolean; error?: string } {
@@ -3313,8 +3313,10 @@ export function setAuthor(author: string): { ok: boolean; error?: string } {
     return { ok: false, error: 'Duo window not ready' }
   }
   // Update the cache eagerly so `duo author` reads the new value even
-  // before the renderer's AUTHOR_STATE_PUSH echo arrives.
-  authorState = { author: trimmed }
+  // before the renderer's AUTHOR_STATE_PUSH echo arrives. CLI-originated
+  // (no event.sender) → key by identity so the eager write + the
+  // AUTHOR_STATE_PUSH echo land in the SAME window's slot.
+  authorStateCache.set(defaultWindowId(registry), { author: trimmed })
   win.webContents.send(IPC.AUTHOR_SET, trimmed)
   return { ok: true }
 }
