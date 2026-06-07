@@ -61,6 +61,7 @@ import { CdpBridge } from './cdp-bridge'
 import { makeSafeSend } from './safe-send'
 import { WindowRegistry, type WindowContext } from './window-registry'
 import { makeOnceGuard } from './once-guard'
+import { resolveDefault } from './window-resolve'
 import { makeWindowTeardown } from './window-teardown'
 import { SocketServer, ensureSocketDir } from '../core/socket-server'
 import { FilesService } from './files-service'
@@ -285,7 +286,7 @@ const registry = new WindowRegistry()
 // crash dialog looped until force-quit. Route every async-callback sink
 // through this guard. Pure-logic factory lives in ./safe-send so it can
 // be exercised from a vitest node env (see safe-send.test.ts).
-const safeSend = makeSafeSend(() => mainWindow)
+const safeSend = makeSafeSend(() => resolveDefault(registry) ?? null)
 
 // ENH-191 P1c — single teardown orchestrator for the whole app lifecycle.
 // MUST be module scope: the closed handler AND before-quit share its
@@ -609,6 +610,16 @@ async function createWindow(): Promise<WindowContext> {
     }
   })
 
+  // ENH-191 P2 — register the registry-of-one context as soon as the window
+  // exists, BEFORE any boot-time send (applyWindowTitle below resolves its
+  // target via the registry). winId is read here while the window is alive
+  // (the 'closed' event fires after native destroy). The per-window managers
+  // attach to this same context object after their construction below, so
+  // resolveDefault(registry) / liveBrowser() / liveCdp() are valid from here.
+  const winId = mainWindow.id
+  const ctx: WindowContext = { id: winId, window: mainWindow }
+  registry.register(ctx)
+
   // ENH-167 — load active-workspace pointer and reflect into the window
   // title. The boot-time load is synchronous-feeling because we
   // `await` it before any other window setup; subsequent updates
@@ -651,6 +662,10 @@ async function createWindow(): Promise<WindowContext> {
     browserHistory,
     externalDomainsService
   )
+  // ENH-191 P2 — attach the per-window managers to the already-registered
+  // context so liveBrowser()/liveCdp() (registry.only()) resolve them.
+  ctx.browserManager = browserManager
+  ctx.cdpBridge = cdpBridge
 
   // ENH-039 — page-side `[data-duo-path]` link clicks (smoke-walk page,
   // future Duo-authored pages) route through the CDP binding here and
@@ -917,11 +932,10 @@ async function createWindow(): Promise<WindowContext> {
     })
   }
 
-  // ENH-191 P1c — capture the BrowserWindow id while the window is alive.
-  // The 'closed' event fires AFTER the native window is destroyed, so
-  // reading mainWindow.id inside the handler can throw 'Object has been
-  // destroyed'. (P2 keys the window registry on this same id.)
-  const winId = mainWindow.id
+  // ENH-191 P2 — winId + the registry context are captured/registered early
+  // (right after window creation, above). The 'closed' handler reuses that
+  // same winId; reading mainWindow.id here would risk 'Object has been
+  // destroyed' since 'closed' fires after the native window is gone.
   mainWindow.on('closed', () => {
     // Per-window teardown — ALWAYS, idempotent per id. Detaches CDP then
     // disposes the BrowserManager (dispose() also calls cdp.detach(), which
@@ -951,12 +965,8 @@ async function createWindow(): Promise<WindowContext> {
     registry.unregister(winId)
   })
 
-  // ENH-191 P2 — register the fully-constructed context (registry-of-one).
-  // winId + mainWindow are both live here (the 'closed' handler above is only
-  // attached, not fired). browserManager / cdpBridge / safeSend move into the
-  // context in later seams; at N=1 registry.only() === this sole context.
-  const ctx: WindowContext = { id: winId, window: mainWindow, browserManager, cdpBridge }
-  registry.register(ctx)
+  // ENH-191 P2 — the context was registered early (right after window creation)
+  // with its managers attached at construction; just return it.
   return ctx
 }
 
