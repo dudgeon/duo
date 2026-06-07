@@ -3,9 +3,15 @@
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
 
+### BUG-198: `duo screenshot` times out (10s socket cap vs base64 round-trip)
+
+**Status:** 🆕 Filed 2026-06-07. **Priority:** Medium. **Effort:** S.
+
+`duo screenshot --out <path>` reliably times out ("Timeout waiting for response to \"screenshot\"") and writes no file. Reproduced 2026-06-07 on dev v0.9.2 (main @ cae95c6) against a normal browser-pane `file://` tab. The CLI's ~10s socket response cap fires before the base64-encoded image round-trips over the Unix socket; the CDP capture path itself works (a one-off Node socket client with a ~60s timeout captured a 92 KB PNG of the same pane). **Pre-existing** — not an ENH-191/203 regression (`main.ts` + `cdp-bridge.ts` untouched on this path; flagged during ENH-191 P2 live smoke). Fix options: (a) raise the per-request timeout for the `screenshot` verb in `cli/duo.ts`; (b) write the image main-side and return only the path instead of shipping base64. See the `core/socket-server.ts` handler + the `screenshot` case in `cli/duo.ts`. Add a regression test; update `docs/CLI-COVERAGE.md` if the contract changes. Surfaced by the v0.9.2 discoverability pre-walk.
+
 ### ENH-203: Duo skill ecosystem — bring the bundled skill up to standard + keep it current
 
-**Status:** 🟡 **Executed 2026-06-06 (all phases; gate green; synced to ~/.claude) — pending owner review + version cut.** **Priority:** Owner-requested. **Effort:** L (phased).
+**Status:** ✅ **Shipped v0.9.2 (2026-06-07) — executed 2026-06-06; all phases green; synced to ~/.claude.** **Priority:** Owner-requested. **Effort:** L (phased).
 
 **Ask (owner).** The skill ecosystem hasn't been reviewed in a long time. (1) Write a PRD; (2) bring the bundled skill (`skill/**` → `~/.claude/skills/duo/`, `skill/priming.md`, `agents/duo.md`) up to skill-protocol best-practice standard without regressions; (3) add project-side machinery (CLAUDE.md + a path-scoped rule + a mechanical check) to **keep it current as CLI verbs are added**; (4) refactor content out of the oversized `SKILL.md` into `references/` + `scripts/`.
 

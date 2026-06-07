@@ -255,10 +255,10 @@ only on first detection of a new pack name.
 
 ## Cross-references
 
-- **PRD**: [`docs/prd/stage-21d-distro-packs.md`](../../../docs/prd/stage-21d-distro-packs.md)
-- **Sample template**: [`examples/distro-pack-template/`](../../../examples/distro-pack-template/)
+- **PRD**: [`docs/prd/stage-21d-distro-packs.md`](../../docs/prd/stage-21d-distro-packs.md)
+- **Sample template**: [`examples/distro-pack-template/`](../../examples/distro-pack-template/)
 - **HOW-TO-FORK** § Layer 2.5 (drop-in distro packs):
-  [`docs/HOW-TO-FORK.md`](../../../docs/HOW-TO-FORK.md)
+  [`docs/HOW-TO-FORK.md`](../../docs/HOW-TO-FORK.md)
 - **Make a playground** (modality lock + browser-default): `make-playground.md`
 - **Make a page** (canvas-default reference content): `make-page.md`
 - **CLI surface**: `duo pack list` / `duo pack uninstall <name>`

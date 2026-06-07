@@ -1,5 +1,13 @@
 # Active sprint state — ENH-195 + ENH-197 + BUG-195 COMPLETE → PR (owner integrates on main)
 
+## v0.9.2 release in progress + post-cut carry-forward (owner-directed 2026-06-07)
+
+> **CURRENT (2026-06-07):** v0.9.2 = **ENH-191 P0–P3** (multi-window registry-of-one spine; PR #76 merged to `main` @ `cae95c6`) + **ENH-203** (bundled-skill overhaul). CLI/skill discoverability after the ENH-203 cut was **live pre-verified** — 9/9 headless `claude -p` probes found the right `duo` verb (browser read, navigate, selection, open, playground, status, screenshot, visibility cluster). Smoke walk **v0.9.2** generated (`docs/dev/smoke-walks/v0.9.2.json/.html`, 7 owner-judgment items) + pinned in the split-view aux. **Cut + push pending owner's walk results.** Pre-cut strict `check-skill-currency` blocker (2 dead links in `skill/pack-builder/SKILL.md`) FIXED + re-synced.
+
+**Post-v0.9.2 carry-forward — do these AFTER the cut + push:**
+1. **Merge `claude/enh-191-p4-p5a-dark`** (12 commits ahead of `main`) → `main`. It's **P4** (the data-corruption gate) + **P5a S1/S2** (settings store + per-window-send reentrancy) — **all byte-identical at N=1, zero user-visible change, 1081 tests green.** It's the **last all-dark commit before S3 opens a real window 2**, so landing it now maximally shrinks the future behavior-changing merge at zero risk — same clean-interim-cut shape as the P0–P3 PR #76 (PR the branch, base `main`). Owner keeps building S3+ on the working branch ahead of it.
+2. **BUG-198 — `duo screenshot` times out** (~10s socket cap fires before the base64 image round-trips; the CDP capture itself works with a longer timeout). Pre-existing (not an ENH-191/203 regression). Not a v0.9.2 blocker. Tracked in `tasks.md` (BUG-198) + a spawn-task chip this session.
+
 > **✅ CURRENT (2026-06-06) — [ENH-195](../../tasks.md) complete + submitted as a PR.**
 > The v0.9.0 pre-walk blocker (canvas false-positive) is root-caused + FIXED, and three more items
 > landed + were verified live: **canvas fix** (disk-vs-disk `shouldBannerOnClean`), **ENH-197 View diff**

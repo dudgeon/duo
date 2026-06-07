@@ -25,6 +25,16 @@
 
 ---
 
+## v0.9.2 — 2026-06-07 — Multi-window foundations (registry-of-one) + bundled-skill overhaul
+
+**Why this lands here.** v0.9.2 is the first "all-dark" interim cut of the multi-window initiative (ENH-191). P0–P3 replace the single-window `mainWindow` singleton and ~12 module-level state caches with a *registry-of-one* spine — landed behind exactly one window so it's provably byte-identical to the old single-window behavior at N=1 (a 36-agent adversarial review returned SHIP / 0 blockers before merge). No new user-facing feature ships here; the entire value is **de-risking the eventual second-window release by landing the scary architecture inert** — the same clean-interim pattern the project repeats for P4/P5. Bundled alongside: the ENH-203 skill overhaul — `SKILL.md` restructured 827→254 lines into a hub-and-spoke router with a `check-skill-currency` guard, after a live pre-walk confirmed a fresh Claude still discovers every verb (9/9 headless probes).
+
+**Key decisions baked in.** (1) Land the singleton-replacement as a sequence of zero-user-visible-change interim cuts (P0→P5) rather than one big-bang merge — a registry-of-one returning its sole entry is byte-identical to the old `mainWindow`. (2) Three deliberate, owner-confirmed behavior deltas ride along: hash-derived-only project colors (manual override cut), socket-stays-up-after-last-window-close on macOS (dock-reopen now works — it was a crash before the app-lifetime-singleton fix), and a clean `{ok:false}` for browser verbs in the socket-before-window boot transient. (3) The skill's "CLI is the spec" rule is now mechanically enforced (the currency guard), not advisory prose.
+
+**What this is and isn't.** NOT multi-window yet — there is no second window in this cut. It's the inert foundation plus the skill overhaul plus three small behavior deltas. Smoke walk: 5 PASS + 2 SKIP, both resolved to no-failures (the boot-transient returns a genuine `{ok:false}`; the regression SKIP was a bad test step, re-verified clean). Known issue: `duo screenshot` times out (pre-existing, BUG-198). Next: P4 (windowed session envelope) + P5 (open window 2), continuing on the dev branch — the all-dark `p4-p5a` interim is already queued to merge next.
+
+---
+
 ## v0.9.1 — 2026-06-06 — Navigator resize affordances · View-diff conflict resolution · parallel-PR integration
 
 **Why this lands here, and why it's a MINOR.** v0.9.1 is the convergence point for a batch of work that developed in parallel branches and merged together: the navigator resize affordances (ENH-190), the completion of ENH-195's conflict-resolution arc (the ENH-197 "View diff" banner, extended to the dirty-buffer case as ENH-202), the BUG-195 split-view ghost fix, and three supporting changesets that landed alongside — the ENH-191 docs deep-clean + CLI version-source fix (#65), the ENH-191 Phase H write-queue (#68), and a functional lint gate (#69). New user-visible capability (navigator gestures + richer conflict resolution) makes it a MINOR, not a patch.

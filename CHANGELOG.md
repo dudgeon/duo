@@ -19,7 +19,22 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.9.1 cut 2026-06-06.
+> Empty — v0.9.2 cut 2026-06-07.
+
+## [0.9.2] — 2026-06-07 — Multi-window foundations (registry-of-one) · bundled-skill overhaul
+
+### Changed
+- **Multi-window foundations** (ENH-191 P0–P3, PR #76) — replaced the `mainWindow` singleton + ~12 module-level state caches with a window "registry-of-one" spine, the de-risking foundation for true multi-window. **Inert at N=1: no user-visible change** (every install stays single-window; the second window is a later phase). 1045 tests + a `check:routing` grep-gate guard the refactor.
+- **Bundled `duo` skill overhaul** (ENH-203, #74) — `SKILL.md` restructured 827→254 lines into a hub + `references/` spokes; added a `check-skill-currency` guard (predev/pretest) enforcing the four-surface "CLI is the spec" sync. Discoverability live-verified via a fresh-Claude pre-walk (9/9 probes found the right verb).
+- **macOS:** the `duo` socket now stays up after the last window closes — the CLI bridge survives a windowless app; dock-clicking reopens a window cleanly.
+- **Project-rail colors are hash-derived only** — the manual color-override was removed (a legacy `colorOverrides` entry in `projects.json` is read-but-ignored).
+
+### Fixed
+- Closing the last window on macOS no longer risks a crash on dock-reopen (app-lifetime singleton + split teardown).
+
+### Known issues
+- `duo screenshot` times out (~10s socket cap vs the base64 round-trip) and writes no file; the underlying capture works with a longer-timeout client. Pre-existing (BUG-198); fix queued.
+- A browser/CDP verb run in the brief socket-before-window boot transient returns a clean `{ok:false}` with an internal-flavored error message (cosmetic).
 
 ## [0.9.1] — 2026-06-06 — Navigator resize affordances · View-diff conflict resolution · parallel-PR integration
 
@@ -1877,7 +1892,8 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.8.4...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.9.2...HEAD
+[0.9.2]: https://github.com/dudgeon/duo/compare/v0.9.1...v0.9.2
 [0.8.4]: https://github.com/dudgeon/duo/compare/v0.8.2...v0.8.4
 [0.8.0]: https://github.com/dudgeon/duo/releases/tag/v0.8.0
 [0.7.10]: https://github.com/dudgeon/duo/releases/tag/v0.7.10
