@@ -632,6 +632,13 @@ async function createWindow(): Promise<WindowContext> {
   const ctx: WindowContext = { id: winId, window: mainWindow }
   registry.register(ctx)
 
+  // ENH-191 P2 (item 7) — snapshot the cold-boot Finder open-file stash into a
+  // per-window local and clear the module global immediately, so a reentrant
+  // createWindow (window 2, P5a) can't replay window 1's pending open. The
+  // did-finish-load hook below consumes this local. Zero-change at N=1.
+  const pendingOpenForWindow = pendingOpenFilePath
+  pendingOpenFilePath = null
+
   // ENH-167 — load active-workspace pointer and reflect into the window
   // title. The boot-time load is synchronous-feeling because we
   // `await` it before any other window setup; subsequent updates
@@ -901,10 +908,8 @@ async function createWindow(): Promise<WindowContext> {
     // Done AFTER the first-launch defaults hook so a user-initiated
     // open wins focus over default tabs; sendEdit's NAV_EDIT activates
     // the new tab and supersedes any tab the defaults just opened.
-    if (pendingOpenFilePath) {
-      const p = pendingOpenFilePath
-      pendingOpenFilePath = null
-      sendEdit(p)
+    if (pendingOpenForWindow) {
+      sendEdit(pendingOpenForWindow)
     }
   })
 
