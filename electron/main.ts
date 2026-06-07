@@ -62,6 +62,7 @@ import { makeSafeSend } from './safe-send'
 import { WindowRegistry, type WindowContext } from './window-registry'
 import { makeOnceGuard } from './once-guard'
 import { resolveDefault, broadcastAll } from './window-resolve'
+import { WindowKeyedCache, defaultWindowId } from './cache-key'
 import { makeWindowTeardown } from './window-teardown'
 import { SocketServer, ensureSocketDir } from '../core/socket-server'
 import { FilesService } from './files-service'
@@ -131,7 +132,7 @@ import type {
 // Last nav state snapshot the renderer pushed. Drives `duo nav state`.
 // Starts with sensible defaults so a CLI call before the renderer has
 // pushed anything returns a well-formed object.
-let navState: NavStateSnapshot = {
+const navStateCache = new WindowKeyedCache<NavStateSnapshot>(() => ({
   cwd: process.env.HOME ?? '/',
   selected: null,
   expanded: [],
@@ -140,16 +141,16 @@ let navState: NavStateSnapshot = {
   // the first NAV_STATE_PUSH from the renderer (which reads the
   // persisted value out of localStorage).
   showDotfiles: false
-}
+}))
 
 // Stage 11 \u00a7 D29a — most recent selection snapshot from the active editor.
 // `null` means no editor tab is active or no doc is loaded.
-let editorSelection: EditorSelectionSnapshot | null = null
+const editorSelectionCache = new WindowKeyedCache<EditorSelectionSnapshot | null>(() => null)
 
 // Stage 17c — most recent selection snapshot from the active HTML canvas.
 // `null` means no canvas tab is active or no element is selected. Drives
 // `duo selection --pane canvas`.
-let canvasSelection: PageSelectionSnapshot | null = null
+const canvasSelectionCache = new WindowKeyedCache<PageSelectionSnapshot | null>(() => null)
 
 // Pending doc-write requests awaiting a renderer reply.
 const docWritePending = new Map<string, (res: DocWriteResult) => void>()
@@ -196,10 +197,10 @@ let themeState: ThemeStateSnapshot = { mode: 'system', effective: 'dark' }
 // reads. Defaults here mirror the renderer hook's defaults
 // (claudeReturn='submit', shiftReturn='newline'); the renderer
 // overwrites on first pushState after mount.
-let claudeKeyPrefsState: import('../shared/types').ClaudeKeyPrefsSnapshot = {
+const claudeKeyPrefsStateCache = new WindowKeyedCache<import('../shared/types').ClaudeKeyPrefsSnapshot>(() => ({
   claudeReturn: 'submit',
   shiftReturn: 'newline'
-}
+}))
 
 // BUG-138 Phase 2 \u2014 author identity (CriticMarkup attribution).
 // Renderer owns localStorage('duo:author') + pushes the current value
@@ -213,14 +214,14 @@ let authorState: import('../shared/types').AuthorStateSnapshot = {
 // Stage 15 G19 — Send → Duo payload format. Renderer is the source of
 // truth (persisted in localStorage); main caches the latest snapshot
 // for `duo selection-format` reads. Default 'a' (quote + provenance).
-let selectionFormatState: SelectionFormatStateSnapshot = { format: 'a' }
+const selectionFormatStateCache = new WindowKeyedCache<SelectionFormatStateSnapshot>(() => ({ format: 'a' }))
 
 // ENH-041 / Sprint 3 — Split View aux pane snapshot cache. Renderer
 // is the source of truth (App.tsx owns the aux useState); main caches
 // the latest snapshot pushed via WORKING_AUX_STATE_PUSH so the no-arg
 // `duo split-view` state query can answer without a renderer round-
 // trip. Defaults to closed (aux: null) until first push.
-let workingAuxSnapshot: WorkingAuxSnapshot = { aux: null }
+const workingAuxSnapshotCache = new WindowKeyedCache<WorkingAuxSnapshot>(() => ({ aux: null }))
 
 // Stage 15 G17 — most recent active terminal-tab id pushed by the
 // renderer. `duo send` writes payloads into this terminal's PTY.
@@ -344,13 +345,13 @@ function broadcastProjectsChanged(file: import('../shared/types').ProjectsFile):
 // CLI family. Updated by PROJECTS_STATE_PUSH (renderer → main) on
 // every rail re-render. `getProjectsState()` returns it; the CLI
 // reads via socket-server.
-let projectsState: import('../shared/types').ProjectsStateSnapshot = {
+const projectsStateCache = new WindowKeyedCache<import('../shared/types').ProjectsStateSnapshot>(() => ({
   projects: [],
   focusedProject: null,
   counts: {}
-}
+}))
 export function getProjectsState(): import('../shared/types').ProjectsStateSnapshot {
-  return projectsState
+  return projectsStateCache.getDefault(registry)
 }
 export function setProjectFocus(
   root: string | null
@@ -376,9 +377,9 @@ export function requestProjectClose(
 // CLI parity. Renderer pushes flag changes via WORKSPACE_PILL_MENU_PUSH;
 // CLI reads return the cached value; CLI writes push back via
 // WORKSPACE_PILL_MENU_SET (renderer applies + re-pushes for symmetry).
-let workspacePillMenuEnabledCache = false
+const workspacePillMenuEnabledCache = new WindowKeyedCache<boolean>(() => false)
 export function getWorkspacePillMenuEnabled(): boolean {
-  return workspacePillMenuEnabledCache
+  return workspacePillMenuEnabledCache.getDefault(registry)
 }
 export function setWorkspacePillMenuEnabledCli(
   enabled: boolean
@@ -399,13 +400,14 @@ export function resolveProjectRef(
   ref: string
 ): { root: string } | { ambiguous: string[] } | null {
   if (!ref) return null
+  const ps = projectsStateCache.getDefault(registry)
   // Exact root path match wins regardless of name collisions.
-  const exact = projectsState.projects.find((p) => p.root === ref)
+  const exact = ps.projects.find((p) => p.root === ref)
   if (exact) return { root: exact.root }
   // Case-insensitive name match. Unique → resolve; multiple →
   // surface the candidates so the user can pick by full root path.
   const lower = ref.toLowerCase()
-  const byName = projectsState.projects.filter((p) => p.name.toLowerCase() === lower)
+  const byName = ps.projects.filter((p) => p.name.toLowerCase() === lower)
   if (byName.length === 1) return { root: byName[0].root }
   if (byName.length > 1) return { ambiguous: byName.map((p) => p.root) }
   return null
@@ -2059,17 +2061,17 @@ function setupIPC(): void {
   // ENH-182 Phase 4 — renderer pushes the rail snapshot on every
   // change. Cached for `duo project list` + name→root resolution.
   ipcMain.on(IPC.PROJECTS_STATE_PUSH, (_event, snapshot: import('../shared/types').ProjectsStateSnapshot) => {
-    projectsState = snapshot
+    projectsStateCache.set(defaultWindowId(registry), snapshot)
   })
 
   // ENH-184 Phase 4 — renderer pushes the workspace-pill flag on
   // every change. Cached for `duo workspace-pill-menu` read.
   ipcMain.on(IPC.WORKSPACE_PILL_MENU_PUSH, (_event, payload: { enabled: boolean }) => {
-    workspacePillMenuEnabledCache = !!payload?.enabled
+    workspacePillMenuEnabledCache.set(defaultWindowId(registry), !!payload?.enabled)
   })
 
   ipcMain.on(IPC.NAV_STATE_PUSH, (_event, snapshot: NavStateSnapshot) => {
-    navState = snapshot
+    navStateCache.set(defaultWindowId(registry), snapshot)
     // ENH-172 — keep the View → Show Hidden Files checkmark in sync
     // with the authoritative renderer state. The renderer pushes
     // NAV_STATE_PUSH on every nav-state change (including showDotfiles
@@ -2091,12 +2093,12 @@ function setupIPC(): void {
 
   // Stage 11 — selection snapshot push from the active editor.
   ipcMain.on(IPC.EDITOR_SELECTION_PUSH, (_event, snapshot: EditorSelectionSnapshot | null) => {
-    editorSelection = snapshot
+    editorSelectionCache.set(defaultWindowId(registry), snapshot)
   })
 
   // Stage 17c — canvas selection snapshot push from the active canvas.
   ipcMain.on(IPC.PAGE_SELECTION_PUSH, (_event, snapshot: PageSelectionSnapshot | null) => {
-    canvasSelection = snapshot
+    canvasSelectionCache.set(defaultWindowId(registry), snapshot)
   })
 
   // Stage 11 — renderer's reply to a doc-write request.
@@ -2219,7 +2221,7 @@ function setupIPC(): void {
   // ENH-170 v2 (Sprint 20) — also sync the Settings → "Cmd+Return for
   // Claude submit" menu checkmark to match `snapshot.claudeReturn`.
   ipcMain.on(IPC.CLAUDE_KEY_PREFS_STATE_PUSH, (_event, snapshot: import('../shared/types').ClaudeKeyPrefsSnapshot) => {
-    claudeKeyPrefsState = snapshot
+    claudeKeyPrefsStateCache.set(defaultWindowId(registry), snapshot)
     const menu = Menu.getApplicationMenu()
     if (menu && claudeReturnMenuItemId) {
       const item = menu.getMenuItemById(claudeReturnMenuItemId)
@@ -2236,7 +2238,7 @@ function setupIPC(): void {
 
   // Stage 15 G19 \u2014 Send \u2192 Duo payload format push from the renderer.
   ipcMain.on(IPC.SELECTION_FORMAT_STATE_PUSH, (_event, snapshot: SelectionFormatStateSnapshot) => {
-    selectionFormatState = snapshot
+    selectionFormatStateCache.set(defaultWindowId(registry), snapshot)
   })
 
   // ENH-041 / Sprint 3 \u2014 Split View aux state push. Renderer (App.tsx)
@@ -2246,7 +2248,7 @@ function setupIPC(): void {
   // hydrates fully.
   ipcMain.on(IPC.WORKING_AUX_STATE_PUSH, (_event, snapshot: WorkingAuxSnapshot) => {
     if (snapshot && (snapshot.aux === null || (snapshot.aux && typeof snapshot.aux.activePath === 'string'))) {
-      workingAuxSnapshot = snapshot
+      workingAuxSnapshotCache.set(defaultWindowId(registry), snapshot)
     }
   })
 
@@ -2454,13 +2456,13 @@ function installAppMenu(): void {
           id: claudeReturnMenuItemId,
           label: '⌘Return for Claude submit',
           type: 'checkbox',
-          checked: claudeKeyPrefsState.claudeReturn === 'newline',
+          checked: claudeKeyPrefsStateCache.getDefault(registry).claudeReturn === 'newline',
           click: () => {
             // Toggle: 'submit' (Return submits, default) ↔ 'newline'
             // (Return = newline, ⌘Return = submit). The next
             // CLAUDE_KEY_PREFS_STATE_PUSH from the renderer will
             // update this checkmark via the handler below.
-            const next = claudeKeyPrefsState.claudeReturn === 'newline' ? 'submit' : 'newline'
+            const next = claudeKeyPrefsStateCache.getDefault(registry).claudeReturn === 'newline' ? 'submit' : 'newline'
             setClaudeReturnMode(next)
           }
         }
@@ -2491,7 +2493,7 @@ function installAppMenu(): void {
           id: hiddenFilesMenuItemId,
           label: 'Show Hidden Files',
           type: 'checkbox',
-          checked: navState.showDotfiles === true,
+          checked: navStateCache.getDefault(registry).showDotfiles === true,
           accelerator: 'CmdOrCtrl+Shift+.',
           click: () => {
             setHiddenFiles('toggle')
@@ -3121,7 +3123,7 @@ export async function newWorkspaceReset(opts: { skipPrompt?: boolean } = {}): Pr
 // Helpers exposed to SocketServer via `NavBridge` (passed below).
 
 export function getNavState(): NavStateSnapshot {
-  return navState
+  return navStateCache.getDefault(registry)
 }
 
 export function sendReveal(path: string): { ok: boolean; error?: string } {
@@ -3202,13 +3204,13 @@ export function sendEdit(path: string, mode?: 'canvas' | 'browser'): { ok: boole
 }
 
 export function getEditorSelection(): EditorSelectionSnapshot | null {
-  return editorSelection
+  return editorSelectionCache.getDefault(registry)
 }
 
 // Stage 17c — drives `duo selection --pane canvas` and the auto-select
 // path's html-canvas branch.
 export function getCanvasSelection(): PageSelectionSnapshot | null {
-  return canvasSelection
+  return canvasSelectionCache.getDefault(registry)
 }
 
 /**
@@ -3238,7 +3240,7 @@ export function setThemeMode(mode: ThemeMode): { ok: boolean; error?: string } {
 // Renderer hook (useClaudeKeyPrefs) writes to localStorage on
 // receive, so the change survives relaunches.
 export function getClaudeKeyPrefsState(): import('../shared/types').ClaudeKeyPrefsSnapshot {
-  return claudeKeyPrefsState
+  return claudeKeyPrefsStateCache.getDefault(registry)
 }
 
 export function setClaudeReturnMode(mode: import('../shared/types').ClaudeReturnMode): { ok: boolean; error?: string } {
@@ -3650,14 +3652,14 @@ export function splitViewResize(pct: number): { ok: boolean; pct?: number; error
 }
 
 export function getSplitViewState(): WorkingAuxSnapshot {
-  return workingAuxSnapshot
+  return workingAuxSnapshotCache.getDefault(registry)
 }
 
 // Stage 15 G19 — `duo selection-format` reads the cache; `duo
 // selection-format <a|b|c>` dispatches a SET to the renderer, which
 // persists to localStorage and pushes the new state back.
 export function getSelectionFormatState(): SelectionFormatStateSnapshot {
-  return selectionFormatState
+  return selectionFormatStateCache.getDefault(registry)
 }
 
 export function setSelectionFormat(format: SelectionFormat): { ok: boolean; error?: string } {
