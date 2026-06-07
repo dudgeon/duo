@@ -76,6 +76,13 @@ const VERBS: VerbSpec[] = [
     summary: 'Close browser tab N (a tab id from "duo tabs"; cannot close the last).'
   },
   {
+    name: 'window',
+    group: 'Windows',
+    args: 'new',
+    summary:
+      'Open a second app window — blank, with its own workspace, browser pane, and navigator. Same action as File → New Window (Opt+Cmd+N). Requires "Allow Multiple Windows" (Settings menu, default on); prints a clean disabled-error when off. Subcommand: new.'
+  },
+  {
     name: 'external',
     group: 'Browser & tabs',
     args: '<url>',
@@ -1023,6 +1030,15 @@ async function main(): Promise<void> {
         const n = parseInt(rest[0] ?? '', 10)
         if (isNaN(n)) die('Usage: duo close <n>  (where <n> is a tab id from `duo tabs`)')
         out(await send('close', { n }))
+        break
+      }
+      case 'window': {
+        // ENH-191 P5a (S3c) — `duo window new` opens a second window (the same
+        // action as the File → New Window menu item). Gated on the multiWindow
+        // setting; prints a clean disabled-error when off.
+        const sub = rest[0]
+        if (sub !== 'new') die('Usage: duo window new')
+        out(await send('window', { action: 'new' }))
         break
       }
       case 'view': {

@@ -60,6 +60,8 @@ export type DuoCommandName =
   | 'tab'
   | 'close'
   | 'wait'
+  // ENH-191 P5a (S3c) — `duo window new` opens a second window (flag-gated).
+  | 'window'
   // Stage 10 Phase 6 — navigator + file-surface commands
   | 'view'
   | 'reveal'

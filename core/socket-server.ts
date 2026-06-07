@@ -101,6 +101,10 @@ export interface NavBridge {
   getAuthor: () => AuthorStateSnapshot
   /** BUG-138 Phase 2 — CLI-driven author override. */
   setAuthor: (author: string) => { ok: boolean; error?: string }
+  /** ENH-191 P5a (S3c) — open a SECOND window (`duo window new`). Gated on the
+   *  multiWindow setting in main; returns a structured disabled-result when off
+   *  (never a silent no-op — CLI-parity with the "New Window" menu item). */
+  openWindow: () => Promise<{ ok: boolean; error?: string }>
   /** Sprint 16 / v0.6.15 — current Claude-tab Enter key prefs
    *  (renderer \u2192 main cache). */
   getClaudeKeyPrefs: () => ClaudeKeyPrefsSnapshot
@@ -1021,6 +1025,16 @@ export class SocketServer {
           // Computed on-demand from the renderer's window.__duoGetStatus()
           // — see App.tsx for the shape. The keystone orientation verb.
           result = await this.nav.getStatus()
+          break
+        }
+        case 'window': {
+          // ENH-191 P5a (S3c) — `duo window new`. Only `new` is supported.
+          const action = args['action']
+          if (action !== 'new') {
+            result = { ok: false, error: `unknown window subcommand: ${String(action ?? '(none)')} — try: duo window new` }
+            break
+          }
+          result = await this.nav.openWindow()
           break
         }
 

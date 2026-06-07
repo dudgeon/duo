@@ -255,6 +255,7 @@ empty.
 | `duo gh-auth` | Probe `gh auth status`. Returns `{ ghInstalled, authenticated, host, user, ghNotFound }`. Use before `duo clone` on a private repo to know whether auth needs to happen first. |
 | `duo close-tab` | Close the focused working-pane tab (file/canvas/viewer/browser-mode HTML). CLI parity for the ⌘W chord on the working strip. Pinned-tab gating still routes through a `dialog.confirm`. Returns `{ ok }`. |
 | `duo close-terminal-tab [<n>]` | Close a terminal tab. No arg → focused tab; `<n>` (1-indexed) → that specific terminal tab. Returns `{ ok }`. |
+| `duo window new` | ENH-191 P5a — open a SECOND app window (blank; its own workspace/browser/navigator). Same as File → New Window (⌥⌘N). Gated on "Allow Multiple Windows" (Settings, default on); returns `{ ok: false, error }` when off. CLI parity for the menu item. |
 | `duo workspace save [<path>] [--name <n>] [--save-as]` | Write the open tabs + terminals + browser tabs to a `.duo-workspace` file. `<path>` omitted writes to the active workspace (Save); with `<path>` (Save As). `--name` overrides the human-readable name. Autosave mirror keeps the file in sync — no extra writes needed. Returns `{ path, name }`. |
 | `duo workspace open <path>` | Load a `.duo-workspace` and **in-place reset Duo** so the saved tabs/terminals replace the current ones. CLI skips the GUI "Save current?" prompt. Returns `{ path, name, switching: true }`. |
 | `duo workspace list-recent` | JSON list of recent workspaces, sorted by `lastOpenedAt`, capped at 10, missing files pruned. |

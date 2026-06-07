@@ -1336,6 +1336,9 @@ app.whenReady().then(async () => {
     // ENH-195 — `duo status` high-level app snapshot.
     getStatus: getStatusSnapshot,
     revealMainPaneIfCollapsed: revealMainPaneIfCollapsed,
+    // ENH-191 P5a (S3c) — `duo window new` → the same openNewWindow the menu
+    // item calls (flag-gated; identical behavior, CLAUDE.md §4 parity).
+    openWindow: openNewWindow,
     splitViewOpen: splitViewOpen,
     splitViewOpenBrowser: splitViewOpenBrowser,
     splitViewClose: splitViewClose,
