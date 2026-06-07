@@ -2061,14 +2061,16 @@ function setupIPC(): void {
 
   // ENH-182 Phase 4 — renderer pushes the rail snapshot on every
   // change. Cached for `duo project list` + name→root resolution.
-  ipcMain.on(IPC.PROJECTS_STATE_PUSH, (_event, snapshot: import('../shared/types').ProjectsStateSnapshot) => {
-    projectsStateCache.set(defaultWindowId(registry), snapshot)
+  ipcMain.on(IPC.PROJECTS_STATE_PUSH, (event, snapshot: import('../shared/types').ProjectsStateSnapshot) => {
+    const id = BrowserWindow.fromWebContents(event.sender)?.id
+    projectsStateCache.set(id, snapshot)
   })
 
   // ENH-184 Phase 4 — renderer pushes the workspace-pill flag on
   // every change. Cached for `duo workspace-pill-menu` read.
-  ipcMain.on(IPC.WORKSPACE_PILL_MENU_PUSH, (_event, payload: { enabled: boolean }) => {
-    workspacePillMenuEnabledCache.set(defaultWindowId(registry), !!payload?.enabled)
+  ipcMain.on(IPC.WORKSPACE_PILL_MENU_PUSH, (event, payload: { enabled: boolean }) => {
+    const id = BrowserWindow.fromWebContents(event.sender)?.id
+    workspacePillMenuEnabledCache.set(id, !!payload?.enabled)
   })
 
   ipcMain.on(IPC.NAV_STATE_PUSH, (event, snapshot: NavStateSnapshot) => {
@@ -2094,13 +2096,15 @@ function setupIPC(): void {
   })
 
   // Stage 11 — selection snapshot push from the active editor.
-  ipcMain.on(IPC.EDITOR_SELECTION_PUSH, (_event, snapshot: EditorSelectionSnapshot | null) => {
-    editorSelectionCache.set(defaultWindowId(registry), snapshot)
+  ipcMain.on(IPC.EDITOR_SELECTION_PUSH, (event, snapshot: EditorSelectionSnapshot | null) => {
+    const id = BrowserWindow.fromWebContents(event.sender)?.id
+    editorSelectionCache.set(id, snapshot)
   })
 
   // Stage 17c — canvas selection snapshot push from the active canvas.
-  ipcMain.on(IPC.PAGE_SELECTION_PUSH, (_event, snapshot: PageSelectionSnapshot | null) => {
-    canvasSelectionCache.set(defaultWindowId(registry), snapshot)
+  ipcMain.on(IPC.PAGE_SELECTION_PUSH, (event, snapshot: PageSelectionSnapshot | null) => {
+    const id = BrowserWindow.fromWebContents(event.sender)?.id
+    canvasSelectionCache.set(id, snapshot)
   })
 
   // Stage 11 — renderer's reply to a doc-write request.
@@ -2234,15 +2238,17 @@ function setupIPC(): void {
   })
 
   // BUG-138 Phase 2 — author identity push from the renderer.
-  ipcMain.on(IPC.AUTHOR_STATE_PUSH, (_event, snapshot: import('../shared/types').AuthorStateSnapshot) => {
+  ipcMain.on(IPC.AUTHOR_STATE_PUSH, (event, snapshot: import('../shared/types').AuthorStateSnapshot) => {
+    const id = BrowserWindow.fromWebContents(event.sender)?.id
     if (snapshot && typeof snapshot.author === 'string') {
-      authorStateCache.set(defaultWindowId(registry), snapshot)
+      authorStateCache.set(id, snapshot)
     }
   })
 
   // Stage 15 G19 \u2014 Send \u2192 Duo payload format push from the renderer.
-  ipcMain.on(IPC.SELECTION_FORMAT_STATE_PUSH, (_event, snapshot: SelectionFormatStateSnapshot) => {
-    selectionFormatStateCache.set(defaultWindowId(registry), snapshot)
+  ipcMain.on(IPC.SELECTION_FORMAT_STATE_PUSH, (event, snapshot: SelectionFormatStateSnapshot) => {
+    const id = BrowserWindow.fromWebContents(event.sender)?.id
+    selectionFormatStateCache.set(id, snapshot)
   })
 
   // ENH-041 / Sprint 3 \u2014 Split View aux state push. Renderer (App.tsx)
@@ -2250,9 +2256,10 @@ function setupIPC(): void {
   // CLI's no-arg state query (`duo split-view`). Defensive shape check
   // because the renderer may push during boot before persistence
   // hydrates fully.
-  ipcMain.on(IPC.WORKING_AUX_STATE_PUSH, (_event, snapshot: WorkingAuxSnapshot) => {
+  ipcMain.on(IPC.WORKING_AUX_STATE_PUSH, (event, snapshot: WorkingAuxSnapshot) => {
+    const id = BrowserWindow.fromWebContents(event.sender)?.id
     if (snapshot && (snapshot.aux === null || (snapshot.aux && typeof snapshot.aux.activePath === 'string'))) {
-      workingAuxSnapshotCache.set(defaultWindowId(registry), snapshot)
+      workingAuxSnapshotCache.set(id, snapshot)
     }
   })
 
