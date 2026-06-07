@@ -1863,7 +1863,14 @@ export class SocketServer {
             throw new Error('duo project requires a subcommand. Expected list|focus|pin|unpin|close.')
           }
           if (op === 'list') {
-            result = this.nav.getProjectsState()
+            // FOLLOWUP-033 — the renderer pushes ready:true with its first rail
+            // snapshot (~1-2s after launch). Until then an empty `projects` is
+            // indistinguishable from "genuinely no projects", so flag the boot
+            // window rather than report a misleading empty list.
+            const snap = this.nav.getProjectsState()
+            result = snap.ready
+              ? snap
+              : { ...snap, warning: 'renderer not yet ready — Duo is still booting/probing; an empty projects list here may be stale. Retry in 1-2s.' }
             break
           }
           // All other subcommands need a target.

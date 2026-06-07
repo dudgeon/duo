@@ -1035,7 +1035,8 @@ export function App() {
     window.electron.projects.pushState({
       projects: railProjects,
       focusedProject,
-      counts: Object.fromEntries(projectCounts)
+      counts: Object.fromEntries(projectCounts),
+      ready: true   // FOLLOWUP-033 — the renderer has computed the real rail
     })
   }, [railProjects, focusedProject, projectCounts])
   // ENH-182 Phase 4 — CLI `duo project focus` push. Routes through

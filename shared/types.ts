@@ -639,6 +639,10 @@ export interface ProjectsStateSnapshot {
   /** Live member counts per project root, keyed by root path. Used
    *  by `duo project list --counts` and by the CLI close confirm. */
   counts: Record<string, { terminals: number; workingTabs: number; hasClaudeKindTerminal: boolean }>
+  /** FOLLOWUP-033 — false until the renderer has pushed its first rail snapshot
+   *  (~1-2s after launch). Lets `duo project list` distinguish "genuinely no
+   *  projects" from "Duo is still booting/probing". Absent → treat as not-ready. */
+  ready?: boolean
 }
 
 // Stage 21c — session state restored across Duo relaunches.
