@@ -81,3 +81,40 @@ describe('ClaudePresenceProbe — per-window isolation (ENH-191 P3-S8)', () => {
     await vi.waitFor(() => expect(p.getState()).toBe('no-pty'))
   })
 })
+
+// ENH-191 P3-S8d (NFR-1.3) — the poll loop parks when there's no hosting target
+// (a pid:null probe can only compute 'no-pty', so the 500ms ps spawn is idle
+// waste). State is unchanged across the park; only the ps cadence drops.
+describe('ClaudePresenceProbe — idle park (ENH-191 P3-S8d)', () => {
+  it('does NOT arm the poll loop when started with no hosting target', () => {
+    const p = new ClaudePresenceProbe()
+    p.start()
+    expect(p.isPolling()).toBe(false) // parked — the pre-fix unconditional interval would be armed
+    expect(p.getState()).toBe('no-pty')
+    p.stop()
+  })
+
+  it('arms on a hosting target, parks again on pid:null (state stays no-pty)', async () => {
+    h.psTable = HOSTS_CLAUDE
+    const p = new ClaudePresenceProbe()
+    p.start()
+    expect(p.isPolling()).toBe(false)
+    p.setTarget({ pid: 100, kind: 'claude' })
+    expect(p.isPolling()).toBe(true) // armed — there's a target to poll
+    p.setTarget({ pid: null, kind: null })
+    expect(p.isPolling()).toBe(false) // parked again (NEGATIVE CONTROL: pre-fix stays armed)
+    await vi.waitFor(() => expect(p.getState()).toBe('no-pty'))
+    p.stop()
+  })
+
+  it('stop() disarms and a later setTarget does not resurrect the loop', () => {
+    const p = new ClaudePresenceProbe()
+    p.start()
+    p.setTarget({ pid: 100, kind: 'claude' })
+    expect(p.isPolling()).toBe(true)
+    p.stop()
+    expect(p.isPolling()).toBe(false)
+    p.setTarget({ pid: 100, kind: 'claude' }) // after teardown
+    expect(p.isPolling()).toBe(false) // running=false → no resurrection
+  })
+})
