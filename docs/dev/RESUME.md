@@ -1,3 +1,18 @@
+# Resume after compaction — a+b bug/LHF sprint (branch `amazing-goodall-39846b`): 6/8 built, BUG-093 blocked
+
+**🛑 READ FIRST (2026-06-07).** This branch (`claude/amazing-goodall-39846b`, 15 commits) shipped **ENH-113** (the "file removed on disk" strip + a **Close tab** button on markdown/canvas/JSON + the split-view aux pane — done + live-tested) and ran the **a+b bug/LHF sprint**. The live tally is in [`active-sprint.md`](active-sprint.md); per-item detail in [`tasks.md`](../../tasks.md).
+
+- **a+b sprint — 6 of 8 built.** ✅ verified live: BUG-197, FOLLOWUP-031, FOLLOWUP-033, FOLLOWUP-036, BUG-157. 🟡 built + **owner smoke-walk owed**: BUG-100 (aux Send→Duo pill — typecheck-clean; needs a live-Claude terminal + a text selection in the split-view aux pane to confirm the pill). ↗ **handed off**: ENH-198 → posted as a comment on **PR #74**; that agent applies the CriticMarkup steer. ⛔ **NOT done**: BUG-093 (Move-to-Split-View crash) — its PRD requires a computer-use crash repro that can't be driven on the dev Electron.
+- **⚠️ PR #74 ("feat(ENH-203): overhaul the bundled duo skill", branch `claude/mystifying-meitner-0c854f`) is OPEN and rewrites the entire skill.** Do NOT edit `skill/SKILL.md`, `agents/duo.md`, `cli/duo.ts`, `CLAUDE.md`, or `docs/CLI-COVERAGE.md` on this branch — instant conflict (that's why ENH-198 was handed off via PR comment). **`tasks.md` WILL conflict with #74** (both edit it heavily); my ENH-203 was renumbered → **ENH-206** to yield 203 to #74.
+- **⚠️ Computer-use CANNOT reach the dev Electron** this session (`request_access` won't resolve `com.github.Electron` / "Electron"). Verify UI via `duo dom --js` (renderer shell) + `duo eval` (browser pane) DOM probes, NOT screenshots. This is why BUG-093's repro + BUG-100's live pill check need the owner's hands.
+- **Backlog hygiene done:** 7 feature PRDs authored (`docs/prd/`), stale-sweep closed 35 already-shipped entries (open 80→45), ENH-191 nag muted + about-duo screenshots split to ENH-204, **ENH-205 filed** (the *real* per-tab MaxListeners leak — 10 IPC channels; FOLLOWUP-031 only fixed claude-presence, which wasn't even the culprit). **ENH-157: the owner DECLINED it at sprint planning — do NOT raise it again.**
+- **Dev build:** running the worktree 0.9.2 build (the `duo doctor` 0.9.1-CLI "mismatch" is cosmetic). `node_modules` is a **symlink to the main checkout's** (created this session for typecheck/vitest — untracked; never `git add -A`). Launch dev via `node /Users/geoffreydudgeon/Documents/GitHub/duo/node_modules/electron-vite/bin/electron-vite.js dev`. **`window.location.reload()` crashed this worktree dev build (socket dies) — avoid it; restart fresh instead.**
+- **Lesson this session:** I overclaimed FOLLOWUP-031's "warning gone" and caught it by verifying on a fresh log. Verify before claiming; for UI, a DOM probe / regression test beats "typecheck passed."
+
+---
+
+⬇ _Below is the prior ENH-195 / v0.9.1 cycle (a DIFFERENT branch, `sharp-hamilton-70eb87`) — superseded context, kept for reference._
+
 # Resume after compaction — ENH-195 + ENH-197 + BUG-195 COMPLETE, submitted as a PR (owner integrates on main)
 
 **🛑 READ FIRST — current state:**

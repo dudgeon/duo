@@ -547,6 +547,14 @@ export function WorkingPane({
     activeWorking.kind === 'file' && activeWorking.id === tabId
 
   function renderFileTab(tab: FileTab): React.ReactNode {
+    // ENH-113 — the "file removed on disk" strip's Close button. A MAIN tab
+    // closes by id; the SPLIT-VIEW aux tab carries a synthesized `aux:` id that
+    // is NOT in fileTabs (so closeFileTab would silently no-op), so it dismisses
+    // the aux slot via onAuxClose instead. If no aux-close handler is wired the
+    // button hides (onCloseTab undefined) rather than dead-clicking. Unlike ⌘W /
+    // `duo close-tab`, this deliberately skips the pinned-tab confirm — a removed
+    // file's pin already points at a deleted path, so closing it silently is fine.
+    const onCloseTab = tab.id.startsWith('aux:') ? onAuxClose : (() => closeFileTab(tab.id))
     if (tab.type === 'editor') {
       return (
         <MarkdownEditor
@@ -561,6 +569,7 @@ export function WorkingPane({
           onDirtyChange={(d) => onTabDirtyChange(tab.id, d)}
           onCommitNewFile={(p, t) => onCommitNewFile(tab.id, p, t)}
           onCancelNew={() => closeFileTab(tab.id)}
+          onCloseTab={onCloseTab}
           onSendToDuo={onSendToDuo}
           pillLabel={pillLabel}
         />
@@ -593,6 +602,7 @@ export function WorkingPane({
           // into the canvas while terminal had focus leave the
           // pane-focus signal stuck.
           onUserInteract={onPageFocusGained}
+          onCloseTab={onCloseTab}
         />
       )
     }
@@ -618,6 +628,7 @@ export function WorkingPane({
           // only the active viewer responds (same race guard as the
           // MarkdownEditor / PageTab onImageInsert wiring).
           isActive={isFileActive(tab.id)}
+          onCloseTab={onCloseTab}
         />
       )
     }

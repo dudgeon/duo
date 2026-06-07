@@ -119,6 +119,9 @@ interface Props {
   /** Called when the user cancels naming (Escape). Parent typically
    *  closes the tab. */
   onCancelNew?: () => void
+  /** ENH-113 — close this tab. Wired to the "file removed on disk" strip's
+   *  Close button so an orphaned tab can be dismissed without saving. */
+  onCloseTab?: () => void
   /** Stage 15.1 — host-supplied callback fired when the user clicks the
    *  Send → Duo pill. The payload is already formatted (per the user's
    *  current `duo selection-format` preference); the host writes it to
@@ -305,7 +308,7 @@ const NULL_ACTIONS: EditorActions = {
   inTable: () => false
 }
 
-export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, onCancelNew, onSendToDuo, pillLabel, isActive }: Props) {
+export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, onCancelNew, onCloseTab, onSendToDuo, pillLabel, isActive }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [dirty, setDirty] = useState(false)
@@ -2365,8 +2368,17 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       )}
       {/* ENH-195 B4 — file deleted on disk; the buffer is preserved (save recreates it). */}
       {fileRemoved && (
-        <div className="shrink-0 px-10 py-1.5 text-[11px] border-b border-red-900/40 bg-red-950/20 text-red-300">
-          This file was removed on disk. Save to recreate it.
+        <div className="shrink-0 px-10 py-1.5 text-[11px] border-b border-red-900/40 bg-red-950/20 text-red-300 flex items-center gap-3">
+          <span className="flex-1">This file was removed on disk. Save to recreate it.</span>
+          {onCloseTab && (
+            <button
+              type="button"
+              onClick={onCloseTab}
+              className="shrink-0 px-2 py-0.5 rounded border border-red-800/60 hover:border-red-700 hover:bg-red-900/30"
+            >
+              Close tab
+            </button>
+          )}
         </div>
       )}
       {recon.externalConflict && (

@@ -240,3 +240,57 @@ describe('useDiskReconciliation — canvas (Q2 anchor-loss)', () => {
     h.restore()
   })
 })
+
+// ENH-113 — the "file removed on disk" affordance (B4). The shared hook drives
+// it for ALL THREE surfaces; markdown wired it in v0.9.0, canvas + JSON in this
+// change. These hook-level tests pin the contract once (surface-agnostic): a
+// 'removed' watcher event raises onFileRemoved(true) without reloading the gone
+// file, and a later successful read lowers it to false so the strip clears.
+describe('useDiskReconciliation — file removed on disk (B4 · ENH-113)', () => {
+  function removableHarness(baseline: string) {
+    const files = createFilesMock()
+    files.setDiskBytes(PATH, baseline)
+    const restore = installWindowElectron(files.api)
+    const state = { live: baseline }
+    const onFileRemoved = vi.fn()
+    const applyReload = vi.fn((db: string) => { state.live = db })
+    const opts: DiskReconciliationOptions = {
+      path: PATH, isNew: false, surface: 'markdown', ready: false,
+      serialize: () => state.live,
+      applyReload,
+      readDiskBody: (s) => s,
+      isDirty: (live, base) => live !== base,
+      echoEqual: (a, b) => a === b,
+      onFileRemoved,
+      rebaselineAfterReload: true,
+      triggerSave: () => {},
+      appVersion: '0.0.0-test',
+    }
+    return { files, restore, state, onFileRemoved, applyReload, opts }
+  }
+
+  it('a "removed" watcher event → onFileRemoved(true), file not reloaded', async () => {
+    const h = removableHarness('alpha')
+    const view = await mountReady(h.opts, 'alpha', 'alpha')
+    h.files.deleteDisk(PATH)
+    await act(async () => { h.files.pushChange(PATH, 'removed'); await flush() })
+    expect(h.onFileRemoved).toHaveBeenLastCalledWith(true)
+    expect(h.applyReload).not.toHaveBeenCalled()   // don't try to reload a gone file
+    expect(view.result.current.externalConflict).toBeNull()
+    h.restore()
+  })
+
+  it('file recreated after removal → next event clears it via onFileRemoved(false)', async () => {
+    const h = removableHarness('alpha')
+    await mountReady(h.opts, 'alpha', 'alpha')
+    h.files.deleteDisk(PATH)
+    await act(async () => { h.files.pushChange(PATH, 'removed'); await flush() })
+    expect(h.onFileRemoved).toHaveBeenLastCalledWith(true)
+    // Recreated on disk with the same bytes; a change event fires → the
+    // successful read lowers the flag (the byte-exact reconcile is a no-op).
+    h.files.setDiskBytes(PATH, 'alpha')
+    await act(async () => { h.files.pushChange(PATH, 'changed'); await flush() })
+    expect(h.onFileRemoved).toHaveBeenLastCalledWith(false)
+    h.restore()
+  })
+})

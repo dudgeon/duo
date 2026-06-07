@@ -1,26 +1,42 @@
-# Active sprint state — ENH-195 + ENH-197 + BUG-195 COMPLETE → PR (owner integrates on main)
+# Active sprint state — a+b sprint SET UP (PRDs + backlog hygiene done); implementation queued
 
-> **✅ CURRENT (2026-06-06) — [ENH-195](../../tasks.md) complete + submitted as a PR.**
-> The v0.9.0 pre-walk blocker (canvas false-positive) is root-caused + FIXED, and three more items
-> landed + were verified live: **canvas fix** (disk-vs-disk `shouldBannerOnClean`), **ENH-197 View diff**
-> (destructive-overwrite → Keep mine / Load new / View diff as accept/rejectable tracked changes),
-> **BUG-195** (split-view-close ghost — `releaseAuxTab` now unconditional), plus the strip-JSX strips
-> + frontmatter-preserve. **923 tests + both typecheckers clean.** v0.9.1-rev2 smoke walk (run in the
-> split-view aux per the owner's workflow): **VIEW-DIFF + WARN-HOOK both PASS.** Branch
-> `claude/sharp-hamilton-70eb87` submitted as a **PR** — owner decides the version label + merges with
-> other branches + does the push/release on `main`. Tracked for later: ENH-196, ENH-198.
-
-> _Below: the prior Sprint-24 v0.8.x polish-wave content (FOLLOWUP-031..040) — lower priority than
-> finishing ENH-195; the "v0.8.6 polish wave" framing predates the v0.9.0 cut._
+> **✅ CURRENT (2026-06-06)** — branch `claude/amazing-goodall-39846b`. Two things landed this session:
+> 1. **ENH-113 shipped** — the "file removed on disk" strip mirrored onto the canvas + JSON surfaces,
+>    plus a **Close tab** button on all three editing surfaces (commits `8ba05b8` · `dbc586e` · `1dc16e6`).
+>    938 tests + both typecheckers clean; main-tab close live-verified on the dev build.
+> 2. **The a+b sprint is SET UP (planning only — implementation NOT started):** a feature PRD authored
+>    for each of the 8 sprint items; the backlog swept (**35** already-shipped/obsolete entries closed,
+>    **80 → 45 open**); **ENH-157** flagged 🟡 needs-owner-guidance; the **ENH-191** docs-deep-clean nag
+>    muted (D1–D9 shipped; the about-duo screenshots split to **ENH-204**, which needs a fixture project).
 
 ## Sprint anchor
 
-**Goal: TBD — owner to confirm.** The in-flight work is the docs deep-clean; the
-next *feature* sprint goal and cut target (PATCH v0.8.x vs MINOR v0.9.0) are the
-owner's call. Open engineering work lives in [`tasks.md`](../../tasks.md) — 97
-open entries after the ENH-191/D1 split (closed history in
-[`tasks-archive.md`](../../tasks-archive.md)). Harvest candidates with the
-`sprint-plan` skill (`gather.mjs` reads open entries from `tasks.md`).
+**Goal: the a+b sprint — burn down confirmed-open bugs + low-hanging fruit.** Eight
+items, each with a feature PRD under [`docs/prd/`](../prd/):
+
+| Item | What | PRD |
+|---|---|---|
+| BUG-197 | Navigator rail-peek doesn't commit on a file/folder row click | `enh-190-navigator-resize-peek.md` § 12 |
+| BUG-157 | Defensive WCV `setBounds` clamp + delete dead `useTerminal.ts` | `bug-157-browser-bounds-resilience.md` |
+| FOLLOWUP-031 | Hoist `claudePresence` IPC listener → kill MaxListeners warning | `followup-031-claude-presence.md` |
+| FOLLOWUP-033 | `duo project list` empty during the 1–2s renderer-boot window | `enh-182-project-centric-ux.md` § 10 |
+| FOLLOWUP-036 | Focus-release chip aria-label triple-announces the project | `enh-182-project-centric-ux.md` § 10 |
+| ENH-198 | Agent CriticMarkup discoverability + a `duo doc suggest` verb | `enh-198-agent-criticmarkup-suggest.md` |
+| BUG-093 | Right-click → Move to Split View renderer crash (repro-first) | `bug-093-split-view-move-crash.md` |
+| BUG-100 | Send → Duo pill missing on aux-pane (split-view) selections | `stage-15-send-to-duo.md` § 9 |
+
+**Sequencing.** The S-effort renderer/CLI items (BUG-197, FOLLOWUP-031/033/036, ENH-198,
+BUG-157) form a single-smoke-walk cluster. **BUG-093 must LEAD with a computer-use repro**
+(synthetic events made FOLLOWUP-013 a false-negative) and pairs with BUG-100's aux work.
+Open backlog after the sweep: **45 entries** in [`tasks.md`](../../tasks.md) (harvest with
+the `sprint-plan` skill). Cut target is the owner's call — likely a v0.9.x PATCH once the
+S-cluster lands.
+
+**Implementation status (2026-06-07, branch `claude/amazing-goodall-39846b`):** 7 of 8 done (BUG-100 owner-smoke owed; ENH-198 handed to PR #74).
+- ✅ **Verified live:** BUG-197 (DOM proof) · FOLLOWUP-031 (regression test) · FOLLOWUP-033 (boot-window catch) · FOLLOWUP-036 (a11y) · BUG-157 (browser smoke).
+- 🟡 **Built, owner smoke-walk owed:** BUG-100 (aux Send→Duo pill — typecheck-clean; needs a live-Claude + aux text-selection to confirm the pill, which I can't drive without computer-use on the dev Electron).
+- ↗ **Handed off:** ENH-198 → PR #74 via comment (the "ENH-203 skill overhaul" owns skill/SKILL.md, agents/duo.md, cli/duo.ts, CLAUDE.md, CLI-COVERAGE — editing them here would conflict).
+- ✅ **Fixed (2026-06-07):** BUG-093 (Move-to-Split-View crash) — computer-use CAN reach the dev Electron after all (request_access via the **bundle id `com.github.Electron`**, not the display name "Electron"). Drove 3 real-keystroke repro variants (empty-aux · occupied-aux/promote · comment-rail) → **none crashed** (the autosave-timer unmount cleanup + WorkingPane's `activeWorking` fallback already mask it). Applied the D1 `flushSync` swap-batching as structural hardening (owner-approved); 939 tests green + live no-regression verified. **BUG-100 is now drivable by me too** (computer-use works) — owner-smoke no longer strictly required. Also filed this session: **ENH-205** (the real per-tab MaxListeners leak — 10 channels, found while verifying FOLLOWUP-031). My ENH-203 (clean-buffer save) renumbered → **ENH-206** to yield 203 to PR #74.
 
 > **This doc owns current-sprint scope.** [`RESUME.md`](RESUME.md) is the
 > cold-start orientation (durable guardrails + state-at-a-glance) and links here

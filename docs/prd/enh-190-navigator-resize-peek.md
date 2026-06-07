@@ -214,3 +214,98 @@ smoke-walk is owed before any version cut.** Walk:
 - Collapse-button icon refresh (§ 7) — revive if the owner wants it.
 - If a persistent custom width is ever requested, it would reopen D1; today's
   model is deliberately binary.
+
+---
+
+## 12. BUG-197 — rail-peek commits on a whitespace click but NOT on a row click
+
+> **Status:** 🆕 filed 2026-06-06 (owner, on the v0.9.1 ENH-190 smoke-walk).
+> **Type:** defect in **D5** (click-anywhere commit). **Effort:** S · **Risk:**
+> low · **User value:** medium. Non-blocking, but the D5 commit gesture is
+> *partly* broken — half the body (every file/folder row) doesn't honor it.
+> **Code:** `renderer/components/FilesPane.tsx`, `renderer/components/FileTree.tsx`.
+
+### Symptom (owner)
+
+While the rail is peeked open (Behavior 1 / D2b), **clicking empty body
+whitespace correctly commits** the peek to the expanded resting state, **but
+clicking a file or folder row does NOT also commit it** — the peek eases back
+to the rail on cursor-leave as if no commit happened. Owner: *"click in white
+space persists the expand; clicking in file or folder should but does not also
+persist the expand."* This contradicts the D5 lock ("a click *anywhere* in the
+navigator body — a file row or empty space — commits it"; § 4).
+
+### Root cause (precise — file:line)
+
+The D5 commit handler `onRootClick` (`FilesPane.tsx:186-194`, wired at `:276`
+`onClick={onRootClick}`) bails early at **`FilesPane.tsx:189`**:
+
+```ts
+if ((e.target as HTMLElement).closest('button')) return
+```
+
+That guard exists to stop the two **header chrome** controls — `PinButton`
+(`FilesPane.tsx:460-484`) and `CollapseButton` (`:486-504`), both in the header
+row at `:308-309` — from doubling as a commit, since they own their own
+handlers. But it is **scoped far too broadly**: every file/folder **row is
+itself a `<button>`** (`FileTree.tsx:1186-1194`, `<button
+onClick={onSingleClickRow} …>`), and folder rows additionally carry a chevron
+`<button>` (`:1163-1171`). So a click on any row matches `.closest('button')`,
+`onRootClick` returns at `:189`, and `onSetCollapsed(false)` (`:193`) never
+runs. A whitespace click lands on the wrapping `<div>` (not a button), so it
+falls through and commits — exactly the asymmetry the owner sees.
+
+This is the guard **catching too much**, not a `stopPropagation` race: the
+row's own `onSingleClickRow` (`FileTree.tsx:1097-1109`) does **not** stop
+propagation, so the click *does* bubble to `onRootClick` — it's just rejected
+by the over-broad guard. (Contrast the two handlers that *do* call
+`stopPropagation` — the chevron at `:1113` and the "new Claude here" button at
+`:1293` — see Parity below.)
+
+### Fix approach
+
+Narrow the `:189` guard so it excludes only the navigator **header chrome**
+(pin/collapse), not the tree body. Either shape works (both leave the row's own
+select/open handler intact, so one click commits *and* opens):
+
+- **(a) Tag + exclude (recommended).** Add `data-nav-header` to the header row
+  (`FilesPane.tsx:293`, the breadcrumb/pin/collapse flex container) and change
+  the guard to bail only on `closest('[data-nav-header]')`. Narrowest possible
+  blast radius; reads as intent.
+- **(b) Invert to a body allow-list.** Commit only when the click lands inside
+  the tree/body region (e.g. `closest('[data-nav-body]')` on the `:286` body
+  `<div>`). Equivalent outcome; slightly larger diff.
+
+Because `onSingleClickRow` doesn't `stopPropagation`, the corrected handler
+runs **alongside** the row's open/select — a single click on a row both commits
+the peek to expanded *and* opens the file / navigates the folder, which is the
+D5-intended one-click behavior.
+
+### Parity disposition
+
+- **D5 fidelity:** restores the locked "click *anywhere* in the body commits"
+  contract for the half of the body (rows) that currently no-ops. Whitespace
+  clicks already worked and are unchanged.
+- **Header chrome (pin/collapse):** must keep NOT committing — the narrowed
+  guard preserves this (it's the only thing the guard should ever catch).
+- **Chevron (`FileTree.tsx:1113`) + "new Claude here" (`:1293`):** these call
+  `stopPropagation`, so the click never reaches `onRootClick` and they
+  correctly continue to **not** commit. That is the desired behavior — toggling
+  a folder's expansion or spawning a Claude tab is an in-row action that
+  shouldn't also commit the peek — and this fix deliberately leaves it intact.
+  (A folder *row* click, which navigates/re-roots, is the bubbling case that
+  *should* commit, and does once the guard is narrowed.)
+- **CLI / UI parity (§ 9 unchanged):** the rail-peek and its commit remain
+  mouse-only affordances with no durable agent-readable state; the persistent
+  collapse/expand state still flips via ⌘B / the header toggle /
+  `onSetCollapsed`. No new CLI verb. The deliberate mouse-only asymmetry
+  recorded in § 9 still holds.
+
+### Smoke-walk line (add to § 10, walk step 3 "Click-to-stay")
+
+3b. **Row-click commit (BUG-197)** — during a rail-peek, click a **file row**
+→ the file opens **and** the navigator commits to expanded (does not ease back
+to the rail on cursor-leave). Repeat clicking a **folder row** → it
+navigates/re-roots **and** commits. Confirm the header **pin** and **collapse**
+buttons, and a folder's **chevron**, still do **not** commit (chevron only
+toggles; pin/collapse keep their own behavior).

@@ -186,7 +186,12 @@ export const FilesPane = forwardRef<FilesPaneHandle, FilesPaneProps>(function Fi
   const onRootClick = (e: ReactMouseEvent) => {
     clearHoverIn() // a click to expand the rail must cancel a pending peek
     if (!peekActive) return
-    if ((e.target as HTMLElement).closest('button')) return
+    // BUG-197 — bail ONLY on the navigator header chrome (breadcrumb / pin /
+    // collapse, tagged `data-nav-header`), NOT on the tree body. File/folder
+    // rows are themselves <button>s (FileTree.tsx), so the old
+    // `.closest('button')` guard swallowed the D5 "click anywhere commits"
+    // gesture on every row click — only whitespace (a non-button div) committed.
+    if ((e.target as HTMLElement).closest('[data-nav-header]')) return
     clearDwell()
     setPeekActive(false)
     setOverride(NAV_EXPANDED_W)
@@ -290,6 +295,7 @@ export const FilesPane = forwardRef<FilesPaneHandle, FilesPaneProps>(function Fi
               in the project tree day-to-day; user-level context is a
               global anchor, more naturally placed below. */}
           <div
+            data-nav-header
             className={[
               'flex items-center border-b shrink-0 transition-colors',
               focused ? 'bg-accent-soft border-accent' : 'border-border'

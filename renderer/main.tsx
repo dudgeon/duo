@@ -3,6 +3,7 @@ import '@xterm/xterm/css/xterm.css'
 import './styles/globals.css'
 import { App } from './App'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { ClaudePresenceProvider } from './contexts/ClaudePresenceContext'
 
 // BUG-065 — global listeners for window-level errors and unhandled
 // promise rejections. The Error Boundary below catches render
@@ -30,6 +31,8 @@ window.addEventListener('unhandledrejection', (event) => {
 // happened?" → "here's the error, here's a Reload button."
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <ErrorBoundary>
-    <App />
+    <ClaudePresenceProvider>
+      <App />
+    </ClaudePresenceProvider>
   </ErrorBoundary>
 )

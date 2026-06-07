@@ -320,7 +320,8 @@ function broadcastProjectsChanged(file: import('../shared/types').ProjectsFile):
 let projectsState: import('../shared/types').ProjectsStateSnapshot = {
   projects: [],
   focusedProject: null,
-  counts: {}
+  counts: {},
+  ready: false   // FOLLOWUP-033 — flips true on the renderer's first pushState
 }
 export function getProjectsState(): import('../shared/types').ProjectsStateSnapshot {
   return projectsState

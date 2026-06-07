@@ -18,6 +18,22 @@
 
 ---
 
+## 2026-06-07 (a+b bug/LHF sprint — branch `amazing-goodall-39846b` · ENH-113 ship + 6/8 a+b built · PR #74 coordination)
+
+**Branch:** `claude/amazing-goodall-39846b`, 15 commits (NOT merged). Started as "triage the open bugs + LHF and pick a sprint"; the owner picked **a+b** (bugs + low-hanging fruit). Long session with several owner course-corrections.
+
+**ENH-113 (shipped + tested).** Mirrored the markdown "file removed on disk" strip onto the **canvas + JSON** surfaces, then added a **Close tab** button to the strip on all three editing surfaces + the split-view aux pane. Verified live via `duo dom`/`duo eval` DOM probes (delete → strip/button appears; click → tab/​split closes). New hook-level `onFileRemoved` regression test. 938 tests + both typecheckers clean; two ultracode verify+review workflows (all ship). Commits 8ba05b8 · dbc586e · 1dc16e6.
+
+**a+b sprint — 6 of 8 built (branch only).** ✅ verified live: **BUG-197** (rail-peek commits on a row click — guard narrowed to `data-nav-header`), **FOLLOWUP-031** (hoist claudePresence to one context provider — but see ENH-205), **FOLLOWUP-033** (`duo project list` `ready` flag), **FOLLOWUP-036** (static focus-chip aria-label), **BUG-157** (sub-1 WCV setBounds clamp + deleted dead useTerminal.ts). 🟡 owner-smoke-walk owed: **BUG-100** (aux Send→Duo pill — threaded explicit webContents through injectSelectionObserver to beat an interleaved-`attach()` race). ↗ handed off: **ENH-198** → posted to **PR #74** as a comment. ⛔ not done: **BUG-093** (split-view-move crash — needs a computer-use repro).
+
+**Planning + hygiene.** Triage workflow assessed all 80 open items; a second fresh-eyes workflow re-verified the stale set. **Stale-swept 35** entries (open 80→45; ENH-111 caught as a false positive, kept). Authored **7 feature PRDs**. Muted the ENH-191 smoke-walk nag (about-duo screenshots split to **ENH-204**). Filed **ENH-205** (the real MaxListeners cause — 10 per-tab IPC channels). My ENH-203 renumbered → **ENH-206** (PR #74 claims 203).
+
+**Coordination landmines.** **PR #74** ("ENH-203: overhaul the bundled duo skill") rewrites skill/SKILL.md, agents/duo.md, cli/duo.ts, CLAUDE.md, CLI-COVERAGE — do NOT edit those here. `tasks.md` needs a manual merge with #74.
+
+**Lessons.** (1) **Verify before claiming** — I shipped a FOLLOWUP-031 commit saying "the warning no longer fires," then a fresh-log check proved the spam was 10 *other* channels; amended + filed ENH-205. (2) **Computer-use can't reach this dev Electron** (`request_access` won't resolve it) — `duo dom`/`duo eval` probes are the path; BUG-093/BUG-100 live checks need the owner. (3) `window.location.reload()` crashed the worktree dev build (socket died) — restart fresh. (4) ENH-157: owner declined it at planning — don't re-raise.
+
+---
+
 ## 2026-06-06 (v0.9.1 cut — parallel-PR integration · ENH-202 View-diff dirty banner · signed DMG + GitHub Release)
 
 **What shipped.** v0.9.1 is the convergence cut for the parallel-branch work that had piled up against main: navigator resize affordances (ENH-190), the ENH-195/197 conflict-resolution arc completed by ENH-202 (the dirty-buffer banner unified to 3 buttons — Keep mine / Reload / View diff), the BUG-195 split-view ghost fix, plus three supporting changesets (ENH-191 docs deep-clean + CLI version-source #65, ENH-191 Phase H write-queue #68, functional lint gate #69). Six PRs (#64–#70) were trial-integrated in a throwaway worktree (clean merge + typecheck + full suite) before landing on main, so only docs ever conflicted, never code.

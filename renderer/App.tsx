@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { flushSync } from 'react-dom'
 import { buildWikilinkCreatePath } from './wikilinkCreate'
 import { TabBar } from './components/TabBar'
 import { TerminalPane } from './components/TerminalPane'
@@ -1035,7 +1036,8 @@ export function App() {
     window.electron.projects.pushState({
       projects: railProjects,
       focusedProject,
-      counts: Object.fromEntries(projectCounts)
+      counts: Object.fromEntries(projectCounts),
+      ready: true   // FOLLOWUP-033 — the renderer has computed the real rail
     })
   }, [railProjects, focusedProject, projectCounts])
   // ENH-182 Phase 4 — CLI `duo project focus` push. Routes through
@@ -3063,48 +3065,66 @@ export function App() {
     }
     // eslint-disable-next-line no-console
     console.log('[BUG-093] beginning swap', { existingAuxPath, movingIn: path })
-    // Drop the new path from main fileTabs (single-source-of-truth).
-    setFileTabs(prev => prev.filter(t => t.path !== path))
-    // Promote the existing aux path back to main as a new file tab
-    // (the swap's other half). Skip when aux was empty.
+    // BUG-093 (D1) — batch the entire swap into ONE synchronous commit via
+    // flushSync. This function is async and has already crossed two `await`s
+    // (releaseAuxTab + the dirty-replace dialog), so React 18 automatic
+    // batching no longer spans these setStates — without flushSync each fires
+    // its own render and WorkingPane paints inconsistent intermediate states
+    // (the moving path momentarily absent from BOTH fileTabs and auxState)
+    // that a child PageTab could read mid-wire and throw on (caught by the
+    // inline ErrorBoundary). Collapsing the four mutations + the layout snap
+    // into one flushSync commit means no intermediate render is ever painted,
+    // so the inconsistency window the crash depended on cannot exist. The
+    // crash is not reproducible on current code (the autosave-timer unmount
+    // cleanup + WorkingPane's activeWorking fallback already mask it across
+    // empty-aux / promote / comment-rail variants), so this is a structural
+    // hardening that removes the latent un-batched-across-await cascade rather
+    // than a fix for a live repro. `promotedId` is hoisted above the callback
+    // so the COMMITTED trace below can still read it.
     let promotedId: string | null = null
-    if (existingAuxPath) {
-      const { type, mime } = classifyFile(existingAuxPath)
-      promotedId = `f:${crypto.randomUUID()}`
-      const title = existingAuxPath.split('/').pop() ?? existingAuxPath
-      setFileTabs(curr => [...curr, { id: promotedId!, type, path: existingAuxPath, title, mime }])
-    }
-    // If the moved-IN path was the active main tab, swap activeWorking
-    // to the newly-promoted main tab (keeps focus on file work — falling
-    // back to browser would be surprising when there's literally a fresh
-    // file tab right there). When aux was empty there's no promote, so
-    // fall back to browser as before.
-    setActiveWorking(prev => {
-      if (prev.kind === 'file') {
-        const wasMoved = fileTabs.find(t => t.id === prev.id && t.path === path)
-        if (wasMoved) {
-          return promotedId ? { kind: 'file', id: promotedId } : { kind: 'browser' }
-        }
+    flushSync(() => {
+      // Drop the new path from main fileTabs (single-source-of-truth).
+      setFileTabs(prev => prev.filter(t => t.path !== path))
+      // Promote the existing aux path back to main as a new file tab
+      // (the swap's other half). Skip when aux was empty.
+      if (existingAuxPath) {
+        const { type, mime } = classifyFile(existingAuxPath)
+        promotedId = `f:${crypto.randomUUID()}`
+        const title = existingAuxPath.split('/').pop() ?? existingAuxPath
+        setFileTabs(curr => [...curr, { id: promotedId!, type, path: existingAuxPath, title, mime }])
       }
-      return prev
+      // If the moved-IN path was the active main tab, swap activeWorking
+      // to the newly-promoted main tab (keeps focus on file work — falling
+      // back to browser would be surprising when there's literally a fresh
+      // file tab right there). When aux was empty there's no promote, so
+      // fall back to browser as before.
+      setActiveWorking(prev => {
+        if (prev.kind === 'file') {
+          const wasMoved = fileTabs.find(t => t.id === prev.id && t.path === path)
+          if (wasMoved) {
+            return promotedId ? { kind: 'file', id: promotedId } : { kind: 'browser' }
+          }
+        }
+        return prev
+      })
+      setAuxState({
+        paths: [path],
+        activeIndex: 0,
+        // ENH-126 — opening a file in split view always snaps the inner
+        // main/aux divider to 50/50. Pre-fix this preserved the prior
+        // aux split, which was usually some hand-dragged ratio from a
+        // previous session — surprised the user every time.
+        splitPct: 0.5
+      })
+      // ENH-126 — outer terminal/working snaps to 33% terminal / 67%
+      // working when terminal is visible (so net visual is ~33/33/33
+      // across all three columns). When terminal is collapsed
+      // (splitPct === 0), we leave it collapsed and rely on the inner
+      // 50/50 to give main/split a clean even split.
+      if (splitPct !== 0 && splitPct !== 100) {
+        setSplitPct(33)
+      }
     })
-    setAuxState({
-      paths: [path],
-      activeIndex: 0,
-      // ENH-126 — opening a file in split view always snaps the inner
-      // main/aux divider to 50/50. Pre-fix this preserved the prior
-      // aux split, which was usually some hand-dragged ratio from a
-      // previous session — surprised the user every time.
-      splitPct: 0.5
-    })
-    // ENH-126 — outer terminal/working snaps to 33% terminal / 67%
-    // working when terminal is visible (so net visual is ~33/33/33
-    // across all three columns). When terminal is collapsed
-    // (splitPct === 0), we leave it collapsed and rely on the inner
-    // 50/50 to give main/split a clean even split.
-    if (splitPct !== 0 && splitPct !== 100) {
-      setSplitPct(33)
-    }
     // eslint-disable-next-line no-console
     console.log('[BUG-093] splitViewMoveTabByPath COMMITTED', { path, promotedId })
   }, [auxState, fileTabs, dirtyPaths, auxBrowserTab, splitPct])
@@ -3987,7 +4007,7 @@ export function App() {
             onClick={() => setFocusedProject(null)}
             className="titlebar-nodrag inline-flex items-center gap-1 text-[11px] font-semibold text-accent bg-accent/10 hover:bg-accent/20 transition-colors rounded-full px-2 py-0.5 mr-1"
             title={`Focused on ${focusedProjectName} — click to show all projects`}
-            aria-label={`Release focus (${focusedProjectName})`}
+            aria-label="Release focus"
           >
             <span>Focused: {focusedProjectName}</span>
             <span aria-hidden="true" className="text-accent/70">×</span>

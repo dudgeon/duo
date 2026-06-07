@@ -257,3 +257,118 @@ code areas 1–10 (see § 9) and the § 4 design assets.
 
 **10 · Context-menu pattern (for the tile right-click menu, D12)**
 - `renderer/components/FileTree.tsx` — `popupMenu()` (`:630–670`) calls `window.electron.menu.popup({ items, x, y })` (`:663`) → `handleMenuChoice()` (`:669`); template via `buildTreeMenuTemplate()` (`:853`, items like `pin`/`unpin`, multi-select aware). Also `WorkingTabStrip.tsx:149` + `Breadcrumb.tsx:24`. **The tile menu (Pin/Unpin + "Close N terminals and M tabs") follows this `MenuTemplateItem[]` → IPC popup → `chosenId` shape — do not hand-roll a menu.**
+
+---
+
+## 10 · Post-ship follow-ups (tracked defects/enhancements within this feature)
+
+> These are small, in-scope fixes against the **shipped** project-centric UX
+> (the focus chip from Phase 2, the `duo project` CLI family from Phase 4).
+> Filed in the **v0.8.0 audit (2026-05-25)**, re-confirmed open against current
+> `main` on **2026-06-06**. Each is additive and independently shippable; bundle
+> into a polish commit. Line numbers below are the **current** anchors (the
+> ledger entries in `tasks.md` cite pre-drift line numbers — these supersede).
+
+### 10.1 · FOLLOWUP-036 — Focus-release chip aria-label repeats the project name
+
+**Surface:** the title-bar focus chip (Phase 2, § 4 *Focus transition* /
+§ 6 Phase 2 "Title-bar focus chip"). Built in `renderer/App.tsx`.
+
+**Symptom.** The chip names the focused project **three times** to assistive
+tech, so a screen reader double-announces it (e.g. *"Focused: duo, button,
+Release focus duo"*). This is an a11y papercut, not a functional bug — the
+chip works.
+
+**Root cause** — `renderer/App.tsx:3984–3995`. The single `<button>` carries
+all three:
+
+- `:3989` — `title={`Focused on ${focusedProjectName} — click to show all projects`}`
+- `:3990` — `aria-label={`Release focus (${focusedProjectName})`}`  ← the redundant one
+- `:3992` — visible `<span>Focused: {focusedProjectName}</span>`
+
+Because an explicit `aria-label` **overrides** the visible text as the
+button's accessible name, the name is in both the accessible name *and* the
+adjacent visible span the SR also reads — plus the `title` tooltip. The block
+was last touched by **BUG-194** (`573fe3e`) without changing the `aria-label`.
+
+**Fix.** Change `:3990` to the static `aria-label="Release focus"` (drop the
+`(${focusedProjectName})`). The visible span (`:3992`) already conveys *which*
+project, and the `title` (`:3989`) gives the full hover hint — the
+button-purpose statement should stay name-free so the SR announces the name
+exactly once. One-line change; no other site.
+
+**Parity disposition (CLI/UI).** **N/A — no parity surface.** This is an ARIA
+attribute on a mouse/AT affordance; releasing focus from the CLI is already
+covered by `duo project focus --all` (`core/socket-server.ts:1870–1874`), which
+is unaffected. No new or changed verb.
+
+**Smoke-walk line.** With a project focused, inspect the chip in DevTools (or
+VoiceOver): the button's accessible name is **"Release focus"** (no project
+name), the visible label still reads **"Focused: <name>"**, and the hover
+`title` still reads **"Focused on <name> — click to show all projects"**.
+Clicking it still releases focus to All.
+
+### 10.2 · FOLLOWUP-033 — `duo project list` is empty during the ~1–2s renderer-boot window
+
+**Surface:** the `duo project` CLI family (Phase 4). The cached snapshot path
+main ⇄ renderer.
+
+**Symptom.** Immediately after Duo launches — before the renderer's first
+`PROJECTS_STATE_PUSH` lands — `duo project list` returns
+`{ projects: [], focusedProject: null, counts: {} }`, which is **byte-identical
+to a genuine "no projects open" workspace.** An agent that probes projects in
+the first ~1–2s of a session can't tell "still booting" from "nothing here,"
+and may act on the empty result.
+
+**Root cause** — the snapshot has no readiness signal anywhere in its path:
+
+- `shared/types.ts:633–642` — `ProjectsStateSnapshot` carries only
+  `projects` / `focusedProject` / `counts`; no `ready` field.
+- `electron/main.ts:320–324` — `projectsState` initializes to
+  `{ projects: [], focusedProject: null, counts: {} }`, the same shape the
+  renderer pushes once it has genuinely found no projects.
+- `core/socket-server.ts:1865–1867` — the `list` handler returns
+  `this.nav.getProjectsState()` raw, with no readiness gate or warning.
+- `renderer/App.tsx:1034–1040` — `pushState` sends
+  `{ projects, focusedProject, counts }` with no readiness flag, so even once
+  the renderer *is* live there's no positive signal to flip.
+
+**Fix** (additive optional field — keep the wire shape backward-compatible):
+
+1. `shared/types.ts` — add `ready?: boolean` to `ProjectsStateSnapshot`
+   (optional so existing readers are unaffected; semantically "the renderer
+   has pushed at least once").
+2. `electron/main.ts:320–324` — leave the initial cached snapshot **without**
+   `ready` (i.e. falsy) so the pre-push state is distinguishable.
+3. `renderer/App.tsx:1034–1040` — `pushState` always sends `ready: true`
+   (any real push means the renderer + qualify probes are live).
+4. `core/socket-server.ts:1865–1867` — when `op === 'list'` and the snapshot's
+   `ready` is falsy, attach a warning to the result, e.g. *"renderer not yet
+   ready — Duo is still booting / probing projects; retry in 1–2s."* so the
+   empty result is **observable** rather than silently ambiguous. Return the
+   snapshot as today otherwise.
+
+**Deliberately out of scope (future).** The *blocking* variant — have the CLI
+wait for `ready: true` with a ~3s timeout — is **not** built here, per the
+task's own recommendation: agent retry is cheap and the warning is the right
+diagnostic. The non-blocking warning ships; blocking stays a future
+enhancement if the warning proves insufficient.
+
+**Parity disposition (CLI/UI).** **CLI-only by nature — no UI asymmetry
+introduced.** The boot-window ambiguity is a *CLI-read* artifact (the human
+sees the rail render progressively, so there's no equivalent human-facing
+confusion). `ready` is an internal readiness flag on the snapshot, not a new
+verb; the existing plumbing surfaces (`shared/types.ts`, `main.ts`,
+`socket-server.ts`, `renderer/App.tsx` from § 9 area 7) are the only ones
+touched. No change to `cli/duo.ts`, `skill/SKILL.md`, `agents/duo.md`, or
+`docs/CLI-COVERAGE.md` is required — the verb and its JSON contract are
+unchanged; only an optional field + a warning string are added. (Noted here
+as the explicit parity call per CLAUDE.md § 4.)
+
+**Smoke-walk line.** Restart Duo (kill + `npm run dev`) and **immediately** run
+`duo project list`: the result now carries the *not-ready* warning string
+instead of a bare empty object. Wait ~2s and re-run: the warning is gone and
+the real derived projects appear. Separately confirm a genuinely
+empty-but-ready workspace (no qualifying folders open, after boot settles)
+returns **no** warning — i.e. the warning distinguishes "booting" from
+"legitimately empty."
