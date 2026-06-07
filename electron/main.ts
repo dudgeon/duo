@@ -60,6 +60,7 @@ import { BrowserManager } from './browser-manager'
 import { CdpBridge } from './cdp-bridge'
 import { makeSafeSend } from './safe-send'
 import { WindowRegistry, type WindowContext } from './window-registry'
+import { makeOnceGuard } from './once-guard'
 import { makeWindowTeardown } from './window-teardown'
 import { SocketServer, ensureSocketDir } from '../core/socket-server'
 import { FilesService } from './files-service'
@@ -291,6 +292,12 @@ const safeSend = makeSafeSend(() => mainWindow)
 // appTornDown / tornDownWindows guards — that shared state is what makes the
 // closed→before-quit double-stop impossible. Do NOT move inside createWindow.
 const windowTeardown = makeWindowTeardown()
+
+// ENH-191 P2 (item 8) — run-once guard for the app-scoped duo-asset protocol
+// registration. Module scope (survives a reentrant createWindow / dock-reopen)
+// so the persist:duo-browser partition handler can never be registered twice
+// (Electron throws an opaque duplicate-handler error). See once-guard.ts.
+const registerDuoAssetOnce = makeOnceGuard()
 // ENH-081 (v0.6.4) — Finder double-click / drag-onto-Dock landing
 // strip. macOS fires `app.on('open-file')` for paths the user opened
 // via the OS shell. On cold start the event can fire before
@@ -1002,10 +1009,19 @@ app.whenReady().then(async () => {
       return new Response(`duo-asset error: ${err instanceof Error ? err.message : String(err)}`, { status: 404 })
     }
   }
-  // Default session — used by the main BrowserWindow's renderer.
-  protocol.handle('duo-asset', duoAssetHandler)
-  // Browser-pane session (WebContentsViews / Stage 2 BrowserManager).
-  session.fromPartition(BROWSER_SESSION_PARTITION).protocol.handle('duo-asset', duoAssetHandler)
+  // ENH-191 P2 (item 8) — register the duo-asset handler EXACTLY once for the
+  // app lifetime. These protocol.handle calls live in whenReady (runs once
+  // today), but the once-guard makes the invariant durable: if a future
+  // reentrant path ever re-drives this, the second call no-ops instead of
+  // crashing with Electron's duplicate-handler error. The per-window
+  // BrowserManager shares this ONE registration + the ONE partition session —
+  // it never re-registers (verified: browser-manager.ts only fromPartition()s).
+  registerDuoAssetOnce(() => {
+    // Default session — used by the main BrowserWindow's renderer.
+    protocol.handle('duo-asset', duoAssetHandler)
+    // Browser-pane session (WebContentsViews / Stage 2 BrowserManager).
+    session.fromPartition(BROWSER_SESSION_PARTITION).protocol.handle('duo-asset', duoAssetHandler)
+  })
 
   setupIPC()
   installAppMenu()

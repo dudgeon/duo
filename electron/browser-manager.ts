@@ -290,6 +290,10 @@ export class BrowserManager {
   }
 
   addTab(url = newTabUrl()): TabEntry {
+    // ENH-191 P2 (item 8) — share the ONE app-scoped partition session; never
+    // re-register its protocol handler (main.ts registers duo-asset once via
+    // registerDuoAssetOnce). fromPartition() is idempotent, so per-window
+    // BrowserManagers (P5a) safely reuse the same cookie/SSO jar + history.
     const ses = session.fromPartition(BROWSER_SESSION_PARTITION)
     const view = new WebContentsView({
       webPreferences: {
