@@ -997,4 +997,6 @@ clarifies and supersedes that framing.
 
 **Note (resolved 2026-06-06, owner): multi-window owns ENH-191.** The pre-existing "Docs deep-clean" entry in `tasks.md` is to be renumbered (merge-session / owner action on `main`).
 
+**Note (owner-confirmed 2026-06-06, Option A): app teardown at `before-quit` ONLY.** The shared singletons (`SocketServer`, `ExternalDomainsService`) are app-lifetime — torn down only on a real quit, never on a window close. On macOS a last-window-close is NOT a quit (the user dock-reopens via `app.activate → createWindow`), so teardown-on-last-window would leave the `duo` CLI bridge permanently dead across the reopen. P1 implements this: the `closed` handler does per-window teardown only; `teardownApp` runs only in `before-quit`. Dock-reopen regression test + detail in the PRD.
+
 **Decision owner:** Geoff.

@@ -20,12 +20,12 @@
 | Cut 0 | **Phase H** — write-serialization hardening (R6) | ✅ **Shipped** — PR #68 (merged) |
 | (infra) | lint gate restored (`eslint` was undeclared / uninstalled) | ✅ Shipped — PR #69 (merged) |
 | Cut 1 | **P0** — routing-assertion harness + color-override cut | ✅ **Seams complete** — `WindowRegistry` ✅ · `window-teardown` ✅ · color-override cut ✅ · smoke-checklist legs ✅ (the live single-window + Leg-B walk happens at the Cut 1 boundary) |
-| Cut 1 | **P1** — lift app services + split `closed` handler | ⬜ **Next** — first wiring into `main.ts`; the Cut 1 merge + run-on-`main` test point |
+| Cut 1 | **P1** — lift app services + split `closed` handler | ✅ **Seams complete on dev** — P1a (external-domains + PTY sink) · P1b (SocketServer → app scope via getter-thunks; 29 sites) · P1c (split `closed`; app teardown at `before-quit` ONLY) · P1d (boot-race + dock-reopen harness). **949 tests** green, typecheck + lint clean. Live app smoke (incl. close→dock-reopen) + run-on-`main` at the Cut 1 boundary. |
 | Cut 2 | **P2 + P3** — registry adoption (134 sites) + cache/event sweep | ⬜ Not started |
 | Cut 3 | **P4** — `{windows: WindowState[]}` session envelope | ⬜ Not started |
 | Cut 4a / 4b | **P5a / P5b** — open window 2 + terminal-origin + `--window` | ⬜ Not started |
 
-**Last updated:** 2026-06-06 (P0 seams complete; P1 next). Update this table at each seam/cut boundary; lessons accrue in Appendix E.
+**Last updated:** 2026-06-06 (P1 seams complete on dev — socket lift + teardown split; 949 tests green; live smoke + Cut 1 merge pending). Update this table at each seam/cut boundary; lessons accrue in Appendix E.
 
 ---
 
@@ -65,7 +65,7 @@ These are **immutable**. If one appears wrong or under-specified mid-build, **st
 | **PTY pool** | One **shared** pool + `ownerWindowId` per `Session`; `disposeForWindow()`; `listIdsByCwd` filters by owner. |
 | **Session restore** | Multi-window `{windows: WindowState[]}` envelope with back-compat migration. |
 | **localStorage** | Per-key triage; per-window state moves **off** the shared storage-event bus. |
-| **Lifecycle** | Window registry; per-window teardown vs last-window/before-quit app teardown. **SINGLE Unix socket LOCKED.** |
+| **Lifecycle** | Window registry; per-window teardown (always) vs **app teardown at `before-quit` ONLY**. *(Owner-confirmed 2026-06-06, Option A — corrects the draft's "last-window/before-quit": app-scoped singletons are app-lifetime; on macOS a last-window-close is NOT a quit, so teardown-on-last-window kills the CLI bridge across a dock-reopen.)* **SINGLE Unix socket LOCKED.** |
 
 ### 2.2 The spine (non-negotiable, applies to every phase)
 
@@ -960,10 +960,17 @@ Captured as the build proceeds — technical findings and process lessons. Newes
 - **Re-grep anchors per phase; don't trust magnitude counts.** The v1 spec's headline numbers were wrong (Appendix C/D): "134 read-sites" is a line count (~128 reads); guards are 46 not ~30. Anchors drift every release (0.8.5 → 0.8.6 → 0.9.1) — re-baseline per seam.
 
 **Technical**
+- **macOS last-window-close is NOT a quit — a pre-implementation design pass caught a real N=1 regression before it shipped.** A design+stress workflow proved the draft's P1 item-4 rule ("app teardown on last-window OR before-quit") is wrong on darwin: `window-all-closed` no-ops, so closing the only window leaves the app alive and a dock-click fires `app.activate → createWindow()`. Stopping the socket / disposing external-domains on that close — combined with P1a's already-committed null of `externalDomainsService` + createWindow's non-null invariant — made close→dock-reopen **throw / leave the CLI permanently dead** (verified empirically in-tree). **Fix (owner-confirmed Option A):** `socketServer` + `externalDomainsService` are app-lifetime — constructed once in `whenReady`, torn down ONLY at `before-quit`; the `closed` handler tears down per-window state only. This fixed the latent P1a bug *forward* (no revert). Pinned by `window-teardown.test.ts`'s dock-reopen case + the live close→reopen smoke leg.
+- **Don't trust the synthesized plan either — verify against ground truth.** The design synth proposed a `createWindow` guard `if (socketServer) throw` to pin single-construction, but it is inverted: the socket is now constructed in `whenReady` BEFORE `void createWindow()`, so that guard would throw on the FIRST window. Replaced with the correct mechanism — an idempotency guard in `SocketServer.start()` (`if (this.unixServer) return`), which actually prevents a P2 reentrant double-bind. (The same skepticism the owner applied to the spec writer applied to the design workflow's output — both were wrong in spots the test suite + a read-through caught.)
+- **Capture the BrowserWindow id while the window is alive.** The `closed` event fires AFTER native destruction, so reading `mainWindow.id` inside the handler can throw "Object has been destroyed". Capture `const winId = mainWindow.id` *before* registering the handler; the closure uses the captured value (P2 keys the registry on this id).
 - **Tooling must match the repo's Node.** Node here is 18.17.0; ESLint 9 floors at 18.18 and **ESLint 10 hard-crashes** on `util.styleText` (a Node 20.12+ API). Pinned ESLint 8.57 + typescript-eslint 7 + flat config (PR #69).
 - **The lint gate was a silent no-op** — `eslint` was never a declared dependency, so `npm run lint` did nothing. Restored in PR #69; the verify-loop's lint step is now real.
 - **Pull latent concurrency bugs forward.** Phase H (the `pins`/`nav-pins`/`projects`/`session-state` lost-update, R6) was latent *today*, independent of multi-window — fixing it first (Cut 0) de-risked the foundation instead of surfacing mid-P4.
 - **Harness discipline holds.** Every extracted module (`safe-send` → `window-registry` → `window-teardown`) ships node-env tests with negative controls **proven to fail when the guard is defeated** — the only automated catch for the focus-substitution / double-stop foot-guns.
+
+**Deferred follow-ups (discovered during P1 — not gating P1)**
+- **claudePresence double-subscription on dock-reopen (pre-existing).** `claudePresence.start()` + `.onChange(...)` live in `createWindow` (not lifted), so a close→dock-reopen adds a second `onChange` subscriber + a second `start()` (the first is never unsubscribed). Latent today (the reopen path was broken pre-P1); P1 makes the path work, exposing it. The post-close tick is already null-safe (`cdpBridge?.setClaudeLive`, `if (browserManager)`, `safeSend` no-op), so it is not a crash — just redundant fires + a probe leak across cycles. Fix later: lift the probe to `whenReady` (app-scope, once), OR capture+call the onChange unsubscribe in the `closed` handler + guard double-start. This scopes the "behavior-identical at N=1" guarantee to exclude *repeated* close-reopen cycles.
+- **No `app.requestSingleInstanceLock()` (pre-existing).** Two Duo processes (or relaunch-before-old-exits) both reach `SocketServer.startUnix()` (`unlinkSync` stale → `listen`), the second silently hijacking the bridge. Out of P1 scope (single-construction within one process is satisfied + `start()` is now idempotent). File as a tracked ENH: add `requestSingleInstanceLock` to mechanically prevent the cross-process double-bind. Until then, the pre-flight "no stray Electron + socket DOWN" check stays a HARD gate before every dev launch.
 
 **Open process item**
 - **ENH number — RESOLVED (owner, 2026-06-06): multi-window keeps ENH-191.** Phase H / PR #68 already shipped under it. Follow-up (merge session / owner, on `main`): renumber the pre-existing *"Docs deep-clean"* entry in `tasks.md` to clear the collision.
