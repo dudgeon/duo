@@ -1406,6 +1406,23 @@ app.on('window-all-closed', () => {
 })
 
 function setupIPC(): void {
+  // ENH-191 P2 (item 5) — per-window-addressed (class-iii) handler routing.
+  // P2 establishes the MECHANISM; no class-(iii) sends exist among the 41 at
+  // N=1 (all resolve via registry.only() / safeSend today). When P3 keys the
+  // caches + reqId families per window, a handler that must reply to ITS
+  // invoking window resolves the target by event.sender, NOT registry.only():
+  //
+  //   import { resolveBySender } from './window-resolve'
+  //   ipcMain.handle(CH, (event, args) => {
+  //     const id = BrowserWindow.fromWebContents(event.sender)?.id
+  //     const win = id != null ? resolveBySender(registry, id) : undefined
+  //     win?.webContents.send(REPLY, ...)   // only the invoking window
+  //   })
+  //
+  // The canonical live exemplar already in this file is FilesService.startWatch
+  // (IPC.FILES_WATCH_START below) — it threads event.sender straight through as
+  // the per-renderer watch target. Full cache-keying by sender lands in P3.
+
   // ── PTY ──────────────────────────────────────────────────────────────────
 
   ipcMain.handle(IPC.PTY_CREATE, (_event, { id, shell, cwd }: { id: string; shell?: string; cwd?: string }) => {
