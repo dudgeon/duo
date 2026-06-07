@@ -665,6 +665,15 @@ async function createWindow(): Promise<WindowContext> {
   const ctx: WindowContext = { id: winId, window: mainWindow }
   registry.register(ctx)
 
+  // ENH-191 P5a (S2) — per-window send funnel. The per-window callbacks defined
+  // below (browser state/tabs, the presence onChange, did-finish-load opens)
+  // fire for THIS window's events, so they must send to THIS window — NOT the
+  // default `safeSend`, which resolves `registry.only()` and THROWS once a
+  // second window registers (the P3 fail-loud placeholder this seam consumes).
+  // Byte-identical at N=1: ctx IS the sole window, so ctxSend hits the same
+  // target `safeSend` did.
+  const ctxSend = makeSafeSend(() => ctx.window)
+
   // ENH-191 P2 (item 7) — snapshot the cold-boot Finder open-file stash into a
   // per-window local and clear the module global immediately, so a reentrant
   // createWindow (window 2, P5a) can't replay window 1's pending open. The
@@ -718,8 +727,8 @@ async function createWindow(): Promise<WindowContext> {
   const browserManager = new BrowserManager(
     mainWindow,
     cdpBridge,
-    (state: BrowserState) => safeSend(IPC.BROWSER_STATE, state),
-    (tabs: BrowserTab[]) => safeSend(IPC.BROWSER_TABS, tabs),
+    (state: BrowserState) => ctxSend(IPC.BROWSER_STATE, state),
+    (tabs: BrowserTab[]) => ctxSend(IPC.BROWSER_TABS, tabs),
     browserHistory,
     externalDomainsService
   )
@@ -807,11 +816,13 @@ async function createWindow(): Promise<WindowContext> {
     // The enrichment hook (sessionStateService below) gates UUID
     // capture on membership in this set; without it, S3 fires on
     // tabs that never actually ran Claude.
-    const activeId = activeTerminalIdCache.getDefault(registry)
+    // ENH-191 P5a (S2) — THIS window's active terminal (not registry.only(),
+    // which throws at N>1). Byte-identical at N=1 (winId === the sole window).
+    const activeId = activeTerminalIdCache.getOrDefault(winId)
     if ((state === 'claude' || state === 'starting') && activeId) {
       ctx.tabsThatHostedClaude?.add(activeId)
     }
-    safeSend(IPC.TERMINAL_CLAUDE_PRESENCE_CHANGED, state)
+    ctxSend(IPC.TERMINAL_CLAUDE_PRESENCE_CHANGED, state)
     const live = state === 'claude' || state === 'starting'
     // ENH-191 P1b — cdpBridge is now a nullable module global; a presence
     // tick after a window close would TypeError on a bare call. Optional-
@@ -947,7 +958,7 @@ async function createWindow(): Promise<WindowContext> {
           // honors duo-open-in meta. Most pack canvases will land in
           // the canvas tab; templates that opt into browser routing
           // get there via the meta hint without bespoke wiring here.
-          safeSend(IPC.NAV_EDIT, absPath)
+          ctxSend(IPC.NAV_EDIT, absPath)
         }
         await installedPacksService.markFirstLaunched(m.name, m.version)
       }
