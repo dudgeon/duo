@@ -61,7 +61,7 @@ import { CdpBridge } from './cdp-bridge'
 import { makeSafeSend } from './safe-send'
 import { WindowRegistry, type WindowContext } from './window-registry'
 import { makeOnceGuard } from './once-guard'
-import { resolveDefault } from './window-resolve'
+import { resolveDefault, broadcastAll } from './window-resolve'
 import { makeWindowTeardown } from './window-teardown'
 import { SocketServer, ensureSocketDir } from '../core/socket-server'
 import { FilesService } from './files-service'
@@ -335,8 +335,10 @@ const navPinsService = new NavPinsService()
 // subscribers stay in sync without polling.
 const projectsService = new ProjectsService()
 function broadcastProjectsChanged(file: import('../shared/types').ProjectsFile): void {
-  if (!mainWindow || mainWindow.isDestroyed()) return
-  mainWindow.webContents.send(IPC.PROJECTS_CHANGED, file)
+  // ENH-191 P2 (class-ii) — a shared projects.json change must repaint EVERY
+  // window's project rail, not just the originator. broadcastAll guards each
+  // window's destroyed-state and no-ops on an empty registry. N=1: one window.
+  broadcastAll(registry, IPC.PROJECTS_CHANGED, file)
 }
 // ENH-182 Phase 4 — cached renderer snapshot for the `duo project`
 // CLI family. Updated by PROJECTS_STATE_PUSH (renderer → main) on
@@ -1263,7 +1265,8 @@ app.whenReady().then(async () => {
       return { ok: true, target }
     },
     pushNavPinsChanged: (pins) => {
-      safeSend(IPC.NAV_PINS_CHANGED, pins)
+      // ENH-191 P2 (class-ii) — nav-pins.json is shared; fan out to all windows.
+      broadcastAll(registry, IPC.NAV_PINS_CHANGED, pins)
     },
     // ENH-167 — workspace-as-file CLI parity.
     workspaceSave: async (opts) => saveWorkspaceFile(opts),
@@ -1689,9 +1692,9 @@ function setupIPC(): void {
   })
   ipcMain.handle(IPC.NAV_PINS_TOGGLE, async (_event, entry: import('../shared/types').NavPinEntry) => {
     const next = await navPinsService.toggle(entry)
-    // BUG-030 — push to renderer so any other subscriber (or other
-    // window someday) sees the change live.
-    mainWindow?.webContents.send(IPC.NAV_PINS_CHANGED, next)
+    // BUG-030 / ENH-191 P2 (class-ii) — nav-pins.json is shared; the "(or other
+    // window someday)" is now: fan out to EVERY window's navigator pinned rail.
+    broadcastAll(registry, IPC.NAV_PINS_CHANGED, next)
     return next
   })
 
@@ -3907,11 +3910,15 @@ export async function openExternalUrl(url: string): Promise<{ ok: boolean; opene
     // surface a small "Sent <host> to your default browser" banner.
     // The renderer auto-dismisses after a few seconds; the user
     // doesn't have to interact with it.
-    if (mainWindow && !mainWindow.isDestroyed() && (scheme === 'http:' || scheme === 'https:')) {
+    if (scheme === 'http:' || scheme === 'https:') {
       const host = parsed.hostname
       const match = externalDomainsService?.match(host)
       const push: ExternalRedirectedPush = { host, reason: match?.reason || undefined }
-      mainWindow.webContents.send(IPC.EXTERNAL_REDIRECTED, push)
+      // ENH-191 P2 (class-ii, PRD-locked) — broadcast the redirect receipt;
+      // broadcastAll no-ops on an empty registry, folding in the old mainWindow
+      // guard. (P5a: revisit whether the receipt should address only the firing
+      // window instead of all — see PRD deferred follow-ups.)
+      broadcastAll(registry, IPC.EXTERNAL_REDIRECTED, push)
     }
     return { ok: true, opened: url }
   } catch (err) {
