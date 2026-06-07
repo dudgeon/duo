@@ -98,11 +98,46 @@ into that window's `WindowState.activeWorkspace`; at restore, seed
 `ctx.activeWorkspace` from it. Extend the migration round-trip test to assert it
 survives flat→envelope. Confirm `auxTabId` round-trips per window.
 
-## Then P5 (after P4) — the FIRST user-visible release (flag-gated)
-P5a = open window 2 (reentrant `createWindow`) + terminal-origin CLI addressing
-(`DUO_WINDOW` consumer) behind `multiWindow.enabled`; P5b = explicit `--window`
-surface. See PRD §4 P5. P5 is where the P3 `only()` fail-loud placeholders +
-the dormant `DUO_WINDOW` stamp get consumed. KEEP EXECUTING through it too.
+## NOW: P5a — the FIRST user-visible release (open window 2)
+
+> **⛔ Same EXECUTE-CONTINUOUSLY directive as P4 (see top). Build seam-by-seam,
+> gate (`typecheck && check:routing && test:run` in the worktree), commit + push
+> EACH, keep going. The Cut-4a two-window `/smoke-walk` + the cut + merges are a
+> SEPARATE session's job — NOT this one.**
+
+### Owner decisions (locked 2026-06-07 — do NOT re-decide)
+- **`multiWindow` defaults ON** (overrides PRD §7.2's original default-false).
+  User can disable via a **Settings menu** toggle. Storage = main-side
+  `SettingsService` over `~/.claude/duo/settings.json` (`{ multiWindow: boolean }`,
+  default true). Recorded in PRD §7.2.
+- **New Window shortcut = `⌥⌘N`** (`⌘N`/`⌘⇧N` taken by New File / New Folder).
+- New window opens **blank to a default cwd** (NFR-6.2, pinned) — not cloning w1.
+
+### P5a seams (PRD §4 P5a work items 1,2,3,6,8,10 + Window-menu/geometry)
+- **[ ] S1 — `SettingsService`** (`core/settings-service.ts`): `~/.claude/duo/settings.json`,
+  `{ multiWindow: boolean }` default true, atomic write, injectable path + tests.
+- **[ ] S2 — reentrant `createWindow` hardening**: a 2nd call safely registers a
+  2nd `WindowContext` (once-guards already lift the one-time registrations in
+  P1/P2 — verify + fix any per-window-vs-app-scope leftover). Byte-identical at N=1.
+- **[ ] S3 — entry points**: "New Window" menu item (`⌥⌘N`) + `duo window new`
+  verb → `createWindow`, gated on `settings.multiWindow` (clean "disabled" error
+  when off, never silent — CLI-parity). + the Settings-menu toggle. New window
+  blank @ default cwd; `duo window new --cwd <path>` optional.
+- **[ ] S4 — windowId on the wire**: `windowId?` on `DuoRequest` + `cli/duo.ts`
+  threading; consume the dormant `DUO_WINDOW` PTY stamp (resolution order:
+  `--window` > `DUO_WINDOW` > focused fallback); `SocketServer.handle` resolves
+  windowId→context (clean `no such window: N` error).
+- **[ ] S5 — N-window restore + geometry**: restore all persisted windows
+  (flag-gated); **flag-off must NOT prune the dormant `WindowState`s** (PRD §7.2 /
+  line-970 gap — preserve unloaded slots); per-window bounds.
+- **[ ] S6 — `duo doctor` window count + macOS Window menu** (NFR-4.4 / NFR-5.1).
+- **[ ] S7 — four-surface CLI doc-sync** for `duo window new` (CLAUDE.md §3:
+  cli/duo.ts + skill/SKILL.md + agents/duo.md + docs/CLI-COVERAGE.md) +
+  `check:skill-currency`.
+
+Then **P5b** = explicit `--window` across the full ~36-verb surface + `duo windows`
+enumeration + tab/aux/split addressing + the `duo events` per-window decision
+(PRD §4 P5b — STATE it). P5 consumes the P3 `only()` fail-loud placeholders.
 
 ## Key locked constraints (do NOT re-decide — PRD §4 P4)
 - `{windows: WindowState[]}` envelope (locked). Single serialized writer (compose,
