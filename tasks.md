@@ -42,6 +42,18 @@
 **Decision gate CLOSED** — the owner walked the playground 2026-05-31 and D1–D9 were executed, so this no longer surfaces in smoke walks. The sole carry-forward (the about-duo screenshots) lives in [ENH-204](#enh-204), a normal backlog item that does not nag.
 
 
+### ENH-205: Per-tab IPC listener leak — MaxListenersExceededWarning across ~10 channels
+
+**Status:** 🆕 **Filed 2026-06-07 — found while verifying FOLLOWUP-031.** **Priority:** Low–Medium (dev-log noise; not user-visible, but a real per-tab listener leak). **Effort:** M.
+
+**Why.** FOLLOWUP-031 hoisted the `claude-presence-changed` subscription to one listener — but a fresh dev log shows the `MaxListenersExceededWarning` spam is **not** claude-presence; it comes from **~10 OTHER per-tab IPC channels**, each registering one listener per open editor/canvas/JSON tab (so >10 once ~9+ tabs are open): `editor:doc-read`, `editor:doc-goto`, `editor:doc-find`, `editor:doc-write`, `editor:doc-edit-plain`, `editor:image-insert`, `selection-format:set`, `paste-plain:request`, `author:set`, `files:changed`.
+
+**Ask.** Dedupe these per-tab subscriptions the same class of way FOLLOWUP-031 did — either an **active-tab gate** (only the active tab subscribes; mirrors the existing `isActive` gating on `duo image insert` / `duo json`) or a single hoisted dispatcher/context. Likely homes: `renderer/components/editor/MarkdownEditor.tsx` (most of the `editor:doc-*` + `selection-format`/`paste-plain`/`author` channels) + `PageTab.tsx` / `JsonView.tsx`. Add a listener-count regression test per channel (mirror FOLLOWUP-031's).
+
+**Cross-refs.** [FOLLOWUP-031](#followup-031) (fixed the claude-presence channel + the context pattern to copy), `electron/preload.ts` (the `ipcRenderer.on` registrations), `renderer/components/editor/MarkdownEditor.tsx`.
+
+---
+
 ### ENH-204: about-duo.md walkthrough screenshots (ENH-191 D10–D12 carry-forward)
 
 **Status:** 🆕 **Filed 2026-06-06 — split from ENH-191** (the docs deep-clean's only remaining step). **Priority:** Low (doc polish). **Effort:** M — NOT a quick hit.
