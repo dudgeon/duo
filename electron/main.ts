@@ -63,6 +63,7 @@ import { WindowRegistry, type WindowContext } from './window-registry'
 import { makeOnceGuard } from './once-guard'
 import { resolveDefault, broadcastAll } from './window-resolve'
 import { WindowKeyedCache, defaultWindowId } from './cache-key'
+import { PendingRegistry } from './reqid-validate'
 import { makeWindowTeardown } from './window-teardown'
 import { SocketServer, ensureSocketDir } from '../core/socket-server'
 import { FilesService } from './files-service'
@@ -153,40 +154,40 @@ const editorSelectionCache = new WindowKeyedCache<EditorSelectionSnapshot | null
 const canvasSelectionCache = new WindowKeyedCache<PageSelectionSnapshot | null>(() => null)
 
 // Pending doc-write requests awaiting a renderer reply.
-const docWritePending = new Map<string, (res: DocWriteResult) => void>()
+const docWritePending = new PendingRegistry<DocWriteResult>()
 
 // Pending doc-read requests awaiting a renderer reply.
-const docReadPending = new Map<string, (res: DocReadResult) => void>()
+const docReadPending = new PendingRegistry<DocReadResult>()
 
 // ENH-022 / ENH-023 (v0.5.4) — pending doc-goto / doc-find requests
 // awaiting a renderer reply. Same pairing pattern as docWritePending.
-const docGotoPending = new Map<string, (res: DocGotoResult) => void>()
-const docFindPending = new Map<string, (res: DocFindResult) => void>()
+const docGotoPending = new PendingRegistry<DocGotoResult>()
+const docFindPending = new PendingRegistry<DocFindResult>()
 
 // Stage 17b Phase C — pending `duo html *` ops awaiting a renderer reply.
-const htmlOpPending = new Map<string, (res: HtmlOpResult) => void>()
+const htmlOpPending = new PendingRegistry<HtmlOpResult>()
 
 // ENH-195 — pending `duo doc edit` (PLAIN replace) requests awaiting a
 // renderer reply. Same Map-pairing pattern as docWritePending.
-const docEditPlainPending = new Map<string, (res: DocEditPlainResult) => void>()
+const docEditPlainPending = new PendingRegistry<DocEditPlainResult>()
 
 // ENH-195 — pending `duo json set|merge` ops awaiting a renderer reply.
 // Same Map-pairing pattern as htmlOpPending.
-const jsonOpPending = new Map<string, (res: JsonOpResult) => void>()
+const jsonOpPending = new PendingRegistry<JsonOpResult>()
 
 // ENH-108 (Sprint 12) — pending `duo image insert` requests awaiting
 // a renderer reply. Same Map-pairing pattern as docWritePending.
-const imageInsertPending = new Map<string, (res: import('../shared/types').ImageInsertResult) => void>()
+const imageInsertPending = new PendingRegistry<import('../shared/types').ImageInsertResult>()
 
 // Stage 17d — pending `duo html comment` / `duo html comments` requests
 // awaiting a renderer reply. Same Map-pairing pattern as htmlOpPending.
-const htmlCommentPending = new Map<string, (res: HtmlCommentResult) => void>()
-const htmlCommentsListPending = new Map<string, (res: HtmlCommentsListResult) => void>()
+const htmlCommentPending = new PendingRegistry<HtmlCommentResult>()
+const htmlCommentsListPending = new PendingRegistry<HtmlCommentsListResult>()
 
 // ENH-167 — pending snapshot requests. main asks the renderer for the
 // live SessionState (bypassing the autosave debounce) before writing a
 // .duo-workspace file (legacy: was ".duo-session", renamed v1.3).
-const sessionSnapshotPending = new Map<string, (state: import('../shared/types').SessionState) => void>()
+const sessionSnapshotPending = new PendingRegistry<import('../shared/types').SessionState>()
 
 // Stage 11 \u00a7 D33d \u2014 most recent theme state pushed by the renderer.
 // Drives `duo theme` reads. Renderer is the source of truth.
@@ -249,7 +250,7 @@ const tabsThatHostedClaude = new Set<string>()
 
 // Stage 19c D27 — pending `duo new-tab` requests awaiting a renderer
 // reply. Shape mirrors docWritePending / docReadPending.
-const newTabPending = new Map<string, (res: NewTabResult) => void>()
+const newTabPending = new PendingRegistry<NewTabResult>()
 
 // Stage 12 — Atelier "light is hero". Was 'dark'; flipped so macOS
 // chrome (menu, dialogs) matches the new design baseline at app boot
@@ -2109,99 +2110,66 @@ function setupIPC(): void {
 
   // Stage 11 — renderer's reply to a doc-write request.
   // ENH-108 — image-insert reply.
-  ipcMain.on(IPC.EDITOR_IMAGE_INSERT_RESULT, (_event, result: import('../shared/types').ImageInsertResult) => {
-    const resolver = imageInsertPending.get(result.reqId)
-    if (resolver) {
-      imageInsertPending.delete(result.reqId)
-      resolver(result)
-    }
+  ipcMain.on(IPC.EDITOR_IMAGE_INSERT_RESULT, (event, result: import('../shared/types').ImageInsertResult) => {
+    const sid = BrowserWindow.fromWebContents(event.sender)?.id
+    imageInsertPending.deliver(result.reqId, sid, result)
   })
 
-  ipcMain.on(IPC.EDITOR_DOC_WRITE_RESULT, (_event, result: DocWriteResult) => {
-    const resolver = docWritePending.get(result.reqId)
-    if (resolver) {
-      docWritePending.delete(result.reqId)
-      resolver(result)
-    }
+  ipcMain.on(IPC.EDITOR_DOC_WRITE_RESULT, (event, result: DocWriteResult) => {
+    const sid = BrowserWindow.fromWebContents(event.sender)?.id
+    docWritePending.deliver(result.reqId, sid, result)
   })
 
   // ENH-022 (v0.5.4) — doc-goto reply.
-  ipcMain.on(IPC.EDITOR_DOC_GOTO_RESULT, (_event, result: DocGotoResult) => {
-    const resolver = docGotoPending.get(result.reqId)
-    if (resolver) {
-      docGotoPending.delete(result.reqId)
-      resolver(result)
-    }
+  ipcMain.on(IPC.EDITOR_DOC_GOTO_RESULT, (event, result: DocGotoResult) => {
+    const sid = BrowserWindow.fromWebContents(event.sender)?.id
+    docGotoPending.deliver(result.reqId, sid, result)
   })
 
   // ENH-023 (v0.5.4) — doc-find reply.
-  ipcMain.on(IPC.EDITOR_DOC_FIND_RESULT, (_event, result: DocFindResult) => {
-    const resolver = docFindPending.get(result.reqId)
-    if (resolver) {
-      docFindPending.delete(result.reqId)
-      resolver(result)
-    }
+  ipcMain.on(IPC.EDITOR_DOC_FIND_RESULT, (event, result: DocFindResult) => {
+    const sid = BrowserWindow.fromWebContents(event.sender)?.id
+    docFindPending.deliver(result.reqId, sid, result)
   })
 
   // Renderer's reply to a doc-read request (live editor buffer).
-  ipcMain.on(IPC.EDITOR_DOC_READ_RESULT, (_event, result: DocReadResult) => {
-    const resolver = docReadPending.get(result.reqId)
-    if (resolver) {
-      docReadPending.delete(result.reqId)
-      resolver(result)
-    }
+  ipcMain.on(IPC.EDITOR_DOC_READ_RESULT, (event, result: DocReadResult) => {
+    const sid = BrowserWindow.fromWebContents(event.sender)?.id
+    docReadPending.deliver(result.reqId, sid, result)
   })
 
   // Stage 17b Phase C — renderer's reply to a `duo html *` op.
-  ipcMain.on(IPC.PAGE_HTML_OP_RESULT, (_event, result: HtmlOpResult) => {
-    const resolver = htmlOpPending.get(result.reqId)
-    if (resolver) {
-      htmlOpPending.delete(result.reqId)
-      resolver(result)
-    }
+  ipcMain.on(IPC.PAGE_HTML_OP_RESULT, (event, result: HtmlOpResult) => {
+    const sid = BrowserWindow.fromWebContents(event.sender)?.id
+    htmlOpPending.deliver(result.reqId, sid, result)
   })
 
   // ENH-195 — renderer's reply to a `duo doc edit` PLAIN replace.
-  ipcMain.on(IPC.EDITOR_DOC_EDIT_PLAIN_RESULT, (_event, result: DocEditPlainResult) => {
-    const resolver = docEditPlainPending.get(result.reqId)
-    if (resolver) {
-      docEditPlainPending.delete(result.reqId)
-      resolver(result)
-    }
+  ipcMain.on(IPC.EDITOR_DOC_EDIT_PLAIN_RESULT, (event, result: DocEditPlainResult) => {
+    const sid = BrowserWindow.fromWebContents(event.sender)?.id
+    docEditPlainPending.deliver(result.reqId, sid, result)
   })
 
   // ENH-195 — renderer's reply to a `duo json set|merge` op.
-  ipcMain.on(IPC.JSON_OP_RESULT, (_event, result: JsonOpResult) => {
-    const resolver = jsonOpPending.get(result.reqId)
-    if (resolver) {
-      jsonOpPending.delete(result.reqId)
-      resolver(result)
-    }
+  ipcMain.on(IPC.JSON_OP_RESULT, (event, result: JsonOpResult) => {
+    const sid = BrowserWindow.fromWebContents(event.sender)?.id
+    jsonOpPending.deliver(result.reqId, sid, result)
   })
 
   // Stage 17d — renderer's reply to a `duo html comment` / `duo html comments`.
-  ipcMain.on(IPC.PAGE_HTML_COMMENT_RESULT, (_event, result: HtmlCommentResult) => {
-    const resolver = htmlCommentPending.get(result.reqId)
-    if (resolver) {
-      htmlCommentPending.delete(result.reqId)
-      resolver(result)
-    }
+  ipcMain.on(IPC.PAGE_HTML_COMMENT_RESULT, (event, result: HtmlCommentResult) => {
+    const sid = BrowserWindow.fromWebContents(event.sender)?.id
+    htmlCommentPending.deliver(result.reqId, sid, result)
   })
-  ipcMain.on(IPC.PAGE_HTML_COMMENTS_LIST_RESULT, (_event, result: HtmlCommentsListResult) => {
-    const resolver = htmlCommentsListPending.get(result.reqId)
-    if (resolver) {
-      htmlCommentsListPending.delete(result.reqId)
-      resolver(result)
-    }
+  ipcMain.on(IPC.PAGE_HTML_COMMENTS_LIST_RESULT, (event, result: HtmlCommentsListResult) => {
+    const sid = BrowserWindow.fromWebContents(event.sender)?.id
+    htmlCommentsListPending.deliver(result.reqId, sid, result)
   })
 
   // ENH-167 — renderer replies to a session-state snapshot request.
-  ipcMain.on(IPC.SESSION_STATE_SNAPSHOT_RESULT, (_event, payload: { reqId: string; state: import('../shared/types').SessionState }) => {
-    const resolver = sessionSnapshotPending.get(payload.reqId)
-    if (resolver) {
-      sessionSnapshotPending.delete(payload.reqId)
-      resolver(payload.state)
-    }
+  ipcMain.on(IPC.SESSION_STATE_SNAPSHOT_RESULT, (event, payload: { reqId: string; state: import('../shared/types').SessionState }) => {
+    const sid = BrowserWindow.fromWebContents(event.sender)?.id
+    sessionSnapshotPending.deliver(payload.reqId, sid, payload.state)
   })
 
   // Stage 11 \u00a7 D33d \u2014 theme state push from the renderer.
@@ -2282,12 +2250,9 @@ function setupIPC(): void {
   ipcMain.handle('terminal:claude-on-path', () => isClaudeOnPath())
 
   // Stage 19c D27 \u2014 renderer reply to a `duo new-tab` request.
-  ipcMain.on(IPC.NEW_TAB_RESULT, (_event, result: NewTabResult) => {
-    const resolver = newTabPending.get(result.reqId)
-    if (resolver) {
-      newTabPending.delete(result.reqId)
-      resolver(result)
-    }
+  ipcMain.on(IPC.NEW_TAB_RESULT, (event, result: NewTabResult) => {
+    const sid = BrowserWindow.fromWebContents(event.sender)?.id
+    newTabPending.deliver(result.reqId, sid, result)
   })
 
   // ── Cozy mode (Stage 9) ────────────────────────────────────────────────────
@@ -2716,7 +2681,7 @@ async function dispatchSessionSnapshot(): Promise<import('../shared/types').Sess
       console.warn('[workspace-file] snapshot request timed out')
       resolve(null)
     }, SESSION_SNAPSHOT_TIMEOUT_MS)
-    sessionSnapshotPending.set(reqId, (state) => {
+    sessionSnapshotPending.set(reqId, win.id, (state) => {
       clearTimeout(timer)
       resolve(state)
     })
@@ -3711,7 +3676,7 @@ export function dispatchDocWrite(req: Omit<DocWriteRequest, 'reqId'>): Promise<D
       docWritePending.delete(reqId)
       resolve({ reqId, ok: false, error: `Renderer did not reply within ${DOC_WRITE_TIMEOUT_MS / 1000}s` })
     }, DOC_WRITE_TIMEOUT_MS)
-    docWritePending.set(reqId, (res) => {
+    docWritePending.set(reqId, win.id, (res) => {
       clearTimeout(timer)
       resolve(res)
     })
@@ -3730,7 +3695,7 @@ export function dispatchImageInsert(req: { bytes: Uint8Array; ext: string; alt?:
       imageInsertPending.delete(reqId)
       resolve({ reqId, ok: false, error: 'Renderer did not reply within 10s — likely no markdown editor active' })
     }, 10000)
-    imageInsertPending.set(reqId, (res) => {
+    imageInsertPending.set(reqId, win.id, (res) => {
       clearTimeout(timer)
       resolve(res)
     })
@@ -3749,7 +3714,7 @@ export function dispatchDocRead(req: Omit<DocReadRequest, 'reqId'>): Promise<Doc
       docReadPending.delete(reqId)
       resolve({ reqId, ok: false, error: 'Renderer did not reply within 5s' })
     }, 5000)
-    docReadPending.set(reqId, (res) => {
+    docReadPending.set(reqId, win.id, (res) => {
       clearTimeout(timer)
       resolve(res)
     })
@@ -3771,7 +3736,7 @@ export function dispatchDocGoto(req: Omit<DocGotoRequest, 'reqId'>): Promise<Doc
       docGotoPending.delete(reqId)
       resolve({ reqId, ok: false, error: 'Renderer did not reply within 5s' })
     }, 5000)
-    docGotoPending.set(reqId, (res) => {
+    docGotoPending.set(reqId, win.id, (res) => {
       clearTimeout(timer)
       resolve(res)
     })
@@ -3791,7 +3756,7 @@ export function dispatchDocFind(req: Omit<DocFindRequest, 'reqId'>): Promise<Doc
       docFindPending.delete(reqId)
       resolve({ reqId, ok: false, error: 'Renderer did not reply within 5s' })
     }, 5000)
-    docFindPending.set(reqId, (res) => {
+    docFindPending.set(reqId, win.id, (res) => {
       clearTimeout(timer)
       resolve(res)
     })
@@ -3816,7 +3781,7 @@ export function dispatchDocEditPlain(req: Omit<DocEditPlainRequest, 'reqId'>): P
       docEditPlainPending.delete(reqId)
       resolve({ reqId, ok: false, changed: false, replacements: 0, reason: '', error: 'Renderer did not reply within 10s — likely no markdown editor active' })
     }, 10000)
-    docEditPlainPending.set(reqId, (res) => {
+    docEditPlainPending.set(reqId, win.id, (res) => {
       clearTimeout(timer)
       resolve(res)
     })
@@ -3839,7 +3804,7 @@ export function dispatchJsonOp(req: Omit<JsonOpRequest, 'reqId'>): Promise<JsonO
       jsonOpPending.delete(reqId)
       resolve({ reqId, ok: false, changed: false, reason: '', error: 'Renderer did not reply within 10s — likely no JSON viewer active' })
     }, 10000)
-    jsonOpPending.set(reqId, (res) => {
+    jsonOpPending.set(reqId, win.id, (res) => {
       clearTimeout(timer)
       resolve(res)
     })
@@ -3865,7 +3830,7 @@ export function dispatchHtmlOp(req: Omit<HtmlOpRequest, 'reqId'>): Promise<HtmlO
       htmlOpPending.delete(reqId)
       resolve({ reqId, ok: false, error: `Renderer did not reply within ${HTML_OP_TIMEOUT_MS / 1000}s (no active canvas?)` })
     }, HTML_OP_TIMEOUT_MS)
-    htmlOpPending.set(reqId, (res) => {
+    htmlOpPending.set(reqId, win.id, (res) => {
       clearTimeout(timer)
       resolve(res)
     })
@@ -3887,7 +3852,7 @@ export function dispatchHtmlComment(req: Omit<HtmlCommentRequest, 'reqId'>): Pro
       htmlCommentPending.delete(reqId)
       resolve({ reqId, ok: false, error: `Renderer did not reply within ${HTML_OP_TIMEOUT_MS / 1000}s (no active canvas?)` })
     }, HTML_OP_TIMEOUT_MS)
-    htmlCommentPending.set(reqId, (res) => {
+    htmlCommentPending.set(reqId, win.id, (res) => {
       clearTimeout(timer)
       resolve(res)
     })
@@ -3906,7 +3871,7 @@ export function dispatchHtmlCommentsList(req: Omit<HtmlCommentsListRequest, 'req
       htmlCommentsListPending.delete(reqId)
       resolve({ reqId, ok: false, error: `Renderer did not reply within ${HTML_OP_TIMEOUT_MS / 1000}s (no active canvas?)` })
     }, HTML_OP_TIMEOUT_MS)
-    htmlCommentsListPending.set(reqId, (res) => {
+    htmlCommentsListPending.set(reqId, win.id, (res) => {
       clearTimeout(timer)
       resolve(res)
     })
@@ -4002,7 +3967,7 @@ export function dispatchNewTab(
       newTabPending.delete(reqId)
       resolve({ reqId, ok: false, error: `Renderer did not reply within ${NEW_TAB_TIMEOUT_MS / 1000}s` })
     }, NEW_TAB_TIMEOUT_MS)
-    newTabPending.set(reqId, (res) => {
+    newTabPending.set(reqId, win.id, (res) => {
       clearTimeout(timer)
       resolve(res)
     })
