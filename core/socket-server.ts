@@ -299,7 +299,11 @@ export class SocketServer {
   // agent reads from a pane. Optional because the sink is wired in
   // Electron-host setup; a future Native Messaging host would inject
   // its own. Same pattern as PtyManager's setEventSink (electron/main.ts).
-  private eventSink: ((channel: string, payload: unknown) => void) | null = null
+  private eventSink: ((channel: string, payload: unknown, addressedWindowId?: number) => void) | null = null
+  // ENH-191 P3-S11a — resolves the window a cue is addressed to (the command
+  // that emits a cue knows its target). Threaded as the 3rd eventSink arg so
+  // main routes the cue to THAT window (routeAmbientCue), not always window 1.
+  private getAddressedWindowId: () => number | undefined = () => undefined
 
   constructor(
     // ENH-191 P1b — cdp/browser are reached via getter-thunks, not held
@@ -325,9 +329,16 @@ export class SocketServer {
     private readonly appVersion: string
   ) {}
 
-  /** Stage 12 close — install a renderer-push callback. */
-  setEventSink(send: (channel: string, payload: unknown) => void): void {
+  /** Stage 12 close — install a renderer-push callback.
+   *  ENH-191 P3-S11a — also accepts a getAddressedWindowId resolver so the two
+   *  ambient cues (read-glow + duo-open supplemental) land in the addressed
+   *  window. socket-server stays Electron-free — it only learns an opaque id. */
+  setEventSink(
+    send: (channel: string, payload: unknown, addressedWindowId?: number) => void,
+    getAddressedWindowId?: () => number | undefined
+  ): void {
     this.eventSink = send
+    if (getAddressedWindowId) this.getAddressedWindowId = getAddressedWindowId
   }
 
   start(): void {
@@ -935,7 +946,8 @@ export class SocketServer {
           if (!resolvedLocally && this.eventSink && openedTabId !== null) {
             this.eventSink(
               'browser:focus-gained',
-              { tabId: openedTabId, slot: 'main' }
+              { tabId: openedTabId, slot: 'main' },
+              this.getAddressedWindowId()
             )
           }
           break
@@ -1181,7 +1193,7 @@ export class SocketServer {
           // actually returned a non-null selection (gates out
           // collapsed-or-missing reads that wouldn't be visible).
           if (this.eventSink && resolved) {
-            this.eventSink('claude:read-selection', { pane: resolved.kind })
+            this.eventSink('claude:read-selection', { pane: resolved.kind }, this.getAddressedWindowId())
           }
           result = resolved
           break

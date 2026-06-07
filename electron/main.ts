@@ -64,6 +64,7 @@ import { makeOnceGuard } from './once-guard'
 import { resolveDefault, resolveBySender, broadcastAll } from './window-resolve'
 import { WindowKeyedCache, defaultWindowId } from './cache-key'
 import { PendingRegistry } from './reqid-validate'
+import { routeAmbientCue } from './eventsink-route'
 import { makeWindowTeardown } from './window-teardown'
 import { SocketServer, ensureSocketDir } from '../core/socket-server'
 import { FilesService } from './files-service'
@@ -1342,13 +1343,18 @@ app.whenReady().then(async () => {
     getWorkspacePillMenuEnabled: () => getWorkspacePillMenuEnabled(),
     setWorkspacePillMenuEnabled: (enabled: boolean) => setWorkspacePillMenuEnabledCli(enabled)
   }, navPinsService, eventBus, packLoader, app.getVersion())
-  // Stage 12 close — wire the renderer event sink so the socket
-  // server can push ambient cues (e.g. CLAUDE_READ_SELECTION when
-  // the agent calls `duo selection`). Same one-liner adapter as
-  // PtyManager's setEventSink.
-  socketServer.setEventSink((channel, payload) => {
-    safeSend(channel, payload)
-  })
+  // Stage 12 close / ENH-191 P3-S11a — wire the renderer event sink so the
+  // socket server can push ambient cues (the read-glow + the duo-open
+  // supplemental focus push). The cue's addressed window (3rd arg, resolved by
+  // the getAddressedWindowId thunk) routes it to THAT window via routeAmbientCue
+  // — at N=1 the sole window (byte-identical to the old safeSend funnel); at N>1
+  // each cue lands where it was addressed, not always window 1. The thunk's
+  // try/catch yields undefined at N>1 (only() throws) — the fail-loud signal
+  // that P5 must thread the real per-command addressed window.
+  socketServer.setEventSink(
+    (channel, payload, addressedWindowId) => routeAmbientCue(registry, addressedWindowId, channel, payload),
+    () => { try { return registry.only()?.id } catch { return undefined } }
+  )
   socketServer.start()
 
   void createWindow()

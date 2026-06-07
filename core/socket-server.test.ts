@@ -83,3 +83,30 @@ describe('SocketServer — app-scoped getter-thunk boot-race contract (ENH-191 P
     expect(getActiveUrl).toHaveBeenCalledTimes(1)
   })
 })
+
+// ENH-191 P3-S11a — the ambient-cue emits now carry the ADDRESSED window id as
+// the 3rd eventSink arg (resolved by the getAddressedWindowId thunk) so main can
+// route the cue to that window via routeAmbientCue, not always window 1.
+describe('SocketServer — addressed-window-id on ambient cues (ENH-191 P3-S11a)', () => {
+  it('the read-glow cue carries the addressed window id (3rd arg)', async () => {
+    const d = stubDeps()
+    const nav = { getSelection: () => ({ from: 0, to: 1 }) } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const eventSink = vi.fn()
+    server.setEventSink(eventSink, () => 1)
+    await dispatch(server, 'selection', { pane: 'editor' })
+    expect(eventSink).toHaveBeenCalledWith('claude:read-selection', { pane: 'editor' }, 1)
+  })
+
+  // NEGATIVE CONTROL: a missing resolver must NOT suppress the cue — it fires
+  // with an undefined 3rd arg (routeAmbientCue then falls back to the sole window).
+  it('with no getAddressedWindowId resolver the cue still fires (undefined 3rd arg)', async () => {
+    const d = stubDeps()
+    const nav = { getSelection: () => ({ from: 0, to: 1 }) } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const eventSink = vi.fn()
+    server.setEventSink(eventSink) // no resolver → default () => undefined
+    await dispatch(server, 'selection', { pane: 'editor' })
+    expect(eventSink).toHaveBeenCalledWith('claude:read-selection', { pane: 'editor' }, undefined)
+  })
+})
