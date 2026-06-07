@@ -166,3 +166,43 @@ describe('cache-key — item-12 shared-file fan-out (ENH-191 P3-S12)', () => {
     expect(b.window.webContents.send).toHaveBeenCalledWith('projects:changed', { pins: [] })
   })
 })
+
+// ENH-191 P3-S9 — mechanical completeness over the 13 PUSH/STATE handlers
+// (main.ts:2061..2283). The LITERAL array is the completeness check: a 14th
+// handler added without coverage is a visible omission here. SESSION_STATE_-
+// SNAPSHOT_RESULT also appears in reqid-validate's REQID_FAMILIES — it's a reqId
+// reply wearing a PUSH-channel name (owned there); listed in both arrays, the
+// ONE overlap, intentionally — do not "fix" it.
+const PUSH_FAMILIES = [
+  'PROJECTS_STATE_PUSH',
+  'WORKSPACE_PILL_MENU_PUSH',
+  'NAV_STATE_PUSH',
+  'EDITOR_SELECTION_PUSH',
+  'PAGE_SELECTION_PUSH',
+  'SESSION_STATE_SNAPSHOT_RESULT',
+  'THEME_STATE_PUSH',
+  'CLAUDE_KEY_PREFS_STATE_PUSH',
+  'AUTHOR_STATE_PUSH',
+  'SELECTION_FORMAT_STATE_PUSH',
+  'WORKING_AUX_STATE_PUSH',
+  'TERMINAL_ACTIVE_PUSH',
+  'COZY_STATE_PUSH',
+]
+
+describe('cache-key — PUSH family keying completeness (ENH-191 P3-S9)', () => {
+  it('the literal list covers all 13 PUSH/STATE families (a missing one is a visible omission)', () => {
+    expect(PUSH_FAMILIES).toHaveLength(13)
+    expect(new Set(PUSH_FAMILIES).size).toBe(13) // no dupes
+  })
+
+  describe.each(PUSH_FAMILIES)('%s', (family) => {
+    it('keys by sender — each window reads back its OWN snapshot; a foreign id reads the seed', () => {
+      const cache = new WindowKeyedCache<{ family: string; v: number }>(() => ({ family, v: 0 }))
+      cache.set(1, { family, v: 1 })
+      cache.set(2, { family, v: 2 })
+      expect(cache.getOrDefault(1)).toEqual({ family, v: 1 })
+      expect(cache.getOrDefault(2)).toEqual({ family, v: 2 })
+      expect(cache.getOrDefault(3)).toEqual({ family, v: 0 }) // foreign → seed, never another window's
+    })
+  })
+})

@@ -84,3 +84,44 @@ describe('reqid-validate — PendingRegistry<R> (ENH-191 P3 M2)', () => {
     expect(cb).toHaveBeenCalledTimes(1) // ← exactly the mis-route PendingRegistry prevents
   })
 })
+
+// ENH-191 P3-S9 — mechanical completeness over the 12 reqId families (main.ts).
+// The LITERAL array is the completeness check — INCLUDING docEditPlainPending +
+// jsonOpPending, which the PRD-era "10 families" list omitted (both verified in
+// main.ts). SESSION_STATE_SNAPSHOT_RESULT is the sessionSnapshotPending family's
+// reply channel (the ONE name that also appears in cache-key's PUSH_FAMILIES).
+const REQID_FAMILIES = [
+  'docWritePending',
+  'docReadPending',
+  'docGotoPending',
+  'docFindPending',
+  'htmlOpPending',
+  'docEditPlainPending',
+  'jsonOpPending',
+  'imageInsertPending',
+  'htmlCommentPending',
+  'htmlCommentsListPending',
+  'sessionSnapshotPending',
+  'newTabPending',
+]
+
+describe('reqid-validate — reqId family sender-validation completeness (ENH-191 P3-S9)', () => {
+  it('the literal list covers all 12 reqId families (incl. docEditPlain + jsonOp)', () => {
+    expect(REQID_FAMILIES).toHaveLength(12)
+    expect(new Set(REQID_FAMILIES).size).toBe(12) // no dupes
+  })
+
+  describe.each(REQID_FAMILIES)('%s', (family) => {
+    it('a foreign sender is dropped (entry left pending); the recorded target resolves', () => {
+      const reg = new PendingRegistry<{ family: string }>()
+      const cb = vi.fn()
+      const reqId = `${family}_r1`
+      reg.set(reqId, 1, cb)
+      expect(reg.deliver(reqId, 2, { family })).toBe(false) // foreign window → dropped
+      expect(cb).not.toHaveBeenCalled()
+      expect(reg.has(reqId)).toBe(true) // still pending — the real reply can arrive
+      expect(reg.deliver(reqId, 1, { family })).toBe(true) // recorded target resolves
+      expect(cb).toHaveBeenCalledTimes(1)
+    })
+  })
+})
