@@ -2,7 +2,7 @@ import * as pty from 'node-pty'
 import { DEFAULT_SHELL, DEFAULT_CWD, TERMINAL_DEFAULTS, SOCKET_PATH, SHIM_DIR } from './constants'
 import { resolveExistingCwd } from './cwd-utils'
 import { IPC } from '../shared/types'
-import type { EventSink } from './event-sink'
+import { routeSend } from './pty-owner'
 
 interface Session {
   id: string
@@ -17,6 +17,14 @@ interface Session {
   ownerWindowId: number
 }
 
+// ENH-191 P3-S5 — minimal window shape for owner-routed sends, redeclared
+// locally so this core module imports zero Electron (the WindowRegistry +
+// WindowLike live in electron/; main.ts passes resolver closures in).
+interface RouteWindow {
+  isDestroyed(): boolean
+  webContents: { isDestroyed(): boolean; send(channel: string, data: unknown): void }
+}
+
 export class PtyManager {
   private sessions = new Map<string, Session>()
   // BUG-191 — ids whose shell has EXITED. `sessions` is deleted on exit
@@ -25,12 +33,30 @@ export class PtyManager {
   // "dead shell" (drop its project tile) from "pending" (keep the launch
   // cwd) — see `getLiveness`.
   private exited = new Set<string>()
-  private eventSink: EventSink | null = null
+  private resolveOwnerWindow: (windowId: number) => RouteWindow | undefined = () => undefined
+  private resolveDefaultWindow: () => RouteWindow | undefined = () => undefined
 
   constructor(private readonly appVersion: string) {}
 
-  setEventSink(sink: EventSink): void {
-    this.eventSink = sink
+  // ENH-191 P3-S5 — wire owner-routed sends. resolveOwner maps a session's
+  // ownerWindowId to its window; resolveDefault is the sole-window fallback
+  // (the cold-start drop guard). Replaces the single app-wide eventSink so
+  // PTY_DATA/EXIT land in the OWNING window, not always the default.
+  setOwnerRouting(routing: {
+    resolveOwner: (windowId: number) => RouteWindow | undefined
+    resolveDefault: () => RouteWindow | undefined
+  }): void {
+    this.resolveOwnerWindow = routing.resolveOwner
+    this.resolveDefaultWindow = routing.resolveDefault
+  }
+
+  // Route a per-session event to its OWNING window (fallback: the sole window),
+  // guarded against a destroyed window/webContents (BUG-190).
+  private send(sessionId: string, channel: string, data: unknown): void {
+    const target = routeSend(this.sessions, sessionId, this.resolveOwnerWindow, this.resolveDefaultWindow)
+    if (target && !target.isDestroyed() && !target.webContents.isDestroyed()) {
+      target.webContents.send(channel, data)
+    }
   }
 
   create(id: string, shell: string = DEFAULT_SHELL, cwd: string = DEFAULT_CWD, ownerWindowId = -1): void {
@@ -82,11 +108,11 @@ export class PtyManager {
     })
 
     ptyProcess.onData((data) => {
-      this.eventSink?.send(IPC.PTY_DATA(id), data)
+      this.send(id, IPC.PTY_DATA(id), data)
     })
 
     ptyProcess.onExit(({ exitCode }) => {
-      this.eventSink?.send(IPC.PTY_EXIT(id), exitCode)
+      this.send(id, IPC.PTY_EXIT(id), exitCode)
       this.sessions.delete(id)
       this.exited.add(id) // BUG-191 — remember it died (vs never-spawned)
     })
@@ -104,7 +130,7 @@ export class PtyManager {
       // color reset or inject arbitrary terminal sequences.
       const safe = (s: string) => s.replace(/\x1b/g, '?')
       const note = `\x1b[33m[duo] ${safe(cwd)} no longer exists — opened ${safe(resolvedCwd)} instead.\x1b[0m\r\n`
-      this.eventSink?.send(IPC.PTY_DATA(id), note)
+      this.send(id, IPC.PTY_DATA(id), note)
     }
   }
 

@@ -61,7 +61,7 @@ import { CdpBridge } from './cdp-bridge'
 import { makeSafeSend } from './safe-send'
 import { WindowRegistry, type WindowContext } from './window-registry'
 import { makeOnceGuard } from './once-guard'
-import { resolveDefault, broadcastAll } from './window-resolve'
+import { resolveDefault, resolveBySender, broadcastAll } from './window-resolve'
 import { WindowKeyedCache, defaultWindowId } from './cache-key'
 import { PendingRegistry } from './reqid-validate'
 import { makeWindowTeardown } from './window-teardown'
@@ -653,7 +653,7 @@ async function createWindow(): Promise<WindowContext> {
   ctx.activeWorkspace = activeWorkspaceService.get()
   applyWindowTitle(ctx)
 
-  // ENH-191 P1 — `ptyManager.setEventSink` + the `ExternalDomainsService`
+  // ENH-191 P1 — `ptyManager` owner-routing wiring + the `ExternalDomainsService`
   // construction were lifted OUT of createWindow() to app-boot scope
   // (app.whenReady, just before the createWindow call) so a reentrant
   // createWindow (P2) can't re-register the PTY sink or re-construct the
@@ -1187,11 +1187,15 @@ app.whenReady().then(async () => {
   // can't re-register the PTY sink or re-construct the external-domains
   // watcher. Behavior-identical at N=1.
   //
-  // PtyManager → UI EventSink (one safeSend adapter). safeSend reads the
-  // live window dynamically, so registering before the window exists is
-  // safe — null sends no-op via the BUG-190 guard.
-  ptyManager.setEventSink({
-    send: (channel, payload) => safeSend(channel, payload)
+  // ENH-191 P3-S5 — PtyManager owner-routing. Each PTY_DATA/EXIT routes to the
+  // session's OWNING window (resolveBySender), falling back to the sole window
+  // (resolveDefault) when the owner is transiently unresolved (the cold-start
+  // drop guard). Registering before any window exists is safe — both resolve to
+  // undefined and the send no-ops. At N=1 the owner IS the sole window, so this
+  // is byte-identical to the old single safeSend funnel.
+  ptyManager.setOwnerRouting({
+    resolveOwner: (windowId) => resolveBySender(registry, windowId),
+    resolveDefault: () => resolveDefault(registry)
   })
   // BUG-040 / ENH-021 v2 — external-domains routing service (file-watched;
   // self-heals an empty/missing file from the Vite-injected defaults).
