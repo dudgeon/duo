@@ -247,7 +247,9 @@ const activeTerminalIdCache = new WindowKeyedCache<string | null>(() => null)
 // construction (in-memory only, D9 invariant); on the next run, only
 // tabs whose lastClaudeSession was persisted to workspace state from
 // a prior run survive as S3-eligible.
-const tabsThatHostedClaude = new Set<string>()
+// ENH-191 P3-S8c — now PER-WINDOW (ctx.tabsThatHostedClaude), seeded in
+// createWindow + written by THIS window's presence fan-out, so the shared PTY
+// pool can't leak S3 eligibility across windows. No module global.
 
 // Stage 19c D27 — pending `duo new-tab` requests awaiting a renderer
 // reply. Shape mirrors docWritePending / docReadPending.
@@ -488,6 +490,9 @@ sessionStateService.setEnrichBeforePersistHook(async (state) => {
   // claimed by this enrichment. At N=1 the sole window (only()); P4 makes the
   // enrich hook per-window. undefined ⇒ unfiltered (byte-identical at N=1).
   const ownerWindowId = registry.only()?.id
+  // ENH-191 P3-S8c — THIS window's S3-eligibility set (per-window); a foreign
+  // window's hosted tabs can't grant eligibility in this enrichment.
+  const hostedSet = ownerWindowId != null ? registry.get(ownerWindowId)?.tabsThatHostedClaude : undefined
   const findTabIdInState = (cwd: string): string | null => {
     const all = ptyManager.listIdsByCwd(cwd, ownerWindowId)
     const next = all.find((id) => !consumedTabIds.has(id))
@@ -498,7 +503,7 @@ sessionStateService.setEnrichBeforePersistHook(async (state) => {
   const enriched = await Promise.all(
     state.terminals.map(async (t) => {
       const tabId = findTabIdInState(t.cwd)
-      const tabHostedClaude = tabId ? tabsThatHostedClaude.has(tabId) : false
+      const tabHostedClaude = tabId ? (hostedSet?.has(tabId) ?? false) : false
       const hadPriorCapture = t.lastClaudeSession?.id != null
 
       if (!tabHostedClaude && !hadPriorCapture) {
@@ -702,6 +707,9 @@ async function createWindow(): Promise<WindowContext> {
   // fan-out below captures THIS window's createWindow-local cdpBridge/browserManager.
   const presence = new ClaudePresenceProbe()
   ctx.presence = presence
+  // ENH-191 P3-S8c — this window's S3-eligibility set (the presence fan-out
+  // below adds to it; the enrich-before-persist hook reads it per window).
+  ctx.tabsThatHostedClaude = new Set()
 
   // ENH-039 — page-side `[data-duo-path]` link clicks (smoke-walk page,
   // future Duo-authored pages) route through the CDP binding here and
@@ -776,7 +784,7 @@ async function createWindow(): Promise<WindowContext> {
     // tabs that never actually ran Claude.
     const activeId = activeTerminalIdCache.getDefault(registry)
     if ((state === 'claude' || state === 'starting') && activeId) {
-      tabsThatHostedClaude.add(activeId)
+      ctx.tabsThatHostedClaude?.add(activeId)
     }
     safeSend(IPC.TERMINAL_CLAUDE_PRESENCE_CHANGED, state)
     const live = state === 'claude' || state === 'starting'

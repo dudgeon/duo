@@ -154,4 +154,20 @@ describe('WindowRegistry — registry-of-one spine (ENH-191 P0)', () => {
     // window 1 WRONGLY gets B — the bug the per-window pointer fixes:
     expect(a.send).toHaveBeenCalledWith('workspace-file:active-changed', { path: '/b', name: 'B' })
   })
+
+  // ENH-191 P3-S8c — per-window tabsThatHostedClaude sets are independent, so a
+  // tab that hosted Claude in window 1 can't grant S3 eligibility in window 2
+  // (the shared PTY pool would otherwise leak same-cwd eligibility across windows).
+  it('per-window tabsThatHostedClaude sets do not leak across windows (P3-S8c)', () => {
+    const reg = new WindowRegistry()
+    const a = makeFakeContext(1)
+    const b = makeFakeContext(2)
+    a.ctx.tabsThatHostedClaude = new Set()
+    b.ctx.tabsThatHostedClaude = new Set()
+    reg.register(a.ctx)
+    reg.register(b.ctx)
+    reg.get(1)!.tabsThatHostedClaude!.add('tab-A')
+    expect(reg.get(1)!.tabsThatHostedClaude!.has('tab-A')).toBe(true)
+    expect(reg.get(2)!.tabsThatHostedClaude!.has('tab-A')).toBe(false) // no cross-window leak
+  })
 })

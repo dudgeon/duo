@@ -53,6 +53,12 @@ export interface WindowContext {
    * at the use site (the harness fakes it).
    */
   presence?: unknown
+  /**
+   * P3 (item 8 / S8c) — this window's set of tab ids that have hosted a live
+   * Claude process (gates the ENH-183 S3 enrichment). Per-window so the shared
+   * PTY pool's same-cwd terminals from other windows can't leak eligibility.
+   */
+  tabsThatHostedClaude?: Set<string>
 }
 
 /**
