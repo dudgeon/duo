@@ -2536,6 +2536,8 @@ duo doc comment <file> --reply-to <c-id> --body "B"      # REPLY (BUG-143)
     lines.push(sections[sub])
   } else {
     lines.push('duo doc <subcmd> — markdown editor doc operations.')
+    lines.push('Track-changes / suggestions: use insert / delete / substitute /')
+    lines.push('highlight (CriticMarkup) — never write literal <ins>/<del> HTML.')
     lines.push('')
     lines.push('Subcommands:')
     for (const key of Object.keys(sections)) {

@@ -179,7 +179,8 @@ path-scoped rules under `.claude/rules/` (see above).
    - **4a. Edit open files THROUGH Duo, never around it.** Before `Edit`/`Write`
      on any file that might be open in Duo, run `duo status` and prefer the
      matching `duo` verb (`doc edit` / `doc write` · `html *` · `json set` /
-     `merge`). A direct write to an open file fights the editor's autosave
+     `merge`; `doc insert`/`substitute`/`highlight` emit CriticMarkup for
+     tracked *suggestions* — never `<ins>`/`<del>` HTML). A direct write to an open file fights the editor's autosave
      (BUG-085) and skips the change-highlight; a `DUO_SESSION`-gated PreToolUse
      hook warns (never blocks) when it catches this.
 5. **The skill is a first-class deliverable.** Ship both the app and

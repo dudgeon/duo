@@ -1,8 +1,14 @@
 # Comments and tracked changes — reference
 
 This page covers the full lifecycle of agent-driven comments and
-tracked changes on a markdown file open in Duo's editor. Pair with
-the cheat-sheet in [`SKILL.md § Leave a comment or track-change`](../SKILL.md).
+tracked changes on a markdown file open in Duo's editor. Pair with the
+quick steer in [`SKILL.md`](../SKILL.md) and the editor flows in
+[`patterns-editor.md`](patterns-editor.md).
+
+> **Never write literal `<ins>` / `<del>` / `<s>` HTML to "suggest" or
+> "track-change" markdown — Duo renders raw tags as plain prose.** Use the
+> CriticMarkup verbs (`duo doc insert` / `delete` / `substitute` /
+> `highlight`); they render as accept/reject suggestions in the editor's rail.
 
 ## Contents
 
