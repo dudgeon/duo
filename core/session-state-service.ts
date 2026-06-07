@@ -114,6 +114,13 @@ export class SessionStateService {
   // is the sole window's; P5 must thread windowId so window 2's terminals
   // enrich against window 2's presence, not window 1's.]
   private enrichBeforePersistHook: ((state: SessionState) => Promise<SessionState>) | null = null
+  // ENH-191 P4 seam 6 (item 8) — resolves a window's LIVE active-workspace
+  // pointer at compose time so it persists PER WINDOW in the envelope (the
+  // standalone active-workspace.json is a single slot two windows would
+  // clobber). Read live from main's WindowContext (no stored copy → no drift,
+  // per CLAUDE.md rule 12). null = no resolver set (the WindowState keeps
+  // whatever it carried).
+  private activeWorkspaceResolver: ((windowId: number) => ActiveWorkspace | null) | null = null
 
   // ENH-191 P4 — the on-disk paths are injectable (default = the real
   // ~/.claude/duo/session-state.json) so the node-env tests can point the
@@ -136,6 +143,10 @@ export class SessionStateService {
 
   setEnrichBeforePersistHook(fn: ((state: SessionState) => Promise<SessionState>) | null): void {
     this.enrichBeforePersistHook = fn
+  }
+
+  setActiveWorkspaceResolver(fn: ((windowId: number) => ActiveWorkspace | null) | null): void {
+    this.activeWorkspaceResolver = fn
   }
 
   /** Read the envelope into validated WindowState[] + doc meta. Single read
@@ -234,6 +245,13 @@ export class SessionStateService {
           } catch (err) {
             console.warn('[session-state] enrichBeforePersist hook failed:', (err as Error)?.message ?? err)
           }
+        }
+        // ENH-191 P4 seam 6 — overlay the LIVE per-window active-workspace
+        // pointer (item 8) so it round-trips in the envelope. The resolver is
+        // authoritative: a null result means "no/cleared workspace" (NOT "keep
+        // the stale value"), so a clear persists correctly.
+        if (this.activeWorkspaceResolver) {
+          w = { ...w, activeWorkspace: this.activeWorkspaceResolver(w.windowId) }
         }
         composed.push(w)
       }

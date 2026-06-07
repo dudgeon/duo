@@ -456,6 +456,16 @@ sessionStateService.setMirrorHook(async (state) => {
   await workspaceFileService.save(active.path, active.name, state, app.getVersion())
 })
 
+// ENH-191 P4 seam 6 (item 8) — the session envelope is the per-window
+// persistence home for the active-workspace pointer. Resolve it LIVE from each
+// window's WindowContext at compose time (registry.get(windowId)) so it rides
+// into THAT window's WindowState on every flush. Read live → no drift vs the
+// standalone active-workspace.json, which stays written for back-compat /
+// Cut-3 revert. At N=1 this resolves the sole window.
+sessionStateService.setActiveWorkspaceResolver(
+  (windowId) => registry.get(windowId)?.activeWorkspace ?? null
+)
+
 // ENH-177 (Sprint 20 / v0.7.7) — enrich each terminal entry with the
 // latest detected Claude session ID for its cwd before persisting.
 // Runs inside sessionStateService.flush() (debounced 250ms) so it
@@ -667,9 +677,15 @@ async function createWindow(): Promise<WindowContext> {
   // `await` it before any other window setup; subsequent updates
   // (after Save / Open) call applyWindowTitle() to mutate live.
   await activeWorkspaceService.load()
-  // ENH-191 P3-S10 — seed THIS window's per-window active-workspace pointer
-  // from the shared service before the first title paint.
-  ctx.activeWorkspace = activeWorkspaceService.get()
+  // ENH-191 P3-S10 / P4 seam 6 (item 8) — seed THIS window's per-window
+  // active-workspace pointer before the first title paint. P4 makes the SESSION
+  // ENVELOPE the persistence home (the standalone active-workspace.json is a
+  // single slot two windows would clobber), so prefer the envelope's per-window
+  // pointer; fall back to the shared service for back-compat (pre-v2 installs /
+  // Cut-3 revert). [N=1: createWindow runs once so windows[0] IS this window;
+  // P5's reentrant createWindow must select windows[restoreIndex] instead.]
+  const restoredWindows = await sessionStateService.loadWindows()
+  ctx.activeWorkspace = restoredWindows[0]?.activeWorkspace ?? activeWorkspaceService.get()
   applyWindowTitle(ctx)
 
   // ENH-191 P1 — `ptyManager` owner-routing wiring + the `ExternalDomainsService`

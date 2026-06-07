@@ -11,7 +11,7 @@ import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
 import { SessionStateService } from './session-state-service'
-import type { SessionState } from '../shared/types'
+import type { SessionState, ActiveWorkspace } from '../shared/types'
 
 type RawEnvelope = {
   version: number
@@ -162,5 +162,34 @@ describe('SessionStateService — v2 envelope persistence (ENH-191 P4 seam 5)', 
     svc.save(flat({ navigatorPath: '/fresh' }), 1)
     await svc.flush()
     await expect(fs.access(file + '.v1.bak')).rejects.toBeTruthy() // no backup created
+  })
+
+  it('seam 6 — folds the per-window active-workspace pointer into the envelope (round-trips via loadWindows)', async () => {
+    const aw: ActiveWorkspace = { path: '/p.duo-workspace', name: 'Proj' }
+    svc.setActiveWorkspaceResolver((id) => (id === 1 ? aw : null))
+    svc.save(flat({ navigatorPath: '/p' }), 1)
+    await svc.flush()
+    const windows = await new SessionStateService(file).loadWindows()
+    expect(windows[0].activeWorkspace).toEqual(aw)
+  })
+
+  it('seam 6 — a cleared workspace (resolver returns null) persists as null, not the stale value', async () => {
+    let current: ActiveWorkspace | null = { path: '/p.duo-workspace', name: 'Proj' }
+    svc.setActiveWorkspaceResolver(() => current)
+    svc.save(flat(), 1)
+    await svc.flush()
+    current = null // user cleared the workspace
+    svc.save(flat({ navigatorPath: '/x' }), 1)
+    await svc.flush()
+    const windows = await new SessionStateService(file).loadWindows()
+    expect(windows[0].activeWorkspace).toBeNull()
+  })
+
+  it('seam 6 — aux round-trips per window through the envelope (item 8 / auxTabId)', async () => {
+    const aux = { paths: ['/x.md', '/y.md'], activeIndex: 1, splitPct: 0.5 }
+    svc.save(flat({ aux }), 1)
+    await svc.flush()
+    const windows = await new SessionStateService(file).loadWindows()
+    expect(windows[0].aux).toEqual(aux)
   })
 })
