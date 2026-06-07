@@ -1,0 +1,14 @@
+// ENH-191 P2 grep-gate negative-control fixture (NOT compiled — .txt so it
+// never reaches tsc/eslint/vitest). `check-window-routing.sh --selftest`
+// asserts the gate regexes MATCH this file, proving the gate fails on a real
+// violation rather than silently passing.
+//
+// If you are tempted to copy any of these lines into real code: DON'T. Route
+// every main->renderer send through the WindowRegistry seam — safeSend /
+// resolveDefault / broadcastAll (electron/window-resolve.ts). These are the
+// exact shapes the gate exists to reject:
+mainWindow.webContents.send(IPC.FOO, bar)
+mainWindow?.webContents.send(IPC.FOO, bar)
+mainWindow!.webContents.send(IPC.FOO, bar)
+mainWindow.webContents.executeJavaScript('1 + 1')
+dialog.showSaveDialog(mainWindow, {})
