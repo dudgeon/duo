@@ -37,6 +37,7 @@ import { encodeUtf8 } from './components/editor/markdown-io'
 import { findVaultRoot, resolveWikilinkInVault } from './components/editor/wikilinkResolver'
 import type { TabSession, DirEntry, TerminalTabKind, NewTabResult, PinEntry, SessionState, BrowserTab, ActiveWorkspace } from '@shared/types'
 import { reorderVisible } from '@shared/reorderTabs'
+import { pruneByTab } from './state/perTabPrune'
 import {
   effectiveProjectTerminals,
   mergeLiveCwdInfo,
@@ -57,13 +58,29 @@ const LIVE_CWD_POLL_MS = 5000
 // Stage 9: cozy-mode persistence keys. Per-tab map survives within a
 // session but tab UUIDs don't span relaunches; the last-choice flag is the
 // durable piece (new tabs inherit it per PRD § C4).
-const COZY_BY_TAB_KEY = 'duo.cozy.v1.byTab'
+//
+// ENH-191 P4 (seam 3b) — the byTab maps move to a PER-WINDOW key
+// (`…v2.w<id>.byTab`) so a second window's prune can't clobber the first
+// window's entries (C13). The id is THIS renderer's window id (preload-
+// injected as window.electron.env.windowId == the main-process registry id).
+// The old shared v1 keys are left in place but UNREAD/UNWRITTEN so a Cut-3
+// revert reads them untouched (PRD §7.5). No v1→v2 seed is needed: tab UUIDs
+// don't span relaunches, so any v1 byTab entries are already stale (they'd be
+// pruned on first tab-sync) — switching keys is byte-identical to today's
+// post-relaunch behavior (empty map → the shared lastChoice default). The
+// lastChoice default stays GLOBAL (its own v1 key, NOT per-window): new tabs
+// in ANY window inherit the same last-used value.
+const DUO_WINDOW_ID: number = (() => {
+  const id = typeof window !== 'undefined' ? window.electron?.env?.windowId : undefined
+  return typeof id === 'number' && id > 0 ? id : 1
+})()
+const COZY_BY_TAB_KEY = `duo.cozy.v2.w${DUO_WINDOW_ID}.byTab`
 const COZY_LAST_KEY = 'duo.cozy.v1.lastChoice'
 
 // Per-tab terminal font-size bump (⌘+/-/0). Signed integer, added on top
 // of the cozy/default base fontSize in TerminalPane. Same new-tab-inherits
 // pattern as cozy so new tabs pick up the last-used bump.
-const FONT_BUMP_BY_TAB_KEY = 'duo.fontBump.v1.byTab'
+const FONT_BUMP_BY_TAB_KEY = `duo.fontBump.v2.w${DUO_WINDOW_ID}.byTab`
 const FONT_BUMP_LAST_KEY = 'duo.fontBump.v1.lastChoice'
 const FONT_BUMP_MIN = -4
 const FONT_BUMP_MAX = 10
@@ -2755,27 +2772,22 @@ export function App() {
 
   // Drop stale cozy + font-bump entries when tabs close so the persisted
   // maps can't grow unbounded across sessions.
+  //
+  // ENH-191 P4 (seam 3b) — prune via the pure pruneByTab helper against THIS
+  // window's live tab ids, writing to the per-window key. Because each window
+  // owns its OWN byTab map + key, this prune structurally cannot delete
+  // another window's entries (the C13 fix — proven by perTabPrune.test.ts).
   useEffect(() => {
     const liveIds = new Set(tabs.map(t => t.id))
     setCozyByTab(prev => {
-      const pruned: Record<string, boolean> = {}
-      let changed = false
-      for (const [id, val] of Object.entries(prev)) {
-        if (liveIds.has(id)) pruned[id] = val
-        else changed = true
-      }
-      if (!changed) return prev
+      const pruned = pruneByTab(prev, liveIds)
+      if (Object.keys(pruned).length === Object.keys(prev).length) return prev
       try { localStorage.setItem(COZY_BY_TAB_KEY, JSON.stringify(pruned)) } catch { /* quota */ }
       return pruned
     })
     setFontBumpByTab(prev => {
-      const pruned: Record<string, number> = {}
-      let changed = false
-      for (const [id, val] of Object.entries(prev)) {
-        if (liveIds.has(id)) pruned[id] = val
-        else changed = true
-      }
-      if (!changed) return prev
+      const pruned = pruneByTab(prev, liveIds)
+      if (Object.keys(pruned).length === Object.keys(prev).length) return prev
       try { localStorage.setItem(FONT_BUMP_BY_TAB_KEY, JSON.stringify(pruned)) } catch { /* quota */ }
       return pruned
     })
