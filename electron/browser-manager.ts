@@ -967,6 +967,12 @@ export class BrowserManager {
   // ── Bounds ─────────────────────────────────────────────────────────────────
 
   setBounds(bounds: BrowserBounds): void {
+    // BUG-157 — reject a degenerate (sub-1) bound at the main-process boundary,
+    // mirroring BUG-156's PtyManager.resize guard. A renderer ResizeObserver can
+    // briefly measure 0 during a layout reflow (e.g. ENH-183's flex-column
+    // wrapper), and committing that to the native WCV is the crash vector. Gate
+    // on < 1 (NOT <= 1) so the intentional 1×1 park (FOLLOWUP-025) still applies.
+    if (bounds.width < 1 || bounds.height < 1) return
     this.currentBounds = bounds
     // Phase 3c — skip the aux tab. Main bounds apply to the active
     // main-strip tab only. The aux tab gets its own bounds via
@@ -986,6 +992,9 @@ export class BrowserManager {
    *  and applied only to the auxTabId's view. No-op when no aux tab
    *  is pinned. */
   setAuxBounds(bounds: BrowserBounds): void {
+    // BUG-157 — same sub-1 guard as setBounds (the aux WCV path crosses IPC via
+    // AuxBrowserSlot's ResizeObserver). Reject < 1, preserve the 1×1 park.
+    if (bounds.width < 1 || bounds.height < 1) return
     this.auxBounds = bounds
     if (this.auxTabId === null) return
     const aux = this.tabs.find(t => t.id === this.auxTabId)
