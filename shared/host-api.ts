@@ -1031,17 +1031,12 @@ export interface ElectronAPI {
 
 export interface ElectronProjectsAPI {
   hasMarker(dir: string): Promise<boolean>
-  /** Read the persisted slice (pins + color overrides). Returns the
-   *  default empty file if projects.json is missing / corrupt. */
+  /** Read the persisted slice (pins). Returns the default empty file if
+   *  projects.json is missing / corrupt. */
   read(): Promise<import('./types').ProjectsFile>
   /** Add/remove `root` from the persisted pin set (D12). Returns the
    *  updated file so callers don't need to re-read. */
   togglePin(root: string): Promise<import('./types').ProjectsFile>
-  /** Set or clear (`colorIndex === null`) the override for `root` (R2). */
-  setColorOverride(
-    root: string,
-    colorIndex: number | null
-  ): Promise<import('./types').ProjectsFile>
   /** Subscribe to mutation pushes. Returns an unsubscribe fn. */
   onChange(cb: (file: import('./types').ProjectsFile) => void): () => void
   /** Phase 4 — renderer pushes the live rail snapshot to main on

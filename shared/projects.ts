@@ -165,9 +165,6 @@ export interface DeriveProjectsInput {
    *  right-click menu (D12). These appear in the rail even if no
    *  tabs/terminals currently sit under them. */
   pinnedProjects: ReadonlySet<string>
-  /** Color overrides from the persisted slice (R2). Keyed by
-   *  absolute root path; values clamped 0..NUM_PROJECT_COLORS-1. */
-  colorOverrides: Readonly<Record<string, number>>
   /** Side-effect-free probe. The orchestrator constructs this from
    *  pre-fetched `getGitStatus` results + `hasMarker` checks. Each
    *  unique candidate folder is probed at most once (memoization
@@ -198,11 +195,11 @@ export interface DeriveProjectsOutput {
  *   3. Compute membership for each terminal/tab as the deepest
  *      qualifying ancestor (D5).
  *   4. The project set = (roots that own ≥1 member) ∪ pinnedProjects.
- *   5. Build Project objects. `colorIndex` = `colorOverrides[root]` if
- *      present and in range, else `hashColorIndex(root)`.
+ *   5. Build Project objects. `colorIndex` = `hashColorIndex(root)`
+ *      (hash-stable; manual overrides cut in ENH-191 P0).
  */
 export function deriveProjects(input: DeriveProjectsInput): DeriveProjectsOutput {
-  const { terminals, workingTabs, pinnedTabPaths, pinnedProjects, colorOverrides, qualify } = input
+  const { terminals, workingTabs, pinnedTabPaths, pinnedProjects, qualify } = input
 
   // ── Step 1+2 — gather candidates and probe them once each ──
   const qualCache = new Map<string, QualificationResult>()
@@ -287,11 +284,7 @@ export function deriveProjects(input: DeriveProjectsInput): DeriveProjectsOutput
   // ── Step 5 — build Project objects ──
   const projects: Project[] = [...projectRoots].map((root) => {
     const q = probe(root)
-    const override = colorOverrides[root]
-    const colorIndex =
-      typeof override === 'number' && override >= 0 && override < NUM_PROJECT_COLORS
-        ? override
-        : hashColorIndex(root)
+    const colorIndex = hashColorIndex(root)
     return {
       root,
       name: basename(root) || root,
@@ -456,9 +449,9 @@ export function computeProjectAbbreviations(
 // ── persisted-slice normalization (used by ProjectsService) ─────
 
 /** Normalize a partially-parsed projects.json: drop malformed pins,
- *  dedupe pin entries, clamp override values, fill missing fields
- *  with defaults. Lives here (and not in projects-service.ts) so the
- *  renderer can also re-validate snapshots received over IPC. */
+ *  dedupe pin entries, fill missing fields with defaults. Lives here
+ *  (and not in projects-service.ts) so the renderer can also re-validate
+ *  snapshots received over IPC. */
 export function normalizeProjectsFile(parsed: Partial<ProjectsFile>): ProjectsFile {
   // BUG-164 (v0.8.0 fold-in) — Array.from(new Set(...)) dedupes a
   // hand-edited projects.json with duplicate pin entries. Without
@@ -467,13 +460,7 @@ export function normalizeProjectsFile(parsed: Partial<ProjectsFile>): ProjectsFi
   const pins = Array.isArray(parsed.pins)
     ? Array.from(new Set(parsed.pins.filter((p): p is string => typeof p === 'string' && p.length > 0)))
     : []
-  const colorOverrides: Record<string, number> = {}
-  if (parsed.colorOverrides && typeof parsed.colorOverrides === 'object') {
-    for (const [k, v] of Object.entries(parsed.colorOverrides)) {
-      if (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v < NUM_PROJECT_COLORS) {
-        colorOverrides[k] = v
-      }
-    }
-  }
-  return { version: 1, pins, colorOverrides }
+  // Manual color overrides were cut in ENH-191 P0; any legacy
+  // `colorOverrides` key in an existing projects.json is ignored.
+  return { version: 1, pins }
 }

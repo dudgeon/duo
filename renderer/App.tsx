@@ -943,17 +943,17 @@ export function App() {
   // verbs all broadcast). Defaults to the empty slice until the
   // initial read resolves — Phase 0 derivation handles that cleanly
   // (no pins = behaviour identical to pre-Phase 3a).
-  const [projectsFile, setProjectsFile] = useState<{ pins: string[]; colorOverrides: Record<string, number> }>(
-    () => ({ pins: [], colorOverrides: {} })
+  const [projectsFile, setProjectsFile] = useState<{ pins: string[] }>(
+    () => ({ pins: [] })
   )
   useEffect(() => {
     let cancelled = false
     void window.electron.projects.read().then((file) => {
       if (cancelled) return
-      setProjectsFile({ pins: file.pins, colorOverrides: file.colorOverrides })
+      setProjectsFile({ pins: file.pins })
     })
     const off = window.electron.projects.onChange((file) => {
-      setProjectsFile({ pins: file.pins, colorOverrides: file.colorOverrides })
+      setProjectsFile({ pins: file.pins })
     })
     return () => {
       cancelled = true
@@ -972,8 +972,7 @@ export function App() {
     terminals: projectTerminals,
     workingTabs: projectWorkingTabs,
     pinnedTabPaths: pinnedFileTabPaths,
-    pinnedProjects: pinnedProjectsSet,
-    colorOverrides: projectsFile.colorOverrides
+    pinnedProjects: pinnedProjectsSet
   })
   // ENH-182 Phase 2 — focus filter. `null` = All (no filter). Clicking
   // a tile sets this; clicking the active tile (or All) clears it.

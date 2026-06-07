@@ -56,15 +56,6 @@ describe('Phase H — pin-service write serialization (interleave safety)', () =
     expect([...file.pins].sort()).toEqual(['/a', '/b'])
   })
 
-  it('ProjectsService: a togglePin and a setColorOverride do not clobber each other', async () => {
-    // Both mutators share `read`, so they MUST share one queue.
-    const svc = new ProjectsService(dir)
-    await Promise.all([svc.togglePin('/a'), svc.setColorOverride('/a', 3)])
-    const file = await svc.read()
-    expect(file.pins).toEqual(['/a'])
-    expect(file.colorOverrides['/a']).toBe(3)
-  })
-
   it('write uses a unique tmp — no orphaned .duo.tmp remains after a write', async () => {
     const svc = new NavPinsService(dir)
     await svc.toggle({ path: '/a', kind: 'file' })

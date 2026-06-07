@@ -419,6 +419,56 @@ touched BrowserManager session config or partitions.
 
 ---
 
+## 9. Multi-window invisible-refactor parity (ENH-191 — walk on every P1–P4 cut)
+
+> ENH-191 lands the registry-of-one refactor behind ONE window across
+> zero-user-visible cuts (P0–P4). These two legs are the only runtime catch
+> for the two silent foot-guns the node-env harness can't see: an accidental
+> `getFocusedWindow()` substitution (silently drops backgrounded sends) and a
+> teardown-timing crash (the BUG-190 quit-loop). Walk BOTH on every invisible
+> cut from Cut 1 (P0+P1) onward. Detail: `docs/prd/enh-191-multi-window.md` §5.2.
+
+### A — BACKGROUNDED-CLI (catches: focus-substitution send-drop, R2)
+
+With Duo **not frontmost** (focus another app first), run each and confirm the
+output is identical to foreground and lands on the (single) window:
+
+- [ ] `duo url` returns the active browser-pane URL.
+- [ ] `duo nav-state` returns the file-tree state.
+- [ ] `duo send "echo hi"` reaches the active terminal.
+- [ ] `duo open <some.html>` opens in the window's browser pane.
+- [ ] **Visibility cluster** (highest-consequence — CLAUDE.md tells agents to
+      reach for these first when debugging blind): `duo dom <sel>`,
+      `duo eval <js>`, `duo layout`, `duo devtools` each return the SAME
+      answer as when Duo is frontmost. A wrong/empty answer = a focus-resolved
+      send (the R2 foot-gun the harness cannot catch).
+
+### B — QUIT-NO-CRASH (catches: BUG-190 teardown-timing crash, R1)
+
+- [ ] `Cmd+Q` with one window open → app quits with **no looping crash dialog**
+      ("Object has been destroyed").
+- [ ] After quit, `duo doctor` shows the socket **DOWN**.
+- [ ] Relaunch → boots clean, socket back UP, no stale-socket "address in use".
+
+### C — CLOSE-NO-QUIT-REOPEN (catches: dead CLI bridge across dock-reopen, ENH-191 P1 lifecycle)
+
+> The ONE deliberate behavior change in P1: on macOS the `duo` socket stays **UP**
+> after the last window closes (the app stays alive), and a dock-reopen rebinds
+> cdp/browser cleanly. The node-env harness can't exercise the darwin
+> `window-all-closed`-no-op path — only this live leg can. (Was the empirically-
+> confirmed dock-reopen crash before the app-lifetime-singleton fix.)
+
+- [ ] Close the **only** window via the red traffic-light / `⌘W` (NOT `⌘Q`) →
+      app stays alive (dock icon present), **no crash dialog**.
+- [ ] While windowless: `duo doctor` shows the socket **UP**; `duo ping` answers.
+- [ ] While windowless: a browser/cdp verb (e.g. `duo url`) returns a **clean
+      error** (`{ok:false}`, bridge-not-ready) — NOT a hang or a crash.
+- [ ] Dock-click (or `⌘N`) to reopen → a fresh window appears, **no throw**.
+- [ ] After reopen: `duo url` / `duo dom` / `duo nav-state` work against the new
+      window (the getter-thunks resolved the new window's cdp/browser).
+
+---
+
 ## Reporting template
 
 Paste this into the end-of-task summary, filling in each line:

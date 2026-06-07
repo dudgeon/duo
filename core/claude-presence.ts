@@ -40,6 +40,9 @@ export class ClaudePresenceProbe {
   private state: ClaudePresenceState = 'no-pty'
   private graceStart = 0
   private timer: NodeJS.Timeout | null = null
+  // ENH-191 P3-S8d — start() called, stop() not yet. Gates the park logic so a
+  // setTarget after teardown can't resurrect the poll loop.
+  private running = false
   private listeners = new Set<(state: ClaudePresenceState) => void>()
   private probing = false
 
@@ -53,14 +56,38 @@ export class ClaudePresenceProbe {
       // Probe immediately on target change so the pill flips fast.
       void this.probe()
     }
+    // ENH-191 P3-S8d (NFR-1.3) — park the poll loop when there's no hosting
+    // target. A pid:null probe can only ever compute 'no-pty', so the 500ms ps
+    // spawn is pure idle waste; arm on a hosting target, disarm on pid:null.
+    this.syncPolling()
   }
 
   start(): void {
-    if (this.timer) return
-    this.timer = setInterval(() => { void this.probe() }, POLL_INTERVAL_MS)
+    this.running = true
+    this.syncPolling()
   }
 
   stop(): void {
+    this.running = false
+    this.clearTimer()
+  }
+
+  /** ENH-191 P3-S8d — true when the poll interval is armed (test/diagnostic). */
+  isPolling(): boolean {
+    return this.timer !== null
+  }
+
+  // Arm the poll interval iff started AND there's a hosting target; otherwise
+  // disarm (park). Idempotent — safe to call on every setTarget/start/stop.
+  private syncPolling(): void {
+    if (this.running && this.target.pid != null) {
+      if (!this.timer) this.timer = setInterval(() => { void this.probe() }, POLL_INTERVAL_MS)
+    } else {
+      this.clearTimer()
+    }
+  }
+
+  private clearTimer(): void {
     if (this.timer) {
       clearInterval(this.timer)
       this.timer = null

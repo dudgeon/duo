@@ -118,9 +118,7 @@ describe('deriveProjects — qualification (D2)', () => {
       terminals: [{ id: 't1', cwd: '/repo' }],
       workingTabs: [],
       pinnedTabPaths: new Set(),
-      pinnedProjects: new Set(),
-      colorOverrides: {},
-      qualify: makeQualify({
+      pinnedProjects: new Set(),      qualify: makeQualify({
         '/repo': { isGitRoot: true }
       })
     })
@@ -135,9 +133,7 @@ describe('deriveProjects — qualification (D2)', () => {
       terminals: [{ id: 't1', cwd: '/marked' }],
       workingTabs: [],
       pinnedTabPaths: new Set(),
-      pinnedProjects: new Set(),
-      colorOverrides: {},
-      qualify: makeQualify({
+      pinnedProjects: new Set(),      qualify: makeQualify({
         '/marked': { hasMarker: true }
       })
     })
@@ -151,9 +147,7 @@ describe('deriveProjects — qualification (D2)', () => {
       terminals: [{ id: 't1', cwd: '/nowhere' }],
       workingTabs: [],
       pinnedTabPaths: new Set(),
-      pinnedProjects: new Set(),
-      colorOverrides: {},
-      qualify: makeQualify({})
+      pinnedProjects: new Set(),      qualify: makeQualify({})
     })
     expect(out.projects).toHaveLength(0)
     expect(out.terminalMembership.t1).toBeNull()
@@ -168,9 +162,7 @@ describe('deriveProjects — qualification (D2)', () => {
       terminals: [],
       workingTabs: [{ id: 'tab1', path: '/home/ref/CLAUDE.md' }],
       pinnedTabPaths: new Set(['/home/ref/CLAUDE.md']),
-      pinnedProjects: new Set(),
-      colorOverrides: {},
-      qualify: makeQualify({
+      pinnedProjects: new Set(),      qualify: makeQualify({
         '/home/ref': { isGitRoot: true }
       })
     })
@@ -193,9 +185,7 @@ describe('deriveProjects — qualification (D2)', () => {
         { id: 'tabB', path: '/docs/GitHub/duo/idle.md' }
       ],
       pinnedTabPaths: new Set(['/docs/GitHub/duo/tasks.md', '/docs/GitHub/duo/idle.md']),
-      pinnedProjects: new Set(),
-      colorOverrides: {},
-      qualify: makeQualify({
+      pinnedProjects: new Set(),      qualify: makeQualify({
         '/docs': { isGitRoot: true }, // ~/Documents is itself a git repo
         '/docs/GitHub/stoop': { hasMarker: true } // sibling marker-project
         // /docs/GitHub and /docs/GitHub/duo deliberately do NOT qualify
@@ -214,9 +204,7 @@ describe('deriveProjects — qualification (D2)', () => {
       terminals: [],
       workingTabs: [{ id: 'tab1', path: '/repo/src/foo.ts' }],
       pinnedTabPaths: new Set(),
-      pinnedProjects: new Set(),
-      colorOverrides: {},
-      qualify: makeQualify({
+      pinnedProjects: new Set(),      qualify: makeQualify({
         '/repo': { isGitRoot: true }
       })
     })
@@ -231,9 +219,7 @@ describe('deriveProjects — deepest-wins membership (D5)', () => {
       terminals: [{ id: 't1', cwd: '/outer/inner/deep/working-dir' }],
       workingTabs: [],
       pinnedTabPaths: new Set(),
-      pinnedProjects: new Set(),
-      colorOverrides: {},
-      qualify: makeQualify({
+      pinnedProjects: new Set(),      qualify: makeQualify({
         '/outer': { isGitRoot: true },
         '/outer/inner': { isGitRoot: true },
         '/outer/inner/deep': { hasMarker: true }
@@ -257,9 +243,7 @@ describe('deriveProjects — deepest-wins membership (D5)', () => {
       ],
       workingTabs: [],
       pinnedTabPaths: new Set(),
-      pinnedProjects: new Set(),
-      colorOverrides: {},
-      qualify: makeQualify({
+      pinnedProjects: new Set(),      qualify: makeQualify({
         '/projA': { isGitRoot: true },
         '/projB': { isGitRoot: true }
       })
@@ -274,9 +258,7 @@ describe('deriveProjects — deepest-wins membership (D5)', () => {
       terminals: [{ id: 't1', cwd: '/tmp/scratch' }],
       workingTabs: [{ id: 'tab1', path: '/elsewhere/file.md' }],
       pinnedTabPaths: new Set(),
-      pinnedProjects: new Set(),
-      colorOverrides: {},
-      qualify: makeQualify({})
+      pinnedProjects: new Set(),      qualify: makeQualify({})
     })
     expect(out.terminalMembership.t1).toBeNull()
     expect(out.tabMembership.tab1).toBeNull()
@@ -290,9 +272,7 @@ describe('deriveProjects — pinned projects (D12)', () => {
       terminals: [],
       workingTabs: [],
       pinnedTabPaths: new Set(),
-      pinnedProjects: new Set(['/pinned-empty']),
-      colorOverrides: {},
-      qualify: makeQualify({
+      pinnedProjects: new Set(['/pinned-empty']),      qualify: makeQualify({
         '/pinned-empty': { isGitRoot: true }
       })
     })
@@ -306,9 +286,7 @@ describe('deriveProjects — pinned projects (D12)', () => {
       terminals: [{ id: 't1', cwd: '/repo' }],
       workingTabs: [],
       pinnedTabPaths: new Set(),
-      pinnedProjects: new Set(['/repo']),
-      colorOverrides: {},
-      qualify: makeQualify({ '/repo': { isGitRoot: true } })
+      pinnedProjects: new Set(['/repo']),      qualify: makeQualify({ '/repo': { isGitRoot: true } })
     })
     expect(out.projects).toHaveLength(1)
     expect(out.projects[0].pinned).toBe(true)
@@ -321,9 +299,7 @@ describe('deriveProjects — pinned projects (D12)', () => {
       terminals: [],
       workingTabs: [],
       pinnedTabPaths: new Set(),
-      pinnedProjects: new Set(['/manually-pinned']),
-      colorOverrides: {},
-      qualify: makeQualify({}) // no evidence at all
+      pinnedProjects: new Set(['/manually-pinned']),      qualify: makeQualify({}) // no evidence at all
     })
     expect(out.projects).toHaveLength(1)
     expect(out.projects[0].root).toBe('/manually-pinned')
@@ -338,9 +314,7 @@ describe('deriveProjects — pinned projects (D12)', () => {
       terminals: [],
       workingTabs: [],
       pinnedTabPaths: new Set(),
-      pinnedProjects: new Set(['/pinned-deleted']),
-      colorOverrides: {},
-      qualify: () => ({ isGitRoot: false, hasMarker: false, exists: false })
+      pinnedProjects: new Set(['/pinned-deleted']),      qualify: () => ({ isGitRoot: false, hasMarker: false, exists: false })
     })
     expect(out.projects).toHaveLength(0)
   })
@@ -352,9 +326,7 @@ describe('deriveProjects — pinned projects (D12)', () => {
       terminals: [],
       workingTabs: [],
       pinnedTabPaths: new Set(),
-      pinnedProjects: new Set(['/pinned-pending']),
-      colorOverrides: {},
-      qualify: () => ({ isGitRoot: false, hasMarker: false })
+      pinnedProjects: new Set(['/pinned-pending']),      qualify: () => ({ isGitRoot: false, hasMarker: false })
     })
     expect(out.projects).toHaveLength(1)
     expect(out.projects[0].root).toBe('/pinned-pending')
@@ -365,50 +337,38 @@ describe('deriveProjects — pinned projects (D12)', () => {
       terminals: [],
       workingTabs: [],
       pinnedTabPaths: new Set(),
-      pinnedProjects: new Set(['/pinned-extant']),
-      colorOverrides: {},
-      qualify: () => ({ isGitRoot: false, hasMarker: false, exists: true })
+      pinnedProjects: new Set(['/pinned-extant']),      qualify: () => ({ isGitRoot: false, hasMarker: false, exists: true })
     })
     expect(out.projects).toHaveLength(1)
     expect(out.projects[0].root).toBe('/pinned-extant')
   })
 })
 
-describe('deriveProjects — color assignment (R2)', () => {
-  it('uses hash-stable colorIndex by default', () => {
+describe('deriveProjects — color assignment (R2; hash-only after ENH-191 P0)', () => {
+  it('uses hash-stable colorIndex (manual overrides cut in ENH-191 P0)', () => {
     const out = deriveProjects({
       terminals: [{ id: 't1', cwd: '/repo' }],
       workingTabs: [],
       pinnedTabPaths: new Set(),
       pinnedProjects: new Set(),
-      colorOverrides: {},
       qualify: makeQualify({ '/repo': { isGitRoot: true } })
     })
     expect(out.projects[0].colorIndex).toBe(hashColorIndex('/repo'))
   })
 
-  it('honors colorOverrides when provided', () => {
-    const out = deriveProjects({
-      terminals: [{ id: 't1', cwd: '/repo' }],
-      workingTabs: [],
-      pinnedTabPaths: new Set(),
-      pinnedProjects: new Set(),
-      colorOverrides: { '/repo': 3 },
-      qualify: makeQualify({ '/repo': { isGitRoot: true } })
-    })
-    expect(out.projects[0].colorIndex).toBe(3)
-  })
-
-  it('ignores out-of-range overrides, falling back to hash', () => {
-    const out = deriveProjects({
-      terminals: [{ id: 't1', cwd: '/repo' }],
-      workingTabs: [],
-      pinnedTabPaths: new Set(),
-      pinnedProjects: new Set(),
-      colorOverrides: { '/repo': 99 },
-      qualify: makeQualify({ '/repo': { isGitRoot: true } })
-    })
-    expect(out.projects[0].colorIndex).toBe(hashColorIndex('/repo'))
+  it('is stable across runs — identical input yields identical indices (no overrides consulted)', () => {
+    // ENH-191 P0 acceptance (item 5): colorIndex is purely hash-derived
+    // with NO colorOverrides input; two runs over the same set match.
+    const mk = () =>
+      deriveProjects({
+        terminals: [{ id: 't1', cwd: '/repo' }],
+        workingTabs: [],
+        pinnedTabPaths: new Set(),
+        pinnedProjects: new Set(),
+        qualify: makeQualify({ '/repo': { isGitRoot: true } })
+      })
+    expect(mk().projects[0].colorIndex).toBe(mk().projects[0].colorIndex)
+    expect(mk().projects[0].colorIndex).toBe(hashColorIndex('/repo'))
   })
 })
 
@@ -422,9 +382,7 @@ describe('deriveProjects — output shape', () => {
       ],
       workingTabs: [],
       pinnedTabPaths: new Set(),
-      pinnedProjects: new Set(),
-      colorOverrides: {},
-      qualify: makeQualify({
+      pinnedProjects: new Set(),      qualify: makeQualify({
         '/code/zebra': { isGitRoot: true },
         '/code/alpha': { isGitRoot: true },
         '/code/mango': { isGitRoot: true }
@@ -441,9 +399,7 @@ describe('deriveProjects — output shape', () => {
       ],
       workingTabs: [],
       pinnedTabPaths: new Set(),
-      pinnedProjects: new Set(),
-      colorOverrides: {},
-      qualify: makeQualify({
+      pinnedProjects: new Set(),      qualify: makeQualify({
         '/parent-A/duo': { isGitRoot: true },
         '/parent-B/duo': { isGitRoot: true }
       })
@@ -456,9 +412,7 @@ describe('deriveProjects — output shape', () => {
       terminals: [{ id: 't1', cwd: '/Users/foo/projects/duo' }],
       workingTabs: [],
       pinnedTabPaths: new Set(),
-      pinnedProjects: new Set(),
-      colorOverrides: {},
-      qualify: makeQualify({ '/Users/foo/projects/duo': { isGitRoot: true } })
+      pinnedProjects: new Set(),      qualify: makeQualify({ '/Users/foo/projects/duo': { isGitRoot: true } })
     })
     expect(out.projects[0].name).toBe('duo')
   })
@@ -478,9 +432,7 @@ describe('deriveProjects — output shape', () => {
       ],
       workingTabs: [],
       pinnedTabPaths: new Set(),
-      pinnedProjects: new Set(),
-      colorOverrides: {},
-      qualify
+      pinnedProjects: new Set(),      qualify
     })
     // /repo, /repo/src, /repo/src/a, /repo/src/b, /repo/lib, /, /Users
     // (well, depends on the path tree, but the key invariant is "each
@@ -560,9 +512,7 @@ describe('deriveProjects + isExcludedFromQualification — ~/.claude editing sce
       terminals: [],
       workingTabs: [{ id: 'tab1', path: '/Users/foo/.claude/skills/duo/SKILL.md' }],
       pinnedTabPaths: new Set(),
-      pinnedProjects: new Set(),
-      colorOverrides: {},
-      // Mimic the real hasMarker check: ~/.claude has a CLAUDE.md
+      pinnedProjects: new Set(),      // Mimic the real hasMarker check: ~/.claude has a CLAUDE.md
       // (the user's global instructions file) per the real-world
       // layout. Home dir would ALSO match via marker (because it
       // contains the .claude/ subdir entry in its listing) but the
@@ -582,9 +532,7 @@ describe('deriveProjects + isExcludedFromQualification — ~/.claude editing sce
       terminals: [{ id: 't1', cwd: '/Users/foo/.claude/skills' }],
       workingTabs: [],
       pinnedTabPaths: new Set(),
-      pinnedProjects: new Set(),
-      colorOverrides: {},
-      qualify: qualifyWithHome({
+      pinnedProjects: new Set(),      qualify: qualifyWithHome({
         '/Users/foo/.claude': { hasMarker: true },
         '/Users/foo': { hasMarker: true }
       })
@@ -602,9 +550,7 @@ describe('deriveProjects + isExcludedFromQualification — ~/.claude editing sce
       terminals: [{ id: 't1', cwd: '/Users/foo/Downloads' }],
       workingTabs: [],
       pinnedTabPaths: new Set(),
-      pinnedProjects: new Set(),
-      colorOverrides: {},
-      qualify: qualifyWithHome({
+      pinnedProjects: new Set(),      qualify: qualifyWithHome({
         '/Users/foo': { hasMarker: true } // global .claude/ in listing
       })
     })
@@ -618,7 +564,7 @@ describe('deriveProjects + isExcludedFromQualification — ~/.claude editing sce
 
 describe('normalize', () => {
   it('returns empty defaults for an empty input', () => {
-    expect(normalize({})).toEqual({ version: 1, pins: [], colorOverrides: {} })
+    expect(normalize({})).toEqual({ version: 1, pins: [] })
   })
 
   it('drops non-string pins', () => {
@@ -639,19 +585,12 @@ describe('normalize', () => {
     expect(normalized.pins).toEqual(['/foo', '/bar', '/baz'])
   })
 
-  it('drops out-of-range color overrides', () => {
+  it('ignores a legacy colorOverrides key (cut in ENH-191 P0)', () => {
     const normalized = normalize({
-      colorOverrides: { '/a': 2, '/b': 99, '/c': -1, '/d': 1.5 } as Record<string, number>
+      // @ts-expect-error — colorOverrides is no longer part of ProjectsFile
+      colorOverrides: { '/a': 2 }
     })
-    expect(normalized.colorOverrides).toEqual({ '/a': 2 })
-  })
-
-  it('returns empty when colorOverrides is not an object', () => {
-    const normalized = normalize({
-      // @ts-expect-error — testing defensive parsing
-      colorOverrides: 'not-an-object'
-    })
-    expect(normalized.colorOverrides).toEqual({})
+    expect(normalized).toEqual({ version: 1, pins: [] })
   })
 })
 
@@ -678,18 +617,6 @@ describe('ProjectsService', () => {
     expect(after1.pins).toContain('/test-pin-marker')
     const after2 = await svc.togglePin('/test-pin-marker')
     expect(after2.pins).not.toContain('/test-pin-marker')
-  })
-
-  it('setColorOverride writes and clears entries', async () => {
-    const after1 = await svc.setColorOverride('/test-pin-marker', 4)
-    expect(after1.colorOverrides['/test-pin-marker']).toBe(4)
-    const after2 = await svc.setColorOverride('/test-pin-marker', null)
-    expect(after2.colorOverrides['/test-pin-marker']).toBeUndefined()
-  })
-
-  it('setColorOverride rejects out-of-range values silently', async () => {
-    const after = await svc.setColorOverride('/test-pin-marker', 99)
-    expect(after.colorOverrides['/test-pin-marker']).toBeUndefined()
   })
 })
 

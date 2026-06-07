@@ -856,10 +856,6 @@ const api: ElectronAPI = {
       ipcRenderer.invoke(IPC.PROJECTS_TOGGLE_PIN, { root }) as Promise<
         import('../shared/types').ProjectsFile
       >,
-    setColorOverride: (root: string, colorIndex: number | null) =>
-      ipcRenderer.invoke(IPC.PROJECTS_SET_COLOR_OVERRIDE, { root, colorIndex }) as Promise<
-        import('../shared/types').ProjectsFile
-      >,
     onChange: (cb: (file: import('../shared/types').ProjectsFile) => void) => {
       const handler = (_e: unknown, file: import('../shared/types').ProjectsFile) => cb(file)
       ipcRenderer.on(IPC.PROJECTS_CHANGED, handler)

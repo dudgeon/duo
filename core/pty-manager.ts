@@ -2,7 +2,7 @@ import * as pty from 'node-pty'
 import { DEFAULT_SHELL, DEFAULT_CWD, TERMINAL_DEFAULTS, SOCKET_PATH, SHIM_DIR } from './constants'
 import { resolveExistingCwd } from './cwd-utils'
 import { IPC } from '../shared/types'
-import type { EventSink } from './event-sink'
+import { routeSend, disposeForWindow as disposeSessionsForWindow, listIdsByCwdOwned } from './pty-owner'
 
 interface Session {
   id: string
@@ -10,6 +10,19 @@ interface Session {
   /** ENH-183 C9 — track cwd so main-side trigger paths (T2/T3) can
    *  match enriched-state terminals back to live tab ids. */
   cwd: string
+  /** ENH-191 P3-S4 — the window that owns this PTY (whose terminal spawned
+   *  it). Routes PTY_DATA/EXIT to the owner (S5), scopes disposeForWindow (S6)
+   *  + owner-filters listIdsByCwd (S7). -1 == no resolved owner (falls back to
+   *  the sole window). */
+  ownerWindowId: number
+}
+
+// ENH-191 P3-S5 — minimal window shape for owner-routed sends, redeclared
+// locally so this core module imports zero Electron (the WindowRegistry +
+// WindowLike live in electron/; main.ts passes resolver closures in).
+interface RouteWindow {
+  isDestroyed(): boolean
+  webContents: { isDestroyed(): boolean; send(channel: string, data: unknown): void }
 }
 
 export class PtyManager {
@@ -20,15 +33,33 @@ export class PtyManager {
   // "dead shell" (drop its project tile) from "pending" (keep the launch
   // cwd) — see `getLiveness`.
   private exited = new Set<string>()
-  private eventSink: EventSink | null = null
+  private resolveOwnerWindow: (windowId: number) => RouteWindow | undefined = () => undefined
+  private resolveDefaultWindow: () => RouteWindow | undefined = () => undefined
 
   constructor(private readonly appVersion: string) {}
 
-  setEventSink(sink: EventSink): void {
-    this.eventSink = sink
+  // ENH-191 P3-S5 — wire owner-routed sends. resolveOwner maps a session's
+  // ownerWindowId to its window; resolveDefault is the sole-window fallback
+  // (the cold-start drop guard). Replaces the single app-wide eventSink so
+  // PTY_DATA/EXIT land in the OWNING window, not always the default.
+  setOwnerRouting(routing: {
+    resolveOwner: (windowId: number) => RouteWindow | undefined
+    resolveDefault: () => RouteWindow | undefined
+  }): void {
+    this.resolveOwnerWindow = routing.resolveOwner
+    this.resolveDefaultWindow = routing.resolveDefault
   }
 
-  create(id: string, shell: string = DEFAULT_SHELL, cwd: string = DEFAULT_CWD): void {
+  // Route a per-session event to its OWNING window (fallback: the sole window),
+  // guarded against a destroyed window/webContents (BUG-190).
+  private send(sessionId: string, channel: string, data: unknown): void {
+    const target = routeSend(this.sessions, sessionId, this.resolveOwnerWindow, this.resolveDefaultWindow)
+    if (target && !target.isDestroyed() && !target.webContents.isDestroyed()) {
+      target.webContents.send(channel, data)
+    }
+  }
+
+  create(id: string, shell: string = DEFAULT_SHELL, cwd: string = DEFAULT_CWD, ownerWindowId = -1): void {
     if (this.sessions.has(id)) return
     // A re-create for this id means it's live again, not exited.
     this.exited.delete(id)
@@ -54,6 +85,9 @@ export class PtyManager {
       PATH: `${SHIM_DIR}:${userPath}`,
       DUO_SESSION: '1',
       DUO_SOCKET: SOCKET_PATH,
+      // ENH-191 P3-S4 — DORMANT window stamp: the owning window's id, set but
+      // NOT consumed yet (CLI default-resolution is P5; a reverted CLI ignores it).
+      DUO_WINDOW: String(ownerWindowId),
       DUO_VERSION: this.appVersion,
       TERM_PROGRAM: 'Duo'
     }
@@ -74,16 +108,16 @@ export class PtyManager {
     })
 
     ptyProcess.onData((data) => {
-      this.eventSink?.send(IPC.PTY_DATA(id), data)
+      this.send(id, IPC.PTY_DATA(id), data)
     })
 
     ptyProcess.onExit(({ exitCode }) => {
-      this.eventSink?.send(IPC.PTY_EXIT(id), exitCode)
+      this.send(id, IPC.PTY_EXIT(id), exitCode)
       this.sessions.delete(id)
       this.exited.add(id) // BUG-191 — remember it died (vs never-spawned)
     })
 
-    this.sessions.set(id, { id, pty: ptyProcess, cwd: resolvedCwd })
+    this.sessions.set(id, { id, pty: ptyProcess, cwd: resolvedCwd, ownerWindowId })
 
     if (substituted) {
       // Tell the user why the shell didn't open where the tab expected.
@@ -96,19 +130,19 @@ export class PtyManager {
       // color reset or inject arbitrary terminal sequences.
       const safe = (s: string) => s.replace(/\x1b/g, '?')
       const note = `\x1b[33m[duo] ${safe(cwd)} no longer exists — opened ${safe(resolvedCwd)} instead.\x1b[0m\r\n`
-      this.eventSink?.send(IPC.PTY_DATA(id), note)
+      this.send(id, IPC.PTY_DATA(id), note)
     }
   }
 
-  /** ENH-183 C9 — list live tab ids matching a cwd (in insertion
-   *  order). Used by main-side hydration triggers to find the PTY
-   *  to write `/rename` into for a given saved-state terminal. */
-  listIdsByCwd(cwd: string): string[] {
-    const matches: string[] = []
-    for (const s of this.sessions.values()) {
-      if (s.cwd === cwd) matches.push(s.id)
-    }
-    return matches
+  /** ENH-183 C9 — list live tab ids matching a cwd (in insertion order). Used
+   *  by main-side hydration triggers to find the PTY to write `/rename` into for
+   *  a given saved-state terminal.
+   *  ENH-191 P3-S7 — optionally owner-filtered: the C9 positional cwd→tabId
+   *  match must stay within ONE window's tabs (the shared pool interleaves
+   *  same-cwd terminals across windows). undefined ownerWindowId ⇒ all owners
+   *  (byte-identical to the pre-P3 unfiltered list + insertion order). */
+  listIdsByCwd(cwd: string, ownerWindowId?: number): string[] {
+    return listIdsByCwdOwned(this.sessions, cwd, ownerWindowId)
   }
 
   /** ENH-183 C12 — get a tab's cwd from its id. Used by CLI verbs
@@ -170,5 +204,14 @@ export class PtyManager {
       p.kill()
     }
     this.sessions.clear()
+  }
+
+  /** ENH-191 P3-S6 — kill + delete only the sessions OWNED by `windowId` (the
+   *  workspace-swap path: a swap in window A must not nuke window B's terminals).
+   *  Does NOT mark ids exited — parity with dispose() (these PTYs are torn down
+   *  for replacement, not dead shells; the onExit handler records `exited`). At
+   *  N=1 windowId is the sole owner ⇒ this kills the same set dispose() did. */
+  disposeForWindow(windowId: number): void {
+    disposeSessionsForWindow(this.sessions, windowId)
   }
 }

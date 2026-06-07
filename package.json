@@ -26,7 +26,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "lint": "ESLINT_USE_FLAT_CONFIG=true eslint .",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "check:routing": "bash scripts/check-window-routing.sh"
   },
   "dependencies": {
     "@codemirror/lang-json": "^6.0.2",
