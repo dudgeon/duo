@@ -648,7 +648,10 @@ async function createWindow(): Promise<WindowContext> {
   // `await` it before any other window setup; subsequent updates
   // (after Save / Open) call applyWindowTitle() to mutate live.
   await activeWorkspaceService.load()
-  applyWindowTitle()
+  // ENH-191 P3-S10 — seed THIS window's per-window active-workspace pointer
+  // from the shared service before the first title paint.
+  ctx.activeWorkspace = activeWorkspaceService.get()
+  applyWindowTitle(ctx)
 
   // ENH-191 P1 — `ptyManager.setEventSink` + the `ExternalDomainsService`
   // construction were lifted OUT of createWindow() to app-boot scope
@@ -1300,7 +1303,13 @@ app.whenReady().then(async () => {
     workspaceSave: async (opts) => saveWorkspaceFile(opts),
     workspaceOpen: async (path) => openWorkspaceFile(path, { skipPrompt: true }),
     workspaceListRecent: async () => workspaceHistoryService.listSorted(),
-    workspaceCurrent: async () => { await activeWorkspaceService.load(); return activeWorkspaceService.get() },
+    workspaceCurrent: async () => {
+      // ENH-191 P3-S10 — the default window's pointer (only() at N=1), fallback service.
+      const ctx = registry.only()
+      if (ctx && ctx.activeWorkspace !== undefined) return ctx.activeWorkspace
+      await activeWorkspaceService.load()
+      return activeWorkspaceService.get()
+    },
     workspaceNew: async () => newWorkspaceReset({ skipPrompt: true }),
     // ENH-182 Phase 4 — project rail CLI parity.
     getProjectsState: () => getProjectsState(),
@@ -2010,7 +2019,12 @@ function setupIPC(): void {
   ipcMain.handle(IPC.WORKSPACE_FILE_LIST_RECENT, () => {
     return workspaceHistoryService.listSorted()
   })
-  ipcMain.handle(IPC.WORKSPACE_FILE_ACTIVE, async () => {
+  ipcMain.handle(IPC.WORKSPACE_FILE_ACTIVE, async (event) => {
+    // ENH-191 P3-S10 — return THIS window's pointer (resolved by event.sender),
+    // falling back to the shared service for an unseeded/unknown window.
+    const id = BrowserWindow.fromWebContents(event.sender)?.id
+    const ctx = id != null ? registry.get(id) : undefined
+    if (ctx && ctx.activeWorkspace !== undefined) return ctx.activeWorkspace
     await activeWorkspaceService.load()
     return activeWorkspaceService.get()
   })
@@ -2661,18 +2675,22 @@ function buildRecentWorkspacesSubmenu(): MenuItemConstructorOptions[] {
 // ENH-167 v1.2 — also pushes ACTIVE_CHANGED to the renderer so the
 // in-app titlebar badge tracks live (Duo's `titleBarStyle:
 // 'hiddenInset'` hides the OS title, so the renderer paints its own).
-function applyWindowTitle(): void {
-  const win = liveMainWindow()
-  if (!win || win.isDestroyed()) return
-  const active = activeWorkspaceService.get()
+function applyWindowTitle(ctx: WindowContext | undefined): void {
+  if (!ctx) return
+  const win = ctx.window as BrowserWindow
+  if (win.isDestroyed()) return
+  // ENH-191 P3-S10 — read THIS window's per-window active-workspace pointer
+  // (seeded at boot + dual-written at every set/clear), not the shared
+  // singleton two windows would clobber.
+  const active = ctx.activeWorkspace ?? null
   if (active) {
     win.setTitle(`Duo — ${active.name}`)
   } else {
     win.setTitle('Duo')
   }
-  // Push to renderer (drives the in-app titlebar badge).
+  // Push to THIS window's renderer (drives its in-app titlebar badge).
   try {
-    safeSend(IPC.WORKSPACE_FILE_ACTIVE_CHANGED, active)
+    win.webContents.send(IPC.WORKSPACE_FILE_ACTIVE_CHANGED, active)
   } catch (err) {
     // Renderer not ready yet (boot path) — harmless; the renderer
     // pulls via `sessionFile.active()` on mount.
@@ -2759,7 +2777,11 @@ export async function saveWorkspaceFile(opts: { saveAs?: boolean; targetPath?: s
   }
   await activeWorkspaceService.set({ path: targetPath, name: suggestedName })
   await workspaceHistoryService.record({ path: targetPath, name: suggestedName, savedAt: new Date().toISOString() })
-  applyWindowTitle()
+  // ENH-191 P3-S10 — dual-write the per-window pointer (registry.only() at N=1)
+  // alongside the shared service; applyWindowTitle reads it.
+  const savedCtx = registry.only()
+  if (savedCtx) savedCtx.activeWorkspace = activeWorkspaceService.get()
+  applyWindowTitle(savedCtx)
   void rebuildAppMenu()
   return { ok: true, path: targetPath, name: suggestedName }
 }
@@ -2822,7 +2844,9 @@ export async function openWorkspaceFile(filePath: string, opts: { skipPrompt?: b
   // Set active pointer + history BEFORE applying so the window title
   // reflects the new name as soon as the renderer reload finishes.
   await activeWorkspaceService.set({ path: filePath, name: envelope.name })
-  applyWindowTitle()
+  const openedCtx = registry.only()
+  if (openedCtx) openedCtx.activeWorkspace = activeWorkspaceService.get()
+  applyWindowTitle(openedCtx)
   await workspaceHistoryService.record({ path: filePath, name: envelope.name, savedAt: envelope.savedAt })
   await workspaceHistoryService.flush()
   void rebuildAppMenu()
@@ -3104,7 +3128,9 @@ export async function newWorkspaceReset(opts: { skipPrompt?: boolean } = {}): Pr
     aux: null
   }
   await activeWorkspaceService.clear()
-  applyWindowTitle()
+  const clearedCtx = registry.only()
+  if (clearedCtx) clearedCtx.activeWorkspace = null
+  applyWindowTitle(clearedCtx)
   void rebuildAppMenu()
   await workspaceHistoryService.flush()
   await applyNewSessionState(skeleton)

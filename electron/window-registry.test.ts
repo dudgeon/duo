@@ -116,4 +116,42 @@ describe('WindowRegistry — registry-of-one spine (ENH-191 P0)', () => {
     expect(fresh.activeWorkspace).toBeUndefined()
     expect(fresh.presence).toBeUndefined()
   })
+
+  // ENH-191 P3-S10 — models applyWindowTitle(ctx)'s per-window badge push
+  // (WORKSPACE_FILE_ACTIVE_CHANGED): each window's renderer receives ITS OWN
+  // active-workspace pointer, so two windows on different projects show two
+  // different titles (NFR-6.1).
+  it('per-window title push: each window receives its OWN active-workspace pointer (P3-S10)', () => {
+    const reg = new WindowRegistry()
+    const a = makeFakeContext(1)
+    const b = makeFakeContext(2)
+    a.ctx.activeWorkspace = { path: '/a', name: 'A' }
+    b.ctx.activeWorkspace = { path: '/b', name: 'B' }
+    reg.register(a.ctx)
+    reg.register(b.ctx)
+    for (const ctx of reg.all()) {
+      ctx.window.webContents.send('workspace-file:active-changed', ctx.activeWorkspace ?? null)
+    }
+    expect(a.send).toHaveBeenCalledWith('workspace-file:active-changed', { path: '/a', name: 'A' })
+    expect(b.send).toHaveBeenCalledWith('workspace-file:active-changed', { path: '/b', name: 'B' })
+  })
+
+  // NEGATIVE CONTROL: a regression that pushes the SHARED singleton (one
+  // last-writer pointer) to every window mis-delivers — window 1's badge shows
+  // window 2's name. This is exactly the clobber the per-window pointer removes.
+  it('a shared-singleton title push mis-delivers window 2\'s name to window 1 (P3-S10 control)', () => {
+    const reg = new WindowRegistry()
+    const a = makeFakeContext(1)
+    const b = makeFakeContext(2)
+    a.ctx.activeWorkspace = { path: '/a', name: 'A' }
+    b.ctx.activeWorkspace = { path: '/b', name: 'B' }
+    reg.register(a.ctx)
+    reg.register(b.ctx)
+    const singleton = reg.get(2)!.activeWorkspace // the last writer a shared service holds
+    for (const ctx of reg.all()) {
+      ctx.window.webContents.send('workspace-file:active-changed', singleton)
+    }
+    // window 1 WRONGLY gets B — the bug the per-window pointer fixes:
+    expect(a.send).toHaveBeenCalledWith('workspace-file:active-changed', { path: '/b', name: 'B' })
+  })
 })
