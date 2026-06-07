@@ -265,15 +265,14 @@ const newTabPending = new Map<string, (res: NewTabResult) => void>()
 // Atelier; the push runs immediately after the renderer mounts.
 nativeTheme.themeSource = 'light'
 
-let mainWindow: BrowserWindow | null = null
-
 // ENH-191 P2 — the registry-of-one spine (Map<windowId, WindowContext>)
-// alongside the lone mainWindow global it will replace. Holds EXACTLY ONE
-// context through P0-P4, so registry.only() resolves byte-identically to
-// mainWindow until a second window can open (P5a). createWindow() registers
-// its context; the 'closed' handler unregisters by id; safeSend + the
-// window-resolve helpers read it. mainWindow stays as a parallel alias until
-// the safeSend rewire seam removes it.
+// REPLACES the former `let mainWindow` global. Holds EXACTLY ONE context
+// through P0-P4, so registry.only() resolves byte-identically to the old
+// mainWindow until a second window can open (P5a). createWindow() builds the
+// sole window as a local const + registers its context; the 'closed' handler
+// unregisters by id. Every main->renderer read resolves through the registry:
+// safeSend + resolveDefault (sends), liveMainWindow (dialog/title/devtools),
+// liveBrowser/liveCdp (managers), broadcastAll (shared-state fan-out).
 const registry = new WindowRegistry()
 
 // BUG-190 — a webContents.send that's safe to call from async callbacks
@@ -312,14 +311,15 @@ const registerDuoAssetOnce = makeOnceGuard()
 let pendingOpenFilePath: string | null = null
 app.on('open-file', (event, path) => {
   event.preventDefault()
-  if (mainWindow && !mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (win && !win.isDestroyed()) {
     // Warm path — Duo is already running. Route through sendEdit (the
     // same destination FileTree double-click and `duo open` use), so
     // the Finder open lands on the right surface (markdown -> editor;
     // .html -> canvas, or browser if the file's `duo-open-in` meta
     // says so).
     sendEdit(path)
-    mainWindow.focus()
+    win.focus()
   } else {
     // Cold path — stash and let the createWindow() did-finish-load
     // hook flush after the renderer is ready to receive NAV_EDIT.
@@ -355,19 +355,21 @@ export function getProjectsState(): import('../shared/types').ProjectsStateSnaps
 export function setProjectFocus(
   root: string | null
 ): { ok: boolean; error?: string } {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  resolveDefault(registry)?.webContents.send(IPC.PROJECTS_SET_FOCUS, { root })
+  win.webContents.send(IPC.PROJECTS_SET_FOCUS, { root })
   return { ok: true }
 }
 export function requestProjectClose(
   root: string
 ): { ok: boolean; error?: string } {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  resolveDefault(registry)?.webContents.send(IPC.PROJECTS_CLOSE_REQUEST, { root })
+  win.webContents.send(IPC.PROJECTS_CLOSE_REQUEST, { root })
   return { ok: true }
 }
 // ENH-184 (Sprint 23 / v0.8.0) — workspace-pill click-to-open-menu
@@ -381,10 +383,11 @@ export function getWorkspacePillMenuEnabled(): boolean {
 export function setWorkspacePillMenuEnabledCli(
   enabled: boolean
 ): { ok: boolean; error?: string } {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  resolveDefault(registry)?.webContents.send(IPC.WORKSPACE_PILL_MENU_SET, { enabled })
+  win.webContents.send(IPC.WORKSPACE_PILL_MENU_SET, { enabled })
   return { ok: true }
 }
 /** Resolve a name-or-root argument against the cached project list.
@@ -532,6 +535,13 @@ function liveCdp(): CdpBridge | null {
 function liveBrowser(): BrowserManager | null {
   return (registry.only()?.browserManager as BrowserManager | undefined) ?? null
 }
+// ENH-191 P2 — the sole window typed as the real BrowserWindow, for the
+// non-send reads (dialog parents, setTitle, focus, devtools wc, did-finish
+// once/reload, reqId sends) that need methods beyond the minimal WindowLike
+// send-interface. registry.only() holds the real window; cast in ONE place.
+function liveMainWindow(): BrowserWindow | null {
+  return (resolveDefault(registry) as BrowserWindow | undefined) ?? null
+}
 
 // ENH-191 P1b/P2 — the app-scoped SocketServer's getter-thunks. The socket is
 // constructed once in app.whenReady (before any window); these resolve the
@@ -585,7 +595,7 @@ let hiddenFilesMenuItemId: string | null = null
 let claudeReturnMenuItemId: string | null = null
 
 async function createWindow(): Promise<WindowContext> {
-  mainWindow = new BrowserWindow({
+  const mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 900,
@@ -958,9 +968,9 @@ async function createWindow(): Promise<WindowContext> {
     // CLI bridge permanently DOWN after the first close — it's whenReady-
     // scoped now, not re-created per window. App teardown lives ONLY in
     // before-quit. See ENH-191 P1 PRD / DECISIONS.md.
-    mainWindow = null
-    // ENH-191 P2 — browserManager / cdpBridge are createWindow-local consts
-    // now (no module globals to null); unregistering the context drops the
+    // ENH-191 P2 — mainWindow / browserManager / cdpBridge are createWindow-
+    // local consts now (no module globals to null); unregistering the context
+    // drops the
     // window's hold on them. Idempotent; unregister no-ops if absent. At N=1
     // this empties the registry, so registry.only() is undefined until the
     // next createWindow (dock-reopen).
@@ -1101,7 +1111,8 @@ app.whenReady().then(async () => {
           // listens for. Browser-tab right-clicks live in their own
           // WCV webContents so this filter never applies to them.
           const isCanvasIframe = parameters.frameURL && parameters.frameURL.startsWith('about:srcdoc')
-          const isMainRenderer = mainWindow !== null && wc === mainWindow.webContents
+          const mw = liveMainWindow()
+          const isMainRenderer = mw !== null && wc === mw.webContents
           const isContentEditable = parameters.editFlags?.canCut === true || parameters.isEditable === true
           if (isCanvasIframe || (isMainRenderer && isContentEditable)) {
             items.push({
@@ -1128,7 +1139,8 @@ app.whenReady().then(async () => {
         // canvas iframes): both are skipped here so the menu item
         // doesn't appear in surfaces where inspect mode doesn't apply.
         const isCanvasIframeForInspect = parameters.frameURL && parameters.frameURL.startsWith('about:srcdoc')
-        const isMainRendererForInspect = mainWindow !== null && wc === mainWindow.webContents
+        const mwInspect = liveMainWindow()
+        const isMainRendererForInspect = mwInspect !== null && wc === mwInspect.webContents
         const isBrowserPane = !isMainRendererForInspect && !isCanvasIframeForInspect
         const browserManager = liveBrowser()
         if (isBrowserPane && browserManager) {
@@ -1260,8 +1272,9 @@ app.whenReady().then(async () => {
     // a console.info hint there rather than a sync error here (split-
     // view state lives on the renderer side).
     focusPane: (target) => {
-      if (!mainWindow) return { ok: false, error: 'main window not ready' }
-      resolveDefault(registry)?.webContents.send(IPC.PANE_FOCUS_JUMP, target)
+      const win = liveMainWindow()
+      if (!win) return { ok: false, error: 'main window not ready' }
+      win.webContents.send(IPC.PANE_FOCUS_JUMP, target)
       return { ok: true, target }
     },
     pushNavPinsChanged: (pins) => {
@@ -1536,7 +1549,7 @@ function setupIPC(): void {
   // renderer-side `.focus()` call on xterm or the editor lands. See
   // App.tsx § togglePaneFocus.
   ipcMain.on(IPC.PANE_FOCUS_RECLAIM, () => {
-    mainWindow?.webContents.focus()
+    liveMainWindow()?.webContents.focus()
   })
 
   // ENH-028 — find-in-page. Renderer's find bar (in BrowserRenderer)
@@ -1717,7 +1730,7 @@ function setupIPC(): void {
         }
       })
       const menu = Menu.buildFromTemplate(template)
-      const win = mainWindow ?? undefined
+      const win = liveMainWindow() ?? undefined
       const popupOpts: { window?: BrowserWindow; x?: number; y?: number; callback?: () => void } = {
         callback: () => resolve({ chosenId })
       }
@@ -1751,8 +1764,9 @@ function setupIPC(): void {
   })
 
   ipcMain.handle(IPC.DIALOG_CONFIRM, async (_event, req: import('../shared/types').DialogConfirmRequest): Promise<import('../shared/types').DialogConfirmResult> => {
-    if (!mainWindow) return { response: req.cancelId ?? 0 }
-    const result = await dialog.showMessageBox(mainWindow, {
+    const win = liveMainWindow()
+    if (!win) return { response: req.cancelId ?? 0 }
+    const result = await dialog.showMessageBox(win, {
       type: req.type ?? 'warning',
       title: req.title,
       message: req.title,
@@ -2634,12 +2648,13 @@ function buildRecentWorkspacesSubmenu(): MenuItemConstructorOptions[] {
 // in-app titlebar badge tracks live (Duo's `titleBarStyle:
 // 'hiddenInset'` hides the OS title, so the renderer paints its own).
 function applyWindowTitle(): void {
-  if (!mainWindow || mainWindow.isDestroyed()) return
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) return
   const active = activeWorkspaceService.get()
   if (active) {
-    mainWindow.setTitle(`Duo — ${active.name}`)
+    win.setTitle(`Duo — ${active.name}`)
   } else {
-    mainWindow.setTitle('Duo')
+    win.setTitle('Duo')
   }
   // Push to renderer (drives the in-app titlebar badge).
   try {
@@ -2655,7 +2670,8 @@ function applyWindowTitle(): void {
 // CPU-bound (no I/O) so this is generous.
 const SESSION_SNAPSHOT_TIMEOUT_MS = 3000
 async function dispatchSessionSnapshot(): Promise<import('../shared/types').SessionState | null> {
-  if (!mainWindow || mainWindow.isDestroyed()) return null
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) return null
   const reqId = `ss_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
   return new Promise<import('../shared/types').SessionState | null>((resolve) => {
     const timer = setTimeout(() => {
@@ -2667,7 +2683,7 @@ async function dispatchSessionSnapshot(): Promise<import('../shared/types').Sess
       clearTimeout(timer)
       resolve(state)
     })
-    mainWindow!.webContents.send(IPC.SESSION_STATE_SNAPSHOT_REQUEST, { reqId })
+    win.webContents.send(IPC.SESSION_STATE_SNAPSHOT_REQUEST, { reqId })
   })
 }
 
@@ -2679,7 +2695,8 @@ async function dispatchSessionSnapshot(): Promise<import('../shared/types').Sess
 //   - `targetPath` set (from CLI) → write to that path directly,
 //     skipping the GUI dialog.
 export async function saveWorkspaceFile(opts: { saveAs?: boolean; targetPath?: string; name?: string }): Promise<{ ok: boolean; path?: string; name?: string; error?: string }> {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
   await activeWorkspaceService.load()
@@ -2695,7 +2712,7 @@ export async function saveWorkspaceFile(opts: { saveAs?: boolean; targetPath?: s
     } else {
       const defaultPath = active?.path
         ?? join(homedir(), `${suggestedName.replace(/[^A-Za-z0-9_-]+/g, '-') || 'Untitled'}.duo-workspace`)
-      const result = await dialog.showSaveDialog(mainWindow, {
+      const result = await dialog.showSaveDialog(win, {
         title: 'Save Workspace',
         defaultPath,
         filters: [
@@ -2740,7 +2757,8 @@ export async function saveWorkspaceFile(opts: { saveAs?: boolean; targetPath?: s
 // in-place reset machinery needed. macOS apps switch workspaces this
 // way regularly; the visual reset is unambiguous.
 export async function openWorkspaceFile(filePath: string, opts: { skipPrompt?: boolean } = {}): Promise<{ ok: boolean; path?: string; name?: string; error?: string }> {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
 
@@ -2801,13 +2819,14 @@ export async function openWorkspaceFile(filePath: string, opts: { skipPrompt?: b
 // ENH-167 — Open Workspace dialog flow. Shows the prompt-to-save
 // modal first, then a file picker.
 async function openWorkspaceFileWithDialog(): Promise<{ ok: boolean; path?: string; name?: string; error?: string }> {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
   // BUG-151 — no pre-switch prompt; the openWorkspaceFile call below
   // force-flushes the current workspace via the mirror hook. The Open
   // dialog is the user's intent to switch — no need to confirm save first.
-  const result = await dialog.showOpenDialog(mainWindow, {
+  const result = await dialog.showOpenDialog(win, {
     title: 'Open Workspace',
     properties: ['openFile'],
     filters: [
@@ -2829,7 +2848,8 @@ async function openWorkspaceFileWithDialog(): Promise<{ ok: boolean; path?: stri
 //  - 'open' → "before opening another?" (Open Workspace / Open Recent)
 //  - 'new'  → "before starting a new one?" (New Workspace)
 async function promptToSaveCurrentWorkspace(action: 'open' | 'new' = 'open'): Promise<boolean> {
-  if (!mainWindow || mainWindow.isDestroyed()) return false
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) return false
   // BUG-151 (Sprint 20 / v0.7.7) — this prompt is now ONLY reachable
   // from `newWorkspaceReset` (the "wipe everything and start fresh"
   // flow). Workspace switching no longer prompts; it relies on the
@@ -2844,7 +2864,7 @@ async function promptToSaveCurrentWorkspace(action: 'open' | 'new' = 'open'): Pr
   const detail = action === 'new'
     ? 'Your current tabs and terminals will be replaced with a fresh workspace (one shell terminal at the focused tab’s working directory, plus any pinned tabs).'
     : 'Your current tabs, terminals, and browser tabs will be replaced.'
-  const result = await dialog.showMessageBox(mainWindow, {
+  const result = await dialog.showMessageBox(win, {
     type: 'question',
     title: 'Save current workspace?',
     message,
@@ -2935,7 +2955,8 @@ async function getLiveCwdsForIds(
 // "whole window disappeared, relaunched blank window" on 2026-05-21
 // — that was the relaunch surfacing the dev-mode break.
 async function applyNewSessionState(state: import('../shared/types').SessionState): Promise<void> {
-  if (!mainWindow || mainWindow.isDestroyed()) return
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) return
 
   // Save the new state so the reloaded renderer reads it.
   sessionStateService.save(state)
@@ -2973,7 +2994,7 @@ async function applyNewSessionState(state: import('../shared/types').SessionStat
   // didn't re-fire and applyNewSessionState only handled pinned tabs.
   // Result: switching workspaces lost ALL non-pinned browser tabs —
   // the smoke walk + Example Domain etc. disappeared on switch.
-  mainWindow.webContents.once('did-finish-load', async () => {
+  win.webContents.once('did-finish-load', async () => {
     try {
       if (browserManager && state.browserTabs && state.browserTabs.length > 0) {
         await browserManager.restoreFromSession(state.browserTabs, state.activeBrowserIndex)
@@ -2998,7 +3019,7 @@ async function applyNewSessionState(state: import('../shared/types').SessionStat
   // Reload the renderer. Fresh React mount → session-restore reads
   // session-state.json → 1 terminal at the captured CWD + pinned
   // file tabs auto-open via App.tsx's pinAutoOpenRanRef.
-  mainWindow.webContents.reload()
+  win.webContents.reload()
 }
 
 // ENH-167 — File > New Workspace resets the workspace in-place.
@@ -3021,7 +3042,8 @@ async function applyNewSessionState(state: import('../shared/types').SessionStat
 // `skipPrompt` is for CLI callers (`duo session new`) — the agent
 // is presumed deliberate, same convention as `duo session open`.
 export async function newWorkspaceReset(opts: { skipPrompt?: boolean } = {}): Promise<{ ok: boolean; error?: string }> {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
 
@@ -3081,10 +3103,11 @@ export function getNavState(): NavStateSnapshot {
 }
 
 export function sendReveal(path: string): { ok: boolean; error?: string } {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  resolveDefault(registry)?.webContents.send(IPC.NAV_REVEAL, path)
+  win.webContents.send(IPC.NAV_REVEAL, path)
   return { ok: true }
 }
 
@@ -3135,22 +3158,24 @@ async function scanAndInstallDistroPacks(): Promise<void> {
 }
 
 export function sendView(path: string, mode?: 'canvas' | 'browser'): { ok: boolean; error?: string } {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
   // ENH-097 — when a mode override is supplied, send a {path, mode}
   // payload; otherwise keep the bare-string payload for backwards
   // compat with existing renderer subscribers (NAV_VIEW / NAV_EDIT
   // both originally took a plain `path: string`).
-  resolveDefault(registry)?.webContents.send(IPC.NAV_VIEW, mode ? { path, mode } : path)
+  win.webContents.send(IPC.NAV_VIEW, mode ? { path, mode } : path)
   return { ok: true }
 }
 
 export function sendEdit(path: string, mode?: 'canvas' | 'browser'): { ok: boolean; error?: string } {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  resolveDefault(registry)?.webContents.send(IPC.NAV_EDIT, mode ? { path, mode } : path)
+  win.webContents.send(IPC.NAV_EDIT, mode ? { path, mode } : path)
   return { ok: true }
 }
 
@@ -3177,10 +3202,11 @@ export function setThemeMode(mode: ThemeMode): { ok: boolean; error?: string } {
   if (mode !== 'system' && mode !== 'light' && mode !== 'dark') {
     return { ok: false, error: `Invalid theme mode: ${mode}. Expected system|light|dark.` }
   }
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  resolveDefault(registry)?.webContents.send(IPC.THEME_SET, mode)
+  win.webContents.send(IPC.THEME_SET, mode)
   return { ok: true }
 }
 
@@ -3197,10 +3223,11 @@ export function setClaudeReturnMode(mode: import('../shared/types').ClaudeReturn
   if (mode !== 'submit' && mode !== 'newline') {
     return { ok: false, error: `Invalid claude-return mode: ${mode}. Expected submit|newline.` }
   }
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  resolveDefault(registry)?.webContents.send(IPC.CLAUDE_KEY_PREFS_SET, { claudeReturn: mode })
+  win.webContents.send(IPC.CLAUDE_KEY_PREFS_SET, { claudeReturn: mode })
   return { ok: true }
 }
 
@@ -3208,10 +3235,11 @@ export function setShiftReturnMode(mode: import('../shared/types').ShiftReturnMo
   if (mode !== 'submit' && mode !== 'newline') {
     return { ok: false, error: `Invalid shift-return mode: ${mode}. Expected submit|newline.` }
   }
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  resolveDefault(registry)?.webContents.send(IPC.CLAUDE_KEY_PREFS_SET, { shiftReturn: mode })
+  win.webContents.send(IPC.CLAUDE_KEY_PREFS_SET, { shiftReturn: mode })
   return { ok: true }
 }
 
@@ -3224,10 +3252,11 @@ export function setHiddenFiles(value: boolean | 'toggle'): { ok: boolean; error?
   if (value !== true && value !== false && value !== 'toggle') {
     return { ok: false, error: `Invalid hidden-files value: ${String(value)}. Expected true|false|'toggle'.` }
   }
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  resolveDefault(registry)?.webContents.send(IPC.HIDDEN_FILES_SET, { value })
+  win.webContents.send(IPC.HIDDEN_FILES_SET, { value })
   return { ok: true }
 }
 
@@ -3255,13 +3284,14 @@ export function setAuthor(author: string): { ok: boolean; error?: string } {
   if (trimmed.length > 64) {
     return { ok: false, error: 'author name must be 64 characters or fewer' }
   }
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
   // Update the cache eagerly so `duo author` reads the new value even
   // before the renderer's AUTHOR_STATE_PUSH echo arrives.
   authorState = { author: trimmed }
-  resolveDefault(registry)?.webContents.send(IPC.AUTHOR_SET, trimmed)
+  win.webContents.send(IPC.AUTHOR_SET, trimmed)
   return { ok: true }
 }
 
@@ -3274,10 +3304,11 @@ export function setSplit(pct: number): { ok: boolean; pct?: number; error?: stri
     return { ok: false, error: 'split pct must be a finite number' }
   }
   const clamped = Math.min(Math.max(pct, 20), 80)
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  resolveDefault(registry)?.webContents.send(IPC.SPLIT_SET, clamped)
+  win.webContents.send(IPC.SPLIT_SET, clamped)
   return { ok: true, pct: clamped }
 }
 
@@ -3286,10 +3317,11 @@ export function setSplit(pct: number): { ok: boolean; pct?: number; error?: stri
 // even layout: outer 33/67 + inner aux 50/50 (when aux is open). Same
 // target shape as ENH-126's auto-redistribute, but on-demand.
 export function setLayout3wayEven(): { ok: boolean; error?: string } {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  resolveDefault(registry)?.webContents.send(IPC.LAYOUT_3WAY_EVEN)
+  win.webContents.send(IPC.LAYOUT_3WAY_EVEN)
   return { ok: true }
 }
 
@@ -3375,10 +3407,11 @@ export function openDevToolsForTarget(opts: {
 }): { ok: boolean; target?: string; opened?: boolean; error?: string } {
   const target = opts.target ?? 'renderer'
   if (target === 'renderer') {
-    if (!mainWindow || mainWindow.isDestroyed()) {
+    const win = liveMainWindow()
+    if (!win || win.isDestroyed()) {
       return { ok: false, error: 'Duo window not ready' }
     }
-    const wc = mainWindow.webContents
+    const wc = win.webContents
     if (opts.close) {
       if (wc.isDevToolsOpened()) wc.closeDevTools()
       return { ok: true, target, opened: false }
@@ -3478,7 +3511,8 @@ export function splitViewOpen(path: string): { ok: boolean; error?: string } {
   if (typeof path !== 'string' || !path) {
     return { ok: false, error: 'split-view open requires a path' }
   }
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
   // Tilde expansion for parity with sendEdit (path-link clicks via
@@ -3489,7 +3523,7 @@ export function splitViewOpen(path: string): { ok: boolean; error?: string } {
   } else if (expanded.startsWith('~/')) {
     expanded = join(homedir(), expanded.slice(2))
   }
-  resolveDefault(registry)?.webContents.send(IPC.WORKING_AUX_OPEN, expanded)
+  win.webContents.send(IPC.WORKING_AUX_OPEN, expanded)
   return { ok: true }
 }
 
@@ -3501,7 +3535,8 @@ export function splitViewOpenBrowser(browserTabId: number): { ok: boolean; error
   if (!Number.isInteger(browserTabId) || browserTabId < 1) {
     return { ok: false, error: 'split-view open-browser requires a positive integer tab id' }
   }
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
   const browserManager = liveBrowser()
@@ -3514,15 +3549,16 @@ export function splitViewOpenBrowser(browserTabId: number): { ok: boolean; error
   if (!tabs.some(t => t.id === browserTabId)) {
     return { ok: false, error: `No browser tab with id ${browserTabId}` }
   }
-  resolveDefault(registry)?.webContents.send(IPC.WORKING_AUX_OPEN_BROWSER, browserTabId)
+  win.webContents.send(IPC.WORKING_AUX_OPEN_BROWSER, browserTabId)
   return { ok: true }
 }
 
 export function splitViewClose(): { ok: boolean; error?: string } {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  resolveDefault(registry)?.webContents.send(IPC.WORKING_AUX_CLOSE, null)
+  win.webContents.send(IPC.WORKING_AUX_CLOSE, null)
   return { ok: true }
 }
 
@@ -3530,10 +3566,11 @@ export function splitViewClose(): { ok: boolean; error?: string } {
 // on the working strip). The renderer applies the pinned-tab gate +
 // the actual tab-removal logic; this just pushes the trigger.
 export function closeActiveWorkingTab(): { ok: boolean; error?: string } {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  resolveDefault(registry)?.webContents.send(IPC.NAV_CLOSE_ACTIVE_WORKING_TAB, null)
+  win.webContents.send(IPC.NAV_CLOSE_ACTIVE_WORKING_TAB, null)
   return { ok: true }
 }
 
@@ -3541,10 +3578,11 @@ export function closeActiveWorkingTab(): { ok: boolean; error?: string } {
 // supplied (1-indexed) → that specific terminal tab. Renderer owns
 // tab identity, so the index resolution happens there.
 export function closeTerminalTab(n?: number): { ok: boolean; error?: string } {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  resolveDefault(registry)?.webContents.send(IPC.NAV_CLOSE_TERMINAL_TAB, typeof n === 'number' ? { n } : null)
+  win.webContents.send(IPC.NAV_CLOSE_TERMINAL_TAB, typeof n === 'number' ? { n } : null)
   return { ok: true }
 }
 
@@ -3554,19 +3592,21 @@ export function closeTerminalTab(n?: number): { ok: boolean; error?: string } {
 // input. Used by the Navigator right-click → "Clone GitHub repo
 // here…" path (owner Q1: right-click context wins over Navigator cwd).
 export function openCloneModal(opts?: { path?: string }): { ok: boolean; error?: string } {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
   const payload = opts?.path ? { path: opts.path } : null
-  resolveDefault(registry)?.webContents.send(IPC.NAV_OPEN_CLONE_MODAL, payload)
+  win.webContents.send(IPC.NAV_OPEN_CLONE_MODAL, payload)
   return { ok: true }
 }
 
 export function splitViewPromote(): { ok: boolean; error?: string } {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  resolveDefault(registry)?.webContents.send(IPC.WORKING_AUX_PROMOTE, null)
+  win.webContents.send(IPC.WORKING_AUX_PROMOTE, null)
   return { ok: true }
 }
 
@@ -3579,10 +3619,11 @@ export function splitViewResize(pct: number): { ok: boolean; pct?: number; error
   // or percent (20–80) for caller convenience; > 1 is treated as %.
   const decimal = pct > 1 ? pct / 100 : pct
   const clamped = Math.min(Math.max(decimal, 0.20), 0.80)
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  resolveDefault(registry)?.webContents.send(IPC.WORKING_AUX_RESIZE, clamped)
+  win.webContents.send(IPC.WORKING_AUX_RESIZE, clamped)
   return { ok: true, pct: clamped }
 }
 
@@ -3601,10 +3642,11 @@ export function setSelectionFormat(format: SelectionFormat): { ok: boolean; erro
   if (format !== 'a' && format !== 'b' && format !== 'c') {
     return { ok: false, error: `Invalid selection-format: ${format}. Expected a|b|c.` }
   }
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  resolveDefault(registry)?.webContents.send(IPC.SELECTION_FORMAT_SET, format)
+  win.webContents.send(IPC.SELECTION_FORMAT_SET, format)
   return { ok: true }
 }
 
@@ -3619,7 +3661,8 @@ export function setSelectionFormat(format: SelectionFormat): { ok: boolean; erro
 const DOC_WRITE_TIMEOUT_MS = 5 * 60 * 1000
 
 export function dispatchDocWrite(req: Omit<DocWriteRequest, 'reqId'>): Promise<DocWriteResult> {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }
   const reqId = `dw_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -3632,12 +3675,13 @@ export function dispatchDocWrite(req: Omit<DocWriteRequest, 'reqId'>): Promise<D
       clearTimeout(timer)
       resolve(res)
     })
-    mainWindow!.webContents.send(IPC.EDITOR_DOC_WRITE, { ...req, reqId })
+    win.webContents.send(IPC.EDITOR_DOC_WRITE, { ...req, reqId })
   })
 }
 
 export function dispatchImageInsert(req: { bytes: Uint8Array; ext: string; alt?: string }): Promise<import('../shared/types').ImageInsertResult> {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }
   const reqId = `ii_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -3650,12 +3694,13 @@ export function dispatchImageInsert(req: { bytes: Uint8Array; ext: string; alt?:
       clearTimeout(timer)
       resolve(res)
     })
-    mainWindow!.webContents.send(IPC.EDITOR_IMAGE_INSERT, { ...req, reqId })
+    win.webContents.send(IPC.EDITOR_IMAGE_INSERT, { ...req, reqId })
   })
 }
 
 export function dispatchDocRead(req: Omit<DocReadRequest, 'reqId'>): Promise<DocReadResult> {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }
   const reqId = `dr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -3668,7 +3713,7 @@ export function dispatchDocRead(req: Omit<DocReadRequest, 'reqId'>): Promise<Doc
       clearTimeout(timer)
       resolve(res)
     })
-    mainWindow!.webContents.send(IPC.EDITOR_DOC_READ, { ...req, reqId })
+    win.webContents.send(IPC.EDITOR_DOC_READ, { ...req, reqId })
   })
 }
 
@@ -3676,7 +3721,8 @@ export function dispatchDocRead(req: Omit<DocReadRequest, 'reqId'>): Promise<Doc
 // short timeout (no human gate; the renderer just resolves a target
 // + scrolls into view, bounded by frame budget).
 export function dispatchDocGoto(req: Omit<DocGotoRequest, 'reqId'>): Promise<DocGotoResult> {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }
   const reqId = `dg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -3689,13 +3735,14 @@ export function dispatchDocGoto(req: Omit<DocGotoRequest, 'reqId'>): Promise<Doc
       clearTimeout(timer)
       resolve(res)
     })
-    mainWindow!.webContents.send(IPC.EDITOR_DOC_GOTO, { ...req, reqId })
+    win.webContents.send(IPC.EDITOR_DOC_GOTO, { ...req, reqId })
   })
 }
 
 // ENH-023 (v0.5.4) — `duo doc find`. Read-only, fast — same 5s budget.
 export function dispatchDocFind(req: Omit<DocFindRequest, 'reqId'>): Promise<DocFindResult> {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }
   const reqId = `df_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -3708,7 +3755,7 @@ export function dispatchDocFind(req: Omit<DocFindRequest, 'reqId'>): Promise<Doc
       clearTimeout(timer)
       resolve(res)
     })
-    mainWindow!.webContents.send(IPC.EDITOR_DOC_FIND, { ...req, reqId })
+    win.webContents.send(IPC.EDITOR_DOC_FIND, { ...req, reqId })
   })
 }
 
@@ -3719,7 +3766,8 @@ export function dispatchDocFind(req: Omit<DocFindRequest, 'reqId'>): Promise<Doc
 // an echo-safe save, and replies. 10s timeout mirrors dispatchDocRead
 // (no human gate — this is an accepted edit, not a banner-able write).
 export function dispatchDocEditPlain(req: Omit<DocEditPlainRequest, 'reqId'>): Promise<DocEditPlainResult> {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, changed: false, replacements: 0, reason: '', error: 'Duo window not ready' })
   }
   const reqId = `dep_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -3732,7 +3780,7 @@ export function dispatchDocEditPlain(req: Omit<DocEditPlainRequest, 'reqId'>): P
       clearTimeout(timer)
       resolve(res)
     })
-    mainWindow!.webContents.send(IPC.EDITOR_DOC_EDIT_PLAIN, { ...req, reqId })
+    win.webContents.send(IPC.EDITOR_DOC_EDIT_PLAIN, { ...req, reqId })
   })
 }
 
@@ -3741,7 +3789,8 @@ export function dispatchDocEditPlain(req: Omit<DocEditPlainRequest, 'reqId'>): P
 // the closed case disk-direct). 10s timeout, same rationale as
 // dispatchDocEditPlain.
 export function dispatchJsonOp(req: Omit<JsonOpRequest, 'reqId'>): Promise<JsonOpResult> {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, changed: false, reason: '', error: 'Duo window not ready' })
   }
   const reqId = `jo_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -3754,7 +3803,7 @@ export function dispatchJsonOp(req: Omit<JsonOpRequest, 'reqId'>): Promise<JsonO
       clearTimeout(timer)
       resolve(res)
     })
-    mainWindow!.webContents.send(IPC.JSON_OP, { ...req, reqId })
+    win.webContents.send(IPC.JSON_OP, { ...req, reqId })
   })
 }
 
@@ -3766,7 +3815,8 @@ export function dispatchJsonOp(req: Omit<JsonOpRequest, 'reqId'>): Promise<JsonO
 const HTML_OP_TIMEOUT_MS = 30_000
 
 export function dispatchHtmlOp(req: Omit<HtmlOpRequest, 'reqId'>): Promise<HtmlOpResult> {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }
   const reqId = `ho_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -3779,7 +3829,7 @@ export function dispatchHtmlOp(req: Omit<HtmlOpRequest, 'reqId'>): Promise<HtmlO
       clearTimeout(timer)
       resolve(res)
     })
-    mainWindow!.webContents.send(IPC.PAGE_HTML_OP, { ...req, reqId })
+    win.webContents.send(IPC.PAGE_HTML_OP, { ...req, reqId })
   })
 }
 
@@ -3787,7 +3837,8 @@ export function dispatchHtmlOp(req: Omit<HtmlOpRequest, 'reqId'>): Promise<HtmlO
 // as html-op (DOM ops are fast; the timeout window only matters when no
 // canvas is active to subscribe).
 export function dispatchHtmlComment(req: Omit<HtmlCommentRequest, 'reqId'>): Promise<HtmlCommentResult> {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }
   const reqId = `hc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -3800,12 +3851,13 @@ export function dispatchHtmlComment(req: Omit<HtmlCommentRequest, 'reqId'>): Pro
       clearTimeout(timer)
       resolve(res)
     })
-    mainWindow!.webContents.send(IPC.PAGE_HTML_COMMENT, { ...req, reqId })
+    win.webContents.send(IPC.PAGE_HTML_COMMENT, { ...req, reqId })
   })
 }
 
 export function dispatchHtmlCommentsList(req: Omit<HtmlCommentsListRequest, 'reqId'>): Promise<HtmlCommentsListResult> {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }
   const reqId = `hcl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -3818,7 +3870,7 @@ export function dispatchHtmlCommentsList(req: Omit<HtmlCommentsListRequest, 'req
       clearTimeout(timer)
       resolve(res)
     })
-    mainWindow!.webContents.send(IPC.PAGE_HTML_COMMENTS_LIST, { ...req, reqId })
+    win.webContents.send(IPC.PAGE_HTML_COMMENTS_LIST, { ...req, reqId })
   })
 }
 
@@ -3856,7 +3908,8 @@ export function sendToActiveTerminal(text: string): { ok: boolean; written?: num
 // defaults to the file's basename without extension. Path validation
 // (must end in .html / .htm) happens in socket-server.
 export async function htmlNew(absPath: string, title?: string): Promise<{ ok: boolean; path?: string; error?: string }> {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
   try {
@@ -3865,7 +3918,7 @@ export async function htmlNew(absPath: string, title?: string): Promise<{ ok: bo
     const html = htmlBoilerplate(docTitle)
     const bytes = new TextEncoder().encode(html)
     await filesService.write(absPath, bytes)
-    resolveDefault(registry)?.webContents.send(IPC.NAV_EDIT, absPath)
+    win.webContents.send(IPC.NAV_EDIT, absPath)
     return { ok: true, path: absPath }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
@@ -3898,7 +3951,8 @@ const NEW_TAB_TIMEOUT_MS = 5000
 export function dispatchNewTab(
   req: Omit<NewTabRequest, 'reqId'>
 ): Promise<NewTabResult> {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const win = liveMainWindow()
+  if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }
   const reqId = `nt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -3911,7 +3965,7 @@ export function dispatchNewTab(
       clearTimeout(timer)
       resolve(res)
     })
-    mainWindow!.webContents.send(IPC.NEW_TAB_REQUEST, { ...req, reqId })
+    win.webContents.send(IPC.NEW_TAB_REQUEST, { ...req, reqId })
   })
 }
 
