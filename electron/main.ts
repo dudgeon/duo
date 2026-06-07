@@ -3313,11 +3313,17 @@ export async function queryRendererDom(req: {
   computed?: string[]
   all?: boolean
 }): Promise<unknown> {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  // ENH-191 P2 (cardinal rule §2.3) — visibility-cluster reads resolve the
+  // sole window by IDENTITY, NEVER focus; a focus-resolved answer would
+  // actively mislead an agent debugging blind.
+  // Cast to the real BrowserWindow: executeJavaScript isn't on the minimal
+  // WindowLike send-interface, but the registry holds the real window.
+  const win = resolveDefault(registry) as BrowserWindow | undefined
+  if (!win || win.isDestroyed()) {
     throw new Error('Duo window not ready')
   }
   const expr = buildRendererQuery(req)
-  return await mainWindow.webContents.executeJavaScript(expr, true)
+  return await win.webContents.executeJavaScript(expr, true)
 }
 
 function buildRendererQuery(req: {
@@ -3398,10 +3404,16 @@ export function openDevToolsForTarget(opts: {
 // live React state on every call (no push pipeline, no staleness).
 // Schema is defined in renderer/App.tsx near where the function is set.
 export async function getLayoutSnapshot(): Promise<unknown> {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  // ENH-191 P2 (cardinal rule §2.3) — visibility-cluster reads resolve the
+  // sole window by IDENTITY, NEVER focus; a focus-resolved answer would
+  // actively mislead an agent debugging blind.
+  // Cast to the real BrowserWindow: executeJavaScript isn't on the minimal
+  // WindowLike send-interface, but the registry holds the real window.
+  const win = resolveDefault(registry) as BrowserWindow | undefined
+  if (!win || win.isDestroyed()) {
     throw new Error('Duo window not ready')
   }
-  return await mainWindow.webContents.executeJavaScript(
+  return await win.webContents.executeJavaScript(
     'typeof window.__duoGetLayout === "function" ? window.__duoGetLayout() : { error: "renderer not exposing __duoGetLayout — likely renderer not yet mounted" }',
     true
   )
@@ -3415,10 +3427,16 @@ export async function getLayoutSnapshot(): Promise<unknown> {
 // `getLayoutSnapshot` / `duo layout`. The keystone agent-orientation
 // verb (no IPC channel — read directly from the renderer).
 export async function getStatusSnapshot(): Promise<unknown> {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  // ENH-191 P2 (cardinal rule §2.3) — visibility-cluster reads resolve the
+  // sole window by IDENTITY, NEVER focus; a focus-resolved answer would
+  // actively mislead an agent debugging blind.
+  // Cast to the real BrowserWindow: executeJavaScript isn't on the minimal
+  // WindowLike send-interface, but the registry holds the real window.
+  const win = resolveDefault(registry) as BrowserWindow | undefined
+  if (!win || win.isDestroyed()) {
     throw new Error('Duo window not ready')
   }
-  return await mainWindow.webContents.executeJavaScript(
+  return await win.webContents.executeJavaScript(
     'typeof window.__duoGetStatus === "function" ? window.__duoGetStatus() : { error: "renderer not exposing __duoGetStatus — likely renderer not yet mounted" }',
     true
   )
@@ -3431,16 +3449,19 @@ export async function getStatusSnapshot(): Promise<unknown> {
 // Then jump focus to the main pane via the existing PANE_FOCUS_JUMP
 // channel. Idempotent: no-op when already visible / focused.
 export async function revealMainPaneIfCollapsed(): Promise<void> {
-  if (!mainWindow || mainWindow.isDestroyed()) return
+  // ENH-191 P2 (cardinal rule §2.3) — resolve by identity, never focus. Cast
+  // to the real BrowserWindow for executeJavaScript (not on WindowLike).
+  const win = resolveDefault(registry) as BrowserWindow | undefined
+  if (!win || win.isDestroyed()) return
   try {
-    const layout = (await mainWindow.webContents.executeJavaScript(
+    const layout = (await win.webContents.executeJavaScript(
       'typeof window.__duoGetLayout === "function" ? window.__duoGetLayout() : null',
       true
     )) as { splitPct?: number } | null
     if (layout && typeof layout.splitPct === 'number' && layout.splitPct >= 75) {
       setSplit(50)
     }
-    mainWindow.webContents.send(IPC.PANE_FOCUS_JUMP, 'main')
+    win.webContents.send(IPC.PANE_FOCUS_JUMP, 'main')
   } catch (err) {
     console.warn('[main] revealMainPaneIfCollapsed failed:', (err as Error)?.message ?? err)
   }
