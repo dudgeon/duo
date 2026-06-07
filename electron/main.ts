@@ -59,6 +59,7 @@ import { PtyManager } from '../core/pty-manager'
 import { BrowserManager } from './browser-manager'
 import { CdpBridge } from './cdp-bridge'
 import { makeSafeSend } from './safe-send'
+import { WindowRegistry, type WindowContext } from './window-registry'
 import { makeWindowTeardown } from './window-teardown'
 import { SocketServer, ensureSocketDir } from '../core/socket-server'
 import { FilesService } from './files-service'
@@ -263,6 +264,15 @@ const newTabPending = new Map<string, (res: NewTabResult) => void>()
 nativeTheme.themeSource = 'light'
 
 let mainWindow: BrowserWindow | null = null
+
+// ENH-191 P2 — the registry-of-one spine (Map<windowId, WindowContext>)
+// alongside the lone mainWindow global it will replace. Holds EXACTLY ONE
+// context through P0-P4, so registry.only() resolves byte-identically to
+// mainWindow until a second window can open (P5a). createWindow() registers
+// its context; the 'closed' handler unregisters by id; safeSend + the
+// window-resolve helpers read it. mainWindow stays as a parallel alias until
+// the safeSend rewire seam removes it.
+const registry = new WindowRegistry()
 
 // BUG-190 — a webContents.send that's safe to call from async callbacks
 // (PTY data, socket events, CDP-driven browser state) that can fire
@@ -553,7 +563,7 @@ let hiddenFilesMenuItemId: string | null = null
 // Updated in the push handler below.
 let claudeReturnMenuItemId: string | null = null
 
-async function createWindow(): Promise<void> {
+async function createWindow(): Promise<WindowContext> {
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -917,7 +927,19 @@ async function createWindow(): Promise<void> {
     mainWindow = null
     browserManager = null
     cdpBridge = null
+    // ENH-191 P2 — drop this window from the registry (idempotent; unregister
+    // no-ops if absent). At N=1 this empties the registry, so registry.only()
+    // is undefined until the next createWindow (dock-reopen).
+    registry.unregister(winId)
   })
+
+  // ENH-191 P2 — register the fully-constructed context (registry-of-one).
+  // winId + mainWindow are both live here (the 'closed' handler above is only
+  // attached, not fired). browserManager / cdpBridge / safeSend move into the
+  // context in later seams; at N=1 registry.only() === this sole context.
+  const ctx: WindowContext = { id: winId, window: mainWindow }
+  registry.register(ctx)
+  return ctx
 }
 
 app.whenReady().then(async () => {

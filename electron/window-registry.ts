@@ -5,9 +5,11 @@
 // This replaces the single `let mainWindow` module global in main.ts with a
 // `Map<windowId, WindowContext>`. Through P0–P4 the registry holds EXACTLY
 // ONE context, so `only()` returns the same sole window `mainWindow` does
-// today — making the 134-site refactor provably byte-identical until a
-// second window can open (P5a). NOT wired into main.ts yet: P0 ships the
-// module + harness only; P2 adopts it.
+// today — making the registry adoption (the 41 main->renderer send sites,
+// re-grepped at the P2 baseline) provably byte-identical until a second
+// window can open (P5a). P0 shipped the module + harness; P2 wires it into
+// main.ts (createWindow registers a context; safeSend + the resolve helpers
+// read it).
 //
 // The cardinal rule (spec §2.3): app-wide default sends resolve by IDENTITY
 // — `registry.only()` — never by focus. `only()` THROWS at N>1 rather than
