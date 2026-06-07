@@ -4,6 +4,12 @@ Google Docs renders into a `<canvas>`, so the usual DOM extraction tools
 (`duo text`, `duo dom`) return chrome or empty. This file is the deep
 reference; the SKILL.md only carries a pointer.
 
+## Contents
+
+- [Read a Google Doc — the fast path (`export?format=md`)](#read-a-google-doc--the-fast-path-exportformatmd)
+- [Read a Google Doc — no-network / offline fallbacks](#read-a-google-doc--no-network--offline-fallbacks)
+- [Edit a Google Doc (what works today)](#edit-a-google-doc-what-works-today)
+
 ## Read a Google Doc — the fast path (`export?format=md`)
 
 Google Docs serves a same-origin export endpoint that Claude can hit via

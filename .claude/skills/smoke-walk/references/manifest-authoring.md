@@ -82,13 +82,13 @@ a one-click copy.
 Bad (forces hand-typing):
 
 ```
-"From any terminal, run: ls -la ~/.claude/skills/duo/canvas-authoring.md"
+"From any terminal, run: ls -la ~/.claude/skills/duo/make-page.md"
 ```
 
 Good (gets a Copy button):
 
 ```
-"From any terminal, run: \`ls -la ~/.claude/skills/duo/canvas-authoring.md\`"
+"From any terminal, run: \`ls -la ~/.claude/skills/duo/make-page.md\`"
 ```
 
 This convention also propagates beyond the smoke walk: any canvas

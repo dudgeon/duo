@@ -5,13 +5,13 @@
   <title>Paint target demo</title>
 
   <!--
-    paint-target.html — Stage 27 reference template (2 of 5).
+    paint-target.html — reference template (2 of 5).
 
     What it demonstrates: a layout with one or more `data-duo-pane`
     regions an agent can repaint via:
 
-      duo html update --selector '[data-duo-pane="result"]' \
-                      --html '<p>Whatever the agent computed</p>'
+      duo html set --selector '[data-duo-pane="result"]' \
+                   --content '<p>Whatever the agent computed</p>'
 
     Why this template: lesson result panels, agent computation
     output, "show me what you found" surfaces. The key idea is the
@@ -30,14 +30,13 @@
       duo events --follow | while IFS= read -r line; do
         case "$(jq -r '.event.name // empty' <<< "$line")" in
           "compute-balance")
-            duo html update --selector '[data-duo-pane="result"]' \
-              --html '<strong>$1,234.56</strong>'
+            duo html set --selector '[data-duo-pane="result"]' \
+              --content '<strong>$1,234.56</strong>'
             ;;
         esac
       done
   -->
 
-  <meta name="duo-open-in" content="browser">
   <meta name="duo-default-editable" content="false">
 
   <style>

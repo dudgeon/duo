@@ -7,10 +7,17 @@
 > Duo features work, what's policy-dependent, and what to do when
 > something doesn't fire as expected.
 >
-> **Filed as part of Stage 19e (ENH-090).** Companion to
-> `references/sandbox-troubleshooting.md` (which covers the inverse
-> case — `duo` CLI commands hanging because of Claude Code's Bash
-> tool sandbox blocking Unix-socket I/O).
+> Companion to `references/sandbox-troubleshooting.md` (which covers
+> the inverse case — `duo` CLI commands hanging because of Claude
+> Code's Bash tool sandbox blocking Unix-socket I/O).
+
+## Contents
+
+- [Mechanism dependency map](#mechanism-dependency-map)
+- [Common enterprise restrictions](#common-enterprise-restrictions)
+- [What still works (the hook-free path)](#what-still-works-the-hook-free-path)
+- [Reporting a Duo issue from a managed install](#reporting-a-duo-issue-from-a-managed-install)
+- [Cross-references](#cross-references)
 
 ---
 
@@ -21,9 +28,9 @@ mechanisms with different dependencies:
 
 | Mechanism | Hook-dependent? | Settings.json-dependent? | Fires when |
 |---|---|---|---|
-| Managed block in `~/.claude/CLAUDE.md` (Stage 19e ENH-088) | **No** | **No** | Always (Claude Code's core context loader reads CLAUDE.md every session) |
-| PATH shim (`~/.claude/duo/bin/claude`, Stage 19b) | No | No | `DUO_SESSION=1` Duo PTYs (the shim is what runs `claude` inside Duo) |
-| SessionStart hook (`~/.claude/settings.json`, Stage 19b) | **Yes** | **Yes** | `DUO_SESSION=1` Duo PTYs, when hooks aren't disabled |
+| Managed block in `~/.claude/CLAUDE.md` | **No** | **No** | Always (Claude Code's core context loader reads CLAUDE.md every session) |
+| PATH shim (`~/.claude/duo/bin/claude`) | No | No | `DUO_SESSION=1` Duo PTYs (the shim is what runs `claude` inside Duo) |
+| SessionStart hook (`~/.claude/settings.json`) | **Yes** | **Yes** | `DUO_SESSION=1` Duo PTYs, when hooks aren't disabled |
 | `~/.claude/skills/duo/` registry | No | No | Always (skill discovery is filesystem-based) |
 | `~/.claude/agents/duo.md` registry | No | No | Always (subagent discovery is filesystem-based) |
 
@@ -154,8 +161,7 @@ following information helps diagnose:
    for each behavior.
 2. **What does `duo` CLI report?**
    ```bash
-   duo about       # version + cli location
-   duo whereami    # is the cli reachable from this terminal?
+   duo doctor      # version, cli location, and whether the bridge is reachable from this terminal
    ```
 3. **Which paths are writable?**
    ```bash
@@ -183,10 +189,6 @@ than the actual stderr / Bash-tool-denial output.
 - **Sandbox + transport issues** — `references/sandbox-troubleshooting.md`
   (the session-scoped Bash sandbox version of the policy issue
   above).
-- **Stage 19e PRD** — `docs/prd/stage-19e-user-context-onboarding.md`
-  in the source repo. Documents the design rationale for the
-  managed block and its hook-independence as a load-bearing
-  property.
 - **Duo installer source** — `electron/install-service.ts § install`
   in the source repo. The four-scenario CLAUDE.md merge logic
   lives in the exported `planClaudeMdMerge` function next to

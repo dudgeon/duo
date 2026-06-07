@@ -5,24 +5,23 @@
   <title>Lesson — Saving a markdown file</title>
 
   <!--
-    lesson-scaffold.html — Stage 27 reference template (4 of 5).
+    lesson-scaffold.html — reference template (4 of 5).
 
     What it demonstrates: a multi-step lesson layout with a header
     pane that tracks step counter, a body pane that holds the active
     step's content, and a "Next" button that emits a duo:event so the
     agent's --follow loop can advance the lesson.
 
-    Why this template: this is the canonical interactive-lesson shape
-    — Stage 28 Pack A (intro-to-duo) builds on it. Two stable panes
-    (`step-counter`, `body`) that
+    Why this template: this is the canonical interactive-lesson shape.
+    Two stable panes (`step-counter`, `body`) that
     the agent repaints on each step transition; one anchored Next
     button that emits a step-complete event.
 
-    Stage 28's lesson skill listens to events like:
+    A lesson skill listens to events like:
       lesson-step-1-done, lesson-step-2-done, …
     and on each, calls:
-      duo html update --selector '[data-duo-pane="body"]'        --html '<the next step content>'
-      duo html update --selector '[data-duo-pane="step-counter"]' --html 'Step N of M'
+      duo html set --selector '[data-duo-pane="body"]'        --content '<the next step content>'
+      duo html set --selector '[data-duo-pane="step-counter"]' --content 'Step N of M'
 
     The "Next" button below ALWAYS uses `data-event="lesson-step-N-done"`
     where N is the current step. The agent's loop keeps state for
@@ -34,7 +33,6 @@
       - body content → the first step's instructions
   -->
 
-  <meta name="duo-open-in" content="browser">
   <meta name="duo-default-editable" content="false">
 
   <style>

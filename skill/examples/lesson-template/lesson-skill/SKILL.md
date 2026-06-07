@@ -40,7 +40,7 @@ The playground has THREE stable paint regions you address by selector:
 - `[data-duo-pane="step-body"]` — the main content area for each step
 - `[data-duo-pane="step-controls"]` — the button row at the bottom (CTA + secondary)
 
-You repaint these regions with `duo html update --selector "<sel>" --html "<…>"`.
+You repaint these regions with `duo html set --selector "<sel>" --content "<…>"`.
 
 Every step's controls include ONE button with
 `data-duo-action="duo:event"` and `data-event="lesson:step-N-done"`
@@ -128,12 +128,12 @@ two steps.
 - **Don't escape the convention.** If the lesson seems to want
   something the playground primitives don't support (custom widget,
   non-canvas modal, server fetch), that's a primitive gap — flag
-  it as a Stage 27.x follow-up rather than papering over with
+  it as a primitive-gap follow-up rather than papering over with
   bespoke JS. Playgrounds are sandboxed without `allow-scripts`;
   inline JS will fail silently.
 - **Don't paint the same pane twice for one step.** Each click =
   one repaint per pane. Race-y double-paints flash the user.
-- **Don't forget the step-counter.** Two `duo html update` calls
+- **Don't forget the step-counter.** Two `duo html set` calls
   per step (counter + body), three if controls change. The user
   values the progress signal.
 - **Don't lecture; show.** Ask the user to DO something on each

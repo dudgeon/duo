@@ -5,7 +5,7 @@
   <title>Personal home</title>
 
   <!--
-    dashboard.html — Stage 27 reference template (5 of 5).
+    dashboard.html — reference template (5 of 5).
 
     What it demonstrates: a multi-pane layout where each pane is a
     stable `data-duo-pane` region the agent can refresh independently.
@@ -27,18 +27,17 @@
       duo events --follow | while IFS= read -r line; do
         case "$(jq -r '.event.name // empty' <<< "$line")" in
           "refresh-todays-priorities")
-            duo html update --selector '[data-duo-pane="priorities"]' \
-              --html "$(generate_priorities_html)"
+            duo html set --selector '[data-duo-pane="priorities"]' \
+              --content "$(generate_priorities_html)"
             ;;
           "refresh-notifications")
-            duo html update --selector '[data-duo-pane="notifications"]' \
-              --html "$(generate_notifications_html)"
+            duo html set --selector '[data-duo-pane="notifications"]' \
+              --content "$(generate_notifications_html)"
             ;;
         esac
       done
   -->
 
-  <meta name="duo-open-in" content="browser">
   <meta name="duo-default-editable" content="false">
 
   <style>

@@ -5,20 +5,35 @@ description: Add interactivity to a Duo page — buttons that drive Duo, form in
 
 # Authoring playgrounds for Duo
 
-> **Stage 27 — `skill/make-playground.md`.** A **playground** is an
-> HTML tab with interactivity: buttons that drive Duo via playground-action
-> verbs, form inputs piped through `data-payload-from`, events
-> emitted via `duo:event`. The interactive tier on top of `make-page`.
->
-> **Modality is verb-driven** (ENH-156, 2026-05-16; supersedes the
-> meta-declared modality lock from ENH-097). The verb decides:
-> `duo open <path>` → browser pane (scripts run, buttons fire); `duo
-> edit <path>` → canvas iframe (source-editable, scripts blocked).
-> No `<meta name="duo-open-in">` declaration is needed — playgrounds
-> just need to be opened via `duo open`. The user **interacts** with
-> the running surface — they don't edit source while it's running.
-> Editing the source = open the same file via `duo edit` (or right-
-> click → "Edit in canvas"). See [`references/vocabulary.md`](references/vocabulary.md).
+> A **playground** is an HTML tab with interactivity: buttons that drive
+> Duo via playground-action verbs, form inputs piped through
+> `data-payload-from`, events emitted via `duo:event`. The interactive
+> tier on top of `make-page`.
+
+## Contents
+
+- [The action contract](#the-action-contract)
+- [REQUIRED defaults — every playground includes these](#required-defaults--every-playground-includes-these)
+- [Action vocabulary cheat sheet](#action-vocabulary-cheat-sheet)
+- [Form inputs (data-payload-from)](#form-inputs-data-payload-from)
+- [Agent-side wiring (consumer of what you author)](#agent-side-wiring-consumer-of-what-you-author)
+- [Anti-patterns](#anti-patterns)
+- [Lessons specifically — the canonical pattern](#lessons-specifically--the-canonical-pattern)
+- [Worked example: a click-through tutorial playground](#worked-example-a-click-through-tutorial-playground)
+- [Verb-driven modality — duo open = browser, duo edit = canvas](#verb-driven-modality--duo-open--browser-duo-edit--canvas)
+- [On WebMCP — should authored playgrounds conform?](#on-webmcp--should-authored-playgrounds-conform)
+- [Cross-references](#cross-references)
+
+---
+
+> **Modality is verb-driven.** The verb decides: `duo open <path>` →
+> browser pane (scripts run, buttons fire); `duo edit <path>` → canvas
+> iframe (source-editable, scripts blocked). No meta declaration is
+> needed — playgrounds just need to be opened via `duo open`. The user
+> **interacts** with the running surface — they don't edit source while
+> it's running. Editing the source = open the same file via `duo edit`
+> (or right-click → "Edit in canvas"). See
+> [`references/vocabulary.md`](references/vocabulary.md).
 >
 > **Vocabulary lock** (see [`references/vocabulary.md`](references/vocabulary.md)):
 > - **canvas (the slot)** — the right pane (type-agnostic)
@@ -37,7 +52,7 @@ description: Add interactivity to a Duo page — buttons that drive Duo, form in
 >
 > **Read `make-page` first** if you're building from scratch. This
 > skill assumes you have the page basics (sandboxing, paint regions,
-> stable IDs, routing meta tags) — those are documented there.
+> stable IDs, verb-driven routing) — those are documented there.
 > Playground = page + interactivity + **browser-mode default**.
 
 ---
@@ -65,7 +80,7 @@ Every playground gets, on top of the page contract:
 **Use `data-duo-action="<verb>"` (NOT `data-action`)** on clickable
 elements, plus per-verb `data-*` siblings carrying the args.
 **Use `data-duo-pane="<region-name>"`** on container elements the
-agent will repaint with `duo html update --selector "[data-duo-pane=…]"`
+agent will repaint with `duo html set --selector "[data-duo-pane=…]"`
 (see `make-page` § Paint regions for the full pattern).
 **Use `<meta name="duo-default-editable" content="false">`** on every
 playground — read-only mode means clicks dispatch the action verb
@@ -74,9 +89,9 @@ this, the user clicks "Submit" and Duo treats it as "place cursor here."
 
 ---
 
-## REQUIRED defaults — every playground includes these (ENH-130)
+## REQUIRED defaults — every playground includes these
 
-Owner directive 2026-05-10: every playground Claude scaffolds for the user
+Every playground Claude scaffolds for the user
 **must** include two affordances by default. Skip them only when the
 playground's purpose is genuinely incompatible (e.g. a static
 visualization with no output to send / copy — and even then, default to
@@ -139,14 +154,15 @@ A playground that hands the user a useful output but offers neither
 button forces them to manual-select + ⌘C, which is hostile UX. Default
 to including both; remove only with explicit reason.
 
-### Reference: data-primitives-canvas decision playground
+### Reference: a decision-capture playground
 
-The interactive § 5 at [`docs/research/data-primitives-canvas.html`](../docs/research/data-primitives-canvas.html)
-is the canonical example of this pattern wired up: 4 multiple-choice
+The canonical shape of this pattern: a set of multiple-choice
 questions + per-question notes + a sticky bottom Copy-decisions button
 that assembles a structured payload. Reuse the JS pattern (build a
 labeled payload, write it to clipboard, flash the button) for any
-"feedback round-trip" playground.
+"feedback round-trip" playground. The `worksheet` skill (see
+Cross-references) is the reusable primitive that generates exactly
+this layout from a JSON manifest.
 
 ---
 
@@ -167,8 +183,8 @@ gate; all parse from `data-*` attributes on the clicked element.
 | `terminal:focus` | `data-tab-id?` | Focus the active or named terminal tab |
 | `duo:event` | `data-event`, `data-payload?`, `data-payload-from?` | Emit a named event into the bus |
 
-For per-verb examples see `skill/examples/canvas-actions.md` — the
-worked drive-by reference. The patterns below show how to compose
+For per-verb examples see [`examples/canvas-actions.md`](examples/canvas-actions.md) —
+the worked drive-by reference. The patterns below show how to compose
 verbs into multi-step interactions.
 
 ---
@@ -212,14 +228,14 @@ contract:
 - **Buttons emit events.** A `data-duo-action="duo:event"` click
   lands as one JSON line in `duo events --follow`.
 - **Paint regions are stable.** A `data-duo-pane="<name>"` div is the
-  agent's `duo html update --selector` target.
+  agent's `duo html set --selector` target.
 - **Form values ride along.** `data-payload-from="#input"` puts
   `.value` (or `.checked`) in the event's `payload.value`.
 
 The full agent-side playbook — subscription patterns, `--since`
-cursor resume, `duo html update` paint syntax, debugging — lives in
-`~/.claude/skills/duo/playground-interaction.md`. That's where you
-go when you switch hats from author to driver.
+cursor resume, `duo html set` paint syntax, debugging — lives in
+[`playground-interaction.md`](playground-interaction.md). That's where
+you go when you switch hats from author to driver.
 
 ---
 
@@ -227,7 +243,7 @@ go when you switch hats from author to driver.
 
 **Don't ship a playground with scripts that need network.** Same as
 pages — `allow-scripts` is OFF. Run network agent-side; paint via
-`duo html update`.
+`duo html set`.
 
 **Don't paint into the same pane on every event.** A "save" button
 that re-renders the whole `data-duo-pane="status"` block on each
@@ -254,9 +270,7 @@ Claude reads the cmd as its **first user message**. So write
 `data-cmd` as natural-language prose ("Read X and walk me through
 it"), NOT as a shell invocation (`claude --prompt "..."` would be
 wrong — `claude` runs first; the cmd lands in Claude's stdin, not
-zsh's). This semantic was clarified in v0.6.1 (ENH-049); pre-v0.6.1
-the cmd was sent directly to the shell, which meant prose cmds
-errored. If the playground needs a SHELL command in the new tab,
+zsh's). If the playground needs a SHELL command in the new tab,
 use `claude:spawn` without `data-cmd` and follow up with a
 `terminal:send data-text="..."` button.
 
@@ -273,14 +287,13 @@ coded `#ffffff` won't follow.
 
 **Inline the Atelier kernel — don't re-author CSS from scratch.**
 The canonical stylesheet is
-[`~/.claude/skills/duo/references/duo-atelier.css`](references/duo-atelier.css)
-(ENH-146). Copy its full contents into the playground's `<style>`
-block as the first thing inside it; add per-playground overrides
-AFTER. The kernel ships color tokens + typography + the class
-library (`.intro`, `.decision-card`, `.q-option`, `.q-notes`,
-`.copy-bar`, `details.deferred`) — common patterns you'd otherwise
-re-type for every playground. Class library + minimal-skeleton
-template documented at
+[`references/duo-atelier.css`](references/duo-atelier.css). Copy its
+full contents into the playground's `<style>` block as the first thing
+inside it; add per-playground overrides AFTER. The kernel ships color
+tokens + typography + the class library (`.intro`, `.decision-card`,
+`.q-option`, `.q-notes`, `.copy-bar`, `details.deferred`) — common
+patterns you'd otherwise re-type for every playground. Class library +
+minimal-skeleton template documented at
 [`references/atelier-css.md`](references/atelier-css.md).
 
 ---
@@ -362,7 +375,8 @@ when there's a TEACHING ARC the agent has to drive.
 
 ## Worked example: a click-through tutorial playground
 
-The `lesson-scaffold.html` template at `skill/examples/canvas-templates/`
+The `lesson-scaffold.html` template at
+[`examples/canvas-templates/`](examples/canvas-templates/)
 demonstrates a complete two-step tutorial:
 
 ```html
@@ -370,10 +384,10 @@ demonstrates a complete two-step tutorial:
 <html>
 <head>
   <!-- Playgrounds open in browser mode via `duo open <path>` —
-       no meta declaration needed for routing (ENH-156 verb-driven). -->
+       the verb decides routing, so no meta declaration is needed. -->
   <!-- Soft default for the canvas-mode override path: when the user
        opens this file via `duo edit` to modify the source, the canvas
-       mounts read-only by default (ENH-106). -->
+       mounts read-only by default. -->
   <meta name="duo-default-editable" content="false">
   <style>/* Atelier palette tokens, padded layout, etc. */</style>
 </head>
@@ -401,10 +415,10 @@ The agent (subscribed via `duo events --follow`) reacts to
 `lesson-step-1-done`:
 
 ```bash
-duo html update --selector '[data-duo-pane="step-counter"]' \
-                --html 'Step 2 of 2'
-duo html update --selector '[data-duo-pane="body"]' \
-                --html '<p>Now type some content and press ⌘S to save.</p>
+duo html set --selector '[data-duo-pane="step-counter"]' \
+             --content 'Step 2 of 2'
+duo html set --selector '[data-duo-pane="body"]' \
+             --content '<p>Now type some content and press ⌘S to save.</p>
                         <button data-duo-action="duo:event"
                                 data-event="lesson-step-2-done">Done ✓</button>'
 ```
@@ -421,11 +435,11 @@ event-loop, see the lesson-template at
 
 ## Verb-driven modality — `duo open` = browser, `duo edit` = canvas
 
-**ENH-156 (2026-05-16).** The verb decides the surface. Playgrounds open in browser mode via `duo open <path>` (or file-tree double-click) — the file lands in Duo's browser pane as a real Chromium tab, scripts run, buttons fire their `data-duo-action` handlers, form inputs are live, events stream to Claude via `duo events --follow`.
+The verb decides the surface. Playgrounds open in browser mode via `duo open <path>` (or file-tree double-click) — the file lands in Duo's browser pane as a real Chromium tab, scripts run, buttons fire their `data-duo-action` handlers, form inputs are live, events stream to Claude via `duo events --follow`.
 
-No `<meta name="duo-open-in">` declaration is needed (and any existing declarations are ignored). The verb is the signal. The previous ambiguous era — where playgrounds without the meta tag opened in the canvas iframe and relied on parent-side click delegation to fake interactivity — is over because `duo open` now ALWAYS produces a real browser tab for HTML.
+No meta declaration is needed: the verb is the signal. The legacy `<meta name="duo-open-in">` declaration is no longer consulted (any existing declarations are harmless). `duo open` ALWAYS produces a real browser tab for HTML.
 
-**Editing a playground's source — `duo edit`.** When the user wants to mutate a playground's HTML source, they open the same file via `duo edit <path>` (or right-click a browser tab whose URL is `file://…` → "Edit in canvas"). The file mounts in the canvas iframe — buttons render but **clicks place a cursor instead of firing handlers** (no `allow-scripts` in the iframe). The user edits the HTML source via contentEditable + markdown shortcuts. Save reflects in the running browser tab if it's still open (the file watcher reloads the browser tab — same path as BUG-085 reconciliation for markdown).
+**Editing a playground's source — `duo edit`.** When the user wants to mutate a playground's HTML source, they open the same file via `duo edit <path>` (or right-click a browser tab whose URL is `file://…` → "Edit in canvas"). The file mounts in the canvas iframe — buttons render but **clicks place a cursor instead of firing handlers** (no `allow-scripts` in the iframe). The user edits the HTML source via contentEditable + markdown shortcuts. Save reflects in the running browser tab if it's still open — the file watcher reloads the browser tab.
 
 Rare overrides:
 - `duo open --canvas <path>` — force canvas mount via the open verb (useful for inspecting a playground's source without firing its scripts).
@@ -433,14 +447,14 @@ Rare overrides:
 
 ### The escape hatch — `window.duoPlaygroundAction`
 
-The browser-pane runtime (ENH-094, Sprint 5) exposes `window.duoPlaygroundAction(jsonBundle)` directly on the page's window. Inline JS can call it without going through a click. Bundle shape:
+The browser-pane runtime exposes `window.duoPlaygroundAction(jsonBundle)` directly on the page's window. Inline JS can call it without going through a click. Bundle shape:
 
 ```js
 window.duoPlaygroundAction(JSON.stringify({
   attrs: {
     'data-duo-action': 'duo:event',
     'data-event': 'walk:item-changed',
-    'data-payload': JSON.stringify({ id: 'BUG-001', value: 'PASS' })
+    'data-payload': JSON.stringify({ id: 'item-001', value: 'PASS' })
   }
 }));
 ```
@@ -458,7 +472,7 @@ This unlocks the **live-event pattern** for any user interaction: the page's exi
 
 ### Reference implementations
 
-The smoke-walk page (`.claude/skills/smoke-walk/`) and the worksheet primitive (`.claude/skills/worksheet/`) are the reference implementations. Both open in browser mode via `duo open` (ENH-156 verb-driven; no meta declaration required) and use the inline-JS escape hatch for live event emission.
+The smoke-walk page (`~/.claude/skills/smoke-walk/`) and the worksheet primitive (`~/.claude/skills/worksheet/`) are the reference implementations. Both open in browser mode via `duo open` (verb-driven routing; no meta declaration required) and use the inline-JS escape hatch for live event emission.
 
 ---
 
@@ -499,25 +513,27 @@ The practical mismatch:
 - For arbitrary public sites the user happens to load via Duo's
   browser pane: WebMCP is the SITE author's concern, not Duo's.
   When/if a site exposes WebMCP tools, a future Duo enhancement can
-  surface them. Filed as a Stage 27.5+ exploration.
+  surface them. Filed as a later exploration.
 
 **Why NOT add a parallel WebMCP layer to authoring today:** it would
 conflict with the no-allow-scripts trust gate; it adds an imperative
 authoring path beside the declarative one (same expressive surface,
-doubled maintenance); it doesn't unblock anything Stage 28's lesson
-packs need.
+doubled maintenance); it doesn't unblock anything the lesson packs
+need.
 
 ---
 
 ## Cross-references
 
-- **Page basics (read first if building from scratch):** `~/.claude/skills/duo/make-page.md`
-- **Drive an existing playground (author → driver):** `~/.claude/skills/duo/playground-interaction.md`
-- **Lessons — runtime contract:** `~/.claude/skills/duo/lesson-runtime.md`
-- **Lessons — canonical template:** `~/.claude/skills/duo/examples/lesson-template/`
-- **Reference templates (mostly playgrounds):** `~/.claude/skills/duo/examples/canvas-templates/`
-- **Stage 28 lesson in the wild:** `~/.claude/duo/packs/intro-to-duo/`
+- **Page basics (read first if building from scratch):** [`make-page.md`](make-page.md)
+- **Drive an existing playground (author → driver):** [`playground-interaction.md`](playground-interaction.md)
+- **Per-verb action examples:** [`examples/canvas-actions.md`](examples/canvas-actions.md)
+- **Lessons — runtime contract:** [`lesson-runtime.md`](lesson-runtime.md)
+- **Lessons — canonical template:** [`examples/lesson-template/`](examples/lesson-template/)
+- **Reference templates (mostly playgrounds):** [`examples/canvas-templates/`](examples/canvas-templates/)
+- **Decision-capture / feedback-round-trip primitive:** `~/.claude/skills/worksheet/`
+- **Lesson in the wild:** `~/.claude/duo/packs/intro-to-duo/`
   (note: pre-canonical structure — authored before the canonical
   template existed; refactor queued.)
-- **Vocabulary:** see CLAUDE.md § Glossary for the canvas / page /
-  playground / lesson hierarchy.
+- **Vocabulary:** [`references/vocabulary.md`](references/vocabulary.md) — the
+  canvas / page / playground / lesson hierarchy.

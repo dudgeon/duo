@@ -1,5 +1,16 @@
 # Atelier CSS kernel for Duo playgrounds
 
+## Contents
+
+- [Why a kernel exists](#why-a-kernel-exists)
+- [How to use it](#how-to-use-it)
+- [Class library (what's already in the kernel)](#class-library-whats-already-in-the-kernel)
+- [Project color system (categorical palette)](#project-color-system-categorical-palette)
+- [Patterns NOT in the kernel](#patterns-not-in-the-kernel)
+- [Decisions-payload convention](#decisions-payload-convention)
+- [Minimal playground skeleton](#minimal-playground-skeleton)
+- [When the kernel needs to grow](#when-the-kernel-needs-to-grow)
+
 The canonical stylesheet for Duo HTML playgrounds (research docs,
 planning artifacts, decision worksheets) lives at:
 
@@ -15,7 +26,7 @@ playground overrides go AFTER the kernel, in the same `<style>` block.
 Before this kernel, each playground re-authored ~150–600 lines of CSS
 from scratch — same cream paper, same orange accent, same serif
 headings, same `.q-option` radio pattern. The repeated CSS authoring
-was a token tax on every playground generation (ENH-146).
+was a token tax on every playground generation.
 
 By inlining the kernel verbatim, you skip ~200 lines of authoring per
 playground and gain visual consistency across the body of work for free.
@@ -48,7 +59,7 @@ playground and gain visual consistency across the body of work for free.
 ## Project color system (categorical palette)
 
 The kernel's `:root` carries a categorical palette for **project-coded UI** —
-the project filter rail (ENH-182), per-tab and per-navigator project dots, and
+the project filter rail, per-tab and per-navigator project dots, and
 focus chips. It complements Atelier's sequential paper/ink ramp + the single
 `--accent` with six distinguishable-but-harmonious project hues.
 
@@ -81,30 +92,25 @@ hues before adding new ones (6 hues × 2 shades = 12).
 
 **Usage.**
 
-- **Rail tiles** — locked treatment is **"quiet bloom"** (ENH-182 / D9, 2026-05-25):
+- **Rail tiles** — locked treatment is **"quiet bloom"**:
   unfocused tiles are paper with the project hue as colored initials + a thin
   underline; the *focused* project blooms to a full hue fill with white initials
   + a white left "notch." Selection elsewhere still uses `--accent`.
 - **Project dots** (tab chips, navigator rows) — a 6–8px square in the project
   hue.
 - **Focus chips / soft fills** — use the hue at a tint over paper:
-  `color-mix(in srgb, var(--project-X) 22%, var(--paper))` (≈ the middle tint
-  shown in the rail study's swatch sheet; 10% / 22% / 40% are the standard
-  steps).
-
-Reference: `docs/research/project-rail-style-study.html` (the study that
-derived this) and `docs/research/project-centric-ux.html` §5 (the filter-layer
-context).
+  `color-mix(in srgb, var(--project-X) 22%, var(--paper))` (≈ the middle tint;
+  10% / 22% / 40% are the standard steps).
 
 ## Patterns NOT in the kernel
 
 Author these inline AFTER the kernel block:
 
-- **Inventory tables** (`table.ops` in `dogfood-distro-packs-plan.html`).
-- **Recipe cards** (`.recipe-card` in `dogfood-distro-packs-plan.html`).
-- **Comparison cards** (`.option-card`, `.recommended` in `data-primitives-canvas.html`).
-- **Pipeline diagrams** (`.pipeline` in `dogfood-distro-packs-plan.html`).
-- **Confirm callouts** (`.confirm-card` in `dogfood-distro-packs-plan.html`).
+- **Inventory tables** — a `table.ops` pattern.
+- **Recipe cards** — a `.recipe-card` pattern.
+- **Comparison cards** — `.option-card` + `.recommended`.
+- **Pipeline diagrams** — a `.pipeline` pattern.
+- **Confirm callouts** — a `.confirm-card` pattern.
 - **ASCII diagrams in `<pre>`** — use the kernel's `pre` styling; add a
   `.diagram` class if you need lighter line-height.
 
@@ -136,7 +142,6 @@ payload back to Claude.
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="duo-open-in" content="browser">
 <meta name="duo-editable" content="false">
 <title>[Playground title]</title>
 <style>

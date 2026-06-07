@@ -22,6 +22,11 @@ Every new CLI verb stays in sync across FOUR surfaces: `cli/duo.ts`,
 absent from the `## Verb cheat-sheet` in `agents/duo.md` is effectively
 invisible to the Haiku-driven subagent.
 
+After adding or renaming a verb, run `npm run check:skill-currency` — it
+is the mechanical backstop for the 4-surface rule, diffing the live verb
+set against what each surface documents. It is wired into `predev` /
+`pretest` (warn-only) and the `cut-version` flow (strict, gating).
+
 ## CLI parity with UI
 
 If the human can do it (click, menu, keystroke, toggle), the agent must
@@ -47,7 +52,7 @@ user looking at right now?":
   renderer (default) or active browser tab.
 - **`duo layout`** — JSON snapshot: active tab kind/path, aux state,
   splitPct, focusedColumn, navigatorCollapsed, tab counts.
-- **`duo nav-state`** — file-tree state.
+- **`duo nav state`** — file-tree state.
 
 ## Plumbing checklist — a new CLI verb (touch every step)
 
