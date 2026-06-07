@@ -2,7 +2,7 @@ import * as pty from 'node-pty'
 import { DEFAULT_SHELL, DEFAULT_CWD, TERMINAL_DEFAULTS, SOCKET_PATH, SHIM_DIR } from './constants'
 import { resolveExistingCwd } from './cwd-utils'
 import { IPC } from '../shared/types'
-import { routeSend } from './pty-owner'
+import { routeSend, disposeForWindow as disposeSessionsForWindow } from './pty-owner'
 
 interface Session {
   id: string
@@ -204,5 +204,14 @@ export class PtyManager {
       p.kill()
     }
     this.sessions.clear()
+  }
+
+  /** ENH-191 P3-S6 — kill + delete only the sessions OWNED by `windowId` (the
+   *  workspace-swap path: a swap in window A must not nuke window B's terminals).
+   *  Does NOT mark ids exited — parity with dispose() (these PTYs are torn down
+   *  for replacement, not dead shells; the onExit handler records `exited`). At
+   *  N=1 windowId is the sole owner ⇒ this kills the same set dispose() did. */
+  disposeForWindow(windowId: number): void {
+    disposeSessionsForWindow(this.sessions, windowId)
   }
 }

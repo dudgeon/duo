@@ -3022,9 +3022,12 @@ async function applyNewSessionState(state: import('../shared/types').SessionStat
     }
   }
 
-  // Kill all PTYs. The renderer reload will trigger fresh PTY creation
-  // via the normal pty:create IPC for each terminal in the new state.
-  ptyManager.dispose()
+  // ENH-191 P3-S6 — kill only THIS window's PTYs (the swapping window), not the
+  // whole shared pool. At N=1 the sole window owns every PTY, so this kills the
+  // same set dispose() did; at N>1 a workspace swap in window A no longer nukes
+  // window B's terminals. The renderer reload re-creates PTYs via pty:create.
+  const swapWin = liveMainWindow()
+  ptyManager.disposeForWindow(swapWin?.id ?? -1)
 
   // Re-arm the browser-pin-restore for the NEXT did-finish-load
   // (the one that fires after this reload). The createWindow path's
