@@ -1,5 +1,7 @@
 # ENH-191 P3 — Seam Plan (the `event.sender` sweep)
 
+> ✅ **STATUS: ALL 25 SEAMS COMPLETE (2026-06-07).** 24 commits `716f2f5`(M1)..`370ae59`(S9) on `claude/enh-191-multiwindow`. **1045 tests** green (+84 over P2), typecheck + lint 0-errors, `check:routing` baseline 0 + self-test fires. Two planned splits folded for green-ness: **S2d → S3** (the `SESSION_STATE_SNAPSHOT_RESULT` double-role is owned by the reqId sweep) and **S8a-probe + S8b → one S8 commit** (deleting the module-global `claudePresence` and its last `setTarget` consumer are inseparable). Remaining gates: the adversarial-verify workflow + the **Cut-2 `/smoke-walk`** (ask before Electron) → `/cut-version`. Per-seam progress: `git log --oneline | grep 'P3-'`.
+>
 > **Generated** 2026-06-07 from analysis workflow `wf_0b6114d8-dd8` (10 agents, ~1.08M tok) on HEAD `643f2ae` (`main.ts` = 4030 lines). Implementation ledger — check off each seam as its commit lands + gates pass.
 >
 > **GATES RUN INSIDE THE WORKTREE** (vitest excludes `.claude/worktrees/**` from the primary root): `cd /Users/geoffreydudgeon/Documents/GitHub/duo/.claude/worktrees/enh-191 && npm run typecheck && npm run check:routing && npm run test:run`
