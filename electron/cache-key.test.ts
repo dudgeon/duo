@@ -10,6 +10,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { WindowRegistry, type WindowContext } from './window-registry'
 import { WindowKeyedCache, defaultWindowId } from './cache-key'
+import { broadcastAll } from './window-resolve'
 
 function fakeCtx(id: number, opts: { destroyed?: boolean; wcDestroyed?: boolean } = {}): WindowContext {
   return {
@@ -120,5 +121,48 @@ describe('cache-key — WindowKeyedCache<T> (ENH-191 P3 M1)', () => {
 
   it('defaultWindowId is undefined when no window is registered', () => {
     expect(defaultWindowId(new WindowRegistry())).toBeUndefined()
+  })
+})
+
+// ENH-191 P3-S12 (item 12) — projectsState is per-window-keyed while projects.json
+// stays SHARED, so a shared-file change must repaint EVERY window's slot. The
+// mechanism is the EXISTING P2 broadcastAll(PROJECTS_CHANGED) write-side fan-out:
+// each window's renderer re-pushes its own recompute, keying its OWN slot. No new
+// helper. This block pins both the read-model fan-out and the under-deliver bug.
+describe('cache-key — item-12 shared-file fan-out (ENH-191 P3-S12)', () => {
+  type PS = { projects: string[] }
+  it('a shared-file change repaints EVERY registered window\'s projectsState slot', () => {
+    const cache = new WindowKeyedCache<PS>(() => ({ projects: [] }))
+    const snap1: PS = { projects: ['/a'] }
+    const snap2: PS = { projects: ['/a'] }
+    // each window's renderer re-pushes its own recompute → keys its own slot:
+    cache.set(1, snap1)
+    cache.set(2, snap2)
+    expect(cache.get(1)).toBe(snap1)
+    expect(cache.get(2)).toBe(snap2) // both windows repainted
+  })
+
+  // NEGATIVE CONTROL: an only()-routed (single-slot) repaint under-delivers —
+  // the second window never sees the shared change (reads the seed).
+  it('a single-slot repaint under-delivers to the second window', () => {
+    const cache = new WindowKeyedCache<PS>(() => ({ projects: [] }))
+    cache.set(1, { projects: ['/a'] }) // only the originator's slot
+    expect(cache.get(1)).toEqual({ projects: ['/a'] })
+    expect(cache.get(2)).toBeUndefined()
+    expect(cache.getOrDefault(2)).toEqual({ projects: [] }) // stale seed, not the change
+  })
+
+  // WRITE-side trigger: broadcastAll fans PROJECTS_CHANGED to every registered
+  // window (what prompts each renderer's re-push). only()-routing this would
+  // throw at N>1 — proving the fan-out can't silently under-deliver.
+  it('broadcastAll fans the trigger to every registered window', () => {
+    const reg = new WindowRegistry()
+    const a = fakeCtx(1)
+    const b = fakeCtx(2)
+    reg.register(a)
+    reg.register(b)
+    broadcastAll(reg, 'projects:changed', { pins: [] })
+    expect(a.window.webContents.send).toHaveBeenCalledWith('projects:changed', { pins: [] })
+    expect(b.window.webContents.send).toHaveBeenCalledWith('projects:changed', { pins: [] })
   })
 })

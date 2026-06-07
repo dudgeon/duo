@@ -344,6 +344,14 @@ function broadcastProjectsChanged(file: import('../shared/types').ProjectsFile):
   // ENH-191 P2 (class-ii) — a shared projects.json change must repaint EVERY
   // window's project rail, not just the originator. broadcastAll guards each
   // window's destroyed-state and no-ops on an empty registry. N=1: one window.
+  // ENH-191 P3-S12 (item 12) — the per-window-keyed projectsState READ-model
+  // (P3-S1a/S2c) honors this fan-out for free: each window's renderer, on
+  // receiving PROJECTS_CHANGED, recomputes + re-pushes PROJECTS_STATE, which
+  // keys ITS OWN slot by event.sender — so every window's slot repaints, not
+  // just the originator's. (No per-window PIN cache: PINS_LIST / NAV_PINS_LIST
+  // read the shared JSON live each call — window-agnostic, already correct; a
+  // pin cache would be a CLAUDE.md §12 sidecar.) Fan-out asserted in
+  // cache-key.test.ts (item-12 block).
   broadcastAll(registry, IPC.PROJECTS_CHANGED, file)
 }
 // ENH-182 Phase 4 — cached renderer snapshot for the `duo project`
