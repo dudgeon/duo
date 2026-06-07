@@ -742,6 +742,45 @@ export interface SessionState {
   aux?: SessionStateAux | null
 }
 
+/** ENH-191 P4 — per-window geometry for the multi-window session envelope. */
+export interface WindowBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/** ENH-191 P4 — one window's restorable session: the per-window slice of the
+ *  old flat SessionState + geometry + windowId + the per-window active-workspace
+ *  pointer (P3-S10's persistence home). At N=1 a single WindowState carries
+ *  exactly what the flat SessionState did. */
+export interface WindowState {
+  windowId: number
+  /** Window geometry; null when never persisted (restore picks a default). */
+  bounds?: WindowBounds | null
+  /** P3-S10 / P4 item 8 — this window's active-workspace pointer (the standalone
+   *  active-workspace.json is a single slot two windows would clobber). */
+  activeWorkspace?: ActiveWorkspace | null
+  terminals: SessionStateTerminal[]
+  activeTerminalIndex: number
+  browserTabs: SessionStateBrowserTab[]
+  activeBrowserIndex: number
+  fileTabs: SessionStateFileTab[]
+  activeWorking: SessionStateActiveWorking
+  navigatorPath: string
+  aux?: SessionStateAux | null
+}
+
+/** ENH-191 P4 — the multi-window session document (schema v2): replaces the
+ *  flat single-window SessionState (v1) on disk. A back-compat migration reads
+ *  an old v1 flat doc into a one-window envelope (core/session-envelope.ts). */
+export interface SessionEnvelope {
+  version: 2
+  savedAt: string
+  appVersion: string
+  windows: WindowState[]
+}
+
 // ENH-167 — workspace-as-file. A `.duo-workspace` is a SessionState
 // wrapped with a name, savedAt, appVersion, and an explicit
 // schemaVersion bump so a future format change can roll forward
