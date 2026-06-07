@@ -1032,9 +1032,10 @@ export class CdpBridge {
    *  this, the IIFE on a new page would see `__duoClaudeLive`
    *  undefined → falsy → pill suppressed forever until the renderer
    *  manually re-pushes. */
-  private async applyClaudeLiveToPage(): Promise<void> {
+  private async applyClaudeLiveToPage(wc: WebContents | null = this.wc): Promise<void> {
+    if (!wc) return
     try {
-      await this.dbg().sendCommand('Runtime.evaluate', {
+      await wc.debugger.sendCommand('Runtime.evaluate', {
         expression: `window.__duoClaudeLive = ${JSON.stringify(this.latestClaudeLive)};`,
         returnByValue: true,
         awaitPromise: false
@@ -1088,9 +1089,10 @@ export class CdpBridge {
   /** Stage 15.2 — inject (or re-inject) the page-side observer IIFE
    *  into the active page's main world. Idempotent thanks to the
    *  IIFE's `__duoSelectionObserver` guard. */
-  private async injectSelectionObserver(): Promise<void> {
+  private async injectSelectionObserver(wc: WebContents | null = this.wc): Promise<void> {
+    if (!wc) return
     try {
-      await this.dbg().sendCommand('Runtime.evaluate', {
+      await wc.debugger.sendCommand('Runtime.evaluate', {
         expression: SELECTION_OBSERVER_IIFE,
         // Synchronous — the IIFE is fast and we don't need its return
         // value; awaiting just guarantees the observer is bound before
@@ -1103,8 +1105,10 @@ export class CdpBridge {
       // showPillFor sees `window.__duoClaudeLive === undefined`
       // (falsy) and suppresses the pill until the renderer pushes
       // again via setClaudeLive. Re-applying here means a new tab
-      // / page nav inherits the current flag value.
-      await this.applyClaudeLiveToPage()
+      // / page nav inherits the current flag value. BUG-100 — apply to the
+      // SAME tab we just injected into (wc), not the possibly-since-mutated
+      // front this.wc.
+      await this.applyClaudeLiveToPage(wc)
     } catch (err) {
       // Soft-fail: the observer is a UX nicety, not a correctness
       // primitive. `duo selection` (request-response) keeps working
@@ -1280,7 +1284,12 @@ export class CdpBridge {
     this.emitBrowserSelection({ snapshot: null, rect: null })
     // Inject the observer for the current document. Page.frameNavigated
     // re-injects on subsequent navigations.
-    await this.injectSelectionObserver()
+    // BUG-100 — pass the attaching wc explicitly. During the awaits above a
+    // concurrent attach() (e.g. session restore opening main + an aux-pinned
+    // tab together) can re-point this.wc to a newer tab, so an unparameterized
+    // inject would arm the wrong page and leave THIS tab (often the aux one)
+    // without its selection observer — no Send → Duo pill on aux selections.
+    await this.injectSelectionObserver(webContents)
     // ENH-039 — same lifecycle: inject the path-link forwarder for the
     // current document; frame-navigated handler re-injects on nav.
     await this.injectPathLinkForwarder()
