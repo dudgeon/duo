@@ -1519,6 +1519,10 @@ export interface DialogConfirmResult {
 // ── IPC channel names (renderer ↔ main) ─────────────────────────────────────
 
 export const IPC = {
+  // ENH-191 P4 — a renderer synchronously asks main for ITS window id at
+  // preload time (sendSync), so per-window localStorage keys (cozy/fontBump/
+  // nav) namespace by the SAME id the registry routes by (mainWindow.id).
+  WINDOW_GET_ID: 'window:get-id',
   PTY_CREATE: 'pty:create',
   PTY_WRITE: 'pty:write',
   PTY_RESIZE: 'pty:resize',

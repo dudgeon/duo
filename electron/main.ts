@@ -1365,6 +1365,15 @@ app.whenReady().then(async () => {
   )
   socketServer.start()
 
+  // ENH-191 P4 — a renderer asks for ITS window id synchronously at preload
+  // (sendSync) so per-window localStorage keys namespace by the SAME id the
+  // registry routes by. Registered ONCE here at app-boot scope (NOT inside
+  // createWindow) so a reentrant createWindow / dock-reopen (P5) doesn't
+  // double-register; event.sender resolves the calling window every time.
+  ipcMain.on(IPC.WINDOW_GET_ID, (event) => {
+    event.returnValue = BrowserWindow.fromWebContents(event.sender)?.id ?? -1
+  })
+
   void createWindow()
 
   // BUG-124 — ensure ~/.claude/duo/logs/ exists at boot so the renderer's

@@ -58,6 +58,18 @@ function readArg(prefix: string, fallback: string): string {
 }
 const APP_VERSION = readArg('--duo-app-version=', '?.?.?')
 const IS_DEV = readArg('--duo-is-dev=', '0') === '1'
+// ENH-191 P4 — fetch THIS window's id once, synchronously, at preload time so
+// window.electron.env.windowId is available BEFORE App.tsx module-eval reads
+// per-window localStorage keys. Resolves to main's registry id (mainWindow.id
+// via BrowserWindow.fromWebContents(event.sender)). sendSync is the idiomatic
+// one-shot boot read; falls back to -1 if the handler ever isn't ready (the
+// per-window key builders then degrade to a single shared key — N=1 safe).
+const WINDOW_ID: number = (() => {
+  try {
+    const id = ipcRenderer.sendSync(IPC.WINDOW_GET_ID)
+    return typeof id === 'number' && id > 0 ? id : -1
+  } catch { return -1 }
+})()
 const api: ElectronAPI = {
   env: {
     HOME: process.env.HOME ?? '',
@@ -65,7 +77,8 @@ const api: ElectronAPI = {
     // BUG-138 Phase 2 — default human author identity for CriticMarkup.
     USER: process.env.USER ?? '',
     appVersion: APP_VERSION,
-    isDev: IS_DEV
+    isDev: IS_DEV,
+    windowId: WINDOW_ID
   },
 
   pty: {

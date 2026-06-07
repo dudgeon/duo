@@ -46,6 +46,12 @@ export interface ElectronEnv {
    *  loop), false in a packaged build. Drives the dev-mode badge
    *  next to the version in the titlebar. */
   isDev: boolean
+  /** ENH-191 P4 — THIS renderer's window id (== the main-process registry
+   *  id / `mainWindow.id`), fetched once at preload via a synchronous IPC.
+   *  Lets per-window localStorage keys (cozy/fontBump/nav) namespace by
+   *  window so a second window can't clobber the first's per-tab maps.
+   *  -1 only if the boot IPC ever fails (degrades to single shared key). */
+  windowId: number
 }
 
 export interface ElectronPtyAPI {
