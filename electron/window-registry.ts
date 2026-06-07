@@ -17,6 +17,7 @@
 // never masquerade as working before P5.
 
 import type { WindowLike } from './safe-send'
+import type { ActiveWorkspace } from '../shared/types'
 
 /** A guarded send bound to one window (the BUG-190 shape from safe-send.ts). */
 export type SafeSend = (channel: string, payload?: unknown) => void
@@ -38,6 +39,20 @@ export interface WindowContext {
   cdpBridge?: unknown
   /** P2 — this window's BUG-190-guarded send. */
   safeSend?: SafeSend
+  /**
+   * P3 (item 10) — this window's active-workspace pointer (the source for its
+   * title + the WORKSPACE_FILE_ACTIVE_CHANGED badge). Seeded from
+   * ActiveWorkspaceService at boot + dual-written at every set/clear. Plain
+   * `{path,name}` (zero Electron). Persistence is the P4 envelope's job — the
+   * standalone active-workspace.json is a single slot two windows would clobber.
+   */
+  activeWorkspace?: ActiveWorkspace | null
+  /**
+   * P3 (item 8) — this window's ClaudePresenceProbe. Kept `unknown` so the
+   * registry imports zero Electron/core; main.ts casts it to ClaudePresenceProbe
+   * at the use site (the harness fakes it).
+   */
+  presence?: unknown
 }
 
 /**

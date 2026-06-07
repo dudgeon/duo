@@ -91,4 +91,29 @@ describe('WindowRegistry — registry-of-one spine (ENH-191 P0)', () => {
     expect(registered.send).toHaveBeenCalledWith('channel', 'payload')
     expect(focusedDecoy.send).not.toHaveBeenCalled()
   })
+
+  // ENH-191 P3-S8a — the per-window pointer fields (item 10 active-workspace,
+  // item 8 presence) are independent per context: each window's title source +
+  // probe slot reads back via get(id) with no cross-window aliasing, and a
+  // fresh context defaults both to undefined (zero runtime change at land).
+  it('per-window activeWorkspace + presence fields are isolated by context (P3-S8a)', () => {
+    const reg = new WindowRegistry()
+    const a = makeFakeContext(1)
+    const b = makeFakeContext(2)
+    reg.register(a.ctx)
+    reg.register(b.ctx)
+    a.ctx.activeWorkspace = { path: '/a', name: 'A' }
+    b.ctx.activeWorkspace = { path: '/b', name: 'B' }
+    const p1 = { tag: 'probe-1' }
+    const p2 = { tag: 'probe-2' }
+    a.ctx.presence = p1
+    b.ctx.presence = p2
+    expect(reg.get(1)?.activeWorkspace?.name).toBe('A')
+    expect(reg.get(2)?.activeWorkspace?.name).toBe('B')
+    expect(reg.get(1)?.presence).toBe(p1)
+    expect(reg.get(2)?.presence).toBe(p2)
+    const fresh = makeFakeContext(3).ctx
+    expect(fresh.activeWorkspace).toBeUndefined()
+    expect(fresh.presence).toBeUndefined()
+  })
 })
