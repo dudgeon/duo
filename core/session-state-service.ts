@@ -207,6 +207,30 @@ export class SessionStateService {
     this.writeTimer = setTimeout(() => void this.flush(), WRITE_DEBOUNCE_MS)
   }
 
+  /** ENH-191 P5a (Tier-1) — seed the in-memory per-window map from disk at boot,
+   *  BEFORE any renderer save(). Without this, the first single-window save()
+   *  composes a 1-window envelope that atomic-overwrites a persisted N-window
+   *  file — destroying window 2's slice within ~750ms of relaunch (DATA LOSS).
+   *  Seeding keeps every persisted window in the map (keyed by its id; the first
+   *  window is id 1 stably across launches, so a restored window reuses its slot)
+   *  so a dormant window survives until EXPLICITLY closed (dropWindow). NOT
+   *  marked dirty — seeding existing on-disk state is not a new change. Call once
+   *  at boot, before the first window's renderer can save. */
+  async seedWindowsFromDisk(): Promise<void> {
+    const windows = await this.loadWindows()
+    for (const w of windows) this.windows.set(w.windowId, w)
+  }
+
+  /** ENH-191 P5a (Tier-1) — drop a window's slice when it is EXPLICITLY closed,
+   *  so it isn't re-composed into the next envelope (the zombie-window-resurrects
+   *  bug). The removal persists on the next NATURAL flush (a sibling window's
+   *  save, or before-quit) — dropWindow does NOT schedule its own flush, so the
+   *  on-quit close cascade can't shrink the envelope before before-quit has
+   *  written the full map. */
+  dropWindow(windowId: number): void {
+    if (this.windows.delete(windowId)) this.dirty = true
+  }
+
   /** Force the pending write to disk now. Call from `app.before-quit`
    *  to ensure the user's last state lands before the process exits.
    *  Composes EVERY live window into one envelope behind the single

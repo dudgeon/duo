@@ -572,6 +572,16 @@ function liveCdp(): CdpBridge | null {
 function liveBrowser(): BrowserManager | null {
   return (registry.only()?.browserManager as BrowserManager | undefined) ?? null
 }
+// ENH-191 P5a (Tier-1) — per-window resolution for IPC handlers that arrive
+// FROM a specific window's renderer (event.sender). At N>1 the only()-backed
+// liveBrowser/liveCdp THROW (the fail-loud placeholder); these resolve THIS
+// window's BrowserManager by the sender's window id (registry.get NEVER throws),
+// so window 2's browser ops hit window 2 — never window 1, never an uncaught
+// crash. Byte-identical at N=1 (sender === the sole window).
+function browserForSender(event: { sender: WebContents }): BrowserManager | null {
+  const id = BrowserWindow.fromWebContents(event.sender)?.id
+  return (id != null ? (registry.get(id)?.browserManager as BrowserManager | undefined) : undefined) ?? null
+}
 // ENH-191 P2 — the sole window typed as the real BrowserWindow, for the
 // non-send reads (dialog parents, setTitle, focus, devtools wc, did-finish
 // once/reload, reqId sends) that need methods beyond the minimal WindowLike
@@ -682,6 +692,12 @@ async function createWindow(opts: { restore?: boolean } = {}): Promise<WindowCon
   // Byte-identical at N=1: ctx IS the sole window, so ctxSend hits the same
   // target `safeSend` did.
   const ctxSend = makeSafeSend(() => ctx.window)
+
+  // ENH-191 P5a (Tier-1) — mark a blank New-Window BEFORE loadURL (race-free):
+  // its SESSION_STATE_LOAD must return empty, not window 1's full session. (Was
+  // marked in openNewWindow AFTER createWindow returned — i.e. after loadURL had
+  // already kicked off the renderer — a latent full-session clone race.)
+  if (!restore) blankWindowIds.add(winId)
 
   // ENH-191 P2 (item 7) — snapshot the cold-boot Finder open-file stash into a
   // per-window local and clear the module global immediately, so a reentrant
@@ -1056,6 +1072,11 @@ async function createWindow(opts: { restore?: boolean } = {}): Promise<WindowCon
     registry.unregister(winId)
     // ENH-191 P5a (S3) — drop any blank-window marker for this id.
     blankWindowIds.delete(winId)
+    // ENH-191 P5a (Tier-1) — drop this window's session slice so an EXPLICITLY
+    // closed window doesn't resurrect on relaunch. On app-quit, before-quit has
+    // already flushed the full map and dropWindow schedules no flush, so this
+    // can't shrink the persisted envelope mid-quit.
+    sessionStateService.dropWindow(winId)
   })
 
   // ENH-191 P2 — the context was registered early (right after window creation)
@@ -1079,8 +1100,9 @@ async function openNewWindow(): Promise<{ ok: boolean; error?: string }> {
   if (!settingsService.get().multiWindow) {
     return { ok: false, error: 'multi-window is disabled (enable it in Settings)' }
   }
-  const newCtx = await createWindow({ restore: false })
-  blankWindowIds.add(newCtx.id)
+  // ENH-191 P5a (Tier-1) — createWindow({restore:false}) marks blankWindowIds
+  // itself BEFORE loadURL (race-free); no post-hoc add here.
+  await createWindow({ restore: false })
   return { ok: true }
 }
 
@@ -1445,6 +1467,12 @@ app.whenReady().then(async () => {
   await settingsService.load()
   void rebuildAppMenu()
 
+  // ENH-191 P5a (Tier-1) — seed the per-window session map from disk BEFORE the
+  // first window's renderer can save, so a single-window save can't overwrite a
+  // persisted multi-window envelope (DATA LOSS). Dormant windows survive until
+  // explicitly closed.
+  await sessionStateService.seedWindowsFromDisk()
+
   void createWindow()
 
   // BUG-124 — ensure ~/.claude/duo/logs/ exists at boot so the renderer's
@@ -1597,8 +1625,8 @@ function setupIPC(): void {
 
   // ── Browser ───────────────────────────────────────────────────────────────
 
-  ipcMain.handle(IPC.BROWSER_NAVIGATE, async (_event, { url }: { url: string }) => {
-    const browserManager = liveBrowser()
+  ipcMain.handle(IPC.BROWSER_NAVIGATE, async (event, { url }: { url: string }) => {
+    const browserManager = browserForSender(event)
     if (!browserManager) return { ok: false, error: 'BrowserManager not ready' }
     return browserManager.navigate(url)
   })
@@ -1609,11 +1637,11 @@ function setupIPC(): void {
   // launches without an extra main-process JSON file). On boot the
   // renderer pushes its persisted value via BROWSER_MODE_SET; main
   // mirrors it onto browserManager.setBrowserMode.
-  ipcMain.handle(IPC.BROWSER_MODE_GET, async (): Promise<{ mode: import('../shared/types').BrowserMode }> => {
-    return { mode: liveBrowser()?.getBrowserMode() ?? 'local-only' }
+  ipcMain.handle(IPC.BROWSER_MODE_GET, async (event): Promise<{ mode: import('../shared/types').BrowserMode }> => {
+    return { mode: browserForSender(event)?.getBrowserMode() ?? 'local-only' }
   })
-  ipcMain.handle(IPC.BROWSER_MODE_SET, async (_event, { mode }: { mode: import('../shared/types').BrowserMode }) => {
-    const browserManager = liveBrowser()
+  ipcMain.handle(IPC.BROWSER_MODE_SET, async (event, { mode }: { mode: import('../shared/types').BrowserMode }) => {
+    const browserManager = browserForSender(event)
     if (!browserManager) return { ok: false, error: 'BrowserManager not ready' }
     if (mode !== 'unfiltered' && mode !== 'filtered' && mode !== 'local-only') {
       return { ok: false, error: `Invalid browser mode: ${String(mode)}` }
@@ -1622,22 +1650,25 @@ function setupIPC(): void {
     return { ok: true, mode }
   })
 
-  ipcMain.on(IPC.BROWSER_BACK, () => {
-    liveBrowser()?.goBack()
+  ipcMain.on(IPC.BROWSER_BACK, (event) => {
+    browserForSender(event)?.goBack()
   })
 
-  ipcMain.on(IPC.BROWSER_FORWARD, () => {
-    liveBrowser()?.goForward()
+  ipcMain.on(IPC.BROWSER_FORWARD, (event) => {
+    browserForSender(event)?.goForward()
   })
 
-  ipcMain.on(IPC.BROWSER_RELOAD, () => {
-    liveBrowser()?.reload()
+  ipcMain.on(IPC.BROWSER_RELOAD, (event) => {
+    browserForSender(event)?.reload()
   })
 
   // Renderer reports the pixel bounds of the browser content area whenever
   // the split moves or the window resizes. We reposition the WebContentsView.
-  ipcMain.on(IPC.BROWSER_BOUNDS, (_event, bounds: BrowserBounds) => {
-    liveBrowser()?.setBounds(bounds)
+  // ENH-191 P5a — resolve by event.sender so window 2's bounds hit window 2's
+  // WebContentsView (this fires automatically on mount/resize — the #1
+  // window-2 mount crasher when it resolved only()).
+  ipcMain.on(IPC.BROWSER_BOUNDS, (event, bounds: BrowserBounds) => {
+    browserForSender(event)?.setBounds(bounds)
   })
 
   // Phase 3c — renderer reports aux-pane bounds for the aux-pinned
@@ -1645,23 +1676,23 @@ function setupIPC(): void {
   // aux-bounds slot inside BrowserManager. Pushed from the
   // AuxBrowserSlot component on mount + ResizeObserver + window
   // resize + split divider drag.
-  ipcMain.on(IPC.BROWSER_AUX_BOUNDS, (_event, bounds: BrowserBounds) => {
-    liveBrowser()?.setAuxBounds(bounds)
+  ipcMain.on(IPC.BROWSER_AUX_BOUNDS, (event, bounds: BrowserBounds) => {
+    browserForSender(event)?.setAuxBounds(bounds)
   })
 
   // Phase 3c — renderer asks main to pin a browser tab into the aux
   // slot. Returns the pinned tab's url + title so the renderer can
   // render the aux header without a second round trip.
-  ipcMain.handle(IPC.BROWSER_MOVE_TAB_TO_AUX, (_event, tabId: number) => {
-    const browserManager = liveBrowser()
+  ipcMain.handle(IPC.BROWSER_MOVE_TAB_TO_AUX, (event, tabId: number) => {
+    const browserManager = browserForSender(event)
     if (!browserManager) return { ok: false, error: 'BrowserManager not initialized' }
     return browserManager.moveTabToAux(tabId)
   })
 
   // Phase 3c — renderer asks main to release the aux-pinned tab back
   // to the main strip. The released tab becomes main-strip active.
-  ipcMain.handle(IPC.BROWSER_RELEASE_AUX_TAB, () => {
-    const browserManager = liveBrowser()
+  ipcMain.handle(IPC.BROWSER_RELEASE_AUX_TAB, (event) => {
+    const browserManager = browserForSender(event)
     if (!browserManager) return { ok: false, error: 'BrowserManager not initialized' }
     return browserManager.releaseAuxTab()
   })
@@ -1688,8 +1719,8 @@ function setupIPC(): void {
   // a renderer-DOM overlay opens that would overlap the WebContentsView
   // (e.g. browser-pane tab right-click menu). Main collapses the WCV to
   // 1×1 so the menu renders unobstructed; restores on `{ muted: false }`.
-  ipcMain.on(IPC.BROWSER_OVERLAY_MUTED, (_event, payload: { muted: boolean }) => {
-    liveBrowser()?.setOverlayMuted(payload.muted)
+  ipcMain.on(IPC.BROWSER_OVERLAY_MUTED, (event, payload: { muted: boolean }) => {
+    browserForSender(event)?.setOverlayMuted(payload.muted)
   })
 
   // ENH-159b — element-inspect-mode toggle. Renderer calls this when the
@@ -1697,8 +1728,8 @@ function setupIPC(): void {
   // Accepts a boolean or 'toggle' so the renderer doesn't need to read
   // current state first. BrowserManager.setInspectMode pushes
   // BROWSER_INSPECT_MODE back to the renderer with the new state.
-  ipcMain.on(IPC.BROWSER_INSPECT_SET_MODE, (_event, payload: { mode: boolean | 'toggle' }) => {
-    liveBrowser()?.setInspectMode(payload.mode)
+  ipcMain.on(IPC.BROWSER_INSPECT_SET_MODE, (event, payload: { mode: boolean | 'toggle' }) => {
+    browserForSender(event)?.setInspectMode(payload.mode)
   })
 
   // BUG-048 v3 — renderer-driven OS focus reclaim. The ⌘` toggle
@@ -1706,53 +1737,55 @@ function setupIPC(): void {
   // pull OS focus from a WebContentsView (if needed) so a subsequent
   // renderer-side `.focus()` call on xterm or the editor lands. See
   // App.tsx § togglePaneFocus.
-  ipcMain.on(IPC.PANE_FOCUS_RECLAIM, () => {
-    liveMainWindow()?.webContents.focus()
+  // ENH-191 P5a — focus THIS window's renderer; event.sender IS its webContents
+  // (was liveMainWindow()→only(), an uncaught ipcMain.on crash at N>1).
+  ipcMain.on(IPC.PANE_FOCUS_RECLAIM, (event) => {
+    event.sender.focus()
   })
 
   // ENH-028 — find-in-page. Renderer's find bar (in BrowserRenderer)
   // sends START on each keystroke / next / prev navigation. Main calls
   // webContents.findInPage; results are pushed back via the
   // `found-in-page` event listener wired in BrowserManager.wireEvents.
-  ipcMain.on(IPC.BROWSER_FIND_START, (_event, payload: { query: string; findNext?: boolean; forward?: boolean }) => {
-    liveBrowser()?.findInPage(payload.query, {
+  ipcMain.on(IPC.BROWSER_FIND_START, (event, payload: { query: string; findNext?: boolean; forward?: boolean }) => {
+    browserForSender(event)?.findInPage(payload.query, {
       findNext: payload.findNext,
       forward: payload.forward
     })
   })
-  ipcMain.on(IPC.BROWSER_FIND_STOP, () => {
-    liveBrowser()?.stopFindInPage()
+  ipcMain.on(IPC.BROWSER_FIND_STOP, (event) => {
+    browserForSender(event)?.stopFindInPage()
   })
 
-  ipcMain.handle(IPC.BROWSER_GET_STATE, () => {
-    return liveBrowser()?.getState() ?? null
+  ipcMain.handle(IPC.BROWSER_GET_STATE, (event) => {
+    return browserForSender(event)?.getState() ?? null
   })
 
-  ipcMain.handle(IPC.BROWSER_GET_TABS, () => {
-    return liveBrowser()?.getTabs() ?? []
+  ipcMain.handle(IPC.BROWSER_GET_TABS, (event) => {
+    return browserForSender(event)?.getTabs() ?? []
   })
 
-  ipcMain.handle(IPC.BROWSER_ADD_TAB, async (_event, { url }: { url?: string }) => {
-    const browserManager = liveBrowser()
+  ipcMain.handle(IPC.BROWSER_ADD_TAB, async (event, { url }: { url?: string }) => {
+    const browserManager = browserForSender(event)
     if (!browserManager) return { ok: false, id: -1, url: '', title: '' }
     return browserManager.openTab(url)
   })
 
-  ipcMain.handle(IPC.BROWSER_SWITCH_TAB, async (_event, { id }: { id: number }) => {
-    const browserManager = liveBrowser()
+  ipcMain.handle(IPC.BROWSER_SWITCH_TAB, async (event, { id }: { id: number }) => {
+    const browserManager = browserForSender(event)
     if (!browserManager) return { ok: false, error: 'BrowserManager not ready' }
     return browserManager.switchTab(id)
   })
 
-  ipcMain.handle(IPC.BROWSER_CLOSE_TAB, async (_event, { id }: { id: number }) => {
-    const browserManager = liveBrowser()
+  ipcMain.handle(IPC.BROWSER_CLOSE_TAB, async (event, { id }: { id: number }) => {
+    const browserManager = browserForSender(event)
     if (!browserManager) return { ok: false, error: 'BrowserManager not ready' }
     return browserManager.closeTab(id)
   })
 
   // BUG-027 — ⌘⇧T from browser focus pops the last-closed tab.
-  ipcMain.handle(IPC.BROWSER_REOPEN_LAST_CLOSED, async () => {
-    const browserManager = liveBrowser()
+  ipcMain.handle(IPC.BROWSER_REOPEN_LAST_CLOSED, async (event) => {
+    const browserManager = browserForSender(event)
     if (!browserManager) return { ok: false, reason: 'no-browser-manager' }
     return browserManager.reopenLastClosed()
   })
@@ -1762,8 +1795,8 @@ function setupIPC(): void {
     return browserHistory.suggest(args.prefix ?? '', args.limit ?? 8)
   })
 
-  ipcMain.on(IPC.BROWSER_FOCUS_ACTIVE, () => {
-    liveBrowser()?.focusActive()
+  ipcMain.on(IPC.BROWSER_FOCUS_ACTIVE, (event) => {
+    browserForSender(event)?.focusActive()
   })
 
   // ── Files (Stage 10) ──────────────────────────────────────────────────────
@@ -2019,6 +2052,10 @@ function setupIPC(): void {
   let gitWatcher: import('chokidar').FSWatcher | null = null
   let gitWatcherTimer: NodeJS.Timeout | null = null
   let gitWatchedPath: string | null = null
+  // ENH-191 P5a (Tier-1) — the window that armed the watch. INVALIDATE routes to
+  // THIS window, not safeSend→resolveDefault→only() (which throws UNCAUGHT inside
+  // the chokidar fs-event callback at N>1 → main crash on any tracked-file change).
+  let gitWatcherOwnerId: number | null = null
   const stopGitWatcher = async () => {
     if (gitWatcher) {
       try { await gitWatcher.close() } catch { /* ignore */ }
@@ -2029,9 +2066,14 @@ function setupIPC(): void {
       gitWatcherTimer = null
     }
     gitWatchedPath = null
+    gitWatcherOwnerId = null
   }
-  ipcMain.handle(IPC.GIT_WATCH_START, async (_event, req: { workTreeRoot: string; cwd: string }) => {
+  ipcMain.handle(IPC.GIT_WATCH_START, async (event, req: { workTreeRoot: string; cwd: string }) => {
     if (!req.workTreeRoot || !req.cwd) return { ok: false }
+    // ENH-191 P5a (Tier-1) — the arming window owns INVALIDATE delivery. Single
+    // module watcher, so last-armer wins (per-window watchers are a P5b refinement);
+    // routing to a concrete window id is what avoids the only() crash.
+    gitWatcherOwnerId = BrowserWindow.fromWebContents(event.sender)?.id ?? null
     // Watch ONLY the current navigator cwd at depth 1 — exactly the
     // rows the user can see. NOT the full workTreeRoot, because that
     // can be enormous (e.g. user has ~/Documents as a git repo →
@@ -2069,7 +2111,13 @@ function setupIPC(): void {
       usePolling: false
     })
     const fireInvalidate = () => {
-      safeSend(IPC.GIT_WATCH_INVALIDATE)
+      // ENH-191 P5a (Tier-1) — send to the arming window directly. registry.get
+      // never throws (unlike safeSend's resolveDefault→only()), so a tracked-file
+      // change at N>1 no longer crashes main from this chokidar callback.
+      const ownerWin = gitWatcherOwnerId != null ? registry.get(gitWatcherOwnerId)?.window : undefined
+      if (ownerWin && !ownerWin.isDestroyed() && !ownerWin.webContents.isDestroyed()) {
+        ownerWin.webContents.send(IPC.GIT_WATCH_INVALIDATE)
+      }
     }
     const scheduleInvalidate = () => {
       if (gitWatcherTimer) clearTimeout(gitWatcherTimer)
