@@ -2,23 +2,6 @@
 
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
-### ENH-190: Navigator temporary-widen + drag-to-collapse + resize-handle affordance
-
-**Status:** ✅ **Shipped v0.9.1 (2026-06-06)** — owner smoke-walked (#67), merged + released. Prototype + locked-decision tuning preceded it. **Priority:** Owner-requested. **Effort:** M. **Icon refresh (behavior 4) NOT in the locked set — deferred.** Walk follow-ups (open): ENH-201 (red collapse cue) · BUG-197 (rail-peek row-click commit). Pending archive-sweep to tasks-archive.md.
-
-**Ask (owner).** The navigator is a binary 44px↔208px toggle today. Add (1) **temporary widen → ease back** — drag the *expanded* border wider to un-truncate a long name, plus a *collapsed-rail* hover-peek, both easing back to the resting size after the cursor leaves; (2) **drag-to-collapse** — drag the expanded border left past a threshold → collapse on release; (3) **hover-reveal resize handles** — a grip-pill appears on the navigator border + terminal↔canvas divider and the click target widens while the seam stays a hairline.
-
-**Locked tuning (owner, 2026-06-06).** Two resting sizes only (rail 44 / expanded 208), no persistent custom width. Rail-peek: hover trigger, 260ms hover-in, 1500ms snap-back after cursor leaves, 200px peek, 220ms ease-out. Rail-peek commit: **click anywhere**. Drag-collapse: 96px threshold, fires on release, release-zone hint on, rubber-band off. Resize handle: 12px hit target, hover reveal, 120ms fade, grip pill + dots.
-
-**Implementation.** Transient peek/drag width is local to `FilesPane.tsx` (state machine: `override`/`peekActive`/`widenActive`/`willCollapse` + a right-border `.nav-resize-handle` with pointer capture); the persistent resting state stays `filesCollapsed` in `App.tsx` (new `onSetCollapsed` prop). Shared grip-pill affordance (`.resize-grip`, `.nav-resize-handle`, `.split-divider::before` hit target) added to `globals.css` and applied to the terminal↔canvas `.split-divider` in `App.tsx`. Constants/locked values live at the top of `FilesPane.tsx`. Typecheck clean.
-
-**Owed.** Smoke-walk on a real Mac dev session (couldn't run Electron in the Linux remote sandbox where this was authored) before any version cut. **CLI parity note:** the transient widen/peek/resize-grip are mouse affordances with no persistent state — the persistent collapse/expand already has its toggle; no new CLI verb needed.
-
-**Deferred.** Collapse-button icon refresh (behavior 4 in the prototype: replace the split-pane glyph in `TabBar.tsx` + `WorkingTabStrip.tsx`) — not in the owner's locked settings. Prototype + gallery remain at [`docs/research/navigator-peek-collapse-prototype.html`](research/navigator-peek-collapse-prototype.html); recommended pick was **Panel + chevron**.
-
-**Docs.** Locked-scope PRD at [`docs/prd/enh-190-navigator-resize-peek.md`](prd/enh-190-navigator-resize-peek.md) (D1–D9 decisions + smoke-walk checklist). The tuning prototype is the durably-archived design artifact in `docs/research/`.
-
----
 
 > Sprint 24 anchor: close the v0.8.0 audit's deferred follow-ups (FOLLOWUP-031 through 040) before any new feature work. ENH-182 was the marquee chapter; Sprint 24 is its polish epilogue. Definition of done: all 10 FOLLOWUPs closed or explicitly deferred-with-reason. Expected cut shape: v0.8.1 PATCH (polish-only) OR v0.9.0 MINOR if a carry-forward capability lands alongside.
 
@@ -38,59 +21,6 @@
 
 **Stays open until** the owner walks the playground (`duo open docs/research/docs-deep-clean-decisions.html`), copies decisions back, and the agent executes. Surfaces in every smoke walk until closed (rule 11 + research-report-review-task rule).
 
-### ENH-195: CLI edits · disk-sync responsiveness · false-positive conflicts (one-root-cause cluster)
-
-**Status:** ✅ **Shipped — core in v0.9.0, follow-ons (canvas false-positive fix · strip-JSX render · ENH-197 View-diff) in v0.9.1 (2026-06-06).** Merged to main via PRs #64–#70, released at github.com/dudgeon/duo/releases/tag/v0.9.1. All 5 decisions locked (below); 936 tests + both typecheckers clean; 15-agent adversarial review fixed 9 bugs pre-cut; 4-lens workflow (`wf_edbafc2e-b0b`) confirmed the canvas fix. **⚠️ The RESUME-STATE block below is historical** — it predates the push/release, so ignore its "NOT pushed to origin" / "owner-gated re-cut" language. Pending archive-sweep to tasks-archive.md.
-
-**⏸️ RESUME STATE (2026-06-05, read this first):**
-- **Git:** branch `claude/sharp-hamilton-70eb87`. Commits: `f6e1b36` (release: v0.9.0, **tagged v0.9.0**) → `915af34` (chore: bump to v0.9.1, **HEAD**). **NOT pushed to origin.** Cut on the feature branch (Duo's established pattern — tag travels into main via the PR merge).
-- **Uncommitted working-tree change:** the **strip-JSX fix** in `renderer/components/editor/MarkdownEditor.tsx` (~line 2276, the `reloadedFlash` + `fileRemoved` strips added just before the `recon.externalConflict` banner). Typecheck-clean. **NOT yet folded into a re-cut.**
-- **DMG:** `/Users/geoffreydudgeon/Documents/GitHub/duo/dist/Duo-0.9.0-arm64.dmg` — signed + notarized + stapled + launch-validated, built from the **main repo checked out at the `v0.9.0` tag** (the worktree CAN'T build a DMG — no local `node_modules/.bin`; `git checkout v0.9.0` in `/main`, build, `git checkout -f main`). This DMG was built **before** the strip-JSX fix, so it lacks it.
-- **Running app (2026-06-05):** the pre-walk v0.9.0 DMG (`/Applications/Duo.app`) was **quit**; now running the **worktree dev build with HMR** (the fix is live). The worktree has no local `node_modules`, so dev is launched via the **main checkout's** binary with the worktree as cwd: `node /Users/geoffreydudgeon/Documents/GitHub/duo/node_modules/electron-vite/bin/electron-vite.js dev` (≡ `npm run dev` minus the predev hook). Process shows as `…/node_modules/electron/dist/.../Electron` (NOT `/Applications/Duo.app`). Only ONE Duo on the socket at a time — quit the other first.
-- **`duo doctor` cosmetic bug:** reports CLI/app version "0.1.0" (stale hardcoded constant, NOT ENH-195). Pre-existing follow-up.
-- **Local machine control ESTABLISHED** via `mcp__Control_your_Mac__osascript` (System Events focus + `screencapture` — both TCC-granted). **Tooling gotcha discovered:** `duo eval` evaluates in the **BROWSER pane's active WebContents** (e.g. the enh-195 playground tab) — NOT the React renderer shell, NOT the canvas WorkingPane — so it **cannot see the conflict banner or canvas content**. Verify canvas/banner state with **screenshots** (focus Electron via the osascript *tool*; bash `osascript` lacks Accessibility → `-25211`). This session is hosted by `/Applications/Claude.app`, separate from Duo (safe to quit Duo).
-
-**Live pre-walk results (against the running v0.9.0 app):**
-- **✅ VERIFIED PASS:** `duo status` (lists tabs + `dirty` flag); `duo doc edit` (open → buffer updates, **no false banner** = echo-safe; closed → disk write); `duo json` (`set` inline open/closed, **source-mode primitive → 99** = the HIGH review fix, `merge` via FILE, **`__proto__` REFUSED** = the security fix); **markdown clean external write → reloads + washes additions + deletion tick + NO false banner** (the core fix!); JSON viewer reloads on external write.
-- **🔧 FIXED during pre-walk (the strip-JSX fix above):** the "removed on disk" + ">50% reloaded from disk" strips had state + setters wired but **NO render JSX** — added it. Needs the re-cut to ship + a live re-walk.
-- **✅ FIXED + VERIFIED — the canvas false-positive (was the blocker), 2026-06-05:** Root cause (4-lens workflow `wf_edbafc2e-b0b`, high-confidence, `sweptClean:true`): the clean-path `shouldBannerOnClean` at `useDiskReconciliation.ts:233` passed the **serialized** baseline (always carries auto-injected `data-duo-id`s — `installAutoStampIds` runs before `serialize`) into the canvas's `externalStrippedDuoIds`, compared against raw disk bytes (no ids) → "ids stripped" fired on **every** clean external write. **Fix (1-line semantic + diagnostic + JSDoc + adapter comment):** pass the byte-exact `lastSeenDiskRef.current` (disk-vs-disk: "did THIS write strip ids that were ON DISK?"). **Proof:** new divergent-seed regression test (RED on old hook, GREEN on fix — the existing canvas tests seeded `(base,base)` symmetric, which masked the bug); **916 tests + both typecheckers clean**; **live on the worktree dev build (HMR)** — clean external write → canvas RELOADS, no banner (screenshot); a write stripping a persisted on-disk id → "This file changed on disk" banner STILL fires (screenshot). Genuine BUG-125-v2 Q2 preserved; markdown/json unaffected (optional-chain short-circuit). The dismissed revert/fix/ship question is resolved by the verified fix (= "fix canvas").
-- **❓ NOT WALKED (computer-use disconnected):** dirty-buffer conflict banner (D4, needs a keystroke), frontmatter-preserve flow (the review fix — needs the Properties-panel UI), image/PDF visual refresh, warn-hook live nudge.
-
-**Minor findings:** (1) `duo json merge` takes a **FILE** path, not inline JSON — inconsistent with `set` (inline). Docs are correct (`<patch.json>`); the **smoke-walk manifest item `ENH-195-VERB-JSON` in `docs/dev/smoke-walks/v0.9.0.json` wrongly shows inline merge — fix it.** Consider accepting inline in 0.9.1. (2) `duo doctor` version "0.1.0" (above).
-
-**Next actions (canvas fix done — remaining path):** (a) ✅ canvas fixed (above). (b) **Re-cut v0.9.0** folding BOTH uncommitted fixes (canvas hook fix + the strip-JSX MarkdownEditor fix) + the manifest fix: `git reset --soft f6e1b36`-style amend the release commit (or add a follow-up commit), re-tag `v0.9.0`, re-bump to 0.9.1 — **local only**. (c) Rebuild the DMG **with the fixes** (worktree can't build a DMG → build from a checkout that HAS the fixes + node_modules; merge the branch into `/main` or build the branch there). (d) Finish the 4 owed visual walk items on the rebuilt/dev build (control is now available): dirty-buffer banner · frontmatter-preserve · image/PDF refresh · warn-hook nudge. (e) Then push branch + tag + PR + GitHub Release (**all owner-gated, outward-facing — PAUSE here**). Per CLAUDE.md rule 10, a UI sprint runs `/smoke-walk` before the cut.
-
-**Smoke-walk page:** `docs/dev/smoke-walks/v0.9.0.html` (12 items, gitignored). The manifest `v0.9.0.json` needs the merge-inline item corrected.
-
-**Adversarial review (workflow `wf_cad25190-d7d`, 15 agents) — 9 confirmed bugs fixed before cut.** The review caught what 902 passing tests masked: **(HIGH)** the impure `readDiskBody` clobbered the user's edited frontmatter on save (data loss) → made `readDiskBody` pure + moved frontmatter adoption into `applyReload(diskBody, rawText)`; **(HIGH)** `duo json` in SOURCE mode dropped the edit via stale-closure save → `saveRef.current({ text })` override; **(HIGH)** `applyJsonPointer`/`deepMerge` prototype pollution via `__proto__` (both routes, incl. the Electron main process) → `isUnsafeKey` guard + new `core/json/jsonOps.test.ts` (12 cases); **(HIGH)** `duo json` on an open-but-inactive tab hung 10s + lost the edit → dropped the `isActive` gate (parity with markdown); **(MED)** canvas violated the hook's `ready`-after-`noteLoaded` contract → `baselineSeeded` gate; **(MED)** PdfPreview watcher leak → `cancelled` guard; **(MED)** open/closed routing failed on symlink/case aliases → `canonPath`. The other 11 raw findings were adversarially refuted.
-
-**Activation caveat (owner chose packaged-app):** the new **priming guidance + the warn-hook ship via the installer** (not `sync:claude`), so they activate in live sessions only on the next dev-build first-launch install / Duo reinstall. The CLI verbs + all conflict/responsiveness fixes are in the code and work as soon as a build with this code runs.
-
-**Follow-up (install-service):** uninstall + `primingStatus()` only handle the SessionStart hook, not the new PreToolUse entry — minor asymmetry to fix in a later pass (the entry is idempotent + foreign-safe, so it's non-blocking). **Priority:** High (recurring daily friction — false-positive conflict banners + stale editors + agents bypassing the CLI). **Effort:** L (spans conflict state machines on two surfaces, four file-kind viewers, new CLI verbs, guidance, tests). **Source:** 6-agent codebase map (workflow `wf_84c4a8d2-959`) + 5-agent implementation blueprint (`wf_4488fc57-101`).
-
-**Decisions (locked 2026-06-05, via [`docs/research/enh-195-cli-edits-disk-sync.html`](research/enh-195-cli-edits-disk-sync.html)).** D1 = **full suite** (`duo doc edit` surgical markdown + `duo json` set/merge + `duo status` open-tabs probe). D2 = **guidance + warn-only hook** (fail-open, `DUO_SESSION`-gated PreToolUse nudge on Edit/Write to a Duo-open file). D3 = **highlight-on-reload, markdown only** — canvas highlight parity-deferred to [ENH-196](#enh-196). D4 = **keep the dirty-buffer banner** (BUG-085 lock stands); made rare by routing edits through echo-clean verbs + A3. D5 = **shared `useDiskReconciliation` hook** + a narrow DECISIONS.md:620 amendment scoping the lock to "editing primitive, not reconciliation." Implementation discipline: **A6 integration tests land FIRST**, then the hook refactor under their cover.
-
-**Ask (owner, verbal).** Increase Duo's use of the `duo` CLI verbs for editing (instead of filesystem `Read/Edit/Write`); make the markdown + other canvas editors more responsive to on-disk changes; and do NOT introduce false-positive version conflicts when the user makes a change.
-
-**One root cause (the throughline).** All three symptoms trace to the editor↔disk reconciliation *guessing* whether a disk change is a self-echo or a real external edit, by comparing disk bytes against the editor's **serialized** view through the hand-grown `normalizeForEchoCompare`. That guess (a) false-positives a conflict banner when the serialized view diverges from disk (every TipTap round-trip quirk — goal 3); (b) silently *swallows* a real external edit that happens to normalize-equal the buffer (goal 2 — "editor doesn't notice changes"); (c) is only needed because Claude writes *behind* the editor (goal 1 — there's no surgical markdown verb, no JSON verb, and no way to even ask "is this file open in Duo?"). **BUG-166's byte-exact `lastSeenDiskBodyRef` is incomplete:** the fallback still compares serialized, the **canvas never got the ref** (`PageTab.tsx` — parity miss vs `MarkdownEditor.tsx`), and `applyDocWrite` never echo-registers (so a *sanctioned* `duo doc write` can false-positive in the autosave window). Goals 1 and 3 are entangled exactly as the owner suspected.
-
-**Capability gaps behind goal 1.** No surgical markdown buffer-edit verb (`doc write --replace-selection` targets the *user's* caret; `--replace-all` resends the whole doc); no JSON/YAML edit verb at all; `duo nav state` has **no `working` field** (the skill's "check the working tabs" instruction is unfollowable) and no verb lists open file-tab paths; the "never Write/Edit an open file" rule lives only in the on-demand skill + subagent, while always-loaded `priming.md` omits it and frames `duo edit` as an open/read substitute.
-
-**Responsiveness gaps behind goal 2.** Markdown *does* watch + silent-reload but can swallow real edits (normalize gate) and drops events for the open file if its path matches the `.git/.obsidian/node_modules` ignore; load↔watch race + rename/delete orphan the watcher. **JSON/YAML, image, PDF viewers don't watch at all** — silently stale; JSON is editable+autosave → silent data-loss vector.
-
-**Plan — do regardless of owner answers** (respects all locks): Tier A conflict-correctness (A1 markdown raw-vs-raw fallback · A2 canvas byte-exact ref · A3 `applyDocWrite` echo-register · A4 canvas save uses `normalizeDuoHtml` · A5 deterministic echo-set clear · **A6 integration tests for both state machines**); Tier B responsiveness (editor watcher ignore-override · post-attach catch-up read · rename/delete handling · JSON/image/PDF watchers); Tier C guidance (priming.md + installer template + root CLAUDE.md rule; fix stale `working`-tab refs).
-
-**Locked decisions respected.** Editor/canvas stay parallel — no unify (DECISIONS.md); canvas `data-duo-id`-strip still banners (BUG-125-v2 Q2); no sidecar disk-hash cache (DECISIONS.md / CLAUDE.md §12); **do not widen `normalizeForEchoCompare` again** (retired one-ref/two-purposes anti-pattern — fixes use the byte-exact ref, never a 7th regex).
-
-**4 owner forks (in the playground).** D1 new CLI edit-surface scope (full `doc edit`+`json`+`status` / md+status / status-only) · D2 enforcement (guidance+warn-hook / guidance-only / guidance+block-hook) · D3 clean-buffer reload faithfulness (byte-faithful / keep-swallow-cosmetic) · D4 dirty-buffer agent-write UX (keep-banner / auto-adopt-stash / three-way-merge).
-
-**Deliverable.** Decision-bearing HTML playground [`docs/research/enh-195-cli-edits-disk-sync.html`](research/enh-195-cli-edits-disk-sync.html) (Atelier kernel, entanglement diagram, do-anyway plan tables, locked-constraints callout, 4 decision cards + Copy-decisions footer; per rule 11). **Open via `duo open`, not the Claude preview panel** (clipboard).
-
-**Reopens.** BUG-122 (parked "needs next-repro log" — the owner's report *is* the next repro) and the FOLLOWUP-019/BUG-166 conflict lineage. Test-coverage gap: ~11 conflict bugs, zero integration tests (violates the durable-coverage rule).
-
-**Next.** ✅ Decisions locked 2026-06-05 — in implementation (see status block above + ENH-195 subtasks in the session task list).
-
----
 
 ### ENH-196: Canvas change-highlight on reload (parity follow-on to ENH-195 D3)
 
@@ -104,44 +34,7 @@
 
 ---
 
-### ENH-197: Conflict resolution with Claude — keep mine / keep new / explain difference
 
-**Status:** ✅ **Implemented + verified live THIS SPRINT (v0.9.0), 2026-06-06.** The destructive-overwrite reload banner now offers **Keep mine / Load new / View diff**; View diff rewrites the doc as accept/reject-able tracked changes (clean whole-block strike+insert for dissimilar blocks via a similarity gate; inline char-diff for small edits). A teammate agent also fixed a latent `acceptAll`/`rejectAll` bug (`deleteTrackedRange` — empty-block shells on whole-block changes). **Verified:** 7 `trackedDiff` tests (round-trip `acceptAll===disk` / `rejectAll===yours` + the granularity lock) + full suite 922 green + typecheck clean; **live (DOM-probe on the dev build):** banner on a >50% overwrite → View diff shows a clean whole-block diff + SuggestingBanner Accept/Reject-all (reject → your version restored), Keep mine → restores + re-saves your version to disk, Load new → keeps the disk version. Owner still to eyeball via a focused re-walk. **Priority:** High (data-loss-adjacent + owner-requested). **Effort:** M.
-
-**Owner pivot (2026-06-06).** Original idea was "explain difference" (route the diff into a Claude session). Owner SIMPLIFIED to reuse Duo's **existing tracked-changes affordances**: the destructive-overwrite reload banner offers **Keep mine / Load new / View diff**, where **View diff** rebuilds the doc as tracked changes (struck old + inserted new) the user accepts/rejects via the existing `SuggestingBanner` (Accept-all = disk · Reject-all = yours) + inline marks. The Claude-routing "explain difference" is DEFERRED as a future extension (a 4th option later). **Implementation:** new `renderer/components/editor/trackedDiff.ts` `applyTrackedDiff(editor, oldDoc, attrs)` (reuses the `reloadDiff` ChangeSet + `insertionMark`/`deletionMark`; round-trip-tested: acceptAll→disk, rejectAll→yours) + the 3-button banner + handlers in `MarkdownEditor.tsx` (`preReloadDocRef` stashes the pre-reload doc in `applyReload`).
-
-**Why it surfaced.** Owner FAILED the v0.9.1 `DIRTY-BANNER` walk item: *"external change FULLY OVERWROTE the entire existing doc … warning banner did not present options."* Diagnosis (code-confirmed): the markdown conflict banner (Reload/Keep-mine) renders fine and is unit-tested, BUT **autosave (800ms, default ON — `AUTOSAVE_DEBOUNCE_MS`) saves typed edits within ~1s**, so by the time an external write lands the buffer is **clean** → it takes the D3 **byte-faithful clean-reload** path, silently overwriting the doc and showing the informational **">50% reloaded" strip** (no buttons). **Autosave makes the D4 "unsaved-edits protection" largely illusory** — and a *destructive* external change (full overwrite) on an autosaved doc silently replaces it with no recovery. This is an ENH-195 D3 consequence; Duo's agent-writes-alongside-human premise makes recovery important.
-
-**Design (owner).** Replace the binary keep-mine/keep-new resolution with **three** options, on BOTH the dirty conflict banner AND the clean-reload (>50%) strip:
-- **Keep mine** — restore the pre-reload buffer (`oldDoc` is ALREADY captured in `MarkdownEditor.applyReload` ~L821; stash it in a ref + `setContent(oldDoc)` + re-mark dirty).
-- **Keep new** — accept the disk version (the already-reloaded state; dismiss the strip).
-- **Explain difference** — write the pre-reload buffer + the new disk content into the **relevant Claude terminal session** and ask Claude to explain what changed (turns "eyeball the diff" into "ask your Claude").
-
-**Feasibility.** `oldDoc` already captured (above). Duo tracks **`claudePresence`** per terminal tab, so "the relevant session" defaults to the **focused terminal's Claude** (or the sole Claude) — *which* Claude wrote the file isn't reliably detectable, but *which to ask* is an easy default + redirect. The send reuses the PTY-write path (`duo send`). All primitives exist.
-
-**Open design decisions (→ playground):** (1) which Claude to route to — focused / sole / picker; (2) the explain-prompt format + how the two versions are framed; (3) does this replace the conflict banner AND the reload strip, or just the strip; (4) agent/CLI parity — a verb to trigger explain-difference / list the pending conflict; (5) should "Keep mine" also re-save to disk (re-overwriting the external change) or just restore the buffer dirty; (6) canvas parity (mirror or defer like ENH-196).
-
-**Cross-refs.** [ENH-195](#enh-195) (parent — the reconciliation this builds on), D3 (byte-faithful clean reload) + D4 (dirty banner), `renderer/components/editor/MarkdownEditor.tsx` (`applyReload` `oldDoc`, `reloadedFlash` strip ~L2288 banner / ~L2277 strips), `useDiskReconciliation.ts` (`externalConflict`), `claudePresence`, the `duo send` PTY-write path.
-
----
-
-### BUG-195: `duo split-view close` orphans an aux BROWSER tab's WebContentsView (ghost)
-
-**Status:** ✅ **Fixed + verified live 2026-06-06** (owner hit it live during the v0.9.1 walk; owner approved fixing it this sprint — part of v0.9.0). **Priority:** Medium-High. **Effort:** S (renderer-side — HMR, no restart).
-
-**Symptom.** A BROWSER tab (the walk sheet) pinned into Split View aux, then the split closed → the sheet **ghosts** (its WebContentsView stays composited over the UI), and the state desyncs: `duo tabs` shows the tab `inAux: true` while `duo split-view state` reports `aux: null` and `duo layout` reports a wrong `browserTabsCount` (the three disagree). `duo close <auxTabId>` clears it.
-
-**Root cause (precise).** The renderer's `onClose` handler (`renderer/App.tsx`) DID call `browser.releaseAuxTab()` — but GATED on `auxBrowserTabRef.current`. A **renderer reload clears that ref while the BrowserManager (main process) keeps `auxTabId`**, so the stale gate skipped the reconcile: the aux browser WebContentsView stayed composited over the UI (ghost), and `inAux: t.id === this.auxTabId` (browser-manager.ts:621) stayed true → `duo tabs` shows `inAux:true` while `split-view state` shows `aux:null` and `layout.browserTabsCount` is wrong. `onPromote` had the same stale-gate flaw. FILE aux tabs (renderer DOM) have no WebContentsView to orphan, so only BROWSER aux tabs ghost.
-
-**Fix (shipped).** `onClose` + `onPromote` now call `releaseAuxTab()` **UNCONDITIONALLY** — a no-op when main holds no aux tab, a full reconcile (clear `auxTabId` + re-home the WCV to main) when it does — so a stale renderer view can't skip it. Removed the now-dead `auxBrowserTabRef`. **Verified live:** reproduced the desync (pin walk sheet → reload → `split-view aux:null` but tab `inAux:true`), then `duo split-view close` reconciled it (tab re-homed `inAux:false`, `browserTabsCount` agrees, no orphan). 923 tests + typecheck clean.
-
-**Follow-on (low priority, dev-path edge).** The targeted fix reconciles on close/promote; a renderer-mount re-sync (restore aux from `BrowserManager.getAuxTabId()`, or release it) would also stop the ghost from *appearing* transiently after a dev/agent renderer reload before any close. Normal user flow never hard-reloads while in aux.
-
-**Workaround (pre-fix).** `duo close <auxTabId>` destroyed the orphaned view + reconciled the counts.
-
-**Cross-refs.** `electron/main.ts:3339` (`splitViewClose`), `electron/browser-manager.ts:621` (`inAux` ← `auxTabId`) + the `promote` path, `core/socket-server.ts:1458` (the `close` op).
-
----
 
 ### ENH-198: Agent-native track-changes for markdown — write CriticMarkup, not `<ins>` tags
 
@@ -209,19 +102,6 @@
 
 ---
 
-### ENH-202: View diff on the dirty-buffer conflict banner (unify to 3 buttons)
-
-**Status:** ✅ **Shipped 2026-06-06 (v0.9.x).** Implemented same-session per owner preference on the v0.9.1 walk; owner re-walk (rev3) pending.
-
-**Why.** The dirty-buffer conflict (PRD §3.2) was the only 2-button banner left (Reload / Keep mine); the destructive-overwrite banner (§3.3) had 3 (Keep mine / Load new / View diff). Owner on the v0.9.1-rev2 walk: *"3 button appeared — I think this is preferable; why do we want 2 button instead?"* The 2-button was the conservative choice (a dirty buffer is a 3-way situation, and a general 3-way merge UI is a non-goal), but View-diff in the dirty case is a well-defined **2-way** (your unsaved content vs disk), so unifying is a strict improvement.
-
-**What shipped.** The dirty banner now offers **Keep mine / Reload from disk / View diff**. New `useDiskReconciliation.dismissConflict(diskBody)` (clears the banner + rebaselines both refs to disk so accept-all = byte-exact no-op, reject-all = clean overwrite) + a unit test; `MarkdownEditor.handleConflictViewDiff` (captures the unsaved doc, swaps in disk content, `applyTrackedDiff(yours → disk)`). **936/936 tests + typecheck clean; the 3-button render verified live on a genuine dirty conflict.**
-
-**Parity.** (b) surface-specific — markdown only; the HTML canvas has no CriticMarkup tracked-changes rail, so its dirty banner stays the two-action Reload / Keep-mine. PRD §3.2 updated.
-
-**Cross-refs.** [ENH-195](#enh-195), [ENH-197](#enh-197), `renderer/hooks/useDiskReconciliation.ts`, `renderer/components/editor/MarkdownEditor.tsx`, `docs/prd/enh-195-disk-sync-conflict-resolution.md` §3.2.
-
----
 
 ### ENH-189: Agent-agnostic Duo — Claude Code + Codex (research)
 
