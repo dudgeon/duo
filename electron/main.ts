@@ -505,33 +505,44 @@ sessionStateService.setEnrichBeforePersistHook(async (state) => {
   )
   return { ...state, terminals: enriched }
 })
-let browserManager: BrowserManager | null = null
-// ENH-191 P1b — cdpBridge promoted from a createWindow-local const to a
-// module global so the app-scoped SocketServer's getCdp() thunk can read
-// the current window's bridge lazily. Per-window: assigned in createWindow,
-// nulled in the closed handler (alongside browserManager).
-let cdpBridge: CdpBridge | null = null
 let socketServer: SocketServer | null = null
 let externalDomainsService: ExternalDomainsService | null = null
 
-// ENH-191 P1b — the app-scoped SocketServer's getter-thunks. The socket is
+// ENH-191 P2 — the per-window BrowserManager + CdpBridge now live in the
+// WindowContext (resolved via registry.only() through P4), NOT as module
+// globals. These nullable accessors are the single resolution point: they
+// cast the context's structurally-typed (unknown) fields back to their real
+// types in ONE place, so window-registry.ts can stay Electron-free.
+// registry.only() returns the sole context at N=1 (byte-identical to the old
+// globals) and THROWS at N>1 — the intended fail-loud signal that a read site
+// still needs its per-window (event.sender) resolution before window 2 opens.
+function liveCdp(): CdpBridge | null {
+  return (registry.only()?.cdpBridge as CdpBridge | undefined) ?? null
+}
+function liveBrowser(): BrowserManager | null {
+  return (registry.only()?.browserManager as BrowserManager | undefined) ?? null
+}
+
+// ENH-191 P1b/P2 — the app-scoped SocketServer's getter-thunks. The socket is
 // constructed once in app.whenReady (before any window); these resolve the
 // CURRENT window's per-window bridges lazily, per CLI command, inside
-// handle(). They throw only on a programming error (a command arriving
-// before createWindow has assigned them) — contained by handle()'s
-// try/catch as a clean {ok:false}. At P2 (multi-window) these become the
-// single swap point: () => registry.only()!.cdpBridge / .browserManager.
+// handle(). They throw only on a programming error (a command arriving before
+// createWindow has registered a context) — contained by handle()'s try/catch
+// as a clean {ok:false}. P2 repointed them from the deleted module globals to
+// registry.only() via the accessors above.
 function resolveCdpBridge(): CdpBridge {
-  if (!cdpBridge) {
-    throw new Error('[main] SocketServer.getCdp() ran before createWindow assigned cdpBridge')
+  const c = liveCdp()
+  if (!c) {
+    throw new Error('[main] SocketServer.getCdp() ran before createWindow registered a cdpBridge')
   }
-  return cdpBridge
+  return c
 }
 function resolveBrowserManager(): BrowserManager {
-  if (!browserManager) {
-    throw new Error('[main] SocketServer.getBrowser() ran before createWindow assigned browserManager')
+  const b = liveBrowser()
+  if (!b) {
+    throw new Error('[main] SocketServer.getBrowser() ran before createWindow registered a browserManager')
   }
-  return browserManager
+  return b
 }
 
 // Stage 27 — process-wide event bus. Singleton; lives forever. Any
@@ -620,11 +631,12 @@ async function createWindow(): Promise<WindowContext> {
   const persistedAtBoot = await sessionStateService.load().catch(() => ({ browserTabs: [], activeBrowserIndex: 0 } as { browserTabs: { url: string; title: string }[]; activeBrowserIndex: number }))
   const hasPersistedSession = persistedAtBoot.browserTabs.length > 0
 
-  // ENH-191 P1b — assign the module global (was a local const) so the
-  // app-scoped socket's getCdp() thunk can resolve it. Non-null for the
-  // rest of createWindow (fresh assignment, no intervening await).
-  cdpBridge = new CdpBridge()
-  browserManager = new BrowserManager(
+  // ENH-191 P2 — createWindow-local consts (were module globals through P1).
+  // The in-createWindow reads + the 'closed' handler below capture these via
+  // closure; the registered WindowContext holds them for everything outside
+  // createWindow (resolved via liveBrowser()/liveCdp() -> registry.only()).
+  const cdpBridge = new CdpBridge()
+  const browserManager = new BrowserManager(
     mainWindow,
     cdpBridge,
     (state: BrowserState) => safeSend(IPC.BROWSER_STATE, state),
@@ -907,10 +919,9 @@ async function createWindow(): Promise<WindowContext> {
     // Per-window teardown — ALWAYS, idempotent per id. Detaches CDP then
     // disposes the BrowserManager (dispose() also calls cdp.detach(), which
     // is idempotent via its isAttached() guard — the extra detach no-ops).
-    windowTeardown.teardownWindow(winId, {
-      browserManager: browserManager ?? undefined,
-      cdpBridge: cdpBridge ?? undefined
-    })
+    // browserManager + cdpBridge are createWindow-local consts captured here
+    // (non-null since construction); the registered context holds them too.
+    windowTeardown.teardownWindow(winId, { browserManager, cdpBridge })
     // ENH-191 P1 — unsubscribe THIS window's claude-presence listener so a
     // dock-reopen (which re-subscribes in createWindow) doesn't accumulate a
     // listener per cycle. claudePresence.start() is already idempotent
@@ -925,11 +936,11 @@ async function createWindow(): Promise<WindowContext> {
     // scoped now, not re-created per window. App teardown lives ONLY in
     // before-quit. See ENH-191 P1 PRD / DECISIONS.md.
     mainWindow = null
-    browserManager = null
-    cdpBridge = null
-    // ENH-191 P2 — drop this window from the registry (idempotent; unregister
-    // no-ops if absent). At N=1 this empties the registry, so registry.only()
-    // is undefined until the next createWindow (dock-reopen).
+    // ENH-191 P2 — browserManager / cdpBridge are createWindow-local consts
+    // now (no module globals to null); unregistering the context drops the
+    // window's hold on them. Idempotent; unregister no-ops if absent. At N=1
+    // this empties the registry, so registry.only() is undefined until the
+    // next createWindow (dock-reopen).
     registry.unregister(winId)
   })
 
@@ -937,7 +948,7 @@ async function createWindow(): Promise<WindowContext> {
   // winId + mainWindow are both live here (the 'closed' handler above is only
   // attached, not fired). browserManager / cdpBridge / safeSend move into the
   // context in later seams; at N=1 registry.only() === this sole context.
-  const ctx: WindowContext = { id: winId, window: mainWindow }
+  const ctx: WindowContext = { id: winId, window: mainWindow, browserManager, cdpBridge }
   registry.register(ctx)
   return ctx
 }
@@ -1091,6 +1102,7 @@ app.whenReady().then(async () => {
         const isCanvasIframeForInspect = parameters.frameURL && parameters.frameURL.startsWith('about:srcdoc')
         const isMainRendererForInspect = mainWindow !== null && wc === mainWindow.webContents
         const isBrowserPane = !isMainRendererForInspect && !isCanvasIframeForInspect
+        const browserManager = liveBrowser()
         if (isBrowserPane && browserManager) {
           const bm = browserManager
           items.push({
@@ -1386,6 +1398,7 @@ function setupIPC(): void {
   // ── Browser ───────────────────────────────────────────────────────────────
 
   ipcMain.handle(IPC.BROWSER_NAVIGATE, async (_event, { url }: { url: string }) => {
+    const browserManager = liveBrowser()
     if (!browserManager) return { ok: false, error: 'BrowserManager not ready' }
     return browserManager.navigate(url)
   })
@@ -1397,9 +1410,10 @@ function setupIPC(): void {
   // renderer pushes its persisted value via BROWSER_MODE_SET; main
   // mirrors it onto browserManager.setBrowserMode.
   ipcMain.handle(IPC.BROWSER_MODE_GET, async (): Promise<{ mode: import('../shared/types').BrowserMode }> => {
-    return { mode: browserManager?.getBrowserMode() ?? 'local-only' }
+    return { mode: liveBrowser()?.getBrowserMode() ?? 'local-only' }
   })
   ipcMain.handle(IPC.BROWSER_MODE_SET, async (_event, { mode }: { mode: import('../shared/types').BrowserMode }) => {
+    const browserManager = liveBrowser()
     if (!browserManager) return { ok: false, error: 'BrowserManager not ready' }
     if (mode !== 'unfiltered' && mode !== 'filtered' && mode !== 'local-only') {
       return { ok: false, error: `Invalid browser mode: ${String(mode)}` }
@@ -1409,21 +1423,21 @@ function setupIPC(): void {
   })
 
   ipcMain.on(IPC.BROWSER_BACK, () => {
-    browserManager?.goBack()
+    liveBrowser()?.goBack()
   })
 
   ipcMain.on(IPC.BROWSER_FORWARD, () => {
-    browserManager?.goForward()
+    liveBrowser()?.goForward()
   })
 
   ipcMain.on(IPC.BROWSER_RELOAD, () => {
-    browserManager?.reload()
+    liveBrowser()?.reload()
   })
 
   // Renderer reports the pixel bounds of the browser content area whenever
   // the split moves or the window resizes. We reposition the WebContentsView.
   ipcMain.on(IPC.BROWSER_BOUNDS, (_event, bounds: BrowserBounds) => {
-    browserManager?.setBounds(bounds)
+    liveBrowser()?.setBounds(bounds)
   })
 
   // Phase 3c — renderer reports aux-pane bounds for the aux-pinned
@@ -1432,13 +1446,14 @@ function setupIPC(): void {
   // AuxBrowserSlot component on mount + ResizeObserver + window
   // resize + split divider drag.
   ipcMain.on(IPC.BROWSER_AUX_BOUNDS, (_event, bounds: BrowserBounds) => {
-    browserManager?.setAuxBounds(bounds)
+    liveBrowser()?.setAuxBounds(bounds)
   })
 
   // Phase 3c — renderer asks main to pin a browser tab into the aux
   // slot. Returns the pinned tab's url + title so the renderer can
   // render the aux header without a second round trip.
   ipcMain.handle(IPC.BROWSER_MOVE_TAB_TO_AUX, (_event, tabId: number) => {
+    const browserManager = liveBrowser()
     if (!browserManager) return { ok: false, error: 'BrowserManager not initialized' }
     return browserManager.moveTabToAux(tabId)
   })
@@ -1446,6 +1461,7 @@ function setupIPC(): void {
   // Phase 3c — renderer asks main to release the aux-pinned tab back
   // to the main strip. The released tab becomes main-strip active.
   ipcMain.handle(IPC.BROWSER_RELEASE_AUX_TAB, () => {
+    const browserManager = liveBrowser()
     if (!browserManager) return { ok: false, error: 'BrowserManager not initialized' }
     return browserManager.releaseAuxTab()
   })
@@ -1473,7 +1489,7 @@ function setupIPC(): void {
   // (e.g. browser-pane tab right-click menu). Main collapses the WCV to
   // 1×1 so the menu renders unobstructed; restores on `{ muted: false }`.
   ipcMain.on(IPC.BROWSER_OVERLAY_MUTED, (_event, payload: { muted: boolean }) => {
-    browserManager?.setOverlayMuted(payload.muted)
+    liveBrowser()?.setOverlayMuted(payload.muted)
   })
 
   // ENH-159b — element-inspect-mode toggle. Renderer calls this when the
@@ -1482,7 +1498,7 @@ function setupIPC(): void {
   // current state first. BrowserManager.setInspectMode pushes
   // BROWSER_INSPECT_MODE back to the renderer with the new state.
   ipcMain.on(IPC.BROWSER_INSPECT_SET_MODE, (_event, payload: { mode: boolean | 'toggle' }) => {
-    browserManager?.setInspectMode(payload.mode)
+    liveBrowser()?.setInspectMode(payload.mode)
   })
 
   // BUG-048 v3 — renderer-driven OS focus reclaim. The ⌘` toggle
@@ -1499,40 +1515,44 @@ function setupIPC(): void {
   // webContents.findInPage; results are pushed back via the
   // `found-in-page` event listener wired in BrowserManager.wireEvents.
   ipcMain.on(IPC.BROWSER_FIND_START, (_event, payload: { query: string; findNext?: boolean; forward?: boolean }) => {
-    browserManager?.findInPage(payload.query, {
+    liveBrowser()?.findInPage(payload.query, {
       findNext: payload.findNext,
       forward: payload.forward
     })
   })
   ipcMain.on(IPC.BROWSER_FIND_STOP, () => {
-    browserManager?.stopFindInPage()
+    liveBrowser()?.stopFindInPage()
   })
 
   ipcMain.handle(IPC.BROWSER_GET_STATE, () => {
-    return browserManager?.getState() ?? null
+    return liveBrowser()?.getState() ?? null
   })
 
   ipcMain.handle(IPC.BROWSER_GET_TABS, () => {
-    return browserManager?.getTabs() ?? []
+    return liveBrowser()?.getTabs() ?? []
   })
 
   ipcMain.handle(IPC.BROWSER_ADD_TAB, async (_event, { url }: { url?: string }) => {
+    const browserManager = liveBrowser()
     if (!browserManager) return { ok: false, id: -1, url: '', title: '' }
     return browserManager.openTab(url)
   })
 
   ipcMain.handle(IPC.BROWSER_SWITCH_TAB, async (_event, { id }: { id: number }) => {
+    const browserManager = liveBrowser()
     if (!browserManager) return { ok: false, error: 'BrowserManager not ready' }
     return browserManager.switchTab(id)
   })
 
   ipcMain.handle(IPC.BROWSER_CLOSE_TAB, async (_event, { id }: { id: number }) => {
+    const browserManager = liveBrowser()
     if (!browserManager) return { ok: false, error: 'BrowserManager not ready' }
     return browserManager.closeTab(id)
   })
 
   // BUG-027 — ⌘⇧T from browser focus pops the last-closed tab.
   ipcMain.handle(IPC.BROWSER_REOPEN_LAST_CLOSED, async () => {
+    const browserManager = liveBrowser()
     if (!browserManager) return { ok: false, reason: 'no-browser-manager' }
     return browserManager.reopenLastClosed()
   })
@@ -1543,7 +1563,7 @@ function setupIPC(): void {
   })
 
   ipcMain.on(IPC.BROWSER_FOCUS_ACTIVE, () => {
-    browserManager?.focusActive()
+    liveBrowser()?.focusActive()
   })
 
   // ── Files (Stage 10) ──────────────────────────────────────────────────────
@@ -2896,6 +2916,10 @@ async function applyNewSessionState(state: import('../shared/types').SessionStat
   // BrowserManager preserves CDP/closed-tabs/aux state correctly,
   // unlike dispose() which would also detach CDP and break the
   // reused BrowserManager.
+  // ENH-191 P2 — resolve this window's BrowserManager once; the deferred
+  // did-finish-load callback below captures it (BrowserManager is reused
+  // across a workspace switch, not re-created, so the captured ref stays valid).
+  const browserManager = liveBrowser()
   if (browserManager) {
     const currentTabs = [...browserManager.getTabs()]
     for (const tab of currentTabs.reverse()) {
@@ -3327,6 +3351,7 @@ export function openDevToolsForTarget(opts: {
     return { ok: true, target, opened: true }
   }
   if (target === 'browser-pane') {
+    const browserManager = liveBrowser()
     if (!browserManager) return { ok: false, error: 'browser manager not ready' }
     if (opts.close) {
       browserManager.closeDevTools()
@@ -3428,6 +3453,7 @@ export function splitViewOpenBrowser(browserTabId: number): { ok: boolean; error
   if (!mainWindow || mainWindow.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
+  const browserManager = liveBrowser()
   if (!browserManager) {
     return { ok: false, error: 'BrowserManager not initialized' }
   }
