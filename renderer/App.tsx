@@ -3987,7 +3987,7 @@ export function App() {
             onClick={() => setFocusedProject(null)}
             className="titlebar-nodrag inline-flex items-center gap-1 text-[11px] font-semibold text-accent bg-accent/10 hover:bg-accent/20 transition-colors rounded-full px-2 py-0.5 mr-1"
             title={`Focused on ${focusedProjectName} — click to show all projects`}
-            aria-label={`Release focus (${focusedProjectName})`}
+            aria-label="Release focus"
           >
             <span>Focused: {focusedProjectName}</span>
             <span aria-hidden="true" className="text-accent/70">×</span>
