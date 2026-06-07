@@ -227,7 +227,7 @@ const workingAuxSnapshotCache = new WindowKeyedCache<WorkingAuxSnapshot>(() => (
 // renderer. `duo send` writes payloads into this terminal's PTY.
 // `null` means no terminal tabs exist (degenerate state — `duo send`
 // surfaces an error).
-let activeTerminalId: string | null = null
+const activeTerminalIdCache = new WindowKeyedCache<string | null>(() => null)
 
 // ENH-013 — claude-presence probe. Polls the active terminal's PTY
 // process tree for a live `claude` descendant; broadcasts state
@@ -582,7 +582,7 @@ const installedPacksService = new InstalledPacksService()
 // Stage 9 — the menu's Cozy mode checkmark tracks the active tab.
 // The renderer is the source of truth; main caches the last pushed value
 // so the menu rebuild logic can read it synchronously.
-let cozyActiveTab = false
+const cozyActiveTabCache = new WindowKeyedCache<boolean>(() => false)
 let cozyMenuItemId: string | null = null
 
 // ENH-172 (Sprint 20) — the View → Show Hidden Files checkmark
@@ -759,8 +759,9 @@ async function createWindow(): Promise<WindowContext> {
     // The enrichment hook (sessionStateService below) gates UUID
     // capture on membership in this set; without it, S3 fires on
     // tabs that never actually ran Claude.
-    if ((state === 'claude' || state === 'starting') && activeTerminalId) {
-      tabsThatHostedClaude.add(activeTerminalId)
+    const activeId = activeTerminalIdCache.getDefault(registry)
+    if ((state === 'claude' || state === 'starting') && activeId) {
+      tabsThatHostedClaude.add(activeId)
     }
     safeSend(IPC.TERMINAL_CLAUDE_PRESENCE_CHANGED, state)
     const live = state === 'claude' || state === 'starting'
@@ -2256,7 +2257,7 @@ function setupIPC(): void {
   // ENH-013 \u2014 the payload also carries `kind` so the claude-presence
   // probe can arm its starting-grace window for kind=='claude' tabs.
   ipcMain.on(IPC.TERMINAL_ACTIVE_PUSH, (_event, payload: { id: string | null; kind: 'claude' | 'shell' | null }) => {
-    activeTerminalId = payload.id
+    activeTerminalIdCache.set(defaultWindowId(registry), payload.id)
     const pid = payload.id ? ptyManager.getPid(payload.id) : null
     claudePresence.setTarget({ pid, kind: payload.kind })
   })
@@ -2283,7 +2284,7 @@ function setupIPC(): void {
   // stays in sync as the user switches tabs or toggles.
 
   ipcMain.on(IPC.COZY_STATE_PUSH, (_event, cozy: boolean) => {
-    cozyActiveTab = cozy
+    cozyActiveTabCache.set(defaultWindowId(registry), cozy)
     const menu = Menu.getApplicationMenu()
     if (!menu || !cozyMenuItemId) return
     const item = menu.getMenuItemById(cozyMenuItemId)
@@ -2475,7 +2476,7 @@ function installAppMenu(): void {
           id: cozyMenuItemId,
           label: 'Cozy mode — current tab',
           type: 'checkbox',
-          checked: cozyActiveTab,
+          checked: cozyActiveTabCache.getDefault(registry),
           click: () => {
             // Renderer flips authoritative state, then echoes back via
             // COZY_STATE_PUSH so the checkmark tracks the truth.
@@ -3090,7 +3091,8 @@ export async function newWorkspaceReset(opts: { skipPrompt?: boolean } = {}): Pr
   const idx = state.activeTerminalIndex
   if (idx >= 0 && idx < state.terminals.length) {
     const spawnCwd = state.terminals[idx].cwd
-    const pid = activeTerminalId ? ptyManager.getPid(activeTerminalId) : null
+    const activeId = activeTerminalIdCache.getDefault(registry)
+    const pid = activeId ? ptyManager.getPid(activeId) : null
     const liveCwd = pid ? getLiveCwdForPid(pid) : null
     frontCwd = liveCwd ?? spawnCwd
   }
@@ -3917,12 +3919,13 @@ export function sendToActiveTerminal(text: string): { ok: boolean; written?: num
   if (typeof text !== 'string') {
     return { ok: false, error: 'send requires a string text payload' }
   }
-  if (activeTerminalId === null) {
+  const activeId = activeTerminalIdCache.getDefault(registry)
+  if (activeId === null) {
     return { ok: false, error: 'No active terminal — open one and try again' }
   }
   try {
-    ptyManager.write(activeTerminalId, text)
-    return { ok: true, written: text.length, terminalId: activeTerminalId }
+    ptyManager.write(activeId, text)
+    return { ok: true, written: text.length, terminalId: activeId }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
