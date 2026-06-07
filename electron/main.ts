@@ -1447,8 +1447,11 @@ function setupIPC(): void {
 
   // ── PTY ──────────────────────────────────────────────────────────────────
 
-  ipcMain.handle(IPC.PTY_CREATE, (_event, { id, shell, cwd }: { id: string; shell?: string; cwd?: string }) => {
-    ptyManager.create(id, shell, cwd)
+  ipcMain.handle(IPC.PTY_CREATE, (event, { id, shell, cwd }: { id: string; shell?: string; cwd?: string }) => {
+    // ENH-191 P3-S4 — the owning window is the one whose renderer requested the
+    // PTY (event.sender). DUO_WINDOW stamp is dormant; S5/S6/S7 use the owner.
+    const ownerId = BrowserWindow.fromWebContents(event.sender)?.id ?? -1
+    ptyManager.create(id, shell, cwd, ownerId)
   })
 
   ipcMain.handle(IPC.PTY_WRITE, (_event, { id, data }: { id: string; data: string }) => {

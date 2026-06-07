@@ -10,6 +10,11 @@ interface Session {
   /** ENH-183 C9 — track cwd so main-side trigger paths (T2/T3) can
    *  match enriched-state terminals back to live tab ids. */
   cwd: string
+  /** ENH-191 P3-S4 — the window that owns this PTY (whose terminal spawned
+   *  it). Routes PTY_DATA/EXIT to the owner (S5), scopes disposeForWindow (S6)
+   *  + owner-filters listIdsByCwd (S7). -1 == no resolved owner (falls back to
+   *  the sole window). */
+  ownerWindowId: number
 }
 
 export class PtyManager {
@@ -28,7 +33,7 @@ export class PtyManager {
     this.eventSink = sink
   }
 
-  create(id: string, shell: string = DEFAULT_SHELL, cwd: string = DEFAULT_CWD): void {
+  create(id: string, shell: string = DEFAULT_SHELL, cwd: string = DEFAULT_CWD, ownerWindowId = -1): void {
     if (this.sessions.has(id)) return
     // A re-create for this id means it's live again, not exited.
     this.exited.delete(id)
@@ -54,6 +59,9 @@ export class PtyManager {
       PATH: `${SHIM_DIR}:${userPath}`,
       DUO_SESSION: '1',
       DUO_SOCKET: SOCKET_PATH,
+      // ENH-191 P3-S4 — DORMANT window stamp: the owning window's id, set but
+      // NOT consumed yet (CLI default-resolution is P5; a reverted CLI ignores it).
+      DUO_WINDOW: String(ownerWindowId),
       DUO_VERSION: this.appVersion,
       TERM_PROGRAM: 'Duo'
     }
@@ -83,7 +91,7 @@ export class PtyManager {
       this.exited.add(id) // BUG-191 — remember it died (vs never-spawned)
     })
 
-    this.sessions.set(id, { id, pty: ptyProcess, cwd: resolvedCwd })
+    this.sessions.set(id, { id, pty: ptyProcess, cwd: resolvedCwd, ownerWindowId })
 
     if (substituted) {
       // Tell the user why the shell didn't open where the tab expected.
