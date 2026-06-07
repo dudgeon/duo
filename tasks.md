@@ -82,7 +82,7 @@
 
 ### ENH-198: Agent-native track-changes for markdown — write CriticMarkup, not `<ins>` tags
 
-**Status:** 🆕 **Filed 2026-06-06 — owner, on the v0.9.1-rev2 walk OTHER NOTES.** **Priority:** Medium. **Effort:** S–M.
+**Status:** ⏳ **Open — BLOCKED on PR #74** (the "ENH-203 duo skill overhaul", branch `claude/mystifying-meitner-0c854f`, +3841/−2957), which rewrites every ENH-198 target surface (`skill/SKILL.md`, `agents/duo.md`, `cli/duo.ts`, `CLAUDE.md`, `docs/CLI-COVERAGE.md`). **Confirmed 2026-06-07:** PR #74 re-documents the `duo doc` verbs but does NOT add the negative steer ("never write `<ins>`/`<del>` HTML"), so ENH-198 is still needed — apply the steer to PR #74's NEW skill structure (its "Markdown editor — read, write, track-changes" section) **after #74 merges**; do NOT edit those surfaces before then (instant conflict). Originally 🆕 Filed 2026-06-06 (owner, v0.9.1-rev2 walk). **Priority:** Medium. **Effort:** S (guidance-only — the CriticMarkup verbs already ship).
 
 **Why it surfaced.** Owner told an agent (in a terminal) to "use track changes to modify an .md" → the agent wrote literal `<ins>…</ins>` HTML tags into `/tmp/walk-viewdiff-rev2.md` (a naive interpretation). Those do NOT render as Duo's accept/rejectable tracked changes — the editor's tracked-changes format is **CriticMarkup**, which it already parses. The agent simply didn't know the duo-native format.
 
@@ -132,9 +132,9 @@
 
 ---
 
-### ENH-203: Clean-buffer "Save to recreate it" is a no-op — force-write on file-removed (all 3 surfaces)
+### ENH-206: Clean-buffer "Save to recreate it" is a no-op — force-write on file-removed (all 3 surfaces)
 
-**Status:** 🆕 **Filed 2026-06-06 — follow-on from ENH-113** (canvas/JSON file-removed parity). **Priority:** Low. **Effort:** S–M.
+**Status:** 🆕 **Filed 2026-06-06 — follow-on from ENH-113** (canvas/JSON file-removed parity). **Priority:** Low. **Effort:** S–M. *(Renumbered ENH-203 → ENH-206 on 2026-06-07 — yields 203 to PR #74's ENH-203 "duo skill overhaul" to avoid a cross-branch collision.)*
 
 **Why.** The "removed on disk" strip (ENH-113 / ENH-195 B4) tells the user *"Save to recreate it"*, but when the buffer is **clean**, `save()` early-returns (`htmlChanged === false` / not dirty) and never writes — so a plain Save is a no-op and does NOT recreate the deleted file; the user must dirty the buffer first. Faithfully mirrored across all three editing surfaces, so the copy is misleading on each. Surfaced by the ENH-113 4-lens adversarial review.
 
@@ -1260,7 +1260,7 @@ Parity disposition **(a) Mirrored**. Durable coverage: hook-level regression tes
 
 **Superseded design (the original 2026-05-07 ask).** The original entry proposed (1) auto-closing clean tabs + (2) a recover/close affordance, via a new `IPC.FILES_DELETED` broadcast + an `App.tsx` fileTab scan. The shipped approach is simpler — a passive per-tab strip on ENH-195's existing per-file watcher: **no new IPC channel, no auto-close**. **Auto-close-on-clean was NOT built** (a clean tab whose file is deleted shows the strip rather than closing itself). If the owner still wants clean tabs to auto-close on delete, that's a fresh ENH — flagged here so it isn't silently dropped.
 
-**Follow-up.** [ENH-203](#enh-203) — "Save to recreate it" is a no-op on a clean buffer (save early-returns); force-write on `fileRemoved` across all 3 surfaces.
+**Follow-up.** [ENH-206](#enh-206) — "Save to recreate it" is a no-op on a clean buffer (save early-returns); force-write on `fileRemoved` across all 3 surfaces.
 
 **Cross-ref:** Surfaced during ENH-091 walk-1 — owner reset the test file with `rm -f /tmp/enh091-fresh.html`, then re-`duo edit`'d, and the failed ENOENT showed the autosave-against-deleted-file path is currently silent.
 
