@@ -2,22 +2,27 @@
 // safe-send.ts) so the teardown-once / no-double-stop invariants are
 // unit-testable without Electron.
 //
-// Today main.ts's single `closed` handler tears down BOTH the closing
+// Before P1, main.ts's single `closed` handler tore down BOTH the closing
 // window's per-window resources AND the app-scoped singletons (socket,
-// external-domains) on ANY close. Under multi-window that's wrong: closing
-// one of two windows must NOT stop the shared socket. P1 splits the handler
-// to call:
-//   - teardownWindow(id, res)  — ALWAYS, for the closing window.
-//   - teardownApp(services)    — ONLY on last-window-close OR before-quit.
+// external-domains) on ANY close. P1 split that into:
+//   - teardownWindow(id, res)  — on EVERY window close (cdp.detach +
+//       browserManager.dispose), idempotent per window id.
+//   - teardownApp(services)    — app-scoped stop (socket.stop +
+//       external.dispose), called ONLY from before-quit. The wired `closed`
+//       handler NEVER calls it: on macOS a last-window-close is NOT a quit
+//       (window-all-closed no-ops; the user dock-reopens via app.activate →
+//       createWindow), so the socket must stay UP across a window close.
 //
-// This module guarantees the two safety properties that the BUG-190
-// quit-loop class depends on:
+// This module guarantees the two safety properties the BUG-190 quit-loop
+// class depends on:
 //   1. per-window teardown is idempotent per window (a stray second close
 //      can't double-dispose), and
-//   2. app teardown runs EXACTLY ONCE across the lifecycle — a `closed` of
-//      the last window followed by `before-quit` must not double-stop the
-//      socket.
-// NOT wired into main.ts yet — P0 ships the module + harness; P1 wires it.
+//   2. app teardown runs EXACTLY ONCE across the lifecycle — the appTornDown
+//      latch makes a second teardownApp call a no-op (order-independent),
+//      defending a hypothetical re-entry such as a non-darwin
+//      window-all-closed→quit that also reaches it.
+// Wired into main.ts at P1: closed handler → teardownWindow; before-quit →
+// teardownApp.
 
 /** The closing window's per-window resources (duck-typed; the real
  *  BrowserManager / CdpBridge land in P2). Both optional so the orchestrator
