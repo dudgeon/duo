@@ -213,6 +213,13 @@ export function JsonView({ path, onDirtyChange, isActive }: JsonViewProps) {
   // markdown normalizer; JSON has no cosmetic round-trip noise to
   // tolerate). readDiskBody is identity (no frontmatter). Ready once the
   // load settles to a non-loading state.
+  //
+  // ENH-113 / ENH-195 B4 — "file removed on disk" strip (parity with the
+  // markdown editor; the JSON half of ENH-113). Renders above the conflict
+  // banner in the post-load view modes (tree / source / too-large / parse-error);
+  // the loading + read-error early-returns show their own panel, and a delete
+  // never drives load.status there, so the strip can't be hidden by one.
+  const [fileRemoved, setFileRemoved] = useState(false)
   const recon = useDiskReconciliation({
     path,
     isNew: false,
@@ -224,6 +231,7 @@ export function JsonView({ path, onDirtyChange, isActive }: JsonViewProps) {
     isDirty: (live, base) => live !== base,
     echoEqual: (a, b) => a === b,
     onDirtyChange: (d) => setDirty(d),
+    onFileRemoved: setFileRemoved,   // ENH-113 — surface the "removed on disk" strip (JSON parity)
     rebaselineAfterReload: true,
     triggerSave: () => { void saveRef.current() },
     appVersion: window.electron?.env?.appVersion ?? '?.?.?',
@@ -650,6 +658,13 @@ export function JsonView({ path, onDirtyChange, isActive }: JsonViewProps) {
         </div>
       </div>
 
+      {/* ENH-113 / ENH-195 B4 — file deleted on disk; the buffer is preserved
+          (save recreates it). Mirrors MarkdownEditor.tsx:2367. */}
+      {fileRemoved && (
+        <div className="shrink-0 px-3 py-1.5 text-[11px] border-b border-red-900/40 bg-red-950/20 text-red-300">
+          This file was removed on disk. Save to recreate it.
+        </div>
+      )}
       {/* ENH-195 — "changed on disk" reconciliation banner (shared hook).
           Same amber treatment + Reload / Keep-mine affordances as the
           markdown editor. */}

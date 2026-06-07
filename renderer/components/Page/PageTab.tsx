@@ -411,6 +411,13 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, pillLabel, onPlaygro
   // Hoisted above the hook; `saveRef.current = save` is set once `save` exists.
   const saveRef = useRef<() => void>(() => {})
 
+  // ENH-113 / ENH-195 B4 — "file removed on disk" strip. Parity with the
+  // markdown editor (the canvas half of ENH-113): the shared hook fires
+  // onFileRemoved(true) on a 'removed' watcher event and false on the next
+  // successful read. The strip renders in PageTab's React shell, OUTSIDE the
+  // reloadKey iframe remount, so it survives a reload.
+  const [fileRemoved, setFileRemoved] = useState(false)
+
   // ENH-195 D5 — the shared editor↔disk reconciliation primitive. Owns the
   // chokidar watcher, the echo gauntlet, the byte-exact baseline (the canvas
   // never had one before — A2), save-pre-reconcile, and the "changed on disk"
@@ -435,6 +442,7 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, pillLabel, onPlaygro
     // for the clean-write false-positive (serialized always carries injected ids).
     shouldBannerOnClean: (lastSeenDisk, disk) => externalStrippedDuoIds(lastSeenDisk, disk),
     onDirtyChange: (d) => setDirty(d),       // clean reload → drop the dirty dot; Keep-mine → re-arm it
+    onFileRemoved: setFileRemoved,           // ENH-113 — surface the "removed on disk" strip (canvas parity)
     rebaselineAfterReload: false,            // canvas reload is ASYNC (iframe remount) — re-baseline from handleReady
     triggerSave: () => { void saveRef.current() },
     appVersion: window.electron?.env?.appVersion ?? '?.?.?',
@@ -1804,6 +1812,13 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, pillLabel, onPlaygro
       {error && (
         <div className="shrink-0 px-10 py-2 text-xs text-red-400 border-b border-red-900/40 bg-red-950/20">
           {error}
+        </div>
+      )}
+      {/* ENH-113 / ENH-195 B4 — file deleted on disk; the canvas buffer is
+          preserved (save recreates it). Mirrors MarkdownEditor.tsx:2367. */}
+      {fileRemoved && (
+        <div className="shrink-0 px-10 py-1.5 text-[11px] border-b border-red-900/40 bg-red-950/20 text-red-300">
+          This file was removed on disk. Save to recreate it.
         </div>
       )}
       {recon.externalConflict && (

@@ -108,6 +108,18 @@
 
 ---
 
+### ENH-203: Clean-buffer "Save to recreate it" is a no-op — force-write on file-removed (all 3 surfaces)
+
+**Status:** 🆕 **Filed 2026-06-06 — follow-on from ENH-113** (canvas/JSON file-removed parity). **Priority:** Low. **Effort:** S–M.
+
+**Why.** The "removed on disk" strip (ENH-113 / ENH-195 B4) tells the user *"Save to recreate it"*, but when the buffer is **clean**, `save()` early-returns (`htmlChanged === false` / not dirty) and never writes — so a plain Save is a no-op and does NOT recreate the deleted file; the user must dirty the buffer first. Faithfully mirrored across all three editing surfaces, so the copy is misleading on each. Surfaced by the ENH-113 4-lens adversarial review.
+
+**Ask.** Make Save force-write the current buffer when `fileRemoved` is true even on a clean buffer (so "Save to recreate it" is literally true), applied to all three surfaces in lockstep via the shared pattern.
+
+**Cross-refs.** [ENH-113](#enh-113), [ENH-195](#enh-195) B4, `renderer/components/Page/PageTab.tsx` (`save()` early-return ~L640), `renderer/components/editor/MarkdownEditor.tsx` (~L1072), `renderer/components/Json/JsonView.tsx`.
+
+---
+
 ### BUG-197: Navigator rail-peek commits on a whitespace click but NOT on a file/folder click
 
 **Status:** 🆕 **Filed 2026-06-06 — owner, on the v0.9.1 smoke-walk (ENH-190).** **Priority:** Medium (the documented commit gesture is partly broken). **Effort:** S–M.
@@ -1206,23 +1218,23 @@ Rationale:
 
 ---
 
-### ENH-113: Tab should detect file deletion and close-with-alert
+### ENH-113: Tab detects file deletion → "removed on disk" strip (all 3 editing surfaces)
 
-**Status:** 🆕 Filed 2026-05-07 (Sprint 9 walk-1, owner ENH idea). **Priority:** **Low–Medium** — UX paper cut. Active editor tabs become orphaned views of disk state when the file is deleted out from under them; typing into the buffer continues but autosave starts erroring or recreates the file silently. **Filed:** 2026-05-07.
+**Status:** ✅ **Shipped — markdown v0.9.0 (ENH-195 B4); canvas + JSON 2026-06-06 (this change).** **Priority:** Low–Medium (UX paper cut). **Filed:** 2026-05-07 (Sprint 9 walk-1, owner ENH idea). Pending archive-sweep to tasks-archive.md.
 
-**What's wanted.** When a file with an active tab is deleted (e.g. `rm -f /tmp/foo.md` from any terminal, or any other process), Duo should detect the deletion via the file watcher and either:
+**What shipped (the passive-strip resolution).** When a file open in an editing tab is deleted on disk (`rm` from a terminal, or any other process), the surface shows a red strip — *"This file was removed on disk. Save to recreate it."* — instead of silently orphaning the buffer. The buffer is preserved; the strip clears automatically when the file reappears (next successful read → `onFileRemoved(false)`). Driven entirely by the shared `useDiskReconciliation` hook's `onFileRemoved` callback (`renderer/hooks/useDiskReconciliation.ts:111` + the `removed` watcher branch at :309–317), wired into all three editing surfaces:
 
-1. Close the tab automatically with a brief banner ("`foo.md` was deleted from disk; closed."), OR
-2. Mark the tab visually as "orphaned" + offer a button to recover (re-save the in-memory buffer to the original path) or close.
+- **markdown** — `MarkdownEditor.tsx` (shipped v0.9.0 under ENH-195 B4).
+- **canvas** — `PageTab.tsx` (this change; the strip renders in the React shell, OUTSIDE the `reloadKey` iframe remount, so a reload can't reset it).
+- **JSON/YAML** — `JsonView.tsx` (this change; renders in the always-on chrome above the conflict banner, in every post-load view mode).
 
-Recommended: option 1 for clean state + option 2 for dirty state — clean buffer = nothing to lose, just close; dirty buffer = preserve the work behind a banner.
+Parity disposition **(a) Mirrored**. Durable coverage: hook-level regression test (`renderer/hooks/useDiskReconciliation.test.ts` § "file removed on disk (B4 · ENH-113)" — `onFileRemoved` had ZERO coverage before). 938 tests + both typecheckers clean; 4-lens adversarial parity review (all ship). **Live-verified on the dev build (2026-06-06):** delete → strip appears on canvas + JSON; recreate → clears (count-delta DOM probe).
 
-**Affected code.**
+**Read-only viewers — out of scope by design.** The image + PDF viewers consume the same hook but deliberately keep the last-loaded frame on delete rather than showing the strip (`ImageView.tsx`, `FileRenderers.tsx` PdfPreview) — there's no editable buffer to "save to recreate". Clarified in `docs/prd/enh-195-disk-sync-conflict-resolution.md` § 3.5.
 
-- `electron/files-service.ts § watch` already runs chokidar on the navigator's CWD; it emits unlink events.
-- `renderer/App.tsx` listens to navigator state pushes and could subscribe to a `file-deleted` channel.
-- New IPC channel `IPC.FILES_DELETED` (broadcast on chokidar unlink for any watched path).
-- Renderer-side handler in App.tsx: scan fileTabs for matching path; for clean tabs, closeFileTab; for dirty tabs, mark with a `deletedFromDisk: true` flag + render the banner.
+**Superseded design (the original 2026-05-07 ask).** The original entry proposed (1) auto-closing clean tabs + (2) a recover/close affordance, via a new `IPC.FILES_DELETED` broadcast + an `App.tsx` fileTab scan. The shipped approach is simpler — a passive per-tab strip on ENH-195's existing per-file watcher: **no new IPC channel, no auto-close**. **Auto-close-on-clean was NOT built** (a clean tab whose file is deleted shows the strip rather than closing itself). If the owner still wants clean tabs to auto-close on delete, that's a fresh ENH — flagged here so it isn't silently dropped.
+
+**Follow-up.** [ENH-203](#enh-203) — "Save to recreate it" is a no-op on a clean buffer (save early-returns); force-write on `fileRemoved` across all 3 surfaces.
 
 **Cross-ref:** Surfaced during ENH-091 walk-1 — owner reset the test file with `rm -f /tmp/enh091-fresh.html`, then re-`duo edit`'d, and the failed ENOENT showed the autosave-against-deleted-file path is currently silent.
 

@@ -132,8 +132,11 @@ with three actions:
 
 The markdown editor, HTML canvas, **and** the JSON/YAML, image, and PDF viewers
 watch their open file and refresh on external change. A post-attach catch-up
-read closes the load↔watch race; rename/delete is surfaced (a "removed on disk"
-affordance), not a crash.
+read closes the load↔watch race; rename/delete is surfaced, not a crash. The
+"removed on disk — save to recreate it" strip is shown on the three **editing**
+surfaces only (markdown shipped v0.9.0; canvas + JSON/YAML under ENH-113 via the
+shared `onFileRemoved` callback). The read-only image and PDF viewers meet the
+weaker contract — they keep the last-loaded frame on delete rather than crashing.
 
 ## 4. Functional requirements
 
