@@ -1,11 +1,22 @@
 # BUG-093 PRD — Move-tab-to-Split-View renderer crash (un-batched setState cascade)
 
-> **Status:** confirmed-open, fix not yet applied. v0.6.7 landed only
-> *instrumentation* (the `[BUG-093]` console traces + an inline `ErrorBoundary`
-> around `<WorkingPane>`); the suspect logic is unchanged. FOLLOWUP-013
-> (Sprint 16) could not reproduce the crash via synthetic CLI `KeyboardEvent`s,
-> so it carried forward. This PRD specifies the **fix**, gated on a real-keystroke
-> repro.
+> **Status:** ✅ **FIXED (`flushSync`, 2026-06-07, branch `claude/amazing-goodall-39846b`).**
+> The D1 `flushSync` swap-batching is applied (App.tsx § `splitViewMoveTabByPath`).
+> **The crash does NOT reproduce on current code** — driven live on the dev
+> Electron with **real keystrokes** across three variants (empty-aux,
+> occupied-aux/promote, comment-rail); no ErrorBoundary fired in any, and the
+> `/hit a render error/` DOM probe was `false` every time. Two guards that
+> landed *after* the bug was filed mask it: PageTab clears its autosave timer on
+> unmount (PageTab.tsx:506/705/723/1520), and WorkingPane already falls back
+> when `activeWorking` points at a just-removed tab (WorkingPane:696). The D1a
+> "repro-before-ship" gate below therefore could not be met; **the owner
+> approved applying `flushSync` as structural hardening anyway** (it removes the
+> latent un-batched-`setState`-across-`await` cascade so no inconsistent
+> intermediate render is ever painted). Instrumentation + inline `ErrorBoundary`
+> retained. 939 tests + both typecheckers green; live no-regression verified.
+> *(Note: the "⌘\\" references below are stale — the chord became **⌘/** in
+> BUG-075; and ⌘/ does not currently forward from the canvas iframe, filed
+> separately.)*
 > **References:**
 > - **Bug entry:** [`tasks.md` § BUG-093](../../tasks.md) (symptom, three
 >   structural-issues audit, three deferred fix candidates).

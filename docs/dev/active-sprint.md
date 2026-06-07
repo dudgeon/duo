@@ -32,11 +32,11 @@ Open backlog after the sweep: **45 entries** in [`tasks.md`](../../tasks.md) (ha
 the `sprint-plan` skill). Cut target is the owner's call — likely a v0.9.x PATCH once the
 S-cluster lands.
 
-**Implementation status (2026-06-07, branch `claude/amazing-goodall-39846b`):** 6 of 8 built.
+**Implementation status (2026-06-07, branch `claude/amazing-goodall-39846b`):** 7 of 8 done (BUG-100 owner-smoke owed; ENH-198 handed to PR #74).
 - ✅ **Verified live:** BUG-197 (DOM proof) · FOLLOWUP-031 (regression test) · FOLLOWUP-033 (boot-window catch) · FOLLOWUP-036 (a11y) · BUG-157 (browser smoke).
 - 🟡 **Built, owner smoke-walk owed:** BUG-100 (aux Send→Duo pill — typecheck-clean; needs a live-Claude + aux text-selection to confirm the pill, which I can't drive without computer-use on the dev Electron).
 - ↗ **Handed off:** ENH-198 → PR #74 via comment (the "ENH-203 skill overhaul" owns skill/SKILL.md, agents/duo.md, cli/duo.ts, CLAUDE.md, CLI-COVERAGE — editing them here would conflict).
-- ⛔ **Not started:** BUG-093 (Move-to-Split-View crash) — its PRD requires a computer-use crash repro before the `flushSync` fix; can't be driven on the dev Electron, so left for a session where the repro is available. Also filed this session: **ENH-205** (the real per-tab MaxListeners leak — 10 channels, found while verifying FOLLOWUP-031). My ENH-203 (clean-buffer save) renumbered → **ENH-206** to yield 203 to PR #74.
+- ✅ **Fixed (2026-06-07):** BUG-093 (Move-to-Split-View crash) — computer-use CAN reach the dev Electron after all (request_access via the **bundle id `com.github.Electron`**, not the display name "Electron"). Drove 3 real-keystroke repro variants (empty-aux · occupied-aux/promote · comment-rail) → **none crashed** (the autosave-timer unmount cleanup + WorkingPane's `activeWorking` fallback already mask it). Applied the D1 `flushSync` swap-batching as structural hardening (owner-approved); 939 tests green + live no-regression verified. **BUG-100 is now drivable by me too** (computer-use works) — owner-smoke no longer strictly required. Also filed this session: **ENH-205** (the real per-tab MaxListeners leak — 10 channels, found while verifying FOLLOWUP-031). My ENH-203 (clean-buffer save) renumbered → **ENH-206** to yield 203 to PR #74.
 
 > **This doc owns current-sprint scope.** [`RESUME.md`](RESUME.md) is the
 > cold-start orientation (durable guardrails + state-at-a-glance) and links here
