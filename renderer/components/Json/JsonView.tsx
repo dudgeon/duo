@@ -97,6 +97,9 @@ interface JsonViewProps {
    *  user-facing viewer responds (same race guard as MarkdownEditor's
    *  onImageInsert / PageTab). */
   isActive?: boolean
+  /** ENH-113 — close this tab. Wired to the "file removed on disk" strip's
+   *  Close button so an orphaned JSON tab can be dismissed. */
+  onCloseTab?: () => void
 }
 
 interface LoadState {
@@ -113,7 +116,7 @@ interface LoadState {
   readError?: string
 }
 
-export function JsonView({ path, onDirtyChange, isActive }: JsonViewProps) {
+export function JsonView({ path, onDirtyChange, isActive, onCloseTab }: JsonViewProps) {
   const format: JsonFormat = useMemo(() => formatFromPath(path), [path])
   const [load, setLoad] = useState<LoadState>({ status: 'loading' })
   const [viewMode, setViewMode] = useState<ViewMode>('tree')
@@ -661,8 +664,17 @@ export function JsonView({ path, onDirtyChange, isActive }: JsonViewProps) {
       {/* ENH-113 / ENH-195 B4 — file deleted on disk; the buffer is preserved
           (save recreates it). Mirrors MarkdownEditor.tsx:2367. */}
       {fileRemoved && (
-        <div className="shrink-0 px-3 py-1.5 text-[11px] border-b border-red-900/40 bg-red-950/20 text-red-300">
-          This file was removed on disk. Save to recreate it.
+        <div className="shrink-0 px-3 py-1.5 text-[11px] border-b border-red-900/40 bg-red-950/20 text-red-300 flex items-center gap-3">
+          <span className="flex-1">This file was removed on disk. Save to recreate it.</span>
+          {onCloseTab && (
+            <button
+              type="button"
+              onClick={onCloseTab}
+              className="shrink-0 px-2 py-0.5 rounded border border-red-800/60 hover:border-red-700 hover:bg-red-900/30"
+            >
+              Close tab
+            </button>
+          )}
         </div>
       )}
       {/* ENH-195 — "changed on disk" reconciliation banner (shared hook).

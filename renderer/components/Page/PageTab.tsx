@@ -122,6 +122,9 @@ interface Props {
    *  clicking the canvas while terminal had focus leaves
    *  `focusedColumn` stuck. */
   onUserInteract?: () => void
+  /** ENH-113 — close this tab. Wired to the "file removed on disk" strip's
+   *  Close button so an orphaned canvas tab can be dismissed. */
+  onCloseTab?: () => void
 }
 
 const AUTOSAVE_DEBOUNCE_MS = 800
@@ -318,7 +321,7 @@ function writeReadOnlyOverride(absPath: string, readOnly: boolean): void {
   } catch { /* private browsing / storage quota — drop silently */ }
 }
 
-export function PageTab({ path, onDirtyChange, onSendToDuo, pillLabel, onPlaygroundAction, homeDir, focused = false, isActive = false, onUserInteract }: Props) {
+export function PageTab({ path, onDirtyChange, onSendToDuo, pillLabel, onPlaygroundAction, homeDir, focused = false, isActive = false, onUserInteract, onCloseTab }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [initialHtml, setInitialHtml] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -1817,8 +1820,17 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, pillLabel, onPlaygro
       {/* ENH-113 / ENH-195 B4 — file deleted on disk; the canvas buffer is
           preserved (save recreates it). Mirrors MarkdownEditor.tsx:2367. */}
       {fileRemoved && (
-        <div className="shrink-0 px-10 py-1.5 text-[11px] border-b border-red-900/40 bg-red-950/20 text-red-300">
-          This file was removed on disk. Save to recreate it.
+        <div className="shrink-0 px-10 py-1.5 text-[11px] border-b border-red-900/40 bg-red-950/20 text-red-300 flex items-center gap-3">
+          <span className="flex-1">This file was removed on disk. Save to recreate it.</span>
+          {onCloseTab && (
+            <button
+              type="button"
+              onClick={onCloseTab}
+              className="shrink-0 px-2 py-0.5 rounded border border-red-800/60 hover:border-red-700 hover:bg-red-900/30"
+            >
+              Close tab
+            </button>
+          )}
         </div>
       )}
       {recon.externalConflict && (
