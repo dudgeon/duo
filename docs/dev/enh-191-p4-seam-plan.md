@@ -40,6 +40,15 @@
 ## Gate (run INSIDE the worktree; vitest excludes `.claude/worktrees/**` from the primary root)
 `cd /Users/geoffreydudgeon/Documents/GitHub/duo/.claude/worktrees/enh-191 && npm run typecheck && npm run check:routing && npm run test:run`
 
+> ⚠️ **ALWAYS prefix every gate/git command with the `cd <worktree>` above — do
+> NOT trust the persistent Bash cwd.** It silently drifted to the MAIN repo once
+> this session (2026-06-07), so build:cli + typecheck + routing + skill-currency
+> + test:run all ran against `main` and reported a FALSE-GREEN (1045 tests / 64
+> files — main's count, missing the P4/P5a test files). Tell-tale: test count
+> drops to 1045/64 or `check:skill-currency` shows 64 verbs (worktree = 1081/68,
+> 65 verbs incl. `window`). If in doubt, `pwd` first. No damage occurred (gates
+> are read-only; build:cli is deterministic) but the green was meaningless.
+
 ## P4 seams
 
 ### [x] Seam 1 — `core/session-envelope.ts` (pure, dead code) — DONE (`483031b`)
@@ -127,21 +136,23 @@ survives flat→envelope. Confirm `auxTabId` round-trips per window.
 - **[x] S3b — menu entry points** — DONE (`c61ecb2`): File → "New Window" (`⌥⌘N`) +
   Settings → "Allow Multiple Windows" toggle. **Behavior-changing** (clicking opens
   window 2) → needs the two-window smoke-walk; NOT autonomously verifiable.
-- **[ ] S3c — `duo window new` verb (4-surface)** — NEXT: menu/CLI parity (CLAUDE.md §4).
-  socket-server `window` case → bridge → `openNewWindow`; `DuoCommandName` += `window`;
-  `cli/duo.ts` verb + help + `npm run build:cli`; skill/SKILL.md + agents/duo.md +
-  docs/CLI-COVERAGE.md + `check:skill-currency` (absorbs old S7). `--cwd` optional.
-- **[ ] S4 — windowId on the wire**: `windowId?` on `DuoRequest` + `cli/duo.ts`
-  threading; consume the dormant `DUO_WINDOW` PTY stamp (resolution order:
-  `--window` > `DUO_WINDOW` > focused fallback); `SocketServer.handle` resolves
-  windowId→context (clean `no such window: N` error).
+- **[x] S3c — `duo window new` verb (4-surface)** — DONE (`9229b15`): menu/CLI parity
+  (CLAUDE.md §4). socket-server `window` case → `NavBridge.openWindow` → `openNewWindow`;
+  `DuoCommandName` += `window`; `cli/duo.ts` verb + `VERBS[]` + rebuilt binary;
+  cli-reference.md + agents/duo.md + docs/CLI-COVERAGE.md rows + checker SUBCOMMANDS.
+  `check:skill-currency --strict` PASS (65 verbs). `--cwd <path>` NOT yet wired
+  (optional; deferred — a new window opens at the default cwd). **sync:claude NOT
+  run** (would push branch-ahead verb docs into the shared ~/.claude the other
+  agent's app reads — owed at merge).
+- **[ ] S4 — windowId on the wire** (NEXT): `windowId?` on `DuoRequest` + `cli/duo.ts`
+  `--window` threading; consume the dormant `DUO_WINDOW` PTY stamp (order:
+  `--window` > `DUO_WINDOW` > focused); `SocketServer.handle` resolves windowId→context
+  (clean `no such window: N`). Byte-identical at N=1 (resolves the sole window).
 - **[ ] S5 — N-window restore + geometry**: restore all persisted windows
   (flag-gated); **flag-off must NOT prune the dormant `WindowState`s** (PRD §7.2 /
   line-970 gap — preserve unloaded slots); per-window bounds.
 - **[ ] S6 — `duo doctor` window count + macOS Window menu** (NFR-4.4 / NFR-5.1).
-- **[ ] S7 — four-surface CLI doc-sync** for `duo window new` (CLAUDE.md §3:
-  cli/duo.ts + skill/SKILL.md + agents/duo.md + docs/CLI-COVERAGE.md) +
-  `check:skill-currency`.
+  (Old S7 four-surface doc-sync folded into S3c — done there.)
 
 Then **P5b** = explicit `--window` across the full ~36-verb surface + `duo windows`
 enumeration + tab/aux/split addressing + the `duo events` per-window decision
