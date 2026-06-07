@@ -450,6 +450,23 @@ output is identical to foreground and lands on the (single) window:
 - [ ] After quit, `duo doctor` shows the socket **DOWN**.
 - [ ] Relaunch → boots clean, socket back UP, no stale-socket "address in use".
 
+### C — CLOSE-NO-QUIT-REOPEN (catches: dead CLI bridge across dock-reopen, ENH-191 P1 lifecycle)
+
+> The ONE deliberate behavior change in P1: on macOS the `duo` socket stays **UP**
+> after the last window closes (the app stays alive), and a dock-reopen rebinds
+> cdp/browser cleanly. The node-env harness can't exercise the darwin
+> `window-all-closed`-no-op path — only this live leg can. (Was the empirically-
+> confirmed dock-reopen crash before the app-lifetime-singleton fix.)
+
+- [ ] Close the **only** window via the red traffic-light / `⌘W` (NOT `⌘Q`) →
+      app stays alive (dock icon present), **no crash dialog**.
+- [ ] While windowless: `duo doctor` shows the socket **UP**; `duo ping` answers.
+- [ ] While windowless: a browser/cdp verb (e.g. `duo url`) returns a **clean
+      error** (`{ok:false}`, bridge-not-ready) — NOT a hang or a crash.
+- [ ] Dock-click (or `⌘N`) to reopen → a fresh window appears, **no throw**.
+- [ ] After reopen: `duo url` / `duo dom` / `duo nav-state` work against the new
+      window (the getter-thunks resolved the new window's cdp/browser).
+
 ---
 
 ## Reporting template

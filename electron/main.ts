@@ -689,7 +689,7 @@ async function createWindow(): Promise<void> {
   // suppressed at the page-DOM level (NOT just at click-handler time
   // — the visual pill itself was the source of confusion).
   claudePresence.start()
-  claudePresence.onChange((state) => {
+  const unsubPresence = claudePresence.onChange((state) => {
     // ENH-183 (post-walk-1) — record any tab that ever hosts Claude.
     // The enrichment hook (sessionStateService below) gates UUID
     // capture on membership in this set; without it, S3 fires on
@@ -901,6 +901,12 @@ async function createWindow(): Promise<void> {
       browserManager: browserManager ?? undefined,
       cdpBridge: cdpBridge ?? undefined
     })
+    // ENH-191 P1 — unsubscribe THIS window's claude-presence listener so a
+    // dock-reopen (which re-subscribes in createWindow) doesn't accumulate a
+    // listener per cycle. claudePresence.start() is already idempotent
+    // (if (this.timer) return) and the app-scoped probe/interval persist
+    // (stopped only in before-quit) — only the per-window listener is per-window.
+    unsubPresence()
     // App-scoped singletons (socket, external-domains) are NOT torn down
     // here. On macOS, closing the only window does NOT quit (window-all-
     // closed no-ops on darwin); the user can dock-reopen via app.on(
