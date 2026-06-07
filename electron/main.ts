@@ -230,10 +230,11 @@ const workingAuxSnapshotCache = new WindowKeyedCache<WorkingAuxSnapshot>(() => (
 // surfaces an error).
 const activeTerminalIdCache = new WindowKeyedCache<string | null>(() => null)
 
-// ENH-013 — claude-presence probe. Polls the active terminal's PTY
-// process tree for a live `claude` descendant; broadcasts state
-// changes so the renderer's Send → Duo pill gates correctly.
-const claudePresence = new ClaudePresenceProbe()
+// ENH-013 / ENH-191 P3-S8 — claude-presence is now PER-WINDOW. Each window's
+// createWindow constructs its own ClaudePresenceProbe into ctx.presence (polls
+// THAT window's active terminal's PTY tree for a live `claude` descendant and
+// gates THAT window's Send → Duo pill). No module global — TERMINAL_ACTIVE_PUSH
+// routes setTarget to the owning window's probe by event.sender.
 
 // ENH-183 (post-walk-1 owner directive) — per-Duo-session set of tab
 // ids that have ever hosted a live Claude process. The workspace-save
@@ -688,6 +689,11 @@ async function createWindow(): Promise<WindowContext> {
   // context so liveBrowser()/liveCdp() (registry.only()) resolve them.
   ctx.browserManager = browserManager
   ctx.cdpBridge = cdpBridge
+  // ENH-191 P3-S8 — this window's own claude-presence probe (no module global).
+  // TERMINAL_ACTIVE_PUSH routes setTarget here by event.sender; the onChange
+  // fan-out below captures THIS window's createWindow-local cdpBridge/browserManager.
+  const presence = new ClaudePresenceProbe()
+  ctx.presence = presence
 
   // ENH-039 — page-side `[data-duo-path]` link clicks (smoke-walk page,
   // future Duo-authored pages) route through the CDP binding here and
@@ -754,8 +760,8 @@ async function createWindow(): Promise<WindowContext> {
   // about to). Anything else (no-pty / shell) = not live → pill
   // suppressed at the page-DOM level (NOT just at click-handler time
   // — the visual pill itself was the source of confusion).
-  claudePresence.start()
-  const unsubPresence = claudePresence.onChange((state) => {
+  presence.start()
+  const unsubPresence = presence.onChange((state) => {
     // ENH-183 (post-walk-1) — record any tab that ever hosts Claude.
     // The enrichment hook (sessionStateService below) gates UUID
     // capture on membership in this set; without it, S3 fires on
@@ -964,12 +970,12 @@ async function createWindow(): Promise<WindowContext> {
     // browserManager + cdpBridge are createWindow-local consts captured here
     // (non-null since construction); the registered context holds them too.
     windowTeardown.teardownWindow(winId, { browserManager, cdpBridge })
-    // ENH-191 P1 — unsubscribe THIS window's claude-presence listener so a
-    // dock-reopen (which re-subscribes in createWindow) doesn't accumulate a
-    // listener per cycle. claudePresence.start() is already idempotent
-    // (if (this.timer) return) and the app-scoped probe/interval persist
-    // (stopped only in before-quit) — only the per-window listener is per-window.
+    // ENH-191 P3-S8 — stop THIS window's claude-presence probe + unsubscribe
+    // its listener so a closed window's 500ms interval doesn't linger. The
+    // probe is per-window (ctx.presence), constructed in createWindow;
+    // before-quit stops any that survive (app-quit without a prior close).
     unsubPresence()
+    presence.stop()
     // App-scoped singletons (socket, external-domains) are NOT torn down
     // here. On macOS, closing the only window does NOT quit (window-all-
     // closed no-ops on darwin); the user can dock-reopen via app.on(
@@ -1384,7 +1390,10 @@ app.whenReady().then(async () => {
 // issue #27) so a force-quit during a debounce window doesn't lose
 // the user's last state.
 app.on('before-quit', async () => {
-  claudePresence.stop()
+  for (const c of registry.all()) {
+    const probe = c.presence as ClaudePresenceProbe | undefined
+    probe?.stop()
+  }
   ptyManager.dispose()
   // ENH-191 P1c — app-scoped teardown on the ONLY quit path. On darwin
   // window-all-closed does NOT fire on Cmd+Q (BUG-119 above), and the closed
@@ -2238,7 +2247,10 @@ function setupIPC(): void {
     const id = BrowserWindow.fromWebContents(event.sender)?.id
     activeTerminalIdCache.set(id, payload.id)
     const pid = payload.id ? ptyManager.getPid(payload.id) : null
-    claudePresence.setTarget({ pid, kind: payload.kind })
+    // ENH-191 P3-S8 — route presence to the OWNING window's probe (the window
+    // whose terminal this push came from), resolved by event.sender.
+    const probe = id != null ? (registry.get(id)?.presence as ClaudePresenceProbe | undefined) : undefined
+    probe?.setTarget({ pid, kind: payload.kind })
   })
 
   // Stage 19c D23 \u2014 renderer asks "is `claude` on PATH?" before spawning a
