@@ -1436,8 +1436,11 @@ app.whenReady().then(async () => {
     event.returnValue = BrowserWindow.fromWebContents(event.sender)?.id ?? -1
   })
 
-  // ENH-191 P5a (S1/S3) — load the multiWindow flag before any window opens.
+  // ENH-191 P5a (S1/S3) — load the multiWindow flag before any window opens,
+  // then refresh the menu so the "Allow Multiple Windows" checkbox reflects the
+  // saved value (the initial menu build at boot ran before this load).
   await settingsService.load()
+  void rebuildAppMenu()
 
   void createWindow()
 
@@ -2474,6 +2477,15 @@ function installAppMenu(): void {
           accelerator: 'CmdOrCtrl+Shift+N',
           click: () => safeSend(IPC.NEW_FOLDER_REQUEST)
         },
+        // ENH-191 P5a (S3) — open a SECOND window (blank, its own workspace).
+        // ⌥⌘N because ⌘N / ⌘⇧N are taken by New File / New Folder. Gated on the
+        // "Allow Multiple Windows" setting below; openNewWindow no-ops with a
+        // structured result when off (the CLI verb surfaces the disabled error).
+        {
+          label: 'New Window',
+          accelerator: 'Alt+CmdOrCtrl+N',
+          click: () => { void openNewWindow() }
+        },
         { type: 'separator' },
         // ENH-167 — workspace-as-file. Save the open tabs + terminals
         // to a `.duo-workspace`; open one to switch contexts (Duo
@@ -2588,6 +2600,16 @@ function installAppMenu(): void {
             const next = claudeKeyPrefsStateCache.getDefault(registry).claudeReturn === 'newline' ? 'submit' : 'newline'
             setClaudeReturnMode(next)
           }
+        },
+        // ENH-191 P5a (S3) — enable/disable opening multiple windows. Default ON
+        // (owner decision); when off, "New Window" + `duo window new` return a
+        // disabled result. Persisted in ~/.claude/duo/settings.json. Gates only
+        // window-OPENING; the registry stays byte-identical at N=1 either way.
+        {
+          label: 'Allow Multiple Windows',
+          type: 'checkbox',
+          checked: settingsService.get().multiWindow,
+          click: (item) => { void settingsService.set({ multiWindow: item.checked }) }
         }
       ]
     },
