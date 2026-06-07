@@ -286,3 +286,105 @@ Three sub-stages, each shippable.
   selection from `duo selection`.
 - The button never blocks the user's existing typing flow — it
   appears, it doesn't interrupt.
+
+---
+
+## 9. BUG-100 — pill missing on selections inside the split-view (aux) browser pane
+
+> **Status:** 🟡 confirmed-open (re-triaged 2026-06-06). Filed 2026-05-06
+> (smoke-walk v0.6.8 step 5). Originally scoped as a 3–4h CdpBridge
+> multi-attach refactor and deferred; the BUG-134 groundwork (every browser
+> tab's debugger now stays attached) has since made this an incremental fix,
+> not a refactor.
+> **Tracked in:** [`tasks.md` § BUG-100](../../tasks.md).
+> **Touches:** `electron/cdp-bridge.ts`, `electron/browser-manager.ts`
+> (no main.ts change required — see "Fix approach").
+
+### Symptom
+
+With at least one live Claude tab in the terminal pane **and** a browser tab
+pinned into the split-view (aux) slot, selecting text inside the **aux**
+pane's WebContentsView does not render the in-page Send → Duo pill. Selecting
+text in the **main** browser pane works correctly under the same conditions.
+Workaround: promote the aux tab back to main (⌘⇧/) before selecting.
+
+This is a parity hole in the browser half of § 1's two-axis grid: the pill is
+meant to appear on **any** selection in the right-column WorkingPane, and an
+aux-pinned browser tab is part of that surface.
+
+### Root cause (file:line)
+
+The pill's page-side machinery is the `SELECTION_OBSERVER_IIFE` — it builds
+the pill DOM and gates its visibility in `showPillFor` on the per-page
+`window.__duoClaudeLive` flag (`cdp-bridge.ts:162`, gate at `:175`). Two
+injection steps that arm that machinery both route through `this.dbg()`, which
+returns **only the single front `this.wc`** (`dbg()` at `cdp-bridge.ts:1837`):
+
+- `injectSelectionObserver()` (`cdp-bridge.ts:1091`) — `Runtime.evaluate`s the
+  IIFE into `this.dbg()` only.
+- `applyClaudeLiveToPage()` (`cdp-bridge.ts:1035`, called at the tail of
+  `injectSelectionObserver` via `:1107`) — sets `__duoClaudeLive` on
+  `this.dbg()` only.
+
+`attach()` (`cdp-bridge.ts:1169`) sets `this.wc = webContents` (`:1179`) to the
+**most-recently-attached** tab and runs `injectSelectionObserver()` at its tail
+(`:1283`). BUG-134 (`browser-manager.ts:342–351`) keeps **every** tab's
+debugger attached so binding-call events route from any tab — but it only fixed
+the `duoSendToDuoClick` click-handler routing. The selection-observer IIFE
+itself is still injected against `this.wc` (the front tab) only. An aux-pinned
+tab that is not the front wc therefore never receives the observer IIFE, so no
+`selectionchange` in it ever calls `showPillFor`, and the pill never appears.
+
+(The closely-related `__duoClaudeLive` **flag staleness** on non-front panes
+was already fixed for the *flag value* by BUG-133's
+`browserManager.broadcastClaudeLive` — `browser-manager.ts:1134–1155` — which
+fans the flag to every tab via `wc.executeJavaScript(...)`. That precedent is
+the template for the fix below: BUG-100 is the same fan-out problem, one layer
+up — the *observer that reads the flag* is what's missing on the aux tab, not
+the flag.)
+
+### Fix approach
+
+Fan the selection-observer injection out to **every attached tab** instead of
+only the front `this.wc`, reusing the BUG-134/BUG-133 multi-tab precedents.
+The IIFE is already idempotent (guarded by `__duoSelectionObserver`), so
+injecting it into a tab that already has it is a cheap no-op. Two viable shapes
+(recommended **a**):
+
+- **(a) — Inject the observer on every `attach()`, against the attaching
+  tab's own webContents (recommended).** `browser-manager.ts:349` already calls
+  `cdp.attach(view.webContents)` for every new tab including aux. The cheapest
+  correct fix is to make the observer/flag injection in `attach()` target the
+  `webContents` being attached (it is in scope) rather than the later-mutated
+  `this.wc`. This keeps `this.wc` semantics intact for front-tab
+  `Runtime.evaluate` reads while guaranteeing every attached page gets its own
+  observer at attach time. Lowest blast radius; no main.ts change.
+- **(b) — Add a `broadcastSelectionObserver()` fan-out on BrowserManager**,
+  mirroring `broadcastClaudeLive` (iterate `this.tabs`, `executeJavaScript` the
+  IIFE into each), and call it wherever aux pinning changes. More code; only
+  needed if (a) proves insufficient because an aux tab can be re-pointed
+  without a fresh `attach()`.
+
+Start with (a); fall back to (b) only if a smoke-walk shows an aux tab that
+slips through (e.g. an aux pin that swaps the underlying view without
+re-attaching). Either way, `showPillFor`'s existing per-page
+`__duoClaudeLive` / `__duoInspectActive` gates (`cdp-bridge.ts:175`, `:182`)
+need no change — once the observer is present on the aux page, the flag is
+already being fanned to it by BUG-133.
+
+### CLI / UI parity
+
+No new CLI verb. `duo selection` already reads from the per-page observer push
+(`duoSelectionPush`), so once the observer is injected into the aux tab, the
+agent-facing read path inherits the fix for free — the pill (UI) and
+`duo selection` (CLI) regain parity together. This is a pure correctness fix to
+an existing affordance, not a new surface; no deliberate asymmetry to call out.
+
+### Smoke-walk line
+
+- **Aux-pane Send → Duo pill** — pin a browser tab into the split-view (aux)
+  slot with a live Claude tab in the terminal pane; select text inside the
+  **aux** pane → the Send → Duo pill appears over the selection (matching
+  main-pane behavior). Regression-guard the main pane in the same step: select
+  in main while aux is pinned → pill still appears there too, and clicking
+  either pill drops its quoted payload into the active terminal.
