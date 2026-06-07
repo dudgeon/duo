@@ -483,8 +483,13 @@ sessionStateService.setEnrichBeforePersistHook(async (state) => {
   // are in tab-creation order (renderer snapshot + PtyManager.Map
   // preserve insertion), so positional matching aligns correctly.
   const consumedTabIds = new Set<string>()
+  // ENH-191 P3-S7 — owner-filter the positional cwd→tabId match to THIS window's
+  // tabs so the shared pool's same-cwd terminals from OTHER windows can't be
+  // claimed by this enrichment. At N=1 the sole window (only()); P4 makes the
+  // enrich hook per-window. undefined ⇒ unfiltered (byte-identical at N=1).
+  const ownerWindowId = registry.only()?.id
   const findTabIdInState = (cwd: string): string | null => {
-    const all = ptyManager.listIdsByCwd(cwd)
+    const all = ptyManager.listIdsByCwd(cwd, ownerWindowId)
     const next = all.find((id) => !consumedTabIds.has(id))
     if (next) consumedTabIds.add(next)
     return next ?? null

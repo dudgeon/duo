@@ -2,7 +2,7 @@ import * as pty from 'node-pty'
 import { DEFAULT_SHELL, DEFAULT_CWD, TERMINAL_DEFAULTS, SOCKET_PATH, SHIM_DIR } from './constants'
 import { resolveExistingCwd } from './cwd-utils'
 import { IPC } from '../shared/types'
-import { routeSend, disposeForWindow as disposeSessionsForWindow } from './pty-owner'
+import { routeSend, disposeForWindow as disposeSessionsForWindow, listIdsByCwdOwned } from './pty-owner'
 
 interface Session {
   id: string
@@ -134,15 +134,15 @@ export class PtyManager {
     }
   }
 
-  /** ENH-183 C9 — list live tab ids matching a cwd (in insertion
-   *  order). Used by main-side hydration triggers to find the PTY
-   *  to write `/rename` into for a given saved-state terminal. */
-  listIdsByCwd(cwd: string): string[] {
-    const matches: string[] = []
-    for (const s of this.sessions.values()) {
-      if (s.cwd === cwd) matches.push(s.id)
-    }
-    return matches
+  /** ENH-183 C9 — list live tab ids matching a cwd (in insertion order). Used
+   *  by main-side hydration triggers to find the PTY to write `/rename` into for
+   *  a given saved-state terminal.
+   *  ENH-191 P3-S7 — optionally owner-filtered: the C9 positional cwd→tabId
+   *  match must stay within ONE window's tabs (the shared pool interleaves
+   *  same-cwd terminals across windows). undefined ownerWindowId ⇒ all owners
+   *  (byte-identical to the pre-P3 unfiltered list + insertion order). */
+  listIdsByCwd(cwd: string, ownerWindowId?: number): string[] {
+    return listIdsByCwdOwned(this.sessions, cwd, ownerWindowId)
   }
 
   /** ENH-183 C12 — get a tab's cwd from its id. Used by CLI verbs
