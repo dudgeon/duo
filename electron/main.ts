@@ -2071,8 +2071,9 @@ function setupIPC(): void {
     workspacePillMenuEnabledCache.set(defaultWindowId(registry), !!payload?.enabled)
   })
 
-  ipcMain.on(IPC.NAV_STATE_PUSH, (_event, snapshot: NavStateSnapshot) => {
-    navStateCache.set(defaultWindowId(registry), snapshot)
+  ipcMain.on(IPC.NAV_STATE_PUSH, (event, snapshot: NavStateSnapshot) => {
+    const id = BrowserWindow.fromWebContents(event.sender)?.id
+    navStateCache.set(id, snapshot)
     // ENH-172 — keep the View → Show Hidden Files checkmark in sync
     // with the authoritative renderer state. The renderer pushes
     // NAV_STATE_PUSH on every nav-state change (including showDotfiles
@@ -2221,8 +2222,9 @@ function setupIPC(): void {
   // Sprint 16 / v0.6.15 — Claude-tab Enter key prefs push from the renderer.
   // ENH-170 v2 (Sprint 20) — also sync the Settings → "Cmd+Return for
   // Claude submit" menu checkmark to match `snapshot.claudeReturn`.
-  ipcMain.on(IPC.CLAUDE_KEY_PREFS_STATE_PUSH, (_event, snapshot: import('../shared/types').ClaudeKeyPrefsSnapshot) => {
-    claudeKeyPrefsStateCache.set(defaultWindowId(registry), snapshot)
+  ipcMain.on(IPC.CLAUDE_KEY_PREFS_STATE_PUSH, (event, snapshot: import('../shared/types').ClaudeKeyPrefsSnapshot) => {
+    const id = BrowserWindow.fromWebContents(event.sender)?.id
+    claudeKeyPrefsStateCache.set(id, snapshot)
     const menu = Menu.getApplicationMenu()
     if (menu && claudeReturnMenuItemId) {
       const item = menu.getMenuItemById(claudeReturnMenuItemId)
@@ -2283,8 +2285,9 @@ function setupIPC(): void {
   // Renderer pushes the active tab's cozy state so the View-menu checkmark
   // stays in sync as the user switches tabs or toggles.
 
-  ipcMain.on(IPC.COZY_STATE_PUSH, (_event, cozy: boolean) => {
-    cozyActiveTabCache.set(defaultWindowId(registry), cozy)
+  ipcMain.on(IPC.COZY_STATE_PUSH, (event, cozy: boolean) => {
+    const id = BrowserWindow.fromWebContents(event.sender)?.id
+    cozyActiveTabCache.set(id, cozy)
     const menu = Menu.getApplicationMenu()
     if (!menu || !cozyMenuItemId) return
     const item = menu.getMenuItemById(cozyMenuItemId)
