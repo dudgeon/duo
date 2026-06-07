@@ -18,24 +18,89 @@
 > **Do NOT** re-spin smoke-walks, version cuts, or merge proposals — those are a
 > SEPARATE session's job. Stay on building. (A separate session manages merges;
 > the owner drives cuts.)
+>
+> **▶ CURRENT STATE (2026-06-07): P4 + P5a foundation MERGED to main (PR #78);
+> P5a Tier-1 done + live-verified; P5a Tier 2-4 CHECKPOINTED by the owner.** This
+> checkpoint was the owner's explicit call (NOT a stall) — the ultracode review
+> revealed ~20 more fixes, and window-2 FUNCTIONALITY verification needs S4
+> addressing + a two-window smoke-walk via computer-use (which can't reach the
+> worktree dev). On greenlight, resume P5a Tier 2-4 + S4 (see "P5a remaining"
+> below) WITH live verification: request Electron, tear down ALL dev instances,
+> bring up the WORKTREE dev, drive via `duo` DOM probes. The execute-continuously
+> rule applies once the owner greenlights the grind.
 
-## Where things stand (2026-06-07)
+## Where things stand (2026-06-07, post-checkpoint)
 
-- Branch `claude/enh-191-multiwindow`, origin HEAD **`8266924`**. 1075 tests
-  green, typecheck clean, `check:routing` baseline 0.
-- **P0–P3 SHIPPED** (the registry-of-one read-model — see `enh-191-p3-seam-plan.md`
-  + PRD §8.1; adversarial-verify SHIP, 0 blockers). **P0–P3 spine handed off for
-  merge** at the boundary commit `997f8e4` via branch `claude/enh-191-p0-p3`
-  (the separate merge session opens that PR; this session keeps building +
-  rebases when it lands).
-- **P4 COMPLETE** (all 6 seams, this session) — the persistence layer for
-  per-window state (closes the C8 + C13 data-corruption hard gate). Renderer +
-  `SessionStateService`, byte-identical at one window. **Code-complete; the Cut-3
-  smoke-walk + cut are the SEPARATE session's job, NOT this one.**
-- **NOW: P5** — the FIRST user-visible release (flag-gated). See "Then P5" below
-  + PRD §4 P5. Execute continuously; pause ONLY for a genuine NEW owner-decision
-  the PRD doesn't lock (P5 has a few — flag default, entry-point UX, the
-  `duo events` per-window decision).
+**Merged to main:** P0–P3 (PR #76) + P4 + P5a foundation S1/S2 (PR #78 — the
+`claude/enh-191-p4-p5a-dark` boundary). main is now **v0.9.3**. The working
+branch `claude/enh-191-multiwindow` is **rebased onto main** (0 behind, 6 ahead):
+the P5a entry points (S3a–c) + Tier-1. 1081 tests, typecheck clean, routing
+baseline 0, `check:skill-currency` PASS.
+
+**P5a status (the FIRST user-visible release — open a SECOND window):**
+- **Entry points DONE** (S3a–c): `createWindow({restore})` + `openNewWindow` +
+  File→New Window (⌥⌘N) + Settings "Allow Multiple Windows" toggle + the
+  `duo window new` verb. Window 2 opens.
+- **Tier-1 DONE + LIVE-VERIFIED** (window 2 *survivable*): the automatic-on-mount
+  crashers (browser IPC → `browserForSender(event)`; git-watch → arming-window id)
+  + the persistence data-loss (`seedWindowsFromDisk` + `dropWindow`) + the
+  blank-race. Proven live on the worktree dev: `duo window new`→{ok:true} (was a
+  timeout+crash); `doctor` works after window 2 (no bridge-wedge); windowIds
+  [1,2] persist; a tracked-file touch at N=2 doesn't crash.
+- **Tier 2-4 + S4 REMAIN** — CHECKPOINTED by the owner (2026-06-07): the ultracode
+  review revealed ~20 more fixes to make window 2 *functional*; resume on
+  greenlight. See "P5a remaining" below.
+
+**Verification reality:** survivability is live-verified by this session. Window-2
+FUNCTIONALITY (menu clicks, browser ops, cross-window addressing) needs Tier-3/S4
+(CLI `--window` addressing, to probe window 2 at all) **plus** the two-window
+`/smoke-walk` via computer-use — which can NOT reach the worktree dev (verify via
+`duo` DOM probes once S4 lands; click-tests are the smoke session's job).
+
+## P5a remaining — Tier 2-4 + S4 (ultracode-review-mapped, 2026-06-07)
+
+Tasks #28–30 track these. The full review (6 agents) is the source; KEY items
+captured here durably (the workflow result file is transient).
+
+### Tier 2 — interaction crashers + NFR-6.2 (mostly "high"; crash on USER action)
+- **Right-click context-menu** builder (electron-context-menu `prepend`, main.ts
+  ~1238/1266/1269) calls `liveMainWindow()/liveBrowser()` → crash on ANY
+  right-click at N=2 → resolve via `BrowserWindow.fromWebContents(wc)`.
+- **App-menu** click handlers (`safeSend`) + menu-rebuild `*.getDefault(registry)`
+  reads → throw at N>1 → resolve via `getFocusedWindow()/getFocusedWebContents()`.
+- **CDP path-link callbacks** in createWindow (`onBrowserOpenPath/Split` →
+  `sendEdit`/`splitViewOpen`, main.ts ~791/810) → `ctxSend` (the S2 pattern, missed).
+- **NFR-6.2 pin-clone:** a blank window auto-opens pinned FILE tabs (renderer-side
+  pin-auto-open in App.tsx ~719, no blank gate) → plumb a blank flag to the
+  renderer (preload `env.blank` via additionalArguments, or a blank-set keyed by
+  `env.windowId`) + skip the file-pin auto-open when blank.
+- ~25 `liveMainWindow()` sites total (workspace Save/Open/New, `MENU_POPUP`,
+  `DIALOG_CONFIRM`, `focusPane`) — categorize EACH: per-window/focused →
+  focused-window id; genuinely app-global CLI (NavBridge reveal/view/edit,
+  visibility cluster) → stay `resolveDefault` (the S4 fallback).
+
+### Tier 3 / S4 — addressing + restore (the FUNCTIONALITY blocker + verification-enabler)
+- **DUO_WINDOW terminal-origin:** the CLI forwards the connecting PTY's
+  `DUO_WINDOW` in the handshake; `SocketServer.handle` resolves `get(windowId)` as
+  the per-command default, `resolveDefault` fallback when unstamped. (Unblocks
+  `duo --window N` probing window 2 → lets a future session live-verify Tier 2/4.)
+- Make `resolveDefault` NOT throw at N>1 for app-global ops (pick a window / route
+  via DUO_WINDOW) so the visibility cluster + `duo open/reveal` clean-resolve
+  instead of clean-erroring.
+- **N-window boot restore:** loop `createWindow({restore, restoreIndex:i})` over
+  `loadWindows()` + apply per-window geometry (today hardcodes windows[0]).
+
+### Tier 4 — polish
+- `cli/duo.ts` case `window`: check `result.ok` + `die()` when disabled (exit
+  non-zero; mirrors `duo clone`).
+- closed handler: `.delete(winId)` on the ~16 `WindowKeyedCache` + `PendingRegistry`
+  instances (no teardown today → slot leak).
+- `duo doctor`: thread `registry.count()` → a "Windows: N" line (NFR-4.4).
+- enrich-before-persist hook (main.ts ~515): thread `w.windowId` instead of
+  `registry.only()?.id` (caught today, but stops lastClaudeSession capture at N>1
+  — the only N=2 log noise after Tier-1).
+- Menu New Window: `enabled` gate on `settings.multiWindow` + `rebuildAppMenu` on
+  the toggle.
 
 ## Gate (run INSIDE the worktree; vitest excludes `.claude/worktrees/**` from the primary root)
 `cd /Users/geoffreydudgeon/Documents/GitHub/duo/.claude/worktrees/enh-191 && npm run typecheck && npm run check:routing && npm run test:run`
