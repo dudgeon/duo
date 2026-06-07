@@ -18,6 +18,18 @@
 
 ---
 
+## 2026-06-06 (v0.9.1 cut — parallel-PR integration · ENH-202 View-diff dirty banner · signed DMG + GitHub Release)
+
+**What shipped.** v0.9.1 is the convergence cut for the parallel-branch work that had piled up against main: navigator resize affordances (ENH-190), the ENH-195/197 conflict-resolution arc completed by ENH-202 (the dirty-buffer banner unified to 3 buttons — Keep mine / Reload / View diff), the BUG-195 split-view ghost fix, plus three supporting changesets (ENH-191 docs deep-clean + CLI version-source #65, ENH-191 Phase H write-queue #68, functional lint gate #69). Six PRs (#64–#70) were trial-integrated in a throwaway worktree (clean merge + typecheck + full suite) before landing on main, so only docs ever conflicted, never code.
+
+**ENH-202 (the one substantive add this cut).** The dirty-buffer conflict banner was the last 2-button banner; owner preferred the 3-button destructive-overwrite banner on the rev2 walk. Added `useDiskReconciliation.dismissConflict(diskBody)` (clears banner + rebaselines both refs to disk so accept-all = byte-exact no-op, reject-all = clean overwrite) + `MarkdownEditor.handleConflictViewDiff` (captures the unsaved doc, swaps in disk content, `applyTrackedDiff(yours→disk)`) + a unit test. 936/936 tests + both typecheckers clean; the 3-button render verified live on a genuine dirty conflict. Canvas stays 2-button (no CriticMarkup rail).
+
+**The cut.** Commit `c62c50a` (`release: v0.9.1`) + tag `v0.9.1`; dev bumped to 0.9.2 (`61f8457`); both pushed to origin (the `v0.9.0` milestone tag pushed alongside). Signed + notarized + stapled DMG built at 0.9.1 + launch-validated; **GitHub Release published** at github.com/dudgeon/duo/releases/tag/v0.9.1 with the DMG attached, marked Latest. (v0.9.0 had been cut locally + tag-pushed but never got a GitHub Release — v0.9.1 supersedes it.)
+
+**What's owed / open.** ENH-189 agent-agnostic decisions (🟡 playground awaiting owner walk), ENH-196 canvas highlight parity, ENH-198 agent-native CriticMarkup, ENH-199 atomic-writer serialization, ENH-200 lint enforcement point, ENH-201 red-collapse-cue rework, BUG-197 rail-peek commit on a file/folder row click. BUG-196 note still stranded on branch `claude/enh-191-p0` (not cherry-picked to main). tasks.md archive-sweep of the v0.9.0/v0.9.1 ✅ entries still pending.
+
+---
+
 ## 2026-06-06 (ENH-195 completion — canvas fix · ENH-197 View diff · BUG-195 · walk PASS · PR)
 
 **What landed (the four follow-ons after the local v0.9.0 cut).** The v0.9.0 pre-walk had left ENH-195 blocked on a canvas false-positive; this session root-caused + fixed it and three more items, all verified live, then submitted the lot as a PR for owner integration on main.

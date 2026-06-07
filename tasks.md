@@ -4,7 +4,7 @@
 
 ### ENH-190: Navigator temporary-widen + drag-to-collapse + resize-handle affordance
 
-**Status:** 🟡 **Implemented 2026-06-06, pending owner smoke-walk** (branch `claude/file-nav-auto-collapse-vaN3Y`). Prototype + locked-decision tuning preceded it. **Priority:** Owner-requested. **Effort:** M. **Icon refresh (behavior 4) NOT in the locked set — deferred.**
+**Status:** ✅ **Shipped v0.9.1 (2026-06-06)** — owner smoke-walked (#67), merged + released. Prototype + locked-decision tuning preceded it. **Priority:** Owner-requested. **Effort:** M. **Icon refresh (behavior 4) NOT in the locked set — deferred.** Walk follow-ups (open): ENH-201 (red collapse cue) · BUG-197 (rail-peek row-click commit). Pending archive-sweep to tasks-archive.md.
 
 **Ask (owner).** The navigator is a binary 44px↔208px toggle today. Add (1) **temporary widen → ease back** — drag the *expanded* border wider to un-truncate a long name, plus a *collapsed-rail* hover-peek, both easing back to the resting size after the cursor leaves; (2) **drag-to-collapse** — drag the expanded border left past a threshold → collapse on release; (3) **hover-reveal resize handles** — a grip-pill appears on the navigator border + terminal↔canvas divider and the click target widens while the seam stays a hairline.
 
@@ -40,7 +40,7 @@
 
 ### ENH-195: CLI edits · disk-sync responsiveness · false-positive conflicts (one-root-cause cluster)
 
-**Status:** ⏳ **v0.9.0 cut LOCALLY (not pushed). The canvas false-positive regression is ROOT-CAUSED, FIXED + VERIFIED (unit red→green + live, both directions) 2026-06-05 — no longer blocked.** Pending: fold the canvas fix + the strip-JSX fix → owner-gated re-cut. All 5 decisions locked (below); **916 tests pass** + both typecheckers clean; 15-agent adversarial review fixed 9 bugs, and a 4-lens workflow (`wf_edbafc2e-b0b`) confirmed the canvas fix. Branch `claude/sharp-hamilton-70eb87`.
+**Status:** ✅ **Shipped — core in v0.9.0, follow-ons (canvas false-positive fix · strip-JSX render · ENH-197 View-diff) in v0.9.1 (2026-06-06).** Merged to main via PRs #64–#70, released at github.com/dudgeon/duo/releases/tag/v0.9.1. All 5 decisions locked (below); 936 tests + both typecheckers clean; 15-agent adversarial review fixed 9 bugs pre-cut; 4-lens workflow (`wf_edbafc2e-b0b`) confirmed the canvas fix. **⚠️ The RESUME-STATE block below is historical** — it predates the push/release, so ignore its "NOT pushed to origin" / "owner-gated re-cut" language. Pending archive-sweep to tasks-archive.md.
 
 **⏸️ RESUME STATE (2026-06-05, read this first):**
 - **Git:** branch `claude/sharp-hamilton-70eb87`. Commits: `f6e1b36` (release: v0.9.0, **tagged v0.9.0**) → `915af34` (chore: bump to v0.9.1, **HEAD**). **NOT pushed to origin.** Cut on the feature branch (Duo's established pattern — tag travels into main via the PR merge).
