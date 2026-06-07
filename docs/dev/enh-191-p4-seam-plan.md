@@ -114,15 +114,23 @@ survives flat→envelope. Confirm `auxTabId` round-trips per window.
 - New window opens **blank to a default cwd** (NFR-6.2, pinned) — not cloning w1.
 
 ### P5a seams (PRD §4 P5a work items 1,2,3,6,8,10 + Window-menu/geometry)
-- **[ ] S1 — `SettingsService`** (`core/settings-service.ts`): `~/.claude/duo/settings.json`,
-  `{ multiWindow: boolean }` default true, atomic write, injectable path + tests.
-- **[ ] S2 — reentrant `createWindow` hardening**: a 2nd call safely registers a
-  2nd `WindowContext` (once-guards already lift the one-time registrations in
-  P1/P2 — verify + fix any per-window-vs-app-scope leftover). Byte-identical at N=1.
-- **[ ] S3 — entry points**: "New Window" menu item (`⌥⌘N`) + `duo window new`
-  verb → `createWindow`, gated on `settings.multiWindow` (clean "disabled" error
-  when off, never silent — CLI-parity). + the Settings-menu toggle. New window
-  blank @ default cwd; `duo window new --cwd <path>` optional.
+- **[x] S1 — `SettingsService`** — DONE (`249d623`): `~/.claude/duo/settings.json`,
+  `{ multiWindow: boolean }` default TRUE, atomic write, injectable path + 6 tests.
+- **[x] S2 — ctx-scoped per-window sends in `createWindow`** — DONE (`54623d8`):
+  browser state/tabs + presence + NAV_EDIT route via `ctxSend = makeSafeSend(() =>
+  ctx.window)` (not the default `only()` send that throws at N>1) + the
+  activeTerminalId read → `getOrDefault(winId)`. Byte-identical at N=1.
+- **[x] S3a — window-opening mechanism** — DONE (`80222f7`): `createWindow({restore?})`
+  (true=boot; false=blank New-Window, NFR-6.2) + `openNewWindow()` (flag-gated) +
+  `blankWindowIds` (their `SESSION_STATE_LOAD` → empty) + SettingsService wired into
+  main. Byte-identical at N=1 (nothing opens a 2nd window yet).
+- **[x] S3b — menu entry points** — DONE (`c61ecb2`): File → "New Window" (`⌥⌘N`) +
+  Settings → "Allow Multiple Windows" toggle. **Behavior-changing** (clicking opens
+  window 2) → needs the two-window smoke-walk; NOT autonomously verifiable.
+- **[ ] S3c — `duo window new` verb (4-surface)** — NEXT: menu/CLI parity (CLAUDE.md §4).
+  socket-server `window` case → bridge → `openNewWindow`; `DuoCommandName` += `window`;
+  `cli/duo.ts` verb + help + `npm run build:cli`; skill/SKILL.md + agents/duo.md +
+  docs/CLI-COVERAGE.md + `check:skill-currency` (absorbs old S7). `--cwd` optional.
 - **[ ] S4 — windowId on the wire**: `windowId?` on `DuoRequest` + `cli/duo.ts`
   threading; consume the dormant `DUO_WINDOW` PTY stamp (resolution order:
   `--window` > `DUO_WINDOW` > focused fallback); `SocketServer.handle` resolves
