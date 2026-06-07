@@ -27,8 +27,8 @@ When the sandbox is the cause it prints a line like
 `Claude Code sandbox detected (Unix socket blocked) — falling back to
 TCP`; once that's in the output you can proceed normally.
 
-If `duo doctor` is not recognized on this machine, the user is on a
-pre-Stage-20 build without the TCP fallback — stop, tell the user
+If `duo doctor` is not recognized on this machine, the user is on an
+older build without the TCP fallback — stop, tell the user
 "every `duo` call is failing; I think the Claude Code sandbox is
 blocking the Unix socket", and offer the two fixes below. Do not retry
 in a loop.
@@ -58,7 +58,7 @@ The user then restarts their Claude Code session for the new policy
 to take effect. Caveat: the Claude Code docs warn that
 `allowUnixSockets` "can inadvertently grant access to powerful system
 services" (e.g. the Docker socket). Teams with a stricter posture
-should keep the default and rely on Duo's TCP fallback (Stage 20)
+should keep the default and rely on Duo's TCP fallback
 rather than widen the socket allowlist.
 
 ## Fix 2 (last resort): per-call sandbox escape

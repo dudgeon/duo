@@ -7,7 +7,7 @@
   <!--
     Canonical lesson playground template.
 
-    Filed as ENH-053. Copy this directory into a new pack
+    Copy this directory into a new pack
     (~/.claude/duo/packs/<pack-name>/) and customize:
 
       - <title>                                  — your lesson's title
@@ -29,9 +29,9 @@
 
     The lesson skill (../lesson-skill/SKILL.md) repaints these on
     every step transition via:
-      duo html update --selector '[data-duo-pane="step-body"]' --html '<...>'
-      duo html update --selector '[data-duo-pane="step-counter"]' --html 'Step N of M'
-      duo html update --selector '[data-duo-pane="step-controls"]' --html '<...>'
+      duo html set --selector '[data-duo-pane="step-body"]' --content '<...>'
+      duo html set --selector '[data-duo-pane="step-counter"]' --content 'Step N of M'
+      duo html set --selector '[data-duo-pane="step-controls"]' --content '<...>'
 
     See ../../lesson-runtime.md for the full event-loop convention,
     sidecar state pattern, and anti-patterns.
@@ -39,7 +39,7 @@
 
   <!-- Lessons mount read-only by default — the user is reading +
        clicking, not editing. The lesson skill repaints panes via
-       duo html update so they don't need an editable surface. -->
+       duo html set so they don't need an editable surface. -->
   <meta name="duo-default-editable" content="false">
 
   <style>

@@ -12,6 +12,13 @@
 > what's shipped, what's a gap, and what stage will close each gap.
 > Cross-refs to specific PRDs in [docs/prd/](prd/).
 >
+> **Canonical provenance home (D1).** This file is the single source of
+> truth for the verb↔origin (ENH / Stage) mapping; the bundled agent-facing
+> skill deliberately strips those internal tags, so keep the ENH/Stage
+> references here. `npm run check:skill-currency` continuously re-audits the
+> shipped-verb set against the live CLI so this inventory can't silently
+> drift.
+>
 > **Last updated: 2026-05-31** (ENH-191 / D7 re-audit vs `cli/duo.ts`: added
 > `duo html click` + the `duo pack` family, removed a stale `duo doc find`
 > gap row, corrected the terminal-tab parity note).
@@ -118,6 +125,7 @@ for the authoritative usage text.
 | `duo browser-mode [unfiltered\|filtered\|local-only]` | **ENH-178 (v0.7.8)** — three-mode embedded-browser URL filter. **Default: `local-only`** (`file://` + `localhost` + `127.0.0.1` + `[::1]` render in Duo; everything else pops the system browser). `filtered` is the legacy behavior (consult `~/.claude/duo/external-domains.json`). `unfiltered` is debug-only and requires `--i-understand` (IT-policy warning printed otherwise). Persists in renderer localStorage `duo.browserMode`. No arg = print `{ mode }`. |
 | `duo split <pct\|preset>` | **ENH-014 + ENH-099** — set split-pane percentage (terminal column as % of split container; clamped 20–80). Numeric arg or named preset (`even`, `terminal-heavy`, `canvas-heavy`, `terminal`, `canvas`, `3way`). The `3way` preset is the on-demand sibling of ENH-126: snaps to outer 33/67 + inner aux 50/50 (canonical 3-pane even). Mirrors View → Pane size menu and ⌘⌥1/2/3/4/0/9. |
 | `duo split-view <op> [args]` | ENH-041 / Sprint 3 + Sprint 7 Phase 3c — Split View aux pane (canvas's right-side companion slot). Sub-verbs: `open <path>` (file in aux), `open-browser <id>` (pin browser tab in aux — Phase 3c, browser tab stays a real Chromium tab so scripts run; fixes worksheet-in-split scripted-page case), `close`, `promote`, `resize <pct>`, `state` (or no sub-verb). v1 single-slot. File-aux and browser-aux mutually exclusive — pinning one releases the other. State is renderer-authoritative; main caches snapshot for the no-arg query. Locked spec: `docs/prd/canvas-split-view-research.html`. |
+| `duo focus-pane <terminal\|main\|aux>` | **ENH-098 (Sprint 9)** — jump focus DIRECTLY to the named pane (vs. `⌘\`` which cycles). Mirrors the ⌘⌥L (terminal) / ⌘⌥; (main) / ⌘⌥' (aux) chord set. Aux is a no-op when split view is closed. Returns `{target}`. Named `focus-pane` (not the originally-proposed `pane focus`) to avoid collision with `duo focus <selector>` (CDP element focus). |
 | `duo events [--follow] [--since <cursor>] [--limit N]` | Stage 27 — stream structured DuoEvents from main's in-memory bus (200-event ring buffer). Snapshot mode prints one JSON line per event from the ring; `--follow` keeps the socket open and pushes each new event as it lands. `--since` resumes from a cursor of the form `<unix-ms>-<seq>`. Producer: canvas-action `duo:event` verb today; renderer / browser / main hooks land as Stage 27.5 follow-ups. |
 | `duo packs` | Stage 18b — list every distro pack at `~/.claude/duo/packs/<name>/`. Returns parsed `PACK.json` plus per-pack `errors[]` (malformed manifests surface as errors, never crash the loader). Cached at app boot. |
 | `duo pack <list\|uninstall>` | **Stage 21d-iii** — distro pack management. `list` returns JSON of installed packs; `uninstall <name> [--remove-folder]` removes a pack (and optionally its folder on disk). (`duo packs` above is the legacy list alias.) |
@@ -222,7 +230,7 @@ top-level placement.
 
 | Verb | UI parallel | Status |
 |---|---|---|
-| `duo focus-pane <terminal\|main\|aux>` | ⌘⌥L (terminal) / ⌘⌥; (main) / ⌘⌥' (aux) chord set | **✅ Shipped Sprint 9 (ENH-098).** Jumps focus DIRECTLY to the named pane (vs. `⌘\`` which cycles). Aux is a no-op when split view is closed. Returns `{target}`. **Note:** the original spec proposed `duo pane focus` as the verb name; shipped as `duo focus-pane` to mirror the chord-set semantic and avoid collision with the existing `duo focus <selector>` (CDP element focus). |
+| `duo focus-pane <terminal\|main\|aux>` | ⌘⌥L (terminal) / ⌘⌥; (main) / ⌘⌥' (aux) chord set | **✅ Shipped Sprint 9 (ENH-098). Moved to § 1 Appearance.** Jumps focus DIRECTLY to the named pane (vs. `⌘\`` which cycles). Aux is a no-op when split view is closed. Returns `{target}`. **Note:** the original spec proposed `duo pane focus` as the verb name; shipped as `duo focus-pane` to mirror the chord-set semantic and avoid collision with the existing `duo focus <selector>` (CDP element focus). |
 | `duo pane state` | — | Not shipped. P1. Would return `{focused, filesCollapsed, splitPct}` for the layout surface (useful for agents writing UI tours / walk-throughs). |
 
 ### Editor read + doc ops — P0 / P1

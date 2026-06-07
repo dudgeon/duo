@@ -166,9 +166,11 @@ path-scoped rules under `.claude/rules/` (see above).
    socket CLI — all locked. See `docs/DECISIONS.md`.
 3. **The CLI is the spec.** Every new CLI verb stays in sync across
    `cli/duo.ts`, `skill/SKILL.md`, `agents/duo.md`, and `docs/CLI-COVERAGE.md`.
-   Full plumbing checklists: `.claude/rules/cli-plumbing.md`.
+   `npm run check:skill-currency` enforces this 4-surface sync (warn in
+   predev/pretest; strict in cut-version). Full plumbing checklists:
+   `.claude/rules/cli-plumbing.md`.
    - **3a. Visibility cluster** — when debugging Duo blind, reach for
-     `duo dom` / `duo devtools` / `duo layout` / `duo nav-state` BEFORE building
+     `duo dom` / `duo devtools` / `duo layout` / `duo nav state` BEFORE building
      bespoke instrumentation (detail in `.claude/rules/cli-plumbing.md`).
 4. **CLI parity with UI.** If the human can do it (click, menu, keystroke,
    toggle), the agent must be able to do the same from the CLI — UI-only
@@ -177,7 +179,8 @@ path-scoped rules under `.claude/rules/` (see above).
    - **4a. Edit open files THROUGH Duo, never around it.** Before `Edit`/`Write`
      on any file that might be open in Duo, run `duo status` and prefer the
      matching `duo` verb (`doc edit` / `doc write` · `html *` · `json set` /
-     `merge`). A direct write to an open file fights the editor's autosave
+     `merge`; `doc insert`/`substitute`/`highlight` emit CriticMarkup for
+     tracked *suggestions* — never `<ins>`/`<del>` HTML). A direct write to an open file fights the editor's autosave
      (BUG-085) and skips the change-highlight; a `DUO_SESSION`-gated PreToolUse
      hook warns (never blocks) when it catches this.
 5. **The skill is a first-class deliverable.** Ship both the app and

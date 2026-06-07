@@ -68,7 +68,7 @@ event names (`lesson:step-N-done` / `lesson:done` /
 - **Mid-lesson resume**. If the user closes Duo at step 3, the
   next launch picks up at step 3 (sidecar state at
   `~/.claude/duo/lesson-state/<pack-name>.json`).
-- **Lesson preview** (when ENH-055 ships). The fly-through harness
+- **Lesson preview** (planned). The fly-through harness
   knows what events to expect and can validate your lesson runs
   end-to-end before you ship.
 - **Cross-pack consistency**. Users moving between lessons see the

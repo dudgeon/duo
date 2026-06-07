@@ -2,18 +2,12 @@
 
 > **What this is.** The user-facing terminology lock for Duo's
 > page / playground / lesson / canvas hierarchy. Both `make-page.md`
-> and `make-playground.md` cite this file as canonical. Authored
-> 2026-05-02 (v0.6.1 terminology lock); shipped 2026-05-04 (Stage 19e
-> ENH-089) as part of the Duo skill so end users following pointers
-> from `make-page.md` / `make-playground.md` arrive at a doc they can
-> actually read. Modality lock (browser-default for playgrounds,
-> canvas-default for editing) added 2026-05-06 (ENH-097), then
-> **flipped to verb-driven** 2026-05-16 (ENH-156) — the `<meta name=
-> "duo-open-in">` declaration is no longer consulted; `duo open` →
-> browser, `duo edit` → canvas.
+> and `make-playground.md` cite this file as canonical. Modality is
+> **verb-driven**: the `<meta name="duo-open-in">` declaration is no
+> longer consulted; `duo open` → browser, `duo edit` → canvas.
 >
 > **For Duo project contributors:** the internal-names column for
-> each user-facing term lives in the project's [CLAUDE.md § Glossary](../../../../Documents/GitHub/duo/CLAUDE.md)
+> each user-facing term lives in the project's `CLAUDE.md` § Glossary
 > alongside the path-and-component mapping (`WorkingTab.kind === 'page'`,
 > `renderer/components/Page/`, etc.). That belongs with the codebase;
 > this file is what an agent or end user authoring playgrounds reads.
@@ -26,17 +20,17 @@
 - **canvas (the mode)** = an HTML tab opened in the canvas iframe. **Editable** like a doc; the user can place a cursor and type. **Buttons render but cannot be clicked** — the iframe's sandbox blocks scripts. This is the modality you reach for to **edit** an HTML file's source. Open via `duo edit <path>`.
 - **page** = an HTML file opened in canvas mode for reading or editing. No interactivity (scripts blocked). Open via `duo edit <path>`.
 - **playground** = an HTML file opened in browser mode — scripts run, buttons fire their `data-duo-action` handlers, form inputs are live, events stream to Claude via `duo events --follow`. The user **interacts** with the running surface. Open via `duo open <path>`.
-- **lesson** = a playground paired with an accompanying guide skill (a `.md` Claude reads to drive the user through step-by-step). The most common consumer of playground primitives. Distributed via Stage 18b packs.
+- **lesson** = a playground paired with an accompanying guide skill (a `.md` Claude reads to drive the user through step-by-step). The most common consumer of playground primitives. Distributed via lesson packs.
 - **start tab** = a playground that ships with Duo (or with a fork's distro) auto-opening on first launch. `intro-to-duo` is one; future "configure your Duo" / "tour the FAQ" / "import your settings" playgrounds belong here too.
 
-## The modality split — verb decides surface (ENH-156)
+## The modality split — verb decides surface
 
 The same HTML source file flips between two surfaces depending on which verb opens it:
 
 | Mode | Verb | Where it renders | What works | What doesn't |
 |---|---|---|---|---|
 | **Browser mode** | `duo open <path>` | Browser pane (real Chromium WebContentsView) | Scripts run · buttons fire · form inputs live · events stream · CSS animations work · external links work | The iframe is **not editable** — you can't click into the body and type to edit the source |
-| **Canvas mode** | `duo edit <path>` | Canvas iframe (sandboxed `srcdoc` document, no `allow-scripts`) | Body is **editable** (contentEditable) · agent CLI can mutate via `duo html *` verbs · markdown shortcuts on type | Scripts are **inert** · buttons render but click-handlers don't fire (the click places a cursor instead) · `<script>` blocks can't execute |
+| **Canvas mode** | `duo edit <path>` | Canvas iframe (sandboxed `srcdoc` document, no `allow-scripts`) | Body is **editable** (contentEditable) · agent CLI can mutate via the `duo html` verbs · markdown shortcuts on type | Scripts are **inert** · buttons render but click-handlers don't fire (the click places a cursor instead) · `<script>` blocks can't execute |
 
 **The verb is the signal:**
 
@@ -49,9 +43,9 @@ The same HTML source file flips between two surfaces depending on which verb ope
 - `duo edit --browser <path>` → force browser mode via the edit verb. Symmetric override.
 - UI: right-click a `file://` browser tab → "Edit in canvas" (equivalent to `duo edit`).
 
-**No meta declaration needed.** Pre-ENH-156, files declared their preferred surface via `<meta name="duo-open-in" content="browser">`. That declaration is now ignored — the verb decides. Existing meta declarations on user files are harmless under the new default (HTML already lands in browser via `duo open`).
+**No meta declaration needed.** Files used to declare their preferred surface via `<meta name="duo-open-in" content="browser">`. That declaration is now ignored — the verb decides. Existing meta declarations on user files are harmless under the new default (HTML already lands in browser via `duo open`).
 
-**`<meta name="duo-editable" content="false">` is still honored** for the canvas-mode case (ENH-106) — opens canvas tabs read-only.
+**`<meta name="duo-editable" content="false">` is still honored** for the canvas-mode case — opens canvas tabs read-only.
 
 ## Vocabulary table (user-facing)
 

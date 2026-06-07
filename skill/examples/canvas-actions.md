@@ -1,4 +1,4 @@
-# Authoring canvas actions (Stage 23)
+# Authoring canvas actions
 
 When you write an HTML canvas the user will open in Duo, you can make
 the page itself drive the workspace by tagging clickable elements with
@@ -7,12 +7,34 @@ arguments. The host (Duo's renderer) intercepts the click before the
 canvas's own JS or `contentEditable` see it, so the side effect is
 predictable, scriptless, and inert outside Duo.
 
-## Trust gate (v0.3.0)
+This file is the per-verb reference. The companion authoring guides
+point here: writing a page → `make-page.md`; writing an interactive
+playground → `make-playground.md`; driving an existing playground →
+`playground-interaction.md`.
+
+## Contents
+
+- [Trust gate](#trust-gate)
+- [Vocabulary](#vocabulary)
+  - [`claude:spawn` — open a new Claude tab](#claudespawn--open-a-new-claude-tab)
+  - [`terminal:send` — write into the active terminal](#terminalsend--write-into-the-active-terminal)
+  - [`browser:open` — open a URL in the embedded browser](#browseropen--open-a-url-in-the-embedded-browser)
+  - [`editor:open` — open a file in the editor / canvas / browser](#editoropen--open-a-file-in-the-editor--canvas--browser)
+  - [`nav:reveal` — show a path in the file navigator](#navreveal--show-a-path-in-the-file-navigator)
+  - [`selection:set` — scroll to and select inside the editor or canvas](#selectionset--scroll-to-and-select-inside-the-editor-or-canvas)
+  - [`theme:set` — flip Duo's light/dark/system theme](#themeset--flip-duos-lightdarksystem-theme)
+  - [`terminal:focus` — give focus to the active terminal](#terminalfocus--give-focus-to-the-active-terminal)
+  - [`duo:event` — emit a named event into the bus](#duoevent--emit-a-named-event-into-the-bus)
+- [Patterns](#patterns)
+- [Error surfacing](#error-surfacing)
+- [What this is not](#what-this-is-not)
+
+## Trust gate
 
 Actions only fire when the canvas file's path is under
 `~/.claude/duo/`. Outside that root they are silently ignored (a
 single `console.info` line logs the attempt for debugging). This
-covers Duo's own help pages and Stage 18b skill-pack canvases. The
+covers Duo's own help pages and bundled skill-pack canvases. A
 "user-marked-trusted folders" extension is on the roadmap; until then,
 canvases the agent writes into project folders stay inert.
 
@@ -43,7 +65,7 @@ Optional siblings:
 - `data-text="<text>"` (required) — payload written into the active
   terminal's PTY.
 - `data-enter="true"` — append `\n` so the command runs immediately
-  (Stage 23b — same flag as `duo send --text "…" --enter` on the CLI).
+  (the same flag as `duo send --text "…" --enter` on the CLI).
   Defaults to `false`; the user confirms by pressing Enter when omitted.
 
 ### `browser:open` — open a URL in the embedded browser
@@ -59,11 +81,6 @@ Optional siblings:
   hostnames on that list punt to the macOS default browser via `duo
   external` instead of opening in Duo's embedded view.
 
-## Stage 27 vocabulary additions
-
-Six more verbs let an authored canvas drive the wider Duo surface
-without needing scripts. All inherit the same trust gate as Stage 23.
-
 ### `editor:open` — open a file in the editor / canvas / browser
 
 ```html
@@ -74,8 +91,18 @@ without needing scripts. All inherit the same trust gate as Stage 23.
 
 - `data-path="<path>"` (required) — absolute path or `~/`-relative.
 - `data-mode="editor|canvas|browser"` (optional) — force the routing
-  surface. When omitted, falls through to Duo's smart router (which
-  honors the file's `<meta name="duo-open-in">` hint, if present).
+  surface. When omitted, Duo routes by file type (a markdown file opens
+  in the editor; an HTML file opens per the verb-driven default — see
+  below).
+
+**Surface is verb-driven for HTML.** The same `.html` file flips
+surface by how it's opened: `duo open <path>` → **browser mode**
+(interactive — scripts run, buttons fire); `duo edit <path>` →
+**canvas mode** (source-editable, scripts blocked). For an
+`editor:open` action targeting HTML, set `data-mode="browser"` for the
+interactive playground surface or `data-mode="canvas"` for the
+source-editable surface. (Legacy `<meta name="duo-open-in">`
+declarations are no longer consulted and are harmless if present.)
 
 ### `nav:reveal` — show a path in the file navigator
 
@@ -136,14 +163,18 @@ without needing scripts. All inherit the same trust gate as Stage 23.
 
 ```html
 <button data-duo-action="duo:event"
-        data-event="lesson-step-1-done"
+        data-event="lesson:step-1-done"
         data-payload='{"score": 5}'>
   Next step
 </button>
 ```
 
 - `data-event="<name>"` (required) — convention `<source>-<noun>-<verb>`
-  e.g. `lesson-step-1-done`.
+  for generic canvas events (e.g. `compute-balance`,
+  `refresh-notifications`). **Lesson events use a mandatory `lesson:`
+  colon prefix** (e.g. `lesson:step-1-done`, `lesson:restart`,
+  `lesson:done`) so concurrent lessons don't collide — see
+  `lesson-runtime.md`.
 - `data-payload="<json-object>"` (optional) — JSON object literal merged
   into the emitted event payload.
 - `data-payload-from="<css-selector>"` (optional) — read `.value` (or
@@ -153,7 +184,7 @@ without needing scripts. All inherit the same trust gate as Stage 23.
   `<select>` (multi-selects return an array).
 - Subscribers stream events via `duo events --follow`.
 
-#### Form-input pattern (Stage 27)
+#### Form-input pattern
 
 A "submit name" button that ships the user's typed value as part of
 the emitted event:
@@ -179,8 +210,8 @@ The agent (subscribed via `duo events --follow`) sees:
 prompt + four choices; each choice button is
 `<button data-duo-action="terminal:send" data-text="The user picked: …" data-enter="true">`.
 Submitting writes the choice into the active Claude tab where the
-agent grades it and (via `duo html replace`) writes the next quiz
-slide back into the canvas.
+agent grades it and (via `duo html replace`, which swaps outerHTML)
+writes the next quiz slide back into the canvas.
 
 **Lesson runner.** A canvas shows a markdown explainer plus a "next
 section" button:
@@ -199,15 +230,16 @@ useful for a "starting points" page that a power user can pin.
 Malformed markup (unknown verb, missing required `data-text`/`data-url`,
 empty action attribute) logs to the canvas's console with a
 `[duo-canvas-action]` prefix. Dispatch failures (no active terminal
-for `terminal:send`, etc.) log there too. There is no in-canvas toast
-in v0.3.0 — open the iframe DevTools (right-click → Inspect) to see
-errors during authoring.
+for `terminal:send`, etc.) log there too. There is no in-canvas toast;
+open the iframe DevTools (right-click → Inspect) to see errors during
+authoring.
 
 ## What this is not
 
 - **Not a scripting hook.** Canvases do not get `allow-scripts`. The
-  3-verb vocabulary is exactly the surface; you cannot read DOM
-  state, fetch URLs, or call MCP servers from a canvas action.
+  `data-duo-action` vocabulary above is exactly the surface; you
+  cannot read DOM state, fetch URLs, or call MCP servers from a canvas
+  action.
 - **Not bidirectional automatically.** "The agent grades the answer"
   in the quiz pattern still requires the agent to be running and
   listening. Canvas actions are a click-to-side-effect channel; they

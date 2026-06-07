@@ -5,20 +5,32 @@ description: The canonical event-loop and state-persistence pattern that every D
 
 # Duo lesson runtime — the canonical event-loop pattern
 
-> **Stage 27 — `skill/lesson-runtime.md`.** The convention every
-> Duo lesson follows: how the playground talks to the lesson skill,
-> what events the playground emits, how the lesson skill listens
-> and persists state, what happens on Duo restart mid-lesson.
+> The convention every Duo lesson follows: how the playground talks
+> to the lesson skill, what events the playground emits, how the
+> lesson skill listens and persists state, what happens on Duo
+> restart mid-lesson.
 >
 > Keep this skill SHORT. It's a contract reference, not a tutorial.
 > The tutorial-shaped read is the canonical template at
-> `skill/examples/lesson-template/`.
+> `~/.claude/skills/duo/examples/lesson-template/`.
 >
 > **Vocabulary lock** (see CLAUDE.md § Glossary):
 > - **page** — basic HTML tab in the canvas (no actions/events)
 > - **playground** — page with interactivity (data-duo-action, events)
 > - **lesson** — playground + paired guide skill
 > - **start tab** — playground that auto-opens on first launch
+
+## Contents
+
+- [The runtime contract](#the-runtime-contract)
+- [Canonical event names](#canonical-event-names)
+- [Sidecar state](#sidecar-state)
+- [The event-loop pattern](#the-event-loop-pattern)
+- [Repaint patterns](#repaint-patterns)
+- [Detecting abandonment](#detecting-abandonment)
+- [Curriculum case (multi-canvas)](#curriculum-case-multi-canvas)
+- [Anti-patterns](#anti-patterns)
+- [Cross-references](#cross-references)
 
 ---
 
@@ -35,7 +47,7 @@ A lesson is two halves talking to each other through Duo's event bus:
 │ → duo:event              │ ──── event ──▶│ → match event.name      │
 │   lesson:step-N-done     │   bus  cursor │ → paint next step       │
 │                          │               │ → persist cursor        │
-│ duo html update repaints │ ◀─ html-op ── │ → wait for next click   │
+│ duo html set repaints    │ ◀─ html-op ── │ → wait for next click   │
 │ step-body, counter,      │               │                         │
 │ controls                 │               │                         │
 └──────────────────────────┘               └─────────────────────────┘
@@ -197,20 +209,20 @@ For a multi-canvas multi-hour curriculum, subagent watch is cleaner.
 Three stable paint regions per the canonical template:
 
 ```bash
-# Repaint the body for a new step:
-duo html update \
+# Repaint the body for a new step (set = replace innerHTML):
+duo html set \
   --selector '[data-duo-pane="step-body"]' \
-  --html '<h2>Step 2 — Heading</h2><p>...</p>'
+  --content '<h2>Step 2 — Heading</h2><p>...</p>'
 
 # Update the step counter:
-duo html update \
+duo html set \
   --selector '[data-duo-pane="step-counter"]' \
-  --html 'Step 2 of 6'
+  --content 'Step 2 of 6'
 
 # Swap the controls (e.g. when the next step has different buttons):
-duo html update \
+duo html set \
   --selector '[data-duo-pane="step-controls"]' \
-  --html '<button class="cta" data-duo-action="duo:event"
+  --content '<button class="cta" data-duo-action="duo:event"
                   data-event="lesson:step-2-done"
                   data-duo-id="next-cta">Next step</button>'
 ```
@@ -218,10 +230,10 @@ duo html update \
 **Path resolution:** the lesson skill knows its pack name. The
 playground path is always
 `~/.claude/duo/packs/<pack-name>/canvases/playground.html`. The
-`duo html *` verbs need the active canvas; if the playground is
-the active tab, the selector-based update routes there. If multiple
-canvases are open, prefer `duo html update --path <abs-path>`
-(when supported) or click the playground tab first.
+`duo html *` verbs target the active canvas; if the playground is
+the active tab, the selector-based write routes there. If multiple
+canvases are open, click the playground tab first (`duo edit
+<abs-path>`) so it's active before painting.
 
 ---
 
@@ -234,10 +246,10 @@ The user closes the tab mid-lesson. Three options:
    sits forever marked `completed: false`. Acceptable for short
    lessons.
 2. **Heartbeat.** The lesson skill's loop reads
-   `duo nav-state` periodically; if the playground tab isn't in
-   the open-tabs list, mark abandoned + exit.
-3. **Tab-close event** (not yet implemented in Stage 27). Filed
-   as a future ENH against the canvas-action verb set.
+   `duo status` periodically; if the playground tab isn't in the
+   open-tabs list, mark abandoned + exit.
+3. **Tab-close event** — not yet emitted by the canvas-action verb
+   set; a dedicated close event is a future addition.
 
 v1: option 1. The sidecar's `completed: false` + a stale
 `lastAdvancedAt` lets a future user (or audit query) tell which
@@ -245,7 +257,7 @@ lessons were started + dropped.
 
 ---
 
-## Curriculum case (multi-canvas, ENH-056)
+## Curriculum case (multi-canvas)
 
 The runtime contract above assumes a SINGLE-CANVAS LINEAR LESSON —
 one playground.html with N steps. For curricula that span multiple
@@ -307,8 +319,8 @@ linear lesson skill, with:
    progress region) only on module-done / -abandon transitions
    when the user is about to see orientation again.
 
-See `skill/examples/curriculum-template/lesson-skill/SKILL.md` for
-the worked-example orchestrator skeleton.
+See `~/.claude/skills/duo/examples/curriculum-template/lesson-skill/SKILL.md`
+for the worked-example orchestrator skeleton.
 
 ### When to use which template
 
@@ -356,10 +368,11 @@ the curriculum template is right.
 - **Authoring playgrounds:** `~/.claude/skills/duo/make-playground.md`
 - **Driving an existing playground:** `~/.claude/skills/duo/playground-interaction.md`
 - **CLI verbs:** `duo events --follow`, `duo events --since <cursor>`,
-  `duo html update --selector <sel> --html <html>`,
+  `duo html set --selector <sel> --content <html>`,
   `duo html query --selector <sel>`
-- **Stage 28 lesson in the wild:** `~/.claude/duo/packs/intro-to-duo/`
+- **A lesson in the wild:** `~/.claude/duo/packs/intro-to-duo/`
   (note: pre-canonical structure — authored before this template
-  existed. The `claude-code-basics` multi-canvas pack that also
-  shipped at Stage 28 was retired in v0.6.13 and now lives at
-  `examples/lesson-pack-template/` as a reference shape.)
+  existed. The `claude-code-basics` multi-canvas pack was retired
+  and now lives at
+  `~/.claude/skills/duo/examples/lesson-pack-template/` as a
+  reference shape.)

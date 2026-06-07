@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://duo.dev/schemas/distro-v1.json",
   "title": "Duo distro pack manifest — DISTRO.json (v1)",
-  "description": "The Duo integration manifest for a distro pack's `duo-extras/` subtree (Stage 21d). IMPORTANT: identity fields (name, version, description, author, homepage) live in `.claude-plugin/plugin.json`, NOT here. This file declares only Duo-specific install behavior. Reference schema for authors + agents; intentionally lenient (extra fields are allowed so newer Duo versions can add behavior without invalidating older packs).",
+  "description": "The Duo integration manifest for a distro pack's `duo-extras/` subtree. IMPORTANT: identity fields (name, version, description, author, homepage) live in `.claude-plugin/plugin.json`, NOT here. This file declares only Duo-specific install behavior. Reference schema for authors + agents; intentionally lenient (extra fields are allowed so newer Duo versions can add behavior without invalidating older packs).",
   "type": "object",
   "properties": {
     "$schema": {

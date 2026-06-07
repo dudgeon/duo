@@ -5,11 +5,9 @@ description: Fly through a Duo lesson end-to-end without manual clicking — rea
 
 # Lesson fly-through harness
 
-> **Stage 27 — `skill/lesson-flythrough.md`.** Walk through a
-> canonical lesson end-to-end without a human clicking. Reads the
-> playground, enumerates buttons, simulates clicks, observes
-> events, reports pass/fail per step. Closes meta-goal gap 5 from
-> the v0.6.0 zoom-out.
+> Walk through a canonical lesson end-to-end without a human
+> clicking. Reads the playground, enumerates buttons, simulates
+> clicks, observes events, reports pass/fail per step.
 >
 > **Vocabulary lock** (see CLAUDE.md § Glossary): canvas (slot),
 > page (basic HTML), playground (page + interactivity), lesson
@@ -20,6 +18,14 @@ description: Fly through a Duo lesson end-to-end without manual clicking — rea
 > Or the user wants to smoke-walk an existing lesson to verify it
 > still works after a Duo upgrade. The harness IS the test —
 > there's no separate test runner.
+
+## Contents
+
+- [What the harness assumes](#what-the-harness-assumes)
+- [The fly-through loop](#the-fly-through-loop)
+- [Edge cases](#edge-cases)
+- [Anti-patterns](#anti-patterns)
+- [Cross-references](#cross-references)
 
 ---
 
@@ -40,9 +46,8 @@ The lesson follows the **canonical pattern** documented in
 **For non-canonical lessons** (multi-canvas curricula, lessons that
 predate the canonical template, lessons with branching), adapt the
 loop or fall back to manual fly-through. The pre-template
-`intro-to-duo` pack adopted canonical event names in v0.6.1 but its
-structure isn't fully canonical; expect surprises when flying
-through it.
+`intro-to-duo` pack adopted canonical event names but its structure
+isn't fully canonical; expect surprises when flying through it.
 
 ---
 
@@ -103,7 +108,9 @@ For each step `N` from 1 to the total:
    duo html query --selector '[data-duo-pane="step-controls"] [data-event="lesson:step-1-done"]'
    ```
 
-2. **Click it via the new ENH-055 primitive:**
+2. **Click it via the `duo html click` primitive** (fires the
+   canvas-action dispatcher exactly like a real user click, so
+   `data-duo-action` verbs run and events emit):
 
    ```bash
    duo html click --selector '[data-duo-pane="step-controls"] [data-event="lesson:step-1-done"]'
@@ -125,9 +132,9 @@ For each step `N` from 1 to the total:
    skill in addition to the harness:
 
    ```bash
-   duo html update --selector '[data-duo-pane="step-counter"]' \
-                   --html "Step 2 of <total>"
-   duo html update --selector '[data-duo-pane="step-body"]' --html '<...>'
+   duo html set --selector '[data-duo-pane="step-counter"]' \
+                --content "Step 2 of <total>"
+   duo html set --selector '[data-duo-pane="step-body"]' --content '<...>'
    ```
 
 5. **Verify the new step content rendered.** Read it back:
@@ -189,7 +196,8 @@ This is the most common bug class for new lesson authors.
 **Browser pane is blocking the playground.** The lesson playground
 should be the active working pane tab when the harness runs. If a
 browser tab is active instead, `duo edit` switches to the file tab.
-Verify with `duo nav-state` if uncertain.
+Verify with `duo status` if uncertain (it reports which tab is
+`active`).
 
 **The lesson predates the canonical template.** `intro-to-duo`
 uses `lesson:` event names but has non-canonical paint regions or
@@ -219,7 +227,7 @@ pass/fail.
 
 ## Cross-references
 
-- **Primitive:** `duo html click --id <duo-id>` / `--selector <css>` (ENH-055)
+- **Primitive:** `duo html click --id <duo-id>` / `--selector <css>`
 - **Lesson runtime contract:** `~/.claude/skills/duo/lesson-runtime.md`
 - **Lesson template:** `~/.claude/skills/duo/examples/lesson-template/`
 - **Authoring playgrounds:** `~/.claude/skills/duo/make-playground.md`

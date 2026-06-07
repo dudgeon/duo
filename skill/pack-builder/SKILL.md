@@ -1,6 +1,6 @@
 ---
 name: pack-builder
-description: Author, validate, and build a Duo distro pack — a Claude Code plugin folder with a Duo `duo-extras/` subtree that ships an organization's skills + agents + canvases + CLAUDE.md guidance to a canonical signed Duo install. Use when a user says "build a distro pack for X", "make an Acme-flavored Duo", "package my team's skills as a Duo plugin", or "scaffold a new distro pack." Pairs with the duo-pack-service install pipeline (Stage 21d-i) and the `duo pack list / uninstall` CLI verbs.
+description: Author, validate, and build a Duo distro pack — a Claude Code plugin folder with a Duo `duo-extras/` subtree that ships an organization's skills + agents + canvases + CLAUDE.md guidance to a canonical signed Duo install. Use when a user says "build a distro pack for X", "make an Acme-flavored Duo", "package my team's skills as a Duo plugin", or "scaffold a new distro pack." Pairs with the duo-pack-service install pipeline and the `duo pack list / uninstall` CLI verbs.
 ---
 
 # Pack-builder skill — Duo distro packs
@@ -9,8 +9,7 @@ description: Author, validate, and build a Duo distro pack — a Claude Code plu
 > platform team / educational program / OSS community group ships to
 > end users so their canonical Duo install picks up org-specific
 > skills, agents, canvases, playgrounds, and CLAUDE.md guidance —
-> without forcing users to recompile Duo. Per Stage 21d (PRD at
-> `docs/prd/stage-21d-distro-packs.md`), the pack format is the
+> without forcing users to recompile Duo. The pack format is the
 > canonical Claude Code plugin layout (`.claude-plugin/plugin.json`
 > + `skills/<name>/SKILL.md` + `agents/<name>.md`) plus a `duo-extras/`
 > subtree for Duo-specific content (canvases, playgrounds, integration
@@ -40,7 +39,7 @@ my-distro-pack/                           ← the pack root (any name)
 │       └── (optional supporting files)
 ├── agents/                               ← installed as ~/.claude/agents/<distro>-<name>.md
 │   └── example-agent.md
-└── (optional: hooks/, .mcp.json, .lsp.json — Stage 21d-i v2 routing)
+└── (optional: hooks/, .mcp.json, .lsp.json — v2 routing)
 ```
 
 **A reference template** ships at
@@ -105,7 +104,7 @@ These constraints are surfaced by `pack-builder validate` (below).
    - `duo-extras/canvas-templates/<file>.html` — reusable templates
      for `make-page` / `make-playground` consumers.
    - `duo-extras/claude-md-snippet.md` — a managed block for
-     `~/.claude/CLAUDE.md`. Sits alongside Duo's own ENH-088 block;
+     `~/.claude/CLAUDE.md`. Sits alongside Duo's own managed block;
      never overrides it.
    - `duo-extras/priming-additions.md` — appended to
      `~/.claude/duo/priming.md`.
@@ -154,7 +153,7 @@ Validation steps the skill walks:
 
 ## Build distribution artifacts
 
-Three distribution paths per the Stage 21d PRD:
+Three distribution paths per the PRD:
 
 ### Path 1 — Drop-in zip (Jamf / Munki / manual download)
 
@@ -224,7 +223,7 @@ signed DMG yet:
 ```bash
 # 1. Fork dudgeon/duo (or maintain a private fork internally).
 # 2. Drop your pack folder into a new top-level `bundled-distros/<distro-name>/`.
-# 3. (Future Stage 21d follow-up — Duo's build pipeline copies bundled-
+# 3. (Future follow-up — Duo's build pipeline copies bundled-
 #    distros/ contents into Duo.app/Contents/Resources/bundled-distros/
 #    on package time.)
 # 4. Users clone the fork + `npm run dist` get an unsigned DMG with

@@ -5,7 +5,7 @@
   <title>Today's notes — open</title>
 
   <!--
-    button-card.html — Stage 27 reference template (1 of 5).
+    button-card.html — reference template (1 of 5).
 
     What it demonstrates: a single-card layout with a CTA button that
     drives an `editor:open` action verb. The card pattern works for
@@ -19,15 +19,14 @@
     Customize:
       - data-path on the button → the file you want to open
       - data-mode on the button → editor | canvas | browser
-        (omit to honor the file's <meta name="duo-open-in"> hint)
+        (omit to let the launch verb pick: `duo open` → browser,
+        `duo edit` → canvas)
       - h2 / p / button label → user-facing copy
 
     Trust gate: this canvas must live under ~/.claude/duo/ for the
-    action to fire. See skill/canvas-authoring.md § "The contract".
+    action to fire. See skill/make-page.md § "The contract".
   -->
 
-  <!-- Playground modality: defaults to browser pane (scripts run, buttons fire). -->
-  <meta name="duo-open-in" content="browser">
   <!-- Soft default for the canvas-mode override: when opened in canvas to edit
        source, mount read-only first; user can flip to edit via toolbar. -->
   <meta name="duo-default-editable" content="false">

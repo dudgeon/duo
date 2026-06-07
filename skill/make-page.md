@@ -5,12 +5,25 @@ description: Author a basic HTML page that lives in Duo's canvas (the right pane
 
 # Authoring pages for Duo
 
-> **Stage 27 — `skill/make-page.md`.** Author a **page**: a basic
-> HTML tab that lives in Duo's canvas (the right pane). Static or
-> lightly-styled content; no actions, no events, no form bindings.
-> Just rendered HTML. The simplest unit of canvas authoring; the
-> base that `make-playground` extends.
->
+> Author a **page**: a basic HTML tab that lives in Duo's canvas (the
+> right pane). Static or lightly-styled content; no actions, no events,
+> no form bindings. Just rendered HTML. The simplest unit of canvas
+> authoring; the base that `make-playground` extends.
+
+## Contents
+
+- [When to canvas, when to browser, when to markdown editor](#when-to-canvas-when-to-browser-when-to-markdown-editor)
+- [The runtime contract — what canvas pages get](#the-runtime-contract--what-canvas-pages-get)
+- [Stable IDs (data-duo-id)](#stable-ids-data-duo-id)
+- [Paint regions (data-duo-pane)](#paint-regions-data-duo-pane)
+- [Routing — verb-driven](#routing--verb-driven)
+- [Copy buttons on pre blocks (auto-injected)](#copy-buttons-on-pre-blocks-auto-injected)
+- [Anti-patterns](#anti-patterns)
+- [Worked example: a static reference page](#worked-example-a-static-reference-page)
+- [Cross-references](#cross-references)
+
+---
+
 > **Vocabulary lock** (see [`references/vocabulary.md`](references/vocabulary.md)):
 > - **canvas** — the right pane (slot, type-agnostic). Holds whatever
 >   tab is active. NOT what you author.
@@ -53,7 +66,7 @@ Every page mounted in Duo's canvas gets:
    does nothing. This is intentional — pages stay inert outside Duo
    even if a malicious actor distributes them.
 2. **Same-origin DOM access.** The parent renderer can read + mutate
-   the iframe's DOM. This is how `duo html update --selector "[data-duo-pane=…]"`
+   the iframe's DOM. This is how `duo html set --selector "[data-duo-pane=…]"`
    paints into a page region without re-rendering the whole tab. Even
    pure pages benefit from this if you want them re-paintable from
    Claude (e.g. a dashboard the agent updates with fresh data).
@@ -65,7 +78,7 @@ Every page mounted in Duo's canvas gets:
 What a page must NOT do:
 - Run scripts. `<script>` tags are inert; CSS animations work fine.
 - Network fetch. No XHR, no `fetch()`. If you need data, run the
-  fetch agent-side and paint via `duo html update`.
+  fetch agent-side and paint via `duo html set`.
 - Cross-canvas state. Each page's iframe is isolated; localStorage is
   best-effort and not guaranteed across canvases.
 
@@ -129,8 +142,8 @@ mark that region with `data-duo-pane="<name>"`.
 The agent paints into a pane via:
 
 ```bash
-duo html update --selector '[data-duo-pane="balance"]' \
-                --html '<p>Balance: $1,247.50</p>'
+duo html set --selector '[data-duo-pane="balance"]' \
+             --content '<p>Balance: $1,247.50</p>'
 ```
 
 `duo-pane` and `duo-id` overlap functionally, but `pane` flags
@@ -140,7 +153,7 @@ addressable elements.
 
 ---
 
-## Routing — verb-driven (ENH-156)
+## Routing — verb-driven
 
 The verb that opens the file decides its surface:
 
@@ -214,7 +227,7 @@ one renderer-side implementation, no per-page wiring needed.
 **Don't ship a page with scripts that need network.** Pages are
 sandboxed without `allow-scripts`. Even if scripts COULD run,
 they'd have no network access. If you need a fetch, run it
-agent-side and write the result back via `duo html update`.
+agent-side and write the result back via `duo html set`.
 
 **Don't bake brand colours into every page.** Use Atelier palette
 tokens (`--paper`, `--ink`, `--accent`) in inline styles. The user's
@@ -276,11 +289,11 @@ this read better as a markdown file?
     <h1>Project Charter — Q3 2026</h1>
     <section data-duo-pane="objective">
       <h2>Objective</h2>
-      <p>Ship the FTUX-tutorial trio (Stages 27 + 18b + 28).</p>
+      <p>Ship the first-run tutorial experience.</p>
     </section>
     <section data-duo-pane="status">
       <h2>Status</h2>
-      <p>v0.6.0 shipped 2026-05-02.</p>
+      <p>Shipped 2026-05-02.</p>
     </section>
   </main>
 </body>
@@ -291,8 +304,8 @@ The `data-duo-pane="status"` lets the agent re-paint that region
 without touching the rest of the page:
 
 ```bash
-duo html update --selector '[data-duo-pane="status"]' \
-                --html '<h2>Status</h2><p>v0.6.1 in flight (canonical lesson template).</p>'
+duo html set --selector '[data-duo-pane="status"]' \
+             --content '<h2>Status</h2><p>Next release in flight.</p>'
 ```
 
 A page like this is enough for many agent-driven artifacts. When you
@@ -303,10 +316,10 @@ terminal, fire an event), graduate to a playground via `make-playground`.
 
 ## Cross-references
 
-- **Add interactivity:** `~/.claude/skills/duo/make-playground.md`
-- **Drive an existing page or playground:** `~/.claude/skills/duo/playground-interaction.md`
-- **Reference templates:** `~/.claude/skills/duo/examples/canvas-templates/`
+- **Add interactivity:** [`make-playground.md`](make-playground.md)
+- **Drive an existing page or playground:** [`playground-interaction.md`](playground-interaction.md)
+- **Reference templates:** [`examples/canvas-templates/`](examples/canvas-templates/)
   (button-card, paint-target, form-input, lesson-scaffold, dashboard —
   most are playgrounds; lesson-scaffold is the lesson-shaped subset.)
-- **Vocabulary:** see CLAUDE.md § Glossary for the canvas / page /
-  playground / lesson hierarchy.
+- **Vocabulary:** [`references/vocabulary.md`](references/vocabulary.md) — the
+  canvas / page / playground / lesson hierarchy.

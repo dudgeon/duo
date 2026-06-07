@@ -104,9 +104,9 @@ Standard linear-lesson handling, scoped to the current module:
 2. Repaint the module canvas's step regions (same as lesson-runtime's
    step transition pattern):
    ```bash
-   duo html update --selector '[data-duo-pane="step-counter"]' --html 'Step <N+1> of <total>'
-   duo html update --selector '[data-duo-pane="step-body"]' --html '<...>'
-   duo html update --selector '[data-duo-pane="step-controls"]' --html '<...>'
+   duo html set --selector '[data-duo-pane="step-counter"]' --content 'Step <N+1> of <total>'
+   duo html set --selector '[data-duo-pane="step-body"]' --content '<...>'
+   duo html set --selector '[data-duo-pane="step-controls"]' --content '<...>'
    ```
 3. On the LAST step of the module, the CTA's `data-event` should be
    `lesson:module-<id>-done` (not `lesson:step-N-done`). The

@@ -28,7 +28,401 @@ var os = __toESM(require("os"));
 var path = __toESM(require("path"));
 var fs = __toESM(require("fs"));
 var import_crypto = require("crypto");
-var VERSION = true ? "0.9.1" : "0.0.0-dev";
+var VERSION = true ? "0.9.2" : "0.0.0-dev";
+var VERBS = [
+  // ── Browser & tabs ──
+  {
+    name: "navigate",
+    group: "Browser & tabs",
+    args: "<url>",
+    summary: 'Open a URL in a NEW browser tab (or focus an existing tab whose URL matches). URLs only \u2014 never clobbers the active tab. For a local file use "open"; to move the navigator use "reveal".'
+  },
+  {
+    name: "open",
+    group: "Browser & tabs",
+    args: "<path-or-url> [--canvas] [--reveal]",
+    summary: "Open a local file or URL. HTML defaults to the browser pane (scripts run, interactive) \u2014 use this to show the user a generated explainer / playground. Non-HTML routes to its natural surface (.md \u2192 editor, image \u2192 viewer). --canvas forces canvas mode (source-editable, scripts blocked); --reveal expands the working pane."
+  },
+  {
+    name: "reload",
+    group: "Browser & tabs",
+    summary: 'Reload the active browser tab in place (no URL needed) \u2014 the iteration-loop pair for "navigate".'
+  },
+  {
+    name: "tabs",
+    group: "Browser & tabs",
+    summary: "List open browser tabs (JSON)."
+  },
+  {
+    name: "tab",
+    group: "Browser & tabs",
+    args: "<n>",
+    summary: "Switch to browser tab N."
+  },
+  {
+    name: "close",
+    group: "Browser & tabs",
+    args: "<n>",
+    summary: 'Close browser tab N (a tab id from "duo tabs"; cannot close the last).'
+  },
+  {
+    name: "external",
+    group: "Browser & tabs",
+    args: "<url>",
+    summary: "Open <url> in the macOS default browser (http(s) / mailto only) \u2014 for sites that do not render well in the embedded pane."
+  },
+  {
+    name: "browser-mode",
+    group: "Browser & tabs",
+    args: "[unfiltered|filtered|local-only]",
+    summary: "Read or set the embedded browser URL filter. Default local-only: only file:// + localhost + 127.0.0.1 + [::1] render; everything else pops the system browser. filtered consults external-domains.json. unfiltered is DEBUG ONLY and requires --i-understand. No arg prints { mode }."
+  },
+  {
+    name: "inspect",
+    group: "Browser & tabs",
+    args: "[--on|--off]",
+    summary: "Toggle element-inspect mode in the active browser pane (no arg toggles; --on/--off force). Hover outlines an element; click ships its tag + selector + heading trail + innerText to the active terminal. ESC exits. Chord \u2318\u21E7C inside the pane is the keystroke equivalent."
+  },
+  // ── Read & inspect ──
+  {
+    name: "url",
+    group: "Read & inspect",
+    summary: "Print the current browser URL."
+  },
+  {
+    name: "title",
+    group: "Read & inspect",
+    summary: "Print the current page title."
+  },
+  {
+    name: "dom",
+    group: "Read & inspect",
+    args: '[<selector>] [--attr <n>] [--text] [--all] [--computed p1,p2] [--js "<expr>"]',
+    summary: `Bare "duo dom" prints the browser pane's full HTML. With a selector, queries the main RENDERER (the React shell \u2014 useful for debugging editor / canvas / image-viewer state). --attr returns one attribute, --text returns textContent, --all returns an array of matches, --computed returns getComputedStyle props, --js evaluates an arbitrary expression in the renderer.`
+  },
+  {
+    name: "text",
+    group: "Read & inspect",
+    args: "[--selector <css>]",
+    summary: "Print visible page text (or the matched element's text)."
+  },
+  {
+    name: "ax",
+    group: "Read & inspect",
+    args: "[--selector <css>] [--format md|json]",
+    summary: "Print the accessibility tree (required for Google Docs and other canvas-rendered apps)."
+  },
+  {
+    name: "selection",
+    group: "Read & inspect",
+    args: "[--pane auto|editor|browser|canvas]",
+    summary: "Print the active surface's selection as JSON. Default --pane auto prefers a non-empty browser highlight, then a non-empty canvas selection, falling back to the editor's cached selection (informative even when collapsed \u2014 it carries the caret's paragraph + heading trail). Returns null when nothing is active."
+  },
+  {
+    name: "screenshot",
+    group: "Read & inspect",
+    args: "[--out <path>] [--selector <css>]",
+    summary: "Capture a screenshot of the browser pane (whole page or a matched element). --out writes a PNG; otherwise base64 is printed."
+  },
+  // ── Interact ──
+  {
+    name: "click",
+    group: "Interact",
+    args: "<selector>",
+    summary: "Click an element in the browser pane by CSS selector."
+  },
+  {
+    name: "fill",
+    group: "Interact",
+    args: "<selector> <value>",
+    summary: "Fill an input in the browser pane."
+  },
+  {
+    name: "focus",
+    group: "Interact",
+    args: "<selector>",
+    summary: 'Move browser-pane focus to the matching element (distinct from "focus-pane", which jumps between app panes).'
+  },
+  {
+    name: "type",
+    group: "Interact",
+    args: "<text>",
+    summary: "Synthesize text input into the focused browser-pane element."
+  },
+  {
+    name: "key",
+    group: "Interact",
+    args: "<keyname> [--modifiers cmd,shift,...]",
+    summary: "Dispatch a named key (Enter, ArrowDown, Backspace, \u2026) with optional modifiers. Cross-platform navigation combos are translated to Mac-native equivalents."
+  },
+  {
+    name: "eval",
+    group: "Interact",
+    args: "<js>",
+    summary: "Execute JS in the browser pane and return the result."
+  },
+  {
+    name: "wait",
+    group: "Interact",
+    args: "<selector> [--timeout ms]",
+    summary: "Wait for an element to appear in the browser pane (socket timeout extends to outlast --timeout)."
+  },
+  // ── Diagnostics ──
+  {
+    name: "console",
+    group: "Diagnostics",
+    args: "[--since <ts>] [--level log,warn,...] [--limit N]",
+    summary: "Dump buffered browser console messages (NDJSON, one event per line)."
+  },
+  {
+    name: "errors",
+    group: "Diagnostics",
+    args: "[--since <ts>] [--limit N]",
+    summary: 'Print uncaught browser exceptions (NDJSON; separate from "console", populated by Runtime.exceptionThrown).'
+  },
+  {
+    name: "network",
+    group: "Diagnostics",
+    args: "[--since <ts>] [--filter <regex>] [--limit N]",
+    summary: "Print HTTP requests stitched from network events (NDJSON). --filter matches against the URL."
+  },
+  {
+    name: "events",
+    group: "Diagnostics",
+    args: "[--follow] [--since <cursor>] [--limit N]",
+    summary: "Stream structured events from the event bus. Snapshot mode prints one JSON line per event from the ring (most-recent N with --limit; whole ring without). --follow keeps the connection open and prints each new event. --since <cursor> resumes from a known cursor (format <unix-ms>-<seq>)."
+  },
+  {
+    name: "devtools",
+    group: "Diagnostics",
+    args: "[--browser-pane] [--close]",
+    summary: 'Open DevTools on the main renderer (default) or the active browser pane. --close closes any open instance for the target. Sister to "duo dom" for the rare case a targeted query is not enough.'
+  },
+  {
+    name: "doctor",
+    group: "Diagnostics",
+    summary: "Health-check both transports (Unix socket + TCP fallback), report the app/CLI version match, $DUO_SESSION presence, install path, and skill files. First move when a duo command fails \u2014 names the failure mode instead of dying silently. Exits 0 if either transport is reachable."
+  },
+  // ── Files & navigator ──
+  {
+    name: "view",
+    group: "Files & navigator",
+    args: "<path> [--canvas]",
+    summary: `Open a file in the working pane (new tab; type inferred from extension). Distinct from "open" (which opens a URL/HTML in a browser tab). --canvas forces canvas-mode mount \u2014 useful to view or edit a playground's source without firing its scripts.`
+  },
+  {
+    name: "edit",
+    group: "Files & navigator",
+    args: "<path> [--browser] [--reveal]",
+    summary: 'Open a file to edit its source. HTML defaults to canvas mode (buttons inert, scripts blocked, document editable); .md opens in the rich editor; images / PDFs / JSON fall through to their viewers. --browser forces browser mode for HTML (symmetric with "open --canvas"); --canvas is accepted as a deprecated no-op; --reveal expands the working pane.'
+  },
+  {
+    name: "image",
+    group: "Files & navigator",
+    args: 'insert <path> [--alt "\u2026"]',
+    summary: "Save an image alongside the active markdown editor's doc and insert it at the caret (markdown only). Optional --alt sets alt text."
+  },
+  {
+    name: "file",
+    group: "Files & navigator",
+    args: "<rename|trash> ...",
+    summary: "file rename <old> <new> moves within the same filesystem (atomic); file trash <path> moves to the macOS Trash (recoverable). Mirrors the navigator's right-click Rename / Delete."
+  },
+  {
+    name: "reveal",
+    group: "Files & navigator",
+    args: "<path>",
+    summary: "Move the file navigator to <path> and surface a dismissible chip so the user knows you moved their tree."
+  },
+  {
+    name: "ls",
+    group: "Files & navigator",
+    args: "[path]",
+    summary: "List directory contents (JSON). Defaults to the navigator's current folder."
+  },
+  {
+    name: "nav",
+    group: "Files & navigator",
+    args: "<state|pin|unpin|pins> [<path>]",
+    summary: `nav state prints navigator state (cwd, selection, expanded folders, pinned flag). nav pin <path> / nav unpin <path> manage the navigator's "Pinned" section (stored separately from tab pins); nav pins lists them.`
+  },
+  {
+    name: "nav-state",
+    group: "Files & navigator",
+    aliasOf: "nav state",
+    summary: 'Back-compat alias for "duo nav state".'
+  },
+  {
+    name: "hidden-files",
+    group: "Files & navigator",
+    args: "[show|hide|toggle]",
+    summary: "Show or hide dotfiles in the navigator (parity with View \u2192 Show Hidden Files, \u2318\u21E7.). .claude + .obsidian stay visible regardless. No arg prints { showDotfiles }."
+  },
+  // ── Markdown editor (doc) ──
+  {
+    name: "doc",
+    group: "Markdown editor (doc)",
+    args: "<subcmd> [args]",
+    summary: 'Markdown editor operations against the live buffer. read / write / goto / find / edit (plain-text), plus CriticMarkup ops insert / delete / substitute / highlight / comment / accept / reject, and conflict-log. Run "duo doc --help" (or "duo doc <subcmd> --help") for focused help.'
+  },
+  {
+    name: "author",
+    group: "Markdown editor (doc)",
+    args: "[<name>]",
+    summary: "Read or set the human author identity used for CriticMarkup attribution (insertions / deletions / comments). No arg prints state (JSON); a name persists + prints. Agents set their own via the DUO_AUTHOR env var."
+  },
+  {
+    name: "json",
+    group: "Markdown editor (doc)",
+    args: "<set|merge> <file> ...",
+    summary: 'Structured edits to a JSON / YAML file. json set <file> <dotpath> <value> sets a value (dotpath uses dots + [n] indices; "" or "." = root; value parsed as JSON if valid, else literal string). json merge <file> <patch.json> deep-merges an object. Echo-safe when the file is open; disk-direct when closed. YAML round-trips lose comments.'
+  },
+  {
+    name: "selection-format",
+    group: "Markdown editor (doc)",
+    args: "[a|b|c]",
+    summary: "Read or set the Send \u2192 Duo payload format: a = quote + provenance (default), b = literal text only, c = opaque token. No arg prints current; an arg sets + persists."
+  },
+  // ── HTML canvas ──
+  {
+    name: "html",
+    group: "HTML canvas",
+    args: "<subcmd> [args]",
+    summary: "Create + drive an HTML canvas. html new <path.html> [--title] scaffolds + opens a file. Ops against the active canvas target by --id <duo-id> or --selector <css>: query, get, set (replace innerHTML, --content/stdin), replace (replace outerHTML, --html/stdin), append (--parent\u2026), remove, attr (--set/--remove), click (fires data-duo-action verbs). comment / comments anchor + list threads in <file>.duo.json."
+  },
+  // ── Working pane & layout ──
+  {
+    name: "split",
+    group: "Working pane & layout",
+    args: "<pct|preset>",
+    summary: "Set the split-pane percentage (terminal column as % of the split container; numeric clamps to 20\u201380). Presets: even (50), terminal-heavy (67), canvas-heavy (33), terminal (80), canvas (20), 3way (outer 33/67 + inner aux 50/50). Mirrors View \u2192 Pane size and \u2318\u23251/2/3/4/0/9."
+  },
+  {
+    name: "split-view",
+    group: "Working pane & layout",
+    args: "<op> [args]",
+    summary: 'Split View aux pane. Sub-verbs: open <path> (file into aux), open-browser <id> (pin a browser tab from "duo tab" into aux), close, promote (move aux back to main + close split), resize <pct> (0.20\u20130.80), and state (or no sub-verb) prints a snapshot.'
+  },
+  {
+    name: "focus-pane",
+    group: "Working pane & layout",
+    args: "<terminal|main|aux>",
+    summary: `Jump keyboard focus to the named pane (parity with \u2318\u2325L / \u2318\u2325; / \u2318\u2325'). aux is a no-op when split view is closed. Distinct from "focus", which targets a CSS selector in the browser pane.`
+  },
+  {
+    name: "layout",
+    group: "Working pane & layout",
+    summary: 'JSON snapshot of working-pane / terminal / navigator state (active main tab kind+path, aux state, splitPct, focused column, navigator collapsed?). The third visibility verb alongside "duo nav state" and "duo dom".'
+  },
+  {
+    name: "status",
+    group: "Working pane & layout",
+    summary: 'High-level app snapshot: every open file + browser tab (with per-tab dirty / active / pinned), the active working tab, focused column, theme, terminal-tab count. The keystone orientation verb \u2014 run it first to see what the user is looking at. Coarser than "duo layout".'
+  },
+  {
+    name: "close-tab",
+    group: "Working pane & layout",
+    summary: "Close the focused working-pane tab (file editor / canvas / image viewer / browser-mode HTML). CLI parity for \u2318W. Pinned tabs still surface the confirm dialog before closing."
+  },
+  {
+    name: "theme",
+    group: "Working pane & layout",
+    args: "[system|light|dark]",
+    summary: "Print the current theme (mode + effective), or set it when a mode is given. Persists across relaunches."
+  },
+  // ── Terminal ──
+  {
+    name: "new-tab",
+    group: "Terminal",
+    args: '[--shell|--claude] [--cwd <path>] [--cmd "<text>"]',
+    summary: `Open a new terminal tab. --claude (the split-button default) auto-launches "claude" after the shell starts; --shell opens a vanilla shell; no flag follows the user's last manual choice. --cwd overrides the navigator's pending CWD; --cmd pre-types a payload (no trailing newline). Returns {id, kind, cwd, title}.`
+  },
+  {
+    name: "send",
+    group: "Terminal",
+    args: '[--text "\u2026"] [--enter]',
+    summary: "Write a payload into the active terminal's PTY. No Enter appended by default (user confirms); --enter submits on their behalf. Without --text, reads from stdin."
+  },
+  {
+    name: "close-terminal-tab",
+    group: "Terminal",
+    args: "[<n>]",
+    summary: "Close a terminal tab \u2014 no arg closes the focused one; <n> (1-indexed) closes that specific terminal tab."
+  },
+  {
+    name: "claude-return",
+    group: "Terminal",
+    args: "[submit|newline]",
+    summary: "Toggle Claude-tab plain-Return behavior. Default submit (xterm passthrough; Claude submits). newline writes ESC+CR so Claude reads a multi-line newline (user types \u2318Return to submit). No arg prints state."
+  },
+  {
+    name: "shift-return",
+    group: "Terminal",
+    args: "[submit|newline]",
+    summary: "Toggle Claude-tab Shift+Return behavior. Default newline writes ESC+CR (matches Slack / Discord / claude.ai web). submit disables the override (xterm passthrough). No arg prints state."
+  },
+  // ── Workspace & projects ──
+  {
+    name: "workspace",
+    group: "Workspace & projects",
+    args: "<save|open|list-recent|current|new> [args]",
+    summary: "Workspace-as-file: round-trips open tabs + terminals + browser tabs to a .duo-workspace file. save [<path>] [--name] [--save-as] writes; open <path> loads + in-place resets; list-recent and current print JSON; new resets in-place to one fresh shell at the previously-frontmost terminal's CWD (pinned tabs survive)."
+  },
+  {
+    name: "workspace-pill-menu",
+    group: "Workspace & projects",
+    args: "[on|off|toggle]",
+    summary: "Toggle the title-bar workspace pill's click-to-open-menu behavior. Default OFF: the pill is a passive label and workspace ops route through the File menu. Bare command reads current state."
+  },
+  {
+    name: "project",
+    group: "Workspace & projects",
+    args: "<list|focus|pin|unpin|close> [args]",
+    summary: "Project rail parity (name resolution is case-insensitive; exact root paths always resolve). list prints a JSON snapshot (run it first to discover names); focus <name|root> sets the lens (focus --all releases it); pin / unpin manage the persistent pin set; close bulk-closes a project's terminals + working tabs (confirm dialog when a member terminal is a Claude session)."
+  },
+  {
+    name: "session",
+    group: "Workspace & projects",
+    args: "<list|resume> [args]",
+    summary: `Claude session lifecycle. session list [--cwd <path>] lists prior "<uuid>.jsonl" sessions in the CWD ({uuid, title, source, messageCount, modifiedAt}); session resume <tabId> <uuid> spawns "claude --resume <uuid>" in the named tab's PTY.`
+  },
+  // ── Repo & git ──
+  {
+    name: "git-status",
+    group: "Repo & git",
+    args: "[<path>]",
+    summary: "Git status snapshot for a directory (defaults to $HOME). Returns JSON { isRepo, branch, head, dirty, changedCount, ahead, behind, workTreeRoot } \u2014 powers the navigator root chip and lets agents check a checkout's state before proposing edits."
+  },
+  {
+    name: "clone",
+    group: "Repo & git",
+    args: "<url> [<dir>] [--json]",
+    summary: 'Clone a GitHub repo via "gh repo clone" when gh is authenticated, falling back to "git clone". <url> accepts owner/repo shorthand with gh, else a full HTTPS/SSH URL. --json prints the structured result so agents can branch on errorKind (bad-url / auth-missing / clone-failed).'
+  },
+  {
+    name: "gh-auth",
+    group: "Repo & git",
+    summary: 'Probe "gh auth status". Prints JSON { ghInstalled, authenticated, host, user, ghNotFound } so agents can decide whether "duo clone" will work on private repos before trying.'
+  },
+  // ── Health & install ──
+  {
+    name: "install",
+    group: "Health & install",
+    args: "[--system]",
+    summary: "Symlink duo into a sandbox-safe location: ~/.claude/bin/duo by default (writable from a sandboxed PTY), with ~/.local/bin/duo as fallback. --system forces /usr/local/bin (needs sudo; not recommended for Claude Code use)."
+  },
+  {
+    name: "packs",
+    group: "Health & install",
+    summary: "List every discovered distro pack at ~/.claude/duo/packs/<name>/ as JSON. Each row carries the parsed PACK.json manifest (or null on parse failure) plus per-pack errors[]. The registry is cached at boot; restart Duo to refresh."
+  },
+  {
+    name: "pack",
+    group: "Health & install",
+    args: "<list|uninstall> [args]",
+    summary: "Distro pack management. pack list prints a JSON list of installed packs; pack uninstall <name> [--remove-folder] removes one."
+  }
+];
 var SOCKET_PATH = process.env.DUO_SOCKET ?? path.join(os.homedir(), "Library", "Application Support", "duo", "duo.sock");
 var PORT_FILE = process.env.DUO_PORT_FILE ?? path.join(os.homedir(), "Library", "Application Support", "duo", "duo.port");
 var TIMEOUT_MS = 1e4;
@@ -1576,6 +1970,8 @@ duo doc comment <file> --reply-to <c-id> --body "B"      # REPLY (BUG-143)
     lines.push(sections[sub]);
   } else {
     lines.push("duo doc <subcmd> \u2014 markdown editor doc operations.");
+    lines.push("Track-changes / suggestions: use insert / delete / substitute /");
+    lines.push("highlight (CriticMarkup) \u2014 never write literal <ins>/<del> HTML.");
     lines.push("");
     lines.push("Subcommands:");
     for (const key of Object.keys(sections)) {
@@ -1587,6 +1983,68 @@ duo doc comment <file> --reply-to <c-id> --body "B"      # REPLY (BUG-143)
   }
   process.stdout.write(lines.join("\n") + "\n");
 }
+function renderCommandsBlock() {
+  const GROUP_ORDER = [
+    "Browser & tabs",
+    "Read & inspect",
+    "Interact",
+    "Diagnostics",
+    "Files & navigator",
+    "Markdown editor (doc)",
+    "HTML canvas",
+    "Working pane & layout",
+    "Terminal",
+    "Workspace & projects",
+    "Repo & git",
+    "Health & install"
+  ];
+  const GUTTER = 34;
+  const WIDTH = 78;
+  const wrap = (text, width) => {
+    const words = text.split(/\s+/).filter(Boolean);
+    const lines = [];
+    let line = "";
+    for (const w of words) {
+      if (line && line.length + 1 + w.length > width) {
+        lines.push(line);
+        line = w;
+      } else {
+        line = line ? `${line} ${w}` : w;
+      }
+    }
+    if (line) lines.push(line);
+    return lines.length ? lines : [""];
+  };
+  const visible = VERBS.filter((v) => !v.aliasOf);
+  const byGroup = /* @__PURE__ */ new Map();
+  for (const v of visible) {
+    const arr = byGroup.get(v.group) ?? [];
+    arr.push(v);
+    byGroup.set(v.group, arr);
+  }
+  const out2 = [];
+  for (const group of GROUP_ORDER) {
+    const verbs = byGroup.get(group);
+    if (!verbs || verbs.length === 0) continue;
+    out2.push(`${group}`);
+    for (const v of verbs) {
+      const head = v.args ? `${v.name} ${v.args}` : v.name;
+      const summaryLines = wrap(v.summary, WIDTH - GUTTER);
+      if (head.length + 2 <= GUTTER) {
+        out2.push(`  ${head.padEnd(GUTTER - 2)}${summaryLines[0]}`);
+      } else {
+        out2.push(`  ${head}`);
+        out2.push(`${" ".repeat(GUTTER)}${summaryLines[0]}`);
+      }
+      for (const extra of summaryLines.slice(1)) {
+        out2.push(`${" ".repeat(GUTTER)}${extra}`);
+      }
+    }
+    out2.push("");
+  }
+  while (out2.length && out2[out2.length - 1] === "") out2.pop();
+  return out2.join("\n");
+}
 function printHelp() {
   console.log(`
 duo ${VERSION} \u2014 CLI bridge to the Duo desktop app
@@ -1595,610 +2053,7 @@ USAGE
   duo <command> [options]
 
 COMMANDS
-  navigate <url>                  Open URL in a NEW browser tab, or focus
-                                  an existing tab whose URL matches (ENH-
-                                  175). URLs only \u2014 use 'duo reveal <path>'
-                                  to move the file navigator, 'duo open
-                                  <path>' to open a local file. Does NOT
-                                  clobber the currently-active tab.
-  open <path-or-url> [--canvas]   Open a local file or URL. HTML files
-       [--reveal]                  default to the browser pane (scripts run,
-                                   interactive) \u2014 use this when showing the
-                                   user a generated explainer / playground.
-                                   Non-HTML files route to their natural
-                                   surface (.md \u2192 editor, image \u2192 viewer).
-                                   --canvas (ENH-159) forces canvas-mode
-                                   mount for HTML (source-editable, scripts
-                                   blocked) \u2014 rare override for inspecting
-                                   the playground's HTML source.
-                                   --reveal expands the working pane if
-                                   collapsed.
-  reload                          Reload the active browser tab in place
-                                  (no URL needed). Pair for "duo navigate"
-                                  in the agent's iteration loop.
-  url                             Print current URL
-  title                           Print current page title
-  dom [<selector>] [--attr <n>]   ENH-122 \u2014 bare \`duo dom\` prints the
-       [--text] [--all]            browser pane's full HTML (CDP). With
-       [--computed p1,p2]          a selector, queries the main RENDERER
-       [--js "<expr>"]             instead (the React shell \u2014 useful when
-                                   debugging editor / canvas / image-
-                                   viewer state). --attr returns one
-                                   attribute. --text returns
-                                   textContent. --all returns an array
-                                   of matches. --computed returns
-                                   getComputedStyle props as a JSON
-                                   object. --js evaluates an arbitrary
-                                   expression in the renderer scope.
-  devtools [--browser-pane]       ENH-123 \u2014 open DevTools on the main
-       [--close]                   renderer (default) or the active
-                                   browser pane. --close closes any
-                                   open instance for the target. Sister
-                                   to \`duo dom\` for the 5% of cases
-                                   the targeted query isn't enough.
-  layout                          ENH-124 \u2014 JSON snapshot of the
-                                   WorkingPane / terminal / navigator
-                                   state (active main tab kind+path,
-                                   aux state, splitPct, focused
-                                   column, navigator collapsed?).
-                                   Pairs with \`duo nav-state\` and
-                                   \`duo dom\` as the third visibility
-                                   verb.
-  status                          ENH-195 \u2014 high-level app snapshot:
-                                   every open file + browser tab (with
-                                   per-tab dirty / active / pinned), the
-                                   active working tab, focused column,
-                                   theme, terminal-tab count. The
-                                   keystone orientation verb \u2014 run it
-                                   first to see what the user is looking
-                                   at. Coarser than \`duo layout\`; both
-                                   read live from the renderer.
-  inspect [--on|--off]            ENH-159b \u2014 element-inspect mode in the
-                                   active browser pane. No arg toggles;
-                                   --on / --off force. While active,
-                                   hover any element \u2192 orange outline;
-                                   click \u2192 ships tag + selector + heading
-                                   trail + innerText + key attrs to the
-                                   active terminal as a structured paste.
-                                   ESC exits without picking. Chord \u2318\u21E7C
-                                   inside the WCV is the keystroke
-                                   equivalent.
-  text [--selector <css>]         Print visible text (or matched element text)
-  ax [--selector <css>] [--format md|json]
-                                  Accessibility tree (required for Google Docs
-                                  and other canvas-rendered apps)
-  click <selector>                Click element by CSS selector
-  fill <selector> <value>         Fill an input
-  focus <selector>                Move focus to the matching element
-  type <text>                     Synthesize text input into the focused element
-  key <keyname> [--modifiers cmd,shift,...]
-                                  Dispatch a named key (Enter, ArrowDown,
-                                  Backspace, etc.) with optional modifiers
-  eval <js>                       Execute JS and return result
-  screenshot [--out <path>] [--selector <css>]   Take a screenshot
-  console [--since <ts>] [--level log,warn,...] [--limit N]
-                                  Dump buffered console messages (NDJSON)
-  errors [--since <ts>] [--limit N]
-                                  Uncaught browser exceptions (NDJSON,
-                                  separate from \`console\` \u2014 populated
-                                  by Runtime.exceptionThrown)
-  network [--since <ts>] [--filter <regex>] [--limit N]
-                                  HTTP requests stitched from Network.*
-                                  events (NDJSON). \`--filter\` matches
-                                  against URL.
-  tabs                            List open browser tabs (JSON)
-  tab <n>                         Switch to browser tab N
-  close <n>                       Close browser tab N (cannot close the last)
-  wait <selector> [--timeout ms]  Wait for element to appear
-
-  view <path> [--canvas]          Open a file in the working pane (new tab,
-                                  type inferred from extension). Distinct
-                                  from \`open\` (which opens a URL/HTML in
-                                  a browser tab). \`--canvas\` (ENH-097)
-                                  forces canvas-mode mount even if the
-                                  file declares <meta duo-open-in="browser">
-                                  \u2014 useful when you want to view or edit
-                                  a playground's source without firing
-                                  its scripts.
-  edit <path> [--browser]         Open a file for editing its source.
-       [--reveal]                  HTML defaults to canvas mode (ENH-159)
-                                   \u2014 buttons inert, scripts blocked, the
-                                   document is editable. .md files open
-                                   in the TipTap rich editor (Stage 11).
-                                   Images / PDFs / JSON fall through to
-                                   their natural viewers (no editor
-                                   surface exists for those types).
-                                   --browser forces browser mode for
-                                   HTML (rare override; symmetric with
-                                   \`duo open --canvas\`).
-                                   --canvas accepted as deprecated
-                                   no-op (the default for HTML now).
-                                   --reveal expands the working pane.
-  selection [--pane auto|editor|browser|canvas]
-                                  Print the active surface's selection as
-                                  JSON. Default --pane auto prefers a
-                                  non-empty browser highlight, then a
-                                  non-empty canvas selection, falling
-                                  back to the editor's cached selection
-                                  (which is informative even when
-                                  collapsed \u2014 it carries the caret's
-                                  paragraph + heading trail). Returns
-                                  \`null\` when nothing is active.
-                                  - editor: { kind: 'editor', path, text,
-                                    paragraph, heading_trail, start, end }
-                                  - browser: { kind: 'browser', url, text,
-                                    surrounding, selector_path }
-                                  - canvas: { kind: 'page', path,
-                                    text, html, anchorId, anchorPath,
-                                    range, surrounding }
-  doc read [path]                 Print the active editor's live buffer
-                                  (frontmatter + body, including unsaved
-                                  edits). Path arg pins the read to a
-                                  specific file; omit to target whatever
-                                  editor is active.
-  doc write [--replace-selection|--replace-all] [--text "..."]
-                                  Apply text to the active editor. Without
-                                  --text, reads from stdin. Default mode:
-                                  --replace-selection (replaces the user's
-                                  current selection, or inserts at caret
-                                  if collapsed). --replace-all swaps the
-                                  whole document body.
-  doc goto [<path>] --heading "X" | --line N | --anchor "Y"
-                                  Scroll the active editor (or specified
-                                  file's editor) to a target. --heading
-                                  is markdown-only (case-insensitive
-                                  substring match on heading text).
-                                  --line is 1-indexed (any text editor).
-                                  --anchor is a markdown heading slug OR
-                                  a canvas DOM element id /
-                                  data-duo-id. Returns resolved {line,
-                                  anchor}.
-  doc find <query> [<path>] [--case-sensitive]
-                                  Search the markdown editor's live
-                                  buffer. Returns {matches, first:
-                                  {line, col}}. Case-insensitive by
-                                  default. (v1 markdown only; canvas /
-                                  browser / terminal find variants
-                                  deferred.)
-  doc edit <file> --find "X" --replace "Y" [--occurrence N | --all] [--at-line N]
-                                  ENH-195 \u2014 surgical PLAIN-text markdown
-                                  replace (literal, NOT CriticMarkup \u2014
-                                  a direct accepted edit). Echo-safe when
-                                  the file is open in the editor; disk-
-                                  direct when closed. --replace may be ""
-                                  (= delete the match). Multi-match
-                                  without --occurrence / --all is refused
-                                  as ambiguous. Use insert/delete/
-                                  substitute instead for a tracked
-                                  suggestion.
-  doc conflict-log                BUG-122 \u2014 print the last save-
-                                  conflict diagnostic at
-                                  ~/.claude/duo/logs/last-conflict.log
-                                  (written by both markdown editor and
-                                  HTML canvas every time the "file
-                                  changed on disk" banner surfaces).
-                                  JSON payload with firstDiffOffset +
-                                  head/tail excerpts; tells you which
-                                  bytes diverged between baseline and
-                                  disk without opening DevTools.
-  theme [system|light|dark]       Print the current theme (mode +
-                                  effective), or set it if a mode is
-                                  provided. Persists across relaunches.
-  author [<name>]                 BUG-138 Phase 2 \u2014 read or set the
-                                  human author identity used for
-                                  CriticMarkup mark attribution
-                                  (insertions / deletions / comments).
-                                  No arg = print state (JSON). With a
-                                  name = persist + print. Agents set
-                                  their own via the DUO_AUTHOR env var.
-  json set <file> <dotpath> <value>
-                                  ENH-195 \u2014 set a value at a dotted path
-                                  in a JSON / YAML file. <dotpath> uses
-                                  dots + [n] indices ("a.b[0].c"); "" or
-                                  "." = root. <value> is parsed as JSON
-                                  if valid (number / bool / null / object
-                                  / array / quoted string), else treated
-                                  as a literal string. Echo-safe when the
-                                  file is open in the JSON viewer; disk-
-                                  direct when closed. YAML round-trips
-                                  lose comments (noted in the reply).
-  json merge <file> <patch.json>  ENH-195 \u2014 deep-merge a JSON object
-                                  (read from <patch.json>) into the root
-                                  of a JSON / YAML file. Nested objects
-                                  merge key-by-key; arrays + primitives
-                                  in the patch replace. Same open/closed
-                                  + YAML-comment-loss semantics as
-                                  \`json set\`.
-  doc insert <file> --text "X" (--after "Y" | --before "Y" | --at-line N)
-                                  BUG-138 Phase 3 \u2014 insert "X" as a
-                                  CriticMarkup insertion ({++X++}) at
-                                  the anchor. --after/--before take a
-                                  literal text anchor; --at-line takes
-                                  a 1-indexed line number. Add
-                                  --occurrence N to disambiguate
-                                  duplicate anchors.
-  doc delete <file> --text "X"    BUG-138 Phase 3 \u2014 wrap "X" as a
-                                  CriticMarkup deletion ({--X--}). Use
-                                  --occurrence N to disambiguate.
-                                  Refuses if the target overlaps an
-                                  existing CM token.
-  doc substitute <file> --text "X" --with "Y"
-                                  BUG-138 Phase 3 \u2014 wrap "X\u2192Y" as a
-                                  CriticMarkup substitution ({~~X~>Y~~}).
-                                  --with may be empty (= delete).
-  doc highlight <file> --text "X" v0.7.2 \u2014 wrap "X" as a CriticMarkup
-                                  highlight ({==X==}). CLI parity for
-                                  the existing HighlightMark; sibling
-                                  to delete. --occurrence N supported.
-                                  Refuses if target overlaps existing CM.
-  doc comment <file> --anchor "X" --body "B"
-                                  BUG-138 Phase 3 \u2014 anchor a comment
-                                  ({==X==}{>>id|author|ts|B<<}) to the
-                                  matched text. Author = $DUO_AUTHOR
-                                  ?? 'agent'. Comment id auto-minted.
-  doc comment <file> --reply-to <c-id> --body "B"
-                                  BUG-143 \u2014 append a reply to an existing
-                                  comment thread. Finds the parent token
-                                  by id, appends '\u21AA @author ts: B' to its
-                                  body. No --anchor required.
-  doc accept <file> (--id <c-id> | --match "X")
-                                  BUG-138 Phase 3 \u2014 accept a CM op:
-                                  insertion = keep text; deletion =
-                                  drop text; substitution = keep new;
-                                  comment = keep anchor. Identify by
-                                  --id (comments only) or by --match
-                                  literal text.
-  doc reject <file> (--id <c-id> | --match "X")
-                                  BUG-138 Phase 3 \u2014 reject a CM op:
-                                  insertion = drop text; deletion =
-                                  keep text; substitution = keep old;
-                                  comment = keep anchor.
-  claude-return [submit|newline]  v0.6.15 \u2014 toggle Claude-tab plain
-                                  Return behavior. Default 'submit'
-                                  (xterm passthrough; Claude submits).
-                                  'newline' restores ENH-127 v2 behavior
-                                  (writes ESC+CR; Claude reads as multi-
-                                  line newline; user types \u2318Return to
-                                  submit). No arg = print state.
-  shift-return [submit|newline]   v0.6.15 \u2014 toggle Claude-tab Shift+Return
-                                  behavior. Default 'newline' (writes
-                                  ESC+CR; matches Slack/Discord/claude.ai
-                                  web). 'submit' disables the override
-                                  (xterm passthrough). No arg = print
-                                  state.
-  hidden-files [show|hide|toggle] ENH-172 (Sprint 20 / v0.7.7) \u2014 show or
-                                  hide dotfiles in the navigator. CLI
-                                  parity with View \u2192 Show Hidden Files
-                                  (\u2318\u21E7.). Persists in localStorage.
-                                  .claude + .obsidian are always
-                                  visible regardless. No arg = print
-                                  { showDotfiles: boolean }.
-  browser-mode [unfiltered|       ENH-178 (Sprint 20 / v0.7.7) \u2014 three-
-       filtered|local-only]        mode URL filter for the embedded
-                                  browser. Default 'local-only': only
-                                  file:// + localhost + 127.0.0.1 +
-                                  [::1] render in Duo; everything else
-                                  pops the system browser. 'filtered'
-                                  is the legacy behavior (consult
-                                  external-domains.json). 'unfiltered'
-                                  is DEBUG ONLY and requires
-                                  --i-understand (IT-policy warning).
-                                  Persists in renderer localStorage.
-                                  No arg = print { mode }.
-  focus-pane <terminal|main|aux>  ENH-098 (Sprint 9) \u2014 jump keyboard
-                                  focus to the named pane. CLI parity
-                                  with the \u2318\u2325L (terminal) / \u2318\u2325;
-                                  (main) / \u2318\u2325' (aux) chord set. Aux
-                                  is a no-op when split view is
-                                  closed (renderer logs an info
-                                  hint). Distinct from 'focus
-                                  <selector>' which targets a CSS
-                                  selector in the browser pane.
-  split <pct|preset>              Set the split-pane percentage
-                                  (terminal column as % of the split
-                                  container). Numeric arg clamps to
-                                  20\u201380. Presets: even (50), terminal-
-                                  heavy (67), canvas-heavy (33),
-                                  terminal (80, full-terminal), canvas
-                                  (20, full-canvas), 3way (ENH-099 \u2014
-                                  outer 33/67 + inner aux 50/50;
-                                  matches \u2318\u23254 chord; on-demand
-                                  sibling of ENH-126's redistribute-
-                                  on-aux-open). Mirrors View \u2192 Pane
-                                  size menu and \u2318\u23251/2/3/4/0/9.
-  split-view <op> [args]          ENH-041 / Sprint 3 + Phase 3c \u2014
-                                  Split View aux pane. Sub-verbs:
-                                    open <path>           open file in aux
-                                    open-browser <id>     pin browser tab
-                                                          (id from 'duo tab')
-                                                          into aux. Phase 3c.
-                                    close                 close aux
-                                    promote               move aux back to
-                                                          main, close split
-                                    resize <pct>          set splitPct (0.20\u2013
-                                                          0.80; pct or decimal)
-                                    state (or no sub-verb) print snapshot
-                                  See docs/prd/canvas-split-view-
-                                  research.html for the locked spec.
-  events [--follow] [--since      Stage 27 \u2014 stream structured events
-    <cursor>] [--limit N]         from the bus. Snapshot mode prints
-                                  one JSON line per event from the
-                                  ring (most-recent N when --limit is
-                                  supplied; entire ring when not).
-                                  --follow keeps the connection open
-                                  and prints each new event as it
-                                  lands. --since <cursor> resumes from
-                                  a known cursor (cursor format is
-                                  \`<unix-ms>-<seq>\`; copy it from a
-                                  prior event line). Producers: canvas
-                                  \`duo:event\` action verb (Stage 27);
-                                  more sources land as Stage 27.5.
-  packs                           Stage 18b \u2014 list every discovered
-                                  distro pack at
-                                  \`~/.claude/duo/packs/<name>/\` as
-                                  JSON. Each row carries the parsed
-                                  PACK.json manifest (or null on
-                                  parse failure) plus per-pack errors[].
-                                  Registry is cached at app boot;
-                                  restart Duo to refresh.
-  reveal <path>                   Move the file navigator to <path> and
-                                  surface a dismissible chip so the user
-                                  knows you moved their tree.
-  ls [path]                       List directory contents (JSON). Defaults
-                                  to the navigator's current folder.
-  nav pin <path>                  Stage 26 \u2014 pin a file or folder to
-                                  the navigator's "Pinned" section.
-                                  Mirrors the right-click "Pin to
-                                  navigator" action. Stored at
-                                  \`~/.claude/duo/nav-pins.json\`
-                                  (separate from Stage 24's tab pins).
-  nav unpin <path>                Remove the pin at <path>.
-  nav pins                        List all navigator pins (JSON).
-  nav state                       Print navigator state (cwd, selection,
-                                  expanded folders, pinned flag).
-
-  send [--text "..."] [--enter]   Write a payload into the active
-                                  terminal's PTY. No Enter appended
-                                  by default (user confirms); pass
-                                  --enter to submit on their behalf
-                                  (Stage 23b \u2014 pairs with canvas
-                                  data-duo-action="terminal:send"
-                                  data-enter="true"). Without --text,
-                                  reads from stdin.
-
-  selection-format [a|b|c]        Read or set the Send \u2192 Duo payload
-                                  format (Stage 15 G19, agent-tunable
-                                  runtime knob). a = quote + provenance
-                                  (default), b = literal text only,
-                                  c = opaque token. No arg \u2192 print
-                                  current; with arg \u2192 set + persist.
-
-  external <url>                  Open <url> in the macOS default browser
-                                  (via Electron's shell.openExternal). Used
-                                  by the duo subagent for hostnames listed
-                                  in ~/.claude/duo/external-domains.json
-                                  (sites that don't render well in Duo's
-                                  embedded WebContentsView). http(s) and
-                                  mailto schemes only.
-
-  html new <path.html> [--title "\u2026"]
-                                  Stage 17a \u2014 create a new .html file
-                                  from boilerplate and open it in the
-                                  HTML canvas. \`duo edit foo.html\` /
-                                  \`duo view foo.html\` already route to
-                                  the canvas via the file classifier.
-
-  Stage 17b agent ops against the active canvas. Targeting: --id <duo-id>
-  (preferred) or --selector <css>. Write ops accept --html "\u2026" / --content
-  "\u2026" or read from stdin (heredoc-friendly).
-
-  html query <css-selector>       List elements matching selector. Returns
-                                  JSON array of {id, tag, text, classes}.
-  html get --id <duo-id>          Read outerHTML + textContent of a single
-       --selector <css>           element. Returns {id, tag, html, text}.
-  html set --id <duo-id> --content "..."
-                                  Replace innerHTML of the matched element.
-  html replace --id <duo-id> --html "..."
-                                  Replace outerHTML of the matched element.
-  html append --parent <duo-id> --html "..."
-       --parent-selector <css>    Append a child to the matched parent.
-  html remove --id <duo-id>       Delete the matched element.
-       --selector <css>
-  html attr --id <duo-id> [--set k=v ...] [--remove k ...]
-                                  Modify attributes (--set / --remove
-                                  can repeat).
-  html click --id <duo-id>        Programmatically click the matched
-       --selector <css>           element. Triggers the canvas-action
-                                  dispatcher just like a user click \u2014
-                                  data-duo-action verbs fire, events
-                                  emit, downstream paint ops execute.
-                                  Used by lesson fly-through harnesses.
-
-  Stage 17d \u2014 comments. Stored in <file>.duo.json \xA7 comments[]; never
-  modify the .html itself.
-
-  html comment --id <duo-id> --body "\u2026"
-       --selector <css>           Add a comment anchored to the matched
-       --text "<substring>"       element (or its nearest data-duo-id
-                                  ancestor). --body via flag or stdin.
-                                  Returns {ok, commentId, anchorId}.
-  html comments [--filter all|open|resolved]
-                                  List comment threads on the active
-                                  canvas, sorted in document order.
-                                  Each thread: {id, number, excerpt,
-                                  resolved, entries: [{id, author, ts,
-                                  body}]}.
-
-  file rename <old> <new>         Stage 26 \u2014 rename / move a file or
-                                  folder within the same filesystem
-                                  (fs.rename, atomic). Both paths
-                                  resolve relative to the CLI's cwd.
-                                  Mirrors the navigator's right-click
-                                  Rename action.
-  file trash <path>               Move a file or folder to the macOS
-                                  Trash (recoverable from Finder).
-                                  Mirrors the navigator's right-click
-                                  Delete action; \`shell.trashItem\`
-                                  under the hood.
-
-  new-tab [--shell|--claude] [--cwd <path>] [--cmd "<text>"]
-                                  Open a new terminal tab (Stage 19c).
-                                  --claude (the split-button + default)
-                                  auto-launches \`claude\` after the
-                                  shell starts; --shell opens a vanilla
-                                  shell. With no flag, follows the user's
-                                  most recent manual choice. --cwd
-                                  overrides the navigator's pending CWD;
-                                  --cmd writes a pre-typed payload (no
-                                  trailing newline) into the PTY after
-                                  spawn \u2014 wins over kind-default if both
-                                  apply. Returns {id, kind, cwd, title}.
-
-  doctor                          Health-check both transports (Unix
-                                  socket + TCP fallback), report the
-                                  app/CLI version match, $DUO_SESSION
-                                  presence, install path, and skill
-                                  files. First move when a duo
-                                  command fails \u2014 names the sandbox
-                                  failure mode instead of dying
-                                  silently. Exits 0 if either
-                                  transport is reachable.
-
-  install [--system]              Symlink duo into a sandbox-safe
-                                  location: ~/.claude/bin/duo by
-                                  default (writable from a sandboxed
-                                  Claude Code PTY), with
-                                  ~/.local/bin/duo as fallback. Pass
-                                  --system to force /usr/local/bin
-                                  (needs sudo; not recommended for
-                                  Claude Code use).
-
-  git-status [<path>]             ENH-152a \u2014 git status snapshot for
-                                  a directory (defaults to $HOME).
-                                  Returns JSON: { isRepo, branch,
-                                  head, dirty, changedCount, ahead,
-                                  behind, workTreeRoot }. Powers the
-                                  Navigator root chip; agents can
-                                  also use it to make decisions
-                                  about a checkout's state before
-                                  proposing edits.
-
-  clone <url> [<dir>] [--json]    ENH-151 \u2014 clone a GitHub repo via
-                                  \`gh repo clone\` when gh is
-                                  authenticated, falling back to
-                                  \`git clone\`. <url> accepts gh
-                                  shorthand (owner/repo) when gh is
-                                  available, otherwise needs the
-                                  full HTTPS/SSH URL. --json prints
-                                  the structured CloneResult so
-                                  agents can branch on errorKind
-                                  (bad-url / auth-missing /
-                                  clone-failed).
-
-  gh-auth                         ENH-151 \u2014 probe \`gh auth status\`.
-                                  Prints JSON { ghInstalled,
-                                  authenticated, host, user,
-                                  ghNotFound } so agents can decide
-                                  whether \`duo clone\` will work
-                                  on private repos before they try.
-
-  close-tab                       FOLLOWUP-020 \u2014 close the focused
-                                  working-pane tab (file editor /
-                                  canvas / image viewer / browser-
-                                  mode HTML). CLI parity for \u2318W.
-                                  Pinned tabs still surface the
-                                  Cancel / Close-anyway confirm
-                                  dialog before closing.
-
-  close-terminal-tab [<n>]        FOLLOWUP-020 \u2014 close a terminal
-                                  tab. No arg closes the focused
-                                  one; <n> (1-indexed) closes that
-                                  specific terminal tab.
-
-  workspace <sub> [args]          ENH-167 \u2014 workspace-as-file. Round-
-                                  trip the open tabs + terminals +
-                                  browser tabs to a .duo-workspace
-                                  file.
-    workspace save [<path>]         Write current workspace to <path>
-       [--name <name>] [--save-as]  (or the active workspace's path
-                                    if omitted). --name overrides
-                                    the name; --save-as forces
-                                    dialog semantics. CLI without an
-                                    active workspace requires <path>.
-    workspace open <path>           Load <path> and in-place reset
-                                    so the saved tabs/terminals
-                                    replace the current ones. Wraps
-                                    the File > Open Workspace menu
-                                    flow, minus the GUI Save-current
-                                    prompt (agent caller is presumed
-                                    deliberate).
-    workspace list-recent           JSON list of recent workspaces
-                                    ({path, name, savedAt,
-                                    lastOpenedAt}). Pruned for files
-                                    that no longer exist.
-    workspace current               JSON {path, name} of the active
-                                    workspace, or null when untitled.
-    workspace new                   Reset workspace in-place: one
-                                    fresh shell terminal at the live
-                                    CWD of the previously-frontmost
-                                    terminal, every working-pane tab
-                                    dropped except pinned (file +
-                                    browser pins survive), active
-                                    pointer cleared. CLI skips the
-                                    GUI Save-current prompt.
-
-  session <sub> [args]            ENH-183 \u2014 Claude session lifecycle.
-                                  Read + drive the Claude session
-                                  resume surfaces (S1 pills + S3
-                                  restore offer). Each sub-verb mirrors
-                                  a UI affordance.
-    session list [--cwd <path>]     List prior '<uuid>.jsonl' sessions
-                                    in the CWD (defaults to the active
-                                    terminal's cwd). Each entry has
-                                    {uuid, title, source, messageCount,
-                                    modifiedAt}. Powers the S1 pills
-                                    surface; useful for agents to find
-                                    a session to resume.
-    session resume <tabId> <uuid>   Spawn 'claude --resume <uuid>' in
-                                    the named tab's PTY. Same wire as
-                                    clicking an S1 pill or the S3
-                                    'Resume' button.
-
-  project <sub-op> [args]         ENH-182 Phase 4 (Sprint 23 / v0.8.0) \u2014
-                                  project rail CLI parity. Mirrors the
-                                  left-rail tile interactions. Name
-                                  resolution is case-insensitive against
-                                  unique names; exact root paths always
-                                  resolve.
-    project list                    JSON snapshot: derived projects in
-                                    rail order + focused root + per-
-                                    project member counts (terminals,
-                                    workingTabs, hasClaudeKindTerminal).
-                                    Use this first to discover project
-                                    names before subsequent verbs.
-    project focus <name|root>       Set the focus lens to this project.
-                                    Hides non-member terminals + working
-                                    tabs; re-roots the navigator; shows
-                                    the title-bar focus chip.
-    project focus --all             Release focus (back to All).
-    project pin <name|root>         Add this project to the persistent
-                                    pin set so its tile survives close-all.
-                                    No-op when already pinned.
-    project unpin <name|root>       Remove from the pin set. No-op when
-                                    not pinned.
-    project close <name|root>       Bulk-close every member terminal +
-                                    working tab. Fires the same confirm
-                                    dialog as the right-click menu when
-                                    any member terminal is kind:'claude'.
-
-  workspace-pill-menu [on|off|toggle]
-                                  ENH-184 (Sprint 23 / v0.8.0) \u2014 toggle
-                                  the title-bar workspace pill's
-                                  click-to-open-menu behavior. Default
-                                  OFF: pill renders as a passive label
-                                  + workspace operations route through
-                                  the File menu. Bare command reads
-                                  current state.
+${renderCommandsBlock()}
 
 FLAGS
   --version, -v    Print version

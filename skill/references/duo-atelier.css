@@ -50,7 +50,7 @@
    * one calm family on cream; white text on each clears large-text AA.
    * Assign hash-stable per project root (same folder → same hue) with
    * manual override; past six projects, rotate ~12% darker shade
-   * variants before introducing any new hue. Locked via ENH-182 / D9;
+   * variants before introducing any new hue. Locked;
    * see docs/research/project-rail-style-study.html. */
   --project-pine:   #2E7D74;  /* hue 173° — teal-green */
   --project-harbor: #3C6E93;  /* hue 206° — slate blue */

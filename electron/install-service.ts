@@ -106,7 +106,7 @@ const USER_CLAUDE_MD_PATH = path.join(HOME, '.claude', 'CLAUDE.md')
 
 // ENH-195 — warn-only PreToolUse "open-file guard" hook. The fail-open,
 // DUO_SESSION-gated shell script ships in the repo at
-// skill/hooks/duo-open-file-guard.sh; the installer copies it to
+// skill/scripts/duo-open-file-guard.sh; the installer copies it to
 // HOOKS_DEST_DIR (chmod 755) and registers a PreToolUse entry in
 // ~/.claude/settings.json pointing at PRETOOL_GUARD_COMMAND. The command
 // uses $HOME (not the literal homedir) so the registered settings entry
@@ -491,14 +491,14 @@ export class InstallService {
         prevShas
       ))
 
-      // ENH-195 — skill/hooks/duo-open-file-guard.sh →
+      // ENH-195 — skill/scripts/duo-open-file-guard.sh →
       // ~/.claude/duo/hooks/duo-open-file-guard.sh. Copied through the
       // SAME provenance-aware path as every other tracked Duo file (so
       // customization preservation + orphan cleanup apply), then chmod
       // 755 — safeOverwriteFile copies the bytes but not the exec bit,
       // and a PreToolUse hook must be executable.
       fileResults.push(await this.safeOverwriteFile(
-        path.join(sourceRoot, 'skill', 'hooks', 'duo-open-file-guard.sh'),
+        path.join(sourceRoot, 'skill', 'scripts', 'duo-open-file-guard.sh'),
         PRETOOL_GUARD_DEST,
         prevShas
       ))

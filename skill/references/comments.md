@@ -1,8 +1,26 @@
 # Comments and tracked changes — reference
 
 This page covers the full lifecycle of agent-driven comments and
-tracked changes on a markdown file open in Duo's editor. Pair with
-the cheat-sheet in [`SKILL.md § Leave a comment or track-change`](../SKILL.md).
+tracked changes on a markdown file open in Duo's editor. Pair with the
+quick steer in [`SKILL.md`](../SKILL.md) and the editor flows in
+[`patterns-editor.md`](patterns-editor.md).
+
+> **Never write literal `<ins>` / `<del>` / `<s>` HTML to "suggest" or
+> "track-change" markdown — Duo renders raw tags as plain prose.** Use the
+> CriticMarkup verbs (`duo doc insert` / `delete` / `substitute` /
+> `highlight`); they render as accept/reject suggestions in the editor's rail.
+
+## Contents
+
+- [Where is the comment? — surface decision](#where-is-the-comment--surface-decision)
+- [On-disk shape (CriticMarkup)](#on-disk-shape-criticmarkup)
+- [Add a NEW top-level comment](#add-a-new-top-level-comment)
+- [Reply to an existing comment](#reply-to-an-existing-comment)
+- [List comments / threads on a file](#list-comments--threads-on-a-file)
+- [Accept / reject a tracked change or comment](#accept--reject-a-tracked-change-or-comment)
+- [How the live editor refreshes](#how-the-live-editor-refreshes)
+- [Common-task cheat-sheet](#common-task-cheat-sheet-the-3-call-expected-path)
+- [Discoverability](#discoverability)
 
 ## Where is the comment? — surface decision
 
@@ -13,7 +31,7 @@ Duo has TWO comment systems on different surfaces. Always run
 |---|---|---|---|
 | `editor` | `.md` | Markdown editor (TipTap) | `duo doc comment` / `doc accept` / `doc reject` |
 | `page` | `.html` | HTML canvas (source-edit) | `duo html comment` |
-| `browser` | `file://…html` | HTML canvas (playground mode) | `duo html comment` (browser-pane comment overlay is ENH-157, partial) |
+| `browser` | `file://…html` | HTML canvas (playground mode) | `duo html comment` (browser-pane comment overlay is partial) |
 | anything else | — | not a commentable surface | — |
 
 This reference covers the **markdown editor** case (CriticMarkup-based,
@@ -71,7 +89,7 @@ need it for a downstream reply.
 - `--occurrence N` (1-indexed) picks the Nth match when the anchor
   text appears multiple times.
 
-## Reply to an existing comment (BUG-143, v0.7.3+)
+## Reply to an existing comment
 
 ```bash
 DUO_AUTHOR=claude duo doc comment <file> \
@@ -87,10 +105,9 @@ id '<id>' not found"`. The `<id>` is the value of the `id:` field
 inside the parent's `{>>…<<}`; harvest it from `duo doc read <file>`
 output or from the live rail.
 
-**Pre-v0.7.3 workaround** (FOR HISTORICAL CONTEXT ONLY — do NOT use
-on v0.7.3+): agents used to pass the parent id as `--anchor` text,
-which created a corrupt `{==id==}{>>NEW<<}` token nested inside the
-parent. v0.7.3 fixed the path; just use `--reply-to` alone.
+**Do NOT** pass the parent id as `--anchor` text — that creates a
+corrupt `{==id==}{>>NEW<<}` token nested inside the parent. Just use
+`--reply-to` alone.
 
 ## List comments / threads on a file
 
@@ -131,7 +148,7 @@ ins / del / sub / highlight, use `--match` with the inner text. Pass
 ## How the live editor refreshes
 
 The verbs above write to disk via the socket-server's `files.write`.
-The editor watches its open file via chokidar (BUG-085 family):
+The editor watches its open file via chokidar:
 
 - **Clean buffer** (no unsaved edits) → silent reload + re-apply
   CriticMarkup marks. Your write is visible within ~50ms.
@@ -141,11 +158,11 @@ The editor watches its open file via chokidar (BUG-085 family):
 You don't need to `duo edit <file>` first — the file doesn't need to
 be open. But if it IS open, the user sees your write immediately.
 
-## Common-task cheat-sheet (the 3-call expected path, post-BUG-143)
+## Common-task cheat-sheet (the 3-call expected path)
 
-The bug report that drove v0.7.3's cluster (BUG-142..147) showed an
+The bug report that drove this cluster showed an
 agent burning 16 shell calls + ~2 minutes to add a single reply. The
-expected post-fix path is **three calls**:
+expected path is **three calls**:
 
 ```bash
 # 1. Confirm the surface (markdown editor, not the HTML canvas).
