@@ -100,23 +100,27 @@ describe('cache-key — WindowKeyedCache<T> (ENH-191 P3 M1)', () => {
     expect(c.getOrDefault(2)).toEqual(SEED())
   })
 
-  // ---- NEGATIVE CONTROL: the cardinal rule (no focus/first pick) -------
-  // At N>1 there is no single "the default window", so defaultWindowId/getDefault
-  // must THROW (via only()) rather than silently pick the first/focused one.
-  it('defaultWindowId THROWS at N>1 — no silent focus/first pick', () => {
+  // ---- CARDINAL RULE pin (P5a): identity (lowest-id), never focus/first ----
+  // At N>1 defaultWindowId/getDefault resolve the PRIMARY (lowest-id) window by
+  // IDENTITY, kept in lockstep with resolveDefault. P0–P4 THREW here as the
+  // pre-P5 placeholder; P5a retires it and resolves the deterministic primary.
+  it('defaultWindowId returns the lowest-id (primary) window at N>1 — identity, never focus', () => {
     const reg = new WindowRegistry()
-    reg.register(fakeCtx(1))
     reg.register(fakeCtx(2))
-    expect(() => defaultWindowId(reg)).toThrow(/all\(\) \(broadcast\) or get\(id\)/)
+    reg.register(fakeCtx(1))
+    reg.register(fakeCtx(3))
+    expect(defaultWindowId(reg)).toBe(1)
   })
 
-  it('getDefault THROWS at N>1 (inherits only()) rather than reading the wrong slot', () => {
+  it('getDefault reads the PRIMARY window slot at N>1 (not the wrong window, no throw)', () => {
     const reg = new WindowRegistry()
     reg.register(fakeCtx(1))
     reg.register(fakeCtx(2))
     const c = new WindowKeyedCache<Theme>(SEED)
-    c.set(1, { mode: 'dark', effective: 'dark' })
-    expect(() => c.getDefault(reg)).toThrow()
+    const PRIMARY_V = { mode: 'dark', effective: 'dark' }
+    c.set(1, PRIMARY_V) // window 1 is the primary (lowest id)
+    c.set(2, { mode: 'light', effective: 'light' })
+    expect(c.getDefault(reg)).toEqual(PRIMARY_V)
   })
 
   it('defaultWindowId is undefined when no window is registered', () => {

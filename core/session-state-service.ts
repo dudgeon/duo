@@ -113,7 +113,7 @@ export class SessionStateService {
   // per-window presence context (tabsThatHostedClaude / owner-filtered PTYs)
   // is the sole window's; P5 must thread windowId so window 2's terminals
   // enrich against window 2's presence, not window 1's.]
-  private enrichBeforePersistHook: ((state: SessionState) => Promise<SessionState>) | null = null
+  private enrichBeforePersistHook: ((state: SessionState, windowId: number) => Promise<SessionState>) | null = null
   // ENH-191 P4 seam 6 (item 8) — resolves a window's LIVE active-workspace
   // pointer at compose time so it persists PER WINDOW in the envelope (the
   // standalone active-workspace.json is a single slot two windows would
@@ -141,7 +141,7 @@ export class SessionStateService {
     this.mirrorHook = fn
   }
 
-  setEnrichBeforePersistHook(fn: ((state: SessionState) => Promise<SessionState>) | null): void {
+  setEnrichBeforePersistHook(fn: ((state: SessionState, windowId: number) => Promise<SessionState>) | null): void {
     this.enrichBeforePersistHook = fn
   }
 
@@ -207,6 +207,72 @@ export class SessionStateService {
     this.writeTimer = setTimeout(() => void this.flush(), WRITE_DEBOUNCE_MS)
   }
 
+  /** ENH-191 P5a (Tier-1) — seed the in-memory per-window map from disk at boot,
+   *  BEFORE any renderer save(). Without this, the first single-window save()
+   *  composes a 1-window envelope that atomic-overwrites a persisted N-window
+   *  file — destroying window 2's slice within ~750ms of relaunch (DATA LOSS).
+   *  Seeding keeps every persisted window in the map (keyed by its id; the first
+   *  window is id 1 stably across launches, so a restored window reuses its slot)
+   *  so a dormant window survives until EXPLICITLY closed (dropWindow). NOT
+   *  marked dirty — seeding existing on-disk state is not a new change. Call once
+   *  at boot, before the first window's renderer can save. */
+  async seedWindowsFromDisk(): Promise<void> {
+    const { windows, meta } = await this.readDoc()
+    // ENH-191 P5a (Tier-3) — also capture doc meta so loadFlatForWindow() can
+    // stamp savedAt/appVersion when serving a restored window's slice from the
+    // in-memory map (before any flush rewrites disk).
+    this.meta = meta
+    for (const w of windows) this.windows.set(w.windowId, w)
+  }
+
+  /** ENH-191 P5a (Tier-3) — the flat state for a SPECIFIC live window, read from
+   *  the in-memory map (which the restore path re-keys to the live id via
+   *  reassignWindowId). Each restored window's renderer loads ITS slice — not
+   *  always windows[0] (load()). EMPTY when the window has no slot (fresh/blank). */
+  loadFlatForWindow(windowId: number): SessionState {
+    const ws = this.windows.get(windowId)
+    return ws ? windowStateToFlat(ws, this.meta) : { ...EMPTY_SESSION_STATE }
+  }
+
+  /** ENH-191 P5a (Tier-3) — re-key a restored window's seeded slot from its
+   *  PERSISTED id (prior launch) to its NEW live id (Electron reassigns
+   *  BrowserWindow ids each launch). Called in createWindow's restore path
+   *  BEFORE loadURL — so the renderer's saves hit this same slot instead of
+   *  creating a stale duplicate (the Tier-1 data-loss fix's 2N-growth hazard).
+   *  Boot restores in ASCENDING persisted-id order, so fresh live ids (1,2,…)
+   *  never collide with an unprocessed persisted id. No-op when ids match or the
+   *  slot is absent. */
+  reassignWindowId(oldId: number, newId: number): void {
+    if (oldId === newId) return
+    const ws = this.windows.get(oldId)
+    if (!ws) return
+    this.windows.delete(oldId)
+    this.windows.set(newId, { ...ws, windowId: newId })
+    this.dirty = true
+  }
+
+  /** ENH-191 P5a (Tier-3) — persist a window's geometry without a full snapshot.
+   *  The main-side resize/move handler debounces into this. flatToWindowState
+   *  carries bounds across renderer saves (prev.bounds), so the value survives.
+   *  No-op if the window has no slot yet (a fresh window before its first save). */
+  updateBounds(windowId: number, bounds: WindowBounds): void {
+    const ws = this.windows.get(windowId)
+    if (!ws) return
+    this.windows.set(windowId, { ...ws, bounds })
+    this.dirty = true
+    if (!this.writeTimer) this.writeTimer = setTimeout(() => void this.flush(), WRITE_DEBOUNCE_MS)
+  }
+
+  /** ENH-191 P5a (Tier-1) — drop a window's slice when it is EXPLICITLY closed,
+   *  so it isn't re-composed into the next envelope (the zombie-window-resurrects
+   *  bug). The removal persists on the next NATURAL flush (a sibling window's
+   *  save, or before-quit) — dropWindow does NOT schedule its own flush, so the
+   *  on-quit close cascade can't shrink the envelope before before-quit has
+   *  written the full map. */
+  dropWindow(windowId: number): void {
+    if (this.windows.delete(windowId)) this.dirty = true
+  }
+
   /** Force the pending write to disk now. Call from `app.before-quit`
    *  to ensure the user's last state lands before the process exits.
    *  Composes EVERY live window into one envelope behind the single
@@ -240,7 +306,11 @@ export class SessionStateService {
         let w = ws
         if (this.enrichBeforePersistHook) {
           try {
-            const enriched = await this.enrichBeforePersistHook(windowStateToFlat(w, this.meta))
+            // ENH-191 P5a (Tier-4) — thread the persisting window's id so the
+            // hook owner-filters by the ACTUAL window (its tabsThatHostedClaude /
+            // PTYs), not registry.only() (which threw at N>1, silently killing
+            // lastClaudeSession capture once a 2nd window opened).
+            const enriched = await this.enrichBeforePersistHook(windowStateToFlat(w, this.meta), w.windowId)
             w = flatToWindowState(enriched, w.windowId, w)
           } catch (err) {
             console.warn('[session-state] enrichBeforePersist hook failed:', (err as Error)?.message ?? err)

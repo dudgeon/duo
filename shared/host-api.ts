@@ -52,6 +52,12 @@ export interface ElectronEnv {
    *  window so a second window can't clobber the first's per-tab maps.
    *  -1 only if the boot IPC ever fails (degrades to single shared key). */
   windowId: number
+  /** ENH-191 NFR-6.2 — true when this renderer is a BLANK New-Window (opened
+   *  via openNewWindow → createWindow({restore:false})). The pin-auto-open
+   *  effect in App.tsx gates on `!blank` so a new window does NOT clone the
+   *  pinned file tabs. False for the boot/restored windows. Injected
+   *  synchronously via the --duo-blank additionalArgument (no IPC race). */
+  blank: boolean
 }
 
 export interface ElectronPtyAPI {

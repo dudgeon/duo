@@ -6,18 +6,19 @@
 // The three verbs map onto the send taxonomy (spec §3.1). At N=1 all three
 // collapse — only() === all()[0] === the old mainWindow — so adopting them is
 // byte-identical until a second window can open (P5a):
-//   - resolveDefault → registry.only()  (class i, app-wide-single)
+//   - resolveDefault → registry.primary() (class i, app-wide-single, lowest-id)
 //   - resolveBySender → registry.get(id) (class iii, per-window-addressed)
 //   - resolveAll / broadcastAll → registry.all() (class ii, shared-state
 //       broadcast — the projects.json / nav-pins.json / external-domains
 //       fan-out that must repaint EVERY window's rail, not just the originator)
 //
 // CARDINAL RULE (spec §2.3): app-wide default sends resolve by IDENTITY via
-// resolveDefault → registry.only(). There is deliberately NO focus-based
-// resolver in this module — a focus-resolved default send is the exact
-// foot-gun the registry-of-one invariant exists to make unrepresentable
-// (only() THROWS at N>1 rather than silently picking the focused/first
-// window). The grep-gate (scripts/check-window-routing.sh) keeps any
+// resolveDefault → registry.primary() (the lowest-id window). There is
+// deliberately NO focus-based resolver in this module — a focus-resolved
+// default send is the exact foot-gun the registry-of-one invariant exists to
+// make unrepresentable. P0–P4 enforced this by THROWING at N>1 (only()); P5a
+// resolves the deterministic lowest-id window instead (still identity, never
+// focus). The grep-gate (scripts/check-window-routing.sh) keeps any
 // getFocusedWindow/getFocusedWebContents default-resolution from creeping in.
 
 import type { WindowLike } from './safe-send'
@@ -25,12 +26,19 @@ import type { WindowRegistry, WindowContext } from './window-registry'
 
 /**
  * Class (i) — the app-wide-single default-send target, resolved by IDENTITY.
- * Returns the sole window through P0–P4; `undefined` when no window exists yet
- * or after full teardown. THROWS at N>1 (via `registry.only()`), so a missing
- * per-window route can never masquerade as working before P5.
+ * Returns the PRIMARY (lowest-id) live window; `undefined` only when no window
+ * exists yet or after full teardown. P0–P4 used `registry.only()` here, which
+ * fail-loud THREW at N>1 — the pre-P5 placeholder that forced every send site
+ * to be categorized (broadcast vs per-window vs default) before a 2nd window
+ * could open. P5a retires that placeholder (the categorization is done): this
+ * now resolves `registry.primary()`, the deterministic lowest-id window. Still
+ * resolved by IDENTITY, NEVER by focus (the locked cardinal rule §2.3) — the
+ * lowest-id pick is reproducible, so a windowId-less default send / CLI command
+ * lands in one predictable window. Per-window addressing is `get(id)`
+ * (resolveBySender / DUO_WINDOW); shared-state broadcasts are `broadcastAll`.
  */
 export function resolveDefault(registry: WindowRegistry): WindowLike | undefined {
-  return registry.only()?.window
+  return registry.primary()?.window
 }
 
 /**

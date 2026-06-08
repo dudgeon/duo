@@ -28,7 +28,7 @@ var os = __toESM(require("os"));
 var path = __toESM(require("path"));
 var fs = __toESM(require("fs"));
 var import_crypto = require("crypto");
-var VERSION = true ? "0.9.2" : "0.0.0-dev";
+var VERSION = true ? "0.9.3" : "0.0.0-dev";
 var VERBS = [
   // ── Browser & tabs ──
   {
@@ -64,6 +64,18 @@ var VERBS = [
     group: "Browser & tabs",
     args: "<n>",
     summary: 'Close browser tab N (a tab id from "duo tabs"; cannot close the last).'
+  },
+  {
+    name: "window",
+    group: "Windows",
+    args: "new",
+    summary: 'Open a second app window \u2014 blank, with its own workspace, browser pane, and navigator. Same action as File \u2192 New Window (Opt+Cmd+N). Requires "Allow Multiple Windows" (Settings menu, default on); exits non-zero with a clean disabled-error when off. Subcommand: new.'
+  },
+  {
+    name: "windows",
+    group: "Windows",
+    args: "",
+    summary: `List open app windows as JSON: [{id, primary, focused, activeWorkspace}]. Pair with the global "--window N" flag (or a terminal's DUO_WINDOW env, auto-stamped per window) to address a specific window, e.g. "duo --window 2 dom body".`
   },
   {
     name: "external",
@@ -425,6 +437,16 @@ var VERBS = [
 ];
 var SOCKET_PATH = process.env.DUO_SOCKET ?? path.join(os.homedir(), "Library", "Application Support", "duo", "duo.sock");
 var PORT_FILE = process.env.DUO_PORT_FILE ?? path.join(os.homedir(), "Library", "Application Support", "duo", "duo.port");
+var windowOverride;
+function resolveWindowId() {
+  if (windowOverride != null) return windowOverride;
+  const env = process.env.DUO_WINDOW;
+  if (env) {
+    const n = parseInt(env, 10);
+    if (Number.isInteger(n) && n > 0) return n;
+  }
+  return void 0;
+}
 var TIMEOUT_MS = 1e4;
 var PER_CMD_TIMEOUT_MS = {
   "doc-write": 5 * 60 * 1e3
@@ -451,7 +473,8 @@ function sendOver(factory, cmd, args, timeoutMs) {
     socket.on("connect", () => {
       connected = true;
       if (preamble) socket.write(preamble);
-      const req = { id, cmd, args };
+      const wid = resolveWindowId();
+      const req = { id, cmd, args, ...wid !== void 0 ? { windowId: wid } : {} };
       socket.write(JSON.stringify(req) + "\n");
     });
     socket.on("data", (chunk) => {
@@ -554,7 +577,8 @@ function sendStreamed(cmd, args, onAck, onEvent) {
     let acked = false;
     socket.on("connect", () => {
       if (preamble) socket.write(preamble);
-      const req = { id, cmd, args };
+      const wid = resolveWindowId();
+      const req = { id, cmd, args, ...wid !== void 0 ? { windowId: wid } : {} };
       socket.write(JSON.stringify(req) + "\n");
     });
     socket.on("data", (chunk) => {
@@ -628,7 +652,23 @@ function translateNavKeysForMac(key, modifiers) {
   return { key, modifiers };
 }
 async function main() {
-  const argv = process.argv.slice(2);
+  const rawArgv = process.argv.slice(2);
+  const argv = [];
+  for (let i = 0; i < rawArgv.length; i++) {
+    const a = rawArgv[i];
+    if (a === "--window") {
+      const n = parseInt(rawArgv[i + 1] ?? "", 10);
+      if (Number.isInteger(n) && n > 0) windowOverride = n;
+      i++;
+      continue;
+    }
+    if (a.startsWith("--window=")) {
+      const n = parseInt(a.slice("--window=".length), 10);
+      if (Number.isInteger(n) && n > 0) windowOverride = n;
+      continue;
+    }
+    argv.push(a);
+  }
   if (argv.length === 0 || argv[0] === "--help" || argv[0] === "-h") {
     printHelp();
     process.exit(0);
@@ -823,6 +863,18 @@ async function main() {
         const n = parseInt(rest[0] ?? "", 10);
         if (isNaN(n)) die("Usage: duo close <n>  (where <n> is a tab id from `duo tabs`)");
         out(await send("close", { n }));
+        break;
+      }
+      case "window": {
+        const sub = rest[0];
+        if (sub !== "new") die("Usage: duo window new");
+        const r = await send("window", { action: "new" });
+        if (r && r.ok === false) die(r.error ?? 'duo window new failed (is "Allow Multiple Windows" enabled?)');
+        out(r);
+        break;
+      }
+      case "windows": {
+        out(await send("windows"));
         break;
       }
       case "view": {
@@ -1793,11 +1845,13 @@ async function runDoctor() {
   let unixOk = false;
   let unixErr = null;
   let appVersion = null;
+  let windowCount = null;
   if (fs.existsSync(SOCKET_PATH)) {
     try {
       const res = await probe(() => ({ socket: net.createConnection(SOCKET_PATH) }));
       unixOk = true;
       appVersion = res?.version ?? null;
+      windowCount = res?.windows ?? null;
     } catch (err) {
       const e = err;
       unixErr = e.code ?? e.message ?? String(err);
@@ -1816,6 +1870,7 @@ async function runDoctor() {
       });
       tcpOk = true;
       if (!appVersion) appVersion = res?.version ?? null;
+      if (windowCount == null) windowCount = res?.windows ?? null;
     } catch (err) {
       const e = err;
       tcpErr = e.code ?? e.message ?? String(err);
@@ -1828,6 +1883,7 @@ async function runDoctor() {
   } else {
     lines.push("Duo app version: unknown \u2014 could not reach app via either transport");
   }
+  if (windowCount != null) lines.push(`Windows: ${windowCount}`);
   lines.push("");
   lines.push("Transport");
   lines.push(`  ${unixOk ? "\u2713" : "\u2717"} Unix socket \u2014 ${SOCKET_PATH}${unixErr ? `  (${unixErr})` : ""}`);

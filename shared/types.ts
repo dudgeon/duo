@@ -25,6 +25,14 @@ export interface DuoRequest {
   id: string
   cmd: DuoCommandName
   args: Record<string, unknown>
+  /**
+   * ENH-191 P5a (Tier-3/S4) — terminal-origin window addressing. Set by the
+   * `duo` CLI from `DUO_WINDOW` (the PTY env-stamp = the owning window's id) or
+   * an explicit `--window N`. Absent for back-compat / non-Duo terminals →
+   * SocketServer resolves the primary (lowest-id) window. UNTRUSTED wire input:
+   * SocketServer validates it against the live registry before routing.
+   */
+  windowId?: number
 }
 
 export interface DuoResponse {
@@ -60,6 +68,11 @@ export type DuoCommandName =
   | 'tab'
   | 'close'
   | 'wait'
+  // ENH-191 P5a (S3c) — `duo window new` opens a second window (flag-gated).
+  | 'window'
+  // ENH-191 P5a (Tier-3) — `duo windows` lists open windows ({id, primary,
+  // focused, activeWorkspace}) for cross-window addressing + verification.
+  | 'windows'
   // Stage 10 Phase 6 — navigator + file-surface commands
   | 'view'
   | 'reveal'
