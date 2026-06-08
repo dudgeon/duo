@@ -42,6 +42,7 @@ import {
   effectiveProjectTerminals,
   mergeLiveCwdInfo,
   planProjectClose,
+  newTerminalMembershipsSince,
   shouldReleaseFocus,
   shouldReleaseFocusForNewTerminals,
   type LiveCwdEntry
@@ -1120,12 +1121,12 @@ export function App() {
   // button, openTerminalHere / openClaudeIn, the `duo` CLI, ⌘Z-restore).
   const seenTerminalIdsRef = useRef<Set<string>>()
   useEffect(() => {
-    const prevIds = seenTerminalIdsRef.current
+    const newMemberships = newTerminalMembershipsSince(
+      seenTerminalIdsRef.current,
+      tabs,
+      terminalMembership
+    )
     seenTerminalIdsRef.current = new Set(tabs.map((t) => t.id))
-    if (prevIds === undefined) return // first run — seed the baseline only
-    const newMemberships = tabs
-      .filter((t) => !prevIds.has(t.id))
-      .map((t) => terminalMembership[t.id] ?? null)
     if (shouldReleaseFocusForNewTerminals(focusedProject, newMemberships)) {
       setFocusedProject(null)
     }

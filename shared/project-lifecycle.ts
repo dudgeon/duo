@@ -105,6 +105,31 @@ export function shouldReleaseFocus(
 }
 
 /**
+ * ENH-204 — the membership values of the terminals that are NEW since the
+ * previous render's id-set (`prevIds`), feeding
+ * `shouldReleaseFocusForNewTerminals`. Splitting this out of the App.tsx
+ * effect makes its subtle parts — the id-diff, the first-run baseline, and
+ * the boot-quiet guarantee — unit-testable rather than read-verified.
+ *
+ *   • `prevIds === undefined` is the FIRST run: the effect is only seeding
+ *     its id-set, so nothing is "new" yet and this returns `[]` (the release
+ *     then no-ops). This is the boot-quiet contract — even with restored
+ *     tabs AND a (hypothetical future) non-null focus rehydrated at boot,
+ *     the first tick can never release.
+ *   • Otherwise: the memberships of tabs whose id is absent from `prevIds`.
+ *     A tab missing from `membership` falls back to `null` ("no project"),
+ *     matching how the visibility filter treats it.
+ */
+export function newTerminalMembershipsSince(
+  prevIds: ReadonlySet<string> | undefined,
+  tabs: ReadonlyArray<{ id: string }>,
+  membership: Readonly<Record<string, string | null>>
+): Array<string | null> {
+  if (prevIds === undefined) return []
+  return tabs.filter((t) => !prevIds.has(t.id)).map((t) => membership[t.id] ?? null)
+}
+
+/**
  * ENH-204 — whether opening NEW terminal(s) should drop the focus filter
  * back to "All". The rail's visibility filter HIDES a terminal when its
  * membership (deepest enclosing project) `!== focusedProject`

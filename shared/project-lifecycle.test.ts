@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   effectiveProjectTerminals,
   mergeLiveCwdInfo,
+  newTerminalMembershipsSince,
   planProjectClose,
   shouldReleaseFocus,
   shouldReleaseFocusForNewTerminals,
@@ -21,6 +22,55 @@ describe('shouldReleaseFocus (BUG-194 — focus follows a vanishing project)', (
   })
   it('releases when the rail is empty', () => {
     expect(shouldReleaseFocus('/p/a', [])).toBe(true)
+  })
+})
+
+// ── ENH-204 · newTerminalMembershipsSince ───────────────────────────
+describe('newTerminalMembershipsSince (ENH-204 — id-diff + first-run baseline)', () => {
+  const membership: Record<string, string | null> = {
+    t1: '/proj/a',
+    t2: '/proj/b',
+    t3: null // no project
+  }
+
+  it('FIRST run (prevIds undefined) returns [] — nothing is "new", the effect is only seeding', () => {
+    expect(newTerminalMembershipsSince(undefined, [{ id: 't1' }, { id: 't2' }], membership)).toEqual([])
+  })
+
+  it('boot-quiet: first run returns [] even if a (future) non-null focus is set — release can never fire', () => {
+    // Pins the boot-quiet contract against a future change that rehydrates
+    // focusedProject per window: the FIRST tick produces no new memberships,
+    // so shouldReleaseFocusForNewTerminals short-circuits to false.
+    const firstTick = newTerminalMembershipsSince(undefined, [{ id: 't1' }, { id: 't2' }], membership)
+    expect(shouldReleaseFocusForNewTerminals('/proj/somewhere', firstTick)).toBe(false)
+  })
+
+  it('returns [] when no ids are new (same id-set across renders)', () => {
+    const prev = new Set(['t1', 't2'])
+    expect(newTerminalMembershipsSince(prev, [{ id: 't1' }, { id: 't2' }], membership)).toEqual([])
+  })
+
+  it('returns only the NEW tab’s membership (existing ids excluded)', () => {
+    const prev = new Set(['t1'])
+    expect(newTerminalMembershipsSince(prev, [{ id: 't1' }, { id: 't2' }], membership)).toEqual(['/proj/b'])
+  })
+
+  it('maps a new tab with no project to null', () => {
+    const prev = new Set(['t1'])
+    expect(newTerminalMembershipsSince(prev, [{ id: 't1' }, { id: 't3' }], membership)).toEqual([null])
+  })
+
+  it('falls back to null for a new tab missing from the membership record (matches the filter)', () => {
+    const prev = new Set(['t1'])
+    expect(newTerminalMembershipsSince(prev, [{ id: 't1' }, { id: 'tNew' }], membership)).toEqual([null])
+  })
+
+  it('returns memberships for several new tabs in one batch', () => {
+    const prev = new Set(['t1'])
+    expect(newTerminalMembershipsSince(prev, [{ id: 't1' }, { id: 't2' }, { id: 't3' }], membership)).toEqual([
+      '/proj/b',
+      null
+    ])
   })
 })
 
