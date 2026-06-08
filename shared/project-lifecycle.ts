@@ -104,6 +104,41 @@ export function shouldReleaseFocus(
   return focusedProject !== null && !projectRoots.includes(focusedProject)
 }
 
+/**
+ * ENH-204 — whether opening NEW terminal(s) should drop the focus filter
+ * back to "All". The rail's visibility filter HIDES a terminal when its
+ * membership (deepest enclosing project) `!== focusedProject`
+ * (`visibleTerminals` in App.tsx). So the instant you open a new terminal
+ * that is NOT a member of the focused project — a different project, a
+ * nested sub-project, or no project at all — it is hidden the moment it is
+ * created; and since every open path makes the new tab the ACTIVE one, the
+ * terminal you just asked for vanishes and ⌘T / ⌃Tab lose their target.
+ * Releasing focus to "All" restores its visibility.
+ *
+ * This predicate is the EXACT negation of the visibility filter
+ * (`membership === focusedProject` ⇒ visible), so "should release" means
+ * precisely "at least one new terminal would be hidden." Keying it on
+ * membership rather than raw cwd-containment is what makes the nested
+ * sub-project case revert correctly: a terminal in `repo/packages/sub`
+ * (where `sub` is its own git root) has membership `sub`, not `repo`, so it
+ * releases even though its path is physically inside `repo`. (Containment
+ * and membership diverge exactly there — driving off membership keeps this
+ * in lockstep with the filter it compensates for.)
+ *
+ * Sibling to BUG-194's `shouldReleaseFocus`, but the trigger is a new
+ * non-member terminal rather than a vanishing project. No-op in All mode
+ * (`focusedProject === null` — nothing to release). `newTerminalMemberships`
+ * are the membership values (a project root, or `null` for "no project") of
+ * only the genuinely-new terminals; one non-member is enough to release.
+ */
+export function shouldReleaseFocusForNewTerminals(
+  focusedProject: string | null,
+  newTerminalMemberships: ReadonlyArray<string | null>
+): boolean {
+  if (focusedProject === null) return false
+  return newTerminalMemberships.some((membership) => membership !== focusedProject)
+}
+
 /** BUG-192 — the pure plan for closing every member of a project. The
  *  React handler applies this with a single, un-nested setState burst. */
 export interface ProjectClosePlan {

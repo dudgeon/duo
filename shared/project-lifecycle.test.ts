@@ -4,6 +4,7 @@ import {
   mergeLiveCwdInfo,
   planProjectClose,
   shouldReleaseFocus,
+  shouldReleaseFocusForNewTerminals,
   type LiveCwdEntry
 } from './project-lifecycle'
 
@@ -20,6 +21,46 @@ describe('shouldReleaseFocus (BUG-194 — focus follows a vanishing project)', (
   })
   it('releases when the rail is empty', () => {
     expect(shouldReleaseFocus('/p/a', [])).toBe(true)
+  })
+})
+
+// ── ENH-204 · shouldReleaseFocusForNewTerminals ─────────────────────
+describe('shouldReleaseFocusForNewTerminals (ENH-204 — a new terminal the filter would hide drops focus)', () => {
+  it('releases when a new terminal belongs to a different project', () => {
+    expect(shouldReleaseFocusForNewTerminals('/proj/a', ['/proj/b'])).toBe(true)
+  })
+  it('releases when a new terminal has no project (null membership — e.g. the home dir)', () => {
+    expect(shouldReleaseFocusForNewTerminals('/proj/a', [null])).toBe(true)
+  })
+  it('releases for a NESTED sub-project terminal (the reviewed bug: membership is the sub-root, not the focused parent)', () => {
+    // A terminal in /proj/a/packages/sub where `sub` is its own git root has
+    // membership `/proj/a/packages/sub` ≠ `/proj/a`, so the visibility filter
+    // hides it — driving the release off membership (not physical cwd
+    // containment) is what makes this case revert correctly.
+    expect(shouldReleaseFocusForNewTerminals('/proj/a', ['/proj/a/packages/sub'])).toBe(true)
+  })
+  it('keeps focus when the new terminal is a member of the focused project', () => {
+    expect(shouldReleaseFocusForNewTerminals('/proj/a', ['/proj/a'])).toBe(false)
+  })
+  it('is a no-op in All mode (null focus), whatever the new memberships', () => {
+    expect(shouldReleaseFocusForNewTerminals(null, [null])).toBe(false)
+    expect(shouldReleaseFocusForNewTerminals(null, ['/proj/b'])).toBe(false)
+  })
+  it('releases if ANY of several new terminals is a non-member (batch open)', () => {
+    expect(shouldReleaseFocusForNewTerminals('/proj/a', ['/proj/a', '/proj/b'])).toBe(true)
+  })
+  it('keeps focus when EVERY new terminal is a member', () => {
+    expect(shouldReleaseFocusForNewTerminals('/proj/a', ['/proj/a', '/proj/a'])).toBe(false)
+  })
+  it('is a no-op when there are no new terminals (a close or title change)', () => {
+    expect(shouldReleaseFocusForNewTerminals('/proj/a', [])).toBe(false)
+  })
+  it('is the exact negation of the visibility filter (keep ⟺ membership === focusedProject)', () => {
+    // visibleTerminals keeps a tab iff terminalMembership[id] === focusedProject;
+    // this helper must release iff that equality is false for a new terminal.
+    expect(shouldReleaseFocusForNewTerminals('/proj/a', ['/proj/a'])).toBe(false) // member → visible → keep
+    expect(shouldReleaseFocusForNewTerminals('/proj/a', ['/proj/a/sub'])).toBe(true) // sub-project → hidden → release
+    expect(shouldReleaseFocusForNewTerminals('/proj/a', [null])).toBe(true) // no project → hidden → release
   })
 })
 

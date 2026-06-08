@@ -3,6 +3,25 @@
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
 
+### ENH-204: Opening a new terminal outside the focused project reverts to "All"
+
+**Status:** 🚧 **In-progress — implemented + PR submitted 2026-06-08** (branch `claude/determined-hoover-86829d`). **Priority:** Owner-requested. **Effort:** S.
+
+**Ask (owner, verbatim).** "When I am in a filtered project view, and I open a new terminal with CWD outside that project, I should revert to the 'all projects' (unfiltered) view."
+
+**Why it matters.** ENH-182's focus filter hides any terminal whose membership ≠ `focusedProject` (`visibleTerminals`, App.tsx). So while focused on project A, opening a new terminal anywhere outside A (another project, or a non-project dir like `~`) creates a tab that is hidden the instant it's born — and it's the *active* tab, so the terminal you just asked for "vanishes" and ⌘T / ⌃Tab lose their target. Same disorientation class as BUG-194 (focus pinned to a vanished project), just triggered by a new outside-terminal instead of a `cd`-away.
+
+**Fix.** One pure helper in `shared/project-lifecycle.ts` + one effect in `renderer/App.tsx`:
+- `shouldReleaseFocusForNewTerminals(focusedProject, newMemberships)` — the **exact negation of the visibility filter**: releases when focused and any genuinely-new terminal's membership (deepest enclosing project, or `null` for "no project") `!== focusedProject`. No-op in All mode.
+- App.tsx effect (sibling to BUG-194's `shouldReleaseFocus` effect): diffs the terminal-id set against the prior render via a `seenTerminalIdsRef`, weighs only genuinely-new tabs by their `terminalMembership`, and `setFocusedProject(null)` when one is a non-member. Centralizing on the `tabs` array means **every** creation path (⌘T, the + button, `openTerminalHere`/`openClaudeIn`, the `duo` CLI, ⌘Z-restore) is covered at once — automatic UI/CLI parity.
+
+**Decisions (owner-confirmable in review).**
+- *Release-to-All, not switch-focus.* Owner's words are explicit ("revert to the all-projects view"). This is a **deliberate asymmetry** with the Phase-3c file-open behavior (`duo edit` of a file in another project *switches* focus to that project). Rationale: a new terminal's cwd is frequently a non-project dir, where "switch to its project" has no valid target; release-to-All always works.
+- *New-terminal detection, not live-`cd`.* The effect weighs only newly-appeared terminal ids, so a terminal that later `cd`s out of the focused project does **not** retrigger here — that path stays BUG-194's (project drops from the rail → release).
+- *Membership-based, mirroring the visibility filter.* The release predicate is the exact negation of `visibleTerminals` (`terminalMembership[id] === focusedProject`). An adversarial 5-lens review (2026-06-08) flagged that an earlier cwd-containment draft diverged from the filter for a **nested sub-project** (`~/repo/packages/sub` where `sub` is its own git root): the path is physically inside `~/repo` but membership is `sub`, so that terminal was kept-focused yet hidden — the exact vanish this ENH targets. Keying on membership closes it. **Residual:** the first-ever terminal opened in a *never-probed* sub-project can still keep focus for the ~tens-of-ms until its git probe resolves (membership transiently reads as the parent); self-recovers (click the tile or All). A fast-follow could re-adjudicate on probe-settle if it bites.
+
+**Tests / verify.** 9 new unit tests in `shared/project-lifecycle.test.ts` (release matrix: different-project, null/no-project, **nested sub-project**, member-keep, null-focus, batch, no-new-terminals, + an explicit "exact negation of the visibility filter" pin). 28/28 in the file, both typecheckers clean. Adversarially reviewed (5-lens workflow → 3 confirmed: the nested-divergence fix above + a comment-accuracy fix, both folded in; 7 dismissed as non-defects). Live in-app smoke pending owner's running dev (the active build is another worktree's — not silently restarted).
+
 ### BUG-198: `duo screenshot` times out (10s socket cap vs base64 round-trip)
 
 **Status:** 🆕 Filed 2026-06-07. **Priority:** Medium. **Effort:** S.
