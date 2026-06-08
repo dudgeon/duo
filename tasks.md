@@ -3,6 +3,24 @@
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
 
+### ENH-204: Drag a file/folder from the navigator to insert its path into the active terminal
+
+**Status:** 🆕 **Filed 2026-06-08 — owner-requested (this session).** **Priority:** Medium. **Effort:** S.
+
+**Ask.** Let the user drag a row out of the navigator (`FileTree`) and drop it on the terminal to insert that file's or folder's **absolute path** at the cursor of the **active** terminal — the everyday "point Claude at this file without typing or copy/pasting the path" gesture. Works identically whether the foreground program is a vanilla shell or a running Claude Code session.
+
+**Why.** Long/nested paths are tedious and error-prone to type or hand-copy when telling the agent which file to act on; the navigator already holds the exact absolute path (`entry.path`, annotated `// absolute` in `shared/types.ts`). Drag-to-insert removes the copy/paste round-trip and the typo risk, matching how every mainstream macOS terminal (Terminal.app, iTerm2, VS Code) already behaves.
+
+**Decisions (owner-locked 2026-06-08, via `AskUserQuestion`).** (1) **Scope:** files **and** folders; **navigator-only** (native Finder/OS-file drops deferred — different `dataTransfer` payload). (2) **Terminator:** one **trailing space, no newline** — safe in both shell and Claude (a space submits in neither); a newline would risk submitting a half-formed prompt to Claude. (3) **Multi-select:** dragging with several navigator rows selected inserts **all selected paths, space-joined in tree order** (each single-quote-wrapped if it contains a space/metacharacter), with one trailing space. (4) **Quoting:** POSIX single-quote-wrap a path only when it contains a space/shell-metacharacter; emit raw otherwise. (5) **CLI parity:** satisfied by the shipped `duo send --text "<path>"` (same `ptyManager.write` primitive) — **no new verb**.
+
+**Approach (provisional — see PRD).** Make `FileTree` rows `draggable` and stash the path on `dataTransfer` (a duo-namespaced `application/x-duo-fs-path` type **plus** `text/plain`, so foreign/OS drops stay distinguishable). Add `onDragOver`+`onDrop` on the terminal-column wrapper in `App.tsx` (the `flex-1 overflow-hidden` div around `TerminalPane`) — `onDragOver` **must** `preventDefault()` or Chromium navigates the window to the `file://` URL and blanks the app. Resolve the active PTY via the existing `activeTabId` state and write the assembled payload via `window.electron.pty.write(activeTabId, payload)` — the same transport the Send→Duo pill and `duo send` already use, so **no new IPC**. Fallback if xterm swallows the drop: a capture-phase listener on the xterm host, mirroring the BUG-094 paste handler in `TerminalPane.tsx`.
+
+**Cross-refs.** `renderer/components/FileTree.tsx` (per-row content `<button>` — add `draggable`/`onDragStart`), `renderer/App.tsx` (drop target on the terminal-column wrapper; the existing `pty.write(activeTabId, …)` in the canvas `terminal:send` action), `renderer/components/TerminalPane.tsx` (xterm host + the BUG-094 capture-phase paste precedent), `core/pty-manager.ts` (the shared `write(id, data)` PTY primitive), `cli/duo.ts` (`send` verb — the existing insert-into-active-terminal path that satisfies CLI parity), `shared/types.ts` (`DirEntry.path`). Related: ENH-190 ([PRD](prd/enh-190-navigator-resize-peek.md)) — sibling navigator-interaction upgrade; [ENH-191](#enh-191) — multi-window (the drop resolves the per-window `activeTabId`, so it is window-correct by construction).
+
+**Docs.** PRD at [`docs/prd/enh-204-navigator-drag-path-to-terminal.md`](prd/enh-204-navigator-drag-path-to-terminal.md).
+
+---
+
 ### BUG-198: `duo screenshot` times out (10s socket cap vs base64 round-trip)
 
 **Status:** 🆕 Filed 2026-06-07. **Priority:** Medium. **Effort:** S.
