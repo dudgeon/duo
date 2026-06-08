@@ -19,15 +19,31 @@
 > SEPARATE session's job. Stay on building. (A separate session manages merges;
 > the owner drives cuts.)
 >
-> **▶ CURRENT STATE (2026-06-07): P4 + P5a foundation MERGED to main (PR #78);
-> P5a Tier-1 done + live-verified; P5a Tier 2-4 CHECKPOINTED by the owner.** This
-> checkpoint was the owner's explicit call (NOT a stall) — the ultracode review
-> revealed ~20 more fixes, and window-2 FUNCTIONALITY verification needs S4
-> addressing + a two-window smoke-walk via computer-use (which can't reach the
-> worktree dev). On greenlight, resume P5a Tier 2-4 + S4 (see "P5a remaining"
-> below) WITH live verification: request Electron, tear down ALL dev instances,
-> bring up the WORKTREE dev, drive via `duo` DOM probes. The execute-continuously
-> rule applies once the owner greenlights the grind.
+> **▶ CURRENT STATE (2026-06-07): P5a Tier 2-4 + S4 COMPLETE on the branch
+> (origin `claude/enh-191-multiwindow` @ `36c171f`, 0 behind / 16 ahead of main
+> v0.9.3).** All of Tier 2 (interaction crashers + app-menu focus + workspace
+> threading), Tier 3 (DUO_WINDOW addressing + N-window restore + id-reconciliation),
+> and Tier 4 (cache teardown, enrich hook, doctor count, exit-code, menu gate) +
+> NFR-6.2 (blank-window pin-clone) landed across 9 commits this session. 1093
+> tests, typecheck clean, routing baseline 0 (getFocusedWindow=0), check:skill-
+> currency 67 verbs. **LIVE-VERIFIED via `duo` probes** on the worktree dev:
+> N-window restore (2 windows restored with distinct per-window slices),
+> no-2N-growth (envelope stays 2 windows — id-reconciliation works), `duo doctor`
+> "Windows: 2", `duo windows` enumeration, and DUO_WINDOW addressing
+> (`duo --window 2 dom --js windowId` → 2; was 1 before the fix). No crash/wedge
+> at N=2 after extensive probing.
+>
+> **REMAINING (the owner's call): a 2-window `/smoke-walk`** for the eyes-on /
+> keystroke / relaunch items computer-use can't reach on the worktree dev:
+> right-click context menu at N=2, app-menu clicks targeting the focused window,
+> blank-window pin visual (NFR-6.2), and a real quit+relaunch to confirm
+> N-window restore + bounds across launches. Then merge + cut (a SEPARATE
+> session's job). See "P5a remaining" below (now annotated DONE per phase).
+>
+> NOTE: an `ultracode` adversarial-verify workflow was launched but HUNG
+> (agents stalled mid-tool-call, never finalized) — its highest-value lens (the
+> residual-crasher census) was done MANUALLY instead and found 4 real
+> wrong-window fixes (commits `b529771` + `36c171f`).
 
 ## Where things stand (2026-06-07, post-checkpoint)
 
@@ -47,17 +63,30 @@ baseline 0, `check:skill-currency` PASS.
   blank-race. Proven live on the worktree dev: `duo window new`→{ok:true} (was a
   timeout+crash); `doctor` works after window 2 (no bridge-wedge); windowIds
   [1,2] persist; a tracked-file touch at N=2 doesn't crash.
-- **Tier 2-4 + S4 REMAIN** — CHECKPOINTED by the owner (2026-06-07): the ultracode
-  review revealed ~20 more fixes to make window 2 *functional*; resume on
-  greenlight. See "P5a remaining" below.
+- **Tier 2-4 + S4 DONE + LIVE-VERIFIED** (2026-06-07, this session — 9 commits
+  `ebf8d68`..`36c171f`). Window 2 is fully *functional*: no crash on any CLI/
+  interaction path at N>1, each window resolves its own state, and a `duo
+  --window N` (or a terminal's `DUO_WINDOW`) addresses any window. The detailed
+  per-phase map is in "P5a remaining" below (each annotated ✅).
 
-**Verification reality:** survivability is live-verified by this session. Window-2
-FUNCTIONALITY (menu clicks, browser ops, cross-window addressing) needs Tier-3/S4
-(CLI `--window` addressing, to probe window 2 at all) **plus** the two-window
-`/smoke-walk` via computer-use — which can NOT reach the worktree dev (verify via
-`duo` DOM probes once S4 lands; click-tests are the smoke session's job).
+**Verification reality:** the CLI-testable surface is LIVE-VERIFIED via `duo`
+probes (addressing, restore, no-2N-growth, doctor count, no-wedge). The eyes-on
+items — right-click context menu, app-menu-click focus-targeting, blank-window
+pin visual, and a real quit+relaunch (N-window restore + geometry across
+launches) — can't be driven by computer-use on the worktree dev, so they are the
+**2-window `/smoke-walk`'s job** (the owner's verification).
 
-## P5a remaining — Tier 2-4 + S4 (ultracode-review-mapped, 2026-06-07)
+## P5a Tier 2-4 + S4 — ✅ DONE (2026-06-07; survey-mapped, then hand-implemented)
+
+> **All items below shipped this session** (commits `ebf8d68`..`36c171f`). The
+> map was a 6-agent survey (`/tmp/enh191-survey-digest.txt`, transient). Phase →
+> commit: Tier-2 crashers `de108a5`; app-menu focus `b50829d`; workspace
+> threading `4ef1def`; S4 addressing `e722d2b` (+ read/query addressing
+> `b529771`, browser-pane/cue addressing `36c171f`); N-window restore +
+> reconciliation `6294476`; NFR-6.2 + Tier-4 `ff5e7ac`. The S4 resolver core
+> (`registry.primary()`, non-throwing) is `ebf8d68`. Kept below for the
+> implementation trail; **nothing here is outstanding** except the 2-window
+> `/smoke-walk` (eyes-on items).
 
 Tasks #28–30 track these. The full review (6 agents) is the source; KEY items
 captured here durably (the workflow result file is transient).
