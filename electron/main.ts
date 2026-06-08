@@ -1218,6 +1218,14 @@ app.whenReady().then(async () => {
       prepend: (_defaults, parameters) => {
         const sel = parameters.selectionText.trim()
         const items: MenuItemConstructorOptions[] = []
+        // ENH-191 P5a — classify by the window that OWNS the right-clicked wc,
+        // never liveMainWindow()/only() (which crashes AND misclassifies window
+        // 2's renderer at N>1). isMainRenderer is true only when wc is its
+        // OWNING window's main renderer; a canvas iframe shares that renderer's
+        // wc, and a browser-pane WCV's wc never equals it (→ treated as browser
+        // pane). Resolved ONCE here for both the Comment + Select-element gates.
+        const ownerWin = BrowserWindow.fromWebContents(wc)
+        const isMainRenderer = ownerWin !== null && wc === ownerWin.webContents
         if (sel.length > 0) {
           items.push({
             label: 'Copy as Plain Text',
@@ -1237,8 +1245,6 @@ app.whenReady().then(async () => {
           // listens for. Browser-tab right-clicks live in their own
           // WCV webContents so this filter never applies to them.
           const isCanvasIframe = parameters.frameURL && parameters.frameURL.startsWith('about:srcdoc')
-          const mw = liveMainWindow()
-          const isMainRenderer = mw !== null && wc === mw.webContents
           const isContentEditable = parameters.editFlags?.canCut === true || parameters.isEditable === true
           if (isCanvasIframe || (isMainRenderer && isContentEditable)) {
             items.push({
@@ -1265,10 +1271,15 @@ app.whenReady().then(async () => {
         // canvas iframes): both are skipped here so the menu item
         // doesn't appear in surfaces where inspect mode doesn't apply.
         const isCanvasIframeForInspect = parameters.frameURL && parameters.frameURL.startsWith('about:srcdoc')
-        const mwInspect = liveMainWindow()
-        const isMainRendererForInspect = mwInspect !== null && wc === mwInspect.webContents
-        const isBrowserPane = !isMainRendererForInspect && !isCanvasIframeForInspect
-        const browserManager = liveBrowser()
+        const isBrowserPane = !isMainRenderer && !isCanvasIframeForInspect
+        // ENH-191 P5a — the inspect target is the OWNING window's BrowserManager
+        // (registry.get by ownerWin.id), never liveBrowser()/only() — which
+        // crashes at N>1 and would drive window 1's pane from a right-click in
+        // window 2. A null/unresolvable owner → item omitted (graceful), never
+        // wrong-window.
+        const browserManager = ownerWin
+          ? ((registry.get(ownerWin.id)?.browserManager as BrowserManager | undefined) ?? null)
+          : null
         if (isBrowserPane && browserManager) {
           const bm = browserManager
           items.push({
@@ -1910,7 +1921,7 @@ function setupIPC(): void {
   // level, composing correctly above the WebContentsView regardless
   // of z-index — eliminates the WCV-mute pattern's flicker. See
   // `docs/DECISIONS.md § WCV-occlusion remediation` for rationale.
-  ipcMain.handle(IPC.MENU_POPUP, async (_event, req: import('../shared/types').MenuPopupRequest): Promise<import('../shared/types').MenuPopupResult> => {
+  ipcMain.handle(IPC.MENU_POPUP, async (event, req: import('../shared/types').MenuPopupRequest): Promise<import('../shared/types').MenuPopupResult> => {
     return new Promise((resolve) => {
       let chosenId: string | null = null
       const template: MenuItemConstructorOptions[] = req.items.map(item => {
@@ -1923,7 +1934,10 @@ function setupIPC(): void {
         }
       })
       const menu = Menu.buildFromTemplate(template)
-      const win = liveMainWindow() ?? undefined
+      // ENH-191 P5a — parent the native popup on the INVOKING window (the
+      // renderer that fired MENU_POPUP), not liveMainWindow()/only() — which
+      // crashed at N>1 and would popup on window 1 from a window-2 right-click.
+      const win = BrowserWindow.fromWebContents(event.sender) ?? undefined
       const popupOpts: { window?: BrowserWindow; x?: number; y?: number; callback?: () => void } = {
         callback: () => resolve({ chosenId })
       }
@@ -1956,8 +1970,11 @@ function setupIPC(): void {
     return true
   })
 
-  ipcMain.handle(IPC.DIALOG_CONFIRM, async (_event, req: import('../shared/types').DialogConfirmRequest): Promise<import('../shared/types').DialogConfirmResult> => {
-    const win = liveMainWindow()
+  ipcMain.handle(IPC.DIALOG_CONFIRM, async (event, req: import('../shared/types').DialogConfirmRequest): Promise<import('../shared/types').DialogConfirmResult> => {
+    // ENH-191 P5a — parent the confirm sheet on the INVOKING window (the
+    // renderer that fired DIALOG_CONFIRM), not liveMainWindow()/only() — which
+    // crashed at N>1 and would sheet onto window 1 from a window-2 action.
+    const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return { response: req.cancelId ?? 0 }
     const result = await dialog.showMessageBox(win, {
       type: req.type ?? 'warning',
