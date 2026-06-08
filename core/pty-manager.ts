@@ -85,8 +85,10 @@ export class PtyManager {
       PATH: `${SHIM_DIR}:${userPath}`,
       DUO_SESSION: '1',
       DUO_SOCKET: SOCKET_PATH,
-      // ENH-191 P3-S4 — DORMANT window stamp: the owning window's id, set but
-      // NOT consumed yet (CLI default-resolution is P5; a reverted CLI ignores it).
+      // ENH-191 P5a (Tier-3) — window stamp: the owning window's id. CONSUMED by
+      // the CLI (resolveWindowId in cli/duo.ts) → stamped into each request →
+      // SocketServer routes get(windowId) (primary fallback). A reverted CLI
+      // ignores it (harmless); an explicit `duo --window N` overrides it.
       DUO_WINDOW: String(ownerWindowId),
       DUO_VERSION: this.appVersion,
       TERM_PROGRAM: 'Duo'

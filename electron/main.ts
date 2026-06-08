@@ -321,14 +321,26 @@ const safeSendFocused = makeSafeSend(() => {
   return id != null ? (registry.get(id)?.window ?? null) : null
 })
 
-// ENH-191 P5a — resolve an EXPLICIT target window by id, else the primary. The
-// dual-use NavBridge helpers (setSplit / setHiddenFiles / setClaudeReturnMode /
-// setLayout3wayEven / openCloneModal) accept an optional windowId: the app-menu
-// passes focusedWindowId() (the window the user is in); the CLI passes
-// req.windowId (DUO_WINDOW, P5a Tier-3); both omit → the primary window. Never
-// focus-resolved here (the id is already resolved by the caller).
+// ENH-191 P5a (Tier-3/S4) — the per-CLI-request target window. SocketServer.
+// handle() sets this from req.windowId (the terminal's DUO_WINDOW stamp / an
+// explicit --window N) synchronously BEFORE dispatching each command, and every
+// CLI helper reads it synchronously at its entry (before any await), so there's
+// no interleave window even under concurrent connections. Reset per request
+// (undefined when unstamped → primary fallback). Never persisted; pure in-memory
+// request context (DECISIONS.md rule #12 allows in-memory session state).
+let cliTargetWindowId: number | undefined
+
+// ENH-191 P5a — resolve a target window: an EXPLICIT id (the app-menu's
+// focusedWindowId(), a caller's chosen id) wins; else the per-CLI-request
+// cliTargetWindowId (DUO_WINDOW, set by SocketServer.handle); else the primary
+// (lowest-id) window. Never focus-resolved here (ids are resolved by the
+// caller). The dual-use helpers (setSplit / setHiddenFiles / setClaudeReturnMode
+// / setLayout3wayEven / openCloneModal) call this with the menu's explicit id OR
+// undefined (CLI → cliTargetWindowId); the ~31 CLI-only NavBridge helpers call
+// windowByIdOrPrimary(undefined) so a `duo --window N` verb hits window N.
 function windowByIdOrPrimary(windowId?: number): BrowserWindow | null {
-  if (windowId != null) return (registry.get(windowId)?.window as BrowserWindow | undefined) ?? null
+  const id = windowId ?? cliTargetWindowId
+  if (id != null) return (registry.get(id)?.window as BrowserWindow | undefined) ?? null
   return liveMainWindow()
 }
 
@@ -356,15 +368,17 @@ const registerDuoAssetOnce = makeOnceGuard()
 let pendingOpenFilePath: string | null = null
 app.on('open-file', (event, path) => {
   event.preventDefault()
-  const win = liveMainWindow()
-  if (win && !win.isDestroyed()) {
+  // ENH-191 P5a — an OS event (Finder) with no window origin + no CLI context;
+  // resolve the primary window directly (never the cliTargetWindowId path).
+  const primaryWin = liveMainWindow()
+  if (primaryWin && !primaryWin.isDestroyed()) {
     // Warm path — Duo is already running. Route through sendEdit (the
     // same destination FileTree double-click and `duo open` use), so
     // the Finder open lands on the right surface (markdown -> editor;
     // .html -> canvas, or browser if the file's `duo-open-in` meta
     // says so).
     sendEdit(path)
-    win.focus()
+    primaryWin.focus()
   } else {
     // Cold path — stash and let the createWindow() did-finish-load
     // hook flush after the renderer is ready to receive NAV_EDIT.
@@ -408,7 +422,7 @@ export function getProjectsState(): import('../shared/types').ProjectsStateSnaps
 export function setProjectFocus(
   root: string | null
 ): { ok: boolean; error?: string } {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -418,7 +432,7 @@ export function setProjectFocus(
 export function requestProjectClose(
   root: string
 ): { ok: boolean; error?: string } {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -436,7 +450,7 @@ export function getWorkspacePillMenuEnabled(): boolean {
 export function setWorkspacePillMenuEnabledCli(
   enabled: boolean
 ): { ok: boolean; error?: string } {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -638,14 +652,23 @@ function liveMainWindow(): BrowserWindow | null {
 // as a clean {ok:false}. P2 repointed them from the deleted module globals to
 // registry.only() via the accessors above.
 function resolveCdpBridge(): CdpBridge {
-  const c = liveCdp()
+  // ENH-191 P5a (Tier-3) — the ADDRESSED window's CdpBridge (cliTargetWindowId,
+  // set by SocketServer.handle from DUO_WINDOW), else the primary window's
+  // (liveCdp). registry.get never throws; so `duo --window N <cdp-verb>` drives
+  // window N's browser pane.
+  const c = cliTargetWindowId != null
+    ? ((registry.get(cliTargetWindowId)?.cdpBridge as CdpBridge | undefined) ?? null)
+    : liveCdp()
   if (!c) {
     throw new Error('[main] SocketServer.getCdp() ran before createWindow registered a cdpBridge')
   }
   return c
 }
 function resolveBrowserManager(): BrowserManager {
-  const b = liveBrowser()
+  // ENH-191 P5a (Tier-3) — the ADDRESSED window's BrowserManager, else primary.
+  const b = cliTargetWindowId != null
+    ? ((registry.get(cliTargetWindowId)?.browserManager as BrowserManager | undefined) ?? null)
+    : liveBrowser()
   if (!b) {
     throw new Error('[main] SocketServer.getBrowser() ran before createWindow registered a browserManager')
   }
@@ -1454,7 +1477,7 @@ app.whenReady().then(async () => {
     // a console.info hint there rather than a sync error here (split-
     // view state lives on the renderer side).
     focusPane: (target) => {
-      const win = liveMainWindow()
+      const win = windowByIdOrPrimary(undefined)
       if (!win) return { ok: false, error: 'main window not ready' }
       win.webContents.send(IPC.PANE_FOCUS_JUMP, target)
       return { ok: true, target }
@@ -1488,7 +1511,24 @@ app.whenReady().then(async () => {
     },
     // ENH-184 (Sprint 23 / v0.8.0) — workspace-pill menu CLI parity.
     getWorkspacePillMenuEnabled: () => getWorkspacePillMenuEnabled(),
-    setWorkspacePillMenuEnabled: (enabled: boolean) => setWorkspacePillMenuEnabledCli(enabled)
+    setWorkspacePillMenuEnabled: (enabled: boolean) => setWorkspacePillMenuEnabledCli(enabled),
+    // ENH-191 P5a (Tier-3) — cross-window addressing + enumeration. handle()
+    // calls setTargetWindow(req.windowId) synchronously before each command, so
+    // the resolver helpers above pick up the addressed window. windowCount feeds
+    // `duo doctor`; listWindows backs `duo windows`.
+    setTargetWindow: (id?: number) => { cliTargetWindowId = id },
+    windowCount: () => registry.count(),
+    listWindows: () => {
+      const primaryId = registry.primary()?.id
+      return registry.all()
+        .map((c) => ({
+          id: c.id,
+          primary: c.id === primaryId,
+          focused: c.id === lastFocusedWindowId,
+          activeWorkspace: (c.activeWorkspace ?? null) as import('../shared/types').ActiveWorkspace | null
+        }))
+        .sort((a, b) => a.id - b.id)
+    }
   }, navPinsService, eventBus, packLoader, app.getVersion())
   // Stage 12 close / ENH-191 P3-S11a — wire the renderer event sink so the
   // socket server can push ambient cues (the read-glow + the duo-open
@@ -3451,7 +3491,7 @@ export function getNavState(): NavStateSnapshot {
 }
 
 export function sendReveal(path: string): { ok: boolean; error?: string } {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3506,7 +3546,7 @@ async function scanAndInstallDistroPacks(): Promise<void> {
 }
 
 export function sendView(path: string, mode?: 'canvas' | 'browser'): { ok: boolean; error?: string } {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3519,7 +3559,7 @@ export function sendView(path: string, mode?: 'canvas' | 'browser'): { ok: boole
 }
 
 export function sendEdit(path: string, mode?: 'canvas' | 'browser'): { ok: boolean; error?: string } {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3550,7 +3590,7 @@ export function setThemeMode(mode: ThemeMode): { ok: boolean; error?: string } {
   if (mode !== 'system' && mode !== 'light' && mode !== 'dark') {
     return { ok: false, error: `Invalid theme mode: ${mode}. Expected system|light|dark.` }
   }
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3585,7 +3625,7 @@ export function setShiftReturnMode(mode: import('../shared/types').ShiftReturnMo
   if (mode !== 'submit' && mode !== 'newline') {
     return { ok: false, error: `Invalid shift-return mode: ${mode}. Expected submit|newline.` }
   }
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3636,7 +3676,7 @@ export function setAuthor(author: string): { ok: boolean; error?: string } {
   if (trimmed.length > 64) {
     return { ok: false, error: 'author name must be 64 characters or fewer' }
   }
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3765,7 +3805,7 @@ export function openDevToolsForTarget(opts: {
 }): { ok: boolean; target?: string; opened?: boolean; error?: string } {
   const target = opts.target ?? 'renderer'
   if (target === 'renderer') {
-    const win = liveMainWindow()
+    const win = windowByIdOrPrimary(undefined)
     if (!win || win.isDestroyed()) {
       return { ok: false, error: 'Duo window not ready' }
     }
@@ -3869,7 +3909,7 @@ export function splitViewOpen(path: string): { ok: boolean; error?: string } {
   if (typeof path !== 'string' || !path) {
     return { ok: false, error: 'split-view open requires a path' }
   }
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3893,7 +3933,7 @@ export function splitViewOpenBrowser(browserTabId: number): { ok: boolean; error
   if (!Number.isInteger(browserTabId) || browserTabId < 1) {
     return { ok: false, error: 'split-view open-browser requires a positive integer tab id' }
   }
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3912,7 +3952,7 @@ export function splitViewOpenBrowser(browserTabId: number): { ok: boolean; error
 }
 
 export function splitViewClose(): { ok: boolean; error?: string } {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3924,7 +3964,7 @@ export function splitViewClose(): { ok: boolean; error?: string } {
 // on the working strip). The renderer applies the pinned-tab gate +
 // the actual tab-removal logic; this just pushes the trigger.
 export function closeActiveWorkingTab(): { ok: boolean; error?: string } {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3936,7 +3976,7 @@ export function closeActiveWorkingTab(): { ok: boolean; error?: string } {
 // supplied (1-indexed) → that specific terminal tab. Renderer owns
 // tab identity, so the index resolution happens there.
 export function closeTerminalTab(n?: number): { ok: boolean; error?: string } {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3962,7 +4002,7 @@ export function openCloneModal(opts?: { path?: string; windowId?: number }): { o
 }
 
 export function splitViewPromote(): { ok: boolean; error?: string } {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3979,7 +4019,7 @@ export function splitViewResize(pct: number): { ok: boolean; pct?: number; error
   // or percent (20–80) for caller convenience; > 1 is treated as %.
   const decimal = pct > 1 ? pct / 100 : pct
   const clamped = Math.min(Math.max(decimal, 0.20), 0.80)
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -4002,7 +4042,7 @@ export function setSelectionFormat(format: SelectionFormat): { ok: boolean; erro
   if (format !== 'a' && format !== 'b' && format !== 'c') {
     return { ok: false, error: `Invalid selection-format: ${format}. Expected a|b|c.` }
   }
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -4021,7 +4061,7 @@ export function setSelectionFormat(format: SelectionFormat): { ok: boolean; erro
 const DOC_WRITE_TIMEOUT_MS = 5 * 60 * 1000
 
 export function dispatchDocWrite(req: Omit<DocWriteRequest, 'reqId'>): Promise<DocWriteResult> {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }
@@ -4040,7 +4080,7 @@ export function dispatchDocWrite(req: Omit<DocWriteRequest, 'reqId'>): Promise<D
 }
 
 export function dispatchImageInsert(req: { bytes: Uint8Array; ext: string; alt?: string }): Promise<import('../shared/types').ImageInsertResult> {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }
@@ -4059,7 +4099,7 @@ export function dispatchImageInsert(req: { bytes: Uint8Array; ext: string; alt?:
 }
 
 export function dispatchDocRead(req: Omit<DocReadRequest, 'reqId'>): Promise<DocReadResult> {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }
@@ -4081,7 +4121,7 @@ export function dispatchDocRead(req: Omit<DocReadRequest, 'reqId'>): Promise<Doc
 // short timeout (no human gate; the renderer just resolves a target
 // + scrolls into view, bounded by frame budget).
 export function dispatchDocGoto(req: Omit<DocGotoRequest, 'reqId'>): Promise<DocGotoResult> {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }
@@ -4101,7 +4141,7 @@ export function dispatchDocGoto(req: Omit<DocGotoRequest, 'reqId'>): Promise<Doc
 
 // ENH-023 (v0.5.4) — `duo doc find`. Read-only, fast — same 5s budget.
 export function dispatchDocFind(req: Omit<DocFindRequest, 'reqId'>): Promise<DocFindResult> {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }
@@ -4126,7 +4166,7 @@ export function dispatchDocFind(req: Omit<DocFindRequest, 'reqId'>): Promise<Doc
 // an echo-safe save, and replies. 10s timeout mirrors dispatchDocRead
 // (no human gate — this is an accepted edit, not a banner-able write).
 export function dispatchDocEditPlain(req: Omit<DocEditPlainRequest, 'reqId'>): Promise<DocEditPlainResult> {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, changed: false, replacements: 0, reason: '', error: 'Duo window not ready' })
   }
@@ -4149,7 +4189,7 @@ export function dispatchDocEditPlain(req: Omit<DocEditPlainRequest, 'reqId'>): P
 // the closed case disk-direct). 10s timeout, same rationale as
 // dispatchDocEditPlain.
 export function dispatchJsonOp(req: Omit<JsonOpRequest, 'reqId'>): Promise<JsonOpResult> {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, changed: false, reason: '', error: 'Duo window not ready' })
   }
@@ -4175,7 +4215,7 @@ export function dispatchJsonOp(req: Omit<JsonOpRequest, 'reqId'>): Promise<JsonO
 const HTML_OP_TIMEOUT_MS = 30_000
 
 export function dispatchHtmlOp(req: Omit<HtmlOpRequest, 'reqId'>): Promise<HtmlOpResult> {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }
@@ -4197,7 +4237,7 @@ export function dispatchHtmlOp(req: Omit<HtmlOpRequest, 'reqId'>): Promise<HtmlO
 // as html-op (DOM ops are fast; the timeout window only matters when no
 // canvas is active to subscribe).
 export function dispatchHtmlComment(req: Omit<HtmlCommentRequest, 'reqId'>): Promise<HtmlCommentResult> {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }
@@ -4216,7 +4256,7 @@ export function dispatchHtmlComment(req: Omit<HtmlCommentRequest, 'reqId'>): Pro
 }
 
 export function dispatchHtmlCommentsList(req: Omit<HtmlCommentsListRequest, 'reqId'>): Promise<HtmlCommentsListResult> {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }
@@ -4269,7 +4309,7 @@ export function sendToActiveTerminal(text: string): { ok: boolean; written?: num
 // defaults to the file's basename without extension. Path validation
 // (must end in .html / .htm) happens in socket-server.
 export async function htmlNew(absPath: string, title?: string): Promise<{ ok: boolean; path?: string; error?: string }> {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -4312,7 +4352,7 @@ const NEW_TAB_TIMEOUT_MS = 5000
 export function dispatchNewTab(
   req: Omit<NewTabRequest, 'reqId'>
 ): Promise<NewTabResult> {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }
