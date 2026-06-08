@@ -344,6 +344,17 @@ function windowByIdOrPrimary(windowId?: number): BrowserWindow | null {
   return liveMainWindow()
 }
 
+// ENH-191 P5a (Tier-3) — the addressed window id for CLI cache READERS: the
+// per-request cliTargetWindowId (DUO_WINDOW / --window N) else the primary
+// (lowest-id). Cache readers use `cache.getOrDefault(cliDefaultWindowId())` so
+// `duo --window N theme|nav-state|selection|…` reads window N's slot. Resolved
+// by IDENTITY, never focus. (defaultWindowId stays CLI-context-free — it also
+// backs class-(i) sends + cache eager-writes that must not pick up the CLI
+// target.)
+function cliDefaultWindowId(): number | undefined {
+  return cliTargetWindowId ?? defaultWindowId(registry)
+}
+
 // ENH-191 P1c — single teardown orchestrator for the whole app lifecycle.
 // MUST be module scope: the closed handler AND before-quit share its
 // appTornDown / tornDownWindows guards — that shared state is what makes the
@@ -417,7 +428,7 @@ const projectsStateCache = new WindowKeyedCache<import('../shared/types').Projec
   counts: {}
 }))
 export function getProjectsState(): import('../shared/types').ProjectsStateSnapshot {
-  return projectsStateCache.getDefault(registry)
+  return projectsStateCache.getOrDefault(cliDefaultWindowId())
 }
 export function setProjectFocus(
   root: string | null
@@ -445,7 +456,7 @@ export function requestProjectClose(
 // WORKSPACE_PILL_MENU_SET (renderer applies + re-pushes for symmetry).
 const workspacePillMenuEnabledCache = new WindowKeyedCache<boolean>(() => false)
 export function getWorkspacePillMenuEnabled(): boolean {
-  return workspacePillMenuEnabledCache.getDefault(registry)
+  return workspacePillMenuEnabledCache.getOrDefault(cliDefaultWindowId())
 }
 export function setWorkspacePillMenuEnabledCli(
   enabled: boolean
@@ -466,7 +477,7 @@ export function resolveProjectRef(
   ref: string
 ): { root: string } | { ambiguous: string[] } | null {
   if (!ref) return null
-  const ps = projectsStateCache.getDefault(registry)
+  const ps = projectsStateCache.getOrDefault(cliDefaultWindowId())
   // Exact root path match wins regardless of name collisions.
   const exact = ps.projects.find((p) => p.root === ref)
   if (exact) return { root: exact.root }
@@ -3576,7 +3587,7 @@ export async function newWorkspaceReset(opts: { skipPrompt?: boolean; windowId?:
 // Helpers exposed to SocketServer via `NavBridge` (passed below).
 
 export function getNavState(): NavStateSnapshot {
-  return navStateCache.getDefault(registry)
+  return navStateCache.getOrDefault(cliDefaultWindowId())
 }
 
 export function sendReveal(path: string): { ok: boolean; error?: string } {
@@ -3657,13 +3668,13 @@ export function sendEdit(path: string, mode?: 'canvas' | 'browser'): { ok: boole
 }
 
 export function getEditorSelection(): EditorSelectionSnapshot | null {
-  return editorSelectionCache.getDefault(registry)
+  return editorSelectionCache.getOrDefault(cliDefaultWindowId())
 }
 
 // Stage 17c — drives `duo selection --pane canvas` and the auto-select
 // path's html-canvas branch.
 export function getCanvasSelection(): PageSelectionSnapshot | null {
-  return canvasSelectionCache.getDefault(registry)
+  return canvasSelectionCache.getOrDefault(cliDefaultWindowId())
 }
 
 /**
@@ -3672,7 +3683,7 @@ export function getCanvasSelection(): PageSelectionSnapshot | null {
  * renderer is busy.
  */
 export function getThemeState(): ThemeStateSnapshot {
-  return themeStateCache.getDefault(registry)
+  return themeStateCache.getOrDefault(cliDefaultWindowId())
 }
 
 export function setThemeMode(mode: ThemeMode): { ok: boolean; error?: string } {
@@ -3693,7 +3704,7 @@ export function setThemeMode(mode: ThemeMode): { ok: boolean; error?: string } {
 // Renderer hook (useClaudeKeyPrefs) writes to localStorage on
 // receive, so the change survives relaunches.
 export function getClaudeKeyPrefsState(): import('../shared/types').ClaudeKeyPrefsSnapshot {
-  return claudeKeyPrefsStateCache.getDefault(registry)
+  return claudeKeyPrefsStateCache.getOrDefault(cliDefaultWindowId())
 }
 
 export function setClaudeReturnMode(mode: import('../shared/types').ClaudeReturnMode, windowId?: number): { ok: boolean; error?: string } {
@@ -3754,7 +3765,7 @@ export function pushBrowserMode(mode: import('../shared/types').BrowserMode): vo
 // dispatch AUTHOR_SET to the renderer which persists to localStorage
 // and pushes a fresh state back over AUTHOR_STATE_PUSH.
 export function getAuthorState(): import('../shared/types').AuthorStateSnapshot {
-  return authorStateCache.getDefault(registry)
+  return authorStateCache.getOrDefault(cliDefaultWindowId())
 }
 
 export function setAuthor(author: string): { ok: boolean; error?: string } {
@@ -3769,11 +3780,12 @@ export function setAuthor(author: string): { ok: boolean; error?: string } {
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  // Update the cache eagerly so `duo author` reads the new value even
-  // before the renderer's AUTHOR_STATE_PUSH echo arrives. CLI-originated
-  // (no event.sender) → key by identity so the eager write + the
-  // AUTHOR_STATE_PUSH echo land in the SAME window's slot.
-  authorStateCache.set(defaultWindowId(registry), { author: trimmed })
+  // Update the cache eagerly so `duo author` reads the new value even before the
+  // renderer's AUTHOR_STATE_PUSH echo arrives. ENH-191 P5a — key by the ADDRESSED
+  // window (win.id, = cliTargetWindowId ?? primary), matching the AUTHOR_SET send
+  // + the getOrDefault(cliDefaultWindowId()) read, so `duo --window N author`
+  // round-trips through window N's slot (was defaultWindowId = primary only).
+  authorStateCache.set(win.id, { author: trimmed })
   win.webContents.send(IPC.AUTHOR_SET, trimmed)
   return { ok: true }
 }
@@ -3838,7 +3850,7 @@ export async function queryRendererDom(req: {
   // actively mislead an agent debugging blind.
   // Cast to the real BrowserWindow: executeJavaScript isn't on the minimal
   // WindowLike send-interface, but the registry holds the real window.
-  const win = resolveDefault(registry) as BrowserWindow | undefined
+  const win = windowByIdOrPrimary(undefined) // ENH-191 P5a — addressable (cliTargetWindowId), else primary; identity, never focus
   if (!win || win.isDestroyed()) {
     throw new Error('Duo window not ready')
   }
@@ -3930,7 +3942,7 @@ export async function getLayoutSnapshot(): Promise<unknown> {
   // actively mislead an agent debugging blind.
   // Cast to the real BrowserWindow: executeJavaScript isn't on the minimal
   // WindowLike send-interface, but the registry holds the real window.
-  const win = resolveDefault(registry) as BrowserWindow | undefined
+  const win = windowByIdOrPrimary(undefined) // ENH-191 P5a — addressable (cliTargetWindowId), else primary; identity, never focus
   if (!win || win.isDestroyed()) {
     throw new Error('Duo window not ready')
   }
@@ -3953,7 +3965,7 @@ export async function getStatusSnapshot(): Promise<unknown> {
   // actively mislead an agent debugging blind.
   // Cast to the real BrowserWindow: executeJavaScript isn't on the minimal
   // WindowLike send-interface, but the registry holds the real window.
-  const win = resolveDefault(registry) as BrowserWindow | undefined
+  const win = windowByIdOrPrimary(undefined) // ENH-191 P5a — addressable (cliTargetWindowId), else primary; identity, never focus
   if (!win || win.isDestroyed()) {
     throw new Error('Duo window not ready')
   }
@@ -3972,7 +3984,7 @@ export async function getStatusSnapshot(): Promise<unknown> {
 export async function revealMainPaneIfCollapsed(): Promise<void> {
   // ENH-191 P2 (cardinal rule §2.3) — resolve by identity, never focus. Cast
   // to the real BrowserWindow for executeJavaScript (not on WindowLike).
-  const win = resolveDefault(registry) as BrowserWindow | undefined
+  const win = windowByIdOrPrimary(undefined) // ENH-191 P5a — addressable (cliTargetWindowId), else primary; identity, never focus
   if (!win || win.isDestroyed()) return
   try {
     const layout = (await win.webContents.executeJavaScript(
@@ -4117,14 +4129,14 @@ export function splitViewResize(pct: number): { ok: boolean; pct?: number; error
 }
 
 export function getSplitViewState(): WorkingAuxSnapshot {
-  return workingAuxSnapshotCache.getDefault(registry)
+  return workingAuxSnapshotCache.getOrDefault(cliDefaultWindowId())
 }
 
 // Stage 15 G19 — `duo selection-format` reads the cache; `duo
 // selection-format <a|b|c>` dispatches a SET to the renderer, which
 // persists to localStorage and pushes the new state back.
 export function getSelectionFormatState(): SelectionFormatStateSnapshot {
-  return selectionFormatStateCache.getDefault(registry)
+  return selectionFormatStateCache.getOrDefault(cliDefaultWindowId())
 }
 
 export function setSelectionFormat(format: SelectionFormat): { ok: boolean; error?: string } {
@@ -4380,7 +4392,7 @@ export function sendToActiveTerminal(text: string): { ok: boolean; written?: num
   if (typeof text !== 'string') {
     return { ok: false, error: 'send requires a string text payload' }
   }
-  const activeId = activeTerminalIdCache.getDefault(registry)
+  const activeId = activeTerminalIdCache.getOrDefault(cliDefaultWindowId())
   if (activeId === null) {
     return { ok: false, error: 'No active terminal — open one and try again' }
   }
