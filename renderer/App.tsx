@@ -17,6 +17,7 @@ import type { FileTab, ActiveWorking } from './components/WorkingPane'
 import { classifyFile } from './components/fileClassifier'
 import { FilesPane, type FilesPaneHandle } from './components/FilesPane'
 import { CollapsedPaneRail } from './components/CollapsedPaneRail'
+import { DUO_FS_PATH_MIME } from './components/dragPathPayload'
 import { ProjectRail, type ProjectCounts } from './components/ProjectRail'
 import { useWorkspacePillMenuFlag, setWorkspacePillMenuFlag } from './hooks/useWorkspacePillMenuFlag'
 import { ThemeToggle } from './components/ThemeToggle'
@@ -4192,6 +4193,27 @@ export function App() {
                   : { width: `${splitPct}%`, flexShrink: 0 }
             }
             onMouseDown={() => setFocusedColumn('terminal')}
+            onDragOver={(e) => {
+              // ENH-204 — drop a navigator file/folder here to insert its
+              // path at the active terminal's cursor. preventDefault is
+              // mandatory: without it Chromium navigates the window to the
+              // dropped file:// URL and blanks the app. Gate on our own MIME
+              // so foreign OS/text drags pass through untouched.
+              if (!e.dataTransfer.types.includes(DUO_FS_PATH_MIME)) return
+              e.preventDefault()
+              e.dataTransfer.dropEffect = 'copy'
+            }}
+            onDrop={(e) => {
+              if (!e.dataTransfer.types.includes(DUO_FS_PATH_MIME)) return
+              e.preventDefault()
+              const payload = e.dataTransfer.getData(DUO_FS_PATH_MIME) || e.dataTransfer.getData('text/plain')
+              if (!payload || !activeTabId) return
+              // D3c — expand a collapsed terminal so the insertion is visible
+              // rather than a dead gesture on the 36px rail.
+              if (isTerminalCollapsed) toggleCollapseTerminal()
+              void window.electron.pty.write(activeTabId, payload)
+              setFocusedColumn('terminal')
+            }}
             aria-label="Terminal column"
           >
             {isTerminalCollapsed ? (

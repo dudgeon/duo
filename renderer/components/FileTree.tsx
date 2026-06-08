@@ -23,6 +23,7 @@ import type { DirEntry, MenuTemplateItem, NavPinEntry, GitStatusSnapshot } from 
 import { formatGitStatusChip, formatGitStatusTooltip, repoBasenameFor } from '@shared/host-api'
 import type { NavigatorState, NavigatorActions } from '../hooks/useNavigator'
 import type { NavPinsApi } from '../hooks/useNavPins'
+import { DUO_FS_PATH_MIME, formatPathsForTerminal } from './dragPathPayload'
 
 /** Return the parent directory of an absolute POSIX-style path. */
 function parentDir(absPath: string): string {
@@ -741,6 +742,31 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
     actions.selectRange(paths, kinds, entry.path)
   }
 
+  // ENH-204 — drag a row (or the whole multi-selection) onto the terminal to
+  // insert its absolute path(s). The drag SOURCE lives here at FileTree scope
+  // so it can read the selection + the flattened visible-row order; the drop
+  // TARGET + PTY write live in App.tsx (the terminal column). This only READS
+  // selection — it never mutates it (a drag must not inherit onSingleClickRow's
+  // click-to-deselect toggle; you can't drag "nothing").
+  const onRowDragStart = (e: React.DragEvent, entry: DirEntry) => {
+    let paths: string[]
+    if (state.selectedItems.size > 1 && state.selectedItems.has(entry.path)) {
+      // Multi-select: carry every selected path, ordered by the flattened
+      // visible tree (selectedItems is a click-ordered Map, not tree-ordered).
+      const order = flattenVisibleRows()
+      paths = order
+        ? order.map(r => r.path).filter(p => state.selectedItems.has(p))
+        : Array.from(state.selectedItems.keys())
+    } else {
+      paths = [entry.path]
+    }
+    const payload = formatPathsForTerminal(paths)
+    if (!payload) return
+    e.dataTransfer.setData(DUO_FS_PATH_MIME, payload)
+    e.dataTransfer.setData('text/plain', payload)
+    e.dataTransfer.effectAllowed = 'copy'
+  }
+
   // ENH-148 — container-level ⌘-A handler. Fires when any row inside
   // the FileTree has keyboard focus (bubbling from onRowKey). Selects
   // every top-level row in the current cwd (NOT expanded descendants
@@ -824,6 +850,7 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
         onOpenFile={onOpenFile}
         onContextMenu={(e, entry) => { void popupMenu(e, entry, false) }}
         onRangeSelect={extendSelectionTo}
+        onRowDragStart={onRowDragStart}
         renamingPath={renamingPath}
         onCommitRename={onCommitRename}
         onCancelRename={() => setRenamingPath(null)}
@@ -959,6 +986,9 @@ interface TreeNodesProps {
    *  scope (where rootEntries + listings are available) and passed
    *  down so per-row click handlers can call it. */
   onRangeSelect?: (entry: DirEntry) => void
+  /** ENH-204 — drag a navigator row onto the terminal to insert its path.
+   *  Defined at FileTree scope (reads selection + the visible-row order). */
+  onRowDragStart?: (e: React.DragEvent, entry: DirEntry) => void
   /** Stage 26 item 6 — inline rename state passed down. `undefined` means
    *  this tree (e.g. user-claude pane) doesn't support rename. */
   renamingPath?: string | null
@@ -981,7 +1011,7 @@ interface TreeNodesProps {
   dirtyFileMap?: ReadonlyMap<string, { status: string; plus: number; minus: number }>
 }
 
-export function TreeNodes({ entries, depth, state, actions, onOpenFile, onContextMenu, onRangeSelect, renamingPath, onCommitRename, onCancelRename, onOpenClaudeIn, activeTerminalCwd = null, openFilePaths, activeFilePath = null, childRepoMap, dirtyFileMap }: TreeNodesProps) {
+export function TreeNodes({ entries, depth, state, actions, onOpenFile, onContextMenu, onRangeSelect, onRowDragStart, renamingPath, onCommitRename, onCancelRename, onOpenClaudeIn, activeTerminalCwd = null, openFilePaths, activeFilePath = null, childRepoMap, dirtyFileMap }: TreeNodesProps) {
   if (entries === null || entries === undefined) {
     return <div className="px-3 py-1 text-[11px] text-zinc-600">Loading…</div>
   }
@@ -1001,6 +1031,7 @@ export function TreeNodes({ entries, depth, state, actions, onOpenFile, onContex
           onOpenFile={onOpenFile}
           onContextMenu={onContextMenu}
           onRangeSelect={onRangeSelect}
+          onRowDragStart={onRowDragStart}
           renamingPath={renamingPath}
           onCommitRename={onCommitRename}
           onCancelRename={onCancelRename}
@@ -1026,6 +1057,8 @@ interface TreeNodeProps {
   /** ENH-148 — ⇧-click range-select handler. Provided by the host
    *  FileTree (where the flattened-rows walker lives). */
   onRangeSelect?: (entry: DirEntry) => void
+  /** ENH-204 — drag this row onto the terminal to insert its path. */
+  onRowDragStart?: (e: React.DragEvent, entry: DirEntry) => void
   renamingPath?: string | null
   onCommitRename?: (entry: DirEntry, newName: string) => Promise<boolean>
   onCancelRename?: () => void
@@ -1041,7 +1074,7 @@ interface TreeNodeProps {
   dirtyFileMap?: ReadonlyMap<string, { status: string; plus: number; minus: number }>
 }
 
-function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, onRangeSelect, renamingPath, onCommitRename, onCancelRename, onOpenClaudeIn, activeTerminalCwd = null, openFilePaths, activeFilePath = null, childRepoMap, dirtyFileMap }: TreeNodeProps) {
+function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, onRangeSelect, onRowDragStart, renamingPath, onCommitRename, onCancelRename, onOpenClaudeIn, activeTerminalCwd = null, openFilePaths, activeFilePath = null, childRepoMap, dirtyFileMap }: TreeNodeProps) {
   const isFolder = entry.kind === 'directory'
   const isExpanded = isFolder && state.expanded.has(entry.path)
   // ENH-147 — read from the multi-select map. Singular `state.selected`
@@ -1185,6 +1218,8 @@ function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, onR
         ) : (
           <button
             type="button"
+            draggable
+            onDragStart={(e) => onRowDragStart?.(e, entry)}
             onClick={onSingleClickRow}
             onDoubleClick={onDoubleClickRow}
             onKeyDown={onRowKey}
@@ -1312,6 +1347,7 @@ function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, onR
           onOpenFile={onOpenFile}
           onContextMenu={onContextMenu}
           onRangeSelect={onRangeSelect}
+          onRowDragStart={onRowDragStart}
           renamingPath={renamingPath}
           onCommitRename={onCommitRename}
           onCancelRename={onCancelRename}
