@@ -33,12 +33,13 @@
 > (`duo --window 2 dom --js windowId` → 2; was 1 before the fix). No crash/wedge
 > at N=2 after extensive probing.
 >
-> **REMAINING (the owner's call): a 2-window `/smoke-walk`** for the eyes-on /
-> keystroke / relaunch items computer-use can't reach on the worktree dev:
-> right-click context menu at N=2, app-menu clicks targeting the focused window,
-> blank-window pin visual (NFR-6.2), and a real quit+relaunch to confirm
-> N-window restore + bounds across launches. Then merge + cut (a SEPARATE
-> session's job). See "P5a remaining" below (now annotated DONE per phase).
+> **VERIFIED — 2-window `/smoke-walk` v0.9.3: 8/8 PASS** (owner-walked
+> 2026-06-07): New Window + simultaneous use, blank-window no-pin-clone
+> (NFR-6.2), right-click menu in both windows, app-menu focus-targeting,
+> per-window workspace independence, close-survives, quit+relaunch N-window
+> restore, and the Allow-Multiple-Windows OFF gate/clamp. The CLI surface was
+> agent-pre-verified. **PR submitted** (branch → main). See "P5a remaining"
+> below (annotated DONE per phase). NEXT: merge + a `cut-version` flow.
 >
 > NOTE: an `ultracode` adversarial-verify workflow was launched but HUNG
 > (agents stalled mid-tool-call, never finalized) — its highest-value lens (the
