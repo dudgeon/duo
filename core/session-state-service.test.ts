@@ -193,3 +193,94 @@ describe('SessionStateService — v2 envelope persistence (ENH-191 P4 seam 5)', 
     expect(windows[0].aux).toEqual(aux)
   })
 })
+
+// ENH-191 P5a (Tier-3) — N-window boot restore reconciliation. The headline
+// guard is the no-2N-growth regression test: it protects the Tier-1 data-loss
+// fix from the id-instability landmine (Electron reassigns BrowserWindow ids
+// each launch, so a seeded slot keyed by a prior-launch id would otherwise
+// duplicate when the restored window saves under its fresh live id).
+describe('SessionStateService — Tier-3 restore reconciliation (ENH-191 P5a)', () => {
+  let dir: string
+  let file: string
+  beforeEach(async () => {
+    dir = await fs.mkdtemp(path.join(os.tmpdir(), 'duo-session-reassign-'))
+    file = path.join(dir, 'session-state.json')
+  })
+  afterEach(async () => {
+    await fs.rm(dir, { recursive: true, force: true })
+  })
+
+  it('reassignWindowId re-keys a seeded slot — no 2N envelope growth on relaunch', async () => {
+    // Persist a 2-window envelope under non-1-based ids (window 1 was closed
+    // last session, so the survivors are 2 and 3 — the case that bites).
+    const seedSvc = new SessionStateService(file)
+    seedSvc.save(flat({ navigatorPath: '/win-a' }), 2)
+    seedSvc.save(flat({ navigatorPath: '/win-b' }), 3)
+    await seedSvc.flush()
+
+    // Relaunch: seed the map (keyed by persisted ids 2,3), then restore in
+    // ascending persisted-id order onto fresh live ids 1,2 (reassign).
+    const svc = new SessionStateService(file)
+    await svc.seedWindowsFromDisk()
+    svc.reassignWindowId(2, 1) // lowest persisted id → first live id
+    svc.reassignWindowId(3, 2)
+
+    // Each live window's renderer then saves keyed by its NEW live id.
+    svc.save(flat({ navigatorPath: '/win-a' }), 1)
+    svc.save(flat({ navigatorPath: '/win-b' }), 2)
+    await svc.flush()
+
+    const doc = JSON.parse(await fs.readFile(file, 'utf8')) as RawEnvelope
+    expect(doc.windows).toHaveLength(2) // NOT 4 — the seeded slots were re-keyed
+    expect(doc.windows.map((w) => w.windowId).sort((a, b) => a - b)).toEqual([1, 2])
+  })
+
+  it('reassignWindowId is a no-op when ids match or the slot is absent', async () => {
+    const seedSvc = new SessionStateService(file)
+    seedSvc.save(flat({ navigatorPath: '/only' }), 1)
+    await seedSvc.flush()
+    const svc = new SessionStateService(file)
+    await svc.seedWindowsFromDisk()
+    svc.reassignWindowId(1, 1) // same id → no-op
+    svc.reassignWindowId(99, 5) // absent slot → no-op (no phantom window 5)
+    svc.save(flat({ navigatorPath: '/only' }), 1)
+    await svc.flush()
+    const doc = JSON.parse(await fs.readFile(file, 'utf8')) as RawEnvelope
+    expect(doc.windows).toHaveLength(1)
+    expect(doc.windows[0].windowId).toBe(1)
+  })
+
+  it('loadFlatForWindow returns the re-keyed window slice (each window loads its own)', async () => {
+    const seedSvc = new SessionStateService(file)
+    seedSvc.save(flat({ navigatorPath: '/persisted-5' }), 5)
+    await seedSvc.flush()
+    const svc = new SessionStateService(file)
+    await svc.seedWindowsFromDisk()
+    svc.reassignWindowId(5, 1) // restored onto live id 1
+    expect(svc.loadFlatForWindow(1).navigatorPath).toBe('/persisted-5')
+    expect(svc.loadFlatForWindow(99).navigatorPath).toBe('') // no slot → EMPTY
+  })
+
+  it('updateBounds persists geometry + survives a later renderer save (prev.bounds)', async () => {
+    const seedSvc = new SessionStateService(file)
+    seedSvc.save(flat({ navigatorPath: '/w' }), 1)
+    await seedSvc.flush()
+    const svc = new SessionStateService(file)
+    await svc.seedWindowsFromDisk()
+    svc.updateBounds(1, { x: 100, y: 120, width: 1000, height: 800 })
+    // a renderer save (no bounds in the flat snapshot) must NOT wipe the geometry
+    svc.save(flat({ navigatorPath: '/w2' }), 1)
+    await svc.flush()
+    const doc = JSON.parse(await fs.readFile(file, 'utf8')) as {
+      windows: Array<{ windowId: number; navigatorPath: string; bounds: { x: number; y: number; width: number; height: number } | null }>
+    }
+    expect(doc.windows[0].bounds).toEqual({ x: 100, y: 120, width: 1000, height: 800 })
+    expect(doc.windows[0].navigatorPath).toBe('/w2') // the later save's content
+  })
+
+  it('updateBounds no-ops when the window has no slot yet (no spurious slot)', async () => {
+    const svc = new SessionStateService(file)
+    svc.updateBounds(7, { x: 0, y: 0, width: 800, height: 600 }) // no slot → no-op
+    expect(svc.loadFlatForWindow(7).navigatorPath).toBe('') // still EMPTY
+  })
+})

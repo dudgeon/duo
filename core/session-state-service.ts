@@ -217,8 +217,50 @@ export class SessionStateService {
    *  marked dirty — seeding existing on-disk state is not a new change. Call once
    *  at boot, before the first window's renderer can save. */
   async seedWindowsFromDisk(): Promise<void> {
-    const windows = await this.loadWindows()
+    const { windows, meta } = await this.readDoc()
+    // ENH-191 P5a (Tier-3) — also capture doc meta so loadFlatForWindow() can
+    // stamp savedAt/appVersion when serving a restored window's slice from the
+    // in-memory map (before any flush rewrites disk).
+    this.meta = meta
     for (const w of windows) this.windows.set(w.windowId, w)
+  }
+
+  /** ENH-191 P5a (Tier-3) — the flat state for a SPECIFIC live window, read from
+   *  the in-memory map (which the restore path re-keys to the live id via
+   *  reassignWindowId). Each restored window's renderer loads ITS slice — not
+   *  always windows[0] (load()). EMPTY when the window has no slot (fresh/blank). */
+  loadFlatForWindow(windowId: number): SessionState {
+    const ws = this.windows.get(windowId)
+    return ws ? windowStateToFlat(ws, this.meta) : { ...EMPTY_SESSION_STATE }
+  }
+
+  /** ENH-191 P5a (Tier-3) — re-key a restored window's seeded slot from its
+   *  PERSISTED id (prior launch) to its NEW live id (Electron reassigns
+   *  BrowserWindow ids each launch). Called in createWindow's restore path
+   *  BEFORE loadURL — so the renderer's saves hit this same slot instead of
+   *  creating a stale duplicate (the Tier-1 data-loss fix's 2N-growth hazard).
+   *  Boot restores in ASCENDING persisted-id order, so fresh live ids (1,2,…)
+   *  never collide with an unprocessed persisted id. No-op when ids match or the
+   *  slot is absent. */
+  reassignWindowId(oldId: number, newId: number): void {
+    if (oldId === newId) return
+    const ws = this.windows.get(oldId)
+    if (!ws) return
+    this.windows.delete(oldId)
+    this.windows.set(newId, { ...ws, windowId: newId })
+    this.dirty = true
+  }
+
+  /** ENH-191 P5a (Tier-3) — persist a window's geometry without a full snapshot.
+   *  The main-side resize/move handler debounces into this. flatToWindowState
+   *  carries bounds across renderer saves (prev.bounds), so the value survives.
+   *  No-op if the window has no slot yet (a fresh window before its first save). */
+  updateBounds(windowId: number, bounds: WindowBounds): void {
+    const ws = this.windows.get(windowId)
+    if (!ws) return
+    this.windows.set(windowId, { ...ws, bounds })
+    this.dirty = true
+    if (!this.writeTimer) this.writeTimer = setTimeout(() => void this.flush(), WRITE_DEBOUNCE_MS)
   }
 
   /** ENH-191 P5a (Tier-1) — drop a window's slice when it is EXPLICITLY closed,

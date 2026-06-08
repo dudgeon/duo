@@ -704,12 +704,14 @@ let hiddenFilesMenuItemId: string | null = null
 // Updated in the push handler below.
 let claudeReturnMenuItemId: string | null = null
 
-async function createWindow(opts: { restore?: boolean } = {}): Promise<WindowContext> {
-  // ENH-191 P5a (S3) — `restore` (default true) is the BOOT path: restore the
-  // persisted session (browser tabs, pins, active workspace). A New-Window open
-  // passes restore:false for a BLANK window (NFR-6.2 — not cloning window 1's
-  // content). Byte-identical at N=1: boot uses the default true.
+async function createWindow(opts: { restore?: boolean; restoreIndex?: number } = {}): Promise<WindowContext> {
+  // ENH-191 P5a (S3/Tier-3) — `restore` (default true) is the BOOT path: restore
+  // the persisted session (browser tabs, pins, active workspace, geometry). The
+  // boot loop passes restoreIndex i so window i hydrates the i-th persisted
+  // WindowState (default 0 = the sole/first window). A New-Window open passes
+  // restore:false for a BLANK window (NFR-6.2 — not cloning window 1's content).
   const restore = opts.restore ?? true
+  const restoreIndex = opts.restoreIndex ?? 0
   const mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -783,8 +785,19 @@ async function createWindow(opts: { restore?: boolean } = {}): Promise<WindowCon
   // P5's reentrant createWindow must select windows[restoreIndex] instead.]
   // ENH-191 P5a (S3) — a blank New-Window has no persisted workspace.
   const restoredWindows = restore ? await sessionStateService.loadWindows() : []
+  const restoredWindow = restore ? restoredWindows[restoreIndex] : undefined
+  // ENH-191 P5a (Tier-3) — re-key THIS window's persisted session slot to its
+  // NEW live id (Electron reassigns ids each launch) BEFORE loadURL, so the
+  // renderer's saves hit the same slot — no stale duplicate (the Tier-1
+  // data-loss fix's 2N-growth hazard). The boot loop restores in ascending
+  // persisted-id order, so fresh live ids (1,2,…) never collide. Also apply the
+  // persisted geometry (the ctor 1440×900 above is the no-bounds fallback).
+  if (restoredWindow) {
+    sessionStateService.reassignWindowId(restoredWindow.windowId, winId)
+    if (restoredWindow.bounds) mainWindow.setBounds(restoredWindow.bounds)
+  }
   ctx.activeWorkspace = restore
-    ? (restoredWindows[0]?.activeWorkspace ?? activeWorkspaceService.get())
+    ? (restoredWindow?.activeWorkspace ?? activeWorkspaceService.get())
     : null
   applyWindowTitle(ctx)
 
@@ -807,7 +820,10 @@ async function createWindow(opts: { restore?: boolean } = {}): Promise<WindowCon
   // away with ENH-135 (no more boot-default FAQ tab); the persisted-
   // session peek stays because BUG-057 still uses it to gate the
   // pin-restore on fresh-app boot only.
-  const persistedAtBoot = await sessionStateService.load().catch(() => ({ browserTabs: [], activeBrowserIndex: 0 } as { browserTabs: { url: string; title: string }[]; activeBrowserIndex: number }))
+  // ENH-191 P5a (Tier-3) — THIS window's persisted slice (loadFlatForWindow reads
+  // the in-memory map keyed by winId post-reassign), not load() (always
+  // windows[0]). EMPTY for a blank window / first launch (no slot).
+  const persistedAtBoot = restore ? sessionStateService.loadFlatForWindow(winId) : { ...EMPTY_SESSION_STATE }
   const hasPersistedSession = persistedAtBoot.browserTabs.length > 0
 
   // ENH-191 P2 — createWindow-local consts (were module globals through P1).
@@ -1102,11 +1118,28 @@ async function createWindow(opts: { restore?: boolean } = {}): Promise<WindowCon
     })
   }
 
+  // ENH-191 P5a (Tier-3) — persist THIS window's geometry so it restores next
+  // launch (bounds aren't in the renderer's SessionState snapshot). Debounced —
+  // resize/move fire rapidly during a drag. updateBounds no-ops until the window
+  // has a session slot (a restored window has one post-reassign; a fresh window
+  // gets one after its first renderer save). flatToWindowState carries bounds
+  // across renderer saves (prev.bounds), so the value survives.
+  let boundsSaveTimer: NodeJS.Timeout | null = null
+  const saveBoundsDebounced = (): void => {
+    if (boundsSaveTimer) clearTimeout(boundsSaveTimer)
+    boundsSaveTimer = setTimeout(() => {
+      if (!mainWindow.isDestroyed()) sessionStateService.updateBounds(winId, mainWindow.getBounds())
+    }, 400)
+  }
+  mainWindow.on('resize', saveBoundsDebounced)
+  mainWindow.on('moved', saveBoundsDebounced)
+
   // ENH-191 P2 — winId + the registry context are captured/registered early
   // (right after window creation, above). The 'closed' handler reuses that
   // same winId; reading mainWindow.id here would risk 'Object has been
   // destroyed' since 'closed' fires after the native window is gone.
   mainWindow.on('closed', () => {
+    if (boundsSaveTimer) clearTimeout(boundsSaveTimer)
     // Per-window teardown — ALWAYS, idempotent per id. Detaches CDP then
     // disposes the BrowserManager (dispose() also calls cdp.detach(), which
     // is idempotent via its isAttached() guard — the extra detach no-ops).
@@ -1577,7 +1610,32 @@ app.whenReady().then(async () => {
   // explicitly closed.
   await sessionStateService.seedWindowsFromDisk()
 
-  void createWindow()
+  // ENH-191 P5a (Tier-3) — N-window boot restore. Reopen EVERY persisted window,
+  // each hydrating its own slice (geometry + tabs + active workspace). Restore
+  // in ASCENDING persisted-id order so the fresh BrowserWindow ids (1,2,…) line
+  // up with the reassign in createWindow → collision-free re-keying (see
+  // SessionStateService.reassignWindowId). When "Allow Multiple Windows" is OFF,
+  // clamp to the first window (the rest stay dormant in the map — re-enabling +
+  // relaunch brings them back, never lost). Empty / first launch → one default
+  // window.
+  {
+    const persistedWindows = await sessionStateService.loadWindows()
+    const restoreCount = settingsService.get().multiWindow ? persistedWindows.length : Math.min(persistedWindows.length, 1)
+    if (restoreCount <= 1) {
+      void createWindow() // restoreIndex 0 (the sole/first window) — or first launch
+    } else {
+      const order = persistedWindows
+        .map((_, i) => i)
+        .slice(0, restoreCount)
+        .sort((a, b) => persistedWindows[a].windowId - persistedWindows[b].windowId)
+      // Awaited sequentially so live ids are assigned in ascending order
+      // (1,2,…) matching the ascending persisted-id processing — the invariant
+      // reassignWindowId relies on to never collide.
+      for (const idx of order) {
+        await createWindow({ restore: true, restoreIndex: idx })
+      }
+    }
+  }
 
   // BUG-124 — ensure ~/.claude/duo/logs/ exists at boot so the renderer's
   // writeConflictLog (renderer/utils/conflictDiagnostic.ts) can write to it
@@ -2252,13 +2310,15 @@ function setupIPC(): void {
   // Stage 21c Phase 2 — session state restored across relaunches.
   ipcMain.handle(IPC.SESSION_STATE_LOAD, (event) => {
     // ENH-191 P5a (S3) — a blank New-Window gets empty state so it doesn't
-    // clone window 1's session (NFR-6.2). The boot/restored window loads
-    // normally. Byte-identical at N=1 (no blank windows → load()).
+    // clone window 1's session (NFR-6.2). Byte-identical at N=1.
     const wid = BrowserWindow.fromWebContents(event.sender)?.id
     if (wid !== undefined && blankWindowIds.has(wid)) {
       return { ...EMPTY_SESSION_STATE }
     }
-    return sessionStateService.load()
+    // ENH-191 P5a (Tier-3) — each restored window loads ITS slice (the in-memory
+    // map slot, re-keyed to this live id by reassignWindowId in createWindow),
+    // not always windows[0] (load()). Unknown id (fromWebContents miss) → load().
+    return wid !== undefined ? sessionStateService.loadFlatForWindow(wid) : sessionStateService.load()
   })
   ipcMain.handle(IPC.SESSION_STATE_SAVE, (event, state: import('../shared/types').SessionState) => {
     // ENH-191 P4 — key the per-window save by the CALLING renderer's window
