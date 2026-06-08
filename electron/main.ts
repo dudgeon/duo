@@ -355,6 +355,16 @@ function cliDefaultWindowId(): number | undefined {
   return cliTargetWindowId ?? defaultWindowId(registry)
 }
 
+// ENH-191 P5a (Tier-3) — the ADDRESSED window's BrowserManager for CLI nav verbs
+// that drive the browser pane WITHOUT going through the socket's getBrowser
+// thunk (devtools --browser-pane, split-view open-browser). cliDefaultWindowId()
+// = cliTargetWindowId ?? primary; never throws (registry.get). So `duo --window
+// N devtools --browser-pane` opens window N's pane, matching the verb's `win`.
+function cliBrowserManager(): BrowserManager | null {
+  const id = cliDefaultWindowId()
+  return (id != null ? (registry.get(id)?.browserManager as BrowserManager | undefined) : undefined) ?? null
+}
+
 // ENH-191 P1c — single teardown orchestrator for the whole app lifecycle.
 // MUST be module scope: the closed handler AND before-quit share its
 // appTornDown / tornDownWindows guards — that shared state is what makes the
@@ -1598,13 +1608,15 @@ app.whenReady().then(async () => {
   // socket server can push ambient cues (the read-glow + the duo-open
   // supplemental focus push). The cue's addressed window (3rd arg, resolved by
   // the getAddressedWindowId thunk) routes it to THAT window via routeAmbientCue
-  // — at N=1 the sole window (byte-identical to the old safeSend funnel); at N>1
-  // each cue lands where it was addressed, not always window 1. The thunk's
-  // try/catch yields undefined at N>1 (only() throws) — the fail-loud signal
-  // that P5 must thread the real per-command addressed window.
+  // — at N=1 the sole window; at N>1 each cue lands where it was addressed.
+  // ENH-191 P5a (Tier-3) — the thunk now returns the per-request cliTargetWindowId
+  // (the DUO_WINDOW / --window N target), so an ambient cue from `duo --window N
+  // selection` glows window N. undefined when unstamped → routeAmbientCue falls
+  // back to the primary (resolveDefault). (Was registry.only() in a try/catch —
+  // a fail-loud placeholder that degraded every N>1 cue to window 1.)
   socketServer.setEventSink(
     (channel, payload, addressedWindowId) => routeAmbientCue(registry, addressedWindowId, channel, payload),
-    () => { try { return registry.only()?.id } catch { return undefined } }
+    () => cliTargetWindowId
   )
   socketServer.start()
 
@@ -3919,7 +3931,7 @@ export function openDevToolsForTarget(opts: {
     return { ok: true, target, opened: true }
   }
   if (target === 'browser-pane') {
-    const browserManager = liveBrowser()
+    const browserManager = cliBrowserManager() // ENH-191 P5a — addressed window, not primary
     if (!browserManager) return { ok: false, error: 'browser manager not ready' }
     if (opts.close) {
       browserManager.closeDevTools()
@@ -4038,7 +4050,7 @@ export function splitViewOpenBrowser(browserTabId: number): { ok: boolean; error
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  const browserManager = liveBrowser()
+  const browserManager = cliBrowserManager() // ENH-191 P5a — addressed window, not primary
   if (!browserManager) {
     return { ok: false, error: 'BrowserManager not initialized' }
   }
