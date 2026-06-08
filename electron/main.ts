@@ -1468,8 +1468,9 @@ app.whenReady().then(async () => {
     workspaceOpen: async (path) => openWorkspaceFile(path, { skipPrompt: true }),
     workspaceListRecent: async () => workspaceHistoryService.listSorted(),
     workspaceCurrent: async () => {
-      // ENH-191 P3-S10 — the default window's pointer (only() at N=1), fallback service.
-      const ctx = registry.only()
+      // ENH-191 P5a — the default (primary) window's pointer; primary() never
+      // throws at N>1 (Tier-3 can refine to DUO_WINDOW). Fallback: shared service.
+      const ctx = registry.primary()
       if (ctx && ctx.activeWorkspace !== undefined) return ctx.activeWorkspace
       await activeWorkspaceService.load()
       return activeWorkspaceService.get()
@@ -2249,14 +2250,16 @@ function setupIPC(): void {
 
   // ENH-167 — workspace-as-file IPC handlers (renderer menu-clicks land
   // here; CLI verbs reach the same helpers via NavBridge).
-  ipcMain.handle(IPC.WORKSPACE_FILE_SAVE, async (_event, opts: { saveAs?: boolean }) => {
-    return saveWorkspaceFile({ saveAs: opts?.saveAs === true })
+  ipcMain.handle(IPC.WORKSPACE_FILE_SAVE, async (event, opts: { saveAs?: boolean }) => {
+    // ENH-191 P5a — save the INVOKING window (renderer IPC → event.sender), not
+    // the primary; a window-2 renderer must save window 2.
+    return saveWorkspaceFile({ saveAs: opts?.saveAs === true, windowId: BrowserWindow.fromWebContents(event.sender)?.id })
   })
-  ipcMain.handle(IPC.WORKSPACE_FILE_OPEN, async () => {
-    return openWorkspaceFileWithDialog()
+  ipcMain.handle(IPC.WORKSPACE_FILE_OPEN, async (event) => {
+    return openWorkspaceFileWithDialog(BrowserWindow.fromWebContents(event.sender)?.id)
   })
-  ipcMain.handle(IPC.WORKSPACE_FILE_OPEN_RECENT, async (_event, opts: { path: string }) => {
-    return openWorkspaceFile(opts.path)
+  ipcMain.handle(IPC.WORKSPACE_FILE_OPEN_RECENT, async (event, opts: { path: string }) => {
+    return openWorkspaceFile(opts.path, { windowId: BrowserWindow.fromWebContents(event.sender)?.id })
   })
   ipcMain.handle(IPC.WORKSPACE_FILE_LIST_RECENT, () => {
     return workspaceHistoryService.listSorted()
@@ -2270,8 +2273,8 @@ function setupIPC(): void {
     await activeWorkspaceService.load()
     return activeWorkspaceService.get()
   })
-  ipcMain.handle(IPC.WORKSPACE_FILE_NEW, async () => {
-    return newWorkspaceReset()
+  ipcMain.handle(IPC.WORKSPACE_FILE_NEW, async (event) => {
+    return newWorkspaceReset({ windowId: BrowserWindow.fromWebContents(event.sender)?.id })
   })
   ipcMain.handle(IPC.WORKSPACE_FILE_CLEAR_RECENT, async () => {
     await workspaceHistoryService.clear()
@@ -2615,19 +2618,19 @@ function installAppMenu(): void {
         // Claude session terminology.
         {
           label: 'New Workspace',
-          click: async () => { await newWorkspaceReset() }
+          click: async () => { await newWorkspaceReset({ windowId: focusedWindowId() }) }
         },
         {
           label: 'Save Workspace…',
-          click: async () => { await saveWorkspaceFile({ saveAs: false }) }
+          click: async () => { await saveWorkspaceFile({ saveAs: false, windowId: focusedWindowId() }) }
         },
         {
           label: 'Save Workspace As…',
-          click: async () => { await saveWorkspaceFile({ saveAs: true }) }
+          click: async () => { await saveWorkspaceFile({ saveAs: true, windowId: focusedWindowId() }) }
         },
         {
           label: 'Open Workspace…',
-          click: async () => { await openWorkspaceFileWithDialog() }
+          click: async () => { await openWorkspaceFileWithDialog(focusedWindowId()) }
         },
         {
           label: 'Open Recent Workspace',
@@ -2924,7 +2927,7 @@ function buildRecentWorkspacesSubmenu(): MenuItemConstructorOptions[] {
   const items: MenuItemConstructorOptions[] = sorted.map(entry => ({
     label: `${entry.name}`,
     sublabel: entry.path,
-    click: async () => { await openWorkspaceFile(entry.path) }
+    click: async () => { await openWorkspaceFile(entry.path, { skipPrompt: true, windowId: focusedWindowId() }) }
   }))
   if (items.length > 0) {
     items.push({ type: 'separator' })
@@ -2972,8 +2975,10 @@ function applyWindowTitle(ctx: WindowContext | undefined): void {
 // autosave debounce). 3 s timeout — the renderer's reply is purely
 // CPU-bound (no I/O) so this is generous.
 const SESSION_SNAPSHOT_TIMEOUT_MS = 3000
-async function dispatchSessionSnapshot(): Promise<import('../shared/types').SessionState | null> {
-  const win = liveMainWindow()
+async function dispatchSessionSnapshot(windowId?: number): Promise<import('../shared/types').SessionState | null> {
+  // ENH-191 P5a — snapshot the threaded window (the workspace op's target),
+  // else the primary. The reqId reply is already pinned to win.id.
+  const win = windowByIdOrPrimary(windowId)
   if (!win || win.isDestroyed()) return null
   const reqId = `ss_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
   return new Promise<import('../shared/types').SessionState | null>((resolve) => {
@@ -2997,8 +3002,11 @@ async function dispatchSessionSnapshot(): Promise<import('../shared/types').Sess
 //   - `saveAs=false` and no active pointer → behave as Save As.
 //   - `targetPath` set (from CLI) → write to that path directly,
 //     skipping the GUI dialog.
-export async function saveWorkspaceFile(opts: { saveAs?: boolean; targetPath?: string; name?: string }): Promise<{ ok: boolean; path?: string; name?: string; error?: string }> {
-  const win = liveMainWindow()
+export async function saveWorkspaceFile(opts: { saveAs?: boolean; targetPath?: string; name?: string; windowId?: number }): Promise<{ ok: boolean; path?: string; name?: string; error?: string }> {
+  // ENH-191 P5a — save THIS window (app-menu → focused; CLI → DUO_WINDOW; else
+  // primary). win.id threads to the snapshot + the per-window pointer dual-write
+  // so saving in window 2 can't persist/retitle window 1.
+  const win = windowByIdOrPrimary(opts.windowId)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3035,7 +3043,7 @@ export async function saveWorkspaceFile(opts: { saveAs?: boolean; targetPath?: s
 
   // Gather the live state via the renderer snapshot. If the renderer
   // doesn't reply (no window, hung), fall back to the on-disk autosave.
-  let state = await dispatchSessionSnapshot()
+  let state = await dispatchSessionSnapshot(win.id)
   if (!state) {
     await sessionStateService.flush()
     state = await sessionStateService.load()
@@ -3048,9 +3056,10 @@ export async function saveWorkspaceFile(opts: { saveAs?: boolean; targetPath?: s
   }
   await activeWorkspaceService.set({ path: targetPath, name: suggestedName })
   await workspaceHistoryService.record({ path: targetPath, name: suggestedName, savedAt: new Date().toISOString() })
-  // ENH-191 P3-S10 — dual-write the per-window pointer (registry.only() at N=1)
-  // alongside the shared service; applyWindowTitle reads it.
-  const savedCtx = registry.only()
+  // ENH-191 P3-S10 / P5a — dual-write the SAVED window's per-window pointer
+  // (registry.get(win.id), never only() — which crashes at N>1 and would retitle
+  // the wrong window) alongside the shared service; applyWindowTitle reads it.
+  const savedCtx = registry.get(win.id)
   if (savedCtx) savedCtx.activeWorkspace = activeWorkspaceService.get()
   applyWindowTitle(savedCtx)
   void rebuildAppMenu()
@@ -3063,8 +3072,12 @@ export async function saveWorkspaceFile(opts: { saveAs?: boolean; targetPath?: s
 // browser tabs is to re-enter the existing boot-time restore — no
 // in-place reset machinery needed. macOS apps switch workspaces this
 // way regularly; the visual reset is unambiguous.
-export async function openWorkspaceFile(filePath: string, opts: { skipPrompt?: boolean } = {}): Promise<{ ok: boolean; path?: string; name?: string; error?: string }> {
-  const win = liveMainWindow()
+export async function openWorkspaceFile(filePath: string, opts: { skipPrompt?: boolean; windowId?: number } = {}): Promise<{ ok: boolean; path?: string; name?: string; error?: string }> {
+  // ENH-191 P5a — switch THIS window (app-menu/recent → focused; CLI →
+  // DUO_WINDOW; else primary). win.id threads through the pre-switch flush, the
+  // per-window pointer, and applyNewSessionState so a switch in window 2 can't
+  // reload/teardown window 1.
+  const win = windowByIdOrPrimary(opts.windowId)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3083,11 +3096,11 @@ export async function openWorkspaceFile(filePath: string, opts: { skipPrompt?: b
   const currentActive = activeWorkspaceService.get()
   if (currentActive) {
     try {
-      const snapshot = await dispatchSessionSnapshot()
+      const snapshot = await dispatchSessionSnapshot(win.id)
       if (snapshot) {
-        // ENH-191 P4 — main-driven save targets the sole window (P5 threads
-        // the workspace-switching window's id).
-        sessionStateService.save(snapshot, defaultWindowId(registry) ?? 1)
+        // ENH-191 P5a — persist the OUTGOING workspace to the switching window's
+        // own per-window slot (win.id), never defaultWindowId() (crashes at N>1).
+        sessionStateService.save(snapshot, win.id)
         await sessionStateService.flush()
       }
     } catch (err) {
@@ -3117,20 +3130,24 @@ export async function openWorkspaceFile(filePath: string, opts: { skipPrompt?: b
   // Set active pointer + history BEFORE applying so the window title
   // reflects the new name as soon as the renderer reload finishes.
   await activeWorkspaceService.set({ path: filePath, name: envelope.name })
-  const openedCtx = registry.only()
+  // ENH-191 P5a — the OPENED window's per-window pointer (registry.get(win.id),
+  // never only()); applyWindowTitle retitles THIS window only.
+  const openedCtx = registry.get(win.id)
   if (openedCtx) openedCtx.activeWorkspace = activeWorkspaceService.get()
   applyWindowTitle(openedCtx)
   await workspaceHistoryService.record({ path: filePath, name: envelope.name, savedAt: envelope.savedAt })
   await workspaceHistoryService.flush()
   void rebuildAppMenu()
-  await applyNewSessionState(stamped)
+  await applyNewSessionState(stamped, win.id)
   return { ok: true, path: filePath, name: envelope.name }
 }
 
 // ENH-167 — Open Workspace dialog flow. Shows the prompt-to-save
 // modal first, then a file picker.
-async function openWorkspaceFileWithDialog(): Promise<{ ok: boolean; path?: string; name?: string; error?: string }> {
-  const win = liveMainWindow()
+async function openWorkspaceFileWithDialog(windowId?: number): Promise<{ ok: boolean; path?: string; name?: string; error?: string }> {
+  // ENH-191 P5a — the Open-Workspace dialog flow (app-menu → focused; renderer
+  // IPC → sender; else primary). The picked file opens into THIS window.
+  const win = windowByIdOrPrimary(windowId)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3147,7 +3164,7 @@ async function openWorkspaceFileWithDialog(): Promise<{ ok: boolean; path?: stri
   if (result.canceled || result.filePaths.length === 0) {
     return { ok: false, error: 'cancelled' }
   }
-  return openWorkspaceFile(result.filePaths[0], { skipPrompt: true })
+  return openWorkspaceFile(result.filePaths[0], { skipPrompt: true, windowId: win.id })
 }
 
 // ENH-167 — prompt the user to save the current workspace before
@@ -3158,8 +3175,9 @@ async function openWorkspaceFileWithDialog(): Promise<{ ok: boolean; path?: stri
 // `action` parametrizes the prompt copy:
 //  - 'open' → "before opening another?" (Open Workspace / Open Recent)
 //  - 'new'  → "before starting a new one?" (New Workspace)
-async function promptToSaveCurrentWorkspace(action: 'open' | 'new' = 'open'): Promise<boolean> {
-  const win = liveMainWindow()
+async function promptToSaveCurrentWorkspace(action: 'open' | 'new' = 'open', windowId?: number): Promise<boolean> {
+  // ENH-191 P5a — parent the Save?/Don't/Cancel sheet on THIS window + save it.
+  const win = windowByIdOrPrimary(windowId)
   if (!win || win.isDestroyed()) return false
   // BUG-151 (Sprint 20 / v0.7.7) — this prompt is now ONLY reachable
   // from `newWorkspaceReset` (the "wipe everything and start fresh"
@@ -3189,7 +3207,7 @@ async function promptToSaveCurrentWorkspace(action: 'open' | 'new' = 'open'): Pr
   if (result.response === 1) return true                    // Don't Save → proceed
   // Save → if active, save silently; else open Save dialog. If the
   // save itself fails or is cancelled, abort.
-  const save = await saveWorkspaceFile({ saveAs: false })
+  const save = await saveWorkspaceFile({ saveAs: false, windowId })
   if (!save.ok) return false
   return true
 }
@@ -3265,24 +3283,27 @@ async function getLiveCwdsForIds(
 // faster (~200ms vs ~2s) and uniform across dev/prod. Owner reported
 // "whole window disappeared, relaunched blank window" on 2026-05-21
 // — that was the relaunch surfacing the dev-mode break.
-async function applyNewSessionState(state: import('../shared/types').SessionState): Promise<void> {
-  const win = liveMainWindow()
+async function applyNewSessionState(state: import('../shared/types').SessionState, windowId?: number): Promise<void> {
+  // ENH-191 P5a — apply to THIS window (callers thread the operated-on id). ALL
+  // sub-steps below (save, browser teardown, PTY dispose, reload) MUST target
+  // the SAME window or a switch in window A would reload/teardown window B.
+  const win = windowByIdOrPrimary(windowId)
   if (!win || win.isDestroyed()) return
 
-  // Save the new state so the reloaded renderer reads it.
-  // ENH-191 P4 — main-driven workspace-apply targets the sole window (P5
-  // threads the window the workspace was applied to).
-  sessionStateService.save(state, defaultWindowId(registry) ?? 1)
+  // Save the new state so the reloaded renderer reads it — keyed by THIS
+  // window's per-window slot (win.id), never defaultWindowId() (crashes at N>1).
+  sessionStateService.save(state, win.id)
   await sessionStateService.flush()
 
   // Tear down current browser tabs. Closing each tab cleanly via
   // BrowserManager preserves CDP/closed-tabs/aux state correctly,
   // unlike dispose() which would also detach CDP and break the
   // reused BrowserManager.
-  // ENH-191 P2 — resolve this window's BrowserManager once; the deferred
-  // did-finish-load callback below captures it (BrowserManager is reused
-  // across a workspace switch, not re-created, so the captured ref stays valid).
-  const browserManager = liveBrowser()
+  // ENH-191 P5a — resolve THIS window's BrowserManager (registry.get(win.id),
+  // never liveBrowser()/only() — crashes at N>1 + would tear down window 1's
+  // tabs). The deferred did-finish-load callback below captures it (the manager
+  // is reused across a workspace switch, not re-created, so the ref stays valid).
+  const browserManager = (registry.get(win.id)?.browserManager as BrowserManager | undefined) ?? null
   if (browserManager) {
     const currentTabs = [...browserManager.getTabs()]
     for (const tab of currentTabs.reverse()) {
@@ -3294,8 +3315,9 @@ async function applyNewSessionState(state: import('../shared/types').SessionStat
   // whole shared pool. At N=1 the sole window owns every PTY, so this kills the
   // same set dispose() did; at N>1 a workspace swap in window A no longer nukes
   // window B's terminals. The renderer reload re-creates PTYs via pty:create.
-  const swapWin = liveMainWindow()
-  ptyManager.disposeForWindow(swapWin?.id ?? -1)
+  // ENH-191 P5a — dispose only THIS window's PTYs (win.id), never a re-resolved
+  // liveMainWindow() (crashes at N>1 + could nuke the wrong window's terminals).
+  ptyManager.disposeForWindow(win.id)
 
   // Re-arm the browser-pin-restore for the NEXT did-finish-load
   // (the one that fires after this reload). The createWindow path's
@@ -3357,20 +3379,23 @@ async function applyNewSessionState(state: import('../shared/types').SessionStat
 //
 // `skipPrompt` is for CLI callers (`duo session new`) — the agent
 // is presumed deliberate, same convention as `duo session open`.
-export async function newWorkspaceReset(opts: { skipPrompt?: boolean } = {}): Promise<{ ok: boolean; error?: string }> {
-  const win = liveMainWindow()
+export async function newWorkspaceReset(opts: { skipPrompt?: boolean; windowId?: number } = {}): Promise<{ ok: boolean; error?: string }> {
+  // ENH-191 P5a — reset THIS window (app-menu → focused; renderer IPC → sender;
+  // CLI → DUO_WINDOW; else primary). win.id threads to the snapshot, prompt,
+  // frontmost-terminal lookup, pointer-clear, and applyNewSessionState.
+  const win = windowByIdOrPrimary(opts.windowId)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
 
   // Snapshot the live renderer state so we can pick the frontmost
   // terminal's CWD and gate the prompt on "is there anything to lose".
-  const state = await dispatchSessionSnapshot()
+  const state = await dispatchSessionSnapshot(win.id)
   if (!state) return { ok: false, error: 'snapshot failed' }
 
   const anythingOpen = state.terminals.length > 0 || state.fileTabs.length > 0
   if (anythingOpen && !opts.skipPrompt) {
-    const proceed = await promptToSaveCurrentWorkspace('new')
+    const proceed = await promptToSaveCurrentWorkspace('new', win.id)
     if (!proceed) return { ok: false, error: 'cancelled' }
   }
 
@@ -3382,7 +3407,9 @@ export async function newWorkspaceReset(opts: { skipPrompt?: boolean } = {}): Pr
   const idx = state.activeTerminalIndex
   if (idx >= 0 && idx < state.terminals.length) {
     const spawnCwd = state.terminals[idx].cwd
-    const activeId = activeTerminalIdCache.getDefault(registry)
+    // ENH-191 P5a — the reset window's frontmost terminal (getOrDefault never
+    // throws), not getDefault(registry) which crashes at N>1.
+    const activeId = activeTerminalIdCache.getOrDefault(win.id)
     const pid = activeId ? ptyManager.getPid(activeId) : null
     const liveCwd = pid ? getLiveCwdForPid(pid) : null
     frontCwd = liveCwd ?? spawnCwd
@@ -3406,12 +3433,14 @@ export async function newWorkspaceReset(opts: { skipPrompt?: boolean } = {}): Pr
     aux: null
   }
   await activeWorkspaceService.clear()
-  const clearedCtx = registry.only()
+  // ENH-191 P5a — clear THIS window's pointer (registry.get(win.id), never
+  // only()); applyWindowTitle retitles THIS window back to "Duo".
+  const clearedCtx = registry.get(win.id)
   if (clearedCtx) clearedCtx.activeWorkspace = null
   applyWindowTitle(clearedCtx)
   void rebuildAppMenu()
   await workspaceHistoryService.flush()
-  await applyNewSessionState(skeleton)
+  await applyNewSessionState(skeleton, win.id)
   return { ok: true }
 }
 
