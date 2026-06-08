@@ -33,13 +33,19 @@ describe('routing integration — shared-state fan-out (ENH-191 P3-S9)', () => {
   })
 
   // NEGATIVE CONTROL: routing a class-ii broadcast through resolveDefault (the
-  // WRONG, only()-based path) at N>1 THROWS — proving an accidental only() on a
-  // shared-state fan-out can never silently under-deliver to just one window.
-  it('an only()-routed fan-out THROWS at N>1 (never silently hits one window)', () => {
+  // WRONG path) at N>1 reaches ONLY the primary window — proving a shared-state
+  // fan-out must use broadcastAll, never resolveDefault, or the second window
+  // is starved. (P0–P4 made this THROW; P5a's non-throwing resolveDefault makes
+  // the under-delivery — not a crash — the thing this control guards against.)
+  it('a default-routed fan-out under-delivers at N>1 (only the primary window is hit)', () => {
     const reg = new WindowRegistry()
-    reg.register(fakeCtx(1))
-    reg.register(fakeCtx(2))
-    expect(() => resolveDefault(reg)?.webContents.send('projects:changed', {})).toThrow()
+    const a = fakeCtx(1)
+    const b = fakeCtx(2)
+    reg.register(a)
+    reg.register(b)
+    resolveDefault(reg)?.webContents.send('projects:changed', {})
+    expect(a.window.webContents.send).toHaveBeenCalledTimes(1) // primary only
+    expect(b.window.webContents.send).not.toHaveBeenCalled() // second window starved
   })
 
   it('at N=1 broadcastAll and the default path hit the same sole window', () => {

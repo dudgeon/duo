@@ -294,6 +294,44 @@ const registry = new WindowRegistry()
 // be exercised from a vitest node env (see safe-send.test.ts).
 const safeSend = makeSafeSend(() => resolveDefault(registry) ?? null)
 
+// ENH-191 P5a — the FOCUSED-window resolution seam for app-menu commands. The
+// native app menu is a single app-global NSMenu, but its per-window items (the
+// checkbox `checked:` reads + the menu-click sends) must target the window the
+// user is looking at. We track the last-focused window id via the
+// `browser-window-focus` app event (registered in whenReady), which HANDS us
+// the focused window — so there is NO ad-hoc focus query (the kind the routing
+// grep-gate bans), keeping that gate at 0 and honoring the cardinal rule (menu
+// commands resolve by registry IDENTITY, not an ad-hoc focus query). The
+// fallback focusedWindowId() below
+// back to the primary (lowest-id) window when the tracked id is stale/unset, so
+// a menu fired before any focus event still resolves deterministically.
+let lastFocusedWindowId: number | null = null
+function focusedWindowId(): number | undefined {
+  if (lastFocusedWindowId != null && registry.get(lastFocusedWindowId)) {
+    return lastFocusedWindowId
+  }
+  return defaultWindowId(registry)
+}
+// A safeSend bound to the FOCUSED window — the menu-click analog of `safeSend`
+// (which targets the primary). For app-menu items that act on "the window the
+// user is in" (New File/Folder, Paste-plain, Cozy toggle, pane focus, View
+// source). Falls back to the primary window via focusedWindowId().
+const safeSendFocused = makeSafeSend(() => {
+  const id = focusedWindowId()
+  return id != null ? (registry.get(id)?.window ?? null) : null
+})
+
+// ENH-191 P5a — resolve an EXPLICIT target window by id, else the primary. The
+// dual-use NavBridge helpers (setSplit / setHiddenFiles / setClaudeReturnMode /
+// setLayout3wayEven / openCloneModal) accept an optional windowId: the app-menu
+// passes focusedWindowId() (the window the user is in); the CLI passes
+// req.windowId (DUO_WINDOW, P5a Tier-3); both omit → the primary window. Never
+// focus-resolved here (the id is already resolved by the caller).
+function windowByIdOrPrimary(windowId?: number): BrowserWindow | null {
+  if (windowId != null) return (registry.get(windowId)?.window as BrowserWindow | undefined) ?? null
+  return liveMainWindow()
+}
+
 // ENH-191 P1c — single teardown orchestrator for the whole app lifecycle.
 // MUST be module scope: the closed handler AND before-quit share its
 // appTornDown / tornDownWindows guards — that shared state is what makes the
@@ -1474,6 +1512,18 @@ app.whenReady().then(async () => {
     event.returnValue = BrowserWindow.fromWebContents(event.sender)?.id ?? -1
   })
 
+  // ENH-191 P5a — track the focused window for app-menu resolution (see
+  // focusedWindowId / safeSendFocused). The event HANDS us the focused window,
+  // so there is no ad-hoc focus query (the routing grep-gate stays 0).
+  // Rebuild the menu on focus so the per-window checkbox checkmarks (Cozy /
+  // Show Hidden Files / ⌘Return-for-Claude-submit) track whichever window the
+  // user just switched to. Registered ONCE at boot, before the first
+  // createWindow, so window 1's initial focus is captured.
+  app.on('browser-window-focus', (_e, win) => {
+    lastFocusedWindowId = win.id
+    void rebuildAppMenu()
+  })
+
   // ENH-191 P5a (S1/S3) — load the multiWindow flag before any window opens,
   // then refresh the menu so the "Allow Multiple Windows" checkbox reflects the
   // saved value (the initial menu build at boot ran before this load).
@@ -2540,12 +2590,12 @@ function installAppMenu(): void {
         {
           label: 'New File…',
           accelerator: 'CmdOrCtrl+N',
-          click: () => safeSend(IPC.NEW_FILE_REQUEST)
+          click: () => safeSendFocused(IPC.NEW_FILE_REQUEST)
         },
         {
           label: 'New Folder…',
           accelerator: 'CmdOrCtrl+Shift+N',
-          click: () => safeSend(IPC.NEW_FOLDER_REQUEST)
+          click: () => safeSendFocused(IPC.NEW_FOLDER_REQUEST)
         },
         // ENH-191 P5a (S3) — open a SECOND window (blank, its own workspace).
         // ⌥⌘N because ⌘N / ⌘⇧N are taken by New File / New Folder. Gated on the
@@ -2587,7 +2637,7 @@ function installAppMenu(): void {
         {
           label: 'Clone from GitHub…',
           accelerator: 'CmdOrCtrl+Shift+K',
-          click: () => { openCloneModal() }
+          click: () => { openCloneModal({ windowId: focusedWindowId() }) }
         }
       ]
     },
@@ -2610,7 +2660,7 @@ function installAppMenu(): void {
           label: 'Paste and Match Style',
           accelerator: 'CmdOrCtrl+Shift+V',
           click: () => {
-            safeSend(IPC.PASTE_PLAIN_REQUEST)
+            safeSendFocused(IPC.PASTE_PLAIN_REQUEST)
           }
         },
         // ENH-030 — "Copy as Plain Text" with ⌘⌥C as a parallel for
@@ -2661,14 +2711,19 @@ function installAppMenu(): void {
           id: claudeReturnMenuItemId,
           label: '⌘Return for Claude submit',
           type: 'checkbox',
-          checked: claudeKeyPrefsStateCache.getDefault(registry).claudeReturn === 'newline',
+          // ENH-191 P5a — reflect + toggle the FOCUSED window's pref (getOrDefault
+          // never throws; the menu rebuilds on focus). getDefault(registry) would
+          // crash at N>1; resolve via focusedWindowId() and route the set to that
+          // same window so the menu acts on the window the user is in.
+          checked: claudeKeyPrefsStateCache.getOrDefault(focusedWindowId()).claudeReturn === 'newline',
           click: () => {
             // Toggle: 'submit' (Return submits, default) ↔ 'newline'
             // (Return = newline, ⌘Return = submit). The next
             // CLAUDE_KEY_PREFS_STATE_PUSH from the renderer will
             // update this checkmark via the handler below.
-            const next = claudeKeyPrefsStateCache.getDefault(registry).claudeReturn === 'newline' ? 'submit' : 'newline'
-            setClaudeReturnMode(next)
+            const wid = focusedWindowId()
+            const next = claudeKeyPrefsStateCache.getOrDefault(wid).claudeReturn === 'newline' ? 'submit' : 'newline'
+            setClaudeReturnMode(next, wid)
           }
         },
         // ENH-191 P5a (S3) — enable/disable opening multiple windows. Default ON
@@ -2690,11 +2745,13 @@ function installAppMenu(): void {
           id: cozyMenuItemId,
           label: 'Cozy mode — current tab',
           type: 'checkbox',
-          checked: cozyActiveTabCache.getDefault(registry),
+          // ENH-191 P5a — focused window's cozy state (getOrDefault never throws;
+          // menu rebuilds on focus). getDefault(registry) crashed at N>1.
+          checked: cozyActiveTabCache.getOrDefault(focusedWindowId()),
           click: () => {
             // Renderer flips authoritative state, then echoes back via
             // COZY_STATE_PUSH so the checkmark tracks the truth.
-            safeSend(IPC.COZY_TOGGLE)
+            safeSendFocused(IPC.COZY_TOGGLE)
           }
         },
         {
@@ -2708,10 +2765,13 @@ function installAppMenu(): void {
           id: hiddenFilesMenuItemId,
           label: 'Show Hidden Files',
           type: 'checkbox',
-          checked: navStateCache.getDefault(registry).showDotfiles === true,
+          // ENH-191 P5a — focused window's navigator showDotfiles (getOrDefault
+          // never throws; menu rebuilds on focus). getDefault(registry) crashed
+          // at N>1. Route the toggle to the same focused window.
+          checked: navStateCache.getOrDefault(focusedWindowId()).showDotfiles === true,
           accelerator: 'CmdOrCtrl+Shift+.',
           click: () => {
-            setHiddenFiles('toggle')
+            setHiddenFiles('toggle', focusedWindowId())
           }
         },
         {
@@ -2738,7 +2798,7 @@ function installAppMenu(): void {
           label: 'Toggle pane focus',
           accelerator: 'CmdOrCtrl+`',
           click: () => {
-            safeSend(IPC.PANE_TOGGLE_FOCUS)
+            safeSendFocused(IPC.PANE_TOGGLE_FOCUS)
           }
         },
         { type: 'separator' },
@@ -2751,17 +2811,17 @@ function installAppMenu(): void {
             {
               label: 'Even (50/50)',
               accelerator: 'CmdOrCtrl+Alt+2',
-              click: () => setSplit(50)
+              click: () => setSplit(50, focusedWindowId())
             },
             {
               label: 'Terminal heavy (67/33)',
               accelerator: 'CmdOrCtrl+Alt+1',
-              click: () => setSplit(67)
+              click: () => setSplit(67, focusedWindowId())
             },
             {
               label: 'Canvas heavy (33/67)',
               accelerator: 'CmdOrCtrl+Alt+3',
-              click: () => setSplit(33)
+              click: () => setSplit(33, focusedWindowId())
             },
             {
               // ENH-099 — 3-pane even layout: outer 33/67 + inner aux
@@ -2769,18 +2829,18 @@ function installAppMenu(): void {
               // auto-redistribute on aux-open.
               label: '3-way even (33/33/33)',
               accelerator: 'CmdOrCtrl+Alt+4',
-              click: () => setLayout3wayEven()
+              click: () => setLayout3wayEven(focusedWindowId())
             },
             { type: 'separator' },
             {
               label: 'Full terminal',
               accelerator: 'CmdOrCtrl+Alt+0',
-              click: () => setSplit(80)
+              click: () => setSplit(80, focusedWindowId())
             },
             {
               label: 'Full canvas',
               accelerator: 'CmdOrCtrl+Alt+9',
-              click: () => setSplit(20)
+              click: () => setSplit(20, focusedWindowId())
             }
           ]
         },
@@ -2794,7 +2854,7 @@ function installAppMenu(): void {
           // menu entry is for discoverability + mouse-driven trigger;
           // the chord remains the power-user accelerator.
           label: 'View source',
-          click: () => safeSend(IPC.VIEW_SOURCE_REQUEST)
+          click: () => safeSendFocused(IPC.VIEW_SOURCE_REQUEST)
         },
         { type: 'separator' },
         // BUG-084 fix (v0.6.7) — Reload + Force Reload removed.
@@ -3478,11 +3538,13 @@ export function getClaudeKeyPrefsState(): import('../shared/types').ClaudeKeyPre
   return claudeKeyPrefsStateCache.getDefault(registry)
 }
 
-export function setClaudeReturnMode(mode: import('../shared/types').ClaudeReturnMode): { ok: boolean; error?: string } {
+export function setClaudeReturnMode(mode: import('../shared/types').ClaudeReturnMode, windowId?: number): { ok: boolean; error?: string } {
   if (mode !== 'submit' && mode !== 'newline') {
     return { ok: false, error: `Invalid claude-return mode: ${mode}. Expected submit|newline.` }
   }
-  const win = liveMainWindow()
+  // ENH-191 P5a — windowId targets a specific window (app-menu passes the
+  // focused window; CLI passes DUO_WINDOW); omitted → the primary window.
+  const win = windowByIdOrPrimary(windowId)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3507,11 +3569,13 @@ export function setShiftReturnMode(mode: import('../shared/types').ShiftReturnMo
 // the new value to the renderer; renderer's useNavigator hook updates
 // localStorage + emits a fresh NAV_STATE_PUSH (which our handler uses
 // to refresh the menu checkmark).
-export function setHiddenFiles(value: boolean | 'toggle'): { ok: boolean; error?: string } {
+export function setHiddenFiles(value: boolean | 'toggle', windowId?: number): { ok: boolean; error?: string } {
   if (value !== true && value !== false && value !== 'toggle') {
     return { ok: false, error: `Invalid hidden-files value: ${String(value)}. Expected true|false|'toggle'.` }
   }
-  const win = liveMainWindow()
+  // ENH-191 P5a — windowId targets a specific window (app-menu → focused; CLI →
+  // DUO_WINDOW); omitted → the primary window.
+  const win = windowByIdOrPrimary(windowId)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3560,12 +3624,14 @@ export function setAuthor(author: string): { ok: boolean; error?: string } {
 // land here. Renderer clamps to the divider drag's 20–80 range; the
 // validator below mirrors that so an invalid CLI value errors at the
 // socket boundary instead of a silent clamp.
-export function setSplit(pct: number): { ok: boolean; pct?: number; error?: string } {
+export function setSplit(pct: number, windowId?: number): { ok: boolean; pct?: number; error?: string } {
   if (typeof pct !== 'number' || !Number.isFinite(pct)) {
     return { ok: false, error: 'split pct must be a finite number' }
   }
   const clamped = Math.min(Math.max(pct, 20), 80)
-  const win = liveMainWindow()
+  // ENH-191 P5a — windowId targets a specific window (app-menu → focused; CLI →
+  // DUO_WINDOW); omitted → the primary window.
+  const win = windowByIdOrPrimary(windowId)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3577,8 +3643,10 @@ export function setSplit(pct: number): { ok: boolean; pct?: number; error?: stri
 // 3way` all land here. Tells the renderer to apply the canonical 3-pane
 // even layout: outer 33/67 + inner aux 50/50 (when aux is open). Same
 // target shape as ENH-126's auto-redistribute, but on-demand.
-export function setLayout3wayEven(): { ok: boolean; error?: string } {
-  const win = liveMainWindow()
+export function setLayout3wayEven(windowId?: number): { ok: boolean; error?: string } {
+  // ENH-191 P5a — windowId targets a specific window (app-menu → focused; CLI →
+  // DUO_WINDOW); omitted → the primary window.
+  const win = windowByIdOrPrimary(windowId)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3852,8 +3920,10 @@ export function closeTerminalTab(n?: number): { ok: boolean; error?: string } {
 // v2: optional `path` arg pre-populates the modal's parent-directory
 // input. Used by the Navigator right-click → "Clone GitHub repo
 // here…" path (owner Q1: right-click context wins over Navigator cwd).
-export function openCloneModal(opts?: { path?: string }): { ok: boolean; error?: string } {
-  const win = liveMainWindow()
+export function openCloneModal(opts?: { path?: string; windowId?: number }): { ok: boolean; error?: string } {
+  // ENH-191 P5a — windowId targets a specific window (File menu / ⌘⇧K →
+  // focused; CLI → DUO_WINDOW); omitted → the primary window.
+  const win = windowByIdOrPrimary(opts?.windowId)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
