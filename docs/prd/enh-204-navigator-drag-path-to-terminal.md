@@ -124,10 +124,14 @@ drop-guard and no `will-navigate` handler on the main window. (A renderer
 navigation also crashes the dev Electron, so this is the first regression line
 in § 8.)
 
-**D3b — Foreign-drag rejection.** On `onDrop`, read
-`getData('application/x-duo-fs-path') || getData('text/plain')`; if neither is
-present (a foreign drag), ignore the event. v1 does **not** read
-`e.dataTransfer.files`, so OS/Finder drops are inert (deferred, § 9).
+**D3b — Foreign-drag rejection (still `preventDefault`).** `onDragOver` and
+`onDrop` call `preventDefault()` on **every** drag over the column — including
+foreign ones — so a stray Finder/OS file drop can't navigate the window to
+`file://` and blank the app. A drag without our `application/x-duo-fs-path`
+MIME is then **swallowed without inserting** (no `pty.write`); `dropEffect` is
+set to `none` so the cursor shows no-drop. v1 does **not** read
+`e.dataTransfer.files`, so OS/Finder paths aren't *inserted* (deferred, § 9) —
+but they are now inert rather than navigating the window.
 
 **D3c — Collapsed terminal rail.** The `flex-1 overflow-hidden` wrapper only
 renders when the terminal column is *expanded*; when collapsed it is replaced by

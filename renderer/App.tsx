@@ -4194,18 +4194,22 @@ export function App() {
             }
             onMouseDown={() => setFocusedColumn('terminal')}
             onDragOver={(e) => {
-              // ENH-204 — drop a navigator file/folder here to insert its
-              // path at the active terminal's cursor. preventDefault is
-              // mandatory: without it Chromium navigates the window to the
-              // dropped file:// URL and blanks the app. Gate on our own MIME
-              // so foreign OS/text drags pass through untouched.
-              if (!e.dataTransfer.types.includes(DUO_FS_PATH_MIME)) return
+              // ENH-204 — drop a navigator file/folder here to insert its path
+              // at the active terminal's cursor. preventDefault on EVERY drag
+              // over this column is mandatory: without it, a dropped file://
+              // (including a stray Finder drag) navigates the window and blanks
+              // the app. Only our own navigator drags actually insert (onDrop);
+              // foreign drags are swallowed harmlessly — dropEffect 'none'
+              // shows the no-drop cursor.
+              const ours = e.dataTransfer.types.includes(DUO_FS_PATH_MIME)
               e.preventDefault()
-              e.dataTransfer.dropEffect = 'copy'
+              e.dataTransfer.dropEffect = ours ? 'copy' : 'none'
             }}
             onDrop={(e) => {
-              if (!e.dataTransfer.types.includes(DUO_FS_PATH_MIME)) return
+              // preventDefault unconditionally so a foreign file drop can't
+              // navigate the window; only OUR navigator drags insert.
               e.preventDefault()
+              if (!e.dataTransfer.types.includes(DUO_FS_PATH_MIME)) return
               const payload = e.dataTransfer.getData(DUO_FS_PATH_MIME) || e.dataTransfer.getData('text/plain')
               if (!payload || !activeTabId) return
               // D3c — expand a collapsed terminal so the insertion is visible
