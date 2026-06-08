@@ -3,6 +3,18 @@
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
 
+### ENH-191 P5 multi-window follow-ups (post-merge, PR #73)
+
+**Status:** 🆕 Filed 2026-06-08. **Priority:** P1 (item 1) / P3 (rest). **Effort:** S–M. **Source:** code review of PR #73 (merged `2e57ef0`); full detail in the PR comment.
+
+Non-blocking hardening/polish surfaced reviewing the multi-window capstone (window 2 functional + CLI-addressable). The feature is verified — 1093 unit tests + typecheck clean + 8/8 smoke-walk — so none of these gate the merge or a release; they are the residual edges:
+
+1. **[P1] Per-request window target is correct-by-discipline, not by-construction.** `cliTargetWindowId` / `cliDefaultWindowId()` (`electron/main.ts`) is module-global state set in `SocketServer.handle()` and must be read synchronously *before any `await`* in every consuming helper. The invariant is documented but unenforced, and there is no concurrency-interleaving test. → Add a test firing two overlapping `handle()` calls with different `windowId`s and asserting no cross-talk; longer-term, capture the target into a local at `handle()` entry and thread it through, removing the discipline dependency.
+2. **[P3] `reassignWindowId` collision-freedom rests on an unasserted ordering invariant** (ascending persisted-id restore + sequential awaits → ascending live ids). → Add a defensive assert (the target live id is not an unprocessed persisted key) or a restore test with non-contiguous persisted ids (e.g. `{2, 3}`).
+3. **[P3] `dropWindow`-without-flush + crash window.** An explicitly-closed (non-quit) window's removal isn't durable until the next natural flush (a sibling save / before-quit); a crash in that gap resurrects the closed window on next boot. Self-corrects (close it again).
+4. **[P3] git-watcher is single-module last-armer-wins** at N>1 — two windows watching different cwds means the second arming stops the first's `INVALIDATE`. Per-window watchers were explicitly deferred to P5b. Not a crash (the N>1 chokidar-callback crash IS fixed).
+5. **[P3] The 12-cache purge list in `createWindow`'s `closed` handler is hand-maintained** ("keep in sync if one is added") — a future `WindowKeyedCache` not added there leaks a closed window's slot past unregister. → Iterate a cache registry, or add a test asserting the list matches `grep new WindowKeyedCache`.
+
 ### BUG-198: `duo screenshot` times out (10s socket cap vs base64 round-trip)
 
 **Status:** 🆕 Filed 2026-06-07. **Priority:** Medium. **Effort:** S.
