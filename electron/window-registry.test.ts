@@ -53,6 +53,34 @@ describe('WindowRegistry — registry-of-one spine (ENH-191 P0)', () => {
     expect(() => reg.only()).toThrow(/2 windows/)
   })
 
+  // ENH-191 P5a — primary() is the deterministic default-resolution target at
+  // ANY N (the successor to only() for default sends): the lowest-id live
+  // context, by IDENTITY, never focus, and — unlike only() — it never throws.
+  it('primary() returns the sole context at N=1, undefined when empty', () => {
+    const reg = new WindowRegistry()
+    expect(reg.primary()).toBeUndefined()
+    const { ctx } = makeFakeContext(1)
+    reg.register(ctx)
+    expect(reg.primary()).toBe(ctx)
+  })
+
+  it('primary() returns the LOWEST-id context at N>1 (deterministic, never throws)', () => {
+    const reg = new WindowRegistry()
+    reg.register(makeFakeContext(2).ctx)
+    reg.register(makeFakeContext(1).ctx)
+    reg.register(makeFakeContext(3).ctx)
+    expect(reg.primary()?.id).toBe(1) // lowest id regardless of registration order
+  })
+
+  it('primary() follows the oldest survivor after the lowest-id window closes', () => {
+    const reg = new WindowRegistry()
+    reg.register(makeFakeContext(1).ctx)
+    reg.register(makeFakeContext(2).ctx)
+    reg.register(makeFakeContext(3).ctx)
+    reg.unregister(1)
+    expect(reg.primary()?.id).toBe(2) // 2 is now the lowest-id survivor
+  })
+
   it('unregister removes the context (only() resolves again afterward)', () => {
     const reg = new WindowRegistry()
     reg.register(makeFakeContext(1).ctx)

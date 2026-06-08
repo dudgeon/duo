@@ -558,19 +558,21 @@ sessionStateService.setEnrichBeforePersistHook(async (state) => {
 let socketServer: SocketServer | null = null
 let externalDomainsService: ExternalDomainsService | null = null
 
-// ENH-191 P2 — the per-window BrowserManager + CdpBridge now live in the
-// WindowContext (resolved via registry.only() through P4), NOT as module
-// globals. These nullable accessors are the single resolution point: they
-// cast the context's structurally-typed (unknown) fields back to their real
-// types in ONE place, so window-registry.ts can stay Electron-free.
-// registry.only() returns the sole context at N=1 (byte-identical to the old
-// globals) and THROWS at N>1 — the intended fail-loud signal that a read site
-// still needs its per-window (event.sender) resolution before window 2 opens.
+// ENH-191 P2/P5a — the per-window BrowserManager + CdpBridge live in the
+// WindowContext (NOT module globals). These nullable accessors are the single
+// resolution point: they cast the context's structurally-typed (unknown) fields
+// back to their real types in ONE place, so window-registry.ts stays
+// Electron-free. They resolve the PRIMARY (lowest-id) window's bridges — the
+// windowId-less DEFAULT for app-global callers (the socket thunks' fallback when
+// no DUO_WINDOW is set; devtools / split-view defaults). P0–P4 used
+// registry.only() here, which THREW at N>1 as the pre-P5 fail-loud placeholder;
+// P5a resolves the deterministic primary window. Per-window callers pass an
+// explicit id via registry.get — see resolveCdpBridge/resolveBrowserManager.
 function liveCdp(): CdpBridge | null {
-  return (registry.only()?.cdpBridge as CdpBridge | undefined) ?? null
+  return (registry.primary()?.cdpBridge as CdpBridge | undefined) ?? null
 }
 function liveBrowser(): BrowserManager | null {
-  return (registry.only()?.browserManager as BrowserManager | undefined) ?? null
+  return (registry.primary()?.browserManager as BrowserManager | undefined) ?? null
 }
 // ENH-191 P5a (Tier-1) — per-window resolution for IPC handlers that arrive
 // FROM a specific window's renderer (event.sender). At N>1 the only()-backed

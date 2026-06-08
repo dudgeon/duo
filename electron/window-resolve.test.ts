@@ -42,15 +42,22 @@ describe('window-resolve — the send taxonomy (ENH-191 P2)', () => {
     expect(resolveDefault(new WindowRegistry())).toBeUndefined()
   })
 
-  // NEGATIVE CONTROL (the getFocusedWindow foot-gun): at N>1 there is no single
-  // "the window", so resolveDefault must THROW rather than silently pick the
-  // focused/first one. A variant that resolved by focus would return a window
-  // here instead of throwing — this pins that it can't.
-  it('resolveDefault THROWS at N>1 — no silent focus/first pick (H2 negative control)', () => {
+  // CARDINAL RULE pin (P5a): at N>1 resolveDefault returns the PRIMARY (lowest-
+  // id) window deterministically — by IDENTITY, never focus. Registering OUT of
+  // id order still yields the lowest id; a focus-based variant could not satisfy
+  // this without a focus input. (P0–P4 THREW here as the pre-P5 fail-loud
+  // placeholder; P5a retires it and resolves the deterministic primary.)
+  it('resolveDefault returns the lowest-id (primary) window at N>1 — identity, never focus', () => {
     const reg = new WindowRegistry()
-    reg.register(fakeCtx(1))
     reg.register(fakeCtx(2))
-    expect(() => resolveDefault(reg)).toThrow(/all\(\) \(broadcast\) or get\(id\)/)
+    reg.register(fakeCtx(1))
+    reg.register(fakeCtx(3))
+    const win = resolveDefault(reg)
+    expect(win).toBe(reg.get(1)!.window)
+    win!.webContents.send('nav:reveal', '/p')
+    expect(reg.get(1)!.window.webContents.send).toHaveBeenCalledTimes(1)
+    expect(reg.get(2)!.window.webContents.send).not.toHaveBeenCalled()
+    expect(reg.get(3)!.window.webContents.send).not.toHaveBeenCalled()
   })
 
   // ---- resolveBySender (class iii) ----------------------------------------
@@ -75,15 +82,21 @@ describe('window-resolve — the send taxonomy (ENH-191 P2)', () => {
     expect(b.window.webContents.send).toHaveBeenCalledWith('projects:changed', file)
   })
 
-  // NEGATIVE CONTROL (only()-converted broadcast): routing a class-(ii) channel
-  // through resolveDefault (the WRONG, only()-based path) at N=2 must THROW —
-  // proving an accidental only() on a broadcast can never silently under-deliver
-  // to just one window. If broadcasts used only(), this would not throw.
-  it('an only()-routed broadcast FAILS the two-context fan-out (only()-negative control)', () => {
+  // NEGATIVE CONTROL (default-routed broadcast under-delivers): routing a class-
+  // (ii) channel through resolveDefault (the WRONG path) at N=2 reaches only the
+  // PRIMARY window — proving resolveDefault is single-target, so a shared-state
+  // broadcast MUST use broadcastAll (above) to repaint every window. (P0–P4 made
+  // this THROW; P5a's non-throwing resolveDefault makes the under-delivery — not
+  // a crash — the thing this control guards against.)
+  it('a default-routed broadcast under-delivers to one window (use broadcastAll instead)', () => {
     const reg = new WindowRegistry()
-    reg.register(fakeCtx(1))
-    reg.register(fakeCtx(2))
-    expect(() => resolveDefault(reg)?.webContents.send('projects:changed', {})).toThrow()
+    const a = fakeCtx(1)
+    const b = fakeCtx(2)
+    reg.register(a)
+    reg.register(b)
+    resolveDefault(reg)?.webContents.send('projects:changed', {})
+    expect(a.window.webContents.send).toHaveBeenCalledTimes(1) // only the primary
+    expect(b.window.webContents.send).not.toHaveBeenCalled() // second window starved
   })
 
   // BUG-190 fan-out edition: a destroyed window is excluded so a fan-out can't
