@@ -529,7 +529,7 @@ sessionStateService.setActiveWorkspaceResolver(
 // Stale-cap at 24h so a months-old session-jsonl doesn't keep
 // surfacing the Resume banner.
 const CLAUDE_SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000
-sessionStateService.setEnrichBeforePersistHook(async (state) => {
+sessionStateService.setEnrichBeforePersistHook(async (state, windowId) => {
   // Best-effort: scan in parallel. Empty terminals list short-circuits.
   if (!state.terminals.length) return state
 
@@ -560,11 +560,12 @@ sessionStateService.setEnrichBeforePersistHook(async (state) => {
   // are in tab-creation order (renderer snapshot + PtyManager.Map
   // preserve insertion), so positional matching aligns correctly.
   const consumedTabIds = new Set<string>()
-  // ENH-191 P3-S7 — owner-filter the positional cwd→tabId match to THIS window's
-  // tabs so the shared pool's same-cwd terminals from OTHER windows can't be
-  // claimed by this enrichment. At N=1 the sole window (only()); P4 makes the
-  // enrich hook per-window. undefined ⇒ unfiltered (byte-identical at N=1).
-  const ownerWindowId = registry.only()?.id
+  // ENH-191 P5a (Tier-4) — owner-filter the positional cwd→tabId match to THIS
+  // window's tabs (the windowId the flush loop threads), so the shared PTY pool's
+  // same-cwd terminals from OTHER windows can't be claimed by this enrichment.
+  // Was registry.only()?.id, which THREW at N>1 — silently aborting capture for
+  // ALL windows the moment a 2nd opened.
+  const ownerWindowId = windowId
   // ENH-191 P3-S8c — THIS window's S3-eligibility set (per-window); a foreign
   // window's hosted tabs can't grant eligibility in this enrichment.
   const hostedSet = ownerWindowId != null ? registry.get(ownerWindowId)?.tabsThatHostedClaude : undefined
@@ -734,7 +735,12 @@ async function createWindow(opts: { restore?: boolean; restoreIndex?: number } =
       // restart dev, rebuild …). Now it's a glance at the titlebar.
       additionalArguments: [
         `--duo-app-version=${app.getVersion()}`,
-        `--duo-is-dev=${app.isPackaged ? '0' : '1'}`
+        `--duo-is-dev=${app.isPackaged ? '0' : '1'}`,
+        // ENH-191 NFR-6.2 — a blank New-Window (restore:false) must NOT clone
+        // the pinned FILE tabs (App.tsx pin-auto-open). Read synchronously in
+        // preload (no IPC race) into env.blank; the restored/boot windows are
+        // non-blank. Known at construction, so additionalArguments is the seam.
+        `--duo-blank=${restore ? '0' : '1'}`
       ]
     }
   })
@@ -1173,6 +1179,20 @@ async function createWindow(opts: { restore?: boolean; restoreIndex?: number } =
     // already flushed the full map and dropWindow schedules no flush, so this
     // can't shrink the persisted envelope mid-quit.
     sessionStateService.dropWindow(winId)
+    // ENH-191 P5a (Tier-4) — purge THIS window's slot from every per-window
+    // read-model cache so a closed window's snapshot can't linger past unregister
+    // (slot leak). WindowKeyedCache.delete is idempotent. The 12 caches below are
+    // the full set (grep `new WindowKeyedCache`); keep in sync if one is added.
+    // (PendingRegistry families are keyed by reqId, not windowId, and self-reap
+    // via per-family timeouts — no per-window purge needed.)
+    for (const cache of [
+      navStateCache, editorSelectionCache, canvasSelectionCache, themeStateCache,
+      claudeKeyPrefsStateCache, authorStateCache, selectionFormatStateCache,
+      workingAuxSnapshotCache, activeTerminalIdCache, projectsStateCache,
+      workspacePillMenuEnabledCache, cozyActiveTabCache
+    ]) {
+      cache.delete(winId)
+    }
   })
 
   // ENH-191 P2 — the context was registered early (right after window creation)
@@ -2707,6 +2727,10 @@ function installAppMenu(): void {
         {
           label: 'New Window',
           accelerator: 'Alt+CmdOrCtrl+N',
+          // ENH-191 P5a (Tier-4) — grey out when multi-window is disabled. The
+          // Settings checkbox calls rebuildAppMenu() on toggle, so this `enabled`
+          // is recomputed live each rebuild.
+          enabled: settingsService.get().multiWindow,
           click: () => { void openNewWindow() }
         },
         { type: 'separator' },
@@ -2837,7 +2861,12 @@ function installAppMenu(): void {
           label: 'Allow Multiple Windows',
           type: 'checkbox',
           checked: settingsService.get().multiWindow,
-          click: (item) => { void settingsService.set({ multiWindow: item.checked }) }
+          click: (item) => {
+            // ENH-191 P5a (Tier-4) — persist, then rebuild so File → New Window's
+            // enabled-gate (+ this checkbox's own checked state) reflect the new
+            // value immediately, not on the next unrelated rebuild.
+            void settingsService.set({ multiWindow: item.checked }).then(() => rebuildAppMenu())
+          }
         }
       ]
     },

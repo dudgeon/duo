@@ -113,7 +113,7 @@ export class SessionStateService {
   // per-window presence context (tabsThatHostedClaude / owner-filtered PTYs)
   // is the sole window's; P5 must thread windowId so window 2's terminals
   // enrich against window 2's presence, not window 1's.]
-  private enrichBeforePersistHook: ((state: SessionState) => Promise<SessionState>) | null = null
+  private enrichBeforePersistHook: ((state: SessionState, windowId: number) => Promise<SessionState>) | null = null
   // ENH-191 P4 seam 6 (item 8) — resolves a window's LIVE active-workspace
   // pointer at compose time so it persists PER WINDOW in the envelope (the
   // standalone active-workspace.json is a single slot two windows would
@@ -141,7 +141,7 @@ export class SessionStateService {
     this.mirrorHook = fn
   }
 
-  setEnrichBeforePersistHook(fn: ((state: SessionState) => Promise<SessionState>) | null): void {
+  setEnrichBeforePersistHook(fn: ((state: SessionState, windowId: number) => Promise<SessionState>) | null): void {
     this.enrichBeforePersistHook = fn
   }
 
@@ -306,7 +306,11 @@ export class SessionStateService {
         let w = ws
         if (this.enrichBeforePersistHook) {
           try {
-            const enriched = await this.enrichBeforePersistHook(windowStateToFlat(w, this.meta))
+            // ENH-191 P5a (Tier-4) — thread the persisting window's id so the
+            // hook owner-filters by the ACTUAL window (its tabsThatHostedClaude /
+            // PTYs), not registry.only() (which threw at N>1, silently killing
+            // lastClaudeSession capture once a 2nd window opened).
+            const enriched = await this.enrichBeforePersistHook(windowStateToFlat(w, this.meta), w.windowId)
             w = flatToWindowState(enriched, w.windowId, w)
           } catch (err) {
             console.warn('[session-state] enrichBeforePersist hook failed:', (err as Error)?.message ?? err)

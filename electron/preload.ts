@@ -58,6 +58,11 @@ function readArg(prefix: string, fallback: string): string {
 }
 const APP_VERSION = readArg('--duo-app-version=', '?.?.?')
 const IS_DEV = readArg('--duo-is-dev=', '0') === '1'
+// ENH-191 NFR-6.2 — true for a blank New-Window (createWindow({restore:false}));
+// gates App.tsx's pin-auto-open so a new window doesn't clone the pinned file
+// tabs. Read synchronously from --duo-blank (no IPC race). Default '0' (non-blank
+// = the boot/restored windows).
+const IS_BLANK = readArg('--duo-blank=', '0') === '1'
 // ENH-191 P4 — fetch THIS window's id once, synchronously, at preload time so
 // window.electron.env.windowId is available BEFORE App.tsx module-eval reads
 // per-window localStorage keys. Resolves to main's registry id (mainWindow.id
@@ -78,7 +83,8 @@ const api: ElectronAPI = {
     USER: process.env.USER ?? '',
     appVersion: APP_VERSION,
     isDev: IS_DEV,
-    windowId: WINDOW_ID
+    windowId: WINDOW_ID,
+    blank: IS_BLANK
   },
 
   pty: {
