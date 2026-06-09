@@ -5534,9 +5534,13 @@ To confirm, re-run:
           let opened = null;
           if (open) {
             try {
-              opened = await send("open", { path: outPath });
+              opened = await send("open", { url: resolveOpenTarget(outPath), mode: "browser", reveal: true });
             } catch (e) {
               opened = { error: e instanceof Error ? e.message : String(e) };
+            }
+            if (opened && typeof opened === "object" && "error" in opened) {
+              process.stderr.write(`duo: base render wrote ${outPath} but --open failed: ${opened.error}
+`);
             }
           }
           out({

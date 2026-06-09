@@ -2399,12 +2399,22 @@ async function main(): Promise<void> {
           // `--open` is the one vault verb that reaches the running app
           // (to surface the artifact as a tab). It fails gracefully when
           // Duo isn't running — the file is already written either way.
+          // Payload MUST mirror the `open` verb (case 'open'): the IPC
+          // handler keys on `url` (a file:// URL via resolveOpenTarget),
+          // NOT `path`. `reveal` expands + focuses the pane so the user
+          // actually sees the rollup. Keep these two call sites in sync.
           let opened: unknown = null
           if (open) {
             try {
-              opened = await send('open', { path: outPath })
+              opened = await send('open', { url: resolveOpenTarget(outPath), mode: 'browser', reveal: true })
             } catch (e) {
               opened = { error: e instanceof Error ? e.message : String(e) }
+            }
+            // Surface an open failure on stderr too (the artifact write
+            // still succeeded, so exit stays 0) — don't let it hide in
+            // the JSON `opened.error` field where an agent would miss it.
+            if (opened && typeof opened === 'object' && 'error' in opened) {
+              process.stderr.write(`duo: base render wrote ${outPath} but --open failed: ${(opened as { error: unknown }).error}\n`)
             }
           }
           out({
