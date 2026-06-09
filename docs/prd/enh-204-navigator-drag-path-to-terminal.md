@@ -133,12 +133,14 @@ set to `none` so the cursor shows no-drop. v1 does **not** read
 `e.dataTransfer.files`, so OS/Finder paths aren't *inserted* (deferred, § 9) —
 but they are now inert rather than navigating the window.
 
-**D3c — Collapsed terminal rail.** The `flex-1 overflow-hidden` wrapper only
-renders when the terminal column is *expanded*; when collapsed it is replaced by
-`CollapsedPaneRail` and the drop-target div does not exist. Attach the same
-`onDragOver`/`onDrop` to `CollapsedPaneRail` (`kind='terminal'`) so a drop on the
-rail **expands the column and then inserts**, rather than being a dead gesture
-with no feedback.
+**D3c — Collapsed terminal rail (v1 partial — FOLLOWUP-043).** The column
+wrapper carries the handlers in both states, so a drop on the collapsed 36px
+rail still fires and currently **expands the column**. But on the v0.9.3 smoke
+walk it spawned a fresh terminal instead of inserting the path, so the
+collapsed-rail *insert* is **deferred** (non-blocking; owner confirmed it wasn't
+a requirement) and tracked as **FOLLOWUP-043**. The expanded-terminal drop — the
+common case — works. Intended fix: attach the handlers to `CollapsedPaneRail`
+directly, or sequence expand → resolve active tab → write on the next tick.
 
 **D3d — No live PTY is a silent no-op.** `ptyManager.write` is
 `sessions.get(id)?.pty.write(data)`, so if the active tab's shell/Claude has

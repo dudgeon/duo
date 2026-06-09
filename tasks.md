@@ -5,7 +5,7 @@
 
 ### ENH-204: Drag a file/folder from the navigator to insert its path into the active terminal
 
-**Status:** 🆕 **Filed 2026-06-08 — owner-requested (this session).** **Priority:** Medium. **Effort:** S.
+**Status:** 🟢 **Implemented + verified 2026-06-08 — owner-requested (this session); smoke-walked 7/8 PASS; PR open, main-repo agent to merge + cut as v0.9.3** (one non-blocking FAIL — collapsed-rail drop — deferred to FOLLOWUP-043). **Priority:** Medium. **Effort:** S.
 
 **Ask.** Let the user drag a row out of the navigator (`FileTree`) and drop it on the terminal to insert that file's or folder's **absolute path** at the cursor of the **active** terminal — the everyday "point Claude at this file without typing or copy/pasting the path" gesture. Works identically whether the foreground program is a vanilla shell or a running Claude Code session.
 
@@ -18,6 +18,16 @@
 **Cross-refs.** `renderer/components/FileTree.tsx` (per-row content `<button>` — add `draggable`/`onDragStart`), `renderer/App.tsx` (drop target on the terminal-column wrapper; the existing `pty.write(activeTabId, …)` in the canvas `terminal:send` action), `renderer/components/TerminalPane.tsx` (xterm host + the BUG-094 capture-phase paste precedent), `core/pty-manager.ts` (the shared `write(id, data)` PTY primitive), `cli/duo.ts` (`send` verb — the existing insert-into-active-terminal path that satisfies CLI parity), `shared/types.ts` (`DirEntry.path`). Related: ENH-190 ([PRD](prd/enh-190-navigator-resize-peek.md)) — sibling navigator-interaction upgrade; [ENH-191](#enh-191) — multi-window (the drop resolves the per-window `activeTabId`, so it is window-correct by construction).
 
 **Docs.** PRD at [`docs/prd/enh-204-navigator-drag-path-to-terminal.md`](prd/enh-204-navigator-drag-path-to-terminal.md).
+
+**Smoke walk (v0.9.3, 2026-06-08): 7/8 PASS.** Walked live: real file + folder drag, spaced-path single-quoting, multi-select tree-order, drop onto a running Claude session (lands in the input box, does NOT submit), foreign Finder drag (app stays intact — inert), and regression (nav click/open + terminal tab-reorder). **FAIL (non-blocking — owner confirmed not a functional requirement):** dropping on a *collapsed* terminal rail expands the column but spawns a fresh terminal instead of inserting the path; the common case (drop on the visible/expanded terminal) works. Deferred → FOLLOWUP-043.
+
+---
+
+### FOLLOWUP-043: ENH-204 — drop on a *collapsed* terminal rail should insert (currently expands + spawns a tab)
+
+**Status:** 🆕 Filed 2026-06-08. **Priority:** Low. **Effort:** S. **Parent:** ENH-204.
+
+Surfaced on the ENH-204 v0.9.3 smoke walk (owner: non-blocking, "not a func req"). Dropping a navigator row onto the terminal column while it is **collapsed to the 36px rail** expands the pane but **spawns a new terminal** and does **not** insert the dragged path. Expected (PRD D3c): expand the column and insert at the active terminal's cursor. Root-cause candidates: the drop fires `toggleCollapseTerminal()` (the `App.tsx` terminal-column wrapper `onDrop`) but the subsequent `pty.write(activeTabId, …)` targets a stale / just-revealed tab, and/or the `CollapsedPaneRail`'s own expand affordance consumes the gesture. Fix path: attach the drop handler to `CollapsedPaneRail` directly (or sequence expand → resolve active tab → write on the next tick), then add a smoke-walk line. The expanded-terminal drop (the common case) is unaffected.
 
 ---
 
