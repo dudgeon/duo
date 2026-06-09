@@ -25,8 +25,8 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 // cli/duo.ts
 var net = __toESM(require("net"));
 var os = __toESM(require("os"));
-var path6 = __toESM(require("path"));
-var fs6 = __toESM(require("fs"));
+var path8 = __toESM(require("path"));
+var fs8 = __toESM(require("fs"));
 var import_crypto = require("crypto");
 
 // core/vault/parse.ts
@@ -2659,7 +2659,7 @@ function parseFile(absPath, root) {
   const raw = import_node_fs.default.readFileSync(absPath, "utf8");
   const { frontmatter, body } = splitFrontmatter(raw);
   const rel = import_node_path.default.relative(root, absPath).split(import_node_path.default.sep).join("/");
-  const basename = import_node_path.default.basename(absPath, import_node_path.default.extname(absPath));
+  const basename2 = import_node_path.default.basename(absPath, import_node_path.default.extname(absPath));
   const dir = import_node_path.default.dirname(rel);
   let mtimeMs = 0;
   try {
@@ -2669,7 +2669,7 @@ function parseFile(absPath, root) {
   return {
     absPath,
     relPath: rel,
-    basename,
+    basename: basename2,
     folder: dir === "." ? "" : dir,
     ext: import_node_path.default.extname(absPath).slice(1).toLowerCase(),
     frontmatter,
@@ -2710,7 +2710,7 @@ function findVaultRoot(startPath) {
     dir = parent;
   }
 }
-var SCAN_SKIP = /* @__PURE__ */ new Set(["node_modules", ".git", ".obsidian", ".trash", "out"]);
+var SCAN_SKIP = /* @__PURE__ */ new Set(["node_modules", ".git", ".obsidian", ".trash", "out", "templates"]);
 function countNotes(root) {
   let n = 0;
   const stack = [root];
@@ -2927,6 +2927,779 @@ function search(root, query, limit = 200) {
     }
   }
   return hits;
+}
+
+// core/vault/render.ts
+var import_node_fs6 = __toESM(require("node:fs"));
+var import_node_path6 = __toESM(require("node:path"));
+var import_node_crypto = __toESM(require("node:crypto"));
+
+// core/vault/engine.ts
+var DAY_MS = 864e5;
+var DuoDate = class {
+  constructor(d, asOf) {
+    this.asOf = asOf;
+    this.d = d instanceof Date ? d : new Date(d);
+  }
+  d;
+  valueOf() {
+    return this.d.getTime();
+  }
+  relative() {
+    const days = Math.round((this.d.getTime() - this.asOf.getTime()) / DAY_MS);
+    if (days === 0) return "today";
+    if (days > 0) return "in " + days + (days === 1 ? " day" : " days");
+    return -days + (days === -1 ? " day ago" : " days ago");
+  }
+  format(fmt) {
+    const M = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return fmt.replace("YYYY", String(this.d.getFullYear())).replace("MMM", M[this.d.getMonth()]).replace("DD", String(this.d.getDate()).padStart(2, "0")).replace("D", String(this.d.getDate()));
+  }
+  toString() {
+    return this.format("MMM D, YYYY");
+  }
+};
+var DUR_UNITS = {
+  s: 1e3,
+  second: 1e3,
+  seconds: 1e3,
+  m: 6e4,
+  minute: 6e4,
+  minutes: 6e4,
+  h: 36e5,
+  hour: 36e5,
+  hours: 36e5,
+  d: DAY_MS,
+  day: DAY_MS,
+  days: DAY_MS,
+  w: 7 * DAY_MS,
+  week: 7 * DAY_MS,
+  weeks: 7 * DAY_MS,
+  M: 30 * DAY_MS,
+  month: 30 * DAY_MS,
+  months: 30 * DAY_MS,
+  y: 365 * DAY_MS,
+  year: 365 * DAY_MS,
+  years: 365 * DAY_MS
+};
+function GB_DUR(s) {
+  const m = String(s).trim().match(/^(\d+)\s*([A-Za-z]+)$/);
+  if (!m || !(m[2] in DUR_UNITS)) throw new Error("bad duration: " + s);
+  return Number(m[1]) * DUR_UNITS[m[2]];
+}
+var Link = class {
+  target;
+  display;
+  constructor(target, display) {
+    this.target = target;
+    this.display = display || target;
+  }
+  toString() {
+    return this.display;
+  }
+};
+function parseLinkish(v, asOf) {
+  if (typeof v === "string") {
+    const m = v.match(/^\[\[([^\]|]+)(?:\|([^\]]+))?\]\]$/);
+    if (m) return new Link(m[1].trim(), m[2] && m[2].trim());
+    return v;
+  }
+  if (Array.isArray(v)) return v.map((x) => parseLinkish(x, asOf));
+  if (v instanceof Date) {
+    return new DuoDate(new Date(v.getTime() + v.getTimezoneOffset() * 6e4), asOf);
+  }
+  return v;
+}
+function gbEq(a, b) {
+  const name = (x) => x instanceof Link ? x.target : x && x.name ? x.name : x;
+  return name(a) === name(b);
+}
+function buildEngineFiles(notes, asOf) {
+  const files = notes.map((n) => {
+    const properties = {};
+    for (const [k, v] of Object.entries(n.frontmatter)) properties[k] = parseLinkish(v, asOf);
+    const f = {
+      name: n.basename,
+      basename: n.basename,
+      path: n.relPath,
+      folder: n.folder,
+      ext: n.ext,
+      mtime: new DuoDate(new Date(n.mtimeMs), asOf),
+      properties,
+      _rawLinks: n.links,
+      links: [],
+      backlinks: [],
+      hasTag: () => false,
+      hasLink(other) {
+        const t = other instanceof Link ? other.target : other?.name ?? other;
+        return this._rawLinks.includes(t);
+      },
+      inFolder(folder) {
+        return this.folder === folder || this.folder.startsWith(folder + "/");
+      },
+      hasProperty(name) {
+        return name in this.properties;
+      },
+      asFile() {
+        return this;
+      },
+      toString() {
+        return n.basename;
+      }
+    };
+    return f;
+  });
+  const byName = new Map(files.map((f) => [f.name, f]));
+  for (const f of files) {
+    f.links = f._rawLinks.map((n) => byName.get(n)).filter(Boolean);
+    for (const target of f.links) target.backlinks.push(f);
+  }
+  return files;
+}
+function wrapImplicitLambdas(src) {
+  for (const fn of ["filter", "map"]) {
+    let i;
+    while ((i = src.indexOf("." + fn + "(")) !== -1) {
+      const open = i + fn.length + 2;
+      let depth = 1;
+      let j = open;
+      while (j < src.length && depth > 0) {
+        if (src[j] === "(") depth++;
+        else if (src[j] === ")") depth--;
+        j++;
+      }
+      const inner = src.slice(open, j - 1);
+      src = src.slice(0, open) + "(value)=>(" + inner + ")" + src.slice(j - 1);
+      src = src.slice(0, i) + ".GB_" + fn + src.slice(i + 1 + fn.length);
+    }
+    src = src.replaceAll(".GB_" + fn, "." + fn);
+  }
+  return src;
+}
+function splitTopLevel(s) {
+  const parts = [];
+  let depth = 0;
+  let cur = "";
+  let quote = null;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (quote) {
+      cur += c;
+      if (c === quote) quote = null;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      quote = c;
+      cur += c;
+      continue;
+    }
+    if (c === "(") depth++;
+    if (c === ")") depth--;
+    if (c === "," && depth === 0) {
+      parts.push(cur);
+      cur = "";
+      continue;
+    }
+    cur += c;
+  }
+  parts.push(cur);
+  return parts;
+}
+function transformIfs(src) {
+  const re = /(?<![\w.])if\s*\(/;
+  let m;
+  while (m = re.exec(src)) {
+    const open = m.index + m[0].length;
+    let depth = 1;
+    let j = open;
+    while (j < src.length && depth > 0) {
+      if (src[j] === "(") depth++;
+      else if (src[j] === ")") depth--;
+      j++;
+    }
+    const args = splitTopLevel(src.slice(open, j - 1));
+    const cond = args[0];
+    const a = args[1] ?? "null";
+    const b = args[2] ?? "null";
+    src = src.slice(0, m.index) + "((" + cond + ") ? (" + a + ") : (" + b + "))" + src.slice(j);
+  }
+  return src;
+}
+function transform(expr) {
+  let src = String(expr);
+  src = wrapImplicitLambdas(src);
+  src = transformIfs(src);
+  src = src.replace(/([\w.[\]"]+)\s*==\s*this\b/g, "gbEq($1, GB_THIS)");
+  src = src.replace(/([\w.[\]"]+)\s*!=\s*this\b/g, "!gbEq($1, GB_THIS)");
+  src = src.replace(/([-+])\s*"(\d+\s*[A-Za-z]+)"/g, (mm, op, dur) => {
+    try {
+      GB_DUR(dur);
+      return op + ' GB_DUR("' + dur + '")';
+    } catch {
+      return mm;
+    }
+  });
+  return src;
+}
+var ICONS = {
+  check: '<span style="color:#4a7d3e">\u2714</span>',
+  "octagon-x": '<span style="color:#b13e3a">\u26D4</span>',
+  "circle-dot": '<span style="color:#4a7d3e">\u25C9</span>',
+  "alarm-clock": '<span style="color:#b07527">\u23F0</span>',
+  activity: '<span style="color:#3C6E93">\u223F</span>'
+};
+var globalsReady = false;
+function ensureEngineGlobals() {
+  if (globalsReady) return;
+  globalsReady = true;
+  if (!("round" in Number.prototype)) {
+    Object.defineProperty(Number.prototype, "round", {
+      value: function(digits = 0) {
+        const f = 10 ** digits;
+        return Math.round(this * f) / f;
+      },
+      enumerable: false,
+      writable: true,
+      configurable: true
+    });
+  }
+}
+function isEvalError(v) {
+  return !!v && typeof v === "object" && "__error" in v;
+}
+function makeCtx(file, thisFile, formulas, asOf) {
+  const formulaCache = {};
+  const formulaProxy = new Proxy(
+    {},
+    {
+      has: () => true,
+      get: (_t, k) => {
+        if (typeof k !== "string") return void 0;
+        if (!(k in formulaCache)) {
+          formulaCache[k] = "__evaluating__";
+          formulaCache[k] = formulas[k] ? evalExpr(formulas[k], file, thisFile, formulas, asOf) : null;
+        }
+        return formulaCache[k];
+      }
+    }
+  );
+  const scope = {
+    file,
+    note: file.properties,
+    formula: formulaProxy,
+    GB_THIS: thisFile,
+    gbEq,
+    GB_DUR,
+    today: () => new DuoDate(midnight(asOf), asOf),
+    now: () => new DuoDate(new Date(asOf), asOf),
+    date: (s) => new DuoDate(new Date(s), asOf),
+    duration: GB_DUR,
+    icon: (n) => ({ __html: ICONS[n] || '<span title="' + n + '">\u25C7</span>' }),
+    html: (s) => ({ __html: String(s) }),
+    list: (x) => Array.isArray(x) ? x : [x],
+    min: Math.min,
+    max: Math.max,
+    number: Number,
+    link: (p, d) => new Link(p, d)
+  };
+  return new Proxy(scope, {
+    has: () => true,
+    get: (t, k) => {
+      if (typeof k !== "string") return void 0;
+      if (k in t) return t[k];
+      if (k in file.properties) return file.properties[k];
+      return null;
+    }
+  });
+}
+function midnight(d) {
+  const t = new Date(d);
+  t.setHours(0, 0, 0, 0);
+  return t;
+}
+function evalExpr(expr, file, thisFile, formulas, asOf) {
+  ensureEngineGlobals();
+  const src = transform(expr);
+  try {
+    const fn = new Function("ctx", "with (ctx) { return (" + src + "); }");
+    return fn(makeCtx(file, thisFile, formulas, asOf));
+  } catch (e) {
+    return { __error: e instanceof Error ? e.message : String(e), __expr: expr };
+  }
+}
+function passes(filterNode, file, thisFile, formulas, asOf) {
+  if (filterNode == null) return true;
+  if (typeof filterNode === "string") {
+    const r = evalExpr(filterNode, file, thisFile, formulas, asOf);
+    return Boolean(r) && !isEvalError(r);
+  }
+  const node = filterNode;
+  if (node.and) return node.and.every((n) => passes(n, file, thisFile, formulas, asOf));
+  if (node.or) return node.or.some((n) => passes(n, file, thisFile, formulas, asOf));
+  if (node.not) return !node.not.every((n) => passes(n, file, thisFile, formulas, asOf));
+  return true;
+}
+function defaultAsOf() {
+  return /* @__PURE__ */ new Date();
+}
+
+// core/vault/render.ts
+function readCol(prop, file, thisFile, formulas, asOf) {
+  if (prop.startsWith("formula.")) {
+    return evalExpr(formulas[prop.slice(8)] ?? "null", file, thisFile, formulas, asOf);
+  }
+  if (prop.startsWith("file.")) return file[prop.slice(5)];
+  const key = prop.startsWith("note.") ? prop.slice(5) : prop;
+  return file.properties[key] ?? null;
+}
+function evaluateBaseDef(def, files, thisFile, asOf) {
+  const formulas = def.formulas || {};
+  const propCfg = def.properties || {};
+  const views = [];
+  for (const view of def.views || []) {
+    const rows = files.filter(
+      (f) => passes(def.filters, f, thisFile, formulas, asOf) && passes(view.filters, f, thisFile, formulas, asOf)
+    );
+    views.push({
+      name: view.name || view.type,
+      type: view.type,
+      order: view.order || ["file.name"],
+      groupBy: view.groupBy,
+      summaries: view.summaries,
+      rows
+    });
+  }
+  return { formulas, propCfg, views };
+}
+var esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+function cell(v) {
+  if (v == null || v === "") return '<span class="empty">\u2014</span>';
+  if (isEvalError(v)) return '<span class="err" title="' + esc(v.__expr) + '">\u26A0 ' + esc(v.__error) + "</span>";
+  if (typeof v === "object" && v !== null && "__html" in v) return v.__html;
+  if (v instanceof Link) return '<span class="wikilink">' + esc(v.display) + "</span>";
+  if (v instanceof DuoDate) return esc(v.toString());
+  if (Array.isArray(v)) return v.map(cell).join(", ");
+  if (typeof v === "number") return String(v);
+  return esc(String(v));
+}
+function colLabel(prop, propCfg) {
+  if (propCfg && propCfg[prop] && propCfg[prop].displayName) return propCfg[prop].displayName;
+  return prop.replace(/^(note|file|formula)\./, "");
+}
+var SUMMARY_FNS = {
+  Earliest: (vals) => {
+    const ds = vals.filter((v) => v instanceof DuoDate);
+    return ds.length ? ds.reduce((a, b) => a.valueOf() < b.valueOf() ? a : b) : null;
+  },
+  Latest: (vals) => {
+    const ds = vals.filter((v) => v instanceof DuoDate);
+    return ds.length ? ds.reduce((a, b) => a.valueOf() > b.valueOf() ? a : b) : null;
+  },
+  Filled: (vals) => vals.filter((v) => v != null && v !== "").length,
+  Empty: (vals) => vals.filter((v) => v == null || v === "").length,
+  Sum: (vals) => vals.filter((v) => typeof v === "number").reduce((a, b) => a + b, 0),
+  Average: (vals) => {
+    const ns = vals.filter((v) => typeof v === "number");
+    return ns.length ? Math.round(ns.reduce((a, b) => a + b, 0) / ns.length * 100) / 100 : null;
+  },
+  Unique: (vals) => new Set(vals.map((v) => String(v))).size
+};
+function summaryInline(rows, view, formulas, thisFile, asOf) {
+  if (!view.summaries) return "";
+  const parts = [];
+  for (const [prop, fnName] of Object.entries(view.summaries)) {
+    const fn = SUMMARY_FNS[fnName];
+    if (!fn) {
+      parts.push(esc(fnName) + ": ?");
+      continue;
+    }
+    const vals = rows.map((f) => readCol(prop, f, thisFile, formulas, asOf));
+    parts.push(esc(colLabel(prop)) + " " + esc(fnName).toLowerCase() + ": " + cell(fn(vals)));
+  }
+  return ' <span class="summary">' + parts.join(" \xB7 ") + "</span>";
+}
+function renderTable(view, formulas, thisFile, propCfg, asOf) {
+  const order = view.order;
+  const head = "<tr>" + order.map((p) => "<th>" + esc(colLabel(p, propCfg)) + "</th>").join("") + "</tr>";
+  const groups = /* @__PURE__ */ new Map();
+  if (view.groupBy) {
+    for (const f of view.rows) {
+      const v = readCol(view.groupBy.property, f, thisFile, formulas, asOf);
+      const key = v == null ? "\u2014" : String(v instanceof Link ? v.display : v);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(f);
+    }
+  } else {
+    groups.set(null, view.rows);
+  }
+  const keys = [...groups.keys()].sort((a, b) => String(a).localeCompare(String(b)));
+  if (view.groupBy && String(view.groupBy.direction).toUpperCase() === "DESC") keys.reverse();
+  let html = "<table>" + head;
+  for (const key of keys) {
+    const gRows = groups.get(key);
+    if (key !== null) {
+      html += '<tr class="group"><td colspan="' + order.length + '">' + esc(key) + ' <span class="count">(' + gRows.length + ")</span>" + summaryInline(gRows, view, formulas, thisFile, asOf) + "</td></tr>";
+    }
+    for (const f of gRows) {
+      html += "<tr>" + order.map((p) => "<td>" + cell(readCol(p, f, thisFile, formulas, asOf)) + "</td>").join("") + "</tr>";
+    }
+  }
+  if (!view.groupBy && view.summaries) {
+    html += '<tr class="group"><td colspan="' + order.length + '">' + summaryInline(view.rows, view, formulas, thisFile, asOf) + "</td></tr>";
+  }
+  return html + "</table>";
+}
+function renderList(view, formulas, thisFile, asOf) {
+  return '<ul class="baselist">' + view.rows.map((f) => "<li>" + view.order.map((p) => cell(readCol(p, f, thisFile, formulas, asOf))).join(" ") + "</li>").join("") + "</ul>";
+}
+function renderCards(view, formulas, thisFile, asOf) {
+  return '<div class="cards">' + view.rows.map((f) => {
+    const [title, ...rest] = view.order;
+    return '<div class="card"><div class="card-title">' + cell(readCol(title, f, thisFile, formulas, asOf)) + "</div>" + rest.map(
+      (p) => '<div class="card-row"><span class="card-k">' + esc(colLabel(p)) + "</span> " + cell(readCol(p, f, thisFile, formulas, asOf)) + "</div>"
+    ).join("") + "</div>";
+  }).join("") + "</div>";
+}
+function renderBaseSection(evaluated, thisFile, label, asOf) {
+  let html = '<section class="base"><h2>' + esc(label) + "</h2>";
+  for (const view of evaluated.views) {
+    html += "<h3>" + esc(view.name) + ' <span class="count">' + view.rows.length + " rows</span></h3>";
+    if (view.type === "list") html += renderList(view, evaluated.formulas, thisFile, asOf);
+    else if (view.type === "cards") html += renderCards(view, evaluated.formulas, thisFile, asOf);
+    else html += renderTable(view, evaluated.formulas, thisFile, evaluated.propCfg, asOf);
+  }
+  return html + "</section>";
+}
+function sourceHash(root) {
+  const all = [];
+  const stack = [root];
+  const SKIP = /* @__PURE__ */ new Set([".obsidian", ".trash", "out", ".git", "node_modules"]);
+  while (stack.length) {
+    const dir = stack.pop();
+    let entries;
+    try {
+      entries = import_node_fs6.default.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const e of entries) {
+      const full = import_node_path6.default.join(dir, e.name);
+      if (e.isDirectory()) {
+        if (!SKIP.has(e.name)) stack.push(full);
+      } else if (e.name.endsWith(".md") || e.name.endsWith(".base")) {
+        try {
+          all.push(import_node_fs6.default.readFileSync(full, "utf8"));
+        } catch {
+        }
+      }
+    }
+  }
+  return import_node_crypto.default.createHash("sha256").update(all.sort().join(" ")).digest("hex").slice(0, 12);
+}
+function embeddedBaseDefs(note) {
+  const out2 = [];
+  for (const m of note.body.matchAll(/```base\n([\s\S]*?)```/g)) {
+    try {
+      const def = load(m[1]);
+      if (def && typeof def === "object") out2.push(def);
+    } catch {
+    }
+  }
+  return out2;
+}
+function renderTarget(root, target, opts = {}) {
+  const asOf = opts.asOf ?? defaultAsOf();
+  const notes = readNotes(root);
+  const files = buildEngineFiles(notes, asOf);
+  const byName = new Map(files.map((f) => [f.name, f]));
+  const bases = [];
+  const sections = [];
+  const abs = import_node_path6.default.isAbsolute(target) ? target : import_node_path6.default.resolve(root, target);
+  if (target.endsWith(".base")) {
+    const def = load(import_node_fs6.default.readFileSync(abs, "utf8"));
+    const label = import_node_path6.default.relative(root, abs).split(import_node_path6.default.sep).join("/");
+    const evaluated = evaluateBaseDef(def, files, null, asOf);
+    bases.push({ label, evaluated, thisFile: null });
+    sections.push(renderBaseSection(evaluated, null, label, asOf));
+  } else {
+    let note;
+    if (import_node_fs6.default.existsSync(abs) && abs.endsWith(".md")) note = parseFile(abs, root);
+    else note = notes.find((n) => n.basename === target.replace(/\.md$/, ""));
+    if (!note) throw new Error(`render target not found: ${target} (expected a .base file or a note path/name)`);
+    const thisFile = byName.get(note.basename) ?? null;
+    const defs = embeddedBaseDefs(note);
+    if (!defs.length) {
+      throw new Error(`no \`\`\`base blocks found in ${note.relPath} (nothing to render)`);
+    }
+    defs.forEach((def, i) => {
+      const label = `${note.relPath}${defs.length > 1 ? ` [block ${i + 1}]` : ""}  (this = ${note.basename})`;
+      const evaluated = evaluateBaseDef(def, files, thisFile, asOf);
+      bases.push({ label, evaluated, thisFile: note.basename });
+      sections.push(renderBaseSection(evaluated, thisFile, label, asOf));
+    });
+  }
+  const hash = sourceHash(root);
+  const generatedAt = (/* @__PURE__ */ new Date()).toISOString();
+  const asOfLabel = new DuoDate(asOf, asOf).format("YYYY-MMM-DD");
+  const html = assemblePage(sections, {
+    sourceHash: hash,
+    generatedAt,
+    asOfLabel,
+    noteCount: notes.length,
+    baseCount: bases.length,
+    target
+  });
+  return { html, bases, sourceHash: hash, generatedAt, asOfLabel };
+}
+function assemblePage(sections, meta) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Vault rollup \u2014 ${esc(meta.target)}</title>
+<style>
+:root { --paper:#fbf8f1; --paper-deep:#f3ede0; --paper-rule:#d9cea8; --ink:#2b2620;
+  --ink-soft:#4a4238; --ink-mute:#6f6557; --ink-ghost:#9a9080; --accent:#c46a1c;
+  --pass:#4a7d3e; --fail:#b13e3a; --harbor:#3C6E93; }
+* { box-sizing:border-box; }
+body { margin:0 auto; padding:32px 40px 64px; max-width:960px; background:var(--paper);
+  color:var(--ink); font:14px/1.55 -apple-system,"SF Pro Text",system-ui,sans-serif; }
+h1 { font-family:"New York","Iowan Old Style",Georgia,serif; font-style:italic; font-weight:500; font-size:22px; margin:0 0 4px; }
+.stamp { background:var(--paper-deep); border:1px solid var(--paper-rule); border-radius:6px;
+  padding:10px 14px; margin:14px 0 28px; font-size:12px; color:var(--ink-mute);
+  font-family:ui-monospace,"SF Mono",Menlo,monospace; }
+.stamp strong { color:var(--accent); }
+h2 { font-family:"New York",Georgia,serif; font-weight:600; font-size:18px;
+  border-bottom:1px solid var(--paper-rule); padding-bottom:6px; margin:34px 0 8px; }
+h3 { font-size:14px; margin:18px 0 6px; }
+.count { font-weight:400; font-size:11.5px; color:var(--ink-ghost); }
+table { border-collapse:collapse; width:100%; font-size:12.5px; margin:6px 0 14px; }
+th,td { border-bottom:1px solid var(--paper-rule); padding:6px 8px; text-align:left; vertical-align:top; }
+th { font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:var(--ink-mute); }
+tr.group td { background:var(--paper-deep); font-weight:600; font-size:12px; }
+.summary { font-weight:400; color:var(--ink-mute); font-size:11.5px; }
+.wikilink { color:var(--harbor); border-bottom:1px dotted var(--harbor); }
+.empty { color:var(--ink-ghost); }
+.err { color:var(--fail); font-size:11px; }
+.baselist { margin:6px 0 14px; }
+.cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px; margin:6px 0 14px; }
+.card { background:white; border:1px solid var(--paper-rule); border-radius:6px; padding:10px 12px; }
+.card-title { font-weight:600; margin-bottom:6px; }
+.card-row { font-size:12px; color:var(--ink-soft); }
+.card-k { color:var(--ink-ghost); font-size:10.5px; text-transform:uppercase; letter-spacing:.03em; margin-right:4px; }
+footer { margin-top:40px; border-top:1px solid var(--paper-rule); padding-top:12px;
+  font-size:11.5px; color:var(--ink-mute); }
+</style>
+</head>
+<body>
+<h1>Vault rollup \u2014 ${esc(meta.target)}</h1>
+<div class="stamp"><strong>BUILD ARTIFACT</strong> \u2014 regenerate: duo base render ${esc(meta.target)} \xB7
+generated ${esc(meta.generatedAt)} \xB7 source hash <strong>${esc(meta.sourceHash)}</strong> \xB7
+date-relative formulas as of ${esc(meta.asOfLabel)} \xB7
+${meta.noteCount} notes, ${meta.baseCount} rendered base(s)</div>
+${sections.join("\n")}
+<footer>Duo-owned rollup render (ENH-208). Implements the locked Bases
+expression subset (filters and/or/not, link equality vs <code>this</code>,
+date math, if(), html(), icon(), backlink chains, groupBy, summaries).
+file.name is extension-less; child\u2192parent backlink rollups always resolve
+here. Re-render to refresh; the source hash above detects staleness.</footer>
+</body>
+</html>
+`;
+}
+
+// core/vault/lint.ts
+var import_node_fs7 = __toESM(require("node:fs"));
+var import_node_path7 = __toESM(require("node:path"));
+function lev(a, b) {
+  const m = a.length;
+  const n = b.length;
+  const d = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
+  for (let j = 0; j <= n; j++) d[0][j] = j;
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[m][n];
+}
+function suggest(word, candidates) {
+  let best = null;
+  let bestD = Infinity;
+  for (const c of candidates) {
+    const dd = lev(word.toLowerCase(), c.toLowerCase());
+    if (dd < bestD) {
+      bestD = dd;
+      best = c;
+    }
+  }
+  return best && bestD <= Math.max(2, Math.ceil(word.length / 3)) ? best : null;
+}
+var FUNCS = /* @__PURE__ */ new Set([
+  "file.hasTag",
+  "file.hasLink",
+  "file.inFolder",
+  "file.hasProperty",
+  "file.asLink",
+  "today",
+  "now",
+  "date",
+  "duration",
+  "if",
+  "icon",
+  "html",
+  "list",
+  "min",
+  "max",
+  "number",
+  "link",
+  "random",
+  "escapeHTML"
+]);
+var METHODS = /* @__PURE__ */ new Set([
+  "relative",
+  "format",
+  "date",
+  "time",
+  "isEmpty",
+  "round",
+  "toFixed",
+  "abs",
+  "ceil",
+  "floor",
+  "contains",
+  "containsAll",
+  "containsAny",
+  "startsWith",
+  "endsWith",
+  "lower",
+  "title",
+  "trim",
+  "replace",
+  "split",
+  "join",
+  "reverse",
+  "slice",
+  "sort",
+  "unique",
+  "filter",
+  "map",
+  "reduce",
+  "flat",
+  "length",
+  "asFile",
+  "linksTo",
+  "keys",
+  "values",
+  "toString",
+  "matches",
+  "mean"
+]);
+var VIEW_TYPES = ["table", "cards", "list", "map"];
+function collectExprs(node, out2) {
+  if (node == null) return;
+  if (typeof node === "string") {
+    out2.push(node);
+    return;
+  }
+  if (Array.isArray(node)) {
+    node.forEach((n) => collectExprs(n, out2));
+    return;
+  }
+  if (typeof node === "object") {
+    const obj = node;
+    for (const v of ["and", "or", "not"]) if (obj[v]) collectExprs(obj[v], out2);
+  }
+}
+function lintBaseDef(def, corpus) {
+  const findings = [];
+  const add = (severity, message, suggestion) => findings.push(suggestion ? { severity, message, suggestion } : { severity, message });
+  const exprs = [];
+  collectExprs(def.filters, exprs);
+  for (const v of def.views || []) collectExprs(v.filters, exprs);
+  for (const f of Object.values(def.formulas || {})) exprs.push(String(f));
+  const knownEntities = /* @__PURE__ */ new Set([...corpus.entities.map((e) => e.name), ...Object.keys(corpus.aliases)]);
+  for (const e of exprs) {
+    for (const m of e.matchAll(/\btype\s*[=!]=\s*"([^"]+)"/g)) {
+      if (!corpus.types.includes(m[1])) {
+        const s = suggest(m[1], corpus.types);
+        add("error", `type == "${m[1]}" \u2014 no such type${s ? ` (did you mean "${s}"?)` : ""}. Known: ${corpus.types.join(", ")}`, s ?? void 0);
+      }
+    }
+    for (const m of e.matchAll(/\[\[([^\]|#]+)/g)) {
+      const name = m[1].trim();
+      if (!knownEntities.has(name)) {
+        const s = suggest(name, [...knownEntities]);
+        add("error", `[[${name}]] \u2014 unresolved entity${s ? ` (did you mean "${s}"?)` : ""}`, s ?? void 0);
+      }
+    }
+    for (const m of e.matchAll(/\b(?:note\.)?(\w+)\s*==\s*"([^"]+)"/g)) {
+      const [, prop, val] = m;
+      if (prop === "type") continue;
+      for (const [key, vals] of Object.entries(corpus.enumsByType)) {
+        if (key.endsWith("." + prop) && !vals.includes(val)) {
+          const s = suggest(val, vals);
+          if (s)
+            add("warn", `${prop} == "${val}" \u2014 no ${key.split(".")[0]} has this value (observed: ${vals.join(", ")}; did you mean "${s}"?)`, s);
+        }
+      }
+    }
+    for (const m of e.matchAll(/\b([a-z]\w*(?:\.\w+)?)\s*\(/gi)) {
+      const fn = m[1];
+      if (FUNCS.has(fn)) continue;
+      const tail = fn.includes(".") ? fn.split(".").pop() : fn;
+      if (METHODS.has(tail)) continue;
+      if (fn.includes(".")) continue;
+      const s = suggest(fn, [...FUNCS]);
+      add("warn", `${fn}(\u2026) \u2014 unknown function${s ? ` (did you mean "${s}"?)` : ""}`, s ?? void 0);
+    }
+  }
+  for (const v of def.views || []) {
+    if (v.type && !VIEW_TYPES.includes(v.type)) add("error", `view "${v.name || v.type}" \u2014 unknown view type "${v.type}"`);
+  }
+  return findings;
+}
+function lintVault(root, target) {
+  const corpus = buildCorpus(root);
+  const results = [];
+  const lintBaseFile = (abs) => {
+    const rel = import_node_path7.default.relative(root, abs).split(import_node_path7.default.sep).join("/");
+    let def;
+    try {
+      def = load(import_node_fs7.default.readFileSync(abs, "utf8"));
+    } catch (e) {
+      results.push({ source: rel, findings: [], parseError: e instanceof Error ? e.message : String(e) });
+      return;
+    }
+    results.push({ source: rel, findings: lintBaseDef(def || {}, corpus) });
+  };
+  const lintNoteEmbeds = (relPath, basename2, body) => {
+    let i = 0;
+    for (const m of body.matchAll(/```base\n([\s\S]*?)```/g)) {
+      i++;
+      let def;
+      try {
+        def = load(m[1]);
+      } catch (e) {
+        results.push({ source: relPath, embeddedIn: basename2, findings: [], parseError: e instanceof Error ? e.message : String(e) });
+        continue;
+      }
+      results.push({ source: `${relPath}${i > 1 ? ` [block ${i}]` : ""}`, embeddedIn: basename2, findings: lintBaseDef(def || {}, corpus) });
+    }
+  };
+  if (target === "--all") {
+    for (const abs of walk(root).filter((p) => p.endsWith(".base")).sort()) lintBaseFile(abs);
+    for (const note of readNotes(root)) lintNoteEmbeds(note.relPath, note.basename, note.body);
+  } else {
+    const abs = import_node_path7.default.isAbsolute(target) ? target : import_node_path7.default.resolve(root, target);
+    if (target.endsWith(".base")) {
+      lintBaseFile(abs);
+    } else {
+      const notes = readNotes(root);
+      const note = import_node_fs7.default.existsSync(abs) && abs.endsWith(".md") ? notes.find((n) => n.absPath === abs) : notes.find((n) => n.basename === target.replace(/\.md$/, ""));
+      if (!note) throw new Error(`lint target not found: ${target} (expected --all, a .base file, or a note path/name)`);
+      lintNoteEmbeds(note.relPath, note.basename, note.body);
+    }
+  }
+  return results;
 }
 
 // cli/duo.ts
@@ -3351,10 +4124,16 @@ var VERBS = [
     group: "Vault",
     args: "<backlinks <note>|orphans> [--vault p]",
     summary: "Vault graph queries (wikilinks resolve by basename, so they survive file moves). backlinks <note>: every note linking to <note>, with file + line (JSON). orphans: notes with no inbound and no outbound links \u2014 a processing work-list (JSON)."
+  },
+  {
+    name: "base",
+    group: "Vault",
+    args: "<lint <file|--all>|render <file|note>> [--out p] [--open] [--vault p]",
+    summary: "Obsidian Bases rollups. lint <file|--all> [--vault p]: validate a .base file (or a note's embedded ```base blocks, or every base with --all) against the live corpus \u2014 bad types / unresolved [[entities]] / off-enum values / unknown functions, each with a \"did you mean\" (JSON; warn-and-render, never blocks). render <file|note> [--out p] [--open]: evaluate filters/formulas over live frontmatter and emit a stamped Duo-owned HTML artifact (generated-at \xB7 source-hash \xB7 as-of). Default writes to the vault's out/; --out writes elsewhere; --open also opens it as a tab in the running app."
   }
 ];
-var SOCKET_PATH = process.env.DUO_SOCKET ?? path6.join(os.homedir(), "Library", "Application Support", "duo", "duo.sock");
-var PORT_FILE = process.env.DUO_PORT_FILE ?? path6.join(os.homedir(), "Library", "Application Support", "duo", "duo.port");
+var SOCKET_PATH = process.env.DUO_SOCKET ?? path8.join(os.homedir(), "Library", "Application Support", "duo", "duo.sock");
+var PORT_FILE = process.env.DUO_PORT_FILE ?? path8.join(os.homedir(), "Library", "Application Support", "duo", "duo.port");
 var windowOverride;
 function resolveWindowId() {
   if (windowOverride != null) return windowOverride;
@@ -3371,7 +4150,7 @@ var PER_CMD_TIMEOUT_MS = {
 };
 function readPortFile() {
   try {
-    const raw = fs6.readFileSync(PORT_FILE, "utf8");
+    const raw = fs8.readFileSync(PORT_FILE, "utf8");
     const parsed = JSON.parse(raw);
     if (typeof parsed.port === "number" && typeof parsed.token === "string") {
       return { port: parsed.port, token: parsed.token };
@@ -3437,7 +4216,7 @@ var FALLBACK_CONNECT_CODES = /* @__PURE__ */ new Set([
 ]);
 async function send(cmd, args = {}, opts = {}) {
   const timeoutMs = opts.timeoutMs ?? PER_CMD_TIMEOUT_MS[cmd] ?? TIMEOUT_MS;
-  if (process.env.DUO_TCP_ONLY !== "1" && fs6.existsSync(SOCKET_PATH)) {
+  if (process.env.DUO_TCP_ONLY !== "1" && fs8.existsSync(SOCKET_PATH)) {
     try {
       return await sendOver(
         () => ({ socket: net.createConnection(SOCKET_PATH) }),
@@ -3452,7 +4231,7 @@ async function send(cmd, args = {}, opts = {}) {
   }
   const portInfo = readPortFile();
   if (!portInfo) {
-    if (!fs6.existsSync(SOCKET_PATH)) {
+    if (!fs8.existsSync(SOCKET_PATH)) {
       die("Cannot connect: Duo app is not running.\nLaunch Duo.app first.");
     }
     die("Cannot connect: Unix socket failed and no TCP fallback available.\nRun `duo doctor` for details.");
@@ -3469,7 +4248,7 @@ async function send(cmd, args = {}, opts = {}) {
 }
 function sendStreamed(cmd, args, onAck, onEvent) {
   const factory = () => {
-    if (process.env.DUO_TCP_ONLY !== "1" && fs6.existsSync(SOCKET_PATH)) {
+    if (process.env.DUO_TCP_ONLY !== "1" && fs8.existsSync(SOCKET_PATH)) {
       return { socket: net.createConnection(SOCKET_PATH) };
     }
     const portInfo = readPortFile();
@@ -3555,6 +4334,19 @@ function die(msg, code = 1) {
 function flagValue(args, name) {
   const i = args.indexOf(name);
   return i !== -1 ? args[i + 1] : void 0;
+}
+function positionalArgs(args, valueFlags = []) {
+  const out2 = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (valueFlags.includes(a)) {
+      i++;
+      continue;
+    }
+    if (a.startsWith("--")) continue;
+    out2.push(a);
+  }
+  return out2;
 }
 function translateNavKeysForMac(key, modifiers) {
   if (process.platform !== "darwin") return { key, modifiers };
@@ -3760,8 +4552,8 @@ async function main() {
         const selector = selectorIdx !== -1 ? rest[selectorIdx + 1] : void 0;
         const b64 = await send("screenshot", { selector });
         if (outputPath) {
-          const abs = path6.resolve(outputPath);
-          fs6.writeFileSync(abs, Buffer.from(b64, "base64"));
+          const abs = path8.resolve(outputPath);
+          fs8.writeFileSync(abs, Buffer.from(b64, "base64"));
           out(`Saved to ${abs}`);
         } else {
           out(b64);
@@ -3976,7 +4768,7 @@ To confirm, re-run:
         if (sub === "open") {
           const p = rest[1];
           if (!p) die("Usage: duo split-view open <path>");
-          const resolved = path6.isAbsolute(p) ? p : path6.resolve(process.cwd(), p);
+          const resolved = path8.isAbsolute(p) ? p : path8.resolve(process.cwd(), p);
           out(await send("split-view", { op: "open", path: resolved }));
           break;
         }
@@ -4116,9 +4908,9 @@ To confirm, re-run:
           if (caseSensitive) payload["case-sensitive"] = true;
           out(await send("doc-find", payload));
         } else if (sub === "conflict-log") {
-          const logPath = path6.join(os.homedir(), ".claude", "duo", "logs", "last-conflict.log");
+          const logPath = path8.join(os.homedir(), ".claude", "duo", "logs", "last-conflict.log");
           try {
-            const raw = fs6.readFileSync(logPath, "utf8");
+            const raw = fs8.readFileSync(logPath, "utf8");
             process.stdout.write(raw);
             if (!raw.endsWith("\n")) process.stdout.write("\n");
           } catch (err) {
@@ -4519,7 +5311,7 @@ To confirm, re-run:
           const resolvedPatch = resolveFilePath(patchPath);
           let mergeJson;
           try {
-            mergeJson = fs6.readFileSync(resolvedPatch, "utf8");
+            mergeJson = fs8.readFileSync(resolvedPatch, "utf8");
           } catch (err) {
             die(`Could not read patch file ${resolvedPatch}: ${err?.message ?? err}`);
           }
@@ -4608,18 +5400,18 @@ To confirm, re-run:
         }
         if (sub === "save") {
           const subRest = rest.slice(1);
-          const path7 = subRest.find((a) => !a.startsWith("-"));
+          const path9 = subRest.find((a) => !a.startsWith("-"));
           const name = flagValue(subRest, "--name");
           const saveAs = subRest.includes("--save-as");
           const payload = { op: "save" };
-          if (path7) payload.path = path7;
+          if (path9) payload.path = path9;
           if (name) payload.name = name;
           if (saveAs) payload["save-as"] = true;
           out(await send("workspace", payload));
         } else if (sub === "open") {
-          const path7 = rest[1];
-          if (!path7) die("Usage: duo workspace open <path>");
-          out(await send("workspace", { op: "open", path: path7 }));
+          const path9 = rest[1];
+          if (!path9) die("Usage: duo workspace open <path>");
+          out(await send("workspace", { op: "open", path: path9 }));
         } else if (sub === "list-recent") {
           out(await send("workspace", { op: "list-recent" }));
         } else if (sub === "current") {
@@ -4691,7 +5483,7 @@ To confirm, re-run:
         } else if (sub === "schema") {
           out(buildCorpus(resolveVault(process.cwd(), vaultFlag)));
         } else if (sub === "search") {
-          const query = subRest.find((a) => !a.startsWith("--"));
+          const query = positionalArgs(subRest, ["--vault"])[0];
           if (!query) die("Usage: duo vault search <query> [--vault <path>]");
           out(search(resolveVault(process.cwd(), vaultFlag), query));
         } else {
@@ -4706,13 +5498,64 @@ To confirm, re-run:
         const subRest = rest.slice(1);
         const vaultFlag = flagValue(subRest, "--vault");
         if (sub === "backlinks") {
-          const note = subRest.find((a) => !a.startsWith("--"));
+          const note = positionalArgs(subRest, ["--vault"])[0];
           if (!note) die("Usage: duo graph backlinks <note> [--vault <path>]");
           out(backlinks(resolveVault(process.cwd(), vaultFlag), note));
         } else if (sub === "orphans") {
           out(orphans(resolveVault(process.cwd(), vaultFlag)));
         } else {
           die("Usage: duo graph <backlinks <note>|orphans> [--vault <path>]");
+        }
+        break;
+      }
+      case "base": {
+        const sub = rest[0];
+        const subRest = rest.slice(1);
+        const vaultFlag = flagValue(subRest, "--vault");
+        if (sub === "lint") {
+          const target = positionalArgs(subRest, ["--vault"])[0] ?? (subRest.includes("--all") ? "--all" : void 0);
+          if (!target) die("Usage: duo base lint <file|--all> [--vault <path>]");
+          const root = resolveVault(process.cwd(), vaultFlag);
+          out(lintVault(root, target));
+        } else if (sub === "render") {
+          const target = positionalArgs(subRest, ["--vault", "--out"])[0];
+          if (!target) die("Usage: duo base render <file|note> [--out <path>] [--open] [--vault <path>]");
+          const root = resolveVault(process.cwd(), vaultFlag);
+          const result = renderTarget(root, target);
+          const outFlag = flagValue(subRest, "--out");
+          const open = subRest.includes("--open");
+          const stem = path8.basename(target).replace(/\.(base|md)$/i, "") || "rollup";
+          let outPath;
+          if (outFlag) outPath = path8.resolve(process.cwd(), outFlag);
+          else if (open) outPath = path8.join(os.tmpdir(), `duo-rollup-${stem}-${Date.now()}.html`);
+          else outPath = path8.join(root, "out", `${stem}.html`);
+          fs8.mkdirSync(path8.dirname(outPath), { recursive: true });
+          fs8.writeFileSync(outPath, result.html);
+          let opened = null;
+          if (open) {
+            try {
+              opened = await send("open", { url: resolveOpenTarget(outPath), mode: "browser", reveal: true });
+            } catch (e) {
+              opened = { error: e instanceof Error ? e.message : String(e) };
+            }
+            if (opened && typeof opened === "object" && "error" in opened) {
+              process.stderr.write(`duo: base render wrote ${outPath} but --open failed: ${opened.error}
+`);
+            }
+          }
+          out({
+            path: outPath,
+            sourceHash: result.sourceHash,
+            generatedAt: result.generatedAt,
+            asOf: result.asOfLabel,
+            bases: result.bases.map((b) => ({
+              label: b.label,
+              views: b.evaluated.views.map((v) => ({ name: v.name, type: v.type, rows: v.rows.length }))
+            })),
+            ...open ? { opened } : {}
+          });
+        } else {
+          die("Usage: duo base <lint <file|--all>|render <file|note>> [--out <path>] [--open] [--vault <path>]");
         }
         break;
       }
@@ -4738,41 +5581,41 @@ function readStdin() {
 }
 function resolveFilePath(input) {
   if (input.startsWith("~/") || input === "~") {
-    return path6.resolve(input.replace(/^~/, os.homedir()));
+    return path8.resolve(input.replace(/^~/, os.homedir()));
   }
-  if (path6.isAbsolute(input)) return input;
-  return path6.resolve(process.cwd(), input);
+  if (path8.isAbsolute(input)) return input;
+  return path8.resolve(process.cwd(), input);
 }
 function resolveOpenTarget(target) {
   if (/^[a-z][a-z0-9+.-]*:/i.test(target)) return target;
   let absolute;
   if (target.startsWith("~/") || target === "~") {
-    absolute = path6.resolve(target.replace(/^~/, os.homedir()));
+    absolute = path8.resolve(target.replace(/^~/, os.homedir()));
   } else {
-    absolute = path6.resolve(process.cwd(), target);
+    absolute = path8.resolve(process.cwd(), target);
   }
   const encoded = absolute.split("/").map((seg) => encodeURIComponent(seg).replace(/%2F/g, "/")).join("/");
   return "file://" + encoded;
 }
 function runInstall(opts = {}) {
-  const self = fs6.realpathSync(process.argv[1]);
+  const self = fs8.realpathSync(process.argv[1]);
   const targets = [];
   if (opts.system) {
     targets.push("/usr/local/bin/duo");
   } else {
-    targets.push(path6.join(os.homedir(), ".claude", "duo", "bin", "duo"));
-    targets.push(path6.join(os.homedir(), ".local", "bin", "duo"));
+    targets.push(path8.join(os.homedir(), ".claude", "duo", "bin", "duo"));
+    targets.push(path8.join(os.homedir(), ".local", "bin", "duo"));
   }
   for (const target of targets) {
     try {
-      fs6.mkdirSync(path6.dirname(target), { recursive: true });
+      fs8.mkdirSync(path8.dirname(target), { recursive: true });
       try {
-        fs6.unlinkSync(target);
+        fs8.unlinkSync(target);
       } catch {
       }
-      fs6.symlinkSync(self, target);
+      fs8.symlinkSync(self, target);
       out(`Installed: ${target} \u2192 ${self}`);
-      const dir = path6.dirname(target);
+      const dir = path8.dirname(target);
       const userPath = (process.env.PATH ?? "").split(":");
       if (!userPath.includes(dir)) {
         out("");
@@ -4798,7 +5641,7 @@ async function runDoctor() {
   let unixErr = null;
   let appVersion = null;
   let windowCount = null;
-  if (fs6.existsSync(SOCKET_PATH)) {
+  if (fs8.existsSync(SOCKET_PATH)) {
     try {
       const res = await probe(() => ({ socket: net.createConnection(SOCKET_PATH) }));
       unixOk = true;
@@ -4865,25 +5708,25 @@ async function runDoctor() {
   const cliPath = process.argv[1];
   let cliReal = null;
   try {
-    cliReal = fs6.realpathSync(cliPath);
+    cliReal = fs8.realpathSync(cliPath);
   } catch {
   }
   lines.push(`  CLI invoked as: ${cliPath}${cliReal && cliReal !== cliPath ? ` \u2192 ${cliReal}` : ""}`);
   const knownInstallTargets = [
     // ENH-141 — SHIM_DIR (auto-prepended to PTY $PATH; primary target).
-    path6.join(os.homedir(), ".claude", "duo", "bin", "duo"),
+    path8.join(os.homedir(), ".claude", "duo", "bin", "duo"),
     // Pre-ENH-141 sandbox-writable target (still listed for diagnosing
     // stale installs — the dir was never on PATH so the symlink was
     // effectively dead).
-    path6.join(os.homedir(), ".claude", "bin", "duo"),
-    path6.join(os.homedir(), ".local", "bin", "duo"),
+    path8.join(os.homedir(), ".claude", "bin", "duo"),
+    path8.join(os.homedir(), ".local", "bin", "duo"),
     "/usr/local/bin/duo"
   ];
   for (const t of knownInstallTargets) {
-    if (!fs6.existsSync(t)) continue;
+    if (!fs8.existsSync(t)) continue;
     let real = null;
     try {
-      real = fs6.realpathSync(t);
+      real = fs8.realpathSync(t);
     } catch {
     }
     const matches = real && cliReal && real === cliReal;
@@ -4891,10 +5734,10 @@ async function runDoctor() {
   }
   lines.push("");
   lines.push("Skill");
-  const skillFile = path6.join(os.homedir(), ".claude", "skills", "duo", "SKILL.md");
-  const agentFile = path6.join(os.homedir(), ".claude", "agents", "duo.md");
-  lines.push(`  ${fs6.existsSync(skillFile) ? "\u2713" : "\u2717"} ${skillFile}`);
-  lines.push(`  ${fs6.existsSync(agentFile) ? "\u2713" : "\u2717"} ${agentFile}`);
+  const skillFile = path8.join(os.homedir(), ".claude", "skills", "duo", "SKILL.md");
+  const agentFile = path8.join(os.homedir(), ".claude", "agents", "duo.md");
+  lines.push(`  ${fs8.existsSync(skillFile) ? "\u2713" : "\u2717"} ${skillFile}`);
+  lines.push(`  ${fs8.existsSync(agentFile) ? "\u2713" : "\u2717"} ${agentFile}`);
   lines.push("");
   lines.push("Locale");
   const localeVars = ["LC_ALL", "LC_CTYPE", "LANG"];

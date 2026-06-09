@@ -969,6 +969,15 @@
   </div>
 </article>
 
+<article class="item" data-keys="vault rollup base obsidian bases render lint live html artifact milestones initiative this template formula filter groupby enh-208">
+  <div class="num">97</div>
+  <div>
+    <h3>Generate a live rollup from your notes</h3>
+    <p class="why">A <strong>rollup</strong> is a view computed from your notes' frontmatter — "every open milestone for this initiative, grouped by owner, with a due-date chip." Duo uses plain <a href="https://help.obsidian.md/bases">Obsidian Bases</a> (<code>.base</code> files + embedded <code>```base</code> blocks), so the same view also renders inside Obsidian. Describe the view in prose and Claude writes the <code>.base</code>; a linter checks every type, <code>[[entity]]</code>, enum value, and function against your live corpus (with "did you mean" fixes) before rendering. The headline pattern: an embedded block that filters <code>initiative == this</code> lives in the initiative <em>template</em>, so <strong>every</strong> initiative gets a live milestone rollup with zero per-note setup. Renders are stamped build artifacts (generated-at · source-hash · as-of date) so staleness is detectable — never a silent cache.</p>
+    <p class="how"><strong>CLI / agent</strong><code>duo base lint &lt;file|--all&gt;</code> validates; <code>duo base render &lt;file|note&gt; --open</code> evaluates it over live frontmatter and opens the result as a tab. The rendered table/cards/list is Duo-owned; cell styling comes only from <code>html()</code> / <code>icon()</code> formulas.</p>
+  </div>
+</article>
+
 <h2 class="cat">Workspace setup</h2>
 <p class="cat-tagline">Pin tabs you want always-available; install Duo's skill + agent + CLI in one click.</p>
 

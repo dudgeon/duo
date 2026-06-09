@@ -500,6 +500,13 @@ const VERBS: VerbSpec[] = [
     args: '<backlinks <note>|orphans> [--vault p]',
     summary:
       'Vault graph queries (wikilinks resolve by basename, so they survive file moves). backlinks <note>: every note linking to <note>, with file + line (JSON). orphans: notes with no inbound and no outbound links — a processing work-list (JSON).'
+  },
+  {
+    name: 'base',
+    group: 'Vault',
+    args: '<lint <file|--all>|render <file|note>> [--out p] [--open] [--vault p]',
+    summary:
+      'Obsidian Bases rollups. lint <file|--all> [--vault p]: validate a .base file (or a note\'s embedded ```base blocks, or every base with --all) against the live corpus — bad types / unresolved [[entities]] / off-enum values / unknown functions, each with a "did you mean" (JSON; warn-and-render, never blocks). render <file|note> [--out p] [--open]: evaluate filters/formulas over live frontmatter and emit a stamped Duo-owned HTML artifact (generated-at · source-hash · as-of). Default writes to the vault\'s out/; --out writes elsewhere; --open also opens it as a tab in the running app.'
   }
 ]
 
@@ -798,6 +805,27 @@ function die(msg: string, code = 1): never {
 function flagValue(args: string[], name: string): string | undefined {
   const i = args.indexOf(name)
   return i !== -1 ? args[i + 1] : undefined
+}
+
+/**
+ * Positional args with value-taking flags (and their values) and bare
+ * flags removed. Without this, a `--vault <path>` *value* looks like a
+ * positional to `args.find(a => !a.startsWith('--'))` — so
+ * `duo base lint --all --vault X` would mis-read X as the lint target.
+ * `valueFlags` are flags that consume the following token.
+ */
+function positionalArgs(args: string[], valueFlags: string[] = []): string[] {
+  const out: string[] = []
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]
+    if (valueFlags.includes(a)) {
+      i++ // skip the flag's value too
+      continue
+    }
+    if (a.startsWith('--')) continue
+    out.push(a)
+  }
+  return out
 }
 
 /**
@@ -2317,7 +2345,7 @@ async function main(): Promise<void> {
         } else if (sub === 'schema') {
           out(vault.buildCorpus(vault.resolveVault(process.cwd(), vaultFlag)))
         } else if (sub === 'search') {
-          const query = subRest.find((a) => !a.startsWith('--'))
+          const query = positionalArgs(subRest, ['--vault'])[0]
           if (!query) die('Usage: duo vault search <query> [--vault <path>]')
           out(vault.search(vault.resolveVault(process.cwd(), vaultFlag), query))
         } else {
@@ -2335,13 +2363,73 @@ async function main(): Promise<void> {
         const subRest = rest.slice(1)
         const vaultFlag = flagValue(subRest, '--vault')
         if (sub === 'backlinks') {
-          const note = subRest.find((a) => !a.startsWith('--'))
+          const note = positionalArgs(subRest, ['--vault'])[0]
           if (!note) die('Usage: duo graph backlinks <note> [--vault <path>]')
           out(vault.backlinks(vault.resolveVault(process.cwd(), vaultFlag), note))
         } else if (sub === 'orphans') {
           out(vault.orphans(vault.resolveVault(process.cwd(), vaultFlag)))
         } else {
           die('Usage: duo graph <backlinks <note>|orphans> [--vault <path>]')
+        }
+        break
+      }
+      case 'base': {
+        const sub = rest[0]
+        const subRest = rest.slice(1)
+        const vaultFlag = flagValue(subRest, '--vault')
+        if (sub === 'lint') {
+          const target = positionalArgs(subRest, ['--vault'])[0] ?? (subRest.includes('--all') ? '--all' : undefined)
+          if (!target) die('Usage: duo base lint <file|--all> [--vault <path>]')
+          const root = vault.resolveVault(process.cwd(), vaultFlag)
+          out(vault.lintVault(root, target))
+        } else if (sub === 'render') {
+          const target = positionalArgs(subRest, ['--vault', '--out'])[0]
+          if (!target) die('Usage: duo base render <file|note> [--out <path>] [--open] [--vault <path>]')
+          const root = vault.resolveVault(process.cwd(), vaultFlag)
+          const result = vault.renderTarget(root, target)
+          const outFlag = flagValue(subRest, '--out')
+          const open = subRest.includes('--open')
+          const stem = path.basename(target).replace(/\.(base|md)$/i, '') || 'rollup'
+          let outPath: string
+          if (outFlag) outPath = path.resolve(process.cwd(), outFlag)
+          else if (open) outPath = path.join(os.tmpdir(), `duo-rollup-${stem}-${Date.now()}.html`)
+          else outPath = path.join(root, 'out', `${stem}.html`)
+          fs.mkdirSync(path.dirname(outPath), { recursive: true })
+          fs.writeFileSync(outPath, result.html)
+          // `--open` is the one vault verb that reaches the running app
+          // (to surface the artifact as a tab). It fails gracefully when
+          // Duo isn't running — the file is already written either way.
+          // Payload MUST mirror the `open` verb (case 'open'): the IPC
+          // handler keys on `url` (a file:// URL via resolveOpenTarget),
+          // NOT `path`. `reveal` expands + focuses the pane so the user
+          // actually sees the rollup. Keep these two call sites in sync.
+          let opened: unknown = null
+          if (open) {
+            try {
+              opened = await send('open', { url: resolveOpenTarget(outPath), mode: 'browser', reveal: true })
+            } catch (e) {
+              opened = { error: e instanceof Error ? e.message : String(e) }
+            }
+            // Surface an open failure on stderr too (the artifact write
+            // still succeeded, so exit stays 0) — don't let it hide in
+            // the JSON `opened.error` field where an agent would miss it.
+            if (opened && typeof opened === 'object' && 'error' in opened) {
+              process.stderr.write(`duo: base render wrote ${outPath} but --open failed: ${(opened as { error: unknown }).error}\n`)
+            }
+          }
+          out({
+            path: outPath,
+            sourceHash: result.sourceHash,
+            generatedAt: result.generatedAt,
+            asOf: result.asOfLabel,
+            bases: result.bases.map((b) => ({
+              label: b.label,
+              views: b.evaluated.views.map((v) => ({ name: v.name, type: v.type, rows: v.rows.length })),
+            })),
+            ...(open ? { opened } : {}),
+          })
+        } else {
+          die('Usage: duo base <lint <file|--all>|render <file|note>> [--out <path>] [--open] [--vault <path>]')
         }
         break
       }
