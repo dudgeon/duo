@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Vault Guide — Duo</title>
+<style>
+/* duo-atelier.css kernel (shared with the intent playground). */
+:root {
+  --paper:#fbf8f1; --paper-deep:#f3ede0; --paper-edge:#e8e0cb; --paper-rule:#d9cea8;
+  --ink:#2b2620; --ink-soft:#4a4238; --ink-mute:#6f6557; --ink-ghost:#9a9080;
+  --accent:#c46a1c; --accent-soft:#f4d9b6; --pass:#4a7d3e; --fail:#b13e3a; --warn:#b07527;
+  --code-bg:#2b2823; --code-ink:#e8e0cb; --harbor:#3C6E93; --moss:#69763A;
+}
+* { box-sizing:border-box; }
+html, body { margin:0; padding:0; background:var(--paper); color:var(--ink);
+  font-family:-apple-system,"SF Pro Text","Segoe UI",system-ui,sans-serif; font-size:14px; line-height:1.55; }
+body { padding:32px 40px 96px; max-width:920px; margin:0 auto; }
+header.page-head { border-bottom:1px solid var(--paper-rule); padding-bottom:16px; margin-bottom:24px; }
+header.page-head h1 { font-family:"New York","Iowan Old Style",Georgia,serif; font-style:italic; font-weight:500; margin:0 0 4px; font-size:26px; }
+header.page-head .meta { color:var(--ink-mute); font-size:13px; }
+.pill { display:inline-block; padding:2px 8px; border-radius:10px; background:var(--accent-soft); color:var(--accent);
+  font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.04em; margin-right:6px; }
+.intro { background:var(--paper-deep); border:1px solid var(--paper-rule); border-radius:6px;
+  padding:14px 18px; margin-bottom:28px; font-size:13.5px; color:var(--ink-soft); }
+.intro strong { color:var(--ink); font-weight:600; }
+h2 { font-family:"New York","Iowan Old Style",Georgia,serif; font-weight:600; margin:40px 0 6px; font-size:20px;
+  border-bottom:1px solid var(--paper-rule); padding-bottom:6px; }
+h2 .chno { color:var(--ink-ghost); font-style:normal; font-size:15px; margin-right:8px; }
+h3 { font-weight:600; margin:20px 0 8px; font-size:14.5px; }
+p { margin:8px 0; } ul,ol { margin:8px 0; padding-left:24px; } li { margin:4px 0; }
+code { font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:12.5px; background:var(--paper-deep); padding:1px 5px; border-radius:3px; }
+pre { font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:11.5px; line-height:1.5;
+  background:var(--code-bg); color:var(--code-ink); padding:14px 16px; border-radius:6px; overflow-x:auto; }
+pre code { background:transparent; padding:0; color:inherit; font-size:inherit; }
+pre.diagram { line-height:1.45; }
+pre.diagram .note { color:#9a8f6e; font-style:italic; } pre.diagram .hot { color:#f4b96a; }
+/* TOC */
+.toc { background:var(--paper-deep); border:1px solid var(--paper-rule); border-radius:6px; padding:14px 20px; margin:0 0 12px; }
+.toc ol { columns:2; column-gap:28px; margin:6px 0 0; padding-left:20px; font-size:13px; }
+.toc a { color:var(--ink-soft); text-decoration:none; } .toc a:hover { color:var(--accent); }
+.takeaway { background:color-mix(in srgb,var(--accent) 6%,var(--paper)); border-left:3px solid var(--accent);
+  border-radius:4px; padding:8px 12px; margin:14px 0; font-size:12.5px; color:var(--ink-soft); }
+.takeaway strong { color:var(--accent); }
+.soon { font-size:10px; background:var(--paper-deep); color:var(--ink-mute); border:1px solid var(--paper-rule);
+  text-transform:uppercase; font-weight:700; letter-spacing:.04em; padding:1px 6px; border-radius:8px; margin-left:6px; }
+/* actor lifecycle lanes */
+.lifecycle { display:grid; grid-template-columns:1fr; gap:0; margin:14px 0; background:var(--paper);
+  border:1.5px solid var(--paper-rule); border-radius:6px; padding:14px 16px; }
+.lstep { display:flex; gap:9px; margin:7px 0; font-size:12.5px; align-items:flex-start; }
+.lstep .who { flex:0 0 64px; text-align:center; font-size:9.5px; font-weight:700; letter-spacing:.05em;
+  border-radius:8px; padding:2px 0; color:white; margin-top:2px; }
+.who.you { background:var(--accent); } .who.claude { background:var(--harbor); }
+.who.script { background:var(--moss); } .who.files { background:var(--ink-ghost); }
+.lstep .what { flex:1; color:var(--ink-soft); line-height:1.45; } .lstep .what code { font-size:11px; }
+.larrow { color:var(--ink-ghost); font-size:11px; margin:-1px 0 -1px 73px; }
+.legend { display:flex; gap:10px; margin:8px 0 0; font-size:11px; color:var(--ink-mute); align-items:center; flex-wrap:wrap; }
+.legend .who { flex:0 0 auto; padding:2px 8px; border-radius:8px; color:white; font-weight:700; font-size:9.5px; letter-spacing:.05em; }
+.loopnote { margin-top:10px; padding:7px 10px; background:var(--paper-deep); border:1px dashed var(--paper-rule);
+  border-radius:4px; font-size:11px; color:var(--ink-mute); font-style:italic; }
+/* 3-step flow mocks */
+.flow-steps { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:14px 0; }
+.flow-step { background:var(--paper); border:1.5px solid var(--paper-rule); border-radius:6px; overflow:hidden; }
+.flow-step .step-label { background:var(--paper-deep); padding:5px 10px; font-size:11px; font-weight:700;
+  text-transform:uppercase; letter-spacing:.04em; color:var(--ink-mute); border-bottom:1px solid var(--paper-rule); }
+.flow-step .step-body { padding:12px; font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:12px; min-height:120px; position:relative; }
+.flow-step .caret { display:inline-block; width:2px; height:14px; background:var(--accent); vertical-align:text-bottom; animation:blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity:0; } }
+.wikilink { color:var(--harbor); }
+.type-picker { position:absolute; left:18px; top:46px; background:white; border:1px solid var(--paper-rule);
+  border-radius:6px; box-shadow:0 6px 18px rgba(43,38,32,.18); font-family:-apple-system,system-ui,sans-serif;
+  font-size:12px; min-width:160px; overflow:hidden; }
+.type-picker .tp-head { padding:6px 10px; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em;
+  color:var(--ink-ghost); border-bottom:1px solid var(--paper-edge); }
+.type-picker .tp-row { padding:6px 10px; display:flex; justify-content:space-between; }
+.type-picker .tp-row.sel { background:var(--accent); color:white; }
+.type-picker .tp-row .folder { color:var(--ink-ghost); font-size:11px; }
+.type-picker .tp-row.sel .folder { color:rgba(255,255,255,.75); }
+.toast { margin-top:10px; background:var(--paper-deep); border:1px solid var(--paper-rule); border-left:3px solid var(--pass);
+  border-radius:4px; padding:7px 10px; font-family:-apple-system,system-ui,sans-serif; font-size:11.5px; color:var(--ink-soft); }
+/* rollup render mock */
+.rollup-mock { background:var(--paper); border:1.5px solid var(--paper-rule); border-radius:8px; padding:16px 18px; margin:14px 0; }
+.rollup-mock h3 { font-family:"New York",Georgia,serif; font-style:italic; margin:0 0 2px; font-size:17px; }
+.rollup-mock .rollup-sub { font-size:11.5px; color:var(--ink-ghost); margin-bottom:12px; }
+.rollup-mock table { border-collapse:collapse; width:100%; font-size:12.5px; }
+.rollup-mock th, .rollup-mock td { border-bottom:1px solid var(--paper-edge); padding:6px 8px; text-align:left; }
+.rollup-mock th { font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:var(--ink-mute); }
+.status-chip { display:inline-block; padding:1px 8px; border-radius:9px; font-size:11px; font-weight:600; color:white; }
+.status-chip.ok { background:var(--pass); } .status-chip.blocked { background:var(--fail); } .status-chip.done { background:var(--ink-ghost); }
+.rollup-mock .live-note { margin-top:10px; font-size:11px; color:var(--ink-ghost); font-style:italic; }
+/* side-by-side option cards */
+.option-cards { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin:14px 0; }
+.option-card { background:var(--paper); border:1.5px solid var(--paper-rule); border-radius:6px; padding:12px 14px; font-size:12.5px; }
+.option-card h4 { margin:0 0 6px; font-size:13px; } .option-card p { margin:5px 0; color:var(--ink-soft); font-size:12px; }
+.option-card .verb { font-family:ui-monospace,Menlo,monospace; font-size:11.5px; color:var(--accent); }
+table.locked { border-collapse:collapse; width:100%; margin:12px 0; font-size:12.5px; }
+table.locked th, table.locked td { border:1px solid var(--paper-rule); padding:7px 10px; text-align:left; vertical-align:top; }
+table.locked th { background:var(--paper-deep); font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:var(--ink-mute); }
+table.locked td:first-child { font-weight:600; white-space:nowrap; }
+footer { margin-top:48px; border-top:1px solid var(--paper-rule); padding-top:14px; font-size:12px; color:var(--ink-mute); }
+@media (max-width:760px) { .flow-steps, .option-cards { grid-template-columns:1fr; } .toc ol { columns:1; } }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>The Vault Guide</h1>
+  <div class="meta"><span class="pill">ENH-208</span> Networked work-notes on plain Obsidian conventions · Phase 1 (skill-first)</div>
+</header>
+
+<div class="intro">
+  A <strong>vault</strong> is a folder containing <code>.obsidian/</code> — a strict
+  <a href="https://obsidian.md">Obsidian</a> vault of markdown notes, <code>[[wikilinks]]</code>,
+  YAML frontmatter, and <code>.base</code> rollups. Your work topics — people, initiatives,
+  themes, meetings — form a <strong>graph</strong>, not a tidy hierarchy. The vault stores that
+  graph as plain files any human or agent can read; <strong>Duo</strong> adds capture and search,
+  and <strong>Claude</strong> does the filing, linking, and rollups. The escape hatch that keeps
+  it honest: the same folder opens correctly in Obsidian proper at all times.
+</div>
+
+<nav class="toc">
+  <strong>The ten primitives</strong>
+  <ol>
+    <li><a href="#ch1">What a vault is</a></li>
+    <li><a href="#ch2">Establishing a vault</a></li>
+    <li><a href="#ch3">Types, templates &amp; filing</a></li>
+    <li><a href="#ch4">Creating entities as you type</a></li>
+    <li><a href="#ch5">Capturing a note</a></li>
+    <li><a href="#ch6">Finding things</a></li>
+    <li><a href="#ch7">Running docs &amp; promote</a></li>
+    <li><a href="#ch8">Generating a rollup</a></li>
+    <li><a href="#ch9">Refreshing a rollup</a></li>
+    <li><a href="#ch10">Processing</a></li>
+  </ol>
+</nav>
+
+<div class="legend">
+  <span class="who you">YOU</span> the owner
+  <span class="who claude">CLAUDE</span> the agent
+  <span class="who script">SCRIPT</span> the <code>duo</code> CLI
+  <span class="who files">FILES</span> what lands on disk
+</div>
+
+<!-- ── 1 ───────────────────────────────────────────── -->
+<section id="ch1">
+<h2><span class="chno">1</span>What a vault is</h2>
+<p>Everything is a file. A note is markdown with a YAML frontmatter header; an
+edge is a <code>[[wikilink]]</code> (in prose <em>or</em> in a typed frontmatter field); a
+<em>type</em> is declared by the note's folder plus its <code>type:</code> field. No database,
+no sidecar, no invented syntax — that is the whole format.</p>
+<pre class="diagram">work-notes/                 <span class="note">← the vault root (marked by .obsidian/)</span>
+├── .obsidian/              <span class="note">Obsidian's config — makes it a vault</span>
+├── templates/             <span class="note">soft schemas, one per type (query-excluded)</span>
+├── inbox/                  <span class="note">atomic captures land here, untyped</span>
+├── people/  themes/        <span class="note">registry folders for parentless types</span>
+├── initiatives/
+│   └── <span class="hot">Q3 Launch/</span>           <span class="note">an initiative is a FOLDER it owns…</span>
+│       ├── Q3 Launch.md    <span class="note">…the folder-note (type: initiative)</span>
+│       └── Legal review.md <span class="note">…a milestone filed under its parent</span>
+├── notes/YYYY/MM/          <span class="note">time-bucket residue (no parent yet)</span>
+├── bases/                  <span class="note">vault-wide .base rollups</span>
+└── out/                    <span class="note">rendered rollup artifacts (regenerable)</span>
+
+<span class="hot">Alice Park.md</span>  <span class="note">─ frontmatter ─</span>          <span class="note">─ prose ─</span>
+  type: person                          Owns <span class="hot">[[Q3 Launch]]</span>. Primary
+  role: Product lead                    contact for <span class="hot">[[Pricing]]</span>.
+  aliases: [Alice]      <span class="note">↑ typed edges</span>     <span class="note">↑ prose edges</span></pre>
+<div class="takeaway"><strong>Why it matters:</strong> because the vault is just files,
+it survives Duo entirely — it syncs over git, opens in Obsidian, and is intelligible to
+agents that have never heard of this feature. Peek at any vault's whole shape with
+<code>duo vault schema</code>, or find vaults under a folder with <code>duo vault list</code>.</div>
+</section>
+
+<!-- ── 2 ───────────────────────────────────────────── -->
+<section id="ch2">
+<h2><span class="chno">2</span>Establishing a vault</h2>
+<p>One command scaffolds a ready-to-use vault — config, starter templates with their
+filing rules baked in, the standard folders, a processing dashboard, and a README.</p>
+<div class="lifecycle">
+  <div class="lstep"><span class="who you">YOU</span><div class="what">"set up a vault in <code>~/work/notes</code>" (or run the verb yourself)</div></div>
+  <div class="larrow">↓</div>
+  <div class="lstep"><span class="who claude">CLAUDE</span><div class="what">runs <code>duo vault init ~/work/notes</code></div></div>
+  <div class="larrow">↓</div>
+  <div class="lstep"><span class="who script">SCRIPT</span><div class="what">scaffolds <code>.obsidian/</code>, five starter templates, <code>inbox/ people/ themes/ initiatives/ notes/ bases/ out/</code>, <code>bases/processing.base</code>, a README — refusing to clobber an existing vault, and warning if it's under <code>~/Documents</code> (iCloud can evict file bytes there)</div></div>
+  <div class="larrow">↓</div>
+  <div class="lstep"><span class="who files">FILES</span><div class="what">the full scaffold — config, five templates, the standard folders, <code>processing.base</code> and a README; the folder is now a real Obsidian vault you can open in Obsidian too</div></div>
+  <div class="loopnote">Phase&nbsp;2 adds a <strong>default vault</strong> in Settings (with the <code>duo vault default</code> twin) so capture + ⌘⇧F search know which vault you mean without <code>--vault</code>.</div>
+</div>
+<div class="takeaway"><strong>The verb:</strong> <code>duo vault init &lt;folder&gt; [--force]</code> · find vaults with <code>duo vault list</code>.</div>
+</section>
+
+<!-- ── 3 ───────────────────────────────────────────── -->
+<section id="ch3">
+<h2><span class="chno">3</span>Types, templates &amp; filing</h2>
+<p>A <em>type</em> is a <code>templates/&lt;type&gt;.md</code> — a <strong>soft schema</strong>. Its meta keys say
+what an entity of that type expects and <strong>where it files</strong> (D19); the rest are the
+fields a new note inherits. Nothing is enforced — processing validates against it later.</p>
+<pre class="diagram">templates/milestone.md           <span class="note">the template…</span>
+  type: milestone                <span class="note">meta — the type name</span>
+  <span class="hot">filingParent: initiative</span>       <span class="note">meta — files under its initiative's folder</span>
+  filingLoose: true              <span class="note">meta — loose, not in a subfolder</span>
+  initiative:  owner:            <span class="note">fields — seeded empty on a new note</span>
+  status: on-track  due:
+
+         ↓  a new milestone inherits the fields, then files by the rule
+
+initiatives/Q3 Launch/<span class="hot">Legal review.md</span>   <span class="note">← lives under its parent initiative</span></pre>
+<table class="locked">
+  <tr><th>Filing rule</th><th>Types</th><th>Where the note files</th></tr>
+  <tr><td><code>folder:</code></td><td>person, theme</td><td>their registry folder (<code>people/</code>, <code>themes/</code>) — parentless</td></tr>
+  <tr><td><code>filingParent:</code></td><td>milestone, meeting</td><td>under the parent named by that frontmatter field (milestone → its <code>initiative</code>)</td></tr>
+  <tr><td><code>folderNote: true</code></td><td>initiative</td><td>owns a folder named after it; the <strong>only</strong> type that can be a filing parent</td></tr>
+  <tr><td>— no parent yet —</td><td>any parented</td><td>time-bucket <code>notes/YYYY/MM/</code>; processing re-files when a parent emerges</td></tr>
+</table>
+<div class="takeaway"><strong>Folder layout is ergonomics only.</strong> Every query is
+frontmatter-driven, so a note keeps all its <code>[[links]]</code> when it moves — filing loses no
+edges. Completed initiatives are <em>proposed</em> for <code>archive/YYYY/</code> by processing (D20),
+never moved automatically. Read the live rules with <code>duo vault schema</code>.</div>
+</section>
+
+<!-- ── 4 ───────────────────────────────────────────── -->
+<section id="ch4">
+<h2><span class="chno">4</span>Creating entities as you type</h2>
+<p>When a note mentions someone or something new, it becomes a real entity from the
+matching template — and your cursor never leaves the note you're writing.</p>
+<div class="flow-steps">
+  <div class="flow-step"><div class="step-label">1 · type</div><div class="step-body">…owns&nbsp;<span class="wikilink">[[Jordan Lee</span><span class="caret"></span><br><br><span style="color:var(--ink-ghost)">press ⇥</span></div></div>
+  <div class="flow-step"><div class="step-label">2 · pick a type</div><div class="step-body">…owns&nbsp;<span class="wikilink">[[Jordan Lee]]</span>
+    <div class="type-picker"><div class="tp-head">New — pick a type</div>
+      <div class="tp-row sel">person <span class="folder">people/</span></div>
+      <div class="tp-row">initiative <span class="folder">initiatives/</span></div>
+      <div class="tp-row">theme <span class="folder">themes/</span></div>
+    </div></div></div>
+  <div class="flow-step"><div class="step-label">3 · keep typing</div><div class="step-body">…owns&nbsp;<span class="wikilink">[[Jordan Lee]]</span>&nbsp;on pricing.<span class="caret"></span>
+    <div class="toast">✓ created <code>people/Jordan Lee.md</code> from the person template</div></div></div>
+</div>
+<p><strong>Today (v1):</strong> you narrate — "Jordan Lee owns pricing now" — and Claude does
+exactly what the picker will: <code>duo vault schema</code> to confirm it's new (checking aliases),
+then create the stub from the template in the right folder and link it. <strong>You are the
+type-picker</strong> until the popover ships.</p>
+<div class="takeaway"><strong>Fast-follow <span class="soon">Phase 2</span>:</strong> <code>[[New Name]]</code> ⇥ → the type-picker popover → stub created in the background; the caret stays put.</div>
+</section>
+
+<!-- ── 5 ───────────────────────────────────────────── -->
+<section id="ch5">
+<h2><span class="chno">5</span>Capturing a note</h2>
+<p>Capture is fast and lossy by design. A thought becomes an atomic note in <code>inbox/</code>,
+untyped — a later processing pass files and links it. Nothing to organize in the moment.</p>
+<div class="lifecycle">
+  <div class="lstep"><span class="who you">YOU</span><div class="what">"note from the pricing sync — Alice wants the fee model by Friday"</div></div>
+  <div class="larrow">↓</div>
+  <div class="lstep"><span class="who claude">CLAUDE</span><div class="what">runs <code>duo vault capture --template meeting --text "…"</code>, links <code>[[Alice Park]]</code> + <code>[[Pricing]]</code>, stubs anything new</div></div>
+  <div class="larrow">↓</div>
+  <div class="lstep"><span class="who files">FILES</span><div class="what"><code>inbox/2026-06-09 143205 pricing sync.md</code> — timestamped to the second (so back-to-back captures never collide), <code>captured:</code> stamped, body filled</div></div>
+</div>
+<pre class="diagram">inbox/2026-06-09 143205 pricing sync.md
+  ---
+  captured: 2026-06-09
+  type: meeting           <span class="note">← from --template</span>
+  attendees: []  date:    <span class="note">← fields seeded empty</span>
+  ---
+  Alice wants the <span class="hot">[[Pricing]]</span> fee model from <span class="hot">[[Alice Park]]</span> by Fri.</pre>
+<div class="takeaway"><strong>The verb:</strong> <code>duo vault capture [--template t] [--text "…"] [--title "…"] [--open]</code>.
+<span class="soon">Phase 2</span> adds the <strong>⇧⌘N</strong> quick-capture chord and <code>@today</code>-style smart date tokens in the <code>@</code> suggester.</div>
+</section>
+
+<!-- ── 6 ───────────────────────────────────────────── -->
+<section id="ch6">
+<h2><span class="chno">6</span>Finding things</h2>
+<p>Four ways to get around the graph — full-text, and three that follow edges. All emit
+JSON Claude can act on; all resolve wikilinks by <strong>basename</strong>, so they keep working
+after a note is filed somewhere new.</p>
+<div class="option-cards">
+  <div class="option-card"><h4>Full-text search</h4>
+    <p>Every line that matches, with file + line number.</p>
+    <p class="verb">duo vault search "pricing"</p>
+    <p><span class="soon">Phase 2</span> binds this to <strong>⌘⇧F</strong> over the default vault.</p></div>
+  <div class="option-card"><h4>Backlinks</h4>
+    <p>Who links to this note — including typed frontmatter edges (a milestone's <code>initiative:</code>), not just prose.</p>
+    <p class="verb">duo graph backlinks "Alice Park"</p></div>
+  <div class="option-card"><h4>Orphans</h4>
+    <p>Notes with no links in <em>or</em> out — a tidy-up list for processing.</p>
+    <p class="verb">duo graph orphans</p></div>
+  <div class="option-card"><h4>The corpus</h4>
+    <p>The whole schema at a glance — types, entities, aliases, props, observed enum values.</p>
+    <p class="verb">duo vault schema</p></div>
+</div>
+<div class="takeaway"><strong>Basename resolution is what makes filing safe:</strong> move
+<code>Legal review.md</code> into its initiative's folder and every <code>[[Legal review]]</code> link still points at it.</div>
+</section>
+
+<!-- ── 7 ───────────────────────────────────────────── -->
+<section id="ch7">
+<h2><span class="chno">7</span>Running docs &amp; promote</h2>
+<p>Not everything deserves its own file on day one. Keep a low-ceremony series as one
+<strong>running doc</strong> — a section per entry — and <strong>promote</strong> a section to its own entity
+only when it earns properties or a place in a rollup. (A link can point <em>inside</em> a note:
+<code>[[Meetings#2026-06-09]]</code> — the <code>#</code> targets that dated <code>##</code> heading.)</p>
+<div class="option-cards">
+  <div class="option-card"><h4>Before — one running doc</h4>
+<pre class="diagram">Q3 Launch/Meetings.md
+  ## 2026-06-02
+  kickoff; scope agreed
+  ## <span class="hot">2026-06-09</span>
+  pricing pushed a week
+     <span class="note">↑ [[Meetings#2026-06-09]]</span></pre></div>
+  <div class="option-card"><h4>After — the section promoted</h4>
+<pre class="diagram">Q3 Launch/Meetings.md
+  ## 2026-06-09
+  <span class="hot">![[2026-06-09 pricing sync]]</span>
+     <span class="note">↑ embed left behind</span>
+
+Q3 Launch/2026-06-09 pricing sync.md
+  type: meeting · attendees: […]</pre></div>
+</div>
+<p><strong>How:</strong> ask Claude to "promote the 2026-06-09 section." It splits that <code>##</code>
+section into an entity file from the matching template and leaves an <code>![[embed]]</code> behind
+(the leading <code>!</code> pulls the new note's content inline where the section was — Obsidian calls
+it a <em>transclusion</em>) — reversible by inlining the embed. It's a skill choreography over the existing file +
+<code>duo doc</code> verbs; there's no <code>duo vault promote</code> verb in v1.</p>
+<div class="takeaway"><strong>Fast-follow:</strong> editable transclusion (inline-editable embeds) is the deferred Duo-native upgrade that makes discrete files read &amp; edit as one doc.</div>
+</section>
+
+<!-- ── 8 ───────────────────────────────────────────── -->
+<section id="ch8">
+<h2><span class="chno">8</span>Generating a rollup</h2>
+<p>A <strong>rollup</strong> is a view computed from frontmatter — "open milestones for this
+initiative, grouped by owner, with a due chip." Duo uses plain Obsidian
+<a href="https://help.obsidian.md/bases">Bases</a> (<code>.base</code> files + embedded blocks), so the
+same view renders in Obsidian too.</p>
+<div class="lifecycle">
+  <div class="lstep"><span class="who you">YOU</span><div class="what">describe the view in prose</div></div>
+  <div class="larrow">↓</div>
+  <div class="lstep"><span class="who claude">CLAUDE</span><div class="what">runs <code>duo vault schema</code> to get the real type names + enum values, then writes the <code>.base</code> — vault-wide in <code>bases/</code>, or an embedded <code>… == this</code> block in the <em>type template</em> so every entity inherits it (<code>initiative == this</code> means "only rows whose <code>initiative</code> field points back at the note being viewed")</div></div>
+  <div class="larrow">↓</div>
+  <div class="lstep"><span class="who script">SCRIPT</span><div class="what"><code>duo base lint</code> checks every type, <code>[[entity]]</code>, enum value &amp; function against the corpus — with "did you mean" fixes — looping until clean (it's advisory; it never blocks)</div></div>
+  <div class="larrow">↓</div>
+  <div class="lstep"><span class="who script">SCRIPT</span><div class="what"><code>duo base render &lt;note&gt; --open</code> evaluates it over live frontmatter and opens the result as a tab</div></div>
+  <div class="loopnote">The headline pattern: an embedded block filtering <code>initiative == this</code> lives in the initiative <em>template</em> — so <strong>every</strong> initiative gets its milestone rollup with zero per-note setup.</div>
+</div>
+<div class="rollup-mock">
+  <h3>Q3 Launch — Milestones</h3>
+  <div class="rollup-sub">initiative == this · 4 rows · grouped, with a due chip</div>
+  <table>
+    <tr><th>Milestone</th><th>Status</th><th>Owner</th><th>Due</th></tr>
+    <tr><td>Legal review</td><td><span class="status-chip blocked">blocked</span></td><td>Alice Park</td><td>Jun 20 · in 11 days</td></tr>
+    <tr><td>Beta cohort</td><td><span class="status-chip ok">on-track</span></td><td>Sam Rivera</td><td>Jul 1 · in 22 days</td></tr>
+    <tr><td>Kickoff deck</td><td><span class="status-chip done">done</span></td><td>Jordan Lee</td><td>—</td></tr>
+  </table>
+  <div class="live-note">Duo-owned render — table/cards/list is never user-authored; cell styling comes only from <code>html()</code> / <code>icon()</code> formulas (D16).</div>
+</div>
+<div class="takeaway"><strong>You don't need to memorize the syntax — lint tells you when
+you've stepped outside it.</strong> The engine is a locked Bases subset (filters, <code>if()</code>,
+link <code>== this</code>, date math, <code>html()</code>/<code>icon()</code>, <code>groupBy</code>, summaries,
+child→parent backlink rollups). Anything else renders as a ⚠ cell rather than breaking.</div>
+</section>
+
+<!-- ── 9 ───────────────────────────────────────────── -->
+<section id="ch9">
+<h2><span class="chno">9</span>Refreshing a rollup</h2>
+<p>A render is a <strong>build artifact</strong>, not a live cache — and it says so. Every render
+carries a visible stamp at the top, so staleness is always <em>detectable</em>:</p>
+<pre class="diagram">BUILD ARTIFACT — regenerate: duo base render Q3 Launch ·
+generated 2026-06-09T18:41:19Z · source hash <span class="hot">335e980971a9</span> ·
+date-relative formulas as of 2026-Jun-09 · 6 notes, 1 rendered base</pre>
+<p>Edit a milestone's <code>status</code> and the vault's content changes → the next render computes a
+<span class="hot">different source hash</span> → you can see the artifact is stale and re-render it.</p>
+<div class="option-cards">
+  <div class="option-card"><h4>Live</h4>
+    <p>A throwaway render opened straight as a tab — not persisted.</p>
+    <p class="verb">duo base render &lt;note&gt; --open</p></div>
+  <div class="option-card"><h4>Artifact</h4>
+    <p>Written to the vault's <code>out/</code> (or <code>--out</code>), stamped — share it, commit it, diff it.</p>
+    <p class="verb">duo base render &lt;note&gt; --out report.html</p></div>
+</div>
+<div class="takeaway"><strong>v1 refresh is on demand</strong> (re-run the verb). Re-render on
+tab-focus is the fast-follow; a file-watcher + scheduled re-render are deferred — by design,
+no silent staleness.</div>
+</section>
+
+<!-- ── 10 ──────────────────────────────────────────── -->
+<section id="ch10">
+<h2><span class="chno">10</span>Processing</h2>
+<p>"Process my vault" is a single reviewable pass that does the housekeeping capture
+deliberately skipped — and <strong>every change is a proposal</strong>, never silent.</p>
+<div class="lifecycle">
+  <div class="lstep"><span class="who you">YOU</span><div class="what">"process my vault"</div></div>
+  <div class="larrow">↓</div>
+  <div class="lstep"><span class="who claude">CLAUDE</span><div class="what">builds the work-list live — stale inbox (&gt; 1 week), untyped notes, missing required fields, unresolved <code>[[links]]</code>, ⚠ flags, <code>duo graph orphans</code> (the same list <code>bases/processing.base</code> shows you)</div></div>
+  <div class="larrow">↓</div>
+  <div class="lstep"><span class="who claude">CLAUDE</span><div class="what">files inbox notes by the D19 rules · repairs frontmatter + links as <strong>tracked suggestions</strong> you accept or reject in the editor · promotes sections · <em>proposes</em> archiving completed initiatives</div></div>
+  <div class="larrow">↓</div>
+  <div class="lstep"><span class="who files">FILES</span><div class="what">a dated <strong>report note</strong> links every touched file + each proposed move</div></div>
+  <div class="larrow">↓</div>
+  <div class="lstep"><span class="who you">YOU</span><div class="what">accept / reject each suggestion in the editor (<code>duo doc accept</code> / <code>duo doc reject</code>)</div></div>
+  <div class="loopnote">Scale safety: processing edits only through the surgical CriticMarkup paths and sanity-checks <code>git diff --numstat</code> is insertion-sized — never a whole-document rewrite.</div>
+</div>
+<div class="takeaway"><strong>The model that makes it trustworthy:</strong> tracked suggestions
++ a report note + file-moves listed for approval mean a processing run is fully reviewable —
+the same property that lets it run unattended on a schedule later.</div>
+</section>
+
+<footer>
+  The Vault Guide · ENH-208 Phase 1 (skill-first slice). Built alongside the verbs and the
+  <code>references/vault.md</code> skill, from one source of truth. Open it any time with
+  <code>duo open docs/guide/vault-guide.html</code>. Phase 2 brings the capture UX (default-vault
+  setting, ⇧⌘N, <code>@today</code> tokens, ⌘⇧F search); Phase 3 brings rollups rendered inside the app.
+</footer>
+
+</body>
+</html>

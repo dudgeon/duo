@@ -80,3 +80,24 @@ The same HTML source can be both a page AND a playground — it depends on which
 - **Build a lesson (canonical template):** `~/.claude/skills/duo/examples/lesson-template/`
 - **Drive an existing playground (author → driver):** `~/.claude/skills/duo/playground-interaction.md`
 - **Lesson runtime contract:** `~/.claude/skills/duo/lesson-runtime.md`
+
+---
+
+## Vault (ENH-208) — work-notes vocabulary
+
+A separate domain from the page/playground hierarchy above. The user-facing
+name for the whole feature is **vault** — there is no "graphbook" noun
+anywhere user-facing (D17).
+
+| Term | Meaning |
+|---|---|
+| **vault** | A folder containing `.obsidian/` — a strict Obsidian vault: markdown + `[[wikilinks]]` + YAML frontmatter + folders + `.base` files. The same folder always opens correctly in Obsidian proper. |
+| **entity** | A note representing a thing (person, initiative, theme, milestone, meeting), typed by its folder + frontmatter `type:`. |
+| **type / template** | A `templates/<type>.md` soft schema: declares the type, its filing rule, and the fields an entity expects. Query-excluded (not an entity). |
+| **corpus** | The vault-derived schema — types, entities, aliases, properties-per-type, observed enum values. A pure function over frontmatter ("the vault IS the schema"), computed live, never cached. Read via `duo vault schema`. |
+| **rollup / base** | An Obsidian Bases `.base` file (or embedded ` ```base ` block) — a view over frontmatter. A per-entity rollup uses `… == this`. Rendered to Duo-owned HTML via `duo base render`. |
+| **capture** | An atomic note dropped in `inbox/` (`duo vault capture`), untyped by default — processing files it later. |
+| **processing** | The agent pass: file inbox notes, link entities, fix frontmatter, author rollups, propose archiving — via CriticMarkup suggestions + a dated report note. Always proposes, never acts silently. |
+
+**Build / operate a vault:** `~/.claude/skills/duo/references/vault.md` ·
+**end-user walkthrough:** `docs/guide/vault-guide.html`.
