@@ -11,6 +11,13 @@ export type {
 
 export { walk, readNotes, parseFile, splitFrontmatter, extractWikilinks, SKIP_DIRS } from './parse'
 export { isVaultRoot, findVaultRoot, listVaults, resolveVault } from './detect'
+export {
+  readDefaultVault,
+  setDefaultVault,
+  clearDefaultVault,
+  resolveVaultOrDefault,
+  DEFAULT_VAULT_FILE,
+} from './default-vault'
 export { buildCorpus, loadTemplates, parseBaseYaml } from './corpus'
 export { backlinks, orphans, type Backlink } from './graph'
 export { search } from './search'

@@ -490,9 +490,9 @@ const VERBS: VerbSpec[] = [
   {
     name: 'vault',
     group: 'Vault',
-    args: '<init|list|schema|capture|search> [args]',
+    args: '<init|list|schema|capture|search|default> [args]',
     summary:
-      'Work-notes vault (a strict Obsidian vault). init <folder> [--force]: scaffold .obsidian/ + starter templates (person/initiative/milestone/meeting/theme, with D19 filing rules) + inbox/ + bases/processing.base + README. list: vaults detected from the cwd (JSON). schema [--vault p]: the live corpus — types/entities/aliases/props-per-type/observed-enums, a pure function over frontmatter (the vault IS the schema; never cached). capture [--template t] [--text "…"] [--title "…"] [--open]: drop a timestamped inbox note (untyped by default; --template stamps a type). search <query> [--vault p]: full-text hits (file, line, excerpt) — the CLI twin of ⌘⇧F.'
+      'Work-notes vault (a strict Obsidian vault). init <folder> [--force]: scaffold .obsidian/ + starter templates (person/initiative/milestone/meeting/theme, with D19 filing rules) + inbox/ + bases/processing.base + README. list: vaults detected from the cwd (JSON). schema [--vault p]: the live corpus — types/entities/aliases/props-per-type/observed-enums, a pure function over frontmatter (the vault IS the schema; never cached). capture [--template t] [--text "…"] [--title "…"] [--open]: drop a timestamped inbox note (untyped by default; --template stamps a type). search <query> [--vault p]: full-text hits (file, line, excerpt) — the CLI twin of ⌘⇧F. default [<path>|--clear]: read or set the default vault (Phase-2 D11; the CLI twin of the Settings field). Verbs resolve --vault → the enclosing vault → the default → error, so a set default lets them run from outside any vault.'
   },
   {
     name: 'graph',
@@ -2348,10 +2348,25 @@ async function main(): Promise<void> {
         } else if (sub === 'list') {
           // Vaults detected from the cwd (enclosing + nested).
           out(vault.listVaults(process.cwd()))
+        } else if (sub === 'default') {
+          // `duo vault default`        → print the current default (JSON)
+          // `duo vault default <path>` → set it (validates it's a vault)
+          // `duo vault default --clear` → unset it
+          if (subRest.includes('--clear')) {
+            vault.clearDefaultVault()
+            out({ defaultVault: null })
+          } else {
+            const target = positionalArgs(subRest, [])[0]
+            if (target) {
+              out({ defaultVault: vault.setDefaultVault(target) })
+            } else {
+              out({ defaultVault: vault.readDefaultVault() })
+            }
+          }
         } else if (sub === 'schema') {
-          out(vault.buildCorpus(vault.resolveVault(process.cwd(), vaultFlag)))
+          out(vault.buildCorpus(vault.resolveVaultOrDefault(process.cwd(), vaultFlag)))
         } else if (sub === 'capture') {
-          const root = vault.resolveVault(process.cwd(), vaultFlag)
+          const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
           const result = vault.captureNote(root, {
             template: flagValue(subRest, '--template'),
             text: flagValue(subRest, '--text'),
@@ -2371,15 +2386,16 @@ async function main(): Promise<void> {
         } else if (sub === 'search') {
           const query = positionalArgs(subRest, ['--vault'])[0]
           if (!query) die('Usage: duo vault search <query> [--vault <path>]')
-          out(vault.search(vault.resolveVault(process.cwd(), vaultFlag), query))
+          out(vault.search(vault.resolveVaultOrDefault(process.cwd(), vaultFlag), query))
         } else {
           die(
-            'Usage: duo vault <init|list|schema|capture|search> [args]\n' +
+            'Usage: duo vault <init|list|schema|capture|search|default> [args]\n' +
               '  init <folder> [--force]   scaffold a new vault\n' +
               '  list                      vaults detected from the cwd (JSON)\n' +
               '  schema [--vault p]        the L0 corpus (JSON)\n' +
               '  capture [--template t] [--text "…"] [--title "…"] [--open]   new inbox note\n' +
-              '  search <query>            full-text hits (JSON)',
+              '  search <query>            full-text hits (JSON)\n' +
+              '  default [<path>|--clear]  read / set the default vault',
           )
         }
         break
@@ -2391,9 +2407,9 @@ async function main(): Promise<void> {
         if (sub === 'backlinks') {
           const note = positionalArgs(subRest, ['--vault'])[0]
           if (!note) die('Usage: duo graph backlinks <note> [--vault <path>]')
-          out(vault.backlinks(vault.resolveVault(process.cwd(), vaultFlag), note))
+          out(vault.backlinks(vault.resolveVaultOrDefault(process.cwd(), vaultFlag), note))
         } else if (sub === 'orphans') {
-          out(vault.orphans(vault.resolveVault(process.cwd(), vaultFlag)))
+          out(vault.orphans(vault.resolveVaultOrDefault(process.cwd(), vaultFlag)))
         } else {
           die('Usage: duo graph <backlinks <note>|orphans> [--vault <path>]')
         }
@@ -2406,12 +2422,12 @@ async function main(): Promise<void> {
         if (sub === 'lint') {
           const target = positionalArgs(subRest, ['--vault'])[0] ?? (subRest.includes('--all') ? '--all' : undefined)
           if (!target) die('Usage: duo base lint <file|--all> [--vault <path>]')
-          const root = vault.resolveVault(process.cwd(), vaultFlag)
+          const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
           out(vault.lintVault(root, target))
         } else if (sub === 'render') {
           const target = positionalArgs(subRest, ['--vault', '--out'])[0]
           if (!target) die('Usage: duo base render <file|note> [--out <path>] [--open] [--vault <path>]')
-          const root = vault.resolveVault(process.cwd(), vaultFlag)
+          const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
           const result = vault.renderTarget(root, target)
           const outFlag = flagValue(subRest, '--out')
           const open = subRest.includes('--open')

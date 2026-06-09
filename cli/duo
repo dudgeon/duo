@@ -24,9 +24,9 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 
 // cli/duo.ts
 var net = __toESM(require("net"));
-var os2 = __toESM(require("os"));
-var path9 = __toESM(require("path"));
-var fs9 = __toESM(require("fs"));
+var os3 = __toESM(require("os"));
+var path10 = __toESM(require("path"));
+var fs10 = __toESM(require("fs"));
 var import_crypto = require("crypto");
 
 // core/vault/parse.ts
@@ -2775,24 +2775,72 @@ function resolveVault(cwd, explicit) {
   return root;
 }
 
-// core/vault/corpus.ts
+// core/vault/default-vault.ts
 var import_node_fs3 = __toESM(require("node:fs"));
 var import_node_path3 = __toESM(require("node:path"));
+var import_node_os = __toESM(require("node:os"));
+var DEFAULT_VAULT_FILE = import_node_path3.default.join(import_node_os.default.homedir(), ".claude", "duo", "vault.json");
+function readDefaultVault(filePath = DEFAULT_VAULT_FILE) {
+  let raw;
+  try {
+    raw = import_node_fs3.default.readFileSync(filePath, "utf8");
+  } catch {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    const p = typeof parsed.defaultVault === "string" ? parsed.defaultVault : null;
+    return p && isVaultRoot(p) ? p : null;
+  } catch {
+    return null;
+  }
+}
+function setDefaultVault(target, filePath = DEFAULT_VAULT_FILE) {
+  const abs = import_node_path3.default.resolve(target);
+  if (!isVaultRoot(abs)) {
+    throw new Error(`not a vault (no .obsidian/): ${abs}. Run \`duo vault init ${target}\` first.`);
+  }
+  import_node_fs3.default.mkdirSync(import_node_path3.default.dirname(filePath), { recursive: true });
+  const tmp = `${filePath}.${process.pid}.tmp`;
+  import_node_fs3.default.writeFileSync(tmp, JSON.stringify({ defaultVault: abs }, null, 2) + "\n");
+  import_node_fs3.default.renameSync(tmp, filePath);
+  return abs;
+}
+function clearDefaultVault(filePath = DEFAULT_VAULT_FILE) {
+  try {
+    import_node_fs3.default.unlinkSync(filePath);
+  } catch {
+  }
+}
+function resolveVaultOrDefault(cwd, explicit, filePath = DEFAULT_VAULT_FILE) {
+  if (explicit) return resolveVault(cwd, explicit);
+  const enclosing = findVaultRoot(cwd);
+  if (enclosing) return enclosing;
+  const def = readDefaultVault(filePath);
+  if (def) return def;
+  throw new Error(
+    `no vault found from ${cwd} (walked up for .obsidian/) and no default vault is set. Pass --vault <path>, set a default with \`duo vault default <path>\`, or run \`duo vault init <folder>\`.`
+  );
+}
+
+// core/vault/corpus.ts
+var import_node_fs4 = __toESM(require("node:fs"));
+var import_node_path4 = __toESM(require("node:path"));
 function loadTemplates(root) {
-  const dir = import_node_path3.default.join(root, "templates");
+  const dir = import_node_path4.default.join(root, "templates");
   let entries;
   try {
-    entries = import_node_fs3.default.readdirSync(dir).filter((f) => f.endsWith(".md"));
+    entries = import_node_fs4.default.readdirSync(dir).filter((f) => f.endsWith(".md"));
   } catch {
     return [];
   }
   const META_KEYS = /* @__PURE__ */ new Set(["type", "folder", "filingParent", "filingLoose", "folderNote"]);
   const out2 = [];
   for (const f of entries.sort()) {
-    const abs = import_node_path3.default.join(dir, f);
-    const raw = import_node_fs3.default.readFileSync(abs, "utf8");
+    const abs = import_node_path4.default.join(dir, f);
+    const raw = import_node_fs4.default.readFileSync(abs, "utf8");
     const { frontmatter, body } = splitFrontmatter(raw);
-    const type2 = typeof frontmatter.type === "string" ? frontmatter.type : import_node_path3.default.basename(f, ".md");
+    const type2 = typeof frontmatter.type === "string" ? frontmatter.type : import_node_path4.default.basename(f, ".md");
     const folder = typeof frontmatter.folder === "string" ? frontmatter.folder : null;
     const filingParent = typeof frontmatter.filingParent === "string" ? frontmatter.filingParent : null;
     const filingLoose = typeof frontmatter.filingLoose === "boolean" ? frontmatter.filingLoose : null;
@@ -2858,8 +2906,8 @@ function buildCorpus(root) {
 }
 
 // core/vault/graph.ts
-var import_node_fs4 = __toESM(require("node:fs"));
-var import_node_path4 = __toESM(require("node:path"));
+var import_node_fs5 = __toESM(require("node:fs"));
+var import_node_path5 = __toESM(require("node:path"));
 var WIKILINK_LINE_RE = /\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]/g;
 function targetBasename(target) {
   const t = target.trim();
@@ -2872,7 +2920,7 @@ function backlinks(root, noteName) {
   for (const abs of walk(root).filter((p) => p.endsWith(".md"))) {
     let raw;
     try {
-      raw = import_node_fs4.default.readFileSync(abs, "utf8");
+      raw = import_node_fs5.default.readFileSync(abs, "utf8");
     } catch {
       continue;
     }
@@ -2881,7 +2929,7 @@ function backlinks(root, noteName) {
       for (const m of lines[i].matchAll(WIKILINK_LINE_RE)) {
         if (targetBasename(m[1]) === target) {
           out2.push({
-            path: import_node_path4.default.relative(root, abs).split(import_node_path4.default.sep).join("/"),
+            path: import_node_path5.default.relative(root, abs).split(import_node_path5.default.sep).join("/"),
             absPath: abs,
             line: i + 1,
             excerpt: lines[i].trim()
@@ -2907,8 +2955,8 @@ function orphans(root) {
 }
 
 // core/vault/search.ts
-var import_node_fs5 = __toESM(require("node:fs"));
-var import_node_path5 = __toESM(require("node:path"));
+var import_node_fs6 = __toESM(require("node:fs"));
+var import_node_path6 = __toESM(require("node:path"));
 function search(root, query, limit = 200) {
   const needle = query.toLowerCase();
   if (!needle) return [];
@@ -2916,7 +2964,7 @@ function search(root, query, limit = 200) {
   for (const abs of walk(root).filter((p) => p.endsWith(".md")).sort()) {
     let raw;
     try {
-      raw = import_node_fs5.default.readFileSync(abs, "utf8");
+      raw = import_node_fs6.default.readFileSync(abs, "utf8");
     } catch {
       continue;
     }
@@ -2924,7 +2972,7 @@ function search(root, query, limit = 200) {
     for (let i = 0; i < lines.length; i++) {
       if (lines[i].toLowerCase().includes(needle)) {
         hits.push({
-          path: import_node_path5.default.relative(root, abs).split(import_node_path5.default.sep).join("/"),
+          path: import_node_path6.default.relative(root, abs).split(import_node_path6.default.sep).join("/"),
           absPath: abs,
           line: i + 1,
           excerpt: lines[i].trim().slice(0, 200)
@@ -2937,9 +2985,9 @@ function search(root, query, limit = 200) {
 }
 
 // core/vault/scaffold.ts
-var import_node_fs6 = __toESM(require("node:fs"));
-var import_node_path6 = __toESM(require("node:path"));
-var import_node_os = __toESM(require("node:os"));
+var import_node_fs7 = __toESM(require("node:fs"));
+var import_node_path7 = __toESM(require("node:path"));
+var import_node_os2 = __toESM(require("node:os"));
 var TB = "`".repeat(3);
 var APP_JSON = JSON.stringify({ promptDelete: false, alwaysUpdateLinks: true }, null, 2);
 var PERSON_TPL = ["---", "type: person", "folder: people", "role:", "team:", "aliases: []", "---", ""].join("\n");
@@ -3085,7 +3133,7 @@ function readmeText(name) {
   ].join("\n");
 }
 function initVault(folder, opts = {}) {
-  const root = import_node_path6.default.resolve(folder);
+  const root = import_node_path7.default.resolve(folder);
   if (isVaultRoot(root) && !opts.force) {
     throw new Error(
       `${root} is already a vault (has .obsidian/). Pass --force to (re)write the starter scaffold files \u2014 it overwrites edited starter templates / processing.base / README, but never touches your own notes.`
@@ -3094,17 +3142,17 @@ function initVault(folder, opts = {}) {
   const created = [];
   const warnings = [];
   const mkdir = (rel) => {
-    const abs = import_node_path6.default.join(root, rel);
-    if (!import_node_fs6.default.existsSync(abs)) {
-      import_node_fs6.default.mkdirSync(abs, { recursive: true });
+    const abs = import_node_path7.default.join(root, rel);
+    if (!import_node_fs7.default.existsSync(abs)) {
+      import_node_fs7.default.mkdirSync(abs, { recursive: true });
       created.push(rel + "/");
     }
   };
   const writeFile = (rel, content) => {
-    const abs = import_node_path6.default.join(root, rel);
-    if (import_node_fs6.default.existsSync(abs) && !opts.force) return;
-    import_node_fs6.default.mkdirSync(import_node_path6.default.dirname(abs), { recursive: true });
-    import_node_fs6.default.writeFileSync(abs, content);
+    const abs = import_node_path7.default.join(root, rel);
+    if (import_node_fs7.default.existsSync(abs) && !opts.force) return;
+    import_node_fs7.default.mkdirSync(import_node_path7.default.dirname(abs), { recursive: true });
+    import_node_fs7.default.writeFileSync(abs, content);
     created.push(rel);
   };
   for (const d of [".obsidian", "templates", "inbox", "people", "themes", "initiatives", "notes", "bases", "out"]) mkdir(d);
@@ -3115,9 +3163,9 @@ function initVault(folder, opts = {}) {
   writeFile("templates/milestone.md", MILESTONE_TPL);
   writeFile("templates/meeting.md", MEETING_TPL);
   writeFile("bases/processing.base", PROCESSING_BASE);
-  writeFile("README.md", readmeText(import_node_path6.default.basename(root)));
-  const docs = import_node_path6.default.join(import_node_os.default.homedir(), "Documents");
-  if (root === docs || root.startsWith(docs + import_node_path6.default.sep)) {
+  writeFile("README.md", readmeText(import_node_path7.default.basename(root)));
+  const docs = import_node_path7.default.join(import_node_os2.default.homedir(), "Documents");
+  if (root === docs || root.startsWith(docs + import_node_path7.default.sep)) {
     warnings.push(
       'This vault is under ~/Documents. If iCloud Drive "Optimize Mac Storage" is ON, macOS can evict note bytes to cloud-only under disk pressure. Consider a non-iCloud location, or disable Optimize Storage for reliable local access.'
     );
@@ -3135,11 +3183,11 @@ function captureNote(root, opts = {}) {
   const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
   const titlePart = opts.title ? " " + slugify(opts.title) : "";
   const base = `${stamp}${titlePart}`;
-  let rel = import_node_path6.default.join("inbox", `${base}.md`);
-  for (let n = 2; import_node_fs6.default.existsSync(import_node_path6.default.join(root, rel)); n++) {
-    rel = import_node_path6.default.join("inbox", `${base} ${n}.md`);
+  let rel = import_node_path7.default.join("inbox", `${base}.md`);
+  for (let n = 2; import_node_fs7.default.existsSync(import_node_path7.default.join(root, rel)); n++) {
+    rel = import_node_path7.default.join("inbox", `${base} ${n}.md`);
   }
-  const abs = import_node_path6.default.join(root, rel);
+  const abs = import_node_path7.default.join(root, rel);
   const fmLines = ["---", `captured: ${now.toISOString().slice(0, 10)}`];
   let type2 = null;
   if (opts.template) {
@@ -3157,14 +3205,14 @@ function captureNote(root, opts = {}) {
   }
   fmLines.push("---", "");
   const body = opts.text ? opts.text + "\n" : "";
-  import_node_fs6.default.mkdirSync(import_node_path6.default.dirname(abs), { recursive: true });
-  import_node_fs6.default.writeFileSync(abs, fmLines.join("\n") + "\n" + body);
+  import_node_fs7.default.mkdirSync(import_node_path7.default.dirname(abs), { recursive: true });
+  import_node_fs7.default.writeFileSync(abs, fmLines.join("\n") + "\n" + body);
   return { path: rel, absPath: abs, type: type2 };
 }
 
 // core/vault/render.ts
-var import_node_fs7 = __toESM(require("node:fs"));
-var import_node_path7 = __toESM(require("node:path"));
+var import_node_fs8 = __toESM(require("node:fs"));
+var import_node_path8 = __toESM(require("node:path"));
 var import_node_crypto = __toESM(require("node:crypto"));
 
 // core/vault/engine.ts
@@ -3611,17 +3659,17 @@ function sourceHash(root) {
     const dir = stack.pop();
     let entries;
     try {
-      entries = import_node_fs7.default.readdirSync(dir, { withFileTypes: true });
+      entries = import_node_fs8.default.readdirSync(dir, { withFileTypes: true });
     } catch {
       continue;
     }
     for (const e of entries) {
-      const full = import_node_path7.default.join(dir, e.name);
+      const full = import_node_path8.default.join(dir, e.name);
       if (e.isDirectory()) {
         if (!SKIP.has(e.name)) stack.push(full);
       } else if (e.name.endsWith(".md") || e.name.endsWith(".base")) {
         try {
-          all.push(import_node_fs7.default.readFileSync(full, "utf8"));
+          all.push(import_node_fs8.default.readFileSync(full, "utf8"));
         } catch {
         }
       }
@@ -3647,16 +3695,16 @@ function renderTarget(root, target, opts = {}) {
   const byName = new Map(files.map((f) => [f.name, f]));
   const bases = [];
   const sections = [];
-  const abs = import_node_path7.default.isAbsolute(target) ? target : import_node_path7.default.resolve(root, target);
+  const abs = import_node_path8.default.isAbsolute(target) ? target : import_node_path8.default.resolve(root, target);
   if (target.endsWith(".base")) {
-    const def = load(import_node_fs7.default.readFileSync(abs, "utf8"));
-    const label = import_node_path7.default.relative(root, abs).split(import_node_path7.default.sep).join("/");
+    const def = load(import_node_fs8.default.readFileSync(abs, "utf8"));
+    const label = import_node_path8.default.relative(root, abs).split(import_node_path8.default.sep).join("/");
     const evaluated = evaluateBaseDef(def, files, null, asOf);
     bases.push({ label, evaluated, thisFile: null });
     sections.push(renderBaseSection(evaluated, null, label, asOf));
   } else {
     let note;
-    if (import_node_fs7.default.existsSync(abs) && abs.endsWith(".md")) note = parseFile(abs, root);
+    if (import_node_fs8.default.existsSync(abs) && abs.endsWith(".md")) note = parseFile(abs, root);
     else note = notes.find((n) => n.basename === target.replace(/\.md$/, ""));
     if (!note) throw new Error(`render target not found: ${target} (expected a .base file or a note path/name)`);
     const thisFile = byName.get(note.basename) ?? null;
@@ -3742,8 +3790,8 @@ here. Re-render to refresh; the source hash above detects staleness.</footer>
 }
 
 // core/vault/lint.ts
-var import_node_fs8 = __toESM(require("node:fs"));
-var import_node_path8 = __toESM(require("node:path"));
+var import_node_fs9 = __toESM(require("node:fs"));
+var import_node_path9 = __toESM(require("node:path"));
 function lev(a, b) {
   const m = a.length;
   const n = b.length;
@@ -3894,10 +3942,10 @@ function lintVault(root, target) {
   const corpus = buildCorpus(root);
   const results = [];
   const lintBaseFile = (abs) => {
-    const rel = import_node_path8.default.relative(root, abs).split(import_node_path8.default.sep).join("/");
+    const rel = import_node_path9.default.relative(root, abs).split(import_node_path9.default.sep).join("/");
     let def;
     try {
-      def = load(import_node_fs8.default.readFileSync(abs, "utf8"));
+      def = load(import_node_fs9.default.readFileSync(abs, "utf8"));
     } catch (e) {
       results.push({ source: rel, findings: [], parseError: e instanceof Error ? e.message : String(e) });
       return;
@@ -3922,12 +3970,12 @@ function lintVault(root, target) {
     for (const abs of walk(root).filter((p) => p.endsWith(".base")).sort()) lintBaseFile(abs);
     for (const note of readNotes(root)) lintNoteEmbeds(note.relPath, note.basename, note.body);
   } else {
-    const abs = import_node_path8.default.isAbsolute(target) ? target : import_node_path8.default.resolve(root, target);
+    const abs = import_node_path9.default.isAbsolute(target) ? target : import_node_path9.default.resolve(root, target);
     if (target.endsWith(".base")) {
       lintBaseFile(abs);
     } else {
       const notes = readNotes(root);
-      const note = import_node_fs8.default.existsSync(abs) && abs.endsWith(".md") ? notes.find((n) => n.absPath === abs) : notes.find((n) => n.basename === target.replace(/\.md$/, ""));
+      const note = import_node_fs9.default.existsSync(abs) && abs.endsWith(".md") ? notes.find((n) => n.absPath === abs) : notes.find((n) => n.basename === target.replace(/\.md$/, ""));
       if (!note) throw new Error(`lint target not found: ${target} (expected --all, a .base file, or a note path/name)`);
       lintNoteEmbeds(note.relPath, note.basename, note.body);
     }
@@ -4349,8 +4397,8 @@ var VERBS = [
   {
     name: "vault",
     group: "Vault",
-    args: "<init|list|schema|capture|search> [args]",
-    summary: 'Work-notes vault (a strict Obsidian vault). init <folder> [--force]: scaffold .obsidian/ + starter templates (person/initiative/milestone/meeting/theme, with D19 filing rules) + inbox/ + bases/processing.base + README. list: vaults detected from the cwd (JSON). schema [--vault p]: the live corpus \u2014 types/entities/aliases/props-per-type/observed-enums, a pure function over frontmatter (the vault IS the schema; never cached). capture [--template t] [--text "\u2026"] [--title "\u2026"] [--open]: drop a timestamped inbox note (untyped by default; --template stamps a type). search <query> [--vault p]: full-text hits (file, line, excerpt) \u2014 the CLI twin of \u2318\u21E7F.'
+    args: "<init|list|schema|capture|search|default> [args]",
+    summary: 'Work-notes vault (a strict Obsidian vault). init <folder> [--force]: scaffold .obsidian/ + starter templates (person/initiative/milestone/meeting/theme, with D19 filing rules) + inbox/ + bases/processing.base + README. list: vaults detected from the cwd (JSON). schema [--vault p]: the live corpus \u2014 types/entities/aliases/props-per-type/observed-enums, a pure function over frontmatter (the vault IS the schema; never cached). capture [--template t] [--text "\u2026"] [--title "\u2026"] [--open]: drop a timestamped inbox note (untyped by default; --template stamps a type). search <query> [--vault p]: full-text hits (file, line, excerpt) \u2014 the CLI twin of \u2318\u21E7F. default [<path>|--clear]: read or set the default vault (Phase-2 D11; the CLI twin of the Settings field). Verbs resolve --vault \u2192 the enclosing vault \u2192 the default \u2192 error, so a set default lets them run from outside any vault.'
   },
   {
     name: "graph",
@@ -4365,8 +4413,8 @@ var VERBS = [
     summary: "Obsidian Bases rollups. lint <file|--all> [--vault p]: validate a .base file (or a note's embedded ```base blocks, or every base with --all) against the live corpus \u2014 bad types / unresolved [[entities]] / off-enum values / unknown functions, each with a \"did you mean\" (JSON; warn-and-render, never blocks). render <file|note> [--out p] [--open]: evaluate filters/formulas over live frontmatter and emit a stamped Duo-owned HTML artifact (generated-at \xB7 source-hash \xB7 as-of). Default writes to the vault's out/; --out writes elsewhere; --open also opens it as a tab in the running app."
   }
 ];
-var SOCKET_PATH = process.env.DUO_SOCKET ?? path9.join(os2.homedir(), "Library", "Application Support", "duo", "duo.sock");
-var PORT_FILE = process.env.DUO_PORT_FILE ?? path9.join(os2.homedir(), "Library", "Application Support", "duo", "duo.port");
+var SOCKET_PATH = process.env.DUO_SOCKET ?? path10.join(os3.homedir(), "Library", "Application Support", "duo", "duo.sock");
+var PORT_FILE = process.env.DUO_PORT_FILE ?? path10.join(os3.homedir(), "Library", "Application Support", "duo", "duo.port");
 var windowOverride;
 function resolveWindowId() {
   if (windowOverride != null) return windowOverride;
@@ -4383,7 +4431,7 @@ var PER_CMD_TIMEOUT_MS = {
 };
 function readPortFile() {
   try {
-    const raw = fs9.readFileSync(PORT_FILE, "utf8");
+    const raw = fs10.readFileSync(PORT_FILE, "utf8");
     const parsed = JSON.parse(raw);
     if (typeof parsed.port === "number" && typeof parsed.token === "string") {
       return { port: parsed.port, token: parsed.token };
@@ -4449,7 +4497,7 @@ var FALLBACK_CONNECT_CODES = /* @__PURE__ */ new Set([
 ]);
 async function send(cmd, args = {}, opts = {}) {
   const timeoutMs = opts.timeoutMs ?? PER_CMD_TIMEOUT_MS[cmd] ?? TIMEOUT_MS;
-  if (process.env.DUO_TCP_ONLY !== "1" && fs9.existsSync(SOCKET_PATH)) {
+  if (process.env.DUO_TCP_ONLY !== "1" && fs10.existsSync(SOCKET_PATH)) {
     try {
       return await sendOver(
         () => ({ socket: net.createConnection(SOCKET_PATH) }),
@@ -4464,7 +4512,7 @@ async function send(cmd, args = {}, opts = {}) {
   }
   const portInfo = readPortFile();
   if (!portInfo) {
-    if (!fs9.existsSync(SOCKET_PATH)) {
+    if (!fs10.existsSync(SOCKET_PATH)) {
       die("Cannot connect: Duo app is not running.\nLaunch Duo.app first.");
     }
     die("Cannot connect: Unix socket failed and no TCP fallback available.\nRun `duo doctor` for details.");
@@ -4481,7 +4529,7 @@ async function send(cmd, args = {}, opts = {}) {
 }
 function sendStreamed(cmd, args, onAck, onEvent) {
   const factory = () => {
-    if (process.env.DUO_TCP_ONLY !== "1" && fs9.existsSync(SOCKET_PATH)) {
+    if (process.env.DUO_TCP_ONLY !== "1" && fs10.existsSync(SOCKET_PATH)) {
       return { socket: net.createConnection(SOCKET_PATH) };
     }
     const portInfo = readPortFile();
@@ -4785,8 +4833,8 @@ async function main() {
         const selector = selectorIdx !== -1 ? rest[selectorIdx + 1] : void 0;
         const b64 = await send("screenshot", { selector });
         if (outputPath) {
-          const abs = path9.resolve(outputPath);
-          fs9.writeFileSync(abs, Buffer.from(b64, "base64"));
+          const abs = path10.resolve(outputPath);
+          fs10.writeFileSync(abs, Buffer.from(b64, "base64"));
           out(`Saved to ${abs}`);
         } else {
           out(b64);
@@ -5001,7 +5049,7 @@ To confirm, re-run:
         if (sub === "open") {
           const p = rest[1];
           if (!p) die("Usage: duo split-view open <path>");
-          const resolved = path9.isAbsolute(p) ? p : path9.resolve(process.cwd(), p);
+          const resolved = path10.isAbsolute(p) ? p : path10.resolve(process.cwd(), p);
           out(await send("split-view", { op: "open", path: resolved }));
           break;
         }
@@ -5141,9 +5189,9 @@ To confirm, re-run:
           if (caseSensitive) payload["case-sensitive"] = true;
           out(await send("doc-find", payload));
         } else if (sub === "conflict-log") {
-          const logPath = path9.join(os2.homedir(), ".claude", "duo", "logs", "last-conflict.log");
+          const logPath = path10.join(os3.homedir(), ".claude", "duo", "logs", "last-conflict.log");
           try {
-            const raw = fs9.readFileSync(logPath, "utf8");
+            const raw = fs10.readFileSync(logPath, "utf8");
             process.stdout.write(raw);
             if (!raw.endsWith("\n")) process.stdout.write("\n");
           } catch (err) {
@@ -5544,7 +5592,7 @@ To confirm, re-run:
           const resolvedPatch = resolveFilePath(patchPath);
           let mergeJson;
           try {
-            mergeJson = fs9.readFileSync(resolvedPatch, "utf8");
+            mergeJson = fs10.readFileSync(resolvedPatch, "utf8");
           } catch (err) {
             die(`Could not read patch file ${resolvedPatch}: ${err?.message ?? err}`);
           }
@@ -5633,18 +5681,18 @@ To confirm, re-run:
         }
         if (sub === "save") {
           const subRest = rest.slice(1);
-          const path10 = subRest.find((a) => !a.startsWith("-"));
+          const path11 = subRest.find((a) => !a.startsWith("-"));
           const name = flagValue(subRest, "--name");
           const saveAs = subRest.includes("--save-as");
           const payload = { op: "save" };
-          if (path10) payload.path = path10;
+          if (path11) payload.path = path11;
           if (name) payload.name = name;
           if (saveAs) payload["save-as"] = true;
           out(await send("workspace", payload));
         } else if (sub === "open") {
-          const path10 = rest[1];
-          if (!path10) die("Usage: duo workspace open <path>");
-          out(await send("workspace", { op: "open", path: path10 }));
+          const path11 = rest[1];
+          if (!path11) die("Usage: duo workspace open <path>");
+          out(await send("workspace", { op: "open", path: path11 }));
         } else if (sub === "list-recent") {
           out(await send("workspace", { op: "list-recent" }));
         } else if (sub === "current") {
@@ -5714,16 +5762,28 @@ To confirm, re-run:
         if (sub === "init") {
           const folder = positionalArgs(subRest, [])[0];
           if (!folder) die("Usage: duo vault init <folder> [--force]");
-          const result = initVault(path9.resolve(process.cwd(), folder), { force: subRest.includes("--force") });
+          const result = initVault(path10.resolve(process.cwd(), folder), { force: subRest.includes("--force") });
           for (const w of result.warnings) process.stderr.write(`duo: warning \u2014 ${w}
 `);
           out(result);
         } else if (sub === "list") {
           out(listVaults(process.cwd()));
+        } else if (sub === "default") {
+          if (subRest.includes("--clear")) {
+            clearDefaultVault();
+            out({ defaultVault: null });
+          } else {
+            const target = positionalArgs(subRest, [])[0];
+            if (target) {
+              out({ defaultVault: setDefaultVault(target) });
+            } else {
+              out({ defaultVault: readDefaultVault() });
+            }
+          }
         } else if (sub === "schema") {
-          out(buildCorpus(resolveVault(process.cwd(), vaultFlag)));
+          out(buildCorpus(resolveVaultOrDefault(process.cwd(), vaultFlag)));
         } else if (sub === "capture") {
-          const root = resolveVault(process.cwd(), vaultFlag);
+          const root = resolveVaultOrDefault(process.cwd(), vaultFlag);
           const result = captureNote(root, {
             template: flagValue(subRest, "--template"),
             text: flagValue(subRest, "--text"),
@@ -5743,10 +5803,10 @@ To confirm, re-run:
         } else if (sub === "search") {
           const query = positionalArgs(subRest, ["--vault"])[0];
           if (!query) die("Usage: duo vault search <query> [--vault <path>]");
-          out(search(resolveVault(process.cwd(), vaultFlag), query));
+          out(search(resolveVaultOrDefault(process.cwd(), vaultFlag), query));
         } else {
           die(
-            'Usage: duo vault <init|list|schema|capture|search> [args]\n  init <folder> [--force]   scaffold a new vault\n  list                      vaults detected from the cwd (JSON)\n  schema [--vault p]        the L0 corpus (JSON)\n  capture [--template t] [--text "\u2026"] [--title "\u2026"] [--open]   new inbox note\n  search <query>            full-text hits (JSON)'
+            'Usage: duo vault <init|list|schema|capture|search|default> [args]\n  init <folder> [--force]   scaffold a new vault\n  list                      vaults detected from the cwd (JSON)\n  schema [--vault p]        the L0 corpus (JSON)\n  capture [--template t] [--text "\u2026"] [--title "\u2026"] [--open]   new inbox note\n  search <query>            full-text hits (JSON)\n  default [<path>|--clear]  read / set the default vault'
           );
         }
         break;
@@ -5758,9 +5818,9 @@ To confirm, re-run:
         if (sub === "backlinks") {
           const note = positionalArgs(subRest, ["--vault"])[0];
           if (!note) die("Usage: duo graph backlinks <note> [--vault <path>]");
-          out(backlinks(resolveVault(process.cwd(), vaultFlag), note));
+          out(backlinks(resolveVaultOrDefault(process.cwd(), vaultFlag), note));
         } else if (sub === "orphans") {
-          out(orphans(resolveVault(process.cwd(), vaultFlag)));
+          out(orphans(resolveVaultOrDefault(process.cwd(), vaultFlag)));
         } else {
           die("Usage: duo graph <backlinks <note>|orphans> [--vault <path>]");
         }
@@ -5773,22 +5833,22 @@ To confirm, re-run:
         if (sub === "lint") {
           const target = positionalArgs(subRest, ["--vault"])[0] ?? (subRest.includes("--all") ? "--all" : void 0);
           if (!target) die("Usage: duo base lint <file|--all> [--vault <path>]");
-          const root = resolveVault(process.cwd(), vaultFlag);
+          const root = resolveVaultOrDefault(process.cwd(), vaultFlag);
           out(lintVault(root, target));
         } else if (sub === "render") {
           const target = positionalArgs(subRest, ["--vault", "--out"])[0];
           if (!target) die("Usage: duo base render <file|note> [--out <path>] [--open] [--vault <path>]");
-          const root = resolveVault(process.cwd(), vaultFlag);
+          const root = resolveVaultOrDefault(process.cwd(), vaultFlag);
           const result = renderTarget(root, target);
           const outFlag = flagValue(subRest, "--out");
           const open = subRest.includes("--open");
-          const stem = path9.basename(target).replace(/\.(base|md)$/i, "") || "rollup";
+          const stem = path10.basename(target).replace(/\.(base|md)$/i, "") || "rollup";
           let outPath;
-          if (outFlag) outPath = path9.resolve(process.cwd(), outFlag);
-          else if (open) outPath = path9.join(os2.tmpdir(), `duo-rollup-${stem}-${Date.now()}.html`);
-          else outPath = path9.join(root, "out", `${stem}.html`);
-          fs9.mkdirSync(path9.dirname(outPath), { recursive: true });
-          fs9.writeFileSync(outPath, result.html);
+          if (outFlag) outPath = path10.resolve(process.cwd(), outFlag);
+          else if (open) outPath = path10.join(os3.tmpdir(), `duo-rollup-${stem}-${Date.now()}.html`);
+          else outPath = path10.join(root, "out", `${stem}.html`);
+          fs10.mkdirSync(path10.dirname(outPath), { recursive: true });
+          fs10.writeFileSync(outPath, result.html);
           let opened = null;
           if (open) {
             try {
@@ -5839,41 +5899,41 @@ function readStdin() {
 }
 function resolveFilePath(input) {
   if (input.startsWith("~/") || input === "~") {
-    return path9.resolve(input.replace(/^~/, os2.homedir()));
+    return path10.resolve(input.replace(/^~/, os3.homedir()));
   }
-  if (path9.isAbsolute(input)) return input;
-  return path9.resolve(process.cwd(), input);
+  if (path10.isAbsolute(input)) return input;
+  return path10.resolve(process.cwd(), input);
 }
 function resolveOpenTarget(target) {
   if (/^[a-z][a-z0-9+.-]*:/i.test(target)) return target;
   let absolute;
   if (target.startsWith("~/") || target === "~") {
-    absolute = path9.resolve(target.replace(/^~/, os2.homedir()));
+    absolute = path10.resolve(target.replace(/^~/, os3.homedir()));
   } else {
-    absolute = path9.resolve(process.cwd(), target);
+    absolute = path10.resolve(process.cwd(), target);
   }
   const encoded = absolute.split("/").map((seg) => encodeURIComponent(seg).replace(/%2F/g, "/")).join("/");
   return "file://" + encoded;
 }
 function runInstall(opts = {}) {
-  const self = fs9.realpathSync(process.argv[1]);
+  const self = fs10.realpathSync(process.argv[1]);
   const targets = [];
   if (opts.system) {
     targets.push("/usr/local/bin/duo");
   } else {
-    targets.push(path9.join(os2.homedir(), ".claude", "duo", "bin", "duo"));
-    targets.push(path9.join(os2.homedir(), ".local", "bin", "duo"));
+    targets.push(path10.join(os3.homedir(), ".claude", "duo", "bin", "duo"));
+    targets.push(path10.join(os3.homedir(), ".local", "bin", "duo"));
   }
   for (const target of targets) {
     try {
-      fs9.mkdirSync(path9.dirname(target), { recursive: true });
+      fs10.mkdirSync(path10.dirname(target), { recursive: true });
       try {
-        fs9.unlinkSync(target);
+        fs10.unlinkSync(target);
       } catch {
       }
-      fs9.symlinkSync(self, target);
+      fs10.symlinkSync(self, target);
       out(`Installed: ${target} \u2192 ${self}`);
-      const dir = path9.dirname(target);
+      const dir = path10.dirname(target);
       const userPath = (process.env.PATH ?? "").split(":");
       if (!userPath.includes(dir)) {
         out("");
@@ -5899,7 +5959,7 @@ async function runDoctor() {
   let unixErr = null;
   let appVersion = null;
   let windowCount = null;
-  if (fs9.existsSync(SOCKET_PATH)) {
+  if (fs10.existsSync(SOCKET_PATH)) {
     try {
       const res = await probe(() => ({ socket: net.createConnection(SOCKET_PATH) }));
       unixOk = true;
@@ -5966,25 +6026,25 @@ async function runDoctor() {
   const cliPath = process.argv[1];
   let cliReal = null;
   try {
-    cliReal = fs9.realpathSync(cliPath);
+    cliReal = fs10.realpathSync(cliPath);
   } catch {
   }
   lines.push(`  CLI invoked as: ${cliPath}${cliReal && cliReal !== cliPath ? ` \u2192 ${cliReal}` : ""}`);
   const knownInstallTargets = [
     // ENH-141 — SHIM_DIR (auto-prepended to PTY $PATH; primary target).
-    path9.join(os2.homedir(), ".claude", "duo", "bin", "duo"),
+    path10.join(os3.homedir(), ".claude", "duo", "bin", "duo"),
     // Pre-ENH-141 sandbox-writable target (still listed for diagnosing
     // stale installs — the dir was never on PATH so the symlink was
     // effectively dead).
-    path9.join(os2.homedir(), ".claude", "bin", "duo"),
-    path9.join(os2.homedir(), ".local", "bin", "duo"),
+    path10.join(os3.homedir(), ".claude", "bin", "duo"),
+    path10.join(os3.homedir(), ".local", "bin", "duo"),
     "/usr/local/bin/duo"
   ];
   for (const t of knownInstallTargets) {
-    if (!fs9.existsSync(t)) continue;
+    if (!fs10.existsSync(t)) continue;
     let real = null;
     try {
-      real = fs9.realpathSync(t);
+      real = fs10.realpathSync(t);
     } catch {
     }
     const matches = real && cliReal && real === cliReal;
@@ -5992,10 +6052,10 @@ async function runDoctor() {
   }
   lines.push("");
   lines.push("Skill");
-  const skillFile = path9.join(os2.homedir(), ".claude", "skills", "duo", "SKILL.md");
-  const agentFile = path9.join(os2.homedir(), ".claude", "agents", "duo.md");
-  lines.push(`  ${fs9.existsSync(skillFile) ? "\u2713" : "\u2717"} ${skillFile}`);
-  lines.push(`  ${fs9.existsSync(agentFile) ? "\u2713" : "\u2717"} ${agentFile}`);
+  const skillFile = path10.join(os3.homedir(), ".claude", "skills", "duo", "SKILL.md");
+  const agentFile = path10.join(os3.homedir(), ".claude", "agents", "duo.md");
+  lines.push(`  ${fs10.existsSync(skillFile) ? "\u2713" : "\u2717"} ${skillFile}`);
+  lines.push(`  ${fs10.existsSync(agentFile) ? "\u2713" : "\u2717"} ${agentFile}`);
   lines.push("");
   lines.push("Locale");
   const localeVars = ["LC_ALL", "LC_CTYPE", "LANG"];

@@ -209,14 +209,17 @@ shared with the renderer in Phase 3).
 | `duo vault list` | Vaults detected from the cwd (enclosing + nested) | JSON `[{root, name, noteCount}]` |
 | `duo vault schema [--vault p]` | The L0 corpus — types/entities/aliases/props-per-type/observed-enums/templates; a live function over frontmatter, never cached (no-sidecar) | JSON `Corpus` |
 | `duo vault capture [--template t] [--text …] [--title …] [--open]` | Timestamped inbox note (D6); untyped by default, `--template` stamps a type | JSON `{path, absPath, type}` |
+| `duo vault default [<path>\|--clear]` | Read/set the default vault (D11 — CLI twin of the Phase-2 Settings field; `~/.claude/duo/vault.json`). Vault verbs resolve `--vault` → enclosing → default → error | JSON `{defaultVault}` |
 | `duo vault search <query> [--vault p]` | Case-insensitive full-text search (CLI twin of ⌘⇧F, D22) | JSON `[{path, absPath, line, excerpt}]` |
 | `duo graph backlinks <note> [--vault p]` | Notes linking to `<note>` (basename-resolved, scans frontmatter + body) | JSON `[{path, absPath, line, excerpt}]` |
 | `duo graph orphans [--vault p]` | Notes with no inbound and no outbound links (a processing work-list) | JSON `string[]` |
 | `duo base lint <file\|--all> [--vault p]` | Validate a base against the corpus (bad types / unresolved `[[entities]]` / off-enum / unknown fns), each with a "did you mean"; advisory, never blocks (D15) | JSON `[{source, findings[]}]` |
 | `duo base render <file\|note> [--out p] [--open]` | Evaluate filters/formulas over live frontmatter → a stamped Duo-owned HTML artifact (D13/D16); `--open` surfaces it as a tab | JSON `{path, sourceHash, bases[]}` |
 
-Phase 2 adds `duo vault default` (the settings default-vault CLI twin)
-+ the capture chord (⇧⌘N), `@today` smart tokens, and ⌘⇧F vault search.
+`duo vault default` ships the Phase-2 default-vault CLI twin (the storage +
+verb fallback; the Settings picker UI is the matching renderer work). Still
+to land in Phase 2: the capture chord (⇧⌘N), `@today` smart tokens, the
+⌘⇧F vault-search palette, and the silent-stub type-picker — all renderer UI.
 
 ---
 
