@@ -33,7 +33,10 @@ export function findVaultRoot(startPath: string): string | null {
   }
 }
 
-const SCAN_SKIP = new Set(['node_modules', '.git', '.obsidian', '.trash', 'out'])
+// `templates` is excluded so `vault list`'s noteCount matches what the
+// corpus / search / graph count as entities (D5 query-exclusion) — the
+// PR1 review flagged the prior inconsistency.
+const SCAN_SKIP = new Set(['node_modules', '.git', '.obsidian', '.trash', 'out', 'templates'])
 
 /** Count markdown notes under a vault root (cheap size signal). */
 function countNotes(root: string): number {

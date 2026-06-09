@@ -278,6 +278,8 @@ empty.
 | `duo vault search <query> [--vault <path>]` | Full-text search over the vault (CLI twin of ⌘⇧F). JSON `[{path, absPath, line, excerpt}]`. |
 | `duo graph backlinks <note> [--vault <path>]` | Notes linking to `<note>` (basename-resolved; scans frontmatter + body). JSON `[{path, absPath, line, excerpt}]`. |
 | `duo graph orphans [--vault <path>]` | Notes with no inbound and no outbound links (a processing work-list). JSON `string[]`. |
+| `duo base lint <file\|--all> [--vault <path>]` | Validate a `.base` (or a note's embedded ` ```base ` blocks, or all with `--all`) against the corpus — bad types, unresolved `[[entities]]`, off-enum values, unknown functions/view-types, each with a "did you mean". Advisory, never blocks (D15). JSON `[{source, findings:[{severity, message, suggestion?}]}]`. |
+| `duo base render <file\|note> [--out p] [--open] [--vault <path>]` | Evaluate filters/formulas over live frontmatter → a stamped Duo-owned HTML artifact (generated-at · source-hash · as-of). A note renders its embedded ` ```base ` blocks with `this` = the note. Default writes to `out/`; `--open` opens it as a tab. JSON `{path, sourceHash, bases:[{label, views:[{name, rows}]}]}`. |
 
 For deeper detail, the Duo skill at `~/.claude/skills/duo/` is the
 source of truth — fetch sections from it rather than guessing:

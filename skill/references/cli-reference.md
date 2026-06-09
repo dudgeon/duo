@@ -207,6 +207,10 @@ A **vault** is a folder containing `.obsidian/` (a strict Obsidian vault: markdo
 | `duo vault search <query> [--vault <path>]` | Case-insensitive full-text search over the vault's notes (the CLI twin of the ⌘⇧F palette). | JSON: `[{ path, absPath, line, excerpt }]` |
 | `duo graph backlinks <note> [--vault <path>]` | Every occurrence that wikilinks to `<note>` (matched by basename, so links survive file moves), scanning frontmatter relationships as well as body links. | JSON: `[{ path, absPath, line, excerpt }]` |
 | `duo graph orphans [--vault <path>]` | Notes with no inbound **and** no outbound links — a processing work-list to link or archive. | JSON: `string[]` (rel paths) |
+| `duo base lint <file\|--all> [--vault <path>]` | Validate a `.base` file (or a note's embedded ` ```base ` blocks, or every base with `--all`) against the live corpus — bad types, unresolved `[[entities]]`, off-enum values, unknown functions, unknown view types, each with a Levenshtein "did you mean". **Warn-and-render (D15): advisory, never blocks.** | JSON: `[{ source, embeddedIn?, findings:[{severity, message, suggestion?}], parseError? }]` |
+| `duo base render <file\|note> [--out <path>] [--open] [--vault <path>]` | Evaluate a base's filters/formulas over live frontmatter and emit a **Duo-owned** HTML artifact, stamped with generated-at · source-hash · as-of date (D13/D16). A `.base` file renders vault-wide; a note renders its embedded ` ```base ` blocks with `this` = the note (the one-template rollup). Default writes to the vault's `out/`; `--out` writes elsewhere; `--open` also opens it as a tab in the running app (the one vault verb that reaches the app — fails gracefully when Duo isn't running). | JSON `{ path, sourceHash, generatedAt, asOf, bases:[{label, views:[{name, type, rows}]}] }` |
+
+The rollup authoring loop: describe the view in prose → derive the corpus (`duo vault schema`) → write the `.base` (vault-wide → `bases/`; per-entity → an embedded block in the **type template** with `… == this`, so every entity inherits it) → `duo base lint` until clean → `duo base render --open`.
 
 ---
 
