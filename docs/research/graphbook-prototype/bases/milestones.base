@@ -1,0 +1,48 @@
+filters:
+  and:
+    - type == "milestone"
+    - not:
+        - file.inFolder("templates")
+formulas:
+  # html() chip — the styled-output edge. Lucide icons via icon() are the
+  # conservative alternative shown in formula.mark below.
+  chip: |-
+    if(status == "blocked", html("<span style='background:#b13e3a;color:white;padding:1px 8px;border-radius:9px;font-size:11px'>blocked</span>"), if(status == "done", html("<span style='background:#9a9080;color:white;padding:1px 8px;border-radius:9px;font-size:11px'>done</span>"), html("<span style='background:#4a7d3e;color:white;padding:1px 8px;border-radius:9px;font-size:11px'>on-track</span>")))
+  mark: |-
+    if(status == "blocked", icon("octagon-x"), if(status == "done", icon("check"), icon("circle-dot")))
+  # Numeric date math edge probe: date - date yields milliseconds per the docs.
+  days_left: |-
+    if(due, ((due - today()) / 86400000).round(0), null)
+  when: 'if(due, due.relative(), "— no due date —")'
+views:
+  - type: table
+    name: All milestones
+    groupBy:
+      property: note.initiative
+      direction: ASC
+    order:
+      - file.name
+      - formula.chip
+      - formula.mark
+      - owner
+      - due
+      - formula.days_left
+      - formula.when
+    summaries:
+      due: Earliest
+      status: Filled
+  - type: table
+    name: Blocked only
+    filters:
+      and:
+        - status == "blocked"
+    order:
+      - file.name
+      - initiative
+      - owner
+      - formula.when
+  - type: list
+    name: Checklist
+    order:
+      - file.name
+      - formula.mark

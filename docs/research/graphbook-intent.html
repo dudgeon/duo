@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>Graphbook — intent &amp; design, rounds 1–2</title>
+<style>
+/* duo-atelier.css — canonical Atelier kernel for Duo HTML playgrounds. */
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+  --project-pine:   #2E7D74;
+  --project-harbor: #3C6E93;
+  --project-iris:   #5B57A6;
+  --project-plum:   #87508F;
+  --project-rose:   #A4506A;
+  --project-moss:   #69763A;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+body { padding: 32px 40px 96px; max-width: 920px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px;
+}
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill {
+  display: inline-block; padding: 2px 8px; border-radius: 10px;
+  background: var(--accent-soft); color: var(--accent);
+  font-weight: 600; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.04em; margin-right: 6px;
+}
+.intro {
+  background: var(--paper-deep); border: 1px solid var(--paper-rule);
+  border-radius: 6px; padding: 14px 18px; margin-bottom: 28px;
+  font-size: 13.5px; color: var(--ink-soft);
+}
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 600; margin: 36px 0 12px; font-size: 19px;
+  border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px;
+}
+h3 { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+h4 { margin: 16px 0 6px; font-size: 13.5px; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px;
+  background: var(--paper-deep); padding: 1px 5px; border-radius: 3px;
+}
+pre {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px; line-height: 1.5;
+  background: var(--code-bg); color: var(--code-ink);
+  padding: 14px 16px; border-radius: 6px; overflow-x: auto;
+}
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+.decision-card {
+  background: var(--paper-deep); border: 1.5px solid var(--paper-rule);
+  border-radius: 6px; padding: 16px 18px; margin: 18px 0;
+}
+.decision-card .q-title {
+  font-weight: 700; font-size: 13px; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px;
+}
+.decision-card .q-prompt {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 500; font-size: 17px; color: var(--ink);
+  margin: 0 0 12px; line-height: 1.35;
+}
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option {
+  display: block; background: var(--paper);
+  border: 1.5px solid var(--paper-rule); border-radius: 5px;
+  padding: 10px 12px; cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--paper));
+}
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag {
+  font-size: 10px; background: var(--accent-soft); color: var(--accent);
+  text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em;
+  padding: 1px 6px; border-radius: 8px; margin-left: 6px;
+}
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes {
+  width: 100%; background: var(--paper); border: 1px solid var(--paper-rule);
+  border-radius: 4px; padding: 8px 10px; font-family: inherit;
+  font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px;
+}
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+details.deferred {
+  margin: 22px 0; padding: 12px 16px; background: var(--paper-deep);
+  border: 1px dashed var(--paper-rule); border-radius: 6px;
+}
+details.deferred summary { cursor: pointer; font-weight: 600; color: var(--ink-soft); font-size: 13.5px; }
+details.deferred[open] summary { color: var(--ink); }
+details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(--ink-soft); }
+.copy-bar {
+  position: sticky; bottom: 0; margin: 32px -40px -96px;
+  padding: 16px 40px;
+  background: color-mix(in srgb, var(--paper-deep) 96%, transparent);
+  border-top: 1.5px solid var(--paper-rule);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+}
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button {
+  background: var(--accent); color: white; border: none; border-radius: 5px;
+  padding: 9px 18px; font-family: inherit; font-size: 13.5px;
+  font-weight: 600; cursor: pointer; transition: background 0.12s;
+}
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* — Per-playground styles — */
+table.locked { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13px; }
+table.locked th, table.locked td {
+  border: 1px solid var(--paper-rule); padding: 7px 10px;
+  text-align: left; vertical-align: top;
+}
+table.locked th { background: var(--paper-deep); font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-mute); }
+table.locked td:first-child { font-weight: 600; white-space: nowrap; }
+
+pre.diagram { line-height: 1.45; }
+pre.diagram .note { color: #9a8f6e; font-style: italic; }
+pre.diagram .hot { color: #f4b96a; }
+
+.option-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 14px 0; }
+.option-card {
+  background: var(--paper); border: 1.5px solid var(--paper-rule);
+  border-radius: 6px; padding: 12px 14px; font-size: 12.5px;
+}
+.option-card.recommended { border-color: var(--accent); }
+.option-card h4 { margin: 0 0 6px; font-size: 13px; }
+.option-card .badge {
+  font-size: 9.5px; background: var(--accent-soft); color: var(--accent);
+  text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em;
+  padding: 1px 6px; border-radius: 8px; margin-left: 4px; vertical-align: middle;
+}
+.option-card p { margin: 5px 0; color: var(--ink-soft); font-size: 12px; }
+.option-card .pro { color: var(--pass); }
+.option-card .con { color: var(--fail); }
+
+/* Editor / popover flow mock */
+.flow-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 14px 0; }
+.flow-step { background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 6px; overflow: hidden; }
+.flow-step .step-label {
+  background: var(--paper-deep); padding: 5px 10px; font-size: 11px;
+  font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-mute);
+  border-bottom: 1px solid var(--paper-rule);
+}
+.flow-step .step-body { padding: 12px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; min-height: 130px; position: relative; }
+.flow-step .caret { display: inline-block; width: 2px; height: 14px; background: var(--accent); vertical-align: text-bottom; }
+.wikilink { color: var(--project-harbor); }
+.type-picker {
+  position: absolute; left: 24px; top: 52px;
+  background: white; border: 1px solid var(--paper-rule); border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(43,38,32,0.18);
+  font-family: -apple-system, system-ui, sans-serif; font-size: 12px;
+  min-width: 170px; overflow: hidden;
+}
+.type-picker .tp-head { padding: 6px 10px; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-ghost); border-bottom: 1px solid var(--paper-edge); }
+.type-picker .tp-row { padding: 6px 10px; display: flex; justify-content: space-between; }
+.type-picker .tp-row.sel { background: var(--accent); color: white; }
+.type-picker .tp-row .folder { color: var(--ink-ghost); font-size: 11px; }
+.type-picker .tp-row.sel .folder { color: rgba(255,255,255,0.75); }
+.toast {
+  margin-top: 10px; background: var(--paper-deep); border: 1px solid var(--paper-rule);
+  border-left: 3px solid var(--pass); border-radius: 4px; padding: 7px 10px;
+  font-family: -apple-system, system-ui, sans-serif; font-size: 11.5px; color: var(--ink-soft);
+}
+
+/* Rollup render mock */
+.rollup-mock { background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 8px; padding: 18px 20px; margin: 14px 0; }
+.rollup-mock h3 { font-family: "New York", Georgia, serif; font-style: italic; margin: 0 0 2px; font-size: 18px; }
+.rollup-mock .rollup-sub { font-size: 11.5px; color: var(--ink-ghost); margin-bottom: 12px; }
+.rollup-mock table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+.rollup-mock th, .rollup-mock td { border-bottom: 1px solid var(--paper-edge); padding: 6px 8px; text-align: left; }
+.rollup-mock th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-mute); }
+.status-chip { display: inline-block; padding: 1px 8px; border-radius: 9px; font-size: 11px; font-weight: 600; color: white; }
+.status-chip.ok { background: var(--pass); }
+.status-chip.blocked { background: var(--fail); }
+.status-chip.done { background: var(--ink-ghost); }
+.rollup-mock .live-note { margin-top: 10px; font-size: 11px; color: var(--ink-ghost); font-style: italic; }
+
+/* Rollup lifecycle illustration */
+.lifecycle { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; }
+.phase { background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 12px 14px; }
+.phase > h4 {
+  margin: 0 0 10px; font-size: 12px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-mute);
+  border-bottom: 1px solid var(--paper-edge); padding-bottom: 6px;
+}
+.lstep { display: flex; gap: 9px; margin: 9px 0; font-size: 12.5px; align-items: flex-start; }
+.lstep .who {
+  flex: 0 0 60px; text-align: center; font-size: 9.5px; font-weight: 700;
+  letter-spacing: 0.05em; border-radius: 8px; padding: 2px 0; color: white; margin-top: 2px;
+}
+.who.you { background: var(--accent); }
+.who.claude { background: var(--project-harbor); }
+.who.script { background: var(--project-moss); }
+.who.files { background: var(--ink-ghost); }
+.lstep .what { flex: 1; color: var(--ink-soft); line-height: 1.45; }
+.lstep .what code { font-size: 11px; }
+.larrow { text-align: center; color: var(--ink-ghost); font-size: 11px; margin: -2px 0 -2px 69px; text-align: left; }
+.loopnote {
+  margin-top: 10px; padding: 7px 10px; background: var(--paper-deep);
+  border: 1px dashed var(--paper-rule); border-radius: 4px;
+  font-size: 11px; color: var(--ink-mute); font-style: italic;
+}
+.legend { display: flex; gap: 10px; margin: 6px 0 0; font-size: 11px; color: var(--ink-mute); align-items: center; flex-wrap: wrap; }
+.legend .who { flex: 0 0 auto; padding: 2px 8px; }
+
+@media (max-width: 760px) {
+  .option-cards, .flow-steps, .lifecycle { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Graphbook — intent &amp; design, rounds&nbsp;1–2</h1>
+  <div class="meta">
+    <span class="pill">Decision round</span>
+    <span class="pill">ENH-208</span>
+    updated 2026-06-09 · networked work-notes on plain Obsidian-vault conventions
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> The graphbook design doc, updated after the
+  round-1.5 Bases deep-dive: locked conventions (now including the authoring
+  plan), the corrected vault anatomy, the <em>rollup lifecycle</em> illustration,
+  and six open decisions. Working evidence lives in
+  <code>docs/research/graphbook-prototype/</code> — a real Obsidian vault plus a
+  Duo-side renderer (<code>render.mjs</code>) and corpus validator
+  (<code>lint.mjs</code>), both run and verified. Pick a radio per decision, add
+  notes, hit <em>Copy decisions</em>, paste back to Claude.
+</div>
+
+<h2>The shape so far (locked)</h2>
+
+<p>The design splits into three layers; Obsidian only ever covers the first.
+Everything at rest is a <strong>plain Obsidian vault</strong> — markdown,
+<code>[[wikilinks]]</code>, YAML frontmatter, folders, in git — so any human or
+agent with no graphbook concept reads it natively. Duo adds capture affordances
+on top, and Claude is the query/synthesis/processing engine that Obsidian users
+need a plugin zoo for.</p>
+
+<table class="locked">
+  <tr><th>Decision</th><th>Locked choice</th></tr>
+  <tr><td>Edge syntax</td><td>Pure Obsidian core — wikilinks in prose, typed fields in YAML frontmatter. No Dataview inline fields, no invented syntax.</td></tr>
+  <tr><td>Obsidian compat</td><td><strong>Strict</strong> — the graphbook opens correctly in Obsidian proper, always.</td></tr>
+  <tr><td>Entity declaration</td><td>Folders + frontmatter <code>type:</code> — both, stamped by templates.</td></tr>
+  <tr><td>Entity creation</td><td><strong>Silent stub</strong> — <code>[[New Name]]</code> ⇥ → type picker → file created from template in background; caret never leaves the note.</td></tr>
+  <tr><td>Schemas</td><td><code>templates/</code> folder; each template's frontmatter declares its <code>type</code>, destination <code>folder</code>, and expected <code>fields</code>. Soft schema — processing validates, nothing enforces.</td></tr>
+  <tr><td>Capture grain</td><td>Atomic notes → <code>inbox/</code>; processing files them.</td></tr>
+  <tr><td>Location</td><td>Likely a folder inside a parent repo (dedicated repo possible). <code>.obsidian/</code> marks the vault root wherever it sits.</td></tr>
+  <tr><td>Processing cadence</td><td>On-demand first; architecture must allow a scheduled headless job later (same skill, zero new infra).</td></tr>
+  <tr><td>Folder anatomy</td><td>Per-initiative folders — <code>initiatives/Q3 Launch/</code> holds the initiative note <em>and</em> its milestones. Bases queries are frontmatter-driven, so folder layout is pure ergonomics; no flat M×N milestone folder.</td></tr>
+  <tr><td>Rollup authoring</td><td><strong>Claude-from-prose + validator first</strong> (round-2 lock). Three layers: L0 <code>duo graph schema</code> (corpus derived live from frontmatter — the vault IS the schema) · L1 <code>duo base lint</code> · L2 surfaces. Editor autocomplete (new CodeMirror work — the shipped <code>[[</code>/<code>@</code> suggesters don't fire inside fenced base blocks) and a form-builder are deferred.</td></tr>
+  <tr><td>Invalid references</td><td><strong>Warn + render anyway</strong> (round-2 lock) — loud ⚠ flag with corpus-driven "did you mean", never blocks the view. Processing-proposed fixes once the processing loop exists.</td></tr>
+  <tr><td>Presentation ownership</td><td>The rendered HTML (table / cards / list) is <strong>Duo-owned, never user-authored</strong> — like Obsidian's own views. Cell-level styling only through <code>html()</code> / <code>icon()</code> formulas.</td></tr>
+  <tr><td>Naming (round 3)</td><td>The feature set is just <strong>"vault"</strong> — settings "default vault", <code>duo vault init</code>, skill section "Working in a vault". No graphbook noun user-facing; this doc's filename is historical.</td></tr>
+  <tr><td>Nested entities (round 3)</td><td><strong>Running doc + promote-on-demand</strong> — meetings live as <code>##</code> sections in one per-initiative doc; a processing op splits a section into an entity file (leaving an <code>![[embed]]</code>) when it needs properties. Editable transclusion is the deferred Duo-native upgrade.</td></tr>
+</table>
+
+<h2>Vault anatomy</h2>
+
+<pre class="diagram">work-repo/
+  graphbook/
+    .obsidian/                    <span class="note">← marks the vault root (Obsidian-native; Duo's vault index keys off it)</span>
+    templates/                    <span class="note">← soft schemas — one per entity type; excluded from queries</span>
+      person.md                   <span class="note">    type: person · folder: people/ · fields: [role, team, aliases]</span>
+      initiative.md               <span class="note">    carries the embedded rollup block (initiative == this) verbatim</span>
+      milestone.md
+      meeting.md
+    people/                       <span class="note">← entity files, mostly auto-created via [[…]] ⇥</span>
+      Alice Park.md
+    themes/
+      Pricing.md
+    initiatives/
+      Q3 Launch/                  <span class="note">← per-initiative folder (round-2 lock: no flat M×N milestone folder)</span>
+        <span class="hot">Q3 Launch.md</span>              <span class="note">    parent entity — embedded base block renders its rollup in place</span>
+        Legal review.md           <span class="note">    frontmatter: initiative: "[[Q3 Launch]]" · status: blocked</span>
+        Beta cohort.md
+      Pricing Revamp/
+        Pricing Revamp.md
+        Fee model draft.md
+    bases/                        <span class="note">← vault-wide views: portfolio, all-milestones, people-load, processing</span>
+      processing.base               <span class="note">    the processing pass as a dashboard — every row is a TODO</span>
+    inbox/                        <span class="note">← atomic capture lands here; processing files into notes/</span>
+      2026-06-09 alice pricing sync.md
+    notes/                        <span class="note">← groomed, filed notes</span></pre>
+
+<p style="font-size:12.5px;color:var(--ink-mute)">This anatomy is no longer
+hypothetical — it exists verbatim as the prototype vault at
+<code>docs/research/graphbook-prototype/</code> (open that folder in Obsidian to
+see every base render natively).</p>
+
+<h2>Entity creation — the silent-stub flow</h2>
+
+<div class="flow-steps">
+  <div class="flow-step">
+    <div class="step-label">1 · You type an unresolved link</div>
+    <div class="step-body">Met with <span class="wikilink">[[Jordan Lee</span><span class="caret"></span><br><br>
+      <span style="font-family:-apple-system,system-ui;color:var(--ink-ghost);font-size:11px">no vault match → ⇥ offers “create as…”</span>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="step-label">2 · Type picker (one popover)</div>
+    <div class="step-body">Met with <span class="wikilink">[[Jordan Lee]]</span>
+      <div class="type-picker">
+        <div class="tp-head">create as…</div>
+        <div class="tp-row sel"><span>person</span><span class="folder">people/</span></div>
+        <div class="tp-row"><span>initiative</span><span class="folder">initiatives/</span></div>
+        <div class="tp-row"><span>theme</span><span class="folder">themes/</span></div>
+        <div class="tp-row"><span>+ new type…</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="step-label">3 · Stub created; you keep typing</div>
+    <div class="step-body">Met with <span class="wikilink">[[Jordan Lee]]</span> about pricing<span class="caret"></span>
+      <div class="toast">✓ people/Jordan Lee.md created from templates/person.md — processing will fill fields later</div>
+    </div>
+  </div>
+</div>
+
+<p style="font-size:12.5px;color:var(--ink-mute)">Builds directly on shipped machinery:
+the <code>[[</code>/<code>@</code> suggesters and create-on-unresolved-wikilink
+(<code>wikilinkCreate.ts</code>, ENH-114) already exist — this adds the type-picker step
+and template instantiation. Choosing <em>+ new type…</em> is the rare deliberate branch:
+name it, get a minimal template stub in <code>templates/</code>, Claude offers to draft
+the full schema afterward.</p>
+
+<h2>Rollups — the new idea, scrutinized</h2>
+
+<p>Click a parent entity (an initiative), see a rendered view of its children's
+state, populated from <em>their</em> frontmatter. The parent→child edges come free
+from the locked conventions (<code>Legal review.md</code> carries
+<code>initiative: "[[Q3 Launch]]"</code>), so a rollup is just <em>“notes whose field
+points at me, projected onto columns.”</em></p>
+
+<p><strong>Where the constraints landed after the round-1.5 deep-dive:</strong>
+(1) Vault compat is satisfied — the Bases spec was verified against the Obsidian
+1.13.0 docs, and the killer feature is <code>this</code>-aware embedding: a
+<code>```base</code> block with <code>initiative == this</code> lives verbatim in the
+initiative <em>template</em>, so every initiative gets a live rollup with zero
+per-initiative configuration. (2) The no-sidecar concern is <em>refined, not
+absolute</em>: a deterministic render stamped with generated-at + source hash is a
+<strong>build artifact</strong> (like <code>out/</code>), not a drifting sidecar —
+staleness is detectable by hash. Whether rollups render live, persist as stamped
+artifacts, or both is now <strong>Decision&nbsp;6</strong> below.</p>
+
+<p><strong>Working evidence</strong> (all in <code>docs/research/graphbook-prototype/</code>):
+<code>render.mjs</code> — a ~400-line mini-SSG with zero new dependencies — parses the
+same <code>.base</code> files Obsidian reads and renders all 7 bases with 0 formula
+errors (row counts hand-verified); the child→parent rollup probes that are
+unsupported in Obsidian <em>succeed in our renderer by design</em> — same definition
+file, more capable renderer. <code>lint.mjs</code> derives the corpus from frontmatter
+(5 types, 22 entities, observed enums like <code>status ∈ {on-track, blocked, done}</code>)
+and catches typo'd types, unresolved entities, bad enum values, unknown functions and
+view types — each with a "did you mean". Known Bases boundary (per docs): no joins,
+summaries are terminal, cross-entity computed rollups unsupported.</p>
+
+<div class="rollup-mock">
+  <h3>Q3 Launch</h3>
+  <div class="rollup-sub">initiative · owner [[Alice]] · 4 milestones · rendered live from frontmatter</div>
+  <table>
+    <tr><th>Milestone</th><th>Status</th><th>Owner</th><th>Due</th></tr>
+    <tr><td>Legal review</td><td><span class="status-chip blocked">blocked</span></td><td>[[Jordan Lee]]</td><td>2026-06-20</td></tr>
+    <tr><td>Beta cohort</td><td><span class="status-chip ok">on-track</span></td><td>[[Alice]]</td><td>2026-07-01</td></tr>
+    <tr><td>Pricing page</td><td><span class="status-chip ok">on-track</span></td><td>[[Sam]]</td><td>2026-07-08</td></tr>
+    <tr><td>Kickoff deck</td><td><span class="status-chip done">done</span></td><td>[[Alice]]</td><td>—</td></tr>
+  </table>
+  <div class="live-note">computed at render time · never written to disk · click any cell to open the source note</div>
+</div>
+
+<h3>Three ways to define a rollup</h3>
+
+<div class="option-cards">
+  <div class="option-card recommended">
+    <h4>A · Obsidian Bases <span class="badge">Recommended</span></h4>
+    <p>Rollup definitions are <code>.base</code> files (Obsidian's core dynamic-view
+    primitive — YAML filters + views over frontmatter). Duo parses the same file and
+    renders a richer HTML view.</p>
+    <p class="pro">+ Obsidian renders it too (as a table) — zero divergence</p>
+    <p class="pro">+ no invented query format; agent-legible YAML</p>
+    <p class="con">− Duo needs a .base parser; Bases syntax bounds expressiveness</p>
+  </div>
+  <div class="option-card">
+    <h4>B · Duo rollup templates</h4>
+    <p>A Duo-own spec: an HTML/markdown template per entity type (e.g. in
+    <code>templates/</code>) with a small query block; Duo's engine fills it.</p>
+    <p class="pro">+ unbounded layout freedom (status boards, timelines)</p>
+    <p class="con">− invisible in Obsidian — exactly the divergence trap</p>
+    <p class="con">− we own a query format forever</p>
+  </div>
+  <div class="option-card">
+    <h4>C · No engine — Claude ad-hoc</h4>
+    <p>No view engine at all. You ask Claude; it greps frontmatter and generates a
+    disposable canvas page on demand.</p>
+    <p class="pro">+ zero build; works today; infinitely flexible</p>
+    <p class="con">− seconds, not instant; no click-the-entity affordance</p>
+    <p class="con">− every view is bespoke; no shared definitions</p>
+  </div>
+</div>
+
+<pre>› sketch of a .base-style definition (syntax approximate — verify against current Bases spec)
+
+# initiatives/Q3 Launch.base
+filters:
+  and:
+    - type == "milestone"
+    - initiative.hasLink("Q3 Launch")
+views:
+  - type: table
+    name: Milestones
+    order: [file.name, status, owner, due]</pre>
+
+<h3>The rollup lifecycle — who does what</h3>
+
+<p style="font-size:12.5px;color:var(--ink-mute)">Per the round-2 authoring lock
+(Claude-from-prose + validator). Every step below exists and ran in the
+prototype except the two marked <em>future</em>.</p>
+
+<div class="legend">
+  <span class="who you">YOU</span> owner, in prose or the editor
+  <span class="who claude">CLAUDE</span> agent actions
+  <span class="who script">SCRIPT</span> deterministic CLI (<code>lint</code> / <code>render</code> / L0 schema)
+  <span class="who files">FILES</span> what lands on disk
+</div>
+
+<div class="lifecycle">
+  <div class="phase">
+    <h4>Generate — a new rollup, from prose</h4>
+    <div class="lstep"><span class="who you">YOU</span><div class="what">"Show me blocked milestones grouped by owner, due soonest first."</div></div>
+    <div class="lstep"><span class="who script">SCRIPT</span><div class="what"><code>duo graph schema</code> (L0) — derives the corpus live from frontmatter: types, entities, properties per type, observed enum values. The vault IS the schema; nothing is declared.</div></div>
+    <div class="lstep"><span class="who claude">CLAUDE</span><div class="what">Writes the <code>.base</code> YAML against that corpus — vault-wide views land in <code>bases/</code>; per-entity rollups land as a <code>```base</code> block in the entity <em>template</em> (<code>initiative == this</code>), so every entity inherits it.</div></div>
+    <div class="lstep"><span class="who script">SCRIPT</span><div class="what"><code>duo base lint</code> (L1) — structural + expression + corpus checks: typo'd type, unresolved <code>[[entity]]</code>, bad enum value, unknown function — each with a "did you mean". Findings loop back to Claude until clean.</div></div>
+    <div class="lstep"><span class="who script">SCRIPT</span><div class="what"><code>render.mjs</code> — reads frontmatter + the <code>.base</code>, evaluates filters/formulas, emits the stamped artifact: generated-at · source hash · as-of date.</div></div>
+    <div class="lstep"><span class="who files">FILES</span><div class="what"><code>bases/people-load.base</code> (committed, Obsidian-readable) + <code>out/graphbook.html</code> (build artifact).</div></div>
+    <div class="lstep"><span class="who claude">CLAUDE</span><div class="what"><code>duo open</code> the rendered view in the browser pane.</div></div>
+    <div class="loopnote">Iteration is prose → re-emit → re-lint → re-render: "add a due column" never touches YAML by hand. The same <code>.base</code> renders natively (plainer) in Obsidian.</div>
+  </div>
+  <div class="phase">
+    <h4>Refresh — the vault changed</h4>
+    <div class="lstep"><span class="who you">YOU</span><div class="what">Normal note work, zero rollup awareness: flip a milestone's <code>status</code> in frontmatter, add a milestone via <code>[[…]]</code>&nbsp;⇥, rename an entity.</div></div>
+    <div class="lstep"><span class="who files">FILES</span><div class="what">Frontmatter on disk is now ahead of any persisted render — detectably: the artifact's source hash no longer matches the vault.</div></div>
+    <div class="lstep"><span class="who claude">CLAUDE</span><div class="what"><em>Trigger, today:</em> on demand — you ask, or Claude notices the hash mismatch during work and re-renders.</div></div>
+    <div class="lstep"><span class="who script">SCRIPT</span><div class="what">Re-render. Invalid refs surface per the round-2 lock: <strong>warn + render anyway</strong> — a renamed initiative shows a loud ⚠ "did you mean", never a blocked or silently-empty view.</div></div>
+    <div class="lstep"><span class="who script">SCRIPT</span><div class="what"><em>Future:</em> a chokidar watcher re-renders on frontmatter change (live mode), and/or…</div></div>
+    <div class="lstep"><span class="who claude">CLAUDE</span><div class="what"><em>Future:</em> the scheduled processing job re-renders after filing inbox notes, and proposes fixes for the ⚠ flags it finds (rename maps, closest matches) for you to accept.</div></div>
+    <div class="loopnote">Where re-render runs — on open (live), persisted on change (mini-SSG), or both — is exactly Decision&nbsp;6 below. The lifecycle is identical either way; only the trigger differs.</div>
+  </div>
+</div>
+
+<section class="decision-card">
+  <div class="q-title">Decision 1 · Rollup definition format</div>
+  <h3 class="q-prompt">What is a rollup, at rest in the files?</h3>
+  <p class="q-context">This is the biggest compat fork in the whole design. A is the
+  only option where Obsidian and Duo read the same definition — and the round-1.5
+  prototype has now <strong>pre-validated it</strong>: the spec is verified against
+  current docs, the renderer + linter work over real <code>.base</code> files, and the
+  one confirmed gap (cross-entity computed rollups) is covered by our renderer
+  exceeding the spec. Remaining unknown: the in-Obsidian probe walk.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d1" value="bases">
+      <div class="q-option-body">
+        <div class="q-option-title">A — Obsidian Bases (.base files) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Definitions stay vault-native; Duo renders them richer. Verify current Bases syntax covers the filters we need before committing.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d1" value="duo-spec">
+      <div class="q-option-body">
+        <div class="q-option-title">B — Duo-own rollup spec</div>
+        <div class="q-option-rationale">Maximum layout power, accepted divergence: rollups become a Duo-only feature.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d1" value="ad-hoc">
+      <div class="q-option-body">
+        <div class="q-option-title">C — No engine; Claude generates views on demand</div>
+        <div class="q-option-rationale">Defer the engine entirely; revisit after living with the vault for a while.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d1" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 2 · Rollup surface &amp; trigger</div>
+  <h3 class="q-prompt">Where does a rollup render, and what do you click to get it?</h3>
+  <p class="q-context">"Click the parent entity" today opens its markdown in the editor.
+  The rollup needs its own affordance. All options also get a CLI verb
+  (<code>duo rollup &lt;note&gt;</code>) for parity.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d2" value="tab-affordance">
+      <div class="q-option-body">
+        <div class="q-option-title">Affordance on the entity note → full canvas tab <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">A "Rollup" button/right-click on any entity note with a matching definition; opens the live view as its own tab. Big surface, zero editor surgery.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d2" value="embedded-panel">
+      <div class="q-option-body">
+        <div class="q-option-title">Embedded panel inside the editor</div>
+        <div class="q-option-rationale">Rollup renders below the frontmatter panel when you open the entity note — like Obsidian embedding a base in a note. Tighter, but real editor work.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d2" value="cli-first">
+      <div class="q-option-body">
+        <div class="q-option-title">CLI-only first</div>
+        <div class="q-option-rationale">Ship <code>duo rollup</code> rendering to a canvas tab; add the click affordance once the engine proves out.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d2" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 3 · Processing interaction model</div>
+  <h3 class="q-prompt">When Claude grooms the graphbook (files inbox notes, fixes links, proposes connections), how do its changes reach you?</h3>
+  <p class="q-context">Processing is refactoring your thinking — trust matters more than
+  speed. Duo already ships CriticMarkup tracked-changes verbs
+  (<code>duo doc insert/substitute</code> + accept/reject), which were built for
+  exactly this shape of work.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d3" value="criticmarkup">
+      <div class="q-option-body">
+        <div class="q-option-title">Tracked suggestions in-file + a processing report note <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Edits land as CriticMarkup you accept/reject in the editor; a dated report note links every touched file. File moves (inbox → notes/) listed in the report for one-click approval.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d3" value="chat-ops">
+      <div class="q-option-body">
+        <div class="q-option-title">Propose in chat, apply on approval</div>
+        <div class="q-option-rationale">Claude lists proposed operations conversationally; nothing touches files until you say go.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d3" value="git-branch">
+      <div class="q-option-body">
+        <div class="q-option-title">Git branch + diff review</div>
+        <div class="q-option-rationale">Processing commits to a branch; you review the diff like a PR. Strongest audit trail, heaviest ceremony — suits the future scheduled job.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d3" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 4 · Capture entry point</div>
+  <h3 class="q-prompt">How does an inbox note start, in the flow of a workday?</h3>
+  <p class="q-context">Capture lives or dies on friction. The grain is locked
+  (atomic → inbox); this is the ergonomics of the first keystroke.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d4" value="quick-capture">
+      <div class="q-option-body">
+        <div class="q-option-title">Quick-capture command in Duo <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">One keystroke / command-palette entry → new timestamped inbox note open in the editor, optional template pick. CLI twin: <code>duo gb capture [--template meeting]</code>.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d4" value="via-claude">
+      <div class="q-option-body">
+        <div class="q-option-title">Tell Claude / CLI only</div>
+        <div class="q-option-rationale">You narrate ("note from the pricing sync: …"); Claude writes the inbox file with entities linked. No new UI.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d4" value="manual">
+      <div class="q-option-body">
+        <div class="q-option-title">Manual file creation is fine</div>
+        <div class="q-option-rationale">New-file in the navigator + autocomplete is already low-friction enough; spend the build budget elsewhere.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d4" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 5 · First end-to-end slice</div>
+  <h3 class="q-prompt">What gets built (or assembled) first?</h3>
+  <p class="q-context">Sequencing, not scope — everything above stays on the map.
+  Option A ships with <em>zero new Duo code</em>: scaffold the vault + templates,
+  write the graphbook skill, live in it for a week, and let real use pressure-test
+  the conventions before any UI investment.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d5" value="skill-first">
+      <div class="q-option-body">
+        <div class="q-option-title">A — Conventions + skill first (zero new UI) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Vault scaffold, templates, graphbook skill (capture-by-narration, processing, ad-hoc rollups via Claude). Existing autocomplete already works. Cheapest possible pressure test.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d5" value="capture-ux">
+      <div class="q-option-body">
+        <div class="q-option-title">B — Capture UX slice</div>
+        <div class="q-option-rationale">Type-picker create flow + quick capture + templates. The daily habit first; agent layer second.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d5" value="rollups">
+      <div class="q-option-body">
+        <div class="q-option-title">C — Rollup engine</div>
+        <div class="q-option-rationale">The payoff visual first — prove the live-render engine; capture stays manual meanwhile.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d5" value="cli-verbs">
+      <div class="q-option-body">
+        <div class="q-option-title">D — CLI graph verbs</div>
+        <div class="q-option-rationale"><code>duo graph backlinks/neighbors/orphans</code> + frontmatter queries — the agent's hands first.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d5" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 6 · Rollup persistence (new in round 2)</div>
+  <h3 class="q-prompt">Does a rendered rollup live on disk, in memory, or both?</h3>
+  <p class="q-context">You flagged the mini-SSG idea as worth exploring; the
+  build-artifact framing (stamped generated-at + source hash, regenerable,
+  staleness detectable) keeps it on the right side of the no-sidecar rule. The
+  lifecycle above is identical in every option — only the refresh trigger differs.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d6" value="both">
+      <div class="q-option-body">
+        <div class="q-option-title">Both — live in Duo, stamped artifact on demand <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Opening a rollup in Duo always computes fresh; "publish" emits the stamped HTML for sharing/committing (viewable with neither Duo nor Obsidian). Two triggers, one renderer.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d6" value="live-only">
+      <div class="q-option-body">
+        <div class="q-option-title">Live only</div>
+        <div class="q-option-rationale">Never persisted; zero staleness ever. No shareable output without opening Duo.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d6" value="ssg-only">
+      <div class="q-option-body">
+        <div class="q-option-title">Mini-SSG only</div>
+        <div class="q-option-rationale">Always a persisted artifact, regenerated by watcher/processing/on-demand. Simplest mental model ("the rollup is a file"); stale window bounded by the trigger.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d6" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<details class="deferred">
+  <summary>Deferred to later rounds (tracked, not forgotten)</summary>
+  <div class="deferred-body">
+    <ul>
+      <li><strong>Index freshness</strong> — vault index is manual-refresh v1; a chokidar watcher scoped to the open vault is needed once Claude edits files while you type.</li>
+      <li><strong><code>#tag</code> rendering</strong> — themes-as-tags currently render as plain text (Tier B gap in the Obsidian-vault research PRD).</li>
+      <li><strong>Backlinks panel</strong> — UI surface for "what links here"; CLI verb likely lands first.</li>
+      <li><strong>Multi-vault</strong> — design keeps vault root detection per-file, so multiple graphbooks work by construction; no special handling round 1.</li>
+      <li><strong>Scheduled processing</strong> — same skill, headless Claude on a schedule; needs the D3 model to be artifact-based (report note or branch) so results survive without a live conversation.</li>
+      <li><strong>Entity-typed autocomplete ranking</strong> — <code>@</code> preferring people over arbitrary files.</li>
+      <li><strong>~~Verify Bases syntax~~ — DONE (round 1.5):</strong> spec verified against Obsidian 1.13.0 docs; link filters, <code>this</code>-embedding, <code>html()</code>, groupBy + summaries all confirmed. Remaining: walk the edge probes in Obsidian itself.</li>
+      <li><strong>Editor autocomplete inside base blocks</strong> — deferred by the round-2 authoring lock; needs a new CodeMirror language mode (the shipped <code>[[</code>/<code>@</code> suggesters fire in prose only).</li>
+      <li><strong>Processing-proposed reference fixes</strong> — the "warn + render" lock leans on the future processing loop to propose rename-map corrections for ⚠ flags.</li>
+    </ul>
+  </div>
+</details>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 6 decisions answered</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  var DECISIONS = [
+    { id: 'd1', title: 'Rollup definition format' },
+    { id: 'd2', title: 'Rollup surface and trigger' },
+    { id: 'd3', title: 'Processing interaction model' },
+    { id: 'd4', title: 'Capture entry point' },
+    { id: 'd5', title: 'First end-to-end slice' },
+    { id: 'd6', title: 'Rollup persistence' }
+  ];
+  var STORE_KEY = 'graphbook-intent-r1';
+
+  function state() {
+    var s = {};
+    DECISIONS.forEach(function (d) {
+      var checked = document.querySelector('input[name="' + d.id + '"]:checked');
+      var notes = document.querySelector('.q-notes[data-decision="' + d.id + '"]');
+      s[d.id] = { value: checked ? checked.value : null, notes: notes ? notes.value : '' };
+    });
+    return s;
+  }
+
+  function save() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state())); } catch (e) {}
+    updateCount();
+  }
+
+  function restore() {
+    var raw = null;
+    try { raw = localStorage.getItem(STORE_KEY); } catch (e) {}
+    if (!raw) return;
+    var s;
+    try { s = JSON.parse(raw); } catch (e) { return; }
+    DECISIONS.forEach(function (d) {
+      var saved = s[d.id];
+      if (!saved) return;
+      if (saved.value) {
+        var input = document.querySelector('input[name="' + d.id + '"][value="' + saved.value + '"]');
+        if (input) input.checked = true;
+      }
+      var notes = document.querySelector('.q-notes[data-decision="' + d.id + '"]');
+      if (notes && saved.notes) notes.value = saved.notes;
+    });
+  }
+
+  function updateCount() {
+    var s = state(), n = 0;
+    DECISIONS.forEach(function (d) { if (s[d.id].value) n++; });
+    document.getElementById('answered-count').textContent = String(n);
+  }
+
+  function payload() {
+    var s = state();
+    var lines = ['GRAPHBOOK INTENT — ROUNDS 1–2 DECISIONS', ''];
+    DECISIONS.forEach(function (d) {
+      var v = s[d.id].value ? s[d.id].value.toUpperCase() : 'UNANSWERED';
+      lines.push('[' + v + '] ' + d.title);
+      if (s[d.id].notes && s[d.id].notes.trim()) {
+        lines.push('    notes: ' + s[d.id].notes.trim());
+      }
+      lines.push('');
+    });
+    return lines.join('\n');
+  }
+
+  document.querySelectorAll('input[type="radio"]').forEach(function (el) {
+    el.addEventListener('change', save);
+  });
+  document.querySelectorAll('.q-notes').forEach(function (el) {
+    el.addEventListener('input', save);
+  });
+
+  document.getElementById('copy-btn').addEventListener('click', function () {
+    var btn = this;
+    navigator.clipboard.writeText(payload()).then(function () {
+      btn.classList.add('copied');
+      btn.textContent = 'Copied — paste to Claude';
+      setTimeout(function () {
+        btn.classList.remove('copied');
+        btn.textContent = 'Copy decisions';
+      }, 2000);
+    });
+  });
+
+  restore();
+  updateCount();
+})();
+</script>
+
+</body>
+</html>

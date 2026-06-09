@@ -1,0 +1,37 @@
+filters:
+  and:
+    - type == "initiative"
+    - not:
+        - file.inFolder("templates")
+formulas:
+  # Documented but flagged "performance heavy" + not auto-refreshed.
+  mentions: file.backlinks.length
+  # ── CHILD→PARENT ROLLUP EDGE PROBES ──────────────────────────────────
+  # The docs do NOT promise chained property access on other notes inside
+  # filter(). If either probe renders a correct count, Bases can do
+  # child→parent rollups (fragile); if both error/blank, that's the
+  # boundary where a Duo renderer adds real value. Docs say backlinks is
+  # a list of files (probe_a); community posts imply links (probe_b).
+  probe_a: |-
+    file.backlinks.filter(value.properties.status == "done").length
+  probe_b: |-
+    file.backlinks.filter(value.asFile().properties.status == "done").length
+  health: |-
+    if(status == "done", icon("check"), if(due && due < today(), icon("alarm-clock"), icon("activity")))
+views:
+  - type: table
+    name: Portfolio
+    order:
+      - file.name
+      - formula.health
+      - owner
+      - due
+      - formula.mentions
+      - formula.probe_a
+      - formula.probe_b
+  - type: cards
+    name: Cards
+    order:
+      - file.name
+      - owner
+      - due
