@@ -42,7 +42,9 @@ import {
   effectiveProjectTerminals,
   mergeLiveCwdInfo,
   planProjectClose,
+  newTerminalMembershipsSince,
   shouldReleaseFocus,
+  shouldReleaseFocusForNewTerminals,
   type LiveCwdEntry
 } from '@shared/project-lifecycle'
 
@@ -1102,6 +1104,38 @@ export function App() {
       setFocusedProject(null)
     }
   }, [railProjects, focusedProject])
+  // ENH-204 — release focus to "All" when a NEW terminal opens that the
+  // rail's visibility filter would immediately hide. A terminal is hidden
+  // when its membership (deepest enclosing project) `!== focusedProject`
+  // (`visibleTerminals`, below); since every open path makes the new tab the
+  // ACTIVE one, an unreleased filter makes the terminal you just asked for
+  // vanish (⌘T / ⌃Tab lose their target too). We key the release on the SAME
+  // membership predicate the filter uses — so "different project", "nested
+  // sub-project", and "no project at all" all release correctly (raw
+  // cwd-containment would miss the nested sub-project, where the path is
+  // inside the parent but membership is the sub-root). Sibling to BUG-194's
+  // shouldReleaseFocus effect (project-vanish); this one fires on a new
+  // non-member terminal.
+  //
+  // `seenTerminalIdsRef` lets us weigh only genuinely-NEW terminal ids; the
+  // first run just seeds the baseline. Session restore mints fresh tab ids,
+  // so restored tabs DO look "new" — what keeps boot quiet is that
+  // `focusedProject` is null until the user/CLI sets it and is never
+  // rehydrated from session state, so the helper no-ops on boot regardless.
+  // Centralizing on `tabs` covers every creation path at once (⌘T, the +
+  // button, openTerminalHere / openClaudeIn, the `duo` CLI, ⌘Z-restore).
+  const seenTerminalIdsRef = useRef<Set<string>>()
+  useEffect(() => {
+    const newMemberships = newTerminalMembershipsSince(
+      seenTerminalIdsRef.current,
+      tabs,
+      terminalMembership
+    )
+    seenTerminalIdsRef.current = new Set(tabs.map((t) => t.id))
+    if (shouldReleaseFocusForNewTerminals(focusedProject, newMemberships)) {
+      setFocusedProject(null)
+    }
+  }, [tabs, terminalMembership, focusedProject])
   // Phase 3c-browser + FOLLOWUP-030 effects live below, after
   // visibleBrowserTabIds + browserTabMembership are declared
   // (declaration order matters; they need to come AFTER the visible

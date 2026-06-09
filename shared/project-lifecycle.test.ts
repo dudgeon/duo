@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest'
 import {
   effectiveProjectTerminals,
   mergeLiveCwdInfo,
+  newTerminalMembershipsSince,
   planProjectClose,
   shouldReleaseFocus,
+  shouldReleaseFocusForNewTerminals,
   type LiveCwdEntry
 } from './project-lifecycle'
 
@@ -20,6 +22,95 @@ describe('shouldReleaseFocus (BUG-194 — focus follows a vanishing project)', (
   })
   it('releases when the rail is empty', () => {
     expect(shouldReleaseFocus('/p/a', [])).toBe(true)
+  })
+})
+
+// ── ENH-204 · newTerminalMembershipsSince ───────────────────────────
+describe('newTerminalMembershipsSince (ENH-204 — id-diff + first-run baseline)', () => {
+  const membership: Record<string, string | null> = {
+    t1: '/proj/a',
+    t2: '/proj/b',
+    t3: null // no project
+  }
+
+  it('FIRST run (prevIds undefined) returns [] — nothing is "new", the effect is only seeding', () => {
+    expect(newTerminalMembershipsSince(undefined, [{ id: 't1' }, { id: 't2' }], membership)).toEqual([])
+  })
+
+  it('boot-quiet: first run returns [] even if a (future) non-null focus is set — release can never fire', () => {
+    // Pins the boot-quiet contract against a future change that rehydrates
+    // focusedProject per window: the FIRST tick produces no new memberships,
+    // so shouldReleaseFocusForNewTerminals short-circuits to false.
+    const firstTick = newTerminalMembershipsSince(undefined, [{ id: 't1' }, { id: 't2' }], membership)
+    expect(shouldReleaseFocusForNewTerminals('/proj/somewhere', firstTick)).toBe(false)
+  })
+
+  it('returns [] when no ids are new (same id-set across renders)', () => {
+    const prev = new Set(['t1', 't2'])
+    expect(newTerminalMembershipsSince(prev, [{ id: 't1' }, { id: 't2' }], membership)).toEqual([])
+  })
+
+  it('returns only the NEW tab’s membership (existing ids excluded)', () => {
+    const prev = new Set(['t1'])
+    expect(newTerminalMembershipsSince(prev, [{ id: 't1' }, { id: 't2' }], membership)).toEqual(['/proj/b'])
+  })
+
+  it('maps a new tab with no project to null', () => {
+    const prev = new Set(['t1'])
+    expect(newTerminalMembershipsSince(prev, [{ id: 't1' }, { id: 't3' }], membership)).toEqual([null])
+  })
+
+  it('falls back to null for a new tab missing from the membership record (matches the filter)', () => {
+    const prev = new Set(['t1'])
+    expect(newTerminalMembershipsSince(prev, [{ id: 't1' }, { id: 'tNew' }], membership)).toEqual([null])
+  })
+
+  it('returns memberships for several new tabs in one batch', () => {
+    const prev = new Set(['t1'])
+    expect(newTerminalMembershipsSince(prev, [{ id: 't1' }, { id: 't2' }, { id: 't3' }], membership)).toEqual([
+      '/proj/b',
+      null
+    ])
+  })
+})
+
+// ── ENH-204 · shouldReleaseFocusForNewTerminals ─────────────────────
+describe('shouldReleaseFocusForNewTerminals (ENH-204 — a new terminal the filter would hide drops focus)', () => {
+  it('releases when a new terminal belongs to a different project', () => {
+    expect(shouldReleaseFocusForNewTerminals('/proj/a', ['/proj/b'])).toBe(true)
+  })
+  it('releases when a new terminal has no project (null membership — e.g. the home dir)', () => {
+    expect(shouldReleaseFocusForNewTerminals('/proj/a', [null])).toBe(true)
+  })
+  it('releases for a NESTED sub-project terminal (the reviewed bug: membership is the sub-root, not the focused parent)', () => {
+    // A terminal in /proj/a/packages/sub where `sub` is its own git root has
+    // membership `/proj/a/packages/sub` ≠ `/proj/a`, so the visibility filter
+    // hides it — driving the release off membership (not physical cwd
+    // containment) is what makes this case revert correctly.
+    expect(shouldReleaseFocusForNewTerminals('/proj/a', ['/proj/a/packages/sub'])).toBe(true)
+  })
+  it('keeps focus when the new terminal is a member of the focused project', () => {
+    expect(shouldReleaseFocusForNewTerminals('/proj/a', ['/proj/a'])).toBe(false)
+  })
+  it('is a no-op in All mode (null focus), whatever the new memberships', () => {
+    expect(shouldReleaseFocusForNewTerminals(null, [null])).toBe(false)
+    expect(shouldReleaseFocusForNewTerminals(null, ['/proj/b'])).toBe(false)
+  })
+  it('releases if ANY of several new terminals is a non-member (batch open)', () => {
+    expect(shouldReleaseFocusForNewTerminals('/proj/a', ['/proj/a', '/proj/b'])).toBe(true)
+  })
+  it('keeps focus when EVERY new terminal is a member', () => {
+    expect(shouldReleaseFocusForNewTerminals('/proj/a', ['/proj/a', '/proj/a'])).toBe(false)
+  })
+  it('is a no-op when there are no new terminals (a close or title change)', () => {
+    expect(shouldReleaseFocusForNewTerminals('/proj/a', [])).toBe(false)
+  })
+  it('is the exact negation of the visibility filter (keep ⟺ membership === focusedProject)', () => {
+    // visibleTerminals keeps a tab iff terminalMembership[id] === focusedProject;
+    // this helper must release iff that equality is false for a new terminal.
+    expect(shouldReleaseFocusForNewTerminals('/proj/a', ['/proj/a'])).toBe(false) // member → visible → keep
+    expect(shouldReleaseFocusForNewTerminals('/proj/a', ['/proj/a/sub'])).toBe(true) // sub-project → hidden → release
+    expect(shouldReleaseFocusForNewTerminals('/proj/a', [null])).toBe(true) // no project → hidden → release
   })
 })
 
