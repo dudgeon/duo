@@ -232,6 +232,14 @@ Each pointer loads a complete file — open the one that matches your task.
 - [lesson-flythrough.md](lesson-flythrough.md) — walking a lesson end to
   end.
 
+**Working in a vault (ENH-208)**
+- [references/vault.md](references/vault.md) — work-notes on plain Obsidian
+  conventions: the `duo vault` / `graph` / `base` verbs, capture by
+  narration, entity stubbing, the D19 filing rules, the rollup authoring
+  loop (corpus → `.base` → lint → render), and the processing pass. The
+  end-user walkthrough with diagrams is `docs/guide/vault-guide.html`
+  (`duo open` it).
+
 **Install, environment & house style**
 - [references/install-troubleshooting.md](references/install-troubleshooting.md)
   — `duo: command not found`, install paths, the boot-time self-heal.
