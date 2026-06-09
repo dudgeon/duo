@@ -742,7 +742,7 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
     actions.selectRange(paths, kinds, entry.path)
   }
 
-  // ENH-204 — drag a row (or the whole multi-selection) onto the terminal to
+  // ENH-207 — drag a row (or the whole multi-selection) onto the terminal to
   // insert its absolute path(s). The drag SOURCE lives here at FileTree scope
   // so it can read the selection + the flattened visible-row order; the drop
   // TARGET + PTY write live in App.tsx (the terminal column). This only READS
@@ -986,7 +986,7 @@ interface TreeNodesProps {
    *  scope (where rootEntries + listings are available) and passed
    *  down so per-row click handlers can call it. */
   onRangeSelect?: (entry: DirEntry) => void
-  /** ENH-204 — drag a navigator row onto the terminal to insert its path.
+  /** ENH-207 — drag a navigator row onto the terminal to insert its path.
    *  Defined at FileTree scope (reads selection + the visible-row order). */
   onRowDragStart?: (e: React.DragEvent, entry: DirEntry) => void
   /** Stage 26 item 6 — inline rename state passed down. `undefined` means
@@ -1057,7 +1057,7 @@ interface TreeNodeProps {
   /** ENH-148 — ⇧-click range-select handler. Provided by the host
    *  FileTree (where the flattened-rows walker lives). */
   onRangeSelect?: (entry: DirEntry) => void
-  /** ENH-204 — drag this row onto the terminal to insert its path. */
+  /** ENH-207 — drag this row onto the terminal to insert its path. */
   onRowDragStart?: (e: React.DragEvent, entry: DirEntry) => void
   renamingPath?: string | null
   onCommitRename?: (entry: DirEntry, newName: string) => Promise<boolean>

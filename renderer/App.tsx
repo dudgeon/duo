@@ -4199,7 +4199,7 @@ export function App() {
             }
             onMouseDown={() => setFocusedColumn('terminal')}
             onDragOver={(e) => {
-              // ENH-204 — drop a navigator file/folder here to insert its path
+              // ENH-207 — drop a navigator file/folder here to insert its path
               // at the active terminal's cursor. preventDefault on EVERY drag
               // over this column is mandatory: without it, a dropped file://
               // (including a stray Finder drag) navigates the window and blanks

@@ -1,4 +1,4 @@
-// ENH-204 — pin the drag-to-terminal payload format. These invariants are
+// ENH-207 — pin the drag-to-terminal payload format. These invariants are
 // load-bearing for two safety properties from the PRD:
 //   - NO trailing newline (so a drop never auto-runs a shell command or
 //     submits a half-formed Claude prompt), and

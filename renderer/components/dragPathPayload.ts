@@ -1,9 +1,9 @@
-// ENH-204 — format navigator file/folder paths for insertion into the active
+// ENH-207 — format navigator file/folder paths for insertion into the active
 // terminal on drag-drop. The drag SOURCE (FileTree) assembles this payload at
 // drag-start; the drop TARGET (App.tsx terminal column) writes it verbatim to
 // the active PTY via window.electron.pty.write.
 //
-// Decisions (PRD docs/prd/enh-204-navigator-drag-path-to-terminal.md):
+// Decisions (PRD docs/prd/enh-207-navigator-drag-path-to-terminal.md):
 //   - Sanitize each path first — drop C0 control chars (includes CR/LF/TAB)
 //     plus the Unicode line/paragraph separators (U+2028/U+2029). POSIX
 //     filenames CAN legally contain newlines; an unstripped one would split

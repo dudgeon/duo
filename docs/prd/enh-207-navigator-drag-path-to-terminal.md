@@ -1,4 +1,4 @@
-# ENH-204 PRD — Drag a navigator file/folder to insert its path into the active terminal
+# ENH-207 PRD — Drag a navigator file/folder to insert its path into the active terminal
 
 > **Status:** spec locked 2026-06-08 (owner decisions D1–D5 captured via
 > `AskUserQuestion` this session — no decision playground was needed per
@@ -12,7 +12,7 @@
 > - Code: `renderer/components/FileTree.tsx`, `renderer/App.tsx`,
 >   `renderer/components/TerminalPane.tsx`, `core/pty-manager.ts`,
 >   `cli/duo.ts` (`send`).
-> - Grounding: the ENH-204 research workflow verified the four load-bearing
+> - Grounding: the ENH-207 research workflow verified the four load-bearing
 >   technical claims against source; the file:line map lives in the tasks.md
 >   entry.
 

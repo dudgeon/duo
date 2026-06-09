@@ -3,7 +3,7 @@
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
 
-### ENH-204: Drag a file/folder from the navigator to insert its path into the active terminal
+### ENH-207: Drag a file/folder from the navigator to insert its path into the active terminal
 
 **Status:** 🟢 **Implemented + verified 2026-06-08 — owner-requested (this session); smoke-walked 7/8 PASS; PR open, main-repo agent to merge + cut as v0.9.3** (one non-blocking FAIL — collapsed-rail drop — deferred to FOLLOWUP-043). **Priority:** Medium. **Effort:** S.
 
@@ -17,17 +17,17 @@
 
 **Cross-refs.** `renderer/components/FileTree.tsx` (per-row content `<button>` — add `draggable`/`onDragStart`), `renderer/App.tsx` (drop target on the terminal-column wrapper; the existing `pty.write(activeTabId, …)` in the canvas `terminal:send` action), `renderer/components/TerminalPane.tsx` (xterm host + the BUG-094 capture-phase paste precedent), `core/pty-manager.ts` (the shared `write(id, data)` PTY primitive), `cli/duo.ts` (`send` verb — the existing insert-into-active-terminal path that satisfies CLI parity), `shared/types.ts` (`DirEntry.path`). Related: ENH-190 ([PRD](prd/enh-190-navigator-resize-peek.md)) — sibling navigator-interaction upgrade; [ENH-191](#enh-191) — multi-window (the drop resolves the per-window `activeTabId`, so it is window-correct by construction).
 
-**Docs.** PRD at [`docs/prd/enh-204-navigator-drag-path-to-terminal.md`](prd/enh-204-navigator-drag-path-to-terminal.md).
+**Docs.** PRD at [`docs/prd/enh-207-navigator-drag-path-to-terminal.md`](prd/enh-207-navigator-drag-path-to-terminal.md).
 
 **Smoke walk (v0.9.3, 2026-06-08): 7/8 PASS.** Walked live: real file + folder drag, spaced-path single-quoting, multi-select tree-order, drop onto a running Claude session (lands in the input box, does NOT submit), foreign Finder drag (app stays intact — inert), and regression (nav click/open + terminal tab-reorder). **FAIL (non-blocking — owner confirmed not a functional requirement):** dropping on a *collapsed* terminal rail expands the column but spawns a fresh terminal instead of inserting the path; the common case (drop on the visible/expanded terminal) works. Deferred → FOLLOWUP-043.
 
 ---
 
-### FOLLOWUP-043: ENH-204 — drop on a *collapsed* terminal rail should insert (currently expands + spawns a tab)
+### FOLLOWUP-043: ENH-207 — drop on a *collapsed* terminal rail should insert (currently expands + spawns a tab)
 
-**Status:** 🆕 Filed 2026-06-08. **Priority:** Low. **Effort:** S. **Parent:** ENH-204.
+**Status:** 🆕 Filed 2026-06-08. **Priority:** Low. **Effort:** S. **Parent:** ENH-207.
 
-Surfaced on the ENH-204 v0.9.3 smoke walk (owner: non-blocking, "not a func req"). Dropping a navigator row onto the terminal column while it is **collapsed to the 36px rail** expands the pane but **spawns a new terminal** and does **not** insert the dragged path. Expected (PRD D3c): expand the column and insert at the active terminal's cursor. Root-cause candidates: the drop fires `toggleCollapseTerminal()` (the `App.tsx` terminal-column wrapper `onDrop`) but the subsequent `pty.write(activeTabId, …)` targets a stale / just-revealed tab, and/or the `CollapsedPaneRail`'s own expand affordance consumes the gesture. Fix path: attach the drop handler to `CollapsedPaneRail` directly (or sequence expand → resolve active tab → write on the next tick), then add a smoke-walk line. The expanded-terminal drop (the common case) is unaffected.
+Surfaced on the ENH-207 v0.9.3 smoke walk (owner: non-blocking, "not a func req"). Dropping a navigator row onto the terminal column while it is **collapsed to the 36px rail** expands the pane but **spawns a new terminal** and does **not** insert the dragged path. Expected (PRD D3c): expand the column and insert at the active terminal's cursor. Root-cause candidates: the drop fires `toggleCollapseTerminal()` (the `App.tsx` terminal-column wrapper `onDrop`) but the subsequent `pty.write(activeTabId, …)` targets a stale / just-revealed tab, and/or the `CollapsedPaneRail`'s own expand affordance consumes the gesture. Fix path: attach the drop handler to `CollapsedPaneRail` directly (or sequence expand → resolve active tab → write on the next tick), then add a smoke-walk line. The expanded-terminal drop (the common case) is unaffected.
 
 ---
 
