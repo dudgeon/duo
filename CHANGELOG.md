@@ -19,7 +19,28 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.9.2 cut 2026-06-07.
+> Empty — v0.10.0 cut 2026-06-08.
+
+## [0.10.0] — 2026-06-08 — Multi-window: a real second window · navigator/terminal UX
+
+### Added
+- **Multi-window — a genuine second window (ENH-191 P5a/P5b, PRs #73 + #78).** `File → New Window` (⌥⌘N) or `duo window new` opens a second app window with its own workspace, browser pane, navigator, terminals, and geometry — restored across relaunches, gated by an "Allow Multiple Windows" setting (default on). Cross-window CLI addressing: each terminal carries a `DUO_WINDOW` env stamp, `duo --window N <verb>` targets a specific window, `duo windows` enumerates open windows, and `duo doctor` reports the live window count.
+- **Drag a navigator file/folder into the terminal to insert its path (ENH-207, #81).** Drag a navigator row (or a multi-selection) onto the terminal column to insert the absolute path(s) at the active terminal's cursor — POSIX-quoted when a path contains spaces/metacharacters, joined in tree order, with one trailing space and **no newline** (so a drop never auto-runs a command or auto-submits a Claude prompt). Works in a shell or a running Claude session.
+
+### Changed
+- **Opening a new terminal outside the focused project reverts to "All" (ENH-204, #79).** While the rail is filtered to one project, opening a terminal whose cwd isn't a member (another project, a nested sub-project, or `~`) now drops the filter back to All instead of letting the just-created active tab vanish behind it.
+- **App-level default resolution is by identity, never focus (ENH-191 P5a).** Window-addressed sends/reads resolve the deterministic lowest-id "primary" window; a `check:routing` grep-gate keeps any focus-based default-resolution from creeping in.
+
+### Fixed
+- **Window-2 survivability (ENH-191 P5a Tier-1/2).** Main-process resolution points that threw or mis-targeted once a second window existed — browser-pane mount (`BROWSER_BOUNDS`), the git-watcher `INVALIDATE` (an uncaught throw inside the file-watch callback that crashed main on any tracked-file change), native context menus / popups / confirm sheets, and workspace save/open/new — now resolve the invoking or addressed window. Byte-identical at N=1.
+- **Relaunch data-loss guard (ENH-191 P4/P5a).** The session file migrates flat → `{version:2, windows:[…]}`, seeds every persisted window before the first save (so a single-window save can't clobber an N-window file), and writes a one-time `session-state.json.v1.bak` before the first v2 write. An older Duo reading a v2 file degrades to an empty session gracefully (no crash, no corruption).
+- **New windows open blank (ENH-191 NFR-6.2)** — a second window no longer clones window 1's pinned file tabs.
+
+### Known issues
+- **Drag onto a *collapsed* terminal rail** expands the column but spawns a fresh terminal instead of inserting the path (FOLLOWUP-043, non-blocking; the common drop-on-visible case works).
+- **First terminal in a never-probed nested sub-project** can briefly keep focus until its git probe resolves (~tens of ms), then self-corrects (ENH-204 residual).
+- **Downgrade caveat:** a session created in v0.10.0 isn't restored by an older Duo (it boots empty, gracefully — no pref or `.duo-workspace` loss); the inherent cost of the v2 session-format bump.
+- `duo screenshot` still times out (~10s socket cap vs the base64 round-trip; BUG-198, pre-existing).
 
 ## [0.9.2] — 2026-06-07 — Multi-window foundations (registry-of-one) · bundled-skill overhaul
 
@@ -1892,7 +1913,8 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.9.2...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/dudgeon/duo/compare/v0.9.2...v0.10.0
 [0.9.2]: https://github.com/dudgeon/duo/compare/v0.9.1...v0.9.2
 [0.8.4]: https://github.com/dudgeon/duo/compare/v0.8.2...v0.8.4
 [0.8.0]: https://github.com/dudgeon/duo/releases/tag/v0.8.0

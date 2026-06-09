@@ -28,7 +28,7 @@ var os = __toESM(require("os"));
 var path = __toESM(require("path"));
 var fs = __toESM(require("fs"));
 var import_crypto = require("crypto");
-var VERSION = true ? "0.9.3" : "0.0.0-dev";
+var VERSION = true ? "0.10.0" : "0.0.0-dev";
 var VERBS = [
   // ── Browser & tabs ──
   {

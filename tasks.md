@@ -5,7 +5,7 @@
 
 ### ENH-207: Drag a file/folder from the navigator to insert its path into the active terminal
 
-**Status:** 🟢 **Implemented + verified 2026-06-08 — owner-requested (this session); smoke-walked 7/8 PASS; PR open, main-repo agent to merge + cut as v0.9.3** (one non-blocking FAIL — collapsed-rail drop — deferred to FOLLOWUP-043). **Priority:** Medium. **Effort:** S.
+**Status:** ✅ **Shipped v0.10.0 (2026-06-08, PR #81)** — owner-requested; smoke-walked 7/8 PASS (one non-blocking FAIL — collapsed-rail drop — deferred to FOLLOWUP-043). Renumbered from a colliding ENH-204 (which #79 holds). **Priority:** Medium. **Effort:** S. *(archive-move deferred to next sweep.)*
 
 **Ask.** Let the user drag a row out of the navigator (`FileTree`) and drop it on the terminal to insert that file's or folder's **absolute path** at the cursor of the **active** terminal — the everyday "point Claude at this file without typing or copy/pasting the path" gesture. Works identically whether the foreground program is a vanilla shell or a running Claude Code session.
 
@@ -33,7 +33,7 @@ Surfaced on the ENH-207 v0.9.3 smoke walk (owner: non-blocking, "not a func req"
 
 ### ENH-204: Opening a new terminal outside the focused project reverts to "All"
 
-**Status:** 🟢 **Merge-ready — [PR #79](https://github.com/dudgeon/duo/pull/79), 2026-06-08** (branch `claude/determined-hoover-86829d`). Implemented + reviewed twice (own 5-lens workflow + PR `/code-review`, 0 blockers, suggestions folded in). **Owner waived the live in-app smoke 2026-06-08** ("merge-ready as is") — closing on static + review verification. Awaiting owner merge. **Priority:** Owner-requested. **Effort:** S.
+**Status:** ✅ **Shipped v0.10.0 (2026-06-08, [PR #79](https://github.com/dudgeon/duo/pull/79))** — implemented + reviewed twice (own 5-lens workflow + PR `/code-review`, 0 blockers, suggestions folded in); owner waived the live in-app smoke. **Priority:** Owner-requested. **Effort:** S. *(archive-move deferred to next sweep.)*
 
 **Ask (owner, verbatim).** "When I am in a filtered project view, and I open a new terminal with CWD outside that project, I should revert to the 'all projects' (unfiltered) view."
 

@@ -21,7 +21,17 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.9.1 cut 2026-06-06)*
+> *(empty — v0.10.0 cut 2026-06-08)*
+
+---
+
+## v0.10.0 — 2026-06-08 — Multi-window: a real second window · navigator/terminal UX
+
+**Why this lands here.** v0.9.2 landed the multi-window *foundation* inert (the registry-of-one spine, no second window). v0.10.0 is the payoff: `⌥⌘N` / `duo window new` opens a genuine second window with its own workspace, browser pane, navigator, terminals, and geometry — and the whole CLI surface becomes window-addressable (a `DUO_WINDOW` env stamp per terminal + `duo --window N` + `duo windows`). It rides on two earlier all-dark interims — P4 (the versioned session envelope, #78) and P5a/P5b (the window-2 machinery, #73) — each merged byte-identical-at-N=1 and adversarially reviewed (the P5 capstone was grep-verified to have zero residual fail-loud resolution points, with 1093 tests + an 8/8 smoke walk). Two standalone navigator/terminal UX features ride along: revert-to-All when a terminal opens outside the focused project (ENH-204, #79) and drag-a-path-into-the-terminal (ENH-207, #81).
+
+**Key decisions baked in.** (1) Default window resolution is by *identity* (the lowest-id "primary" window), never focus — mechanically enforced by a grep-gate — so a windowless CLI command lands in one predictable window rather than racing the focused one. (2) The session file moves to a versioned `{version:2, windows:[…]}` envelope with a seed-before-save guard + a one-time `.v1.bak`; the accepted, documented cost is that a *downgrade* boots an empty session (graceful — no pref or saved-workspace loss). (3) The drag-to-terminal payload is control-char-stripped, shell-quoted, and newline-free by construction, so a dropped path can never auto-run a command or auto-submit a half-formed Claude prompt.
+
+**What this is and isn't.** This IS multi-window — open as many windows as you like, each independently addressable from the CLI. Signed + notarized (first launch is a single double-click). Known edges: a drop onto a *collapsed* terminal rail spawns a tab instead of inserting (FOLLOWUP-043); the first terminal in a never-probed nested sub-project briefly keeps focus then self-corrects; a v0.10.0 session isn't restored by an *older* Duo (boots empty, gracefully); `duo screenshot` still times out (BUG-198). Queued next (filed): the per-request-window-target concurrency hardening + per-window git-watchers (P5 follow-ups), and the broader multi-window polish.
 
 ---
 
