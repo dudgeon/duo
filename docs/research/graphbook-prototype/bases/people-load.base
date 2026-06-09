@@ -1,0 +1,24 @@
+# "Who is carrying what" — open milestones grouped by owner.
+# Owner is a LINK-valued property; grouping by it is itself a probe of
+# how Bases renders link groups.
+filters:
+  and:
+    - type == "milestone"
+    - status != "done"
+    - not:
+        - file.inFolder("templates")
+formulas:
+  when: 'if(due, due.relative(), "— no due date —")'
+views:
+  - type: table
+    name: By owner
+    groupBy:
+      property: note.owner
+      direction: ASC
+    order:
+      - file.name
+      - initiative
+      - status
+      - formula.when
+    summaries:
+      status: Filled

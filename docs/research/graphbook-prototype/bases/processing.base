@@ -1,0 +1,40 @@
+# The processing dashboard — every view here is a TODO list for the
+# processing pass (human or Claude). One base, three lenses.
+filters:
+  and:
+    - file.ext == "md"
+    - '!file.inFolder("templates")'
+    - file.name != "README"
+views:
+  - type: table
+    name: Stale inbox
+    filters:
+      and:
+        - file.inFolder("inbox")
+        - captured < today() - "1 week"
+    order:
+      - file.name
+      - captured
+  - type: table
+    name: Untyped notes
+    filters:
+      and:
+        - not:
+            - file.hasProperty("type")
+        - not:
+            - file.inFolder("inbox")
+    order:
+      - file.name
+      - file.folder
+      - file.mtime
+  - type: table
+    name: Milestones missing due
+    filters:
+      and:
+        - type == "milestone"
+        - not:
+            - file.hasProperty("due")
+    order:
+      - file.name
+      - initiative
+      - owner

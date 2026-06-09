@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>Vault vs Obsidian — an honest assessment</title>
+<style>
+/* duo-atelier.css kernel */
+:root {
+  --paper: #fbf8f1; --paper-deep: #f3ede0; --paper-edge: #e8e0cb; --paper-rule: #d9cea8;
+  --ink: #2b2620; --ink-soft: #4a4238; --ink-mute: #6f6557; --ink-ghost: #9a9080;
+  --accent: #c46a1c; --accent-soft: #f4d9b6;
+  --pass: #4a7d3e; --fail: #b13e3a; --warn: #b07527;
+  --code-bg: #2b2823; --code-ink: #e8e0cb;
+  --project-pine: #2E7D74; --project-harbor: #3C6E93; --project-iris: #5B57A6;
+  --project-plum: #87508F; --project-rose: #A4506A; --project-moss: #69763A;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55; }
+body { padding: 32px 40px 96px; max-width: 960px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic;
+  font-weight: 500; margin: 0 0 4px; font-size: 24px; }
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill { display: inline-block; padding: 2px 8px; border-radius: 10px;
+  background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.04em; margin-right: 6px; }
+.intro { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px;
+  padding: 14px 18px; margin-bottom: 28px; font-size: 13.5px; color: var(--ink-soft); }
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 600;
+  margin: 36px 0 12px; font-size: 19px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px; }
+h3 { font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px;
+  background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; }
+.decision-card { background: var(--paper-deep); border: 1.5px solid var(--paper-rule);
+  border-radius: 6px; padding: 16px 18px; margin: 18px 0; }
+.decision-card .q-title { font-weight: 700; font-size: 13px; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px; }
+.decision-card .q-prompt { font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 500; font-size: 17px; color: var(--ink); margin: 0 0 12px; line-height: 1.35; }
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option { display: block; background: var(--paper); border: 1.5px solid var(--paper-rule);
+  border-radius: 5px; padding: 10px 12px; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) { border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent);
+  text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px;
+  border-radius: 8px; margin-left: 6px; }
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes { width: 100%; background: var(--paper); border: 1px solid var(--paper-rule);
+  border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px;
+  color: var(--ink); resize: vertical; min-height: 50px; }
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+.copy-bar { position: sticky; bottom: 0; margin: 32px -40px -96px; padding: 16px 40px;
+  background: color-mix(in srgb, var(--paper-deep) 96%, transparent);
+  border-top: 1.5px solid var(--paper-rule); backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px); display: flex; justify-content: space-between;
+  align-items: center; gap: 16px; }
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button { background: var(--accent); color: white; border: none; border-radius: 5px;
+  padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+.copy-bar button.copied { background: var(--pass); }
+
+/* — per-page — */
+.verdict-box { background: var(--paper); border: 2px solid var(--accent); border-radius: 8px;
+  padding: 16px 20px; margin: 18px 0; }
+.verdict-box .v-label { font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--accent); margin-bottom: 6px; }
+.verdict-box p { font-size: 14px; }
+
+.chip { display: inline-block; padding: 1px 9px; border-radius: 9px; font-size: 10.5px;
+  font-weight: 700; letter-spacing: 0.03em; color: white; white-space: nowrap; }
+.chip.reinforce { background: var(--pass); }
+.chip.duplicate { background: var(--warn); }
+.chip.diverge { background: var(--project-harbor); }
+
+table.audit { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 12.5px; }
+table.audit th, table.audit td { border: 1px solid var(--paper-rule); padding: 7px 9px;
+  text-align: left; vertical-align: top; }
+table.audit th { background: var(--paper-deep); font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.03em; color: var(--ink-mute); }
+table.audit td:first-child { font-weight: 600; }
+table.audit .src { color: var(--ink-ghost); font-size: 11px; }
+
+.bars { margin: 14px 0; }
+.bar-row { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
+.bar-row .bar-label { flex: 0 0 200px; font-size: 12.5px; font-weight: 600; text-align: right; }
+.bar-row .bar { flex: 1; display: flex; height: 26px; border-radius: 4px; overflow: hidden;
+  border: 1px solid var(--paper-rule); }
+.bar .seg { display: flex; align-items: center; justify-content: center; color: white;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.03em; }
+.seg.reinforce { background: var(--pass); }
+.seg.duplicate { background: var(--warn); }
+.seg.diverge { background: var(--project-harbor); }
+.legend-row { display: flex; gap: 14px; margin: 8px 0 0 210px; font-size: 11.5px; color: var(--ink-mute); }
+
+.panels { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; }
+.panel { border-radius: 6px; padding: 14px 16px; font-size: 12.5px; }
+.panel h3 { margin: 0 0 8px; font-size: 13px; }
+.panel.theirs { background: var(--paper); border: 1.5px solid var(--paper-rule); }
+.panel.ours { background: color-mix(in srgb, var(--project-harbor) 7%, var(--paper));
+  border: 1.5px solid var(--project-harbor); }
+.panel ul { margin: 4px 0; padding-left: 18px; }
+.panel li { margin: 5px 0; color: var(--ink-soft); }
+
+.steelman { background: var(--paper); border: 1.5px solid var(--paper-rule);
+  border-left: 4px solid var(--fail); border-radius: 6px; padding: 12px 16px; margin: 14px 0; }
+.steelman .s-q { font-weight: 700; font-size: 13.5px; color: var(--fail); margin-bottom: 6px; }
+.steelman .s-a { font-size: 12.5px; color: var(--ink-soft); }
+.steelman .s-a strong { color: var(--ink); }
+
+@media (max-width: 760px) { .panels { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Vault vs Obsidian — an honest assessment</h1>
+  <div class="meta">
+    <span class="pill">Pre-build review</span>
+    <span class="pill">ENH-208</span>
+    2026-06-09 · audits <code>docs/prd/enh-208-vault.md</code> (D1–D22) against Obsidian 1.13 core + ecosystem
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> An adversarial self-review, requested before any build
+  investment: for every PRD capability — are we <span class="chip reinforce">REINFORCING</span>
+  Obsidian patterns (using them as-is), <span class="chip duplicate">DUPLICATING</span> them
+  (rebuilding what Obsidian already does), or <span class="chip diverge">DIVERGING</span>
+  (building what Obsidian cannot do)? Facts about Obsidian were re-verified against official
+  docs today — including three that cut against us. Verdict up front; the receipts below;
+  three decisions at the bottom.
+</div>
+
+<div class="verdict-box">
+  <div class="v-label">Verdict</div>
+  <p><strong>Yes — but the case rests almost entirely on the agent layer, and the phases
+  are not equal.</strong> Phase 1 (skill + CLI verbs) is ~85% divergence: processing with
+  reviewable tracked changes, corpus-as-schema validation, prose-to-base authoring,
+  headless publishing — none of which exists in Obsidian or its ~66-server MCP ecosystem.
+  Build it immediately. Phase 2 is mostly justified duplication (capture ergonomics where
+  you already work). <strong>Phase 3 (in-app rollup tabs) is where duplication concentrates</strong> —
+  Obsidian renders the same <code>.base</code> files natively, with property-editable cells we
+  won't match in v1 — so it should be gated on observed Phase-1/2 habit, not built on faith.
+  The single biggest risk is not any one feature: it's drift toward "Duo becomes a worse
+  Obsidian." The mitigation is already locked (D1 strict compat): <strong>treat Obsidian as an
+  official companion, not a rival</strong> — and let it keep the jobs it does better.</p>
+</div>
+
+<h2>The audit</h2>
+
+<table class="audit">
+  <tr><th>What we're building</th><th>Obsidian counterpart</th><th>Verdict</th><th>Honest note</th></tr>
+  <tr>
+    <td>At-rest format: vault, wikilinks, frontmatter, <code>templates/</code>, filing rules, archive <span class="src">D1–D7, D19–D20</span></td>
+    <td>Native conventions, verbatim</td>
+    <td><span class="chip reinforce">REINFORCE</span></td>
+    <td>Zero invention. Bonus we couldn't build: <strong>Obsidian mobile + sync gives phone capture for free</strong> — only because compat is strict.</td>
+  </tr>
+  <tr>
+    <td>Rollup definitions as <code>.base</code> <span class="src">D8, D14</span></td>
+    <td>Obsidian Bases (core, 1.9+)</td>
+    <td><span class="chip reinforce">REINFORCE</span></td>
+    <td>Same file renders in both apps. The alternative (Duo-own spec) was the divergence trap; correctly rejected.</td>
+  </tr>
+  <tr>
+    <td>Promote section → entity file <span class="src">D18</span></td>
+    <td><strong>Note composer (core)</strong>: extract selection → new note, leaving link/embed</td>
+    <td><span class="chip reinforce">REINFORCE</span></td>
+    <td>Verified today: the manual op is core Obsidian. Ours adds what theirs lacks — processing does it <em>proactively</em> + stamps the type template. Automation diverges; the file convention reinforces.</td>
+  </tr>
+  <tr>
+    <td>Wikilink autocomplete, ⌘O switcher, frontmatter panel <span class="src">shipped pre-PRD</span></td>
+    <td>Core editor features</td>
+    <td><span class="chip duplicate">DUPLICATE</span></td>
+    <td>Sunk cost — already shipped and working. Listed for honesty: Duo's editor permanently trails Obsidian's (tags, embeds, backlinks pane all missing).</td>
+  </tr>
+  <tr>
+    <td>Type-picker entity creation on ⇥ <span class="src">D4</span></td>
+    <td>Core: blank untyped note in one default folder; typed creation needs Templater/QuickAdd</td>
+    <td><span class="chip duplicate">DUPLICATE</span></td>
+    <td>Duplicates <em>community plugin</em> behavior, not core — and improves it. Small build on shipped suggesters. Obsidian-side creations stay untyped; processing heals (designed asymmetry).</td>
+  </tr>
+  <tr>
+    <td>Quick capture ⇧⌘N + default vault <span class="src">D11</span></td>
+    <td>No core global capture hotkey (verified); needs QuickAdd/Global-Hotkeys plugins or URI glue</td>
+    <td><span class="chip duplicate">DUPLICATE</span></td>
+    <td>Duplicates plugin territory, justified: capture must not cost an app-switch from where you already work. Smallest possible build.</td>
+  </tr>
+  <tr>
+    <td><code>@today</code> smart tokens <span class="src">D21</span></td>
+    <td><strong>Core has it</strong> (verified): "Templates: Insert current date/time" commands; NL Dates plugin for <code>@today</code>-style</td>
+    <td><span class="chip duplicate">DUPLICATE</span></td>
+    <td>The most duplicative item in the PRD, saved by being nearly free (rides the shipped <code>@</code> suggester). Worth it only because it is tiny.</td>
+  </tr>
+  <tr>
+    <td>Vault search ⌘⇧F <span class="src">D22</span></td>
+    <td>Core search — strictly stronger (operators, embeds, regex)</td>
+    <td><span class="chip duplicate">DUPLICATE</span></td>
+    <td>Ours will be a simpler grep. Justified by context (you're in Duo) and by the CLI twin (<code>duo vault search</code>), which is agent-diverging. Don't chase operator parity.</td>
+  </tr>
+  <tr>
+    <td><strong>Rollup renderer</strong> (live tabs + engine) <span class="src">D9, D16</span></td>
+    <td>Obsidian renders bases natively — with <strong>property-editable cells</strong> we won't match in v1</td>
+    <td><span class="chip duplicate">DUPLICATE</span></td>
+    <td><strong>The big one.</strong> A second renderer with an ongoing spec-chasing tax (Bases ships kanban/calendar next). Justified only by: rendering inside Duo's panes, headless artifacts, and child→parent rollups beyond the spec. Keep the engine pinned to the documented subset (D15 ⚠-cells for the rest), and gate the in-app surface (Phase 3) on real usage.</td>
+  </tr>
+  <tr>
+    <td>Stamped artifact publishing <span class="src">D13</span></td>
+    <td>Obsidian Publish ($8/mo, hosted) or PDF export</td>
+    <td><span class="chip diverge">DIVERGE</span></td>
+    <td>Git-shareable HTML viewable with neither app installed; hash-stamped staleness. No Obsidian counterpart in kind.</td>
+  </tr>
+  <tr>
+    <td>Corpus-as-schema + lint <span class="src">L0/L1, D15</span></td>
+    <td>None — Obsidian has no schema concept; no plugin validates references against the vault</td>
+    <td><span class="chip diverge">DIVERGE</span></td>
+    <td>Proven in the prototype (typo'd type / unresolved entity / bad enum each caught with "did you mean"). The silent-empty-view failure it prevents is real and currently uncatchable in Obsidian.</td>
+  </tr>
+  <tr>
+    <td><strong>Processing</strong>: CriticMarkup suggestions + report notes <span class="src">D10, P8</span></td>
+    <td>Nothing comparable — Obsidian has no tracked changes at all; MCP-driven edits land raw</td>
+    <td><span class="chip diverge">DIVERGE</span></td>
+    <td><strong>The core product.</strong> Reviewable agent refactoring of your notes — accept/reject in the same window as the conversation — exists nowhere in the Obsidian ecosystem.</td>
+  </tr>
+  <tr>
+    <td>Prose → base authoring + validation loop <span class="src">D14</span></td>
+    <td>Bases has a GUI builder for humans; nothing agent-native</td>
+    <td><span class="chip diverge">DIVERGE</span></td>
+    <td>"Show me blocked milestones by owner" → linted, corpus-checked YAML. Agent-native authoring with machine-checkable correctness.</td>
+  </tr>
+  <tr>
+    <td>CLI verb cluster <span class="src">§5</span></td>
+    <td>Official URI scheme (write-only, fire-and-forget); community Local REST API + ~66 MCP servers (require Obsidian running)</td>
+    <td><span class="chip diverge">DIVERGE</span></td>
+    <td>First-class, headless, no plugin install, works on bare files in CI/cron. The community stack is real but bolted-on; ours is the agent's native hands.</td>
+  </tr>
+</table>
+
+<h2>Where the build effort lands, by phase</h2>
+
+<div class="bars">
+  <div class="bar-row">
+    <div class="bar-label">Phase 1 · skill + verbs</div>
+    <div class="bar">
+      <div class="seg diverge" style="width:85%">DIVERGE 85%</div>
+      <div class="seg reinforce" style="width:15%">15%</div>
+    </div>
+  </div>
+  <div class="bar-row">
+    <div class="bar-label">Phase 2 · capture UX</div>
+    <div class="bar">
+      <div class="seg duplicate" style="width:60%">DUPLICATE 60%</div>
+      <div class="seg diverge" style="width:25%">DIVERGE 25%</div>
+      <div class="seg reinforce" style="width:15%">15%</div>
+    </div>
+  </div>
+  <div class="bar-row">
+    <div class="bar-label">Phase 3 · rollups in-app</div>
+    <div class="bar">
+      <div class="seg duplicate" style="width:60%">DUPLICATE 60%</div>
+      <div class="seg diverge" style="width:40%">DIVERGE 40%</div>
+    </div>
+  </div>
+  <div class="legend-row">
+    <span><span class="chip reinforce">REINFORCE</span> conventions used as-is</span>
+    <span><span class="chip duplicate">DUPLICATE</span> Obsidian already does it</span>
+    <span><span class="chip diverge">DIVERGE</span> only we can</span>
+  </div>
+</div>
+
+<p style="font-size:12.5px;color:var(--ink-mute)">Reading: the build order already
+matches the value order — the phases get <em>more</em> duplicative as they go, which is
+exactly why Phase 1 needs no gate and Phase 3 does.</p>
+
+<h2>Division of labor — said out loud</h2>
+
+<div class="panels">
+  <div class="panel theirs">
+    <h3>Obsidian keeps these jobs (we deliberately don't chase)</h3>
+    <ul>
+      <li>Backlinks pane, tags, graph view, outline</li>
+      <li>Search operators, regex, embed-aware search</li>
+      <li>Editable base cells (property write-back)</li>
+      <li>Embeds/transclusion rendering</li>
+      <li><strong>Mobile capture + sync</strong> — strict compat means the phone story is "install Obsidian mobile," and that's a feature, not a concession</li>
+      <li>A decade of plugins</li>
+    </ul>
+  </div>
+  <div class="panel ours">
+    <h3>Only the Duo + agent stack does these</h3>
+    <ul>
+      <li>Processing: reviewable tracked-change refactors of your corpus, accept/reject beside the conversation</li>
+      <li>Corpus validation — the vault as its own schema, "did you mean" against what actually exists</li>
+      <li>Rollups authored from prose, linted before they render</li>
+      <li>Headless everything: scheduled processing, CI-able lint, artifacts from cron — Obsidian not running, not installed</li>
+      <li>Child→parent rollups past the Bases boundary</li>
+      <li>Capture without leaving the window where the work happens</li>
+    </ul>
+  </div>
+</div>
+
+<h2>The steelmen — answered honestly</h2>
+
+<div class="steelman">
+  <div class="s-q">"Why not just use Obsidian + an MCP server? There are ~66 of them."</div>
+  <div class="s-a">The serious alternative, verified today: Local REST API + MCP servers are
+  real and mature-ish. Two honest answers. <strong>(1) The agent never needed Obsidian</strong> —
+  Claude works the files directly; an MCP adds a middleman that requires Obsidian running.
+  <strong>(2) What that stack cannot give:</strong> agent edits land <em>raw</em> — no tracked
+  changes, no accept/reject, no report notes — and the human reviews in a different window
+  from the conversation. The pairing premise (selection sharing, <code>duo</code> verbs on the open
+  note, CriticMarkup review in-window) is the actual product; MCP-driven Obsidian is agent
+  <em>access</em> without agent <em>collaboration</em>. If that premise is wrong, Duo itself is wrong —
+  this feature isn't where that bet gets decided.</div>
+</div>
+
+<div class="steelman">
+  <div class="s-q">"You're building a second .base renderer that will chase Obsidian's spec forever."</div>
+  <div class="s-a">True, and the tax is real (kanban/calendar views are on their roadmap).
+  Contained three ways: the engine is <strong>pinned to the documented subset</strong> (unknowns render
+  as ⚠ cells per D15, never crash); the renderer is <strong>needed anyway</strong> for headless artifacts
+  (D13) even if in-app tabs never ship; and the in-app surface (Phase 3) is the <strong>gated</strong>
+  part. Worst case we keep a small headless renderer and Obsidian remains the live viewer —
+  that fallback is decision Q1-C below, and it's a respectable outcome, not a failure.</div>
+</div>
+
+<div class="steelman">
+  <div class="s-q">"Duo's editor will always be a worse Obsidian. You're on a treadmill."</div>
+  <div class="s-a">Correct — <em>if</em> we chase editor parity. The locked design refuses the
+  treadmill: the deferred ledger (backlinks pane, tags, graph, editable embeds) is a list of
+  things we <strong>may never build</strong>, because D1 strict compat means the user opens the same
+  folder in Obsidian whenever they need them. Duo's editor only has to be good at
+  <strong>capture and review</strong> — the two jobs that must happen next to the agent. The moment a
+  PRD line item exists to make Duo a better Obsidian rather than a better <em>pair surface</em>,
+  it should die in review. (<code>@today</code> came closest this round; it survives on size alone.)</div>
+</div>
+
+<h2>Decisions</h2>
+
+<section class="decision-card">
+  <div class="q-title">Q1 · The verdict</div>
+  <h3 class="q-prompt">Does the vault feature set still get built, and in what shape?</h3>
+  <p class="q-context">The assessment supports building, with skepticism concentrated on
+  Phase 3. This locks the shape.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q1" value="build-gated">
+      <div class="q-option-body">
+        <div class="q-option-title">Build; gate Phase 3 on habit evidence <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Phases 1–2 proceed. Phase 3 (in-app rollup tabs) starts only after e.g. 2+ weeks of real captures and recurring CLI/artifact rollup use — proof the duplication buys a paid-for habit.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q1" value="build-as-prd">
+      <div class="q-option-body">
+        <div class="q-option-title">Build exactly as PRD'd, no gate</div>
+        <div class="q-option-rationale">Phases are already sequential; an explicit gate adds ceremony without changing order.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q1" value="renderer-artifact-only">
+      <div class="q-option-body">
+        <div class="q-option-title">Descope: renderer stays headless-only</div>
+        <div class="q-option-rationale">No in-app rollup tabs ever; Obsidian is the live viewer, Duo renders artifacts + agent layer only. Kills most Phase-3 duplication.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q1" value="pause">
+      <div class="q-option-body">
+        <div class="q-option-title">Don't build / pause</div>
+        <div class="q-option-rationale">The assessment changed your mind; park ENH-208 with the artifacts as the record.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="q1" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Q2 · Companion stance</div>
+  <h3 class="q-prompt">Is Obsidian officially a companion app, embraced in the Guide?</h3>
+  <p class="q-context">This decides the editor-treadmill question permanently: either the
+  Guide says "open your vault in Obsidian for backlinks/graph/mobile" with pride, or those
+  become Duo roadmap debts.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q2" value="companion">
+      <div class="q-option-body">
+        <div class="q-option-title">Official companion <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">The Guide gets an "Obsidian alongside Duo" chapter; deferred-ledger items that Obsidian covers may simply never be built. Duo's editor owns capture + review only.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q2" value="self-sufficient">
+      <div class="q-option-body">
+        <div class="q-option-title">Aim for eventual self-sufficiency</div>
+        <div class="q-option-rationale">Obsidian is a bridge; backlinks/tags/embeds eventually land in Duo. Accepts the treadmill knowingly.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="q2" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Q3 · Engine policy</div>
+  <h3 class="q-prompt">How does the .base engine relate to Obsidian's evolving spec?</h3>
+  <p class="q-context">Bases ships new views and functions several times a year. This sets
+  the maintenance contract before the first line is ported.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q3" value="pinned-subset">
+      <div class="q-option-body">
+        <div class="q-option-title">Pinned subset + ⚠ on unknowns <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Engine implements the verified-1.13 subset; unknown functions/views render as loud ⚠ cells (D15), never errors. Spec re-verified on Obsidian majors only.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q3" value="track-spec">
+      <div class="q-option-body">
+        <div class="q-option-title">Track the spec as ongoing maintenance</div>
+        <div class="q-option-rationale">Commit to following Bases releases (incl. kanban/calendar when they land). Honest recurring cost.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="q3" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 3 decisions answered</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  var DECISIONS = [
+    { id: 'q1', title: 'The verdict — build shape' },
+    { id: 'q2', title: 'Companion stance' },
+    { id: 'q3', title: 'Engine policy' }
+  ];
+  var STORE_KEY = 'vault-vs-obsidian';
+
+  function state() {
+    var s = {};
+    DECISIONS.forEach(function (d) {
+      var checked = document.querySelector('input[name="' + d.id + '"]:checked');
+      var notes = document.querySelector('.q-notes[data-decision="' + d.id + '"]');
+      s[d.id] = { value: checked ? checked.value : null, notes: notes ? notes.value : '' };
+    });
+    return s;
+  }
+  function save() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state())); } catch (e) {}
+    updateCount();
+  }
+  function restore() {
+    var raw = null;
+    try { raw = localStorage.getItem(STORE_KEY); } catch (e) {}
+    if (!raw) return;
+    var s; try { s = JSON.parse(raw); } catch (e) { return; }
+    DECISIONS.forEach(function (d) {
+      var saved = s[d.id];
+      if (!saved) return;
+      if (saved.value) {
+        var input = document.querySelector('input[name="' + d.id + '"][value="' + saved.value + '"]');
+        if (input) input.checked = true;
+      }
+      var notes = document.querySelector('.q-notes[data-decision="' + d.id + '"]');
+      if (notes && saved.notes) notes.value = saved.notes;
+    });
+  }
+  function updateCount() {
+    var s = state(), n = 0;
+    DECISIONS.forEach(function (d) { if (s[d.id].value) n++; });
+    document.getElementById('answered-count').textContent = String(n);
+  }
+  function payload() {
+    var s = state();
+    var lines = ['VAULT VS OBSIDIAN — ASSESSMENT DECISIONS', ''];
+    DECISIONS.forEach(function (d) {
+      var v = s[d.id].value ? s[d.id].value.toUpperCase() : 'UNANSWERED';
+      lines.push('[' + v + '] ' + d.title);
+      if (s[d.id].notes && s[d.id].notes.trim()) lines.push('    notes: ' + s[d.id].notes.trim());
+      lines.push('');
+    });
+    return lines.join('\n');
+  }
+  document.querySelectorAll('input[type="radio"]').forEach(function (el) { el.addEventListener('change', save); });
+  document.querySelectorAll('.q-notes').forEach(function (el) { el.addEventListener('input', save); });
+  document.getElementById('copy-btn').addEventListener('click', function () {
+    var btn = this;
+    navigator.clipboard.writeText(payload()).then(function () {
+      btn.classList.add('copied');
+      btn.textContent = 'Copied — paste to Claude';
+      setTimeout(function () { btn.classList.remove('copied'); btn.textContent = 'Copy decisions'; }, 2000);
+    });
+  });
+  restore();
+  updateCount();
+})();
+</script>
+
+</body>
+</html>

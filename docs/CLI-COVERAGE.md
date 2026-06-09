@@ -194,6 +194,27 @@ are absent and `TERM_PROGRAM` is whatever the parent terminal sets.
 Stage 20's `duo doctor` (D5 — distinguishes "running outside Duo"
 from "running inside Duo but transport failing").
 
+### Vault (ENH-208 Phase 1 — read verbs)
+
+Work-notes on plain Obsidian-vault conventions. **These verbs read the
+filesystem directly — no socket, no running app** (a deliberate parity
+asymmetry that lets a headless processing job read the vault; PRD Phase 4).
+The vault is resolved by walking up from the cwd to the nearest `.obsidian/`;
+`--vault <path>` overrides. Core lives in `core/vault/` (pure, fs-backed,
+shared with the renderer in Phase 3).
+
+| Verb | What it does | Output |
+|---|---|---|
+| `duo vault list` | Vaults detected from the cwd (enclosing + nested) | JSON `[{root, name, noteCount}]` |
+| `duo vault schema [--vault p]` | The L0 corpus — types/entities/aliases/props-per-type/observed-enums/templates; a live function over frontmatter, never cached (no-sidecar) | JSON `Corpus` |
+| `duo vault search <query> [--vault p]` | Case-insensitive full-text search (CLI twin of ⌘⇧F, D22) | JSON `[{path, absPath, line, excerpt}]` |
+| `duo graph backlinks <note> [--vault p]` | Notes linking to `<note>` (basename-resolved, scans frontmatter + body) | JSON `[{path, absPath, line, excerpt}]` |
+| `duo graph orphans [--vault p]` | Notes with no inbound and no outbound links (a processing work-list) | JSON `string[]` |
+
+Phase 1 still to land: `duo base lint` / `duo base render` (PR2),
+`duo vault init` / `duo vault capture` (PR3). Phase 2 adds `duo vault
+default` (the settings default-vault CLI twin).
+
 ---
 
 ## 2. Gap catalogue — CLI verbs still missing

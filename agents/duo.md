@@ -273,6 +273,11 @@ empty.
 | `duo project unpin <name\|root>` | Remove from pin set. |
 | `duo project close <name\|root>` | Bulk close every member terminal + tab. Confirms via dialog when any member is `kind: 'claude'`. |
 | `duo workspace-pill-menu [on\|off\|toggle]` | Toggle the title-bar workspace pill click-to-open-menu (the workspace dropdown). Default OFF — pill is passive label; use File menu for workspace ops. |
+| `duo vault list` | Vaults detected from the cwd (folders with `.obsidian/`). JSON `[{root, name, noteCount}]`. These vault verbs read the filesystem directly — no running app needed. |
+| `duo vault schema [--vault <path>]` | The vault corpus (types, entities, aliases, props-per-type, observed enums, templates) — a live function over frontmatter, never cached. JSON `Corpus`. |
+| `duo vault search <query> [--vault <path>]` | Full-text search over the vault (CLI twin of ⌘⇧F). JSON `[{path, absPath, line, excerpt}]`. |
+| `duo graph backlinks <note> [--vault <path>]` | Notes linking to `<note>` (basename-resolved; scans frontmatter + body). JSON `[{path, absPath, line, excerpt}]`. |
+| `duo graph orphans [--vault <path>]` | Notes with no inbound and no outbound links (a processing work-list). JSON `string[]`. |
 
 For deeper detail, the Duo skill at `~/.claude/skills/duo/` is the
 source of truth — fetch sections from it rather than guessing:

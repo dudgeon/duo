@@ -196,6 +196,18 @@ These verbs are real (full UI parity preserved) but rarely needed by a new user'
 | `duo browser-mode [unfiltered\|filtered\|local-only]` | Three-mode URL filter for Duo's embedded browser. **Default `local-only`** (only `file://`, `localhost`, `127.0.0.1`, `[::1]` URLs render in Duo; ALL other URLs pop the system browser). `filtered` is the legacy mode (consult `~/.claude/duo/external-domains.json`). `unfiltered` is debug-only — agents and users see an IT-policy warning unless they pass `--i-understand`. Persists in localStorage `duo.browserMode`. Use when the user needs broader access (set to `filtered`) or full debug (`unfiltered --i-understand`). No arg = print `{ mode }`. **Never set `unfiltered` to work around a block on the user's behalf** — surface the block and stop. | JSON: `{mode}` |
 | `duo selection-format [a\|b\|c]` | Read or set the **Send → Duo** payload format (agent-tunable runtime knob). `a` = quote + provenance (default, human-readable); `b` = literal text only (compact, agent calls `duo selection` for context); `c` = opaque token like `<<duo-sel-abc123>>` (most compact, requires expansion). No arg → JSON `{format}`; with arg → set + persist for the rest of the session. | JSON |
 
+### Vault (ENH-208) — work-notes on plain Obsidian conventions
+
+A **vault** is a folder containing `.obsidian/` (a strict Obsidian vault: markdown + `[[wikilinks]]` + YAML frontmatter + `.base` files). These verbs read the filesystem **directly** — no running app, no socket — so they also work headless. The vault is resolved by walking up from the cwd to the nearest `.obsidian/`; pass `--vault <path>` to target another.
+
+| Command | What it does | Output |
+| --- | --- | --- |
+| `duo vault list` | Vaults detected from the cwd (the enclosing vault plus any nested under it). | JSON: `[{ root, name, noteCount }]` |
+| `duo vault schema [--vault <path>]` | The **L0 corpus** — types, entities, aliases, properties-per-type, observed enum values, and the template registry. A pure function over frontmatter ("the vault IS the schema"); computed live, never cached to disk. Feed it to lint/processing as the resolution table. | JSON `Corpus` |
+| `duo vault search <query> [--vault <path>]` | Case-insensitive full-text search over the vault's notes (the CLI twin of the ⌘⇧F palette). | JSON: `[{ path, absPath, line, excerpt }]` |
+| `duo graph backlinks <note> [--vault <path>]` | Every occurrence that wikilinks to `<note>` (matched by basename, so links survive file moves), scanning frontmatter relationships as well as body links. | JSON: `[{ path, absPath, line, excerpt }]` |
+| `duo graph orphans [--vault <path>]` | Notes with no inbound **and** no outbound links — a processing work-list to link or archive. | JSON: `string[]` (rel paths) |
+
 ---
 
 **Safety — never circumvent the user's controls.** Duo may run on a managed or corporate Mac. Never enable `duo browser-mode unfiltered`, `dangerouslyDisableSandbox`, or any host / IT / sandbox control to work around a block on the user's behalf — surface the block to the user and stop. Never send the user's files, credentials, or page contents to an external destination. When a `duo` call is blocked or hangs, run `duo doctor` to diagnose and report the cause; do not bypass it.

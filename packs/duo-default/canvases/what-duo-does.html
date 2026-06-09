@@ -948,6 +948,27 @@
   </div>
 </article>
 
+<h2 class="cat">Working in a vault</h2>
+<p class="cat-tagline">Keep networked work-notes — people, initiatives, themes, meetings — as plain markdown in a strict Obsidian vault. Duo reads the graph; Claude does the filing, linking, and rollups. (ENH-208 Phase 1 — agent + CLI first; capture UX is the fast-follow.)</p>
+
+<article class="item" data-keys="vault obsidian work notes wikilinks frontmatter graph corpus schema entities types aliases enums enh-208">
+  <div class="num">95</div>
+  <div>
+    <h3>Let Claude understand your vault as a graph</h3>
+    <p class="why">A <strong>vault</strong> is a folder with an <code>.obsidian/</code> directory — a strict Obsidian vault of markdown notes, <code>[[wikilinks]]</code>, and YAML frontmatter. Work topics form a messy graph (initiatives, people, themes, meetings) that rarely fits one hierarchy. Duo derives the <em>corpus</em> live from your notes' frontmatter — the types, entities, aliases, properties-per-type, and observed values — so "the vault IS the schema." Nothing is hand-declared or cached; it's recomputed every time, so it can never drift from your files. The same notes open correctly in Obsidian proper at all times.</p>
+    <p class="how"><strong>CLI / agent</strong><code>duo vault schema</code> prints the corpus; <code>duo vault list</code> finds vaults under your working folder. These read the filesystem directly — no running app needed — so the agent can work the vault headless.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="vault search backlinks orphans graph navigation full text find link basename move proof enh-208">
+  <div class="num">96</div>
+  <div>
+    <h3>Search and navigate the work-note graph</h3>
+    <p class="why">Find anything across the vault, and trace how notes connect. Backlinks are basename-resolved, so links keep working even after a note is filed into a different folder — and they include frontmatter relationships (a milestone's <code>initiative:</code>, an initiative's <code>owner:</code>), not just prose mentions. Orphans (notes with no links in or out) surface as a tidy-up list for a later processing pass.</p>
+    <p class="how"><strong>CLI / agent</strong><code>duo vault search "pricing"</code> (full-text; the CLI twin of the coming ⌘⇧F palette), <code>duo graph backlinks "Alice Park"</code>, <code>duo graph orphans</code>. All emit JSON the agent can act on.</p>
+  </div>
+</article>
+
 <h2 class="cat">Workspace setup</h2>
 <p class="cat-tagline">Pin tabs you want always-available; install Duo's skill + agent + CLI in one click.</p>
 

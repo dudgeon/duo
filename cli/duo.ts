@@ -13,6 +13,13 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { randomUUID } from 'crypto'
 import type { DuoRequest, DuoResponse } from '../shared/types'
+// ENH-208 Vault — the vault core is a pure fs-backed module (no Electron
+// deps), so these verbs run ENTIRELY in the CLI process against the
+// filesystem: no socket round-trip, no running app required. That is a
+// deliberate parity asymmetry (it's what lets a headless processing job
+// read the vault — PRD Phase 4). Only `base render --open` / `vault
+// capture --open` reach the app (to surface a tab), and only when asked.
+import * as vault from '../core/vault'
 
 // Injected at build time from package.json by scripts/build-cli.mjs via
 // esbuild `define`, so the CLI version always tracks the real release —
@@ -474,6 +481,25 @@ const VERBS: VerbSpec[] = [
     group: 'Health & install',
     args: '<list|uninstall> [args]',
     summary: 'Distro pack management. pack list prints a JSON list of installed packs; pack uninstall <name> [--remove-folder] removes one.'
+  },
+
+  // ── Vault (ENH-208) ──
+  // These verbs read the filesystem DIRECTLY (no socket / running app
+  // needed) — see the import note. The vault = the nearest ancestor of the
+  // cwd containing `.obsidian/`; pass `--vault <path>` to target another.
+  {
+    name: 'vault',
+    group: 'Vault',
+    args: '<list|schema|search> [args]',
+    summary:
+      'Work-notes vault (a strict Obsidian vault). list: vaults detected from the cwd (JSON). schema [--vault p]: the live corpus — types / entities / aliases / properties-per-type / observed enums, a pure function over frontmatter (the vault IS the schema; never cached). search <query> [--vault p]: full-text hits (file, line, excerpt) — the CLI twin of ⌘⇧F.'
+  },
+  {
+    name: 'graph',
+    group: 'Vault',
+    args: '<backlinks <note>|orphans> [--vault p]',
+    summary:
+      'Vault graph queries (wikilinks resolve by basename, so they survive file moves). backlinks <note>: every note linking to <note>, with file + line (JSON). orphans: notes with no inbound and no outbound links — a processing work-list (JSON).'
   }
 ]
 
@@ -2273,6 +2299,49 @@ async function main(): Promise<void> {
           out(await send('project', { op: sub, ref }))
         } else {
           die(`Unknown project sub-op: ${sub}. Expected list|focus|pin|unpin|close.`)
+        }
+        break
+      }
+
+      // ── Vault (ENH-208) — pure-local fs verbs (no socket) ──
+      // Subcommands use `sub === '…'` ladders (not nested `case`) — the
+      // currency checker reads every indented `case 'x':` as a top-level
+      // verb, so subcommand verbs must avoid nested switch/case.
+      case 'vault': {
+        const sub = rest[0]
+        const subRest = rest.slice(1)
+        const vaultFlag = flagValue(subRest, '--vault')
+        if (sub === 'list') {
+          // Vaults detected from the cwd (enclosing + nested).
+          out(vault.listVaults(process.cwd()))
+        } else if (sub === 'schema') {
+          out(vault.buildCorpus(vault.resolveVault(process.cwd(), vaultFlag)))
+        } else if (sub === 'search') {
+          const query = subRest.find((a) => !a.startsWith('--'))
+          if (!query) die('Usage: duo vault search <query> [--vault <path>]')
+          out(vault.search(vault.resolveVault(process.cwd(), vaultFlag), query))
+        } else {
+          die(
+            'Usage: duo vault <list|schema|search> [args]\n' +
+              '  list                  vaults detected from the cwd (JSON)\n' +
+              '  schema [--vault p]    the L0 corpus (JSON)\n' +
+              '  search <query>        full-text hits (JSON)',
+          )
+        }
+        break
+      }
+      case 'graph': {
+        const sub = rest[0]
+        const subRest = rest.slice(1)
+        const vaultFlag = flagValue(subRest, '--vault')
+        if (sub === 'backlinks') {
+          const note = subRest.find((a) => !a.startsWith('--'))
+          if (!note) die('Usage: duo graph backlinks <note> [--vault <path>]')
+          out(vault.backlinks(vault.resolveVault(process.cwd(), vaultFlag), note))
+        } else if (sub === 'orphans') {
+          out(vault.orphans(vault.resolveVault(process.cwd(), vaultFlag)))
+        } else {
+          die('Usage: duo graph <backlinks <note>|orphans> [--vault <path>]')
         }
         break
       }
