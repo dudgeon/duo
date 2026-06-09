@@ -24,6 +24,8 @@ export function loadTemplates(root: string): TypeTemplate[] {
   } catch {
     return []
   }
+  // Meta keys configure the TYPE (kept out of an entity's `fields`).
+  const META_KEYS = new Set(['type', 'folder', 'filingParent', 'filingLoose', 'folderNote'])
   const out: TypeTemplate[] = []
   for (const f of entries.sort()) {
     const abs = path.join(dir, f)
@@ -31,13 +33,17 @@ export function loadTemplates(root: string): TypeTemplate[] {
     const { frontmatter, body } = splitFrontmatter(raw)
     const type = typeof frontmatter.type === 'string' ? frontmatter.type : path.basename(f, '.md')
     const folder = typeof frontmatter.folder === 'string' ? frontmatter.folder : null
-    // Expected fields = declared frontmatter keys other than the meta keys
-    // (`type`/`folder`), in declaration order.
-    const fields = Object.keys(frontmatter).filter((k) => k !== 'type' && k !== 'folder')
+    const filingParent = typeof frontmatter.filingParent === 'string' ? frontmatter.filingParent : null
+    const filingLoose = typeof frontmatter.filingLoose === 'boolean' ? frontmatter.filingLoose : null
+    const folderNote = frontmatter.folderNote === true
+    const fields = Object.keys(frontmatter).filter((k) => !META_KEYS.has(k))
     const block = body.match(/```base\n([\s\S]*?)```/)
     out.push({
       type,
       folder,
+      filingParent,
+      filingLoose,
+      folderNote,
       fields,
       frontmatter,
       relPath: `templates/${f}`,
