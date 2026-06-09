@@ -1,18 +1,55 @@
-# Active sprint state — ENH-195 + ENH-197 + BUG-195 COMPLETE → PR (owner integrates on main)
+# Active sprint state — v0.10.0 SHIPPED (multi-window + ENH-204 + ENH-207) → carry-forward below
 
-## ENH-191 P5a Tier 2-4 + S4 + P5b addressing — DONE → PR submitted (2026-06-07)
+## v0.10.0 SHIPPED (2026-06-08) — multi-window window-2 real, signed DMG + GitHub Release
+
+> **CURRENT (2026-06-08):** **v0.10.0 is cut + shipped** (signed + notarized DMG +
+> GitHub Release). Headline: **ENH-191 multi-window — window 2 is real.** File →
+> New Window (⌥⌘N) **or** `duo window new` opens a **blank** second window (does
+> not clone window 1 pins, NFR-6.2); each window owns its workspace/browser/
+> navigator/terminals/geometry, all restored across relaunches (N-window restore,
+> ascending-id). Gated by an **"Allow Multiple Windows"** setting (DEFAULT ON);
+> OFF disables New Window, makes `duo window new` exit non-zero, and restores only
+> window 1 (rest dormant, re-enabling brings them back). Cross-window CLI:
+> `DUO_WINDOW` env per terminal, global `duo --window N <verb>`, `duo windows`
+> (lists `{id, primary, focused, activeWorkspace}`), `duo doctor` reports
+> "Windows: N"; stale/unknown id falls back to the PRIMARY (lowest-id) window.
+> App-level resolution is by **identity** (lowest-id primary), never focus
+> (`check:routing` grep-gate); app-menu resolves the focused window, renderer IPC
+> by `event.sender`. Session file is now `{version:2, windows:[…]}` — forward-
+> migration lossless + one-time `.v1.bak`; a downgrade boots an empty session
+> gracefully; byte-identical at N=1. Also shipped: **ENH-204** (a new terminal
+> opened outside the focused project reverts the rail filter to "All") and
+> **ENH-207** (drag navigator file/folder(s) onto the terminal column → inserts
+> absolute, POSIX-quoted path(s), one trailing space, no newline; foreign Finder
+> drops inert). **1119 tests green; signed + notarized.** PRs #73 + #78 (multi-
+> window P5a/P5b), #79 (ENH-204), #81 (ENH-207) — all merged.
+>
+> **NEXT:** work the carry-forward queue below (PR #80 P5 follow-ups, FOLLOWUP-043,
+> BUG-198, two deferred hygiene items).
+
+## ENH-191 P5a Tier 2-4 + S4 + P5b addressing — MERGED + SHIPPED in v0.10.0 (2026-06-07)
 
 > **CURRENT (2026-06-07):** ENH-191 **multi-window window-2 is functional** and verified. P5a Tier 2-4 (interaction crashers, app-menu focus-pointer, workspace windowId-threading, N-window restore + id-reconciliation, NFR-6.2 blank-pin, Tier-4 polish) **plus** the P5b CLI addressing (`DUO_WINDOW` + global `--window N` + `duo windows` + `duo doctor` Windows:N) landed in **10 commits** (`ebf8d68`..`910293c`) on `claude/enh-191-multiwindow` (17 ahead of main v0.9.3). The S4 core: `registry.primary()` (lowest-id, non-throwing) retires `only()` for default resolution; `getFocusedWindow` stays 0 (focus tracked via the `browser-window-focus` event, honoring the cardinal rule). **1093 tests, typecheck clean, routing baseline 0, check:skill-currency 67 verbs.** Live-verified via `duo` probes (addressing → window N; N-window restore w/ distinct slices; no-2N-growth; no crash at N=2) + a **2-window `/smoke-walk` v0.9.3: 8/8 PASS** (owner-walked). **PR submitted** (branch → main).
 >
-> **NEXT:** merge + a `cut-version` flow (roadmap/CHANGELOG/RELEASES/faq + signed DMG are cut-time). **Process notes:** the `ultracode` adversarial-verify workflow hung mid-run — its residual-crasher census was done manually and found 4 real wrong-window fixes (`b529771` + `36c171f`); discovered the iCloud `.claude/rules/* 2.md` conflict-copy dups (spawn-task chip filed) + 2 pre-existing bugs (a `files:changed` MaxListeners warning at N=2, a PageTab `querySelectorAll`-on-null on a stale restored canvas tab).
+> **SHIPPED in v0.10.0** (merged + cut 2026-06-08). **Process notes:** the `ultracode` adversarial-verify workflow hung mid-run — its residual-crasher census was done manually and found 4 real wrong-window fixes (`b529771` + `36c171f`); discovered the iCloud `.claude/rules/* 2.md` conflict-copy dups (spawn-task chip filed) + 2 pre-existing bugs (a `files:changed` MaxListeners warning at N=2, a PageTab `querySelectorAll`-on-null on a stale restored canvas tab).
 
-## v0.9.2 release in progress + post-cut carry-forward (owner-directed 2026-06-07)
+## Live carry-forward queue (post-v0.10.0, 2026-06-08)
 
-> **CURRENT (2026-06-07):** v0.9.2 = **ENH-191 P0–P3** (multi-window registry-of-one spine; PR #76 merged to `main` @ `cae95c6`) + **ENH-203** (bundled-skill overhaul). CLI/skill discoverability after the ENH-203 cut was **live pre-verified** — 9/9 headless `claude -p` probes found the right `duo` verb (browser read, navigate, selection, open, playground, status, screenshot, visibility cluster). Smoke walk **v0.9.2** generated (`docs/dev/smoke-walks/v0.9.2.json/.html`, 7 owner-judgment items) + pinned in the split-view aux. **Cut + push pending owner's walk results.** Pre-cut strict `check-skill-currency` blocker (2 dead links in `skill/pack-builder/SKILL.md`) FIXED + re-synced.
+Now-DONE items cleared: the `claude/enh-191-p4-p5a-dark` merge (PR #78), the
+multi-window PRs (#73/#76/#78), ENH-204 (#79), ENH-207 (#81) — **all merged +
+shipped in v0.10.0.** Still open:
 
-**Post-v0.9.2 carry-forward — do these AFTER the cut + push:**
-1. **Merge `claude/enh-191-p4-p5a-dark`** (12 commits ahead of `main`) → `main`. It's **P4** (the data-corruption gate) + **P5a S1/S2** (settings store + per-window-send reentrancy) — **all byte-identical at N=1, zero user-visible change, 1081 tests green.** It's the **last all-dark commit before S3 opens a real window 2**, so landing it now maximally shrinks the future behavior-changing merge at zero risk — same clean-interim-cut shape as the P0–P3 PR #76 (PR the branch, base `main`). Owner keeps building S3+ on the working branch ahead of it.
-2. **BUG-198 — `duo screenshot` times out** (~10s socket cap fires before the base64 image round-trips; the CDP capture itself works with a longer timeout). Pre-existing (not an ENH-191/203 regression). Not a v0.9.2 blocker. Tracked in `tasks.md` (BUG-198) + a spawn-task chip this session.
+1. **PR #80 — P5 follow-ups.** The deferred multi-window cleanup batch: **P1**
+   concurrency test + **4× P3** polish items. Land on `main` when picked up.
+2. **FOLLOWUP-043 — ENH-207 collapsed-rail drop.** Dragging a navigator file/
+   folder onto a **COLLAPSED** terminal rail spawns a tab instead of inserting the
+   path. Known issue, tracked in `tasks.md`.
+3. **BUG-198 — `duo screenshot` times out** (~10s socket cap fires before the
+   base64 image round-trips; the CDP capture itself works with a longer timeout).
+   Pre-existing (not an ENH-191/203/204/207 regression). Tracked in `tasks.md`.
+4. **Deferred hygiene:** move the newly-✅ **ENH-204 + ENH-207** entries from
+   `tasks.md` into `tasks-archive.md`; finish any remaining **what-duo-does.html**
+   polish for the v0.10.0 capabilities.
 
 > **✅ CURRENT (2026-06-06) — [ENH-195](../../tasks.md) complete + submitted as a PR.**
 > The v0.9.0 pre-walk blocker (canvas false-positive) is root-caused + FIXED, and three more items

@@ -595,16 +595,16 @@ const handleCloseProject = useCallback(async (root: string) => {
 
 ### FOLLOWUP-039: Cross-window race on `duo workspace-pill-menu` (Tier 3 — owner decision)
 
-**Status:** 🆕 **Filed 2026-05-25** (v0.8.0 audit, Tier 3 — future-proofing). **Priority:** Low (no multi-window today).
+**Status:** 🆕 **Filed 2026-05-25** (v0.8.0 audit, Tier 3 — future-proofing). **Re-triaged 2026-06-08** — premise is now true: multi-window shipped v0.10.0 (ENH-191 P5a/P5b), so this race is reachable at N>1. **Priority:** Low (real but low-frequency N>1 race).
 
-**Symptom.** `setWorkspacePillMenuFlag` writes localStorage in one window; another window (if it existed) receives a `storage` event (origin-window doesn't fire `storage`, others do) but ALSO the in-window `CustomEvent` fires only in the origin window. Today Duo is single-window; not exploitable.
+**Symptom.** `setWorkspacePillMenuFlag` writes localStorage in one window; a second window now receives a `storage` event (origin-window doesn't fire `storage`, others do) but the in-window `CustomEvent` fires only in the origin window — so the flag can land out of sync across windows. Now that window 2 is real, this is exploitable in practice (toggle the pill-menu setting in one window, observe the other).
 
 **Owner decision needed.**
 
-- **Option A** — Defer until multi-window ships (current state).
-- **Option B** — Pre-emptively use `BroadcastChannel` API for cross-window coordination.
+- **Option A** — Leave as-is and document. Low-frequency: the workspace-pill-menu flag is rarely toggled, and the `storage` event already propagates the localStorage change to other windows; only the in-window `CustomEvent` side is asymmetric.
+- **Option B** — Use the `BroadcastChannel` API for cross-window coordination so all windows react consistently regardless of origin.
 
-**Recommended default if owner unavailable:** Option A (defer). Adding `BroadcastChannel` infrastructure for a non-existent multi-window scenario is YAGNI.
+**Recommended default if owner unavailable:** Option A (document, defer the `BroadcastChannel` work). The cross-window value still propagates via `storage`; the asymmetry is narrow and the toggle is infrequent.
 
 ---
 
@@ -624,7 +624,7 @@ Background audit (agent ac060771dc81e76f5) surfaced additional polish items that
 - **FOLLOWUP-036** — Focus-release chip aria-label awkward. App.tsx \~3545 reads "Focused: duo, button, Release focus (duo)" — repetitive. Drop the visible-text from the aria-label or simplify to "Release focus."
 - **FOLLOWUP-037** — `useProjects` probe-after-delete cache: if pinned project's marker is deleted out-of-Duo mid-session, `markerResults` cache still shows true → ghost tile persists. Documented limitation; revisit if real users hit it.
 - **FOLLOWUP-038** — `useWorkspacePillMenuFlag` TS narrowing of `'key' in event` ambiguous between StorageEvent + CustomEvent with `key` field. Practically benign (we dispatch bare CustomEvent); worth a code comment.
-- **FOLLOWUP-039** — Cross-window race on `duo workspace-pill-menu`. No multi-window today; future-proofing.
+- **FOLLOWUP-039** — Cross-window race on `duo workspace-pill-menu`. Re-triaged 2026-06-08: multi-window shipped v0.10.0, so now reachable at N>1 (real but low-frequency race).
 - **FOLLOWUP-040** — Smoke-walk item: with `duo workspace-pill-menu off`, exercise `File → New Workspace` to verify the menu handler still works post-ENH-184.
 
 ---

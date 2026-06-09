@@ -33,14 +33,17 @@ the browser blocklist.
 
 ## Architecture in one paragraph
 
-One Electron main process owns everything: the `BrowserWindow`, the
-`PtyManager` (node-pty pool), the `BrowserManager` (WebContentsView), the
-`CdpBridge` (Chrome DevTools Protocol commands), and the `SocketServer` (Unix
-socket listener). The renderer process hosts React — xterm.js terminals, the
-browser pane, the markdown editor, and the HTML canvas — talking to main via
+One Electron main process owns everything: one or more `BrowserWindow`s (the
+`WindowRegistry` tracks them, each wrapped in a `WindowContext` that owns that
+window's `BrowserManager` / `CdpBridge` / navigator / terminals / geometry),
+the `PtyManager` (node-pty pool), and the `SocketServer` (Unix socket
+listener). The renderer process hosts React — xterm.js terminals, the browser
+pane, the markdown editor, and the HTML canvas — talking to main via
 contextBridge IPC. The `duo` CLI (standalone Node.js script) connects over the
 Unix socket to drive both the browser and the renderer surfaces from inside
-any terminal tab.
+any terminal tab; each terminal carries a `DUO_WINDOW` env stamp so
+`duo --window N <verb>` can address a specific window (default resolution is
+the lowest-id "primary" window, by identity — never focus).
 
 ## Where to look (load-on-demand docs)
 
@@ -117,6 +120,9 @@ is the contributor-facing map from those terms to the codebase.
 | **the navigator** | `FileTree` / `useNavigator` |
 | **the terminal** | `TerminalPane` / `tabs[]` |
 | **a terminal tab** | `TabSession` |
+| **a window** (top-level app window — own workspace/browser/navigator/terminals) | `WindowContext`, tracked in the `WindowRegistry` |
+| **the primary window** (default CLI/app-resolution target) | lowest-id `WindowContext` (resolved by identity, never focus) |
+| **this terminal's window id** | `DUO_WINDOW` env stamp on every Duo terminal; addressable via `duo --window N` |
 
 **Modality is verb-driven (ENH-156, 2026-05-16).** The same HTML file flips
 surface by verb: `duo open <path>` → **browser mode** (`kind: 'browser'`,
@@ -265,6 +271,7 @@ path-scoped rules under `.claude/rules/` (see above).
 | Skills CWD source | PTY launch CWD (not moving shell CWD); two scopes (project + home) |
 | First-launch install | Electron permission dialog before installing CLI + skill + agent (deferred; currently manual) |
 | Distribution / cert | Shipped incrementally through Stage 21 (signed+notarized DMG, auto-update, session restore, browser-history persistence, app icon, fork-friendly architecture, cohort distro packs + pack-builder skill). Per-stage history + still-open items live in `docs/roadmap.html`. |
+| Multiple windows (ENH-191) | Shipped v0.10.0. "Allow Multiple Windows" setting **default ON**; New Window (⌥⌘N) / `duo window new` opens a BLANK second window (does not clone pins). Default CLI/app resolution is by IDENTITY (lowest-id primary), **never focus** (grep-gated). Session file is a v2 envelope (`{version:2, windows:[…]}`), forward-migration lossless + `.v1.bak`; downgrade boots empty gracefully. |
 
 ## Current sprint
 

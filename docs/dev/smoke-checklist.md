@@ -419,14 +419,19 @@ touched BrowserManager session config or partitions.
 
 ---
 
-## 9. Multi-window invisible-refactor parity (ENH-191 — walk on every P1–P4 cut)
+## 9. Multi-window (ENH-191 — window 2 functional, v0.10.0)
 
-> ENH-191 lands the registry-of-one refactor behind ONE window across
-> zero-user-visible cuts (P0–P4). These two legs are the only runtime catch
-> for the two silent foot-guns the node-env harness can't see: an accidental
-> `getFocusedWindow()` substitution (silently drops backgrounded sends) and a
-> teardown-timing crash (the BUG-190 quit-loop). Walk BOTH on every invisible
-> cut from Cut 1 (P0+P1) onward. Detail: `docs/prd/enh-191-multi-window.md` §5.2.
+> ENH-191 P5a/P5b shipped a **real second window** (PRs #73 + #78): File → New
+> Window (⌥⌘N) and `duo window new` open a blank window 2; each window owns its
+> workspace / browser / navigator / terminals / geometry, all restored across
+> relaunches. Legs A–C remain the runtime catch for the two silent foot-guns the
+> node-env harness can't see — an accidental `getFocusedWindow()` substitution
+> (drops backgrounded sends) and the BUG-190 teardown-timing quit-loop — plus the
+> P1 windowless-lifetime path. Legs D–F exercise the window-2 surface itself.
+> Walk A–C on every cut; walk D–F whenever a cut touches multi-window plumbing
+> (`createWindow`, the session-file v2 schema, `duo window*`/`duo windows`/
+> `--window`, or the "Allow Multiple Windows" setting). Detail:
+> `docs/prd/enh-191-multi-window.md` §5.2.
 
 ### A — BACKGROUNDED-CLI (catches: focus-substitution send-drop, R2)
 
@@ -466,6 +471,39 @@ output is identical to foreground and lands on the (single) window:
 - [ ] Dock-click (or `⌘N`) to reopen → a fresh window appears, **no throw**.
 - [ ] After reopen: `duo url` / `duo dom` / `duo nav-state` work against the new
       window (the getter-thunks resolved the new window's cdp/browser).
+
+### D — OPEN-WINDOW-2 (catches: blank-not-clone, NFR-6.2)
+
+- [ ] **File → New Window** (or `⌥⌘N`) opens a SECOND window.
+- [ ] `duo window new` from any terminal also opens a second window.
+- [ ] Window 2 boots **blank** — it does NOT clone window 1's pins / open tabs
+      (NFR-6.2: own empty workspace, browser, navigator, terminals).
+- [ ] Window 2's geometry is independent (move/resize it; window 1 unaffected).
+
+### E — CROSS-WINDOW-CLI (catches: identity-not-focus routing, R2)
+
+With BOTH windows open:
+
+- [ ] `duo windows` lists both, e.g. `[{id, primary, focused, activeWorkspace}]`
+      — exactly one `primary:true` (lowest id) and one `focused:true`.
+- [ ] `duo doctor` reports the live count (`Windows: 2`).
+- [ ] In a window-2 terminal, `echo $DUO_WINDOW` prints window 2's id (each Duo
+      terminal carries its own `DUO_WINDOW`).
+- [ ] A bare `duo url` (no `--window`) resolves to the **PRIMARY** (lowest-id)
+      window, NOT whichever is focused — focus the window-2 browser, run it from a
+      window-1 terminal, confirm you get window 1's URL.
+- [ ] `duo --window <2-id> url` (also `--window=<id>`) targets window 2
+      specifically; `duo --window <bogus-id> url` falls back to the primary window
+      (clean answer, no error).
+
+### F — N-WINDOW RESTORE + SETTING-OFF (catches: v2 session schema, gate)
+
+- [ ] With 2 windows open (distinct geometry/workspaces), `⌘Q` then relaunch →
+      **both** windows restore in ascending-id order with their own state.
+- [ ] Toggle **Settings → Allow Multiple Windows OFF**: the **New Window** menu
+      item greys out, and `duo window new` exits **non-zero** with a clean error.
+- [ ] With the setting OFF, relaunch with 2 windows in the session → only window 1
+      restores (window 2 stays dormant); re-enabling + relaunch brings it back.
 
 ---
 

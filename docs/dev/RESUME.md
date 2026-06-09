@@ -1,6 +1,11 @@
-# Resume after compaction — ENH-195 + ENH-197 + BUG-195 COMPLETE, submitted as a PR (owner integrates on main)
+# Resume after compaction — ENH-191 multi-window SHIPPED (v0.10.0); v0.10.1-dev in-flight
 
-**🛑 READ FIRST — current state:**
+**🛑 READ FIRST — current state (2026-06-08):**
+ENH-191 **multi-window is SHIPPED in v0.10.0** (tagged 2026-06-08, signed + notarized, 1119 tests green). Window 2 is **real and functional** — File → New Window (⌥⌘N) or `duo window new` opens a BLANK second window (does NOT clone window 1's pins — NFR-6.2). Each window owns its workspace/browser/navigator/terminals/geometry, all restored across relaunches (N-window restore, ascending-id). Gated by an **"Allow Multiple Windows"** setting (Settings menu), **default ON**; when OFF the New Window item is disabled, `duo window new` exits non-zero, and only window 1 restores. Cross-window CLI is live: every Duo terminal carries `DUO_WINDOW`; `duo --window N <verb>` addresses window N (stale id → primary fallback); `duo windows` lists `[{id, primary, focused, activeWorkspace}]`; `duo doctor` reports the live window count. Session file is now `{version:2, windows:[...]}` (lossless forward-migration + one-time `.v1.bak`; downgrade boots empty gracefully; byte-identical at N=1). Default app-level resolution is by IDENTITY (lowest-id primary), never focus.
+- **Also shipped v0.10.0:** **ENH-204** (#79) — a new terminal opened outside the focused project reverts the rail filter to "All". **ENH-207** (#81) — drag a navigator file/folder onto the terminal column inserts absolute POSIX-quoted path(s) at the cursor.
+- **Live follow-ups (next agent's queue):** **PR #80** (P1 per-request-window-target concurrency-interleaving test + 4 P3 edges), **FOLLOWUP-043** (drag onto a COLLAPSED rail spawns a tab instead of inserting), **BUG-198** (screenshot). Per-item detail in [`tasks.md`](../../tasks.md).
+
+**🛑 PRIOR-CYCLE CONTEXT (ENH-195 / ENH-197 / BUG-195 — all landed pre-v0.10.0):**
 ENH-195 (CLI edits / disk-sync / false-positive conflicts) is **complete, validated, and submitted as a PR** from branch `claude/sharp-hamilton-70eb87` for the owner to integrate (version label + merge with other branches) on `main`. Per-item detail is in [`tasks.md`](../../tasks.md) (ENH-195 / ENH-197 / BUG-195 / ENH-198). One-paragraph version:
 
 - **Shipped + verified this cycle:** the shared `useDiskReconciliation` hook (markdown + canvas + JSON), D3 markdown change-highlight, 3 verbs (`duo status` / `doc edit` / `json set|merge`), B2–B7 responsiveness, warn-hook + guidance — PLUS the four follow-on fixes that landed AFTER the local v0.9.0 cut: **(1) canvas false-positive fix** (the old blocker — `shouldBannerOnClean` now compares the byte-exact disk baseline, not the ID-injected serialized view; root-caused by a 4-lens workflow, regression-tested, verified live); **(2) ENH-197 "View diff"** (a destructive (>50%) external reload now offers **Keep mine / Load new / View diff**, where View diff rebuilds the doc as accept/rejectable tracked changes via the existing CriticMarkup rail — block-LCS so it reads clean, not char-soup; round-trip tested, verified live all 3 buttons); **(3) BUG-195** (`split-view close` orphaned the aux browser WebContentsView → ghost; the renderer close/promote handlers now call `releaseAuxTab()` unconditionally so a reload-stale ref can't skip the reconcile; verified live); **(4)** the strip-JSX strips + frontmatter-preserve (verified). **923 tests, both typecheckers clean.** v0.9.1-rev2 smoke walk: **VIEW-DIFF + WARN-HOOK both PASS.**
@@ -8,13 +13,13 @@ ENH-195 (CLI edits / disk-sync / false-positive conflicts) is **complete, valida
 - **Tracked for later:** ENH-196 (canvas change-highlight parity), ENH-198 (agent-native CriticMarkup track-changes — agents wrote `<ins>` tags instead of CriticMarkup), the FOLLOWUP-031..040 polish queue below.
 - **Dev-build note:** the worktree has no local `node_modules`; launch dev via `node /Users/geoffreydudgeon/Documents/GitHub/duo/node_modules/electron-vite/bin/electron-vite.js dev` (≡ `npm run dev`). `duo eval` targets the BROWSER pane; `duo dom --js` the renderer shell. Smoke walks run in the **split-view aux** (owner's workflow — see the updated `.claude/skills/smoke-walk/SKILL.md`).
 
-**v0.8.4 released; v0.8.5 in-flight** (as of 2026-05-31). Sprint 23/24 — ENH-182 (project rail) plus the v0.8.0-era FOLLOWUP-031..040 polish wave — shipped across v0.8.0–v0.8.4.
+**v0.10.0 released (2026-06-08); v0.10.1-dev in-flight.** ENH-191 multi-window (P5a/P5b, PRs #73 + #78) plus ENH-204 (#79) + ENH-207 (#81) shipped in v0.10.0.
 
-**Current initiative:** the docs deep-clean (ENH-191) on branch `fix/cli-version-and-docs-cleanup` — a CLI/app version-source fix (`duo --version` + doctor now derive from `package.json`) plus a full project-docs audit executed decision-by-decision. **Current-sprint scope lives in [`active-sprint.md`](active-sprint.md)**; the next *feature*-sprint goal + cut target is **TBD — owner to confirm.**
+**Current initiative:** v0.10.1-dev — drain the ENH-191 follow-up queue (**PR #80** P1/P3 edges, **FOLLOWUP-043**, **BUG-198**) and whatever the owner prioritizes next. **Current-sprint scope lives in [`active-sprint.md`](active-sprint.md)**; the next *feature*-sprint goal + cut target is **TBD — owner to confirm.**
 
 ## Current sprint scope
 
-Lives in **[`active-sprint.md`](active-sprint.md)** — the running scratchpad owns the prioritized scope so it does not drift across two files. Open engineering work is in [`tasks.md`](../../tasks.md) (97 open entries; harvest with the `sprint-plan` skill). The next feature-sprint goal + cut target is TBD pending owner direction.
+Lives in **[`active-sprint.md`](active-sprint.md)** — the running scratchpad owns the prioritized scope so it does not drift across two files. Open engineering work is in [`tasks.md`](../../tasks.md) (harvest with the `sprint-plan` skill). The next feature-sprint goal + cut target is TBD pending owner direction.
 
 ## Critical guardrails for the next agent
 
@@ -92,15 +97,15 @@ The v0.8.0 capstone shipped 4 BUGs fixed that the smoke walk missed entirely. A 
 
 ## State at-a-glance
 
-- **Latest release:** **v0.8.4** (tagged). **Package version: v0.8.5** (in-flight).
-- **Active branch:** `fix/cli-version-and-docs-cleanup` (docs deep-clean ENH-191; several commits ahead of `main`, not yet pushed). `main` is at the v0.8.5 bump.
+- **Latest release:** **v0.10.0** (tagged 2026-06-08, signed + notarized). **Package version: v0.10.1-dev** (in-flight).
+- **Active branch:** `main` — ENH-191 multi-window merged via PRs #73 + #78; ENH-204 (#79) + ENH-207 (#81) merged.
 - **Git status:** run `git status` — verify before assuming clean.
-- **Verify versions:** `duo doctor` should read `0.8.5 (matches)` against a current build (CLI + app both derive the version from `package.json` after the ENH-191 fix).
+- **Verify versions:** `duo doctor` should read the current version `(matches)` against a current build (CLI + app both derive the version from `package.json`) and report the live **window count** ("Windows: N").
 - **Disk free:** `df -h ~`; if under ~40 GB run `npm run check:materialization` proactively (iCloud trap — see guardrail § 1).
 
 ## What NOT to do
 
-- **Don't re-cut v0.8.4.** It's the latest release; the next cut target (PATCH v0.8.x vs MINOR v0.9.0) is owner-TBD.
+- **Don't re-cut v0.10.0.** It's the latest release; the next cut target (PATCH v0.10.x vs MINOR v0.11.0) is owner-TBD.
 - **Don't bypass the materialization check.** When `predev` warns, run `npm run materialize` before continuing.
 - **Don't toggle `optimize-storage` back to `1`.** It's currently OFF — that's the protective default.
 - **Don't bump package.json during a background DMG build.** See guardrail § 9.
@@ -121,7 +126,7 @@ bash scripts/check-materialization.sh
 cat docs/dev/active-sprint.md
 
 # See the latest released cut
-gh release view v0.8.4
+gh release view v0.10.0
 
 # List released DMGs (if present)
 ls dist/Duo-*.dmg
@@ -129,6 +134,6 @@ ls dist/Duo-*.dmg
 
 ## Starting move
 
-Read [`active-sprint.md`](active-sprint.md) for the current initiative + scope, then [`tasks.md`](../../tasks.md) for open work. If picking up the docs deep-clean (ENH-191), the decision playground at `docs/research/docs-deep-clean-decisions.html` drives the remaining items.
+Read [`active-sprint.md`](active-sprint.md) for the current initiative + scope, then [`tasks.md`](../../tasks.md) for open work. If draining the ENH-191 multi-window follow-up queue, start with **PR #80** (P1 per-request-window-target concurrency test + P3 edges), **FOLLOWUP-043** (drag onto collapsed rail), and **BUG-198** (screenshot).
 
 Welcome aboard.

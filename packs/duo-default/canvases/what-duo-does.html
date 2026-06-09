@@ -662,6 +662,15 @@
   </div>
 </article>
 
+<article class="item" data-keys="drag drop navigator file folder path insert terminal cursor absolute path posix quote multi-selection tree order trailing space no newline shell claude prompt enh-207">
+  <div class="num">117</div>
+  <div>
+    <h3>Drag a file from the navigator into the terminal to insert its path</h3>
+    <p class="why"><strong>v0.10.0:</strong> drag any navigator row — a file or a folder, or a multi-selection — onto the terminal column and Duo inserts the absolute path(s) at the active terminal's cursor. Paths with a space or shell-metacharacter come POSIX-single-quoted; a multi-selection is joined in tree order. The drop lands one trailing space and <strong>no</strong> newline, so it never auto-runs a command or auto-submits a Claude prompt — you read it first, then hit Return. Works at a shell prompt OR inside a running Claude session. Foreign Finder / OS file drops are inert (they don't navigate or blank the app).</p>
+    <p class="how"><strong>UI</strong>Drag a navigator file/folder (or a multi-selection) onto the terminal column. <strong>CLI parity</strong><code>duo send --text "&lt;path&gt;"</code> (no new verb — same insert-at-cursor wire).</p>
+  </div>
+</article>
+
 <h2 class="cat">Capture & send</h2>
 <p class="cat-tagline">Get a quote, an excerpt, or a selection from any pane into the conversation with Claude.</p>
 
@@ -1181,6 +1190,15 @@
     <h3>Workshop for first-time distro pack builders</h3>
     <p class="why">A guided tutorial that wraps the canonical <code>/pack-builder</code> skill with the pacing + decision support a first-time pack builder needs. Lives at <code>distro-pack-builder/</code> in the repo (NOT installed on end-user machines — it's only for people who clone Duo to author packs). Inside: a scoped CLAUDE.md telling Claude "you are helping someone build a Duo distro pack," a README, an 11-step <code>playground.md</code> walking scaffold → customize → validate → build → smoke-install → distribute, and a project-scoped assistant skill (<code>pack-builder-workshop</code>) that activates only when Claude Code's cwd is inside the workshop folder. Defers to the canonical <code>/pack-builder</code> for the actual mechanical work; adds the layered tutorial. Pairs with the existing <code>examples/distro-pack-template/</code> as the copy-and-customize starting point.</p>
     <p class="how"><strong>Open</strong>Clone Duo, open Claude Code with cwd = <code>distro-pack-builder/</code>. Read <code>playground.md</code>; the assistant skill helps with the mechanical bits as you go.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="multi-window second window new window opt cmd n option-command-n file menu workspace browser navigator terminals geometry restore relaunch allow multiple windows setting default on blank duo window new duo windows duo-window env cross-window addressing primary focused enh-191 p5a p5b">
+  <div class="num">118</div>
+  <div>
+    <h3>Open a second window — each with its own workspace</h3>
+    <p class="why"><strong>v0.10.0:</strong> Duo now opens a genuine second window. <strong>File → New Window</strong> (<code>⌥⌘N</code>) or <code>duo window new</code> spins up another app window — and it opens <em>blank</em>, with its OWN workspace, browser pane, navigator, terminals, and geometry (it does not clone window 1's pinned tabs). Each window's full state is restored across relaunches. Gated by an <strong>Allow Multiple Windows</strong> setting in the Settings menu (default on); when off, the menu item is disabled and <code>duo window new</code> exits non-zero with a clean disabled error. To drive a specific window from any terminal, every Duo terminal carries a <code>DUO_WINDOW</code> env stamp, and the global <code>--window N</code> flag targets window N — an unknown id falls back to the primary (lowest-id) window.</p>
+    <p class="how"><strong>UI</strong>File → New Window (<code>⌥⌘N</code>); toggle availability via Settings → Allow Multiple Windows. <strong>CLI</strong><code>duo window new</code> (open another window) · <code>duo windows</code> (list open windows as JSON — <code>[{id, primary, focused, activeWorkspace}]</code>) · <code>duo --window &lt;N&gt; &lt;verb&gt;</code> (address window N from any terminal).</p>
   </div>
 </article>
 

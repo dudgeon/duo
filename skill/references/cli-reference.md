@@ -154,7 +154,7 @@ These four answer "what is the user looking at right now?" — reach for them be
 
 | Command | Purpose | Output |
 |---|---|---|
-| `duo doctor` | Health-check both transports (Unix socket + TCP fallback), report app/CLI version match, `$DUO_SESSION` presence, install path, skill files. **Run this first when any `duo` command fails** — it names the sandbox failure mode instead of leaving you guessing. Exits 0 if either transport is reachable. | text |
+| `duo doctor` | Health-check both transports (Unix socket + TCP fallback), report app/CLI version match, the live open-window count (`Windows: N`), `$DUO_SESSION` presence, install path, skill files. **Run this first when any `duo` command fails** — it names the sandbox failure mode instead of leaving you guessing. Exits 0 if either transport is reachable. | text |
 | `duo install [--system]` | Symlink the CLI into `~/.claude/duo/bin/duo` (the sandbox-safe SHIM_DIR auto-prepended to every Duo PTY's `$PATH`), with `~/.local/bin/duo` as fallback for external-terminal use. Duo also auto-creates the SHIM_DIR symlink on every app boot; manual `duo install` is only needed when self-heal can't run (no Duo.app, or first install from outside Duo). `--system` forces `/usr/local/bin/duo` (sudo; not recommended for Claude Code use). | text |
 
 ## Git & clone

@@ -44,6 +44,12 @@ A signed macOS app that bundles:
   pane that holds browser tabs, the markdown editor, an HTML canvas, and
   file previews under one tab strip. Each side collapsible; the right pane
   can split into two files side-by-side.
+- **Multiple windows** — open a second window with **File → New Window**
+  (⌥⌘N) or `duo window new`. Each window is its own workspace — browser,
+  navigator, terminals, and geometry — restored across relaunches. Every
+  terminal carries a `DUO_WINDOW` stamp, so `duo --window N <verb>` drives a
+  specific window (`duo windows` lists them). Gated by an "Allow Multiple
+  Windows" setting (on by default).
 - **Real Chromium browser pane** with persistent Google SSO — sign in once,
   stay signed in across relaunches. Authenticated Google Docs read/edit is
   the flagship success test for the foundation layer.
@@ -57,6 +63,10 @@ A signed macOS app that bundles:
 - **A `duo` CLI** on your `PATH`. Any terminal process — including a Claude
   Code session running inside a Duo terminal tab — can call it. The agent
   sees what you see and does what you can do.
+- **Drag a file into the terminal** — drop a navigator file or folder (or a
+  multi-selection) onto the terminal to insert its absolute path at the
+  cursor, POSIX-quoted as needed and with no trailing newline, so it never
+  auto-runs. Works in a shell or a running Claude prompt.
 - **Bundled Claude Code skill + subagent** so a fresh Claude session
   launched inside a Duo terminal auto-discovers them and can drive the
   browser + editor without priming.
