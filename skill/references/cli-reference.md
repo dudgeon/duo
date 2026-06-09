@@ -202,8 +202,10 @@ A **vault** is a folder containing `.obsidian/` (a strict Obsidian vault: markdo
 
 | Command | What it does | Output |
 | --- | --- | --- |
+| `duo vault init <folder> [--force]` | Scaffold a new vault: `.obsidian/`, starter `templates/` (person / initiative / milestone / meeting / theme, each carrying its D19 filing rule), `inbox/`, registry + `notes/` folders, `bases/processing.base` (the work-list dashboard), and a README. Refuses to clobber an existing vault unless `--force`. Warns if the target is under `~/Documents` (iCloud-eviction trap). | JSON: `{ root, created[], warnings[] }` |
 | `duo vault list` | Vaults detected from the cwd (the enclosing vault plus any nested under it). | JSON: `[{ root, name, noteCount }]` |
 | `duo vault schema [--vault <path>]` | The **L0 corpus** — types, entities, aliases, properties-per-type, observed enum values, and the template registry. A pure function over frontmatter ("the vault IS the schema"); computed live, never cached to disk. Feed it to lint/processing as the resolution table. | JSON `Corpus` |
+| `duo vault capture [--template <type>] [--text "…"] [--title "…"] [--open] [--vault <path>]` | Drop an atomic, timestamped note into `inbox/` (D6 — processing files it later). Untyped by default (just a `captured:` stamp); `--template <type>` stamps that type's frontmatter + seeds its expected fields empty. `--text` becomes the body; `--title` adds a slug to the filename; `--open` opens it in the editor. | JSON: `{ path, absPath, type }` |
 | `duo vault search <query> [--vault <path>]` | Case-insensitive full-text search over the vault's notes (the CLI twin of the ⌘⇧F palette). | JSON: `[{ path, absPath, line, excerpt }]` |
 | `duo graph backlinks <note> [--vault <path>]` | Every occurrence that wikilinks to `<note>` (matched by basename, so links survive file moves), scanning frontmatter relationships as well as body links. | JSON: `[{ path, absPath, line, excerpt }]` |
 | `duo graph orphans [--vault <path>]` | Notes with no inbound **and** no outbound links — a processing work-list to link or archive. | JSON: `string[]` (rel paths) |

@@ -35,14 +35,30 @@ export interface VaultFile {
   mtimeMs: number
 }
 
-/** A `templates/<type>.md` soft schema (D5). Templates are query-excluded:
- *  they declare what a type expects, they are not entities themselves. */
+/** A `templates/<type>.md` soft schema (D5) + filing rule (D19). Templates
+ *  are query-excluded: they declare what a type expects + where its entities
+ *  file, but are not entities themselves. The *meta* keys (`type`, `folder`,
+ *  `filingParent`, `filingLoose`, `folderNote`) configure the type; the
+ *  remaining keys are the entity's expected `fields`. */
 export interface TypeTemplate {
   /** The `type:` this template defines (also its filename stem). */
   type: string
-  /** Destination folder for entities of this type, when declared. */
+  /** For PARENTLESS types (person, theme): the type's registry folder
+   *  (`people`, `themes`). Null for parented types (D19). */
   folder: string | null
-  /** Expected field names (frontmatter keys minus the `type` marker). */
+  /** For PARENTED types (milestone, meeting): the frontmatter attribute
+   *  whose value is the filing parent — e.g. milestone → `"initiative"`,
+   *  so a milestone files under its initiative's folder (D19). Null for
+   *  parentless types. */
+  filingParent: string | null
+  /** For parented types: true → entities sit loose in the parent's folder;
+   *  false → in a per-type subfolder (e.g. `notes/`). Null when N/A. */
+  filingLoose: boolean | null
+  /** True for a folder-note type (initiative): its entity owns a folder
+   *  named after it, and ONLY folder-note types may be filing parents
+   *  (D19). */
+  folderNote: boolean
+  /** Expected entity field names (frontmatter keys minus the meta keys). */
   fields: string[]
   /** Full parsed template frontmatter (authoritative field defaults). */
   frontmatter: Record<string, unknown>

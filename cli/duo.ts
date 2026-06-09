@@ -490,9 +490,9 @@ const VERBS: VerbSpec[] = [
   {
     name: 'vault',
     group: 'Vault',
-    args: '<list|schema|search> [args]',
+    args: '<init|list|schema|capture|search> [args]',
     summary:
-      'Work-notes vault (a strict Obsidian vault). list: vaults detected from the cwd (JSON). schema [--vault p]: the live corpus — types / entities / aliases / properties-per-type / observed enums, a pure function over frontmatter (the vault IS the schema; never cached). search <query> [--vault p]: full-text hits (file, line, excerpt) — the CLI twin of ⌘⇧F.'
+      'Work-notes vault (a strict Obsidian vault). init <folder> [--force]: scaffold .obsidian/ + starter templates (person/initiative/milestone/meeting/theme, with D19 filing rules) + inbox/ + bases/processing.base + README. list: vaults detected from the cwd (JSON). schema [--vault p]: the live corpus — types/entities/aliases/props-per-type/observed-enums, a pure function over frontmatter (the vault IS the schema; never cached). capture [--template t] [--text "…"] [--title "…"] [--open]: drop a timestamped inbox note (untyped by default; --template stamps a type). search <query> [--vault p]: full-text hits (file, line, excerpt) — the CLI twin of ⌘⇧F.'
   },
   {
     name: 'graph',
@@ -2339,21 +2339,47 @@ async function main(): Promise<void> {
         const sub = rest[0]
         const subRest = rest.slice(1)
         const vaultFlag = flagValue(subRest, '--vault')
-        if (sub === 'list') {
+        if (sub === 'init') {
+          const folder = positionalArgs(subRest, [])[0]
+          if (!folder) die('Usage: duo vault init <folder> [--force]')
+          const result = vault.initVault(path.resolve(process.cwd(), folder), { force: subRest.includes('--force') })
+          for (const w of result.warnings) process.stderr.write(`duo: warning — ${w}\n`)
+          out(result)
+        } else if (sub === 'list') {
           // Vaults detected from the cwd (enclosing + nested).
           out(vault.listVaults(process.cwd()))
         } else if (sub === 'schema') {
           out(vault.buildCorpus(vault.resolveVault(process.cwd(), vaultFlag)))
+        } else if (sub === 'capture') {
+          const root = vault.resolveVault(process.cwd(), vaultFlag)
+          const result = vault.captureNote(root, {
+            template: flagValue(subRest, '--template'),
+            text: flagValue(subRest, '--text'),
+            title: flagValue(subRest, '--title'),
+          })
+          let opened: unknown = null
+          if (subRest.includes('--open')) {
+            // Mirror the `view` verb — opens the .md in the working pane.
+            try {
+              opened = await send('view', { path: result.absPath })
+            } catch (e) {
+              opened = { error: e instanceof Error ? e.message : String(e) }
+              process.stderr.write(`duo: captured ${result.path} but --open failed: ${(opened as { error: unknown }).error}\n`)
+            }
+          }
+          out(subRest.includes('--open') ? { ...result, opened } : result)
         } else if (sub === 'search') {
           const query = positionalArgs(subRest, ['--vault'])[0]
           if (!query) die('Usage: duo vault search <query> [--vault <path>]')
           out(vault.search(vault.resolveVault(process.cwd(), vaultFlag), query))
         } else {
           die(
-            'Usage: duo vault <list|schema|search> [args]\n' +
-              '  list                  vaults detected from the cwd (JSON)\n' +
-              '  schema [--vault p]    the L0 corpus (JSON)\n' +
-              '  search <query>        full-text hits (JSON)',
+            'Usage: duo vault <init|list|schema|capture|search> [args]\n' +
+              '  init <folder> [--force]   scaffold a new vault\n' +
+              '  list                      vaults detected from the cwd (JSON)\n' +
+              '  schema [--vault p]        the L0 corpus (JSON)\n' +
+              '  capture [--template t] [--text "…"] [--title "…"] [--open]   new inbox note\n' +
+              '  search <query>            full-text hits (JSON)',
           )
         }
         break

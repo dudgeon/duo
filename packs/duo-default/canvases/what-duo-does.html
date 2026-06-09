@@ -951,6 +951,15 @@
 <h2 class="cat">Working in a vault</h2>
 <p class="cat-tagline">Keep networked work-notes — people, initiatives, themes, meetings — as plain markdown in a strict Obsidian vault. Duo reads the graph; Claude does the filing, linking, and rollups. (ENH-208 Phase 1 — agent + CLI first; capture UX is the fast-follow.)</p>
 
+<article class="item" data-keys="vault init capture inbox scaffold templates filing rules obsidian setup new note timestamped enh-208">
+  <div class="num">94</div>
+  <div>
+    <h3>Set up a vault and capture notes into it</h3>
+    <p class="why">Spin up a ready-to-use vault in one command — Claude scaffolds <code>.obsidian/</code>, starter templates for the everyday types (person, initiative, milestone, meeting, theme — each with its filing rule baked in), an <code>inbox/</code>, a processing dashboard, and a README. Then capture is friction-free: a thought becomes a timestamped note in the inbox (untyped by default — a later processing pass files and links it), or a templated note when you name the type. The whole thing is just files: it opens in Obsidian, syncs over git, and survives Duo entirely.</p>
+    <p class="how"><strong>CLI / agent</strong><code>duo vault init ~/work/notes</code> scaffolds it; <code>duo vault capture --text "note from the pricing sync…"</code> drops an inbox note (add <code>--template meeting</code> to stamp a type, <code>--open</code> to open it in the editor). In v1 you narrate to Claude and it captures + links for you; the ⇧⌘N quick-capture chord is the fast-follow.</p>
+  </div>
+</article>
+
 <article class="item" data-keys="vault obsidian work notes wikilinks frontmatter graph corpus schema entities types aliases enums enh-208">
   <div class="num">95</div>
   <div>
