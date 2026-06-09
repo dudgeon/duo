@@ -83,6 +83,7 @@ import {
 import { UpdateChecker } from '../core/update-checker'
 import { initAutoUpdater } from './auto-updater'
 import { SessionStateService } from '../core/session-state-service'
+import { SettingsService } from '../core/settings-service'
 import { WorkspaceFileService } from '../core/workspace-file-service'
 import { WorkspaceHistoryService } from '../core/workspace-history-service'
 import { ActiveWorkspaceService } from '../core/active-workspace-service'
@@ -94,7 +95,7 @@ import { ExternalDomainsService } from '../core/external-domains-service'
 import { EventBus, type DuoEventSource } from '../core/event-bus'
 import { PackLoader } from '../core/pack-loader'
 import { InstalledPacksService } from '../core/installed-packs-service'
-import { IPC } from '../shared/types'
+import { IPC, EMPTY_SESSION_STATE } from '../shared/types'
 import { htmlBoilerplate } from '../shared/html-boilerplate'
 import type {
   BrowserBounds,
@@ -293,6 +294,77 @@ const registry = new WindowRegistry()
 // be exercised from a vitest node env (see safe-send.test.ts).
 const safeSend = makeSafeSend(() => resolveDefault(registry) ?? null)
 
+// ENH-191 P5a — the FOCUSED-window resolution seam for app-menu commands. The
+// native app menu is a single app-global NSMenu, but its per-window items (the
+// checkbox `checked:` reads + the menu-click sends) must target the window the
+// user is looking at. We track the last-focused window id via the
+// `browser-window-focus` app event (registered in whenReady), which HANDS us
+// the focused window — so there is NO ad-hoc focus query (the kind the routing
+// grep-gate bans), keeping that gate at 0 and honoring the cardinal rule (menu
+// commands resolve by registry IDENTITY, not an ad-hoc focus query). The
+// fallback focusedWindowId() below
+// back to the primary (lowest-id) window when the tracked id is stale/unset, so
+// a menu fired before any focus event still resolves deterministically.
+let lastFocusedWindowId: number | null = null
+function focusedWindowId(): number | undefined {
+  if (lastFocusedWindowId != null && registry.get(lastFocusedWindowId)) {
+    return lastFocusedWindowId
+  }
+  return defaultWindowId(registry)
+}
+// A safeSend bound to the FOCUSED window — the menu-click analog of `safeSend`
+// (which targets the primary). For app-menu items that act on "the window the
+// user is in" (New File/Folder, Paste-plain, Cozy toggle, pane focus, View
+// source). Falls back to the primary window via focusedWindowId().
+const safeSendFocused = makeSafeSend(() => {
+  const id = focusedWindowId()
+  return id != null ? (registry.get(id)?.window ?? null) : null
+})
+
+// ENH-191 P5a (Tier-3/S4) — the per-CLI-request target window. SocketServer.
+// handle() sets this from req.windowId (the terminal's DUO_WINDOW stamp / an
+// explicit --window N) synchronously BEFORE dispatching each command, and every
+// CLI helper reads it synchronously at its entry (before any await), so there's
+// no interleave window even under concurrent connections. Reset per request
+// (undefined when unstamped → primary fallback). Never persisted; pure in-memory
+// request context (DECISIONS.md rule #12 allows in-memory session state).
+let cliTargetWindowId: number | undefined
+
+// ENH-191 P5a — resolve a target window: an EXPLICIT id (the app-menu's
+// focusedWindowId(), a caller's chosen id) wins; else the per-CLI-request
+// cliTargetWindowId (DUO_WINDOW, set by SocketServer.handle); else the primary
+// (lowest-id) window. Never focus-resolved here (ids are resolved by the
+// caller). The dual-use helpers (setSplit / setHiddenFiles / setClaudeReturnMode
+// / setLayout3wayEven / openCloneModal) call this with the menu's explicit id OR
+// undefined (CLI → cliTargetWindowId); the ~31 CLI-only NavBridge helpers call
+// windowByIdOrPrimary(undefined) so a `duo --window N` verb hits window N.
+function windowByIdOrPrimary(windowId?: number): BrowserWindow | null {
+  const id = windowId ?? cliTargetWindowId
+  if (id != null) return (registry.get(id)?.window as BrowserWindow | undefined) ?? null
+  return liveMainWindow()
+}
+
+// ENH-191 P5a (Tier-3) — the addressed window id for CLI cache READERS: the
+// per-request cliTargetWindowId (DUO_WINDOW / --window N) else the primary
+// (lowest-id). Cache readers use `cache.getOrDefault(cliDefaultWindowId())` so
+// `duo --window N theme|nav-state|selection|…` reads window N's slot. Resolved
+// by IDENTITY, never focus. (defaultWindowId stays CLI-context-free — it also
+// backs class-(i) sends + cache eager-writes that must not pick up the CLI
+// target.)
+function cliDefaultWindowId(): number | undefined {
+  return cliTargetWindowId ?? defaultWindowId(registry)
+}
+
+// ENH-191 P5a (Tier-3) — the ADDRESSED window's BrowserManager for CLI nav verbs
+// that drive the browser pane WITHOUT going through the socket's getBrowser
+// thunk (devtools --browser-pane, split-view open-browser). cliDefaultWindowId()
+// = cliTargetWindowId ?? primary; never throws (registry.get). So `duo --window
+// N devtools --browser-pane` opens window N's pane, matching the verb's `win`.
+function cliBrowserManager(): BrowserManager | null {
+  const id = cliDefaultWindowId()
+  return (id != null ? (registry.get(id)?.browserManager as BrowserManager | undefined) : undefined) ?? null
+}
+
 // ENH-191 P1c — single teardown orchestrator for the whole app lifecycle.
 // MUST be module scope: the closed handler AND before-quit share its
 // appTornDown / tornDownWindows guards — that shared state is what makes the
@@ -317,15 +389,17 @@ const registerDuoAssetOnce = makeOnceGuard()
 let pendingOpenFilePath: string | null = null
 app.on('open-file', (event, path) => {
   event.preventDefault()
-  const win = liveMainWindow()
-  if (win && !win.isDestroyed()) {
+  // ENH-191 P5a — an OS event (Finder) with no window origin + no CLI context;
+  // resolve the primary window directly (never the cliTargetWindowId path).
+  const primaryWin = liveMainWindow()
+  if (primaryWin && !primaryWin.isDestroyed()) {
     // Warm path — Duo is already running. Route through sendEdit (the
     // same destination FileTree double-click and `duo open` use), so
     // the Finder open lands on the right surface (markdown -> editor;
     // .html -> canvas, or browser if the file's `duo-open-in` meta
     // says so).
     sendEdit(path)
-    win.focus()
+    primaryWin.focus()
   } else {
     // Cold path — stash and let the createWindow() did-finish-load
     // hook flush after the renderer is ready to receive NAV_EDIT.
@@ -364,12 +438,12 @@ const projectsStateCache = new WindowKeyedCache<import('../shared/types').Projec
   counts: {}
 }))
 export function getProjectsState(): import('../shared/types').ProjectsStateSnapshot {
-  return projectsStateCache.getDefault(registry)
+  return projectsStateCache.getOrDefault(cliDefaultWindowId())
 }
 export function setProjectFocus(
   root: string | null
 ): { ok: boolean; error?: string } {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -379,7 +453,7 @@ export function setProjectFocus(
 export function requestProjectClose(
   root: string
 ): { ok: boolean; error?: string } {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -392,12 +466,12 @@ export function requestProjectClose(
 // WORKSPACE_PILL_MENU_SET (renderer applies + re-pushes for symmetry).
 const workspacePillMenuEnabledCache = new WindowKeyedCache<boolean>(() => false)
 export function getWorkspacePillMenuEnabled(): boolean {
-  return workspacePillMenuEnabledCache.getDefault(registry)
+  return workspacePillMenuEnabledCache.getOrDefault(cliDefaultWindowId())
 }
 export function setWorkspacePillMenuEnabledCli(
   enabled: boolean
 ): { ok: boolean; error?: string } {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -413,7 +487,7 @@ export function resolveProjectRef(
   ref: string
 ): { root: string } | { ambiguous: string[] } | null {
   if (!ref) return null
-  const ps = projectsStateCache.getDefault(registry)
+  const ps = projectsStateCache.getOrDefault(cliDefaultWindowId())
   // Exact root path match wins regardless of name collisions.
   const exact = ps.projects.find((p) => p.root === ref)
   if (exact) return { root: exact.root }
@@ -435,6 +509,9 @@ const updateChecker = new UpdateChecker(app.getVersion())
 // when the renderer asks; subsequent calls return cached results.
 void updateChecker.loadCache()
 const sessionStateService = new SessionStateService()
+// ENH-191 P5a (S1/S3) — app settings (the multiWindow flag, default ON).
+// Loaded at boot; gates openNewWindow (the "New Window" menu + `duo window new`).
+const settingsService = new SettingsService()
 // ENH-167 — workspace-as-file singletons. workspaceFileService is
 // stateless (just save/load a .duo-workspace envelope);
 // workspaceHistoryService lazy-loads on first read;
@@ -473,7 +550,7 @@ sessionStateService.setActiveWorkspaceResolver(
 // Stale-cap at 24h so a months-old session-jsonl doesn't keep
 // surfacing the Resume banner.
 const CLAUDE_SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000
-sessionStateService.setEnrichBeforePersistHook(async (state) => {
+sessionStateService.setEnrichBeforePersistHook(async (state, windowId) => {
   // Best-effort: scan in parallel. Empty terminals list short-circuits.
   if (!state.terminals.length) return state
 
@@ -504,11 +581,12 @@ sessionStateService.setEnrichBeforePersistHook(async (state) => {
   // are in tab-creation order (renderer snapshot + PtyManager.Map
   // preserve insertion), so positional matching aligns correctly.
   const consumedTabIds = new Set<string>()
-  // ENH-191 P3-S7 — owner-filter the positional cwd→tabId match to THIS window's
-  // tabs so the shared pool's same-cwd terminals from OTHER windows can't be
-  // claimed by this enrichment. At N=1 the sole window (only()); P4 makes the
-  // enrich hook per-window. undefined ⇒ unfiltered (byte-identical at N=1).
-  const ownerWindowId = registry.only()?.id
+  // ENH-191 P5a (Tier-4) — owner-filter the positional cwd→tabId match to THIS
+  // window's tabs (the windowId the flush loop threads), so the shared PTY pool's
+  // same-cwd terminals from OTHER windows can't be claimed by this enrichment.
+  // Was registry.only()?.id, which THREW at N>1 — silently aborting capture for
+  // ALL windows the moment a 2nd opened.
+  const ownerWindowId = windowId
   // ENH-191 P3-S8c — THIS window's S3-eligibility set (per-window); a foreign
   // window's hosted tabs can't grant eligibility in this enrichment.
   const hostedSet = ownerWindowId != null ? registry.get(ownerWindowId)?.tabsThatHostedClaude : undefined
@@ -554,19 +632,31 @@ sessionStateService.setEnrichBeforePersistHook(async (state) => {
 let socketServer: SocketServer | null = null
 let externalDomainsService: ExternalDomainsService | null = null
 
-// ENH-191 P2 — the per-window BrowserManager + CdpBridge now live in the
-// WindowContext (resolved via registry.only() through P4), NOT as module
-// globals. These nullable accessors are the single resolution point: they
-// cast the context's structurally-typed (unknown) fields back to their real
-// types in ONE place, so window-registry.ts can stay Electron-free.
-// registry.only() returns the sole context at N=1 (byte-identical to the old
-// globals) and THROWS at N>1 — the intended fail-loud signal that a read site
-// still needs its per-window (event.sender) resolution before window 2 opens.
+// ENH-191 P2/P5a — the per-window BrowserManager + CdpBridge live in the
+// WindowContext (NOT module globals). These nullable accessors are the single
+// resolution point: they cast the context's structurally-typed (unknown) fields
+// back to their real types in ONE place, so window-registry.ts stays
+// Electron-free. They resolve the PRIMARY (lowest-id) window's bridges — the
+// windowId-less DEFAULT for app-global callers (the socket thunks' fallback when
+// no DUO_WINDOW is set; devtools / split-view defaults). P0–P4 used
+// registry.only() here, which THREW at N>1 as the pre-P5 fail-loud placeholder;
+// P5a resolves the deterministic primary window. Per-window callers pass an
+// explicit id via registry.get — see resolveCdpBridge/resolveBrowserManager.
 function liveCdp(): CdpBridge | null {
-  return (registry.only()?.cdpBridge as CdpBridge | undefined) ?? null
+  return (registry.primary()?.cdpBridge as CdpBridge | undefined) ?? null
 }
 function liveBrowser(): BrowserManager | null {
-  return (registry.only()?.browserManager as BrowserManager | undefined) ?? null
+  return (registry.primary()?.browserManager as BrowserManager | undefined) ?? null
+}
+// ENH-191 P5a (Tier-1) — per-window resolution for IPC handlers that arrive
+// FROM a specific window's renderer (event.sender). At N>1 the only()-backed
+// liveBrowser/liveCdp THROW (the fail-loud placeholder); these resolve THIS
+// window's BrowserManager by the sender's window id (registry.get NEVER throws),
+// so window 2's browser ops hit window 2 — never window 1, never an uncaught
+// crash. Byte-identical at N=1 (sender === the sole window).
+function browserForSender(event: { sender: WebContents }): BrowserManager | null {
+  const id = BrowserWindow.fromWebContents(event.sender)?.id
+  return (id != null ? (registry.get(id)?.browserManager as BrowserManager | undefined) : undefined) ?? null
 }
 // ENH-191 P2 — the sole window typed as the real BrowserWindow, for the
 // non-send reads (dialog parents, setTitle, focus, devtools wc, did-finish
@@ -584,14 +674,23 @@ function liveMainWindow(): BrowserWindow | null {
 // as a clean {ok:false}. P2 repointed them from the deleted module globals to
 // registry.only() via the accessors above.
 function resolveCdpBridge(): CdpBridge {
-  const c = liveCdp()
+  // ENH-191 P5a (Tier-3) — the ADDRESSED window's CdpBridge (cliTargetWindowId,
+  // set by SocketServer.handle from DUO_WINDOW), else the primary window's
+  // (liveCdp). registry.get never throws; so `duo --window N <cdp-verb>` drives
+  // window N's browser pane.
+  const c = cliTargetWindowId != null
+    ? ((registry.get(cliTargetWindowId)?.cdpBridge as CdpBridge | undefined) ?? null)
+    : liveCdp()
   if (!c) {
     throw new Error('[main] SocketServer.getCdp() ran before createWindow registered a cdpBridge')
   }
   return c
 }
 function resolveBrowserManager(): BrowserManager {
-  const b = liveBrowser()
+  // ENH-191 P5a (Tier-3) — the ADDRESSED window's BrowserManager, else primary.
+  const b = cliTargetWindowId != null
+    ? ((registry.get(cliTargetWindowId)?.browserManager as BrowserManager | undefined) ?? null)
+    : liveBrowser()
   if (!b) {
     throw new Error('[main] SocketServer.getBrowser() ran before createWindow registered a browserManager')
   }
@@ -627,7 +726,14 @@ let hiddenFilesMenuItemId: string | null = null
 // Updated in the push handler below.
 let claudeReturnMenuItemId: string | null = null
 
-async function createWindow(): Promise<WindowContext> {
+async function createWindow(opts: { restore?: boolean; restoreIndex?: number } = {}): Promise<WindowContext> {
+  // ENH-191 P5a (S3/Tier-3) — `restore` (default true) is the BOOT path: restore
+  // the persisted session (browser tabs, pins, active workspace, geometry). The
+  // boot loop passes restoreIndex i so window i hydrates the i-th persisted
+  // WindowState (default 0 = the sole/first window). A New-Window open passes
+  // restore:false for a BLANK window (NFR-6.2 — not cloning window 1's content).
+  const restore = opts.restore ?? true
+  const restoreIndex = opts.restoreIndex ?? 0
   const mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -650,7 +756,12 @@ async function createWindow(): Promise<WindowContext> {
       // restart dev, rebuild …). Now it's a glance at the titlebar.
       additionalArguments: [
         `--duo-app-version=${app.getVersion()}`,
-        `--duo-is-dev=${app.isPackaged ? '0' : '1'}`
+        `--duo-is-dev=${app.isPackaged ? '0' : '1'}`,
+        // ENH-191 NFR-6.2 — a blank New-Window (restore:false) must NOT clone
+        // the pinned FILE tabs (App.tsx pin-auto-open). Read synchronously in
+        // preload (no IPC race) into env.blank; the restored/boot windows are
+        // non-blank. Known at construction, so additionalArguments is the seam.
+        `--duo-blank=${restore ? '0' : '1'}`
       ]
     }
   })
@@ -674,6 +785,12 @@ async function createWindow(): Promise<WindowContext> {
   // target `safeSend` did.
   const ctxSend = makeSafeSend(() => ctx.window)
 
+  // ENH-191 P5a (Tier-1) — mark a blank New-Window BEFORE loadURL (race-free):
+  // its SESSION_STATE_LOAD must return empty, not window 1's full session. (Was
+  // marked in openNewWindow AFTER createWindow returned — i.e. after loadURL had
+  // already kicked off the renderer — a latent full-session clone race.)
+  if (!restore) blankWindowIds.add(winId)
+
   // ENH-191 P2 (item 7) — snapshot the cold-boot Finder open-file stash into a
   // per-window local and clear the module global immediately, so a reentrant
   // createWindow (window 2, P5a) can't replay window 1's pending open. The
@@ -693,8 +810,22 @@ async function createWindow(): Promise<WindowContext> {
   // pointer; fall back to the shared service for back-compat (pre-v2 installs /
   // Cut-3 revert). [N=1: createWindow runs once so windows[0] IS this window;
   // P5's reentrant createWindow must select windows[restoreIndex] instead.]
-  const restoredWindows = await sessionStateService.loadWindows()
-  ctx.activeWorkspace = restoredWindows[0]?.activeWorkspace ?? activeWorkspaceService.get()
+  // ENH-191 P5a (S3) — a blank New-Window has no persisted workspace.
+  const restoredWindows = restore ? await sessionStateService.loadWindows() : []
+  const restoredWindow = restore ? restoredWindows[restoreIndex] : undefined
+  // ENH-191 P5a (Tier-3) — re-key THIS window's persisted session slot to its
+  // NEW live id (Electron reassigns ids each launch) BEFORE loadURL, so the
+  // renderer's saves hit the same slot — no stale duplicate (the Tier-1
+  // data-loss fix's 2N-growth hazard). The boot loop restores in ascending
+  // persisted-id order, so fresh live ids (1,2,…) never collide. Also apply the
+  // persisted geometry (the ctor 1440×900 above is the no-bounds fallback).
+  if (restoredWindow) {
+    sessionStateService.reassignWindowId(restoredWindow.windowId, winId)
+    if (restoredWindow.bounds) mainWindow.setBounds(restoredWindow.bounds)
+  }
+  ctx.activeWorkspace = restore
+    ? (restoredWindow?.activeWorkspace ?? activeWorkspaceService.get())
+    : null
   applyWindowTitle(ctx)
 
   // ENH-191 P1 — `ptyManager` owner-routing wiring + the `ExternalDomainsService`
@@ -716,7 +847,10 @@ async function createWindow(): Promise<WindowContext> {
   // away with ENH-135 (no more boot-default FAQ tab); the persisted-
   // session peek stays because BUG-057 still uses it to gate the
   // pin-restore on fresh-app boot only.
-  const persistedAtBoot = await sessionStateService.load().catch(() => ({ browserTabs: [], activeBrowserIndex: 0 } as { browserTabs: { url: string; title: string }[]; activeBrowserIndex: number }))
+  // ENH-191 P5a (Tier-3) — THIS window's persisted slice (loadFlatForWindow reads
+  // the in-memory map keyed by winId post-reassign), not load() (always
+  // windows[0]). EMPTY for a blank window / first launch (no slot).
+  const persistedAtBoot = restore ? sessionStateService.loadFlatForWindow(winId) : { ...EMPTY_SESSION_STATE }
   const hasPersistedSession = persistedAtBoot.browserTabs.length > 0
 
   // ENH-191 P2 — createWindow-local consts (were module globals through P1).
@@ -848,7 +982,7 @@ async function createWindow(): Promise<WindowContext> {
     // decision and the actual restore use the same data.
     if (browserManager) {
       try {
-        if (hasPersistedSession) {
+        if (restore && hasPersistedSession) {
           await browserManager.restoreFromSession(persistedAtBoot.browserTabs, persistedAtBoot.activeBrowserIndex)
         }
       } catch (err) {
@@ -878,7 +1012,7 @@ async function createWindow(): Promise<WindowContext> {
       // because session-state survives upgrades too. This trims the
       // BUG-057 mechanism to fresh-app-only — which is when it
       // actually matters.
-      if (!hasPersistedSession) {
+      if (restore && !hasPersistedSession) {
         try {
           const pinnedEntries = await pinsService.list()
           const browserPins = pinnedEntries.filter(p => p.kind === 'browser')
@@ -1011,11 +1145,28 @@ async function createWindow(): Promise<WindowContext> {
     })
   }
 
+  // ENH-191 P5a (Tier-3) — persist THIS window's geometry so it restores next
+  // launch (bounds aren't in the renderer's SessionState snapshot). Debounced —
+  // resize/move fire rapidly during a drag. updateBounds no-ops until the window
+  // has a session slot (a restored window has one post-reassign; a fresh window
+  // gets one after its first renderer save). flatToWindowState carries bounds
+  // across renderer saves (prev.bounds), so the value survives.
+  let boundsSaveTimer: NodeJS.Timeout | null = null
+  const saveBoundsDebounced = (): void => {
+    if (boundsSaveTimer) clearTimeout(boundsSaveTimer)
+    boundsSaveTimer = setTimeout(() => {
+      if (!mainWindow.isDestroyed()) sessionStateService.updateBounds(winId, mainWindow.getBounds())
+    }, 400)
+  }
+  mainWindow.on('resize', saveBoundsDebounced)
+  mainWindow.on('moved', saveBoundsDebounced)
+
   // ENH-191 P2 — winId + the registry context are captured/registered early
   // (right after window creation, above). The 'closed' handler reuses that
   // same winId; reading mainWindow.id here would risk 'Object has been
   // destroyed' since 'closed' fires after the native window is gone.
   mainWindow.on('closed', () => {
+    if (boundsSaveTimer) clearTimeout(boundsSaveTimer)
     // Per-window teardown — ALWAYS, idempotent per id. Detaches CDP then
     // disposes the BrowserManager (dispose() also calls cdp.detach(), which
     // is idempotent via its isAttached() guard — the extra detach no-ops).
@@ -1042,11 +1193,54 @@ async function createWindow(): Promise<WindowContext> {
     // this empties the registry, so registry.only() is undefined until the
     // next createWindow (dock-reopen).
     registry.unregister(winId)
+    // ENH-191 P5a (S3) — drop any blank-window marker for this id.
+    blankWindowIds.delete(winId)
+    // ENH-191 P5a (Tier-1) — drop this window's session slice so an EXPLICITLY
+    // closed window doesn't resurrect on relaunch. On app-quit, before-quit has
+    // already flushed the full map and dropWindow schedules no flush, so this
+    // can't shrink the persisted envelope mid-quit.
+    sessionStateService.dropWindow(winId)
+    // ENH-191 P5a (Tier-4) — purge THIS window's slot from every per-window
+    // read-model cache so a closed window's snapshot can't linger past unregister
+    // (slot leak). WindowKeyedCache.delete is idempotent. The 12 caches below are
+    // the full set (grep `new WindowKeyedCache`); keep in sync if one is added.
+    // (PendingRegistry families are keyed by reqId, not windowId, and self-reap
+    // via per-family timeouts — no per-window purge needed.)
+    for (const cache of [
+      navStateCache, editorSelectionCache, canvasSelectionCache, themeStateCache,
+      claudeKeyPrefsStateCache, authorStateCache, selectionFormatStateCache,
+      workingAuxSnapshotCache, activeTerminalIdCache, projectsStateCache,
+      workspacePillMenuEnabledCache, cozyActiveTabCache
+    ]) {
+      cache.delete(winId)
+    }
   })
 
   // ENH-191 P2 — the context was registered early (right after window creation)
   // with its managers attached at construction; just return it.
   return ctx
+}
+
+// ENH-191 P5a (S3) — windowIds opened BLANK via openNewWindow (not boot
+// restore). Their renderer's SESSION_STATE_LOAD returns empty so a new window
+// doesn't clone window 1's session (NFR-6.2). Cleared on window close.
+const blankWindowIds = new Set<number>()
+
+// ENH-191 P5a (S3) — the reentrant "New Window" entry. Gated on the multiWindow
+// setting (default ON; user can disable in Settings). Returns a structured
+// result so the CLI verb (`duo window new`) reports a clean "disabled" error
+// rather than a silent no-op (CLI-parity, CLAUDE.md §4). The menu item AND the
+// verb both call THIS, so behavior is identical. New window opens blank
+// (restore:false) to its default cwd. [Behavior-changing — needs the
+// two-window smoke-walk; not autonomously verifiable.]
+async function openNewWindow(): Promise<{ ok: boolean; error?: string }> {
+  if (!settingsService.get().multiWindow) {
+    return { ok: false, error: 'multi-window is disabled (enable it in Settings)' }
+  }
+  // ENH-191 P5a (Tier-1) — createWindow({restore:false}) marks blankWindowIds
+  // itself BEFORE loadURL (race-free); no post-hoc add here.
+  await createWindow({ restore: false })
+  return { ok: true }
 }
 
 app.whenReady().then(async () => {
@@ -1159,6 +1353,14 @@ app.whenReady().then(async () => {
       prepend: (_defaults, parameters) => {
         const sel = parameters.selectionText.trim()
         const items: MenuItemConstructorOptions[] = []
+        // ENH-191 P5a — classify by the window that OWNS the right-clicked wc,
+        // never liveMainWindow()/only() (which crashes AND misclassifies window
+        // 2's renderer at N>1). isMainRenderer is true only when wc is its
+        // OWNING window's main renderer; a canvas iframe shares that renderer's
+        // wc, and a browser-pane WCV's wc never equals it (→ treated as browser
+        // pane). Resolved ONCE here for both the Comment + Select-element gates.
+        const ownerWin = BrowserWindow.fromWebContents(wc)
+        const isMainRenderer = ownerWin !== null && wc === ownerWin.webContents
         if (sel.length > 0) {
           items.push({
             label: 'Copy as Plain Text',
@@ -1178,8 +1380,6 @@ app.whenReady().then(async () => {
           // listens for. Browser-tab right-clicks live in their own
           // WCV webContents so this filter never applies to them.
           const isCanvasIframe = parameters.frameURL && parameters.frameURL.startsWith('about:srcdoc')
-          const mw = liveMainWindow()
-          const isMainRenderer = mw !== null && wc === mw.webContents
           const isContentEditable = parameters.editFlags?.canCut === true || parameters.isEditable === true
           if (isCanvasIframe || (isMainRenderer && isContentEditable)) {
             items.push({
@@ -1206,10 +1406,15 @@ app.whenReady().then(async () => {
         // canvas iframes): both are skipped here so the menu item
         // doesn't appear in surfaces where inspect mode doesn't apply.
         const isCanvasIframeForInspect = parameters.frameURL && parameters.frameURL.startsWith('about:srcdoc')
-        const mwInspect = liveMainWindow()
-        const isMainRendererForInspect = mwInspect !== null && wc === mwInspect.webContents
-        const isBrowserPane = !isMainRendererForInspect && !isCanvasIframeForInspect
-        const browserManager = liveBrowser()
+        const isBrowserPane = !isMainRenderer && !isCanvasIframeForInspect
+        // ENH-191 P5a — the inspect target is the OWNING window's BrowserManager
+        // (registry.get by ownerWin.id), never liveBrowser()/only() — which
+        // crashes at N>1 and would drive window 1's pane from a right-click in
+        // window 2. A null/unresolvable owner → item omitted (graceful), never
+        // wrong-window.
+        const browserManager = ownerWin
+          ? ((registry.get(ownerWin.id)?.browserManager as BrowserManager | undefined) ?? null)
+          : null
         if (isBrowserPane && browserManager) {
           const bm = browserManager
           items.push({
@@ -1301,6 +1506,9 @@ app.whenReady().then(async () => {
     // ENH-195 — `duo status` high-level app snapshot.
     getStatus: getStatusSnapshot,
     revealMainPaneIfCollapsed: revealMainPaneIfCollapsed,
+    // ENH-191 P5a (S3c) — `duo window new` → the same openNewWindow the menu
+    // item calls (flag-gated; identical behavior, CLAUDE.md §4 parity).
+    openWindow: openNewWindow,
     splitViewOpen: splitViewOpen,
     splitViewOpenBrowser: splitViewOpenBrowser,
     splitViewClose: splitViewClose,
@@ -1343,7 +1551,7 @@ app.whenReady().then(async () => {
     // a console.info hint there rather than a sync error here (split-
     // view state lives on the renderer side).
     focusPane: (target) => {
-      const win = liveMainWindow()
+      const win = windowByIdOrPrimary(undefined)
       if (!win) return { ok: false, error: 'main window not ready' }
       win.webContents.send(IPC.PANE_FOCUS_JUMP, target)
       return { ok: true, target }
@@ -1357,8 +1565,9 @@ app.whenReady().then(async () => {
     workspaceOpen: async (path) => openWorkspaceFile(path, { skipPrompt: true }),
     workspaceListRecent: async () => workspaceHistoryService.listSorted(),
     workspaceCurrent: async () => {
-      // ENH-191 P3-S10 — the default window's pointer (only() at N=1), fallback service.
-      const ctx = registry.only()
+      // ENH-191 P5a — the default (primary) window's pointer; primary() never
+      // throws at N>1 (Tier-3 can refine to DUO_WINDOW). Fallback: shared service.
+      const ctx = registry.primary()
       if (ctx && ctx.activeWorkspace !== undefined) return ctx.activeWorkspace
       await activeWorkspaceService.load()
       return activeWorkspaceService.get()
@@ -1376,19 +1585,38 @@ app.whenReady().then(async () => {
     },
     // ENH-184 (Sprint 23 / v0.8.0) — workspace-pill menu CLI parity.
     getWorkspacePillMenuEnabled: () => getWorkspacePillMenuEnabled(),
-    setWorkspacePillMenuEnabled: (enabled: boolean) => setWorkspacePillMenuEnabledCli(enabled)
+    setWorkspacePillMenuEnabled: (enabled: boolean) => setWorkspacePillMenuEnabledCli(enabled),
+    // ENH-191 P5a (Tier-3) — cross-window addressing + enumeration. handle()
+    // calls setTargetWindow(req.windowId) synchronously before each command, so
+    // the resolver helpers above pick up the addressed window. windowCount feeds
+    // `duo doctor`; listWindows backs `duo windows`.
+    setTargetWindow: (id?: number) => { cliTargetWindowId = id },
+    windowCount: () => registry.count(),
+    listWindows: () => {
+      const primaryId = registry.primary()?.id
+      return registry.all()
+        .map((c) => ({
+          id: c.id,
+          primary: c.id === primaryId,
+          focused: c.id === lastFocusedWindowId,
+          activeWorkspace: (c.activeWorkspace ?? null) as import('../shared/types').ActiveWorkspace | null
+        }))
+        .sort((a, b) => a.id - b.id)
+    }
   }, navPinsService, eventBus, packLoader, app.getVersion())
   // Stage 12 close / ENH-191 P3-S11a — wire the renderer event sink so the
   // socket server can push ambient cues (the read-glow + the duo-open
   // supplemental focus push). The cue's addressed window (3rd arg, resolved by
   // the getAddressedWindowId thunk) routes it to THAT window via routeAmbientCue
-  // — at N=1 the sole window (byte-identical to the old safeSend funnel); at N>1
-  // each cue lands where it was addressed, not always window 1. The thunk's
-  // try/catch yields undefined at N>1 (only() throws) — the fail-loud signal
-  // that P5 must thread the real per-command addressed window.
+  // — at N=1 the sole window; at N>1 each cue lands where it was addressed.
+  // ENH-191 P5a (Tier-3) — the thunk now returns the per-request cliTargetWindowId
+  // (the DUO_WINDOW / --window N target), so an ambient cue from `duo --window N
+  // selection` glows window N. undefined when unstamped → routeAmbientCue falls
+  // back to the primary (resolveDefault). (Was registry.only() in a try/catch —
+  // a fail-loud placeholder that degraded every N>1 cue to window 1.)
   socketServer.setEventSink(
     (channel, payload, addressedWindowId) => routeAmbientCue(registry, addressedWindowId, channel, payload),
-    () => { try { return registry.only()?.id } catch { return undefined } }
+    () => cliTargetWindowId
   )
   socketServer.start()
 
@@ -1401,7 +1629,56 @@ app.whenReady().then(async () => {
     event.returnValue = BrowserWindow.fromWebContents(event.sender)?.id ?? -1
   })
 
-  void createWindow()
+  // ENH-191 P5a — track the focused window for app-menu resolution (see
+  // focusedWindowId / safeSendFocused). The event HANDS us the focused window,
+  // so there is no ad-hoc focus query (the routing grep-gate stays 0).
+  // Rebuild the menu on focus so the per-window checkbox checkmarks (Cozy /
+  // Show Hidden Files / ⌘Return-for-Claude-submit) track whichever window the
+  // user just switched to. Registered ONCE at boot, before the first
+  // createWindow, so window 1's initial focus is captured.
+  app.on('browser-window-focus', (_e, win) => {
+    lastFocusedWindowId = win.id
+    void rebuildAppMenu()
+  })
+
+  // ENH-191 P5a (S1/S3) — load the multiWindow flag before any window opens,
+  // then refresh the menu so the "Allow Multiple Windows" checkbox reflects the
+  // saved value (the initial menu build at boot ran before this load).
+  await settingsService.load()
+  void rebuildAppMenu()
+
+  // ENH-191 P5a (Tier-1) — seed the per-window session map from disk BEFORE the
+  // first window's renderer can save, so a single-window save can't overwrite a
+  // persisted multi-window envelope (DATA LOSS). Dormant windows survive until
+  // explicitly closed.
+  await sessionStateService.seedWindowsFromDisk()
+
+  // ENH-191 P5a (Tier-3) — N-window boot restore. Reopen EVERY persisted window,
+  // each hydrating its own slice (geometry + tabs + active workspace). Restore
+  // in ASCENDING persisted-id order so the fresh BrowserWindow ids (1,2,…) line
+  // up with the reassign in createWindow → collision-free re-keying (see
+  // SessionStateService.reassignWindowId). When "Allow Multiple Windows" is OFF,
+  // clamp to the first window (the rest stay dormant in the map — re-enabling +
+  // relaunch brings them back, never lost). Empty / first launch → one default
+  // window.
+  {
+    const persistedWindows = await sessionStateService.loadWindows()
+    const restoreCount = settingsService.get().multiWindow ? persistedWindows.length : Math.min(persistedWindows.length, 1)
+    if (restoreCount <= 1) {
+      void createWindow() // restoreIndex 0 (the sole/first window) — or first launch
+    } else {
+      const order = persistedWindows
+        .map((_, i) => i)
+        .slice(0, restoreCount)
+        .sort((a, b) => persistedWindows[a].windowId - persistedWindows[b].windowId)
+      // Awaited sequentially so live ids are assigned in ascending order
+      // (1,2,…) matching the ascending persisted-id processing — the invariant
+      // reassignWindowId relies on to never collide.
+      for (const idx of order) {
+        await createWindow({ restore: true, restoreIndex: idx })
+      }
+    }
+  }
 
   // BUG-124 — ensure ~/.claude/duo/logs/ exists at boot so the renderer's
   // writeConflictLog (renderer/utils/conflictDiagnostic.ts) can write to it
@@ -1553,8 +1830,8 @@ function setupIPC(): void {
 
   // ── Browser ───────────────────────────────────────────────────────────────
 
-  ipcMain.handle(IPC.BROWSER_NAVIGATE, async (_event, { url }: { url: string }) => {
-    const browserManager = liveBrowser()
+  ipcMain.handle(IPC.BROWSER_NAVIGATE, async (event, { url }: { url: string }) => {
+    const browserManager = browserForSender(event)
     if (!browserManager) return { ok: false, error: 'BrowserManager not ready' }
     return browserManager.navigate(url)
   })
@@ -1565,11 +1842,11 @@ function setupIPC(): void {
   // launches without an extra main-process JSON file). On boot the
   // renderer pushes its persisted value via BROWSER_MODE_SET; main
   // mirrors it onto browserManager.setBrowserMode.
-  ipcMain.handle(IPC.BROWSER_MODE_GET, async (): Promise<{ mode: import('../shared/types').BrowserMode }> => {
-    return { mode: liveBrowser()?.getBrowserMode() ?? 'local-only' }
+  ipcMain.handle(IPC.BROWSER_MODE_GET, async (event): Promise<{ mode: import('../shared/types').BrowserMode }> => {
+    return { mode: browserForSender(event)?.getBrowserMode() ?? 'local-only' }
   })
-  ipcMain.handle(IPC.BROWSER_MODE_SET, async (_event, { mode }: { mode: import('../shared/types').BrowserMode }) => {
-    const browserManager = liveBrowser()
+  ipcMain.handle(IPC.BROWSER_MODE_SET, async (event, { mode }: { mode: import('../shared/types').BrowserMode }) => {
+    const browserManager = browserForSender(event)
     if (!browserManager) return { ok: false, error: 'BrowserManager not ready' }
     if (mode !== 'unfiltered' && mode !== 'filtered' && mode !== 'local-only') {
       return { ok: false, error: `Invalid browser mode: ${String(mode)}` }
@@ -1578,22 +1855,25 @@ function setupIPC(): void {
     return { ok: true, mode }
   })
 
-  ipcMain.on(IPC.BROWSER_BACK, () => {
-    liveBrowser()?.goBack()
+  ipcMain.on(IPC.BROWSER_BACK, (event) => {
+    browserForSender(event)?.goBack()
   })
 
-  ipcMain.on(IPC.BROWSER_FORWARD, () => {
-    liveBrowser()?.goForward()
+  ipcMain.on(IPC.BROWSER_FORWARD, (event) => {
+    browserForSender(event)?.goForward()
   })
 
-  ipcMain.on(IPC.BROWSER_RELOAD, () => {
-    liveBrowser()?.reload()
+  ipcMain.on(IPC.BROWSER_RELOAD, (event) => {
+    browserForSender(event)?.reload()
   })
 
   // Renderer reports the pixel bounds of the browser content area whenever
   // the split moves or the window resizes. We reposition the WebContentsView.
-  ipcMain.on(IPC.BROWSER_BOUNDS, (_event, bounds: BrowserBounds) => {
-    liveBrowser()?.setBounds(bounds)
+  // ENH-191 P5a — resolve by event.sender so window 2's bounds hit window 2's
+  // WebContentsView (this fires automatically on mount/resize — the #1
+  // window-2 mount crasher when it resolved only()).
+  ipcMain.on(IPC.BROWSER_BOUNDS, (event, bounds: BrowserBounds) => {
+    browserForSender(event)?.setBounds(bounds)
   })
 
   // Phase 3c — renderer reports aux-pane bounds for the aux-pinned
@@ -1601,23 +1881,23 @@ function setupIPC(): void {
   // aux-bounds slot inside BrowserManager. Pushed from the
   // AuxBrowserSlot component on mount + ResizeObserver + window
   // resize + split divider drag.
-  ipcMain.on(IPC.BROWSER_AUX_BOUNDS, (_event, bounds: BrowserBounds) => {
-    liveBrowser()?.setAuxBounds(bounds)
+  ipcMain.on(IPC.BROWSER_AUX_BOUNDS, (event, bounds: BrowserBounds) => {
+    browserForSender(event)?.setAuxBounds(bounds)
   })
 
   // Phase 3c — renderer asks main to pin a browser tab into the aux
   // slot. Returns the pinned tab's url + title so the renderer can
   // render the aux header without a second round trip.
-  ipcMain.handle(IPC.BROWSER_MOVE_TAB_TO_AUX, (_event, tabId: number) => {
-    const browserManager = liveBrowser()
+  ipcMain.handle(IPC.BROWSER_MOVE_TAB_TO_AUX, (event, tabId: number) => {
+    const browserManager = browserForSender(event)
     if (!browserManager) return { ok: false, error: 'BrowserManager not initialized' }
     return browserManager.moveTabToAux(tabId)
   })
 
   // Phase 3c — renderer asks main to release the aux-pinned tab back
   // to the main strip. The released tab becomes main-strip active.
-  ipcMain.handle(IPC.BROWSER_RELEASE_AUX_TAB, () => {
-    const browserManager = liveBrowser()
+  ipcMain.handle(IPC.BROWSER_RELEASE_AUX_TAB, (event) => {
+    const browserManager = browserForSender(event)
     if (!browserManager) return { ok: false, error: 'BrowserManager not initialized' }
     return browserManager.releaseAuxTab()
   })
@@ -1644,8 +1924,8 @@ function setupIPC(): void {
   // a renderer-DOM overlay opens that would overlap the WebContentsView
   // (e.g. browser-pane tab right-click menu). Main collapses the WCV to
   // 1×1 so the menu renders unobstructed; restores on `{ muted: false }`.
-  ipcMain.on(IPC.BROWSER_OVERLAY_MUTED, (_event, payload: { muted: boolean }) => {
-    liveBrowser()?.setOverlayMuted(payload.muted)
+  ipcMain.on(IPC.BROWSER_OVERLAY_MUTED, (event, payload: { muted: boolean }) => {
+    browserForSender(event)?.setOverlayMuted(payload.muted)
   })
 
   // ENH-159b — element-inspect-mode toggle. Renderer calls this when the
@@ -1653,8 +1933,8 @@ function setupIPC(): void {
   // Accepts a boolean or 'toggle' so the renderer doesn't need to read
   // current state first. BrowserManager.setInspectMode pushes
   // BROWSER_INSPECT_MODE back to the renderer with the new state.
-  ipcMain.on(IPC.BROWSER_INSPECT_SET_MODE, (_event, payload: { mode: boolean | 'toggle' }) => {
-    liveBrowser()?.setInspectMode(payload.mode)
+  ipcMain.on(IPC.BROWSER_INSPECT_SET_MODE, (event, payload: { mode: boolean | 'toggle' }) => {
+    browserForSender(event)?.setInspectMode(payload.mode)
   })
 
   // BUG-048 v3 — renderer-driven OS focus reclaim. The ⌘` toggle
@@ -1662,53 +1942,55 @@ function setupIPC(): void {
   // pull OS focus from a WebContentsView (if needed) so a subsequent
   // renderer-side `.focus()` call on xterm or the editor lands. See
   // App.tsx § togglePaneFocus.
-  ipcMain.on(IPC.PANE_FOCUS_RECLAIM, () => {
-    liveMainWindow()?.webContents.focus()
+  // ENH-191 P5a — focus THIS window's renderer; event.sender IS its webContents
+  // (was liveMainWindow()→only(), an uncaught ipcMain.on crash at N>1).
+  ipcMain.on(IPC.PANE_FOCUS_RECLAIM, (event) => {
+    event.sender.focus()
   })
 
   // ENH-028 — find-in-page. Renderer's find bar (in BrowserRenderer)
   // sends START on each keystroke / next / prev navigation. Main calls
   // webContents.findInPage; results are pushed back via the
   // `found-in-page` event listener wired in BrowserManager.wireEvents.
-  ipcMain.on(IPC.BROWSER_FIND_START, (_event, payload: { query: string; findNext?: boolean; forward?: boolean }) => {
-    liveBrowser()?.findInPage(payload.query, {
+  ipcMain.on(IPC.BROWSER_FIND_START, (event, payload: { query: string; findNext?: boolean; forward?: boolean }) => {
+    browserForSender(event)?.findInPage(payload.query, {
       findNext: payload.findNext,
       forward: payload.forward
     })
   })
-  ipcMain.on(IPC.BROWSER_FIND_STOP, () => {
-    liveBrowser()?.stopFindInPage()
+  ipcMain.on(IPC.BROWSER_FIND_STOP, (event) => {
+    browserForSender(event)?.stopFindInPage()
   })
 
-  ipcMain.handle(IPC.BROWSER_GET_STATE, () => {
-    return liveBrowser()?.getState() ?? null
+  ipcMain.handle(IPC.BROWSER_GET_STATE, (event) => {
+    return browserForSender(event)?.getState() ?? null
   })
 
-  ipcMain.handle(IPC.BROWSER_GET_TABS, () => {
-    return liveBrowser()?.getTabs() ?? []
+  ipcMain.handle(IPC.BROWSER_GET_TABS, (event) => {
+    return browserForSender(event)?.getTabs() ?? []
   })
 
-  ipcMain.handle(IPC.BROWSER_ADD_TAB, async (_event, { url }: { url?: string }) => {
-    const browserManager = liveBrowser()
+  ipcMain.handle(IPC.BROWSER_ADD_TAB, async (event, { url }: { url?: string }) => {
+    const browserManager = browserForSender(event)
     if (!browserManager) return { ok: false, id: -1, url: '', title: '' }
     return browserManager.openTab(url)
   })
 
-  ipcMain.handle(IPC.BROWSER_SWITCH_TAB, async (_event, { id }: { id: number }) => {
-    const browserManager = liveBrowser()
+  ipcMain.handle(IPC.BROWSER_SWITCH_TAB, async (event, { id }: { id: number }) => {
+    const browserManager = browserForSender(event)
     if (!browserManager) return { ok: false, error: 'BrowserManager not ready' }
     return browserManager.switchTab(id)
   })
 
-  ipcMain.handle(IPC.BROWSER_CLOSE_TAB, async (_event, { id }: { id: number }) => {
-    const browserManager = liveBrowser()
+  ipcMain.handle(IPC.BROWSER_CLOSE_TAB, async (event, { id }: { id: number }) => {
+    const browserManager = browserForSender(event)
     if (!browserManager) return { ok: false, error: 'BrowserManager not ready' }
     return browserManager.closeTab(id)
   })
 
   // BUG-027 — ⌘⇧T from browser focus pops the last-closed tab.
-  ipcMain.handle(IPC.BROWSER_REOPEN_LAST_CLOSED, async () => {
-    const browserManager = liveBrowser()
+  ipcMain.handle(IPC.BROWSER_REOPEN_LAST_CLOSED, async (event) => {
+    const browserManager = browserForSender(event)
     if (!browserManager) return { ok: false, reason: 'no-browser-manager' }
     return browserManager.reopenLastClosed()
   })
@@ -1718,8 +2000,8 @@ function setupIPC(): void {
     return browserHistory.suggest(args.prefix ?? '', args.limit ?? 8)
   })
 
-  ipcMain.on(IPC.BROWSER_FOCUS_ACTIVE, () => {
-    liveBrowser()?.focusActive()
+  ipcMain.on(IPC.BROWSER_FOCUS_ACTIVE, (event) => {
+    browserForSender(event)?.focusActive()
   })
 
   // ── Files (Stage 10) ──────────────────────────────────────────────────────
@@ -1831,7 +2113,7 @@ function setupIPC(): void {
   // level, composing correctly above the WebContentsView regardless
   // of z-index — eliminates the WCV-mute pattern's flicker. See
   // `docs/DECISIONS.md § WCV-occlusion remediation` for rationale.
-  ipcMain.handle(IPC.MENU_POPUP, async (_event, req: import('../shared/types').MenuPopupRequest): Promise<import('../shared/types').MenuPopupResult> => {
+  ipcMain.handle(IPC.MENU_POPUP, async (event, req: import('../shared/types').MenuPopupRequest): Promise<import('../shared/types').MenuPopupResult> => {
     return new Promise((resolve) => {
       let chosenId: string | null = null
       const template: MenuItemConstructorOptions[] = req.items.map(item => {
@@ -1844,7 +2126,10 @@ function setupIPC(): void {
         }
       })
       const menu = Menu.buildFromTemplate(template)
-      const win = liveMainWindow() ?? undefined
+      // ENH-191 P5a — parent the native popup on the INVOKING window (the
+      // renderer that fired MENU_POPUP), not liveMainWindow()/only() — which
+      // crashed at N>1 and would popup on window 1 from a window-2 right-click.
+      const win = BrowserWindow.fromWebContents(event.sender) ?? undefined
       const popupOpts: { window?: BrowserWindow; x?: number; y?: number; callback?: () => void } = {
         callback: () => resolve({ chosenId })
       }
@@ -1877,8 +2162,11 @@ function setupIPC(): void {
     return true
   })
 
-  ipcMain.handle(IPC.DIALOG_CONFIRM, async (_event, req: import('../shared/types').DialogConfirmRequest): Promise<import('../shared/types').DialogConfirmResult> => {
-    const win = liveMainWindow()
+  ipcMain.handle(IPC.DIALOG_CONFIRM, async (event, req: import('../shared/types').DialogConfirmRequest): Promise<import('../shared/types').DialogConfirmResult> => {
+    // ENH-191 P5a — parent the confirm sheet on the INVOKING window (the
+    // renderer that fired DIALOG_CONFIRM), not liveMainWindow()/only() — which
+    // crashed at N>1 and would sheet onto window 1 from a window-2 action.
+    const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return { response: req.cancelId ?? 0 }
     const result = await dialog.showMessageBox(win, {
       type: req.type ?? 'warning',
@@ -1975,6 +2263,10 @@ function setupIPC(): void {
   let gitWatcher: import('chokidar').FSWatcher | null = null
   let gitWatcherTimer: NodeJS.Timeout | null = null
   let gitWatchedPath: string | null = null
+  // ENH-191 P5a (Tier-1) — the window that armed the watch. INVALIDATE routes to
+  // THIS window, not safeSend→resolveDefault→only() (which throws UNCAUGHT inside
+  // the chokidar fs-event callback at N>1 → main crash on any tracked-file change).
+  let gitWatcherOwnerId: number | null = null
   const stopGitWatcher = async () => {
     if (gitWatcher) {
       try { await gitWatcher.close() } catch { /* ignore */ }
@@ -1985,9 +2277,14 @@ function setupIPC(): void {
       gitWatcherTimer = null
     }
     gitWatchedPath = null
+    gitWatcherOwnerId = null
   }
-  ipcMain.handle(IPC.GIT_WATCH_START, async (_event, req: { workTreeRoot: string; cwd: string }) => {
+  ipcMain.handle(IPC.GIT_WATCH_START, async (event, req: { workTreeRoot: string; cwd: string }) => {
     if (!req.workTreeRoot || !req.cwd) return { ok: false }
+    // ENH-191 P5a (Tier-1) — the arming window owns INVALIDATE delivery. Single
+    // module watcher, so last-armer wins (per-window watchers are a P5b refinement);
+    // routing to a concrete window id is what avoids the only() crash.
+    gitWatcherOwnerId = BrowserWindow.fromWebContents(event.sender)?.id ?? null
     // Watch ONLY the current navigator cwd at depth 1 — exactly the
     // rows the user can see. NOT the full workTreeRoot, because that
     // can be enormous (e.g. user has ~/Documents as a git repo →
@@ -2025,7 +2322,13 @@ function setupIPC(): void {
       usePolling: false
     })
     const fireInvalidate = () => {
-      safeSend(IPC.GIT_WATCH_INVALIDATE)
+      // ENH-191 P5a (Tier-1) — send to the arming window directly. registry.get
+      // never throws (unlike safeSend's resolveDefault→only()), so a tracked-file
+      // change at N>1 no longer crashes main from this chokidar callback.
+      const ownerWin = gitWatcherOwnerId != null ? registry.get(gitWatcherOwnerId)?.window : undefined
+      if (ownerWin && !ownerWin.isDestroyed() && !ownerWin.webContents.isDestroyed()) {
+        ownerWin.webContents.send(IPC.GIT_WATCH_INVALIDATE)
+      }
     }
     const scheduleInvalidate = () => {
       if (gitWatcherTimer) clearTimeout(gitWatcherTimer)
@@ -2048,8 +2351,17 @@ function setupIPC(): void {
   })
 
   // Stage 21c Phase 2 — session state restored across relaunches.
-  ipcMain.handle(IPC.SESSION_STATE_LOAD, () => {
-    return sessionStateService.load()
+  ipcMain.handle(IPC.SESSION_STATE_LOAD, (event) => {
+    // ENH-191 P5a (S3) — a blank New-Window gets empty state so it doesn't
+    // clone window 1's session (NFR-6.2). Byte-identical at N=1.
+    const wid = BrowserWindow.fromWebContents(event.sender)?.id
+    if (wid !== undefined && blankWindowIds.has(wid)) {
+      return { ...EMPTY_SESSION_STATE }
+    }
+    // ENH-191 P5a (Tier-3) — each restored window loads ITS slice (the in-memory
+    // map slot, re-keyed to this live id by reassignWindowId in createWindow),
+    // not always windows[0] (load()). Unknown id (fromWebContents miss) → load().
+    return wid !== undefined ? sessionStateService.loadFlatForWindow(wid) : sessionStateService.load()
   })
   ipcMain.handle(IPC.SESSION_STATE_SAVE, (event, state: import('../shared/types').SessionState) => {
     // ENH-191 P4 — key the per-window save by the CALLING renderer's window
@@ -2081,14 +2393,16 @@ function setupIPC(): void {
 
   // ENH-167 — workspace-as-file IPC handlers (renderer menu-clicks land
   // here; CLI verbs reach the same helpers via NavBridge).
-  ipcMain.handle(IPC.WORKSPACE_FILE_SAVE, async (_event, opts: { saveAs?: boolean }) => {
-    return saveWorkspaceFile({ saveAs: opts?.saveAs === true })
+  ipcMain.handle(IPC.WORKSPACE_FILE_SAVE, async (event, opts: { saveAs?: boolean }) => {
+    // ENH-191 P5a — save the INVOKING window (renderer IPC → event.sender), not
+    // the primary; a window-2 renderer must save window 2.
+    return saveWorkspaceFile({ saveAs: opts?.saveAs === true, windowId: BrowserWindow.fromWebContents(event.sender)?.id })
   })
-  ipcMain.handle(IPC.WORKSPACE_FILE_OPEN, async () => {
-    return openWorkspaceFileWithDialog()
+  ipcMain.handle(IPC.WORKSPACE_FILE_OPEN, async (event) => {
+    return openWorkspaceFileWithDialog(BrowserWindow.fromWebContents(event.sender)?.id)
   })
-  ipcMain.handle(IPC.WORKSPACE_FILE_OPEN_RECENT, async (_event, opts: { path: string }) => {
-    return openWorkspaceFile(opts.path)
+  ipcMain.handle(IPC.WORKSPACE_FILE_OPEN_RECENT, async (event, opts: { path: string }) => {
+    return openWorkspaceFile(opts.path, { windowId: BrowserWindow.fromWebContents(event.sender)?.id })
   })
   ipcMain.handle(IPC.WORKSPACE_FILE_LIST_RECENT, () => {
     return workspaceHistoryService.listSorted()
@@ -2102,8 +2416,8 @@ function setupIPC(): void {
     await activeWorkspaceService.load()
     return activeWorkspaceService.get()
   })
-  ipcMain.handle(IPC.WORKSPACE_FILE_NEW, async () => {
-    return newWorkspaceReset()
+  ipcMain.handle(IPC.WORKSPACE_FILE_NEW, async (event) => {
+    return newWorkspaceReset({ windowId: BrowserWindow.fromWebContents(event.sender)?.id })
   })
   ipcMain.handle(IPC.WORKSPACE_FILE_CLEAR_RECENT, async () => {
     await workspaceHistoryService.clear()
@@ -2422,12 +2736,25 @@ function installAppMenu(): void {
         {
           label: 'New File…',
           accelerator: 'CmdOrCtrl+N',
-          click: () => safeSend(IPC.NEW_FILE_REQUEST)
+          click: () => safeSendFocused(IPC.NEW_FILE_REQUEST)
         },
         {
           label: 'New Folder…',
           accelerator: 'CmdOrCtrl+Shift+N',
-          click: () => safeSend(IPC.NEW_FOLDER_REQUEST)
+          click: () => safeSendFocused(IPC.NEW_FOLDER_REQUEST)
+        },
+        // ENH-191 P5a (S3) — open a SECOND window (blank, its own workspace).
+        // ⌥⌘N because ⌘N / ⌘⇧N are taken by New File / New Folder. Gated on the
+        // "Allow Multiple Windows" setting below; openNewWindow no-ops with a
+        // structured result when off (the CLI verb surfaces the disabled error).
+        {
+          label: 'New Window',
+          accelerator: 'Alt+CmdOrCtrl+N',
+          // ENH-191 P5a (Tier-4) — grey out when multi-window is disabled. The
+          // Settings checkbox calls rebuildAppMenu() on toggle, so this `enabled`
+          // is recomputed live each rebuild.
+          enabled: settingsService.get().multiWindow,
+          click: () => { void openNewWindow() }
         },
         { type: 'separator' },
         // ENH-167 — workspace-as-file. Save the open tabs + terminals
@@ -2438,19 +2765,19 @@ function installAppMenu(): void {
         // Claude session terminology.
         {
           label: 'New Workspace',
-          click: async () => { await newWorkspaceReset() }
+          click: async () => { await newWorkspaceReset({ windowId: focusedWindowId() }) }
         },
         {
           label: 'Save Workspace…',
-          click: async () => { await saveWorkspaceFile({ saveAs: false }) }
+          click: async () => { await saveWorkspaceFile({ saveAs: false, windowId: focusedWindowId() }) }
         },
         {
           label: 'Save Workspace As…',
-          click: async () => { await saveWorkspaceFile({ saveAs: true }) }
+          click: async () => { await saveWorkspaceFile({ saveAs: true, windowId: focusedWindowId() }) }
         },
         {
           label: 'Open Workspace…',
-          click: async () => { await openWorkspaceFileWithDialog() }
+          click: async () => { await openWorkspaceFileWithDialog(focusedWindowId()) }
         },
         {
           label: 'Open Recent Workspace',
@@ -2460,7 +2787,7 @@ function installAppMenu(): void {
         {
           label: 'Clone from GitHub…',
           accelerator: 'CmdOrCtrl+Shift+K',
-          click: () => { openCloneModal() }
+          click: () => { openCloneModal({ windowId: focusedWindowId() }) }
         }
       ]
     },
@@ -2483,7 +2810,7 @@ function installAppMenu(): void {
           label: 'Paste and Match Style',
           accelerator: 'CmdOrCtrl+Shift+V',
           click: () => {
-            safeSend(IPC.PASTE_PLAIN_REQUEST)
+            safeSendFocused(IPC.PASTE_PLAIN_REQUEST)
           }
         },
         // ENH-030 — "Copy as Plain Text" with ⌘⌥C as a parallel for
@@ -2534,14 +2861,34 @@ function installAppMenu(): void {
           id: claudeReturnMenuItemId,
           label: '⌘Return for Claude submit',
           type: 'checkbox',
-          checked: claudeKeyPrefsStateCache.getDefault(registry).claudeReturn === 'newline',
+          // ENH-191 P5a — reflect + toggle the FOCUSED window's pref (getOrDefault
+          // never throws; the menu rebuilds on focus). getDefault(registry) would
+          // crash at N>1; resolve via focusedWindowId() and route the set to that
+          // same window so the menu acts on the window the user is in.
+          checked: claudeKeyPrefsStateCache.getOrDefault(focusedWindowId()).claudeReturn === 'newline',
           click: () => {
             // Toggle: 'submit' (Return submits, default) ↔ 'newline'
             // (Return = newline, ⌘Return = submit). The next
             // CLAUDE_KEY_PREFS_STATE_PUSH from the renderer will
             // update this checkmark via the handler below.
-            const next = claudeKeyPrefsStateCache.getDefault(registry).claudeReturn === 'newline' ? 'submit' : 'newline'
-            setClaudeReturnMode(next)
+            const wid = focusedWindowId()
+            const next = claudeKeyPrefsStateCache.getOrDefault(wid).claudeReturn === 'newline' ? 'submit' : 'newline'
+            setClaudeReturnMode(next, wid)
+          }
+        },
+        // ENH-191 P5a (S3) — enable/disable opening multiple windows. Default ON
+        // (owner decision); when off, "New Window" + `duo window new` return a
+        // disabled result. Persisted in ~/.claude/duo/settings.json. Gates only
+        // window-OPENING; the registry stays byte-identical at N=1 either way.
+        {
+          label: 'Allow Multiple Windows',
+          type: 'checkbox',
+          checked: settingsService.get().multiWindow,
+          click: (item) => {
+            // ENH-191 P5a (Tier-4) — persist, then rebuild so File → New Window's
+            // enabled-gate (+ this checkbox's own checked state) reflect the new
+            // value immediately, not on the next unrelated rebuild.
+            void settingsService.set({ multiWindow: item.checked }).then(() => rebuildAppMenu())
           }
         }
       ]
@@ -2553,11 +2900,13 @@ function installAppMenu(): void {
           id: cozyMenuItemId,
           label: 'Cozy mode — current tab',
           type: 'checkbox',
-          checked: cozyActiveTabCache.getDefault(registry),
+          // ENH-191 P5a — focused window's cozy state (getOrDefault never throws;
+          // menu rebuilds on focus). getDefault(registry) crashed at N>1.
+          checked: cozyActiveTabCache.getOrDefault(focusedWindowId()),
           click: () => {
             // Renderer flips authoritative state, then echoes back via
             // COZY_STATE_PUSH so the checkmark tracks the truth.
-            safeSend(IPC.COZY_TOGGLE)
+            safeSendFocused(IPC.COZY_TOGGLE)
           }
         },
         {
@@ -2571,10 +2920,13 @@ function installAppMenu(): void {
           id: hiddenFilesMenuItemId,
           label: 'Show Hidden Files',
           type: 'checkbox',
-          checked: navStateCache.getDefault(registry).showDotfiles === true,
+          // ENH-191 P5a — focused window's navigator showDotfiles (getOrDefault
+          // never throws; menu rebuilds on focus). getDefault(registry) crashed
+          // at N>1. Route the toggle to the same focused window.
+          checked: navStateCache.getOrDefault(focusedWindowId()).showDotfiles === true,
           accelerator: 'CmdOrCtrl+Shift+.',
           click: () => {
-            setHiddenFiles('toggle')
+            setHiddenFiles('toggle', focusedWindowId())
           }
         },
         {
@@ -2601,7 +2953,7 @@ function installAppMenu(): void {
           label: 'Toggle pane focus',
           accelerator: 'CmdOrCtrl+`',
           click: () => {
-            safeSend(IPC.PANE_TOGGLE_FOCUS)
+            safeSendFocused(IPC.PANE_TOGGLE_FOCUS)
           }
         },
         { type: 'separator' },
@@ -2614,17 +2966,17 @@ function installAppMenu(): void {
             {
               label: 'Even (50/50)',
               accelerator: 'CmdOrCtrl+Alt+2',
-              click: () => setSplit(50)
+              click: () => setSplit(50, focusedWindowId())
             },
             {
               label: 'Terminal heavy (67/33)',
               accelerator: 'CmdOrCtrl+Alt+1',
-              click: () => setSplit(67)
+              click: () => setSplit(67, focusedWindowId())
             },
             {
               label: 'Canvas heavy (33/67)',
               accelerator: 'CmdOrCtrl+Alt+3',
-              click: () => setSplit(33)
+              click: () => setSplit(33, focusedWindowId())
             },
             {
               // ENH-099 — 3-pane even layout: outer 33/67 + inner aux
@@ -2632,18 +2984,18 @@ function installAppMenu(): void {
               // auto-redistribute on aux-open.
               label: '3-way even (33/33/33)',
               accelerator: 'CmdOrCtrl+Alt+4',
-              click: () => setLayout3wayEven()
+              click: () => setLayout3wayEven(focusedWindowId())
             },
             { type: 'separator' },
             {
               label: 'Full terminal',
               accelerator: 'CmdOrCtrl+Alt+0',
-              click: () => setSplit(80)
+              click: () => setSplit(80, focusedWindowId())
             },
             {
               label: 'Full canvas',
               accelerator: 'CmdOrCtrl+Alt+9',
-              click: () => setSplit(20)
+              click: () => setSplit(20, focusedWindowId())
             }
           ]
         },
@@ -2657,7 +3009,7 @@ function installAppMenu(): void {
           // menu entry is for discoverability + mouse-driven trigger;
           // the chord remains the power-user accelerator.
           label: 'View source',
-          click: () => safeSend(IPC.VIEW_SOURCE_REQUEST)
+          click: () => safeSendFocused(IPC.VIEW_SOURCE_REQUEST)
         },
         { type: 'separator' },
         // BUG-084 fix (v0.6.7) — Reload + Force Reload removed.
@@ -2727,7 +3079,7 @@ function buildRecentWorkspacesSubmenu(): MenuItemConstructorOptions[] {
   const items: MenuItemConstructorOptions[] = sorted.map(entry => ({
     label: `${entry.name}`,
     sublabel: entry.path,
-    click: async () => { await openWorkspaceFile(entry.path) }
+    click: async () => { await openWorkspaceFile(entry.path, { skipPrompt: true, windowId: focusedWindowId() }) }
   }))
   if (items.length > 0) {
     items.push({ type: 'separator' })
@@ -2775,8 +3127,10 @@ function applyWindowTitle(ctx: WindowContext | undefined): void {
 // autosave debounce). 3 s timeout — the renderer's reply is purely
 // CPU-bound (no I/O) so this is generous.
 const SESSION_SNAPSHOT_TIMEOUT_MS = 3000
-async function dispatchSessionSnapshot(): Promise<import('../shared/types').SessionState | null> {
-  const win = liveMainWindow()
+async function dispatchSessionSnapshot(windowId?: number): Promise<import('../shared/types').SessionState | null> {
+  // ENH-191 P5a — snapshot the threaded window (the workspace op's target),
+  // else the primary. The reqId reply is already pinned to win.id.
+  const win = windowByIdOrPrimary(windowId)
   if (!win || win.isDestroyed()) return null
   const reqId = `ss_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
   return new Promise<import('../shared/types').SessionState | null>((resolve) => {
@@ -2800,8 +3154,11 @@ async function dispatchSessionSnapshot(): Promise<import('../shared/types').Sess
 //   - `saveAs=false` and no active pointer → behave as Save As.
 //   - `targetPath` set (from CLI) → write to that path directly,
 //     skipping the GUI dialog.
-export async function saveWorkspaceFile(opts: { saveAs?: boolean; targetPath?: string; name?: string }): Promise<{ ok: boolean; path?: string; name?: string; error?: string }> {
-  const win = liveMainWindow()
+export async function saveWorkspaceFile(opts: { saveAs?: boolean; targetPath?: string; name?: string; windowId?: number }): Promise<{ ok: boolean; path?: string; name?: string; error?: string }> {
+  // ENH-191 P5a — save THIS window (app-menu → focused; CLI → DUO_WINDOW; else
+  // primary). win.id threads to the snapshot + the per-window pointer dual-write
+  // so saving in window 2 can't persist/retitle window 1.
+  const win = windowByIdOrPrimary(opts.windowId)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -2838,7 +3195,7 @@ export async function saveWorkspaceFile(opts: { saveAs?: boolean; targetPath?: s
 
   // Gather the live state via the renderer snapshot. If the renderer
   // doesn't reply (no window, hung), fall back to the on-disk autosave.
-  let state = await dispatchSessionSnapshot()
+  let state = await dispatchSessionSnapshot(win.id)
   if (!state) {
     await sessionStateService.flush()
     state = await sessionStateService.load()
@@ -2851,9 +3208,10 @@ export async function saveWorkspaceFile(opts: { saveAs?: boolean; targetPath?: s
   }
   await activeWorkspaceService.set({ path: targetPath, name: suggestedName })
   await workspaceHistoryService.record({ path: targetPath, name: suggestedName, savedAt: new Date().toISOString() })
-  // ENH-191 P3-S10 — dual-write the per-window pointer (registry.only() at N=1)
-  // alongside the shared service; applyWindowTitle reads it.
-  const savedCtx = registry.only()
+  // ENH-191 P3-S10 / P5a — dual-write the SAVED window's per-window pointer
+  // (registry.get(win.id), never only() — which crashes at N>1 and would retitle
+  // the wrong window) alongside the shared service; applyWindowTitle reads it.
+  const savedCtx = registry.get(win.id)
   if (savedCtx) savedCtx.activeWorkspace = activeWorkspaceService.get()
   applyWindowTitle(savedCtx)
   void rebuildAppMenu()
@@ -2866,8 +3224,12 @@ export async function saveWorkspaceFile(opts: { saveAs?: boolean; targetPath?: s
 // browser tabs is to re-enter the existing boot-time restore — no
 // in-place reset machinery needed. macOS apps switch workspaces this
 // way regularly; the visual reset is unambiguous.
-export async function openWorkspaceFile(filePath: string, opts: { skipPrompt?: boolean } = {}): Promise<{ ok: boolean; path?: string; name?: string; error?: string }> {
-  const win = liveMainWindow()
+export async function openWorkspaceFile(filePath: string, opts: { skipPrompt?: boolean; windowId?: number } = {}): Promise<{ ok: boolean; path?: string; name?: string; error?: string }> {
+  // ENH-191 P5a — switch THIS window (app-menu/recent → focused; CLI →
+  // DUO_WINDOW; else primary). win.id threads through the pre-switch flush, the
+  // per-window pointer, and applyNewSessionState so a switch in window 2 can't
+  // reload/teardown window 1.
+  const win = windowByIdOrPrimary(opts.windowId)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -2886,11 +3248,11 @@ export async function openWorkspaceFile(filePath: string, opts: { skipPrompt?: b
   const currentActive = activeWorkspaceService.get()
   if (currentActive) {
     try {
-      const snapshot = await dispatchSessionSnapshot()
+      const snapshot = await dispatchSessionSnapshot(win.id)
       if (snapshot) {
-        // ENH-191 P4 — main-driven save targets the sole window (P5 threads
-        // the workspace-switching window's id).
-        sessionStateService.save(snapshot, defaultWindowId(registry) ?? 1)
+        // ENH-191 P5a — persist the OUTGOING workspace to the switching window's
+        // own per-window slot (win.id), never defaultWindowId() (crashes at N>1).
+        sessionStateService.save(snapshot, win.id)
         await sessionStateService.flush()
       }
     } catch (err) {
@@ -2920,20 +3282,24 @@ export async function openWorkspaceFile(filePath: string, opts: { skipPrompt?: b
   // Set active pointer + history BEFORE applying so the window title
   // reflects the new name as soon as the renderer reload finishes.
   await activeWorkspaceService.set({ path: filePath, name: envelope.name })
-  const openedCtx = registry.only()
+  // ENH-191 P5a — the OPENED window's per-window pointer (registry.get(win.id),
+  // never only()); applyWindowTitle retitles THIS window only.
+  const openedCtx = registry.get(win.id)
   if (openedCtx) openedCtx.activeWorkspace = activeWorkspaceService.get()
   applyWindowTitle(openedCtx)
   await workspaceHistoryService.record({ path: filePath, name: envelope.name, savedAt: envelope.savedAt })
   await workspaceHistoryService.flush()
   void rebuildAppMenu()
-  await applyNewSessionState(stamped)
+  await applyNewSessionState(stamped, win.id)
   return { ok: true, path: filePath, name: envelope.name }
 }
 
 // ENH-167 — Open Workspace dialog flow. Shows the prompt-to-save
 // modal first, then a file picker.
-async function openWorkspaceFileWithDialog(): Promise<{ ok: boolean; path?: string; name?: string; error?: string }> {
-  const win = liveMainWindow()
+async function openWorkspaceFileWithDialog(windowId?: number): Promise<{ ok: boolean; path?: string; name?: string; error?: string }> {
+  // ENH-191 P5a — the Open-Workspace dialog flow (app-menu → focused; renderer
+  // IPC → sender; else primary). The picked file opens into THIS window.
+  const win = windowByIdOrPrimary(windowId)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -2950,7 +3316,7 @@ async function openWorkspaceFileWithDialog(): Promise<{ ok: boolean; path?: stri
   if (result.canceled || result.filePaths.length === 0) {
     return { ok: false, error: 'cancelled' }
   }
-  return openWorkspaceFile(result.filePaths[0], { skipPrompt: true })
+  return openWorkspaceFile(result.filePaths[0], { skipPrompt: true, windowId: win.id })
 }
 
 // ENH-167 — prompt the user to save the current workspace before
@@ -2961,8 +3327,9 @@ async function openWorkspaceFileWithDialog(): Promise<{ ok: boolean; path?: stri
 // `action` parametrizes the prompt copy:
 //  - 'open' → "before opening another?" (Open Workspace / Open Recent)
 //  - 'new'  → "before starting a new one?" (New Workspace)
-async function promptToSaveCurrentWorkspace(action: 'open' | 'new' = 'open'): Promise<boolean> {
-  const win = liveMainWindow()
+async function promptToSaveCurrentWorkspace(action: 'open' | 'new' = 'open', windowId?: number): Promise<boolean> {
+  // ENH-191 P5a — parent the Save?/Don't/Cancel sheet on THIS window + save it.
+  const win = windowByIdOrPrimary(windowId)
   if (!win || win.isDestroyed()) return false
   // BUG-151 (Sprint 20 / v0.7.7) — this prompt is now ONLY reachable
   // from `newWorkspaceReset` (the "wipe everything and start fresh"
@@ -2992,7 +3359,7 @@ async function promptToSaveCurrentWorkspace(action: 'open' | 'new' = 'open'): Pr
   if (result.response === 1) return true                    // Don't Save → proceed
   // Save → if active, save silently; else open Save dialog. If the
   // save itself fails or is cancelled, abort.
-  const save = await saveWorkspaceFile({ saveAs: false })
+  const save = await saveWorkspaceFile({ saveAs: false, windowId })
   if (!save.ok) return false
   return true
 }
@@ -3068,24 +3435,27 @@ async function getLiveCwdsForIds(
 // faster (~200ms vs ~2s) and uniform across dev/prod. Owner reported
 // "whole window disappeared, relaunched blank window" on 2026-05-21
 // — that was the relaunch surfacing the dev-mode break.
-async function applyNewSessionState(state: import('../shared/types').SessionState): Promise<void> {
-  const win = liveMainWindow()
+async function applyNewSessionState(state: import('../shared/types').SessionState, windowId?: number): Promise<void> {
+  // ENH-191 P5a — apply to THIS window (callers thread the operated-on id). ALL
+  // sub-steps below (save, browser teardown, PTY dispose, reload) MUST target
+  // the SAME window or a switch in window A would reload/teardown window B.
+  const win = windowByIdOrPrimary(windowId)
   if (!win || win.isDestroyed()) return
 
-  // Save the new state so the reloaded renderer reads it.
-  // ENH-191 P4 — main-driven workspace-apply targets the sole window (P5
-  // threads the window the workspace was applied to).
-  sessionStateService.save(state, defaultWindowId(registry) ?? 1)
+  // Save the new state so the reloaded renderer reads it — keyed by THIS
+  // window's per-window slot (win.id), never defaultWindowId() (crashes at N>1).
+  sessionStateService.save(state, win.id)
   await sessionStateService.flush()
 
   // Tear down current browser tabs. Closing each tab cleanly via
   // BrowserManager preserves CDP/closed-tabs/aux state correctly,
   // unlike dispose() which would also detach CDP and break the
   // reused BrowserManager.
-  // ENH-191 P2 — resolve this window's BrowserManager once; the deferred
-  // did-finish-load callback below captures it (BrowserManager is reused
-  // across a workspace switch, not re-created, so the captured ref stays valid).
-  const browserManager = liveBrowser()
+  // ENH-191 P5a — resolve THIS window's BrowserManager (registry.get(win.id),
+  // never liveBrowser()/only() — crashes at N>1 + would tear down window 1's
+  // tabs). The deferred did-finish-load callback below captures it (the manager
+  // is reused across a workspace switch, not re-created, so the ref stays valid).
+  const browserManager = (registry.get(win.id)?.browserManager as BrowserManager | undefined) ?? null
   if (browserManager) {
     const currentTabs = [...browserManager.getTabs()]
     for (const tab of currentTabs.reverse()) {
@@ -3097,8 +3467,9 @@ async function applyNewSessionState(state: import('../shared/types').SessionStat
   // whole shared pool. At N=1 the sole window owns every PTY, so this kills the
   // same set dispose() did; at N>1 a workspace swap in window A no longer nukes
   // window B's terminals. The renderer reload re-creates PTYs via pty:create.
-  const swapWin = liveMainWindow()
-  ptyManager.disposeForWindow(swapWin?.id ?? -1)
+  // ENH-191 P5a — dispose only THIS window's PTYs (win.id), never a re-resolved
+  // liveMainWindow() (crashes at N>1 + could nuke the wrong window's terminals).
+  ptyManager.disposeForWindow(win.id)
 
   // Re-arm the browser-pin-restore for the NEXT did-finish-load
   // (the one that fires after this reload). The createWindow path's
@@ -3160,20 +3531,23 @@ async function applyNewSessionState(state: import('../shared/types').SessionStat
 //
 // `skipPrompt` is for CLI callers (`duo session new`) — the agent
 // is presumed deliberate, same convention as `duo session open`.
-export async function newWorkspaceReset(opts: { skipPrompt?: boolean } = {}): Promise<{ ok: boolean; error?: string }> {
-  const win = liveMainWindow()
+export async function newWorkspaceReset(opts: { skipPrompt?: boolean; windowId?: number } = {}): Promise<{ ok: boolean; error?: string }> {
+  // ENH-191 P5a — reset THIS window (app-menu → focused; renderer IPC → sender;
+  // CLI → DUO_WINDOW; else primary). win.id threads to the snapshot, prompt,
+  // frontmost-terminal lookup, pointer-clear, and applyNewSessionState.
+  const win = windowByIdOrPrimary(opts.windowId)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
 
   // Snapshot the live renderer state so we can pick the frontmost
   // terminal's CWD and gate the prompt on "is there anything to lose".
-  const state = await dispatchSessionSnapshot()
+  const state = await dispatchSessionSnapshot(win.id)
   if (!state) return { ok: false, error: 'snapshot failed' }
 
   const anythingOpen = state.terminals.length > 0 || state.fileTabs.length > 0
   if (anythingOpen && !opts.skipPrompt) {
-    const proceed = await promptToSaveCurrentWorkspace('new')
+    const proceed = await promptToSaveCurrentWorkspace('new', win.id)
     if (!proceed) return { ok: false, error: 'cancelled' }
   }
 
@@ -3185,7 +3559,9 @@ export async function newWorkspaceReset(opts: { skipPrompt?: boolean } = {}): Pr
   const idx = state.activeTerminalIndex
   if (idx >= 0 && idx < state.terminals.length) {
     const spawnCwd = state.terminals[idx].cwd
-    const activeId = activeTerminalIdCache.getDefault(registry)
+    // ENH-191 P5a — the reset window's frontmost terminal (getOrDefault never
+    // throws), not getDefault(registry) which crashes at N>1.
+    const activeId = activeTerminalIdCache.getOrDefault(win.id)
     const pid = activeId ? ptyManager.getPid(activeId) : null
     const liveCwd = pid ? getLiveCwdForPid(pid) : null
     frontCwd = liveCwd ?? spawnCwd
@@ -3209,23 +3585,25 @@ export async function newWorkspaceReset(opts: { skipPrompt?: boolean } = {}): Pr
     aux: null
   }
   await activeWorkspaceService.clear()
-  const clearedCtx = registry.only()
+  // ENH-191 P5a — clear THIS window's pointer (registry.get(win.id), never
+  // only()); applyWindowTitle retitles THIS window back to "Duo".
+  const clearedCtx = registry.get(win.id)
   if (clearedCtx) clearedCtx.activeWorkspace = null
   applyWindowTitle(clearedCtx)
   void rebuildAppMenu()
   await workspaceHistoryService.flush()
-  await applyNewSessionState(skeleton)
+  await applyNewSessionState(skeleton, win.id)
   return { ok: true }
 }
 
 // Helpers exposed to SocketServer via `NavBridge` (passed below).
 
 export function getNavState(): NavStateSnapshot {
-  return navStateCache.getDefault(registry)
+  return navStateCache.getOrDefault(cliDefaultWindowId())
 }
 
 export function sendReveal(path: string): { ok: boolean; error?: string } {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3280,7 +3658,7 @@ async function scanAndInstallDistroPacks(): Promise<void> {
 }
 
 export function sendView(path: string, mode?: 'canvas' | 'browser'): { ok: boolean; error?: string } {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3293,7 +3671,7 @@ export function sendView(path: string, mode?: 'canvas' | 'browser'): { ok: boole
 }
 
 export function sendEdit(path: string, mode?: 'canvas' | 'browser'): { ok: boolean; error?: string } {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3302,13 +3680,13 @@ export function sendEdit(path: string, mode?: 'canvas' | 'browser'): { ok: boole
 }
 
 export function getEditorSelection(): EditorSelectionSnapshot | null {
-  return editorSelectionCache.getDefault(registry)
+  return editorSelectionCache.getOrDefault(cliDefaultWindowId())
 }
 
 // Stage 17c — drives `duo selection --pane canvas` and the auto-select
 // path's html-canvas branch.
 export function getCanvasSelection(): PageSelectionSnapshot | null {
-  return canvasSelectionCache.getDefault(registry)
+  return canvasSelectionCache.getOrDefault(cliDefaultWindowId())
 }
 
 /**
@@ -3317,14 +3695,14 @@ export function getCanvasSelection(): PageSelectionSnapshot | null {
  * renderer is busy.
  */
 export function getThemeState(): ThemeStateSnapshot {
-  return themeStateCache.getDefault(registry)
+  return themeStateCache.getOrDefault(cliDefaultWindowId())
 }
 
 export function setThemeMode(mode: ThemeMode): { ok: boolean; error?: string } {
   if (mode !== 'system' && mode !== 'light' && mode !== 'dark') {
     return { ok: false, error: `Invalid theme mode: ${mode}. Expected system|light|dark.` }
   }
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3338,14 +3716,16 @@ export function setThemeMode(mode: ThemeMode): { ok: boolean; error?: string } {
 // Renderer hook (useClaudeKeyPrefs) writes to localStorage on
 // receive, so the change survives relaunches.
 export function getClaudeKeyPrefsState(): import('../shared/types').ClaudeKeyPrefsSnapshot {
-  return claudeKeyPrefsStateCache.getDefault(registry)
+  return claudeKeyPrefsStateCache.getOrDefault(cliDefaultWindowId())
 }
 
-export function setClaudeReturnMode(mode: import('../shared/types').ClaudeReturnMode): { ok: boolean; error?: string } {
+export function setClaudeReturnMode(mode: import('../shared/types').ClaudeReturnMode, windowId?: number): { ok: boolean; error?: string } {
   if (mode !== 'submit' && mode !== 'newline') {
     return { ok: false, error: `Invalid claude-return mode: ${mode}. Expected submit|newline.` }
   }
-  const win = liveMainWindow()
+  // ENH-191 P5a — windowId targets a specific window (app-menu passes the
+  // focused window; CLI passes DUO_WINDOW); omitted → the primary window.
+  const win = windowByIdOrPrimary(windowId)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3357,7 +3737,7 @@ export function setShiftReturnMode(mode: import('../shared/types').ShiftReturnMo
   if (mode !== 'submit' && mode !== 'newline') {
     return { ok: false, error: `Invalid shift-return mode: ${mode}. Expected submit|newline.` }
   }
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3370,11 +3750,13 @@ export function setShiftReturnMode(mode: import('../shared/types').ShiftReturnMo
 // the new value to the renderer; renderer's useNavigator hook updates
 // localStorage + emits a fresh NAV_STATE_PUSH (which our handler uses
 // to refresh the menu checkmark).
-export function setHiddenFiles(value: boolean | 'toggle'): { ok: boolean; error?: string } {
+export function setHiddenFiles(value: boolean | 'toggle', windowId?: number): { ok: boolean; error?: string } {
   if (value !== true && value !== false && value !== 'toggle') {
     return { ok: false, error: `Invalid hidden-files value: ${String(value)}. Expected true|false|'toggle'.` }
   }
-  const win = liveMainWindow()
+  // ENH-191 P5a — windowId targets a specific window (app-menu → focused; CLI →
+  // DUO_WINDOW); omitted → the primary window.
+  const win = windowByIdOrPrimary(windowId)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3395,7 +3777,7 @@ export function pushBrowserMode(mode: import('../shared/types').BrowserMode): vo
 // dispatch AUTHOR_SET to the renderer which persists to localStorage
 // and pushes a fresh state back over AUTHOR_STATE_PUSH.
 export function getAuthorState(): import('../shared/types').AuthorStateSnapshot {
-  return authorStateCache.getDefault(registry)
+  return authorStateCache.getOrDefault(cliDefaultWindowId())
 }
 
 export function setAuthor(author: string): { ok: boolean; error?: string } {
@@ -3406,15 +3788,16 @@ export function setAuthor(author: string): { ok: boolean; error?: string } {
   if (trimmed.length > 64) {
     return { ok: false, error: 'author name must be 64 characters or fewer' }
   }
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  // Update the cache eagerly so `duo author` reads the new value even
-  // before the renderer's AUTHOR_STATE_PUSH echo arrives. CLI-originated
-  // (no event.sender) → key by identity so the eager write + the
-  // AUTHOR_STATE_PUSH echo land in the SAME window's slot.
-  authorStateCache.set(defaultWindowId(registry), { author: trimmed })
+  // Update the cache eagerly so `duo author` reads the new value even before the
+  // renderer's AUTHOR_STATE_PUSH echo arrives. ENH-191 P5a — key by the ADDRESSED
+  // window (win.id, = cliTargetWindowId ?? primary), matching the AUTHOR_SET send
+  // + the getOrDefault(cliDefaultWindowId()) read, so `duo --window N author`
+  // round-trips through window N's slot (was defaultWindowId = primary only).
+  authorStateCache.set(win.id, { author: trimmed })
   win.webContents.send(IPC.AUTHOR_SET, trimmed)
   return { ok: true }
 }
@@ -3423,12 +3806,14 @@ export function setAuthor(author: string): { ok: boolean; error?: string } {
 // land here. Renderer clamps to the divider drag's 20–80 range; the
 // validator below mirrors that so an invalid CLI value errors at the
 // socket boundary instead of a silent clamp.
-export function setSplit(pct: number): { ok: boolean; pct?: number; error?: string } {
+export function setSplit(pct: number, windowId?: number): { ok: boolean; pct?: number; error?: string } {
   if (typeof pct !== 'number' || !Number.isFinite(pct)) {
     return { ok: false, error: 'split pct must be a finite number' }
   }
   const clamped = Math.min(Math.max(pct, 20), 80)
-  const win = liveMainWindow()
+  // ENH-191 P5a — windowId targets a specific window (app-menu → focused; CLI →
+  // DUO_WINDOW); omitted → the primary window.
+  const win = windowByIdOrPrimary(windowId)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3440,8 +3825,10 @@ export function setSplit(pct: number): { ok: boolean; pct?: number; error?: stri
 // 3way` all land here. Tells the renderer to apply the canonical 3-pane
 // even layout: outer 33/67 + inner aux 50/50 (when aux is open). Same
 // target shape as ENH-126's auto-redistribute, but on-demand.
-export function setLayout3wayEven(): { ok: boolean; error?: string } {
-  const win = liveMainWindow()
+export function setLayout3wayEven(windowId?: number): { ok: boolean; error?: string } {
+  // ENH-191 P5a — windowId targets a specific window (app-menu → focused; CLI →
+  // DUO_WINDOW); omitted → the primary window.
+  const win = windowByIdOrPrimary(windowId)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3475,7 +3862,7 @@ export async function queryRendererDom(req: {
   // actively mislead an agent debugging blind.
   // Cast to the real BrowserWindow: executeJavaScript isn't on the minimal
   // WindowLike send-interface, but the registry holds the real window.
-  const win = resolveDefault(registry) as BrowserWindow | undefined
+  const win = windowByIdOrPrimary(undefined) // ENH-191 P5a — addressable (cliTargetWindowId), else primary; identity, never focus
   if (!win || win.isDestroyed()) {
     throw new Error('Duo window not ready')
   }
@@ -3531,7 +3918,7 @@ export function openDevToolsForTarget(opts: {
 }): { ok: boolean; target?: string; opened?: boolean; error?: string } {
   const target = opts.target ?? 'renderer'
   if (target === 'renderer') {
-    const win = liveMainWindow()
+    const win = windowByIdOrPrimary(undefined)
     if (!win || win.isDestroyed()) {
       return { ok: false, error: 'Duo window not ready' }
     }
@@ -3544,7 +3931,7 @@ export function openDevToolsForTarget(opts: {
     return { ok: true, target, opened: true }
   }
   if (target === 'browser-pane') {
-    const browserManager = liveBrowser()
+    const browserManager = cliBrowserManager() // ENH-191 P5a — addressed window, not primary
     if (!browserManager) return { ok: false, error: 'browser manager not ready' }
     if (opts.close) {
       browserManager.closeDevTools()
@@ -3567,7 +3954,7 @@ export async function getLayoutSnapshot(): Promise<unknown> {
   // actively mislead an agent debugging blind.
   // Cast to the real BrowserWindow: executeJavaScript isn't on the minimal
   // WindowLike send-interface, but the registry holds the real window.
-  const win = resolveDefault(registry) as BrowserWindow | undefined
+  const win = windowByIdOrPrimary(undefined) // ENH-191 P5a — addressable (cliTargetWindowId), else primary; identity, never focus
   if (!win || win.isDestroyed()) {
     throw new Error('Duo window not ready')
   }
@@ -3590,7 +3977,7 @@ export async function getStatusSnapshot(): Promise<unknown> {
   // actively mislead an agent debugging blind.
   // Cast to the real BrowserWindow: executeJavaScript isn't on the minimal
   // WindowLike send-interface, but the registry holds the real window.
-  const win = resolveDefault(registry) as BrowserWindow | undefined
+  const win = windowByIdOrPrimary(undefined) // ENH-191 P5a — addressable (cliTargetWindowId), else primary; identity, never focus
   if (!win || win.isDestroyed()) {
     throw new Error('Duo window not ready')
   }
@@ -3609,7 +3996,7 @@ export async function getStatusSnapshot(): Promise<unknown> {
 export async function revealMainPaneIfCollapsed(): Promise<void> {
   // ENH-191 P2 (cardinal rule §2.3) — resolve by identity, never focus. Cast
   // to the real BrowserWindow for executeJavaScript (not on WindowLike).
-  const win = resolveDefault(registry) as BrowserWindow | undefined
+  const win = windowByIdOrPrimary(undefined) // ENH-191 P5a — addressable (cliTargetWindowId), else primary; identity, never focus
   if (!win || win.isDestroyed()) return
   try {
     const layout = (await win.webContents.executeJavaScript(
@@ -3635,7 +4022,7 @@ export function splitViewOpen(path: string): { ok: boolean; error?: string } {
   if (typeof path !== 'string' || !path) {
     return { ok: false, error: 'split-view open requires a path' }
   }
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3659,11 +4046,11 @@ export function splitViewOpenBrowser(browserTabId: number): { ok: boolean; error
   if (!Number.isInteger(browserTabId) || browserTabId < 1) {
     return { ok: false, error: 'split-view open-browser requires a positive integer tab id' }
   }
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  const browserManager = liveBrowser()
+  const browserManager = cliBrowserManager() // ENH-191 P5a — addressed window, not primary
   if (!browserManager) {
     return { ok: false, error: 'BrowserManager not initialized' }
   }
@@ -3678,7 +4065,7 @@ export function splitViewOpenBrowser(browserTabId: number): { ok: boolean; error
 }
 
 export function splitViewClose(): { ok: boolean; error?: string } {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3690,7 +4077,7 @@ export function splitViewClose(): { ok: boolean; error?: string } {
 // on the working strip). The renderer applies the pinned-tab gate +
 // the actual tab-removal logic; this just pushes the trigger.
 export function closeActiveWorkingTab(): { ok: boolean; error?: string } {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3702,7 +4089,7 @@ export function closeActiveWorkingTab(): { ok: boolean; error?: string } {
 // supplied (1-indexed) → that specific terminal tab. Renderer owns
 // tab identity, so the index resolution happens there.
 export function closeTerminalTab(n?: number): { ok: boolean; error?: string } {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3715,8 +4102,10 @@ export function closeTerminalTab(n?: number): { ok: boolean; error?: string } {
 // v2: optional `path` arg pre-populates the modal's parent-directory
 // input. Used by the Navigator right-click → "Clone GitHub repo
 // here…" path (owner Q1: right-click context wins over Navigator cwd).
-export function openCloneModal(opts?: { path?: string }): { ok: boolean; error?: string } {
-  const win = liveMainWindow()
+export function openCloneModal(opts?: { path?: string; windowId?: number }): { ok: boolean; error?: string } {
+  // ENH-191 P5a — windowId targets a specific window (File menu / ⌘⇧K →
+  // focused; CLI → DUO_WINDOW); omitted → the primary window.
+  const win = windowByIdOrPrimary(opts?.windowId)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3726,7 +4115,7 @@ export function openCloneModal(opts?: { path?: string }): { ok: boolean; error?:
 }
 
 export function splitViewPromote(): { ok: boolean; error?: string } {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3743,7 +4132,7 @@ export function splitViewResize(pct: number): { ok: boolean; pct?: number; error
   // or percent (20–80) for caller convenience; > 1 is treated as %.
   const decimal = pct > 1 ? pct / 100 : pct
   const clamped = Math.min(Math.max(decimal, 0.20), 0.80)
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3752,21 +4141,21 @@ export function splitViewResize(pct: number): { ok: boolean; pct?: number; error
 }
 
 export function getSplitViewState(): WorkingAuxSnapshot {
-  return workingAuxSnapshotCache.getDefault(registry)
+  return workingAuxSnapshotCache.getOrDefault(cliDefaultWindowId())
 }
 
 // Stage 15 G19 — `duo selection-format` reads the cache; `duo
 // selection-format <a|b|c>` dispatches a SET to the renderer, which
 // persists to localStorage and pushes the new state back.
 export function getSelectionFormatState(): SelectionFormatStateSnapshot {
-  return selectionFormatStateCache.getDefault(registry)
+  return selectionFormatStateCache.getOrDefault(cliDefaultWindowId())
 }
 
 export function setSelectionFormat(format: SelectionFormat): { ok: boolean; error?: string } {
   if (format !== 'a' && format !== 'b' && format !== 'c') {
     return { ok: false, error: `Invalid selection-format: ${format}. Expected a|b|c.` }
   }
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -3785,7 +4174,7 @@ export function setSelectionFormat(format: SelectionFormat): { ok: boolean; erro
 const DOC_WRITE_TIMEOUT_MS = 5 * 60 * 1000
 
 export function dispatchDocWrite(req: Omit<DocWriteRequest, 'reqId'>): Promise<DocWriteResult> {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }
@@ -3804,7 +4193,7 @@ export function dispatchDocWrite(req: Omit<DocWriteRequest, 'reqId'>): Promise<D
 }
 
 export function dispatchImageInsert(req: { bytes: Uint8Array; ext: string; alt?: string }): Promise<import('../shared/types').ImageInsertResult> {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }
@@ -3823,7 +4212,7 @@ export function dispatchImageInsert(req: { bytes: Uint8Array; ext: string; alt?:
 }
 
 export function dispatchDocRead(req: Omit<DocReadRequest, 'reqId'>): Promise<DocReadResult> {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }
@@ -3845,7 +4234,7 @@ export function dispatchDocRead(req: Omit<DocReadRequest, 'reqId'>): Promise<Doc
 // short timeout (no human gate; the renderer just resolves a target
 // + scrolls into view, bounded by frame budget).
 export function dispatchDocGoto(req: Omit<DocGotoRequest, 'reqId'>): Promise<DocGotoResult> {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }
@@ -3865,7 +4254,7 @@ export function dispatchDocGoto(req: Omit<DocGotoRequest, 'reqId'>): Promise<Doc
 
 // ENH-023 (v0.5.4) — `duo doc find`. Read-only, fast — same 5s budget.
 export function dispatchDocFind(req: Omit<DocFindRequest, 'reqId'>): Promise<DocFindResult> {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }
@@ -3890,7 +4279,7 @@ export function dispatchDocFind(req: Omit<DocFindRequest, 'reqId'>): Promise<Doc
 // an echo-safe save, and replies. 10s timeout mirrors dispatchDocRead
 // (no human gate — this is an accepted edit, not a banner-able write).
 export function dispatchDocEditPlain(req: Omit<DocEditPlainRequest, 'reqId'>): Promise<DocEditPlainResult> {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, changed: false, replacements: 0, reason: '', error: 'Duo window not ready' })
   }
@@ -3913,7 +4302,7 @@ export function dispatchDocEditPlain(req: Omit<DocEditPlainRequest, 'reqId'>): P
 // the closed case disk-direct). 10s timeout, same rationale as
 // dispatchDocEditPlain.
 export function dispatchJsonOp(req: Omit<JsonOpRequest, 'reqId'>): Promise<JsonOpResult> {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, changed: false, reason: '', error: 'Duo window not ready' })
   }
@@ -3939,7 +4328,7 @@ export function dispatchJsonOp(req: Omit<JsonOpRequest, 'reqId'>): Promise<JsonO
 const HTML_OP_TIMEOUT_MS = 30_000
 
 export function dispatchHtmlOp(req: Omit<HtmlOpRequest, 'reqId'>): Promise<HtmlOpResult> {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }
@@ -3961,7 +4350,7 @@ export function dispatchHtmlOp(req: Omit<HtmlOpRequest, 'reqId'>): Promise<HtmlO
 // as html-op (DOM ops are fast; the timeout window only matters when no
 // canvas is active to subscribe).
 export function dispatchHtmlComment(req: Omit<HtmlCommentRequest, 'reqId'>): Promise<HtmlCommentResult> {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }
@@ -3980,7 +4369,7 @@ export function dispatchHtmlComment(req: Omit<HtmlCommentRequest, 'reqId'>): Pro
 }
 
 export function dispatchHtmlCommentsList(req: Omit<HtmlCommentsListRequest, 'reqId'>): Promise<HtmlCommentsListResult> {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }
@@ -4015,7 +4404,7 @@ export function sendToActiveTerminal(text: string): { ok: boolean; written?: num
   if (typeof text !== 'string') {
     return { ok: false, error: 'send requires a string text payload' }
   }
-  const activeId = activeTerminalIdCache.getDefault(registry)
+  const activeId = activeTerminalIdCache.getOrDefault(cliDefaultWindowId())
   if (activeId === null) {
     return { ok: false, error: 'No active terminal — open one and try again' }
   }
@@ -4033,7 +4422,7 @@ export function sendToActiveTerminal(text: string): { ok: boolean; written?: num
 // defaults to the file's basename without extension. Path validation
 // (must end in .html / .htm) happens in socket-server.
 export async function htmlNew(absPath: string, title?: string): Promise<{ ok: boolean; path?: string; error?: string }> {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
@@ -4076,7 +4465,7 @@ const NEW_TAB_TIMEOUT_MS = 5000
 export function dispatchNewTab(
   req: Omit<NewTabRequest, 'reqId'>
 ): Promise<NewTabResult> {
-  const win = liveMainWindow()
+  const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }

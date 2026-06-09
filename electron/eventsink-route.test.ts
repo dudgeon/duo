@@ -61,16 +61,19 @@ describe('eventsink-route — routeAmbientCue (ENH-191 P3 M3)', () => {
     expect(a.window.webContents.send).toHaveBeenCalledTimes(1)
   })
 
-  // NEGATIVE CONTROL (the cardinal rule): undefined id at N>1 must THROW via
-  // only() (the fail-loud "P5a must thread a real addressed window" signal),
-  // proving the undefined fallback is the only()-default, not a silent first-pick.
-  it('undefined id at N>1 THROWS (only()) — not a silent focus/first pick', () => {
+  // CARDINAL RULE pin (P5a): an undefined id at N>1 falls back to the PRIMARY
+  // (lowest-id) window via resolveDefault — deterministic IDENTITY, never focus
+  // or a first-by-insertion pick. (P0–P4 THREW here as the pre-P5 placeholder;
+  // P5a resolves the primary.) Registering OUT of id order proves lowest-id.
+  it('undefined id at N>1 falls back to the PRIMARY (lowest-id) window — identity, never focus', () => {
     const reg = new WindowRegistry()
-    reg.register(fakeCtx(1))
-    reg.register(fakeCtx(2))
-    expect(() => routeAmbientCue(reg, undefined, 'claude:read-selection', {})).toThrow(
-      /all\(\) \(broadcast\) or get\(id\)/
-    )
+    const a = fakeCtx(1)
+    const b = fakeCtx(2)
+    reg.register(b) // register the higher id FIRST to prove lowest-id, not first-registered
+    reg.register(a)
+    routeAmbientCue(reg, undefined, 'claude:read-selection', {})
+    expect(a.window.webContents.send).toHaveBeenCalledTimes(1) // window 1 = primary
+    expect(b.window.webContents.send).not.toHaveBeenCalled()
   })
 
   // ---- destroyed guard ----------------------------------------------------

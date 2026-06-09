@@ -76,6 +76,20 @@ const VERBS: VerbSpec[] = [
     summary: 'Close browser tab N (a tab id from "duo tabs"; cannot close the last).'
   },
   {
+    name: 'window',
+    group: 'Windows',
+    args: 'new',
+    summary:
+      'Open a second app window — blank, with its own workspace, browser pane, and navigator. Same action as File → New Window (Opt+Cmd+N). Requires "Allow Multiple Windows" (Settings menu, default on); exits non-zero with a clean disabled-error when off. Subcommand: new.'
+  },
+  {
+    name: 'windows',
+    group: 'Windows',
+    args: '',
+    summary:
+      'List open app windows as JSON: [{id, primary, focused, activeWorkspace}]. Pair with the global "--window N" flag (or a terminal\'s DUO_WINDOW env, auto-stamped per window) to address a specific window, e.g. "duo --window 2 dom body".'
+  },
+  {
     name: 'external',
     group: 'Browser & tabs',
     args: '<url>',
@@ -477,6 +491,24 @@ const SOCKET_PATH =
 const PORT_FILE =
   process.env.DUO_PORT_FILE ??
   path.join(os.homedir(), 'Library', 'Application Support', 'duo', 'duo.port')
+
+// ENH-191 P5a (Tier-3/S4) — terminal-origin window addressing. DUO_WINDOW is
+// the PTY env-stamp (core/pty-manager.ts) = the owning window's id; an explicit
+// `--window N` (parsed + stripped in main()) overrides it. resolveWindowId()
+// returns the id stamped into every request — SocketServer routes get(windowId)
+// with a primary-window fallback. undefined ⇒ unstamped (non-Duo terminal / no
+// override) ⇒ the primary window.
+let windowOverride: number | undefined
+function resolveWindowId(): number | undefined {
+  if (windowOverride != null) return windowOverride
+  const env = process.env.DUO_WINDOW
+  if (env) {
+    const n = parseInt(env, 10)
+    if (Number.isInteger(n) && n > 0) return n
+  }
+  return undefined
+}
+
 const TIMEOUT_MS = 10_000
 // Stage 13b — `doc write` can sit on the renderer for a long time when the
 // buffer is dirty: the editor surfaces a <WriteWarningBanner> and waits
@@ -531,7 +563,8 @@ function sendOver(
     socket.on('connect', () => {
       connected = true
       if (preamble) socket.write(preamble)
-      const req: DuoRequest = { id, cmd: cmd as DuoRequest['cmd'], args }
+      const wid = resolveWindowId()
+      const req: DuoRequest = { id, cmd: cmd as DuoRequest['cmd'], args, ...(wid !== undefined ? { windowId: wid } : {}) }
       socket.write(JSON.stringify(req) + '\n')
     })
 
@@ -659,7 +692,8 @@ function sendStreamed(
 
     socket.on('connect', () => {
       if (preamble) socket.write(preamble)
-      const req: DuoRequest = { id, cmd: cmd as DuoRequest['cmd'], args }
+      const wid = resolveWindowId()
+      const req: DuoRequest = { id, cmd: cmd as DuoRequest['cmd'], args, ...(wid !== undefined ? { windowId: wid } : {}) }
       socket.write(JSON.stringify(req) + '\n')
     })
 
@@ -767,7 +801,27 @@ function translateNavKeysForMac(key: string, modifiers: string[]): { key: string
 // ── Command dispatch ─────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-  const argv = process.argv.slice(2)
+  const rawArgv = process.argv.slice(2)
+  // ENH-191 P5a (Tier-3/S4) — strip a global `--window N` / `--window=N`
+  // override from anywhere in argv BEFORE verb dispatch, so per-verb positional
+  // parsing is unaffected. Sets windowOverride (consumed by resolveWindowId()),
+  // which takes precedence over the terminal's DUO_WINDOW stamp.
+  const argv: string[] = []
+  for (let i = 0; i < rawArgv.length; i++) {
+    const a = rawArgv[i]
+    if (a === '--window') {
+      const n = parseInt(rawArgv[i + 1] ?? '', 10)
+      if (Number.isInteger(n) && n > 0) windowOverride = n
+      i++
+      continue
+    }
+    if (a.startsWith('--window=')) {
+      const n = parseInt(a.slice('--window='.length), 10)
+      if (Number.isInteger(n) && n > 0) windowOverride = n
+      continue
+    }
+    argv.push(a)
+  }
 
   if (argv.length === 0 || argv[0] === '--help' || argv[0] === '-h') {
     printHelp()
@@ -1023,6 +1077,26 @@ async function main(): Promise<void> {
         const n = parseInt(rest[0] ?? '', 10)
         if (isNaN(n)) die('Usage: duo close <n>  (where <n> is a tab id from `duo tabs`)')
         out(await send('close', { n }))
+        break
+      }
+      case 'window': {
+        // ENH-191 P5a (S3c) — `duo window new` opens a second window (the same
+        // action as the File → New Window menu item). Gated on the multiWindow
+        // setting. ENH-191 P5a (Tier-4) — exit NON-ZERO when disabled so
+        // scripts/agents see the failure (mirrors `duo clone`'s die-on-!ok),
+        // not a clean exit with an {ok:false} body.
+        const sub = rest[0]
+        if (sub !== 'new') die('Usage: duo window new')
+        const r = (await send('window', { action: 'new' })) as { ok?: boolean; error?: string }
+        if (r && r.ok === false) die(r.error ?? 'duo window new failed (is "Allow Multiple Windows" enabled?)')
+        out(r)
+        break
+      }
+      case 'windows': {
+        // ENH-191 P5a (Tier-3) — list open windows ({id, primary, focused,
+        // activeWorkspace}). Backs cross-window addressing (`duo --window N …`)
+        // + verification.
+        out(await send('windows'))
         break
       }
       case 'view': {
@@ -2345,11 +2419,13 @@ async function runDoctor(): Promise<void> {
   let unixOk = false
   let unixErr: string | null = null
   let appVersion: string | null = null
+  let windowCount: number | null = null
   if (fs.existsSync(SOCKET_PATH)) {
     try {
       const res = await probe(() => ({ socket: net.createConnection(SOCKET_PATH) }))
       unixOk = true
       appVersion = (res as { version?: string })?.version ?? null
+      windowCount = (res as { windows?: number })?.windows ?? null
     } catch (err) {
       const e = err as NodeJS.ErrnoException
       unixErr = e.code ?? e.message ?? String(err)
@@ -2369,6 +2445,7 @@ async function runDoctor(): Promise<void> {
       })
       tcpOk = true
       if (!appVersion) appVersion = (res as { version?: string })?.version ?? null
+      if (windowCount == null) windowCount = (res as { windows?: number })?.windows ?? null
     } catch (err) {
       const e = err as NodeJS.ErrnoException
       tcpErr = e.code ?? e.message ?? String(err)
@@ -2382,6 +2459,8 @@ async function runDoctor(): Promise<void> {
   } else {
     lines.push('Duo app version: unknown — could not reach app via either transport')
   }
+  // ENH-191 P5a (Tier-3 / NFR-4.4) — live window count from the ping response.
+  if (windowCount != null) lines.push(`Windows: ${windowCount}`)
   lines.push('')
 
   lines.push('Transport')

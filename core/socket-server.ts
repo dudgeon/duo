@@ -101,6 +101,10 @@ export interface NavBridge {
   getAuthor: () => AuthorStateSnapshot
   /** BUG-138 Phase 2 — CLI-driven author override. */
   setAuthor: (author: string) => { ok: boolean; error?: string }
+  /** ENH-191 P5a (S3c) — open a SECOND window (`duo window new`). Gated on the
+   *  multiWindow setting in main; returns a structured disabled-result when off
+   *  (never a silent no-op — CLI-parity with the "New Window" menu item). */
+  openWindow: () => Promise<{ ok: boolean; error?: string }>
   /** Sprint 16 / v0.6.15 — current Claude-tab Enter key prefs
    *  (renderer \u2192 main cache). */
   getClaudeKeyPrefs: () => ClaudeKeyPrefsSnapshot
@@ -270,6 +274,16 @@ export interface NavBridge {
   /** ENH-184 (Sprint 23 / v0.8.0) — workspace-pill menu CLI parity. */
   getWorkspacePillMenuEnabled: () => boolean
   setWorkspacePillMenuEnabled: (enabled: boolean) => { ok: boolean; error?: string }
+  /** ENH-191 P5a (Tier-3/S4) — set the per-request target window (DUO_WINDOW /
+   *  --window N) BEFORE dispatching a command, so main's CLI helpers resolve the
+   *  addressed window. handle() calls this synchronously (id = undefined when
+   *  unstamped → primary). */
+  setTargetWindow: (windowId?: number) => void
+  /** ENH-191 P5a (Tier-3) — live window count (NFR-4.4; `duo doctor`). */
+  windowCount: () => number
+  /** ENH-191 P5a (Tier-3) — enumerate open windows for `duo windows` +
+   *  cross-window addressing. */
+  listWindows: () => Array<{ id: number; primary: boolean; focused: boolean; activeWorkspace: import('../shared/types').ActiveWorkspace | null }>
 }
 
 /** ENH-195 (review) — canonicalize a path for open-vs-closed routing:
@@ -790,8 +804,25 @@ export class SocketServer {
   }
 
   private async handle(req: DuoRequest): Promise<DuoResponse> {
-    const { id, cmd, args } = req
+    const { id, cmd, args, windowId } = req
     try {
+      // ENH-191 P5a (Tier-3/S4) — set the per-request target window SYNCHRONOUSLY
+      // before dispatching, so main's CLI helpers resolve the addressed window
+      // (the terminal's DUO_WINDOW stamp / an explicit --window N). Validate
+      // against the live registry; an unknown id (e.g. a stale DUO_WINDOW from a
+      // since-closed window) falls back to the primary rather than erroring.
+      // Reset every request (undefined when unstamped) so no target carries
+      // over. main reads it synchronously at each helper's entry — no await
+      // between here and the dispatch — so concurrent connections can't interleave.
+      // Optional-chained so a partial bridge (boot-race / test stub) degrades to
+      // primary routing instead of throwing on an unrelated command.
+      const windows = this.nav.listWindows?.() ?? []
+      const targetWindowId =
+        typeof windowId === 'number' && windows.some((w) => w.id === windowId)
+          ? windowId
+          : undefined
+      this.nav.setTargetWindow?.(targetWindowId)
+
       let result: unknown
 
       switch (cmd) {
@@ -801,7 +832,10 @@ export class SocketServer {
           // up before bothering with any real command. Returns the
           // running app's version so the CLI can flag mismatches when
           // a stale binary symlink is pointing at an older bundle.
-          result = { version: this.appVersion }
+          // ENH-191 P5a (Tier-3) — also the live window count (NFR-4.4).
+          // Optional-chained so a partial bridge (mid-boot / test stub) still
+          // answers the version probe.
+          result = { version: this.appVersion, windows: this.nav.windowCount?.() ?? 0 }
           break
         }
         case 'navigate': {
@@ -1021,6 +1055,23 @@ export class SocketServer {
           // Computed on-demand from the renderer's window.__duoGetStatus()
           // — see App.tsx for the shape. The keystone orientation verb.
           result = await this.nav.getStatus()
+          break
+        }
+        case 'window': {
+          // ENH-191 P5a (S3c) — `duo window new`. Only `new` is supported.
+          const action = args['action']
+          if (action !== 'new') {
+            result = { ok: false, error: `unknown window subcommand: ${String(action ?? '(none)')} — try: duo window new` }
+            break
+          }
+          result = await this.nav.openWindow()
+          break
+        }
+
+        case 'windows': {
+          // ENH-191 P5a (Tier-3) — enumerate open windows for cross-window
+          // addressing + verification. {id, primary, focused, activeWorkspace}.
+          result = this.nav.listWindows()
           break
         }
 
