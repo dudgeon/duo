@@ -114,4 +114,22 @@ export class WindowRegistry {
     for (const ctx of this.contexts.values()) return ctx
     return undefined
   }
+
+  /**
+   * The PRIMARY context — the deterministic app-wide default target at ANY N
+   * (the P5a successor to `only()` for default-resolution). Returns the
+   * lowest-id live context (the oldest surviving window), or `undefined` when
+   * empty. Resolves by IDENTITY, NEVER by focus (the locked cardinal rule
+   * §2.3): the lowest-id pick is stable + reproducible, so a windowId-less CLI
+   * command / app-global default send lands in ONE predictable window instead
+   * of `only()`'s pre-P5 fail-loud throw. Use `get(id)` for per-window
+   * addressing (resolveBySender / DUO_WINDOW) and `all()` for broadcasts.
+   */
+  primary(): WindowContext | undefined {
+    let best: WindowContext | undefined
+    for (const ctx of this.contexts.values()) {
+      if (best === undefined || ctx.id < best.id) best = ctx
+    }
+    return best
+  }
 }

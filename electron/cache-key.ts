@@ -17,24 +17,29 @@
 // window can open (P5a).
 //
 // CARDINAL RULE (spec §2.3): the default-target window resolves by IDENTITY via
-// `defaultWindowId` → `registry.only()` — NOT by focus. `only()` THROWS at N>1,
-// so a getter that still resolves the default (rather than an explicit sender)
-// fails loudly once a second window exists rather than silently reading the
-// wrong window's slot. The cold-start guard (`set(undefined, …)` no-ops) mirrors
+// `defaultWindowId` → `registry.primary()` (lowest-id) — NOT by focus. P0–P4
+// enforced this by THROWING at N>1 (only()) so a getter that still resolved the
+// default (rather than an explicit sender) failed loudly before a 2nd window
+// existed; P5a resolves the deterministic lowest-id window instead (still
+// identity, never focus). The cold-start guard (`set(undefined, …)` no-ops) mirrors
 // the BUG-190 destroyed-guard: a push that arrives before/around window
 // registration must not write a bogus slot.
 
 import type { WindowRegistry } from './window-registry'
 
 /**
- * The default-target window id, resolved by IDENTITY (the sole window through
- * P0–P4). `undefined` when no window is registered yet or after full teardown;
- * THROWS at N>1 (inherits `registry.only()`), so a default-resolved read can
- * never masquerade as working once a second window opens — it must become an
- * explicit `event.sender`-keyed read first (P5a).
+ * The default-target window id, resolved by IDENTITY (the PRIMARY / lowest-id
+ * window). `undefined` when no window is registered yet or after full teardown.
+ * P0–P4 used `registry.only()` here, which fail-loud THREW at N>1 — the pre-P5
+ * placeholder forcing each read site to become an explicit `event.sender`-keyed
+ * read before a 2nd window opened. P5a retires that placeholder: this resolves
+ * `registry.primary()` (deterministic lowest-id), kept in lockstep with
+ * `resolveDefault` (window-resolve.ts) so `defaultWindowId(reg)` ===
+ * `resolveDefault(reg)?.id` — the invariant the eager-write/echo same-slot
+ * sites (e.g. setAuthor) depend on. Still IDENTITY, never focus (cardinal §2.3).
  */
 export function defaultWindowId(registry: WindowRegistry): number | undefined {
-  return registry.only()?.id
+  return registry.primary()?.id
 }
 
 /**

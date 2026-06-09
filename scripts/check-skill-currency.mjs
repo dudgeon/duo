@@ -177,6 +177,8 @@ const SUBCOMMANDS = {
   project: ['list', 'focus', 'pin', 'unpin', 'close'],
   pack: ['list', 'uninstall'],
   packs: ['list'],
+  // ENH-191 P5a (S3c) — `duo window new` opens a second window.
+  window: ['new'],
 }
 
 // Tokens that legitimately follow `duo <verb>` in prose but are NOT verbs:

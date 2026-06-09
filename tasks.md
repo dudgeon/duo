@@ -23,6 +23,18 @@
 
 **Tests / verify.** 16 new unit tests in `shared/project-lifecycle.test.ts` — the `shouldReleaseFocusForNewTerminals` release matrix (different-project, null/no-project, **nested sub-project**, member-keep, null-focus, batch, "exact negation of the visibility filter" pin) **plus** `newTerminalMembershipsSince` id-diff + first-run baseline incl. an explicit **boot-quiet pin** (first tick never releases even with a non-null focus). 35/35 in the file, full suite 1097/1097, both typecheckers clean. **Reviewed twice:** my own 5-lens adversarial workflow (3 confirmed → folded in: membership-divergence + comment-accuracy; 7 dismissed) and the [PR #79](https://github.com/dudgeon/duo/pull/79) `/code-review` (0 blockers; suggestions 1+3 — extract+test the effect glue, first-touch-only note — folded in here). **Live in-app smoke: waived by owner 2026-06-08** (active dev build was another worktree's; owner opted to merge on static + review verification rather than restart it).
 
+### ENH-191 P5 multi-window follow-ups (post-merge, PR #73)
+
+**Status:** 🆕 Filed 2026-06-08. **Priority:** P1 (item 1) / P3 (rest). **Effort:** S–M. **Source:** code review of PR #73 (merged `2e57ef0`); full detail in the PR comment.
+
+Non-blocking hardening/polish surfaced reviewing the multi-window capstone (window 2 functional + CLI-addressable). The feature is verified — 1093 unit tests + typecheck clean + 8/8 smoke-walk — so none of these gate the merge or a release; they are the residual edges:
+
+1. **[P1] Per-request window target is correct-by-discipline, not by-construction.** `cliTargetWindowId` / `cliDefaultWindowId()` (`electron/main.ts`) is module-global state set in `SocketServer.handle()` and must be read synchronously *before any `await`* in every consuming helper. The invariant is documented but unenforced, and there is no concurrency-interleaving test. → Add a test firing two overlapping `handle()` calls with different `windowId`s and asserting no cross-talk; longer-term, capture the target into a local at `handle()` entry and thread it through, removing the discipline dependency.
+2. **[P3] `reassignWindowId` collision-freedom rests on an unasserted ordering invariant** (ascending persisted-id restore + sequential awaits → ascending live ids). → Add a defensive assert (the target live id is not an unprocessed persisted key) or a restore test with non-contiguous persisted ids (e.g. `{2, 3}`).
+3. **[P3] `dropWindow`-without-flush + crash window.** An explicitly-closed (non-quit) window's removal isn't durable until the next natural flush (a sibling save / before-quit); a crash in that gap resurrects the closed window on next boot. Self-corrects (close it again).
+4. **[P3] git-watcher is single-module last-armer-wins** at N>1 — two windows watching different cwds means the second arming stops the first's `INVALIDATE`. Per-window watchers were explicitly deferred to P5b. Not a crash (the N>1 chokidar-callback crash IS fixed).
+5. **[P3] The 12-cache purge list in `createWindow`'s `closed` handler is hand-maintained** ("keep in sync if one is added") — a future `WindowKeyedCache` not added there leaks a closed window's slot past unregister. → Iterate a cache registry, or add a test asserting the list matches `grep new WindowKeyedCache`.
+
 ### BUG-198: `duo screenshot` times out (10s socket cap vs base64 round-trip)
 
 **Status:** 🆕 Filed 2026-06-07. **Priority:** Medium. **Effort:** S.

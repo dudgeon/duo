@@ -722,6 +722,11 @@ export function App() {
   const pinAutoOpenRanRef = useRef(false)
   useEffect(() => {
     if (!sessionHydrated) return
+    // ENH-191 NFR-6.2 — a blank New-Window must NOT clone the pinned FILE tabs.
+    // The boot/restored windows (env.blank false) reconcile pins as before;
+    // env.blank is preload-injected via --duo-blank (main keys it on
+    // createWindow({restore:false})).
+    if (window.electron.env.blank) return
     if (pinAutoOpenRanRef.current) return
     pinAutoOpenRanRef.current = true
     const filePins = pins.filter(p => p.kind === 'file')
