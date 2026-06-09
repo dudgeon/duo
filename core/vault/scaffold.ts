@@ -187,7 +187,11 @@ export interface InitResult {
 export function initVault(folder: string, opts: { force?: boolean } = {}): InitResult {
   const root = path.resolve(folder)
   if (isVaultRoot(root) && !opts.force) {
-    throw new Error(`${root} is already a vault (has .obsidian/). Pass --force to add missing scaffold files.`)
+    throw new Error(
+      `${root} is already a vault (has .obsidian/). Pass --force to (re)write the starter scaffold ` +
+        `files — it overwrites edited starter templates / processing.base / README, but never touches ` +
+        `your own notes.`,
+    )
   }
   const created: string[] = []
   const warnings: string[] = []
@@ -248,15 +252,25 @@ function slugify(s: string): string {
 
 /** Create an atomic inbox note (D6). Untyped by default; `--template <type>`
  *  stamps that type's frontmatter from the template registry. `text`
- *  becomes the body. The filename is timestamped so captures never collide. */
+ *  becomes the body. The filename is timestamped to the SECOND, and a
+ *  collision guard appends ` 2`, ` 3`, … if a note with the same stamp +
+ *  title already exists — so rapid same-second/same-title captures never
+ *  silently overwrite each other. */
 export function captureNote(
   root: string,
   opts: { template?: string; text?: string; title?: string; date?: Date } = {},
 ): CaptureResult {
   const now = opts.date ?? new Date()
-  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}${pad(now.getMinutes())}`
+  const stamp =
+    `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ` +
+    `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
   const titlePart = opts.title ? ' ' + slugify(opts.title) : ''
-  const rel = path.join('inbox', `${stamp}${titlePart}.md`)
+  const base = `${stamp}${titlePart}`
+  // Disambiguate against an existing file rather than clobbering it.
+  let rel = path.join('inbox', `${base}.md`)
+  for (let n = 2; fs.existsSync(path.join(root, rel)); n++) {
+    rel = path.join('inbox', `${base} ${n}.md`)
+  }
   const abs = path.join(root, rel)
 
   const fmLines: string[] = ['---', `captured: ${now.toISOString().slice(0, 10)}`]

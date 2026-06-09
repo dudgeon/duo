@@ -80,8 +80,8 @@ describe('vault init', () => {
 describe('vault capture', () => {
   it('drops an untyped, captured-stamped inbox note by default', () => {
     const v = initVault(path.join(root, 'v')).root
-    const c = captureNote(v, { text: 'a quick thought', date: new Date('2026-06-09T14:32:00') })
-    expect(c.path).toMatch(/^inbox\/2026-06-09 1432\.md$/)
+    const c = captureNote(v, { text: 'a quick thought', date: new Date('2026-06-09T14:32:05') })
+    expect(c.path).toMatch(/^inbox\/2026-06-09 143205\.md$/)
     expect(c.type).toBeNull()
     const content = fs.readFileSync(c.absPath, 'utf8')
     expect(content).toContain('captured: 2026-06-09')
@@ -103,6 +103,21 @@ describe('vault capture', () => {
   it('throws a clear error for an unknown template', () => {
     const v = initVault(path.join(root, 'v')).root
     expect(() => captureNote(v, { template: 'nope' })).toThrow(/unknown template "nope"/)
+  })
+
+  it('never overwrites a same-second / same-title capture (collision guard)', () => {
+    const v = initVault(path.join(root, 'v')).root
+    const when = new Date('2026-06-09T14:32:05')
+    const a = captureNote(v, { text: 'FIRST', title: 'sync', date: when })
+    const b = captureNote(v, { text: 'SECOND', title: 'sync', date: when })
+    const c = captureNote(v, { text: 'THIRD', title: 'sync', date: when })
+    // three distinct files, all on disk, none clobbered
+    expect(new Set([a.path, b.path, c.path]).size).toBe(3)
+    expect(b.path).toMatch(/ 2\.md$/)
+    expect(c.path).toMatch(/ 3\.md$/)
+    expect(fs.readFileSync(a.absPath, 'utf8')).toContain('FIRST')
+    expect(fs.readFileSync(b.absPath, 'utf8')).toContain('SECOND')
+    expect(fs.readFileSync(c.absPath, 'utf8')).toContain('THIRD')
   })
 
   it('end-to-end: a captured-then-filed note renders in its parent rollup', () => {

@@ -3087,7 +3087,9 @@ function readmeText(name) {
 function initVault(folder, opts = {}) {
   const root = import_node_path6.default.resolve(folder);
   if (isVaultRoot(root) && !opts.force) {
-    throw new Error(`${root} is already a vault (has .obsidian/). Pass --force to add missing scaffold files.`);
+    throw new Error(
+      `${root} is already a vault (has .obsidian/). Pass --force to (re)write the starter scaffold files \u2014 it overwrites edited starter templates / processing.base / README, but never touches your own notes.`
+    );
   }
   const created = [];
   const warnings = [];
@@ -3130,9 +3132,13 @@ function slugify(s) {
 }
 function captureNote(root, opts = {}) {
   const now = opts.date ?? /* @__PURE__ */ new Date();
-  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}${pad(now.getMinutes())}`;
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
   const titlePart = opts.title ? " " + slugify(opts.title) : "";
-  const rel = import_node_path6.default.join("inbox", `${stamp}${titlePart}.md`);
+  const base = `${stamp}${titlePart}`;
+  let rel = import_node_path6.default.join("inbox", `${base}.md`);
+  for (let n = 2; import_node_fs6.default.existsSync(import_node_path6.default.join(root, rel)); n++) {
+    rel = import_node_path6.default.join("inbox", `${base} ${n}.md`);
+  }
   const abs = import_node_path6.default.join(root, rel);
   const fmLines = ["---", `captured: ${now.toISOString().slice(0, 10)}`];
   let type2 = null;
