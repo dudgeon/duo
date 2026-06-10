@@ -1,4 +1,31 @@
-# Active sprint state — v0.10.0 SHIPPED (multi-window + ENH-204 + ENH-207) → carry-forward below
+# Active sprint state — ENH-208 Vault: Phase 1 SHIPPED + Phase 2 in flight (v0.10.0 carry-forward below)
+
+## ENH-208 Vault — Phase 1 SHIPPED, Phase 2 started (2026-06-09)
+
+> **CURRENT (2026-06-09):** **ENH-208 "vault"** (networked work-notes on plain
+> Obsidian conventions) — **Phase 1 is complete + on `main`** (PRs **#83 #84 #85
+> #86**): the full `duo vault` / `graph` / `base` CLI cluster, the
+> `skill/references/vault.md` agent how-to, and the 10-chapter Vault Guide
+> (`docs/guide/vault-guide.html`). **Phase 2 (capture UX) started** — **#87**
+> (`duo vault default` + default-vault pref) and **#88** (the `@today` smart-token
+> model + `duo vault stub` / D19 filing model) merged. Each PR was built on the
+> `enh-208-vault` worktree and **merged by a reviewer agent on main** (no self-
+> merge); the reviewer caught two real bugs (the `base render --open` IPC key, and
+> silent same-minute capture overwrite) before merge. 1189 tests green.
+>
+> **NEXT — the remaining Phase-2 work is all renderer/keyboard UI** (needs a dev
+> build + an **owner smoke-walk** per PR; NOT auto-mergeable): the Settings
+> default-vault **picker**, the **⇧⌘N** capture chord, the **⌘⇧F** vault-search
+> palette (clones the ⌘⇧A TabSearchPalette wiring), wiring the `@today` tokens
+> into the AtMention popover, and the silent-stub **type-picker**
+> (`WikilinkSuggestion`/`wikilinkCreate`). Tracked as tasks #6–#10; the model
+> layers they sit on are already merged (#88). **No version cut yet** — owner is
+> holding until some capture-UX UI lands, then one release (likely v0.11.0). PRD:
+> `docs/prd/enh-208-vault.md`. The `enh-208-vault` worktree is parked for the UI.
+>
+> **Owner note:** verifying the UI needs a worktree dev build, which means closing
+> the running packaged Duo — coordinate before taking it (another agent may be
+> using it).
 
 ## v0.10.0 SHIPPED (2026-06-08) — multi-window window-2 real, signed DMG + GitHub Release
 
