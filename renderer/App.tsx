@@ -4259,13 +4259,31 @@ export function App() {
             }}
             aria-label="Terminal column"
           >
-            {isTerminalCollapsed ? (
+            {/* BUG-200 (2026-06-10) — collapse must HIDE, not UNMOUNT, the
+                terminal column. The prior ternary swapped this whole subtree
+                for the rail, which unmounted every TerminalInstance and fired
+                its cleanup pty.kill — terminating EVERY shell on collapse
+                (TerminalPane gets the full `tabs` array, so all sessions died,
+                not just the active one). Now the rail renders as a sibling and
+                the TabBar + TerminalPane stay mounted under a display:none
+                wrapper, so PTYs + scrollback survive collapse/expand. The hide
+                MUST be a true display:none (zero box), NOT the 36px column
+                clip: xterm's resize guards key off zero size, so a clipped
+                (non-zero) host would let the ResizeObserver fit to ~4 cols and
+                reflow the live PTY (BUG-156 class — PtyManager.resize now also
+                floors cols as a backstop). On expand the host regains size and
+                the ResizeObserver refits. Robust decouple-kill-from-unmount is
+                tracked as ENH-209. */}
+            {isTerminalCollapsed && (
               <CollapsedPaneRail
                 kind="terminal"
                 onExpand={toggleCollapseTerminal}
               />
-            ) : (
-              <>
+            )}
+            <div
+              className="flex flex-col flex-1 min-h-0 overflow-hidden"
+              style={{ display: isTerminalCollapsed ? 'none' : 'flex' }}
+            >
                 <TabBar
                   // ENH-182 Phase 2 — only render visible (= focused-
                   // project member) tabs in the strip. The full `tabs`
@@ -4325,8 +4343,7 @@ export function App() {
                     onTerminalFocus={() => setFocusedColumnSilent('terminal')}
                   />
                 </div>
-              </>
-            )}
+            </div>
           </div>
 
           <div
