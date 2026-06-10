@@ -105,7 +105,7 @@ footer { margin-top:48px; border-top:1px solid var(--paper-rule); padding-top:14
 
 <header class="page-head">
   <h1>The Vault Guide</h1>
-  <div class="meta"><span class="pill">ENH-208</span> Networked work-notes on plain Obsidian conventions · Phase 1 (skill-first)</div>
+  <div class="meta"><span class="pill">ENH-208</span> Networked work-notes on plain Obsidian conventions · Phases 1–2 (skill + capture UX)</div>
 </header>
 
 <div class="intro">
@@ -184,7 +184,7 @@ filing rules baked in, the standard folders, a processing dashboard, and a READM
   <div class="lstep"><span class="who script">SCRIPT</span><div class="what">scaffolds <code>.obsidian/</code>, five starter templates, <code>inbox/ people/ themes/ initiatives/ notes/ bases/ out/</code>, <code>bases/processing.base</code>, a README — refusing to clobber an existing vault, and warning if it's under <code>~/Documents</code> (iCloud can evict file bytes there)</div></div>
   <div class="larrow">↓</div>
   <div class="lstep"><span class="who files">FILES</span><div class="what">the full scaffold — config, five templates, the standard folders, <code>processing.base</code> and a README; the folder is now a real Obsidian vault you can open in Obsidian too</div></div>
-  <div class="loopnote">Phase&nbsp;2 adds a <strong>default vault</strong> in Settings (with the <code>duo vault default</code> twin) so capture + ⌘⇧F search know which vault you mean without <code>--vault</code>.</div>
+  <div class="loopnote">Pick a <strong>default vault</strong> under Settings → Default Vault (None / detected vaults / Choose Vault… — CLI twin <code>duo vault default</code>, same pref file, so either side's change shows up in the other) and ⇧⌘N capture + ⌘⇧F search know which vault you mean without <code>--vault</code>.</div>
 </div>
 <div class="takeaway"><strong>The verb:</strong> <code>duo vault init &lt;folder&gt; [--force]</code> · find vaults with <code>duo vault list</code>.</div>
 </section>
@@ -234,11 +234,13 @@ matching template — and your cursor never leaves the note you're writing.</p>
   <div class="flow-step"><div class="step-label">3 · keep typing</div><div class="step-body">…owns&nbsp;<span class="wikilink">[[Jordan Lee]]</span>&nbsp;on pricing.<span class="caret"></span>
     <div class="toast">✓ created <code>people/Jordan Lee.md</code> from the person template</div></div></div>
 </div>
-<p><strong>Today (v1):</strong> you narrate — "Jordan Lee owns pricing now" — and Claude does
-exactly what the picker will: <code>duo vault schema</code> to confirm it's new (checking aliases),
-then create the stub from the template in the right folder and link it. <strong>You are the
-type-picker</strong> until the popover ships.</p>
-<div class="takeaway"><strong>Fast-follow <span class="soon">Phase 2</span>:</strong> <code>[[New Name]]</code> ⇥ → the type-picker popover → stub created in the background; the caret stays put.</div>
+<p><strong>In the editor:</strong> type <code>[[Jordan Lee</code> and the <code>[[</code> suggester offers a
+<strong>New:</strong> row. Picking it completes the link and pops the type picker — your template
+types plus <strong>"+ new type…"</strong> — and the stub files by the filing rules in the background;
+the caret never leaves the note, and ⎋ creates nothing. <strong>By narration:</strong> "Jordan Lee
+owns pricing now" — Claude confirms it's new with <code>duo vault schema</code> (checking aliases),
+then runs <code>duo vault stub person "Jordan Lee"</code> — the same code path the picker uses.</p>
+<div class="takeaway"><strong>Shipped in Phase 2:</strong> <code>[[New Name]]</code> ⇥ on the <strong>New:</strong> row → the type-picker popover → stub created in the background; the caret stays put, ⎋ creates nothing.</div>
 </section>
 
 <!-- ── 5 ───────────────────────────────────────────── -->
@@ -261,7 +263,7 @@ untyped — a later processing pass files and links it. Nothing to organize in t
   ---
   Alice wants the <span class="hot">[[Pricing]]</span> fee model from <span class="hot">[[Alice Park]]</span> by Fri.</pre>
 <div class="takeaway"><strong>The verb:</strong> <code>duo vault capture [--template t] [--text "…"] [--title "…"] [--open]</code>.
-<span class="soon">Phase 2</span> adds the <strong>⇧⌘N</strong> quick-capture chord and <code>@today</code>-style smart date tokens in the <code>@</code> suggester.</div>
+<strong>The chord:</strong> <strong>⇧⌘N</strong> drops the same untyped inbox note into the default vault (else the active file's vault) and opens it focused; if neither resolves, the error points you at Settings → Default Vault. And <code>@today</code>-style smart date tokens (today / tomorrow / yesterday, ISO + long-form, plus now) rank in the <code>@</code> suggester — picking one inserts plain text.</div>
 </section>
 
 <!-- ── 6 ───────────────────────────────────────────── -->
@@ -274,7 +276,7 @@ after a note is filed somewhere new.</p>
   <div class="option-card"><h4>Full-text search</h4>
     <p>Every line that matches, with file + line number.</p>
     <p class="verb">duo vault search "pricing"</p>
-    <p><span class="soon">Phase 2</span> binds this to <strong>⌘⇧F</strong> over the default vault.</p></div>
+    <p><strong>⌘⇧F</strong> opens the same search as a palette over the default vault (else the active file's vault) — results grouped by file with line + excerpt; Enter opens the file at that match.</p></div>
   <div class="option-card"><h4>Backlinks</h4>
     <p>Who links to this note — including typed frontmatter edges (a milestone's <code>initiative:</code>), not just prose.</p>
     <p class="verb">duo graph backlinks "Alice Park"</p></div>
@@ -401,10 +403,11 @@ the same property that lets it run unattended on a schedule later.</div>
 </section>
 
 <footer>
-  The Vault Guide · ENH-208 Phase 1 (skill-first slice). Built alongside the verbs and the
+  The Vault Guide · ENH-208 Phases 1–2. Built alongside the verbs and the
   <code>references/vault.md</code> skill, from one source of truth. Open it any time with
-  <code>duo open docs/guide/vault-guide.html</code>. Phase 2 brings the capture UX (default-vault
-  setting, ⇧⌘N, <code>@today</code> tokens, ⌘⇧F search); Phase 3 brings rollups rendered inside the app.
+  <code>duo open docs/guide/vault-guide.html</code>. Phase 2 shipped the capture UX (Settings →
+  Default Vault, ⇧⌘N quick-capture, <code>@today</code> tokens, ⌘⇧F search, the type-picker);
+  Phase 3 brings rollups rendered inside the app.
 </footer>
 
 </body>

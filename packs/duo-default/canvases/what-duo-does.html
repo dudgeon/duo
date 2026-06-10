@@ -484,8 +484,8 @@
   <div class="num">42</div>
   <div>
     <h3>Create a new file or folder from the navigator</h3>
-    <p class="why"><strong>v0.7.7:</strong> three ways to create a new file or folder without leaving the navigator. Right-click the breadcrumb for <strong>New file here…</strong> / <strong>New folder here…</strong> (uses the right-clicked segment's directory as the default location). File menu has the same two entries (defaults to the currently-focused navigator dir). Or use the chord — <code>⌘N</code> for new file, <code>⌘⇧N</code> for new folder. All three triggers reuse the same flow: inline rename on the new row, validates filename collision, scrolls into view.</p>
-    <p class="how"><strong>UI</strong>Right-click the breadcrumb → New file/folder here · File menu → New File… / New Folder… · <code>⌘N</code> / <code>⌘⇧N</code> chords.</p>
+    <p class="why"><strong>v0.7.7:</strong> three ways to create a new file or folder without leaving the navigator. Right-click the breadcrumb for <strong>New file here…</strong> / <strong>New folder here…</strong> (uses the right-clicked segment's directory as the default location). File menu has the same two entries (defaults to the currently-focused navigator dir). Or use the chord — <code>⌘N</code> for new file, <code>⌥⇧⌘N</code> for new folder (moved off <code>⇧⌘N</code>, which is now vault quick-capture — ENH-208). All three triggers reuse the same flow: inline rename on the new row, validates filename collision, scrolls into view.</p>
+    <p class="how"><strong>UI</strong>Right-click the breadcrumb → New file/folder here · File menu → New File… / New Folder… · <code>⌘N</code> / <code>⌥⇧⌘N</code> chords.</p>
   </div>
 </article>
 
@@ -949,14 +949,14 @@
 </article>
 
 <h2 class="cat">Working in a vault</h2>
-<p class="cat-tagline">Keep networked work-notes — people, initiatives, themes, meetings — as plain markdown in a strict Obsidian vault. Duo reads the graph; Claude does the filing, linking, and rollups. (ENH-208 Phase 1 — agent + CLI first; capture UX is the fast-follow.) <strong>The illustrated walkthrough is the Vault Guide</strong> — ask Claude to open it, or run <code>duo open docs/guide/vault-guide.html</code>.</p>
+<p class="cat-tagline">Keep networked work-notes — people, initiatives, themes, meetings — as plain markdown in a strict Obsidian vault. Duo reads the graph; Claude does the filing, linking, and rollups. (ENH-208 — agent + CLI first; the Phase-2 capture UX is in: Settings → Default Vault, ⇧⌘N quick-capture, <code>@today</code> tokens in the <code>@</code> suggester, the ⌘⇧F search palette, the silent-stub type-picker.) <strong>The illustrated walkthrough is the Vault Guide</strong> — ask Claude to open it, or run <code>duo open docs/guide/vault-guide.html</code>.</p>
 
-<article class="item" data-keys="vault init capture inbox scaffold templates filing rules obsidian setup new note timestamped enh-208">
+<article class="item" data-keys="vault init capture inbox scaffold templates filing rules obsidian setup new note timestamped quick-capture chord default vault settings enh-208">
   <div class="num">94</div>
   <div>
     <h3>Set up a vault and capture notes into it</h3>
     <p class="why">Spin up a ready-to-use vault in one command — Claude scaffolds <code>.obsidian/</code>, starter templates for the everyday types (person, initiative, milestone, meeting, theme — each with its filing rule baked in), an <code>inbox/</code>, a processing dashboard, and a README. Then capture is friction-free: a thought becomes a timestamped note in the inbox (untyped by default — a later processing pass files and links it), or a templated note when you name the type. The whole thing is just files: it opens in Obsidian, syncs over git, and survives Duo entirely.</p>
-    <p class="how"><strong>CLI / agent</strong><code>duo vault init ~/work/notes</code> scaffolds it; <code>duo vault capture --text "note from the pricing sync…"</code> drops an inbox note (add <code>--template meeting</code> to stamp a type, <code>--open</code> to open it in the editor). In v1 you narrate to Claude and it captures + links for you; the ⇧⌘N quick-capture chord is the fast-follow.</p>
+    <p class="how"><strong>CLI / agent</strong><code>duo vault init ~/work/notes</code> scaffolds it; <code>duo vault capture --text "note from the pricing sync…"</code> drops an inbox note (add <code>--template meeting</code> to stamp a type, <code>--open</code> to open it in the editor). Narrate to Claude and it captures + links for you. <strong>UI</strong>Press <strong>⇧⌘N</strong> — quick-capture drops the same untyped inbox note into your default vault (pick it under Settings → Default Vault; falls back to the active file's vault) and opens it in the editor, focused.</p>
   </div>
 </article>
 
@@ -969,12 +969,12 @@
   </div>
 </article>
 
-<article class="item" data-keys="vault search backlinks orphans graph navigation full text find link basename move proof enh-208">
+<article class="item" data-keys="vault search backlinks orphans graph navigation full text find link basename move proof palette default vault chord enh-208">
   <div class="num">96</div>
   <div>
     <h3>Search and navigate the work-note graph</h3>
     <p class="why">Find anything across the vault, and trace how notes connect. Backlinks are basename-resolved, so links keep working even after a note is filed into a different folder — and they include frontmatter relationships (a milestone's <code>initiative:</code>, an initiative's <code>owner:</code>), not just prose mentions. Orphans (notes with no links in or out) surface as a tidy-up list for a later processing pass.</p>
-    <p class="how"><strong>CLI / agent</strong><code>duo vault search "pricing"</code> (full-text; the CLI twin of the coming ⌘⇧F palette), <code>duo graph backlinks "Alice Park"</code>, <code>duo graph orphans</code>. All emit JSON the agent can act on.</p>
+    <p class="how"><strong>CLI / agent</strong><code>duo vault search "pricing"</code> (full-text), <code>duo graph backlinks "Alice Park"</code>, <code>duo graph orphans</code>. All emit JSON the agent can act on. <strong>UI</strong><strong>⌘⇧F</strong> opens the vault-search palette over your default vault (else the active file's vault) — results grouped by file with line + excerpt; Enter opens the file at that match.</p>
   </div>
 </article>
 
