@@ -95,6 +95,10 @@ import { ExternalDomainsService } from '../core/external-domains-service'
 import { EventBus, type DuoEventSource } from '../core/event-bus'
 import { PackLoader } from '../core/pack-loader'
 import { InstalledPacksService } from '../core/installed-packs-service'
+// ENH-208 Phase 2 — main runs the same vault core the CLI bundles, so the
+// renderer UI (⇧⌘N capture · ⌘⇧F search · type-picker · Settings picker)
+// produces byte-identical artifacts to `duo vault capture|search|stub|default`.
+import * as vaultCore from '../core/vault'
 import { IPC, EMPTY_SESSION_STATE } from '../shared/types'
 import { htmlBoilerplate } from '../shared/html-boilerplate'
 import type {
@@ -2086,6 +2090,88 @@ function setupIPC(): void {
   ipcMain.handle(IPC.FILES_CONVERT_IMAGE_BYTES, (_event, { bytes, sourceMime }: { bytes: Uint8Array; sourceMime: string }) => {
     return filesService.convertImageBytes(bytes, sourceMime)
   })
+
+  // ENH-208 Phase 2 — vault UI IPC. Thin adapters over core/vault so the
+  // renderer affordances (⇧⌘N quick-capture, the ⌘⇧F vault-search palette,
+  // the silent-stub type-picker) share the EXACT code paths of the
+  // `duo vault capture|search|stub` CLI verbs. UI vault resolution is
+  // default-first (D11/D22): the default vault, else the active file's
+  // enclosing vault, else a clear "set a default vault" error. Handlers
+  // are window-agnostic (global pref + fs), so no sender resolution.
+  const NO_VAULT_ERROR =
+    'No vault found — set one in Settings → Default Vault, or open a file inside a vault.'
+  ipcMain.handle(IPC.VAULT_CAPTURE, (_event, { activePath }: { activePath?: string | null }) => {
+    try {
+      const root = vaultCore.resolveVaultForUi(activePath)
+      if (!root) return { ok: false, error: NO_VAULT_ERROR }
+      // Untyped capture — exact parity with bare `duo vault capture`;
+      // typing happens later via processing (D6) or `--template` from the CLI.
+      const result = vaultCore.captureNote(root, {})
+      return { ok: true, path: result.path, absPath: result.absPath, root }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+  ipcMain.handle(
+    IPC.VAULT_SEARCH,
+    (_event, { query, activePath, limit }: { query: string; activePath?: string | null; limit?: number }) => {
+      try {
+        const root = vaultCore.resolveVaultForUi(activePath)
+        if (!root) return { ok: false, error: NO_VAULT_ERROR }
+        const hits = vaultCore.search(root, query, limit ?? 100)
+        return { ok: true, root, hits }
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      }
+    },
+  )
+  ipcMain.handle(
+    IPC.VAULT_STUB,
+    (_event, { vaultRoot, type, name }: { vaultRoot: string; type: string; name: string }) => {
+      try {
+        const result = vaultCore.createEntityStub(vaultRoot, type, name)
+        return { ok: true, ...result }
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      }
+    },
+  )
+  ipcMain.handle(IPC.VAULT_TYPES, (_event, { vaultRoot }: { vaultRoot: string }) => {
+    try {
+      const types = vaultCore
+        .loadTemplates(vaultRoot)
+        .map((t) => t.type)
+        .sort()
+      return { ok: true, types }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+  ipcMain.handle(
+    IPC.VAULT_CREATE_TYPE,
+    async (_event, { vaultRoot, type }: { vaultRoot: string; type: string }) => {
+      try {
+        if (!vaultCore.isVaultRoot(vaultRoot)) {
+          return { ok: false, error: `not a vault (no .obsidian/): ${vaultRoot}` }
+        }
+        const stem = vaultCore.safeName(type).toLowerCase()
+        if (!stem) return { ok: false, error: 'empty type name' }
+        const rel = `templates/${stem}.md`
+        const abs = nodePath.join(vaultRoot, rel)
+        try {
+          await nodeFs.access(abs) // exists → idempotent no-op, like createEntityStub
+        } catch {
+          await nodeFs.mkdir(nodePath.dirname(abs), { recursive: true })
+          // Minimal soft-schema: no folder/filingParent, so fresh stubs of
+          // this type land in the notes/YYYY/MM time-bucket (D19 residue).
+          await nodeFs.writeFile(abs, `---\ntype: ${stem}\n---\n`)
+        }
+        return { ok: true, path: rel }
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      }
+    },
+  )
 
   // Stage 24 — pinned WorkingPane tabs.
   ipcMain.handle(IPC.PINS_LIST, () => {

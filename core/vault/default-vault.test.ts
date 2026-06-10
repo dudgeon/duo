@@ -6,7 +6,13 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
-import { readDefaultVault, setDefaultVault, clearDefaultVault, resolveVaultOrDefault } from './index'
+import {
+  readDefaultVault,
+  setDefaultVault,
+  clearDefaultVault,
+  resolveVaultOrDefault,
+  resolveVaultForUi,
+} from './index'
 import { initVault } from './scaffold'
 
 let dir: string
@@ -73,5 +79,25 @@ describe('resolveVaultOrDefault precedence', () => {
 
   it('throws a clear error when nothing resolves', () => {
     expect(() => resolveVaultOrDefault(dir, null, prefFile)).toThrow(/no default vault is set/)
+  })
+})
+
+describe('resolveVaultForUi precedence (ENH-208 Phase 2 — D11/D22)', () => {
+  it('the default vault wins even when the active file sits in another vault', () => {
+    setDefaultVault(vaultA, prefFile)
+    // UI order inverts the CLI: ⇧⌘N / ⌘⇧F act on the DEFAULT first
+    expect(resolveVaultForUi(path.join(vaultB, 'inbox', 'note.md'), prefFile)).toBe(vaultA)
+  })
+
+  it("falls back to the active file's enclosing vault when no default is set", () => {
+    expect(resolveVaultForUi(path.join(vaultB, 'inbox', 'note.md'), prefFile)).toBe(vaultB)
+  })
+
+  it('returns null when no default is set and the active file is outside any vault', () => {
+    expect(resolveVaultForUi(path.join(dir, 'loose.md'), prefFile)).toBeNull()
+  })
+
+  it('returns null with no default and no active file', () => {
+    expect(resolveVaultForUi(null, prefFile)).toBeNull()
   })
 })

@@ -1039,6 +1039,67 @@ export interface ElectronAPI {
   // ENH-184 (Sprint 23 / v0.8.0) — workspace-pill click-to-open-menu
   // CLI parity. Renderer pushes flag changes; main pushes CLI writes.
   workspacePillMenu: ElectronWorkspacePillMenuAPI
+  // ENH-208 Phase 2 — vault UI affordances (⇧⌘N capture · ⌘⇧F search
+  // palette · silent-stub type-picker). Main runs the same core/vault
+  // code paths as the `duo vault` CLI verbs.
+  vault: ElectronVaultAPI
+}
+
+// ENH-208 Phase 2 — vault UI host API. Result shapes mirror core/vault's
+// CaptureResult / SearchHit / StubResult, declared inline because
+// core/vault is not in the renderer tsconfig until Phase 3 shares the
+// module directly (the main process is the only core/vault consumer here).
+export interface VaultSearchHitDto {
+  /** Path relative to the vault root (POSIX-separated). */
+  path: string
+  /** Absolute path — what the palette opens. */
+  absPath: string
+  /** 1-based line number of the match in the raw file. */
+  line: number
+  /** The matching line, trimmed, capped for display. */
+  excerpt: string
+}
+
+export interface ElectronVaultAPI {
+  /** ⇧⌘N — create an untyped inbox note in the UI-resolved vault
+   *  (default vault first, else the active file's vault — D11). Same
+   *  code path as bare `duo vault capture`. */
+  capture: (opts?: {
+    activePath?: string | null
+  }) => Promise<
+    { ok: true; path: string; absPath: string; root: string } | { ok: false; error: string }
+  >
+  /** ⌘⇧F — full-text search over the UI-resolved vault (D22). Same
+   *  code path as `duo vault search`. */
+  search: (opts: {
+    query: string
+    activePath?: string | null
+    limit?: number
+  }) => Promise<
+    { ok: true; root: string; hits: VaultSearchHitDto[] } | { ok: false; error: string }
+  >
+  /** Type-picker — create a templated entity stub filed by the D19
+   *  rules. Same code path as `duo vault stub <type> <name>`;
+   *  idempotent (`created:false` when the note already exists). */
+  stub: (opts: {
+    vaultRoot: string
+    type: string
+    name: string
+  }) => Promise<
+    | { ok: true; path: string; absPath: string; type: string; created: boolean }
+    | { ok: false; error: string }
+  >
+  /** Type-picker list — the vault's template registry type names. */
+  types: (opts: {
+    vaultRoot: string
+  }) => Promise<{ ok: true; types: string[] } | { ok: false; error: string }>
+  /** Type-picker "+ new type…" — write a minimal `templates/<type>.md`
+   *  (idempotent). Deliberate CLI asymmetry: agents create templates by
+   *  writing the file directly, so no `duo` verb twin exists. */
+  createType: (opts: {
+    vaultRoot: string
+    type: string
+  }) => Promise<{ ok: true; path: string } | { ok: false; error: string }>
 }
 
 export interface ElectronProjectsAPI {

@@ -62,6 +62,27 @@ export function clearDefaultVault(filePath: string = DEFAULT_VAULT_FILE): void {
   }
 }
 
+/** Resolve the vault for a renderer UI surface (ENH-208 Phase 2).
+ *  Order differs from the CLI's `resolveVaultOrDefault`: the UI chords act
+ *  on the DEFAULT vault first (D11 — ⇧⌘N captures into the default vault;
+ *  D22 — ⌘⇧F searches it), falling back to the active file's enclosing
+ *  vault, else null (callers surface "set a default vault" guidance).
+ *  The CLI keeps enclosing-first because a shell cwd inside a vault is a
+ *  strong signal; an editor merely *showing* a vault file is weaker than
+ *  the user's explicit default. */
+export function resolveVaultForUi(
+  activePath?: string | null,
+  filePath: string = DEFAULT_VAULT_FILE,
+): string | null {
+  const def = readDefaultVault(filePath)
+  if (def) return def
+  if (activePath) {
+    const enclosing = findVaultRoot(path.dirname(activePath))
+    if (enclosing) return enclosing
+  }
+  return null
+}
+
 /** Resolve the vault for a verb, with the default as the last resort:
  *  explicit `--vault` → the enclosing vault (walk-up from cwd) → the
  *  default-vault pref → a clear error. This is what lets the verbs run

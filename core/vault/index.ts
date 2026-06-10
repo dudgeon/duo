@@ -16,6 +16,7 @@ export {
   setDefaultVault,
   clearDefaultVault,
   resolveVaultOrDefault,
+  resolveVaultForUi,
   DEFAULT_VAULT_FILE,
 } from './default-vault'
 export { buildCorpus, loadTemplates, parseBaseYaml } from './corpus'
