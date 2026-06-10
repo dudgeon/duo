@@ -4,19 +4,21 @@
 
 Working with Claude Code outside of an IDE often means juggling multiple windows from multiple applications.
 
-![A typical knowledge-worker workflow — multiple terminal windows, editor windows, browser windows, and Finder windows juggled across the screen](image-20260518-102703-44ef.png)In my average workflow, I am:
+![A typical knowledge-worker workflow — multiple terminal windows, editor windows, browser windows, and Finder windows juggled across the screen](image-20260518-102703-44ef.png)
+
+In my average workflow, I am:
 
 - Running multiple **terminal windows**
 - Editing multiple **markdown files**
-- Manually looking up **files and folders in Finder** and setting CWD in the terminal via manual terminal command
+- Hunting for **files and folders in Finder**, then typing folder paths into the terminal to tell it where to work
 - Reviewing multiple **html artifacts in browsers**
 - Describing what I'm working on, or where to find it, to Claude so it can keep up with where I am in a given flow, often with verbose descriptions (e.g. "the third bullet in the second H2 in prd.md")
 
 There are a lot of ways to improve aspects of this workflow, but I didn't find any that addressed all of them:
 
-- Integrated development environments (IDEs) like VSC offer a flexible three-column view and can be enhanced with extensions – but the markdown editing experience isn't great and the terminal is unreliable for long sessions.
+- Integrated development environments (IDEs) like VS Code offer a flexible three-column view and can be enhanced with extensions – but the markdown editing experience isn't great and the terminal is unreliable for long sessions.
 - Claude Desktop is getting better with every release – but it is not available for all enterprise customers and does not yet have a great co-writing experience for artifacts.
-- Obsidian offers a great markdown editing experience and can be extended with a terminal – but does not work as well with non-markdown assets
+- Obsidian offers a great markdown editing experience and can be extended with a terminal – but does not work as well with non-markdown assets.
 
 I have tried many alternative terminals (e.g. CMUX, which is great), IDEs, versions of Claude Desktop, but each left me thinking I could build something that fit my needs better.
 
@@ -26,75 +28,105 @@ I built Duo, an agent-friendly IDE for product managers and knowledge workers. I
 
 Duo is free, open source, does not capture or send any of your data anywhere, and lets you work with whatever agent you want.
 
-![Duo's main window — file navigator on the left, terminal in the middle, working pane (markdown editor / browser / canvas) on the right](image-20260518-105715-661d.png)At its core, Duo is an IDE for knowledge work, with four main features:
+![Duo's main window — file navigator on the left, terminal in the middle, and the working pane on the right, where documents and pages open](images/about-duo/main-window.png)
 
-1. **File Navigator that sets and responds to context** – you can use it to find your files, set the CWD for your Claude session, check Github status for linked repos, etc.
-2. **Tabbed, connected Terminal** – more work is happening in the terminal, so Duo's terminal is front and center. If you spawn a new terminal session, it sets CWD from the navigator. When you switch tabs, the file navigator responds by opening the current CWD.
-3. **Markdown editor that feels like home** – it's all markdown-native under the hood, but unless you view source you don't need to think about Markdown. Use markdown notation (styles rendered real-time) or just use familiar keyboard shortcuts from Google Docs, Word, or Notion.
-4. **CLI that ties it all together** – \~anything you can do in the app, your Agent can do via CLI.
-   - "Open my the roadmap and scroll to the 'open questions' section"
+At its core, Duo is an IDE for knowledge work, with four main features:
+
+1. **A markdown editor that feels like home** – use familiar keyboard shortcuts from Google Docs, Word, or Notion; you never have to think about markdown unless you want to.
+2. **A tabbed, connected terminal** – more work is happening in the terminal, so Duo's terminal is front and center, and it always knows which folder you're working in.
+3. **A file navigator that sets and responds to context** – find your files, point Claude at the right folder, see what's changed in your team's shared project.
+4. **A command-line tool that ties it all together** – nearly anything you can do in the app, Claude can do too. So you can ask for things like:
+   - "Open the roadmap and scroll to the 'open questions' section"
    - "Navigate to the 'tasks' folder, expand it, and tell me what's in there"
-   - "Create a new file, 'product-vision.md', open it, and collapse the terminal and navigator so I can focus"
-   - &lt;select element in browser&gt; "Let's make this button inactive until prior steps are completed"
+   - "Create a new file, 'product-vision.md', open it, and give me a full-width view so I can focus"
+   - *(after pointing at a button on a page in the browser)* "Let's make this button inactive until prior steps are completed"
 
-## A closer look at the four pieces
+The rest of this page walks through what working in Duo is like, one piece at a time. The screenshots come from a demo project: Stoop, a neighborhood lending app, as its (fictional) product manager would see it.
 
-Here's how each of those four pieces actually feels once you're working — and why each one earns its place.
+## Writing — an editor that works like the ones you know
 
-### The Navigator — find your stuff, and tell the agent where to work
+You're reviewing a PRD before it goes to engineering. You select a sentence, add a comment — "did this ever get resolved?" — and Claude replies in the thread, citing the meeting note it checked. You flip on Suggesting mode and ask it to tighten the risks section; its edits arrive as tracked changes, and you accept two and reject one.
 
-The thing I do a hundred times a day is *find a file and then explain to Claude where it is.* "It's in the tasks folder… no, the other one… third from the top." The navigator on the left collapses both of those into a single click.
+The editor exists for that review loop: the one you already run in Google Docs, moved onto local files, with Claude as one of the reviewers.
 
-The obvious half is what you'd expect: a tidy tree of your folders and files — click one to open it. But the half that actually changed my day is quieter: **the navigator is how you tell the agent where to work, without ever touching the command line.** Open a folder here and the next Claude session you start is already working *there* — no typing `cd ..` to climb around, no `ls` to remember what's inside. When I want to start a brand-new piece of work, I point the navigator at wherever it belongs and spin up a fresh agent right on the spot; it inherits the place instead of me describing it. It also keeps track of which projects you're actually working in, so hopping between, say, a roadmap and a research folder is a click rather than a scavenger hunt. You stop being the courier who carries context back and forth between yourself and the agent — the navigator carries it for you.
+Open any markdown file and it reads like a document, not source code. There's a toolbar, ⌘B bolds, a dash starts a bullet, tables are click-to-edit, and autosave is on. If something else changes a file you have open, Duo warns you and shows a side-by-side diff before anything is overwritten, so you never silently lose work. Underneath it's all plain text, which is why the same file moves cleanly into your team's shared project or any other tool without conversion. Comments and suggestions live inside the file too, so they travel with it.
 
-*[Screenshot: the navigator on the left — your projects and files, with the working folder that sets the agent's context.]*
+When Claude edits a document you have open, the changed text glows briefly. You see what moved without re-reading the page.
 
-### The Terminal — where you and the agent actually talk
+![A Stoop PRD open in the editor — a comment thread in the margin and Claude's tracked-change suggestions waiting for review](images/about-duo/editor-cowriting.png)
 
-Most people I show Duo to flinch at the terminal. They've been taught it's where things go wrong. So the first thing worth saying is that in Duo the terminal isn't where you run scary commands — **it's just where you and Claude have a conversation**, and Duo puts it front and center because that's where the work now happens.
+Smaller things you'd expect are here too: paste an image and it lands in the doc, document properties show as a tidy panel instead of raw text, ⌘F finds, and in Obsidian vaults, `[[wiki-links]]` connect notes to each other.
 
-The tabs across the top are conversations. One might be Claude drafting a spec with you; another a plain shell you keep around for the occasional thing you'd rather an agent not touch. Two small details make it feel less like "the command line" and more like somewhere you'd happily spend the day. When you open a new tab, it starts in the same place you were already working, so you're never re-navigating from scratch. And the Return key does what a decade of chat apps trained your fingers to expect — Enter sends, Shift-Enter makes a new line (and if you'd rather it the other way, there's a setting). Little things, but they're the difference between a tool that fights your instincts and one that meets them.
+## The terminal — where you and Claude talk
 
-*[Screenshot: tabbed terminals across the top — each tab a separate conversation with the agent.]*
+Most people I show Duo to flinch at the terminal. In practice you'll rarely type commands into it; it's where you talk to Claude, and that conversation gets the biggest pane. It doesn't look like a hacker movie, either — comfortable type, roomy spacing, a light theme if you want one.
 
-### The Canvas — one pane that becomes whatever you open
+Each tab is a conversation. The new-tab button starts Claude already running, in the folder your current terminal is working in, with nothing to set up. Come back the next morning, open a terminal in that folder, and your recent conversations show up as clickable pills with readable titles — so Monday picks up where Friday stopped instead of starting from a blank prompt.
 
-The right side of the window is what I call the canvas — though "canvas" really just means "the slot." It isn't any one tool; it becomes whatever you put in it. That matters because a knowledge worker's day is a pile of *different kinds* of things — a doc, a mockup, a config an engineer pasted, a competitor's pricing page — and normally each kind drags you into a different app. Here they all live in the one window.
+![A fresh Stoop terminal offering to resume recent Claude conversations](images/about-duo/terminal-resume.png)
 
-#### A writing surface that feels like home
+A few defaults are there to protect you. A command copied from Slack won't run itself when you paste it: Duo drops the trailing newline, so it sits at the prompt until you press Return. Enter sends and Shift-Enter makes a new line, the way chat apps trained your fingers (there's a setting if you'd rather have it the other way). And when you need to hand Claude a file mid-sentence, drag it from the navigator into the terminal and the path lands at your cursor.
 
-Open a markdown file and the canvas becomes an editor that works the way Google Docs or Notion taught you. It's plain markdown underneath — which is exactly what lets the file travel cleanly into a repo, onto another machine, or into Claude's hands without anything getting lost — but you never have to *think* in markdown. ⌘B is bold, a dash starts a bullet, the toolbar is right where you'd reach for it. The part that changed how I work, though, is co-writing: select a sentence and leave a comment exactly as you would in Docs, and Claude can read it and reply — because the comment lives right inside the file. Turn on suggesting and the agent's edits arrive as tracked changes you accept or reject one at a time. And when Claude does change something, the new text glows for a moment so you can see what moved without hunting for it.
+## The browser — research that Claude can read over your shoulder
 
-*[Screenshot: the markdown editor with a comment thread — co-writing a doc with the agent.]*
+A real browser lives inside Duo, with tabs, history, and logins that persist. It's here, rather than in a separate window, so that Claude can read what's on your screen.
 
-#### Pages you can actually see
+Highlight anything on a page and — when Claude is running in your front terminal — a small **Send → agent** pill appears. Click it and the selection lands in your conversation with a note about where it came from. Reading a competitor's pricing page, you can highlight the one clause that worries you and ask "does this change anything for us?" — no copy-paste, no explaining which tab you meant.
 
-HTML files open as a live, rendered page you can edit directly — what you see is what gets saved. Why this matters for working with an agent: Claude can rewrite *one section* of the page without disturbing the rest. Instead of asking it to regenerate a whole document and hoping it kept the good parts, you say "redo just the pricing table" and it swaps that one block. This is also where the example from earlier pays off — point at a button on the page and tell Claude "make this inactive until the earlier steps are done," and it edits the right piece, because it can see the structure underneath.
+![Text highlighted on a page in Duo's browser, with the Send → agent pill about to drop it into the conversation](images/about-duo/browser-send-selection.png)
 
-*[Screenshot: an HTML page open as a live, editable canvas.]*
+It also matters if your work lives in Google's tools: Claude can read a Doc, a Sheet, a Slides deck, or a Figma file open in the pane — the doc you're actually logged into, no connectors or downloads needed. And Claude can drive the browser as well as read it: click through a flow, fill a form, or inspect the specific button you point at.
 
-#### The configs you get handed
+One reassurance for anyone on a locked-down work laptop: by default, Duo's browser only opens files on your own computer; links to real websites open in your normal browser until you decide otherwise.
 
-You probably don't write JSON, but you get handed it constantly — an API response someone wants you to sanity-check, a webhook payload, a settings file. Open any of it and instead of a wall of brackets you get a tidy, collapsible tree: open only the part you care about, click a value to change it, and if you fat-finger something Duo tells you where and what, in plain English ("looks like you're missing a closing brace"). It's the kind of thing you don't notice until the day you needed it and it was simply there.
+## Pages and playgrounds — when the deliverable isn't a doc
 
-*[Screenshot: a JSON file shown as a collapsible tree instead of a wall of brackets.]*
+Some deliverables want to be a page: a launch one-pager, a dashboard, a side-by-side of options. Ask Claude for one and it builds an HTML page you can edit like a document — click into the headline and retype it. When Claude revises it, it changes just the section you asked about and the change glows, the same as in the editor.
 
-#### A real browser, right where you're working
+Playgrounds go one step further: buttons and radio groups on the page send your clicks back to Claude as you make them. So instead of Claude asking you twenty triage questions one at a time in chat, it hands you a worksheet — you click a priority for each bug, hit **Send to Claude**, and the roadmap updates from your choices.
 
-Yes, there's a genuine browser tab living inside Duo — logged-in sessions and all. Two reasons it belongs here rather than in a separate window. First, it's where Claude can do web work *for* you: read a page, pull a quote, click through a multi-step flow while you watch. Second — the move I lean on most — highlight anything on a page and a small "send to the agent" prompt appears; click it and that selection lands in your conversation with a note about where it came from, so you can say "turn this into a requirement" without copy-pasting and re-explaining. (One reassurance for anyone on a locked-down work laptop: by default Duo only opens local files and sends real websites out to your normal browser, so the agent can't wander the open internet unless you let it.)
+![Stoop's bug-triage worksheet as a playground — a verdict per bug, with a live tally and Send to Claude at the bottom](images/about-duo/playground-worksheet.png)
 
-*[Screenshot: highlighting something on a web page and sending it straight to the agent.]*
+## The navigator — point at where to work
 
-#### Two things at once
+The left sidebar is a file tree, and the quiet half of its job is telling Claude where to work. Ask "where did you put that report?" and the tree scrolls to the file and flashes it. Pin the files you live in so they're always one click away. Deleting always goes to the macOS Trash, so mistakes are recoverable.
 
-Sometimes one file on screen isn't enough. Split View puts two side by side in the canvas — I use it to keep a spec open next to the notes I'm taking on it, or a checklist visible while I work through the thing it's checking. It survives a restart, so if you put Duo down mid-task it's right where you left it.
+It also gives you just enough version-control awareness to be useful without learning git: a ribbon shows which version of the project you're on (the branch, in git-speak), changed files get a dot, and right-clicking a file offers its GitHub link when you need to share one. Getting a copy of your team's shared project onto your machine is a form in the File menu — paste a link, pick a folder.
 
-*[Screenshot: two documents side by side in Split View.]*
+![The Stoop project in the navigator — the project's Claude context up top, folders expanded, pinned files kept handy below](images/about-duo/navigator-stoop.png)
 
-### The CLI — how the agent gets its hands on all of it
+## The fiddly files — JSON without reading JSON
 
-Everything I've described, you can do yourself with a mouse and a keyboard. But the reason Duo is built *around* an agent is the last piece: a small command-line tool, `duo`, that lets Claude do all of it too. **You will almost never type these commands yourself.** They're the hands the agent reaches for when you ask, in plain English, for something to happen.
+You don't write JSON, but you get handed it: an export, a settings file, a config someone says to "just tweak." In Duo it opens as a collapsible outline. Click a value to change it; if the file has a syntax error, the message says what's wrong and offers to revert. Claude can change a single field on request without touching the rest.
 
-"Open my roadmap and scroll to the open-questions section" becomes a couple of `duo` calls under the hood. "Make a new file called product-vision.md and collapse the terminal so I can focus" is a few more, strung together while you watch the window rearrange itself. That's the whole idea: a normal IDE hands *you* a set of tools. Duo hands the same tools to the agent sitting next to you — so when you ask for something, Claude doesn't tell you what to click. It clicks.
+![Stoop's app-store metadata opened as a collapsible outline instead of a wall of brackets](images/about-duo/json-tree.png)
 
-&lt;!-- Screenshots above are placeholders; capture per the slugs in docs/research/docs-deep-clean-decisions.html § screenshot plan. --&gt;
+## Your desk — layout that remembers itself
+
+A handful of features add up to the feeling that Duo keeps your desk the way you left it:
+
+- **Split view** puts two things side by side — the synthesis you're writing next to the raw interview notes it draws from.
+- **Pinned tabs** keep the daily-driver docs parked leftmost, safe from a reflexive ⌘W.
+- **The project rail** shows a tile per project; clicking one narrows the files, tabs, and conversations to that workstream, the way you'd switch Slack workspaces.
+- **Workspaces** save a whole arrangement — tabs, terminals, splits — as a file you can reopen. "Monday triage" and "roadmap week" become bookmarks of the entire desk.
+- **Everything restores.** Quit, reboot, reopen: terminals, files, browser tabs, and window layout come back. ⌘Z reopens anything you closed by accident.
+- **More than one window**, when one screen isn't enough — research on the external monitor, the draft and its Claude session on the laptop.
+
+![Split view in the Stoop window — the lender-interview synthesis beside the raw notes it draws from](images/about-duo/split-view.png)
+
+## How Claude gets its hands on all of it
+
+Everything above, you can do with a mouse and keyboard. The reason Duo is built around an agent is a small command-line tool, `duo`, that lets Claude do all of it too. You will almost never type these commands yourself; they're the hands Claude reaches for when you ask for something in plain English.
+
+"Set me up for triage" becomes: focus the project, open the bug list and the worksheet side by side, make the document area bigger. A normal IDE gives its tools to you. Duo gives the same tools to Claude, so a request gets carried out instead of coming back as instructions.
+
+## It teaches itself
+
+The first time you open Duo, it offers a short interactive tour — and the tour's "Start lesson" button spawns a live Claude session that walks you through the app from inside it. The full reference of what Duo can do stays one pinned tab away, written for humans and numbered, so you can ask Claude about "item 23."
+
+## Get Duo
+
+Duo is free and open source, and it never sends your files or your activity anywhere.
+
+- **[Download the latest release](https://github.com/dudgeon/duo/releases/latest)** — a signed macOS app that keeps itself up to date. One click on the welcome banner wires up Claude, and your first launch opens the guided tour.
+- **[Tell me what's missing](https://github.com/dudgeon/duo/issues)** — if a feature would make Duo fit your work better, open an issue. A surprising amount of the app started that way.
