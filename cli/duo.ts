@@ -490,9 +490,9 @@ const VERBS: VerbSpec[] = [
   {
     name: 'vault',
     group: 'Vault',
-    args: '<init|list|schema|capture|search|default> [args]',
+    args: '<init|list|schema|capture|stub|search|default> [args]',
     summary:
-      'Work-notes vault (a strict Obsidian vault). init <folder> [--force]: scaffold .obsidian/ + starter templates (person/initiative/milestone/meeting/theme, with D19 filing rules) + inbox/ + bases/processing.base + README. list: vaults detected from the cwd (JSON). schema [--vault p]: the live corpus — types/entities/aliases/props-per-type/observed-enums, a pure function over frontmatter (the vault IS the schema; never cached). capture [--template t] [--text "…"] [--title "…"] [--open]: drop a timestamped inbox note (untyped by default; --template stamps a type). search <query> [--vault p]: full-text hits (file, line, excerpt) — the CLI twin of ⌘⇧F. default [<path>|--clear]: read or set the default vault (Phase-2 D11; the CLI twin of the Settings field). Verbs resolve --vault → the enclosing vault → the default → error, so a set default lets them run from outside any vault.'
+      'Work-notes vault (a strict Obsidian vault). init <folder> [--force]: scaffold .obsidian/ + starter templates (person/initiative/milestone/meeting/theme, with D19 filing rules) + inbox/ + bases/processing.base + README. list: vaults detected from the cwd (JSON). schema [--vault p]: the live corpus — types/entities/aliases/props-per-type/observed-enums, a pure function over frontmatter (the vault IS the schema; never cached). capture [--template t] [--text "…"] [--title "…"] [--open]: drop a timestamped inbox note (untyped by default; --template stamps a type). stub <type> <name> [--open]: create a typed entity stub from its template, filed by the D19 rule (the CLI twin of the silent-stub [[New Name]]⇥ gesture; idempotent — never clobbers). search <query> [--vault p]: full-text hits (file, line, excerpt) — the CLI twin of ⌘⇧F. default [<path>|--clear]: read or set the default vault (Phase-2 D11; the CLI twin of the Settings field). Verbs resolve --vault → the enclosing vault → the default → error, so a set default lets them run from outside any vault.'
   },
   {
     name: 'graph',
@@ -2383,17 +2383,38 @@ async function main(): Promise<void> {
             }
           }
           out(subRest.includes('--open') ? { ...result, opened } : result)
+        } else if (sub === 'stub') {
+          // Create an entity stub from its template, filed by the D19 rule
+          // (the CLI twin of the silent-stub `[[New Name]]`⇥ gesture). v1
+          // way for the agent to make a typed stub instead of hand-writing.
+          const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
+          const posn = positionalArgs(subRest, ['--vault'])
+          const type = posn[0]
+          const name = posn.slice(1).join(' ')
+          if (!type || !name) die('Usage: duo vault stub <type> <name> [--open] [--vault <path>]')
+          const result = vault.createEntityStub(root, type, name)
+          let opened: unknown = null
+          if (subRest.includes('--open')) {
+            try {
+              opened = await send('view', { path: result.absPath })
+            } catch (e) {
+              opened = { error: e instanceof Error ? e.message : String(e) }
+              process.stderr.write(`duo: stubbed ${result.path} but --open failed: ${(opened as { error: unknown }).error}\n`)
+            }
+          }
+          out(subRest.includes('--open') ? { ...result, opened } : result)
         } else if (sub === 'search') {
           const query = positionalArgs(subRest, ['--vault'])[0]
           if (!query) die('Usage: duo vault search <query> [--vault <path>]')
           out(vault.search(vault.resolveVaultOrDefault(process.cwd(), vaultFlag), query))
         } else {
           die(
-            'Usage: duo vault <init|list|schema|capture|search|default> [args]\n' +
+            'Usage: duo vault <init|list|schema|capture|stub|search|default> [args]\n' +
               '  init <folder> [--force]   scaffold a new vault\n' +
               '  list                      vaults detected from the cwd (JSON)\n' +
               '  schema [--vault p]        the L0 corpus (JSON)\n' +
               '  capture [--template t] [--text "…"] [--title "…"] [--open]   new inbox note\n' +
+              '  stub <type> <name> [--open]   create a typed entity stub (D19-filed)\n' +
               '  search <query>            full-text hits (JSON)\n' +
               '  default [<path>|--clear]  read / set the default vault',
           )

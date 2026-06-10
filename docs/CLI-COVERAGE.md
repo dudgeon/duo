@@ -209,6 +209,7 @@ shared with the renderer in Phase 3).
 | `duo vault list` | Vaults detected from the cwd (enclosing + nested) | JSON `[{root, name, noteCount}]` |
 | `duo vault schema [--vault p]` | The L0 corpus — types/entities/aliases/props-per-type/observed-enums/templates; a live function over frontmatter, never cached (no-sidecar) | JSON `Corpus` |
 | `duo vault capture [--template t] [--text …] [--title …] [--open]` | Timestamped inbox note (D6); untyped by default, `--template` stamps a type | JSON `{path, absPath, type}` |
+| `duo vault stub <type> <name> [--open]` | Create a typed entity stub from its template, D19-filed; idempotent. CLI twin of the silent-stub `[[New Name]]`⇥ (ENH-208 P3) | JSON `{path, absPath, type, created}` |
 | `duo vault default [<path>\|--clear]` | Read/set the default vault (D11 — CLI twin of the Phase-2 Settings field; `~/.claude/duo/vault.json`). Vault verbs resolve `--vault` → enclosing → default → error | JSON `{defaultVault}` |
 | `duo vault search <query> [--vault p]` | Case-insensitive full-text search (CLI twin of ⌘⇧F, D22) | JSON `[{path, absPath, line, excerpt}]` |
 | `duo graph backlinks <note> [--vault p]` | Notes linking to `<note>` (basename-resolved, scans frontmatter + body) | JSON `[{path, absPath, line, excerpt}]` |

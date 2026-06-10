@@ -21,7 +21,8 @@ export {
 export { buildCorpus, loadTemplates, parseBaseYaml } from './corpus'
 export { backlinks, orphans, type Backlink } from './graph'
 export { search } from './search'
-export { initVault, captureNote, type InitResult, type CaptureResult } from './scaffold'
+export { initVault, captureNote, seedFrontmatterLines, type InitResult, type CaptureResult } from './scaffold'
+export { stubPathFor, createEntityStub, safeName, type StubResult } from './filing'
 export {
   renderTarget,
   evaluateBaseDef,

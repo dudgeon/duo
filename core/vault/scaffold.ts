@@ -10,6 +10,7 @@ import path from 'node:path'
 import os from 'node:os'
 import { isVaultRoot } from './detect'
 import { loadTemplates } from './corpus'
+import type { TypeTemplate } from './types'
 
 const TB = '`'.repeat(3) // ``` — the markdown code fence
 
@@ -250,6 +251,18 @@ function slugify(s: string): string {
   return s.trim().replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').slice(0, 60)
 }
 
+/** Frontmatter lines that stamp a type + seed its expected fields empty
+ *  (arrays as `[]`, scalars blank), for a note created from a template.
+ *  Shared by `captureNote` and `createEntityStub`. Excludes the `---`
+ *  fences and any meta keys (those aren't entity fields). */
+export function seedFrontmatterLines(template: TypeTemplate): string[] {
+  const lines = [`type: ${template.type}`]
+  for (const field of template.fields) {
+    lines.push(`${field}:${Array.isArray(template.frontmatter[field]) ? ' []' : ''}`)
+  }
+  return lines
+}
+
 /** Create an atomic inbox note (D6). Untyped by default; `--template <type>`
  *  stamps that type's frontmatter from the template registry. `text`
  *  becomes the body. The filename is timestamped to the SECOND, and a
@@ -282,12 +295,7 @@ export function captureNote(
       throw new Error(`unknown template "${opts.template}" (known: ${known || 'none'})`)
     }
     type = tpl.type
-    fmLines.push(`type: ${tpl.type}`)
-    // Seed the type's expected fields empty so the user/processing fills them.
-    for (const field of tpl.fields) {
-      const def = tpl.frontmatter[field]
-      fmLines.push(`${field}:${Array.isArray(def) ? ' []' : ''}`)
-    }
+    fmLines.push(...seedFrontmatterLines(tpl))
   }
   fmLines.push('---', '')
   const body = opts.text ? opts.text + '\n' : ''
