@@ -127,3 +127,19 @@ export function isSmartToken(item: unknown): item is SmartToken {
     typeof (item as SmartToken).keyword === 'string'
   )
 }
+
+/**
+ * Merge tokens + ranked files into one popover list: tokens FIRST (they
+ * only exist when the query matched a keyword — {@link smartTokensFor}
+ * returns `[]` on empty query, so a bare `@` stays files-only), files
+ * after, total capped at the suggester's existing item limit (the
+ * `rankVaultFiles` default of 50). Pure so the AtMention pipeline's
+ * ordering contract is testable without an editor.
+ */
+export function mergeSuggestionItems<F>(
+  tokens: SmartToken[],
+  files: F[],
+  limit = 50,
+): (SmartToken | F)[] {
+  return ([...tokens, ...files] as (SmartToken | F)[]).slice(0, limit)
+}

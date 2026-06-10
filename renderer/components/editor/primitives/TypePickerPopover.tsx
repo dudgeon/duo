@@ -1,0 +1,224 @@
+// ENH-208 Phase 2 (D4) — the silent-stub type picker.
+//
+// Opens after WikilinkSuggestion's create row inserts `[[<name>]]`,
+// anchored at the post-insert caret rect (same positionStyle as the
+// SuggestionPopover). The user filters the vault's template types,
+// picks one (↑↓ + Enter, or click), and the stub is created via the
+// SAME main-process code path as `duo vault stub` — then the popover
+// closes SILENTLY: no tab opens (that is the point of D4), the host
+// refreshes its vault index, and focus returns to the editor at the
+// preserved caret. Esc cancels without creating anything (an
+// unresolved wikilink is harmless / Obsidian-compatible).
+//
+// When the filter names no existing type, a trailing
+// `+ new type "<filter>"…` row creates `templates/<filter>.md` first
+// (window.electron.vault.createType), then stubs with it. IPC errors
+// render inline (small red line) and keep the popover open.
+
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { positionStyle } from './SuggestionPopover'
+import { buildTypeChoices, type TypeChoice } from './typePickerModel'
+
+export interface TypePickerPopoverProps {
+  /** The vault the stub files into — the host's useVaultIndex root. */
+  vaultRoot: string
+  /** The wikilink target, i.e. the stub's entity name. */
+  name: string
+  /** Post-insert caret rect from the suggestion command. Null falls
+   *  back to a fixed top-center anchor so the picker is never lost. */
+  anchorRect: DOMRect | null
+  /** Stub created (or already existed — idempotent is fine). Host
+   *  closes the picker, refreshes the vault index, refocuses the
+   *  editor. */
+  onCreated: () => void
+  /** Esc / click-outside — close without creating. Host refocuses
+   *  the editor. */
+  onCancel: () => void
+}
+
+export function TypePickerPopover({ vaultRoot, name, anchorRect, onCreated, onCancel }: TypePickerPopoverProps) {
+  const [filter, setFilter] = useState('')
+  // null = registry still loading (one IPC on mount).
+  const [types, setTypes] = useState<string[] | null>(null)
+  const [activeIdx, setActiveIdx] = useState(0)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  // The pick handler is invoked from a keydown closure; route through a
+  // ref so the closure always sees the latest choices/busy state.
+  const busyRef = useRef(busy)
+  busyRef.current = busy
+
+  // Load the vault's template registry once. {ok:false} renders the
+  // error but keeps the picker open — the new-type row still works
+  // against an empty list.
+  useEffect(() => {
+    let cancelled = false
+    void window.electron.vault.types({ vaultRoot }).then(
+      (res) => {
+        if (cancelled) return
+        if (res.ok) {
+          setTypes(res.types)
+        } else {
+          setTypes([])
+          setError(res.error)
+        }
+      },
+      (err) => {
+        if (cancelled) return
+        setTypes([])
+        setError(err instanceof Error ? err.message : String(err))
+      }
+    )
+    return () => { cancelled = true }
+  }, [vaultRoot])
+
+  // Autofocus the filter input on mount. The editor keeps its PM
+  // selection (caret after `]]`) even while DOM focus sits here.
+  useEffect(() => {
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }, [])
+
+  const choices = useMemo(() => buildTypeChoices(types ?? [], filter), [types, filter])
+
+  // Clamp the active row when the filtered list shrinks.
+  useEffect(() => {
+    setActiveIdx((i) => Math.min(i, Math.max(0, choices.length - 1)))
+  }, [choices.length])
+
+  // Click-outside cancels (mousedown, capture — before the editor
+  // swallows the event), mirroring Esc: nothing is created.
+  useEffect(() => {
+    const onDocMouseDown = (e: MouseEvent) => {
+      if (rootRef.current && e.target instanceof Node && rootRef.current.contains(e.target)) return
+      onCancel()
+    }
+    document.addEventListener('mousedown', onDocMouseDown, true)
+    return () => document.removeEventListener('mousedown', onDocMouseDown, true)
+  }, [onCancel])
+
+  const pick = async (choice: TypeChoice) => {
+    if (busyRef.current) return
+    setBusy(true)
+    setError(null)
+    try {
+      if (choice.kind === 'new') {
+        const created = await window.electron.vault.createType({ vaultRoot, type: choice.type })
+        if (!created.ok) {
+          setError(created.error)
+          setBusy(false)
+          return
+        }
+      }
+      // Same code path as `duo vault stub <type> <name>` — idempotent,
+      // so created:false (note already on disk) closes silently too.
+      const res = await window.electron.vault.stub({ vaultRoot, type: choice.type, name })
+      if (!res.ok) {
+        setError(res.error)
+        setBusy(false)
+        return
+      }
+      onCreated()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+      setBusy(false)
+    }
+  }
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActiveIdx((i) => (choices.length === 0 ? 0 : (i + 1) % choices.length))
+      return
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActiveIdx((i) => (choices.length === 0 ? 0 : (i - 1 + choices.length) % choices.length))
+      return
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      e.stopPropagation()
+      const picked = choices[activeIdx]
+      if (picked) void pick(picked)
+      return
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopPropagation()
+      onCancel()
+      return
+    }
+  }
+
+  // Off-caret fallback anchor (coordsAtPos threw): top-center so the
+  // picker is visible rather than silently skipped.
+  const rect = anchorRect ?? new DOMRect(Math.max(8, window.innerWidth / 2 - 130), 96, 0, 16)
+
+  return createPortal(
+    <div
+      ref={rootRef}
+      style={positionStyle(rect)}
+      className="duo-suggestion-popover"
+      role="dialog"
+      aria-label={`Pick a type for "${name}"`}
+    >
+      <div className="duo-suggestion-empty">New note &ldquo;{name}&rdquo; — pick a type</div>
+      <div className="px-2 pb-1">
+        <input
+          ref={inputRef}
+          type="text"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          onKeyDown={onKeyDown}
+          placeholder="Filter types…"
+          spellCheck={false}
+          autoCorrect="off"
+          autoCapitalize="off"
+          className="w-full px-2 py-0.5 text-[12px] bg-paper border border-paper-rule rounded text-ink placeholder-ink-ghost outline-none focus:border-accent"
+        />
+      </div>
+      {types === null && (
+        <div className="duo-suggestion-empty">Loading types…</div>
+      )}
+      {types !== null && choices.length === 0 && (
+        <div className="duo-suggestion-empty">No types yet — type a name to create one</div>
+      )}
+      {choices.map((choice, idx) => (
+        <button
+          key={`${choice.kind}:${choice.type}`}
+          type="button"
+          role="option"
+          aria-selected={idx === activeIdx}
+          disabled={busy}
+          className={[
+            'duo-suggestion-item',
+            idx === activeIdx ? 'is-active' : ''
+          ].join(' ')}
+          // preventDefault keeps the filter input focused through the
+          // click (same convention as SuggestionPopover rows).
+          onMouseDown={(e) => {
+            e.preventDefault()
+            void pick(choice)
+          }}
+          onMouseEnter={() => setActiveIdx(idx)}
+        >
+          {choice.kind === 'new' ? (
+            <>
+              <span className="duo-suggestion-relpath">+ new type</span>
+              <span className="duo-suggestion-basename">&ldquo;{choice.type}&rdquo;…</span>
+            </>
+          ) : (
+            <span className="duo-suggestion-basename">{choice.type}</span>
+          )}
+        </button>
+      ))}
+      {error && (
+        <div className="px-3 py-1.5 text-[11px] text-red-500">{error}</div>
+      )}
+    </div>,
+    document.body
+  )
+}

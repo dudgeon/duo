@@ -7,6 +7,7 @@ import {
   smartTokensFor,
   dateTokenProvider,
   isSmartToken,
+  mergeSuggestionItems,
   isoDate,
   longDate,
   isoTime,
@@ -82,5 +83,31 @@ describe('isSmartToken type guard', () => {
     expect(isSmartToken(smartTokensFor('today', AS_OF)[0])).toBe(true)
     expect(isSmartToken({ basename: 'Alice Park', relPath: 'people/Alice Park.md' })).toBe(false)
     expect(isSmartToken(null)).toBe(false)
+  })
+})
+
+describe('mergeSuggestionItems — the AtMention pipeline contract (D21)', () => {
+  const fileA = { basename: 'today-standup', relPath: 'notes/today-standup.md' }
+  const fileB = { basename: 'tomorrow-plan', relPath: 'notes/tomorrow-plan.md' }
+
+  it('tokens rank first, files after', () => {
+    const tokens = smartTokensFor('today', AS_OF)
+    const merged = mergeSuggestionItems(tokens, [fileA, fileB])
+    expect(merged.slice(0, tokens.length)).toEqual(tokens)
+    expect(merged.slice(tokens.length)).toEqual([fileA, fileB])
+  })
+
+  it('empty query yields files only (smartTokensFor returns [])', () => {
+    const merged = mergeSuggestionItems(smartTokensFor('', AS_OF), [fileA, fileB])
+    expect(merged).toEqual([fileA, fileB])
+  })
+
+  it('caps the merged total at the limit, truncating files not tokens', () => {
+    const tokens = smartTokensFor('to', AS_OF) // today + tomorrow entries
+    expect(tokens.length).toBeGreaterThan(1)
+    const merged = mergeSuggestionItems(tokens, [fileA, fileB], tokens.length + 1)
+    expect(merged.length).toBe(tokens.length + 1)
+    expect(merged.slice(0, tokens.length)).toEqual(tokens)
+    expect(merged[tokens.length]).toEqual(fileA)
   })
 })
