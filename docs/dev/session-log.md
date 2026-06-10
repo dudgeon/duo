@@ -18,6 +18,54 @@
 
 ---
 
+## 2026-06-09 (ENH-208 Vault — Phase 1 SHIPPED + Phase 2 started, 6 PRs merged to main)
+
+**ENH-208 "vault" — networked work-notes on plain Obsidian conventions.** Built
+on a dedicated worktree (`.claude/worktrees/enh-208-vault`), delivered as a stack
+of small PRs each opened to `main` and **merged by a separate reviewer agent on
+main** (the author never self-merged). The reviewer re-ran every check in an
+isolated worktree and **caught two real bugs** that would otherwise have shipped.
+
+**Phase 1 (skill-first, zero new UI) — COMPLETE:**
+- **#83** — `core/vault/` (pure, fs-backed, no Electron deps; bundles into the CLI
+  *and* runs under vitest; shared with the renderer in Phase 3) + read verbs:
+  `duo vault list/schema/search`, `duo graph backlinks/orphans`. The L0 corpus is
+  a live function over frontmatter ("the vault IS the schema"), never cached.
+  Correctness fix over the loose prototype: `templates/` is query-excluded (D5).
+- **#84** — `duo base lint` + `duo base render` (the Obsidian Bases engine ported
+  to typed modules; the locked subset — `if()`, link `== this`, date math,
+  `html()`/`icon()`, `groupBy`, summaries, child→parent backlink rollups; warn-
+  and-render, D15). Renders are stamped build artifacts (D13/D16). *Reviewer
+  caught:* `base render --open` sent the wrong IPC key (`path` vs `url`) → fixed +
+  verified live before merge.
+- **#85** — `duo vault init` (scaffold + starter templates encoding the D19 filing
+  rules) + `duo vault capture`. *Reviewer caught:* minute-granular capture
+  filenames silently overwrote same-minute notes → second-precision + collision
+  guard + regression test before merge.
+- **#86** — the vault skill (`skill/references/vault.md`) + the owner-mandated
+  10-chapter **Vault Guide** (`docs/guide/vault-guide.html`, Atelier-styled, actor
+  lifecycle lanes + flow/rollup mocks) + the "vault" vocabulary term. A 4-lens
+  workflow review (accuracy-vs-shipped-code / PRD §6 completeness / HTML / voice)
+  found 0 blockers; nits folded.
+
+**Phase 2 (capture UX) — STARTED (headless slices only; UI is owner-smoke-walk-gated):**
+- **#87** — `duo vault default` + the default-vault pref (`~/.claude/duo/vault.json`,
+  read by CLI + main). Every vault verb now resolves `--vault` → enclosing vault →
+  default → error, so they run from outside any vault. Stale pointer self-heals.
+- **#88** — the two Phase-2 model layers: `renderer/.../smartTokens.ts` (the
+  `@today` date-token registry, D21 — pure, no UI consumer yet) and
+  `core/vault/filing.ts` (D19 stub paths) exposed as `duo vault stub <type>
+  <name>` (the CLI twin of the silent-stub `[[New Name]]`⇥ gesture; idempotent).
+
+**Still owed (all renderer/keyboard UI — needs a dev build + an owner smoke-walk,
+so NOT auto-mergeable):** the Settings default-vault **picker**, the **⇧⌘N**
+capture chord, the **⌘⇧F** vault-search palette, wiring `@today` into the
+AtMention popover, and the silent-stub **type-picker**. Tracked tasks #6–#10.
+The `enh-208-vault` worktree is parked for them. **No version cut yet** (owner:
+hold until some capture-UX UI lands, then cut one release — likely v0.11.0). 1189
+tests green at Phase-2-models. The ENH-208 PRD is `docs/prd/enh-208-vault.md`; the
+agent how-to is `skill/references/vault.md`.
+
 ## 2026-06-08 (v0.10.0 cut — Multi-window: a real second window · ENH-204 revert-to-All · ENH-207 drag-path)
 
 Cut **v0.10.0** — the multi-window payoff. Merged the two clean all-dark interims (PR #78 P4 session-envelope, PR #73 P5a/P5b window-2 machinery — adversarially reviewed: grep-verified zero residual fail-loud resolution points, 1093 tests, 8/8 smoke), then two standalone navigator/terminal UX features cut from parallel-agent PRs: **#79 ENH-204** (a new terminal opened outside the focused project reverts to "All" — extracted+tested `newTerminalMembershipsSince`, owner-waived smoke) and **#81 ENH-207** (drag a navigator file/folder into the terminal to insert its path — control-char-stripped + shell-quoted + newline-free; renumbered from a colliding ENH-204). Resolved the `tasks.md` top-insertion conflicts across both PRs (twice for #81, after #79 landed first); each merge typecheck-verified. Cut: signed + notarized DMG + GitHub Release. Bumped to v0.10.1. Open follow-ups (filed PR #80): per-request-window-target concurrency hardening (P1) + 4 P3 multi-window edges. Carried known issues: FOLLOWUP-043 (drag onto a collapsed rail), the v2-format downgrade caveat, BUG-198 (`duo screenshot` timeout).

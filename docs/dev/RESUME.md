@@ -1,6 +1,22 @@
-# Resume after compaction — ENH-191 multi-window SHIPPED (v0.10.0); v0.10.1-dev in-flight
+# Resume after compaction — ENH-208 Vault: Phase 1 SHIPPED + Phase 2 in flight (v0.10.0 released)
 
-**🛑 READ FIRST — current state (2026-06-08):**
+**🛑 MOST RECENT — current initiative (2026-06-09): ENH-208 "vault".** Phase 1
+(skill-first slice) is **COMPLETE + on `main`** — the `duo vault` / `graph` /
+`base` CLI cluster, the `skill/references/vault.md` agent how-to, and the
+10-chapter Vault Guide (`docs/guide/vault-guide.html`) — PRs #83 #84 #85 #86.
+Phase 2 (capture UX) is **started**: #87 (`duo vault default` + default-vault
+pref) and #88 (the `@today` smart-token model + `duo vault stub` / D19 filing
+model) merged. **Remaining = renderer/keyboard UI** (Settings picker · ⇧⌘N chord ·
+⌘⇧F palette · `@today` AtMention wiring · silent-stub type-picker) — each needs a
+dev build + an **owner smoke-walk** per PR (NOT auto-mergeable); tasks #6–#10; the
+`enh-208-vault` worktree is parked for them. No version cut yet (owner holding for
+some UI, then likely v0.11.0). Full detail: top of `active-sprint.md` + the
+2026-06-09 `session-log.md` entry. PRD: `docs/prd/enh-208-vault.md`. The
+ENH-191 detail below remains valid history.
+
+---
+
+**🛑 PRIOR — ENH-191 multi-window SHIPPED (v0.10.0), current state (2026-06-08):**
 ENH-191 **multi-window is SHIPPED in v0.10.0** (tagged 2026-06-08, signed + notarized, 1119 tests green). Window 2 is **real and functional** — File → New Window (⌥⌘N) or `duo window new` opens a BLANK second window (does NOT clone window 1's pins — NFR-6.2). Each window owns its workspace/browser/navigator/terminals/geometry, all restored across relaunches (N-window restore, ascending-id). Gated by an **"Allow Multiple Windows"** setting (Settings menu), **default ON**; when OFF the New Window item is disabled, `duo window new` exits non-zero, and only window 1 restores. Cross-window CLI is live: every Duo terminal carries `DUO_WINDOW`; `duo --window N <verb>` addresses window N (stale id → primary fallback); `duo windows` lists `[{id, primary, focused, activeWorkspace}]`; `duo doctor` reports the live window count. Session file is now `{version:2, windows:[...]}` (lossless forward-migration + one-time `.v1.bak`; downgrade boots empty gracefully; byte-identical at N=1). Default app-level resolution is by IDENTITY (lowest-id primary), never focus.
 - **Also shipped v0.10.0:** **ENH-204** (#79) — a new terminal opened outside the focused project reverts the rail filter to "All". **ENH-207** (#81) — drag a navigator file/folder onto the terminal column inserts absolute POSIX-quoted path(s) at the cursor.
 - **Live follow-ups (next agent's queue):** **PR #80** (P1 per-request-window-target concurrency-interleaving test + 4 P3 edges), **FOLLOWUP-043** (drag onto a COLLAPSED rail spawns a tab instead of inserting), **BUG-198** (screenshot). Per-item detail in [`tasks.md`](../../tasks.md).
