@@ -1,5 +1,21 @@
 # Active sprint state — ENH-208 Vault: Phase 1 SHIPPED + Phase 2 in flight (v0.10.0 carry-forward below)
 
+## BUG-200 — terminal-collapse data-loss fix (in flight, this branch, 2026-06-10)
+
+> **Owner-initiated, parallel to ENH-208.** Collapsing the terminal pane was
+> terminating ALL shell / live-Claude sessions (it UNMOUNTED the pane, and
+> `TerminalInstance`'s cleanup unconditionally `pty.kill`s). Root-caused via a
+> multi-agent investigation (4 readers → synthesis → 3 adversarial verifiers).
+> **Surgical fix implemented on `claude/practical-jones-a07605`:** collapse now
+> hides the pane via a true `display:none` (kept mounted) instead of unmounting,
+> plus a `TERMINAL_MIN_COLS` floor in `PtyManager.resize` as a reflow backstop;
+> 3 new pty-manager tests, typecheck clean. **Owner decision (2026-06-10):** ship
+> option (a) surgical now; the robust decouple-kill-from-unmount is deferred to
+> **ENH-209**. Discovered the canvas pane shares the same unmount pattern →
+> **FOLLOWUP-044**. **Owed:** owner smoke-walk (needs a dev build of THIS
+> worktree — the currently-running dev is the `enh-208-vault` worktree) → then a
+> cut. Full writeup: `tasks.md` BUG-200.
+
 ## ENH-208 Vault — Phase 1 SHIPPED, Phase 2 started (2026-06-09)
 
 > **CURRENT (2026-06-09):** **ENH-208 "vault"** (networked work-notes on plain

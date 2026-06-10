@@ -3,6 +3,73 @@
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
 
+### BUG-200: Collapsing the terminal pane terminates ALL terminal sessions
+
+**Status:** 🚧 In progress — surgical fix implemented + **live-verified** on `claude/practical-jones-a07605` (this branch); awaiting owner smoke-walk + cut. **Priority:** P0 (data loss — kills running shells / live Claude sessions). **Effort:** S (surgical) · robust hardening split to ENH-209.
+
+**Symptom (owner report, 2026-06-10).** Collapsing the terminal pane (the collapse control, or `duo split 0`) appears to terminate every terminal session rather than hide it. Expanding spawns fresh shells; the prior processes, scrollback, and any running Claude sessions are gone.
+
+**Root cause (multi-agent code investigation + 3 adversarial verifiers, confidence high).** Collapse UNMOUNTED the terminal subtree instead of hiding it, and `TerminalInstance`'s mount-effect cleanup unconditionally kills its PTY:
+1. Collapse sets `splitPct → 0` (`App.tsx` `toggleCollapseTerminal`); `isTerminalCollapsed = splitPct === 0`.
+2. The render ternary swapped the entire `<TabBar/> + <TerminalPane/>` subtree for `<CollapsedPaneRail/>` — a real React unmount.
+3. `TerminalPane` receives the FULL `tabs` array, so the unmount tears down EVERY `<TerminalInstance>`, not just the active one — this is why ALL sessions die.
+4. Each instance's `useEffect` cleanup calls `window.electron.pty.kill(tab.id)` with no collapse-vs-close guard → `PTY_KILL` IPC → `PtyManager.kill()` → node-pty `IPty.kill()` + session delete. Permanent; no detach path exists.
+5. On expand, the remount calls `pty.create()` → a brand-new shell in the tab's launch cwd.
+
+Violated the in-code contract at `TerminalPane.tsx` ("hidden — not unmounted — when inactive so the PTY session and scroll buffer survive"); tab-switching already honored it via `display:none`, collapse did not. Note `closeTab` itself never calls `pty.kill` — the unmount cleanup is the SOLE kill path, which is exactly why it couldn't distinguish "collapse" from "close."
+
+**Fix (this branch — option (a), surgical).**
+- `renderer/App.tsx` — stop swapping the subtree. Render `CollapsedPaneRail` as a sibling; keep `TabBar + TerminalPane` mounted under a wrapper hidden with a TRUE `display:none` when collapsed (zero box), so PTYs + scrollback survive. On expand the host regains size and the existing `ResizeObserver` refits.
+- `core/pty-manager.ts` + `core/constants.ts` — `PtyManager.resize` now floors cols at `TERMINAL_MIN_COLS` (8) as a backstop so even a future hide that clips the host to a narrow strip (vs zeroing it) can't fit to ~4 cols and reflow the live TUI (the BUG-156 reflow class). Grounded by the 900px window `minWidth` (a real terminal is ≥~12 cols even at the 20% min split). 3 new unit tests in `core/pty-manager.test.ts`.
+
+**Why display:none and NOT the 36px column clip.** An adversarial verifier caught that the naive "keep mounted inside the 36px collapsed column" would re-introduce BUG-156: the host would be ~36px (non-zero), the `ResizeObserver`'s zero-size guard wouldn't trip, fit → ~4 cols, `pty.resize(4, …)` reflows the live Claude TUI. The fix MUST hide via a true `display:none` (the existing zero-size guards then no-op cleanly); the cols floor is the structural backstop.
+
+**Verified (live, 2026-06-10 — this worktree's dev build).** Drove the real collapse → expand via the TabBar control (clicked through `duo dom --js`). The 6 `.xterm-host` instances stayed MOUNTED through collapse (pre-fix they'd unmount → 0); every host's `offsetParent` went `null` when collapsed (a true `display:none` ancestor, so the resize guards no-op — no reflow), and on expand the active host regained layout (ResizeObserver refits). The active shell's PID was IDENTICAL before and after the cycle (same `/bin/zsh` process survived; not a fresh spawn). `splitPct` round-tripped 55 → 0 → 55. Typecheck + full suite (1192) green.
+
+**Deferred (owner-approved 2026-06-10).** The robust architecture — decouple PTY-kill from component unmount so NO accidental unmount can destroy a session — is tracked as **ENH-209**. **FOLLOWUP-044** tracks the parallel canvas-pane collapse pattern.
+
+**Cross-refs.** `renderer/App.tsx` (terminal-column render site), `renderer/components/TerminalPane.tsx` (`TerminalInstance` cleanup `pty.kill`; the `display:none` hide pattern; the `ResizeObserver`), `electron/preload.ts` (`PTY_KILL` bridge), `electron/main.ts` (`PTY_KILL` handler), `core/pty-manager.ts` (`kill`/`resize`), `core/constants.ts` (`TERMINAL_MIN_COLS`). Related: BUG-156 (the resize-to-zero SIGHUP class this guards against), ENH-066 (the collapse-rail feature whose ternary introduced the unmount).
+
+---
+
+### ENH-209: Decouple PTY-kill from TerminalInstance unmount (collapse-safety by construction)
+
+**Status:** 🆕 Filed 2026-06-10 (owner-approved deferral from BUG-200). **Priority:** P2. **Effort:** M.
+
+**Ask.** Make it structurally impossible for an accidental React unmount to terminate a shell. Today `TerminalInstance`'s mount-effect cleanup is the *sole* PTY-kill path — `closeTab` / `closeOtherTabs` kill only as an unmount side effect. BUG-200's surgical fix stops *collapse* from unmounting, but any future code that unmounts the pane (a refactor, a new layout mode, an error-boundary remount) would silently kill every session again.
+
+**Approach (sketch — needs a PRD).**
+- Move `pty.kill` OUT of the `TerminalInstance` unmount cleanup; on unmount only detach listeners + `term.dispose()` the local xterm view, leaving the PTY alive in main.
+- Call `pty.kill` EXPLICITLY from every real close path: `closeTab`, `closeOtherTabs`, the ⌘Z-restore eviction, and window/workspace teardown (cross-check `PtyManager.disposeForWindow`).
+- On remount, REATTACH to the surviving session (`PtyManager.create` already no-ops if the session exists) — requires a scrollback/replay path, since the disposed xterm view comes back blank. This is the larger part.
+- Remove/repair the stale `renderer/hooks/useTerminal.ts` (`useTerminalIPC` — zero consumers today, also kills on cleanup) so it can't be wired up later and silently reintroduce the bug.
+
+**Why deferred.** Larger surface + reattach/replay semantics + its own tests; BUG-200's surgical fix already resolves the reported data loss. This is the durable hardening.
+
+**Cross-refs.** BUG-200 (parent), FOLLOWUP-044 (canvas parallel), `renderer/components/TerminalPane.tsx`, `renderer/App.tsx` (`closeTab` / `closeOtherTabs`), `core/pty-manager.ts`, `renderer/hooks/useTerminal.ts`.
+
+---
+
+### FOLLOWUP-044: Canvas pane collapse uses the same unmount pattern — verify it doesn't lose editor/browser state
+
+**Status:** 🆕 Filed 2026-06-10. **Priority:** P2. **Effort:** S (investigate) + TBD. **Parent:** BUG-200.
+
+Discovered while fixing BUG-200: the canvas (working-pane) collapse uses the identical render shape — `App.tsx` does `{isCanvasCollapsed ? <CollapsedPaneRail/> : <WorkingPane/>}`, so collapsing the canvas UNMOUNTS `WorkingPane` and all its children (editors, pages, browsers). Unverified whether this loses state: markdown/canvas editors may persist via disk autosave + lifted tab state, and browser tabs are main-process `WebContentsView`s (the renderer unmount may or may not destroy them). **Action:** verify empirically (open an editor with unsaved edits + a browser tab with scroll/form state → collapse canvas → expand → check survival). If state is lost, the fix mirrors BUG-200's `display:none` approach (and folds into ENH-209's decouple work); if `WebContentsView`s are destroyed on collapse, that's the higher-severity case.
+
+**Cross-refs.** BUG-200 (parent — terminal side), ENH-209, `renderer/App.tsx` (canvas-column render site), `renderer/components/WorkingPane.tsx`.
+
+---
+
+### FOLLOWUP-045: No CLI verb fully collapses/expands a pane (splitPct 0/100) — `duo split` clamps to 20–80
+
+**Status:** 🆕 Filed 2026-06-10. **Priority:** P2. **Effort:** S. **Source:** discovered verifying BUG-200.
+
+CLI-parity gap (CLAUDE.md § 4). The human can fully COLLAPSE the terminal (or canvas) pane to `splitPct` 0 (or 100) via the TabBar collapse button / `CollapsedPaneRail` / ⌘⌥0 / ⌘⌥9, but the agent cannot: `duo split <pct>` clamps numerics to 20–80 and none of its presets hit 0/100, and there is no `duo collapse` verb. So collapse/expand is effectively UI-only — verifying BUG-200 required clicking the button through `duo dom --js "…click()"` rather than a first-class verb. **Fix:** add a collapse affordance to the CLI — e.g. `duo split collapse-terminal | collapse-canvas | expand` (routing through `toggleCollapseTerminal` / `toggleCollapseCanvas`), or let `duo split 0|100` bypass the clamp. Then sync the 4 CLI surfaces (`cli/duo.ts`, `skill/SKILL.md`, `agents/duo.md`, `docs/CLI-COVERAGE.md`) per the plumbing checklist.
+
+**Cross-refs.** `cli/duo.ts` (`split` verb + its socket handler's clamp), `renderer/App.tsx` (`toggleCollapseTerminal` / `toggleCollapseCanvas`), BUG-200 (the fix whose verification surfaced this).
+
+---
+
 ### ENH-207: Drag a file/folder from the navigator to insert its path into the active terminal
 
 **Status:** ✅ **Shipped v0.10.0 (2026-06-08, PR #81)** — owner-requested; smoke-walked 7/8 PASS (one non-blocking FAIL — collapsed-rail drop — deferred to FOLLOWUP-043). Renumbered from a colliding ENH-204 (which #79 holds). **Priority:** Medium. **Effort:** S. *(archive-move deferred to next sweep.)*

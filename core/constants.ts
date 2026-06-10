@@ -51,3 +51,15 @@ export const TERMINAL_DEFAULTS = {
   rows: 24,
   scrollback: 10_000
 }
+
+// BUG-200 (2026-06-10) — the smallest column count PtyManager.resize will
+// forward to a live PTY. The terminal-pane collapse fix hides the xterm host
+// via display:none (a true 0×0 box, already caught by the BUG-156 guard), but
+// this floors cols as defense-in-depth against any future hide that merely
+// clips the host to a narrow strip (e.g. the 36px collapse rail) instead of
+// zeroing it: a ~4-col fit would otherwise reflow the live Claude TUI. The
+// floor sits safely between that artifact (~4–7 cols) and any real terminal
+// (≥~12 cols even at the 900px window minWidth / 20% min split). Rows are NOT
+// floored — a legitimately short terminal (small window height) is plausible;
+// a 4-col-wide one never is.
+export const TERMINAL_MIN_COLS = 8

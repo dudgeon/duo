@@ -1,5 +1,5 @@
 import * as pty from 'node-pty'
-import { DEFAULT_SHELL, DEFAULT_CWD, TERMINAL_DEFAULTS, SOCKET_PATH, SHIM_DIR } from './constants'
+import { DEFAULT_SHELL, DEFAULT_CWD, TERMINAL_DEFAULTS, TERMINAL_MIN_COLS, SOCKET_PATH, SHIM_DIR } from './constants'
 import { resolveExistingCwd } from './cwd-utils'
 import { IPC } from '../shared/types'
 import { routeSend, disposeForWindow as disposeSessionsForWindow, listIdsByCwdOwned } from './pty-owner'
@@ -169,7 +169,15 @@ export class PtyManager {
     // during SessionHeader layout reflow; the ResizeObserver
     // path didn't have a size guard. Defense-in-depth: guard the
     // renderer call sites AND this main-side entry point.
-    if (cols < 1 || rows < 1) return
+    //
+    // BUG-200 (2026-06-10) — floor cols at TERMINAL_MIN_COLS too. The
+    // terminal-collapse fix hides the xterm host via display:none (0×0,
+    // caught above), but as a backstop against a future hide that clips
+    // the host to a narrow strip (the 36px collapse rail) instead of
+    // zeroing it: a ~4-col fit would reflow the live TUI. See the
+    // TERMINAL_MIN_COLS constant for why the floor is safe. Rows keep
+    // only the < 1 guard (a short terminal is legitimate).
+    if (cols < TERMINAL_MIN_COLS || rows < 1) return
     this.sessions.get(id)?.pty.resize(cols, rows)
   }
 
