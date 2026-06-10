@@ -3,6 +3,24 @@
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
 
+### FOLLOWUP-046: Multi-word names can't reach the silent-stub type-picker — the `[[` suggester closes on whitespace
+
+**Status:** 🆕 Filed (2026-06-10, out of ENH-208 Phase 2). **Priority:** P2. **Effort:** S–M (matcher widening + popover-dismiss semantics).
+
+**Symptom.** D4's example gesture is `[[Jordan Lee]]` ⇥ → type picker — but `findWikilinkMatch` (`renderer/components/editor/extensions/suggestionMatchers.ts`) rejects whitespace in the query, so typing the space after "Jordan" closes the popover before the New: row can be offered. Popover stubs are single-word today; multi-word entities take the narration path (`duo vault stub person "Jordan Lee"`) or cmd+click create. The Vault Guide ch4 documents the limitation explicitly.
+
+**Fix sketch.** Widen the matcher to allow spaces (Obsidian behavior: the `[[` session stays open until `]]`, Escape, or a newline). The risk to manage: a stray `[[` followed by continued prose keeps the popover open — mirror Obsidian's dismissal rules (close on `]]` / Escape / newline + a query-length cap) and extend `suggestionMatchers.test.ts` with the in-prose cases. Then drop the one-word caveat from `docs/guide/vault-guide.html` ch4 + the createNoteRow comment.
+
+**Cross-refs.** ENH-208 D4, `extensions/WikilinkSuggestion.ts`, `extensions/createNoteRow.ts`.
+
+### FOLLOWUP-047: Remove the orphaned find-prev window listeners (global ⌘⇧F retired)
+
+**Status:** 🆕 Filed (2026-06-10, out of ENH-208 Phase 2). **Priority:** P3 (dead code, no user impact). **Effort:** XS.
+
+The ENH-208 D22 re-pick retired the GLOBAL ⌘⇧F find-previous dispatch (the chord now opens the vault-search palette; the find bars' input-local ⌘⇧F still works via the matcher's `ctx.inFindBar` yield). The window-event listeners that consumed the old global dispatch remain, now unreachable: `renderer/components/Page/PageTab.tsx` (`duo-page-find-prev`, ~line 1233) and `renderer/components/BrowserRenderer.tsx` (`duo-browser-find-prev`, ~line 199); MarkdownEditor's copy was already removed with the re-pick. Delete the two listeners + any now-unused dispatch constants; grep `find-prev` to confirm nothing else consumes them.
+
+**Cross-refs.** ENH-208 D22 re-pick (PRD), `renderer/keyboard/globalShortcuts.ts` (`inFindBar` gate), FOLLOWUP-046.
+
 ### BUG-200: Collapsing the terminal pane terminates ALL terminal sessions
 
 **Status:** 🚧 In progress — surgical fix implemented + **live-verified** on `claude/practical-jones-a07605` (this branch); awaiting owner smoke-walk + cut. **Priority:** P0 (data loss — kills running shells / live Claude sessions). **Effort:** S (surgical) · robust hardening split to ENH-209.

@@ -29,19 +29,32 @@
 > merge); the reviewer caught two real bugs (the `base render --open` IPC key, and
 > silent same-minute capture overwrite) before merge. 1189 tests green.
 >
-> **NEXT — the remaining Phase-2 work is all renderer/keyboard UI** (needs a dev
-> build + an **owner smoke-walk** per PR; NOT auto-mergeable): the Settings
-> default-vault **picker**, the **⇧⌘N** capture chord, the **⌘⇧F** vault-search
-> palette (clones the ⌘⇧A TabSearchPalette wiring), wiring the `@today` tokens
-> into the AtMention popover, and the silent-stub **type-picker**
-> (`WikilinkSuggestion`/`wikilinkCreate`). Tracked as tasks #6–#10; the model
-> layers they sit on are already merged (#88). **No version cut yet** — owner is
-> holding until some capture-UX UI lands, then one release (likely v0.11.0). PRD:
-> `docs/prd/enh-208-vault.md`. The `enh-208-vault` worktree is parked for the UI.
->
-> **Owner note:** verifying the UI needs a worktree dev build, which means closing
-> the running packaged Duo — coordinate before taking it (another agent may be
-> using it).
+> **Phase 2 capture UX — BUILT (2026-06-10, branch
+> `claude/thirsty-brahmagupta-125a0a`, awaiting owner smoke-walk → one PR →
+> cut, likely v0.11.0).** All five renderer/keyboard features landed in 8
+> commits: the **Settings → Default Vault picker** (menu radio submenu, same
+> pref file as `duo vault default`, fs-watched so CLI writes reflect live),
+> the **⇧⌘N** quick-capture chord (untyped inbox note → editor focused), the
+> **⌘⇧F VaultSearchPalette** (debounced full-text over the default vault,
+> grouped hits, Enter opens file-at-match via the new core `docMatchIndex`
+> occurrence contract), **@today smart tokens** in the AtMention popover, and
+> the **silent-stub type-picker** (`[[Name]]`⇥ → New: row → type popover →
+> `duo vault stub` code path, incl. "+ new type…"). Two owner re-picks
+> (2026-06-10 AUQ): capture took ⌘⇧N — **New Folder moved to ⌥⇧⌘N** (menu
+> accelerator + matcher + WCV forward list moved together); vault search took
+> ⌘⇧F — **global find-previous retired**, find-bar-local ⌘⇧F kept via a new
+> `ctx.inFindBar` matcher yield. A 27-agent adversarial review confirmed 12
+> root-cause findings (2 HIGH: the '+ new type' case-mismatch dead-end; the
+> capture-phase ⌘⇧F find-bar hijack) — all fixed + regression-tested. Live
+> dev verification: capture chord E2E, palette search + congruent goto-match
+> (multi-occurrence line + frontmatter-hit cases), createType→stub canonical
+> chain, find-bar yield. **1270 tests, typecheck + skill-currency clean.**
+> Known limitation filed: FOLLOWUP-046 (the `[[` suggester closes on
+> whitespace → popover stubs single-word; narration covers multi-word).
+> Owner-walk items that need real keystrokes: @today popover render,
+> type-picker feel, Settings menu visual, ⌥⇧⌘N New Folder. Default vault is
+> currently pointed at the `/tmp/enh208-vault` walk fixture — re-point or
+> `duo vault default --clear` after the walk.
 
 ## v0.10.0 SHIPPED (2026-06-08) — multi-window window-2 real, signed DMG + GitHub Release
 
