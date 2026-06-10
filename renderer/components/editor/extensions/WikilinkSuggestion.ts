@@ -34,6 +34,7 @@ import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion
 const WIKILINK_SUGGESTION_KEY = new PluginKey('wikilinkSuggestion')
 import {
   SuggestionPopover,
+  ITEM_LIMIT_VISIBLE,
   type SuggestionItem,
   type SuggestionPopoverHandle,
   type SuggestionPopoverProps
@@ -106,17 +107,20 @@ export const WikilinkSuggestion = Extension.create<WikilinkSuggestionOptions>({
           // vault files" state.
           if (query.includes(']')) return []
           const all = opts.getItems()
-          // D4 — append the `New: "<query>"…` row when nothing in the
+          // D4 — offer the `New: "<query>"…` row when nothing in the
           // index has this basename and we know where a stub would go.
           // Suppressed mid-walk too: an incomplete index can't answer
           // "does this note exist", and offering New: for an existing
           // note would mislead (the stub itself is idempotent, so the
-          // damage would be cosmetic — but don't offer it).
+          // damage would be cosmetic — but don't offer it). The row pins
+          // inside the popover's render window (ITEM_LIMIT_VISIBLE) so a
+          // many-match query can't push the entry point off-screen.
           return withCreateNoteRow(
             opts.rank(all, query),
             all,
             query,
-            !!opts.getVaultRoot?.() && !(opts.isLoading?.() ?? false)
+            !!opts.getVaultRoot?.() && !(opts.isLoading?.() ?? false),
+            ITEM_LIMIT_VISIBLE
           )
         },
 

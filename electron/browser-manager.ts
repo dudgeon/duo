@@ -1406,9 +1406,15 @@ export class BrowserManager {
       // focus call is a no-op and the palette opens with no caret —
       // the user sees the dim backdrop but typing goes nowhere. Same
       // family as ⌘F.
+      // ENH-208 — ⌥⇧⌘N (New Folder's re-picked home) and ⌘⇧N (vault
+      // quick-capture) both end in a renderer input taking focus (the
+      // navigator's inline-rename input / the opened capture note's
+      // editor). The key==='n' entry covers ⌘⇧N, but Option mangles
+      // input.key, so the alt chord needs the code-based test.
       const needsRendererFocus =
         key === 't' || key === 'n' || key === 'l' || key === 'f' ||
-        (input.code === 'KeyA' && input.shift)
+        (input.code === 'KeyA' && input.shift) ||
+        (input.alt && input.shift && input.code === 'KeyN')
       if (needsRendererFocus) {
         this.window.webContents.focus()
       }

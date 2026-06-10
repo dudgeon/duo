@@ -110,4 +110,10 @@ export interface SearchHit {
   line: number
   /** The matching line, trimmed for display. */
   excerpt: string
+  /** 0-based occurrence index of this hit within the file's BODY text —
+   *  what the editor doc contains after frontmatter is stripped — counting
+   *  every non-overlapping occurrence per line; `null` for frontmatter
+   *  hits. Lets the ⌘⇧F palette hand the editor the exact occurrence to
+   *  jump to (D22) without the two sides counting different things. */
+  docMatchIndex: number | null
 }

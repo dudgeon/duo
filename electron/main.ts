@@ -2117,12 +2117,18 @@ function setupIPC(): void {
   })
   ipcMain.handle(
     IPC.VAULT_SEARCH,
-    (_event, { query, activePath, limit }: { query: string; activePath?: string | null; limit?: number }) => {
+    async (_event, { query, activePath, limit }: { query: string; activePath?: string | null; limit?: number }) => {
       try {
         const root = vaultCore.resolveVaultForUi(activePath)
         if (!root) return { ok: false, error: NO_VAULT_ERROR }
-        const hits = vaultCore.search(root, query, limit ?? 100)
-        return { ok: true, root, hits }
+        // Async + yielded: the palette fires per debounced keystroke, and a
+        // sync vault walk here would jank EVERY window's IPC at N>1. The
+        // limit defaults to the core cap shared with `duo vault search`
+        // (CLI-parity: same code path, same arguments) and echoes back so
+        // the palette can flag truncation.
+        const effectiveLimit = limit ?? vaultCore.VAULT_SEARCH_DEFAULT_LIMIT
+        const hits = await vaultCore.searchAsync(root, query, effectiveLimit)
+        return { ok: true, root, hits, limit: effectiveLimit }
       } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : String(e) }
       }
@@ -2169,7 +2175,12 @@ function setupIPC(): void {
           // this type land in the notes/YYYY/MM time-bucket (D19 residue).
           await nodeFs.writeFile(abs, `---\ntype: ${stem}\n---\n`)
         }
-        return { ok: true, path: rel }
+        // Return the CANONICAL type name — the caller must stub with `type`
+        // from this result, not its raw filter text: createEntityStub
+        // matches template types strictly, so a raw "Meeting Note" against
+        // the normalized "meeting note" template would dead-end on
+        // `unknown type` forever.
+        return { ok: true, path: rel, type: stem }
       } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : String(e) }
       }
@@ -3207,24 +3218,43 @@ function buildRecentWorkspacesSubmenu(): MenuItemConstructorOptions[] {
 // result is cached per-cwd for a short TTL (in-memory only — no sidecar).
 const VAULT_SCAN_TTL_MS = 20_000
 const vaultScanCache = new Map<string, { at: number; roots: string[] }>()
+let vaultScanInFlightCwd: string | null = null
 function detectedVaultsFor(cwd: string | undefined): string[] {
   if (!cwd) return []
   const hit = vaultScanCache.get(cwd)
-  const now = Date.now()
-  if (hit && now - hit.at < VAULT_SCAN_TTL_MS) return hit.roots
-  let roots: string[] = []
-  try {
-    roots = vaultCore.listVaults(cwd).map((v) => v.root)
-  } catch {
-    // best-effort: the submenu still offers the current default + Choose…
+  if (hit && Date.now() - hit.at < VAULT_SCAN_TTL_MS) return hit.roots
+  // Menu builds are synchronous and fire on every window focus — NEVER
+  // scan on this path (a depth-4 BFS over a big cwd would jank the main
+  // thread at boot/focus). Serve stale-or-empty now; refresh off-stack and
+  // rebuild the menu only when the result actually changed.
+  if (vaultScanInFlightCwd !== cwd) {
+    vaultScanInFlightCwd = cwd
+    void vaultCore
+      .listVaultRootsAsync(cwd)
+      .then((roots) => {
+        const prev = vaultScanCache.get(cwd)?.roots ?? []
+        vaultScanCache.set(cwd, { at: Date.now(), roots })
+        if (prev.join('\n') !== roots.join('\n')) void rebuildAppMenu()
+      })
+      .catch(() => {
+        // best-effort: stamp the cache so a failing cwd isn't re-scanned
+        // every rebuild; the submenu still offers the default + Choose…
+        vaultScanCache.set(cwd, { at: Date.now(), roots: vaultScanCache.get(cwd)?.roots ?? [] })
+      })
+      .finally(() => {
+        vaultScanInFlightCwd = null
+      })
   }
-  vaultScanCache.set(cwd, { at: now, roots })
-  return roots
+  return hit?.roots ?? []
 }
 
 function menuVaultLabel(root: string): string {
   const home = homedir()
-  const display = root.startsWith(home) ? `~${root.slice(home.length)}` : root
+  // Prefix-guarded abbreviation: '/Users/geoff-backup' must not render as
+  // '~-backup' under home '/Users/geoff' (same fix as the palette's
+  // abbreviateHome helper).
+  const display =
+    root === home ? '~' : root.startsWith(home + '/') ? `~${root.slice(home.length)}` : root
   return `${nodePath.basename(root)}  —  ${display}`
 }
 

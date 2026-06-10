@@ -104,6 +104,7 @@ export function TypePickerPopover({ vaultRoot, name, anchorRect, onCreated, onCa
     setBusy(true)
     setError(null)
     try {
+      let stubType = choice.type
       if (choice.kind === 'new') {
         const created = await window.electron.vault.createType({ vaultRoot, type: choice.type })
         if (!created.ok) {
@@ -111,10 +112,15 @@ export function TypePickerPopover({ vaultRoot, name, anchorRect, onCreated, onCa
           setBusy(false)
           return
         }
+        // Stub with the handler's CANONICAL name (safeName + lowercase),
+        // not the raw filter text — createEntityStub matches template
+        // types strictly, so "Meeting Note" against the normalized
+        // "meeting note" template would dead-end on `unknown type`.
+        stubType = created.type
       }
       // Same code path as `duo vault stub <type> <name>` — idempotent,
       // so created:false (note already on disk) closes silently too.
-      const res = await window.electron.vault.stub({ vaultRoot, type: choice.type, name })
+      const res = await window.electron.vault.stub({ vaultRoot, type: stubType, name })
       if (!res.ok) {
         setError(res.error)
         setBusy(false)
@@ -138,7 +144,9 @@ export function TypePickerPopover({ vaultRoot, name, anchorRect, onCreated, onCa
       setActiveIdx((i) => (choices.length === 0 ? 0 : (i - 1 + choices.length) % choices.length))
       return
     }
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      // Tab picks like Enter (SuggestionPopover convention) — and must
+      // never tab focus out of the open popover into the editor below.
       e.preventDefault()
       e.stopPropagation()
       const picked = choices[activeIdx]
@@ -174,47 +182,52 @@ export function TypePickerPopover({ vaultRoot, name, anchorRect, onCreated, onCa
           onChange={(e) => setFilter(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder="Filter types…"
+          aria-label="Filter types"
           spellCheck={false}
           autoCorrect="off"
           autoCapitalize="off"
           className="w-full px-2 py-0.5 text-[12px] bg-paper border border-paper-rule rounded text-ink placeholder-ink-ghost outline-none focus:border-accent"
         />
       </div>
-      {types === null && (
-        <div className="duo-suggestion-empty">Loading types…</div>
-      )}
-      {types !== null && choices.length === 0 && (
-        <div className="duo-suggestion-empty">No types yet — type a name to create one</div>
-      )}
-      {choices.map((choice, idx) => (
-        <button
-          key={`${choice.kind}:${choice.type}`}
-          type="button"
-          role="option"
-          aria-selected={idx === activeIdx}
-          disabled={busy}
-          className={[
-            'duo-suggestion-item',
-            idx === activeIdx ? 'is-active' : ''
-          ].join(' ')}
-          // preventDefault keeps the filter input focused through the
-          // click (same convention as SuggestionPopover rows).
-          onMouseDown={(e) => {
-            e.preventDefault()
-            void pick(choice)
-          }}
-          onMouseEnter={() => setActiveIdx(idx)}
-        >
-          {choice.kind === 'new' ? (
-            <>
-              <span className="duo-suggestion-relpath">+ new type</span>
-              <span className="duo-suggestion-basename">&ldquo;{choice.type}&rdquo;…</span>
-            </>
-          ) : (
-            <span className="duo-suggestion-basename">{choice.type}</span>
-          )}
-        </button>
-      ))}
+      {/* role=option requires a listbox context (same structure as
+          SuggestionPopover / VaultQuickSwitcher). */}
+      <div role="listbox" aria-label="Note types">
+        {types === null && (
+          <div className="duo-suggestion-empty">Loading types…</div>
+        )}
+        {types !== null && choices.length === 0 && (
+          <div className="duo-suggestion-empty">No types yet — type a name to create one</div>
+        )}
+        {choices.map((choice, idx) => (
+          <button
+            key={`${choice.kind}:${choice.type}`}
+            type="button"
+            role="option"
+            aria-selected={idx === activeIdx}
+            disabled={busy}
+            className={[
+              'duo-suggestion-item',
+              idx === activeIdx ? 'is-active' : ''
+            ].join(' ')}
+            // preventDefault keeps the filter input focused through the
+            // click (same convention as SuggestionPopover rows).
+            onMouseDown={(e) => {
+              e.preventDefault()
+              void pick(choice)
+            }}
+            onMouseEnter={() => setActiveIdx(idx)}
+          >
+            {choice.kind === 'new' ? (
+              <>
+                <span className="duo-suggestion-relpath">+ new type</span>
+                <span className="duo-suggestion-basename">&ldquo;{choice.type}&rdquo;…</span>
+              </>
+            ) : (
+              <span className="duo-suggestion-basename">{choice.type}</span>
+            )}
+          </button>
+        ))}
+      </div>
       {error && (
         <div className="px-3 py-1.5 text-[11px] text-red-500">{error}</div>
       )}

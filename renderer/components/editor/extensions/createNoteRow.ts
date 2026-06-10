@@ -26,7 +26,7 @@ export function isCreateNoteItem(item: unknown): item is CreateNoteItem {
 }
 
 /**
- * Append the create row to the ranked list when:
+ * Add the create row to the ranked list when:
  *   - the typed query is non-empty (a bare `[[` offers files only), AND
  *   - the editor's vault root is known (no root → nowhere to stub), AND
  *   - no file in the FULL index has a basename equal to the query
@@ -34,16 +34,26 @@ export function isCreateNoteItem(item: unknown): item is CreateNoteItem {
  *     ranked list already surfaces it first).
  * The equality check runs against `all`, not `ranked`: ranking caps at a
  * limit, and the create offer must not depend on where the cap fell.
+ *
+ * Placement: the row pins INTO the popover's visible window
+ * (`visibleLimit` = SuggestionPopover's render cap) rather than
+ * appending after up to 50 ranked files — a query that still
+ * substring-matches many files (folder names match relPaths too) would
+ * otherwise park the D4 entry point past the render slice: invisible,
+ * yet blindly reachable by arrow-wrap. With few matches it stays last.
  */
 export function withCreateNoteRow<F extends { basename: string }>(
   ranked: F[],
   all: F[],
   query: string,
   vaultRootKnown: boolean,
+  visibleLimit: number,
 ): (F | CreateNoteItem)[] {
   const trimmed = query.trim()
   if (!trimmed || !vaultRootKnown) return ranked
   const q = trimmed.toLowerCase()
   if (all.some((f) => f.basename.toLowerCase() === q)) return ranked
-  return [...ranked, { kind: 'create-note', query: trimmed }]
+  const row: CreateNoteItem = { kind: 'create-note', query: trimmed }
+  const at = Math.min(ranked.length, Math.max(0, visibleLimit - 1))
+  return [...ranked.slice(0, at), row, ...ranked.slice(at)]
 }

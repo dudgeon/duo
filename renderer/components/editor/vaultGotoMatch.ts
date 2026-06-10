@@ -1,9 +1,11 @@
 // ENH-208 Phase 2 (D22) — the vault-search palette opens a result "at line".
 // The editor can't take a raw-disk line number directly (frontmatter is
 // stripped into a panel, so disk lines ≠ ProseMirror positions). Instead the
-// palette asks the editor to jump to the Nth occurrence of the query: core
-// search and the jump share case-insensitive-substring semantics, and the
-// palette knows each hit's index among its file's hits in document order.
+// palette asks the editor to jump to the Nth occurrence of the query, where
+// N is core search's per-hit `docMatchIndex` — computed against the file's
+// BODY with the same case-insensitive, non-overlapping substring rule the
+// editor's occurrence scan uses, so producer and consumer count the same
+// thing (frontmatter hits carry null and degrade to N=0, first match).
 //
 // Two delivery paths, because the target editor may not exist yet:
 //  - file already open → window CustomEvent (the mounted editor handles it)

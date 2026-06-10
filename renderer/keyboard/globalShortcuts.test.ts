@@ -307,9 +307,11 @@ describe('matchGlobalShortcut — ENH-208 vault chords (owner re-pick 2026-06-10
   // Two chord moves landed together: ⌘⇧N became vault quick-capture
   // (New Folder / ENH-169 moved to ⌥⇧⌘N), and ⌘⇧F became the
   // vault-search palette (the global findPrev registration was
-  // removed — the find bar's input-local ⌘⇧F handler still owns
-  // find-previous while the bar is focused, because it
-  // stopPropagation()s before the document capture listener runs).
+  // removed). Find-previous stays reachable while a find bar is
+  // focused because the matcher YIELDS via ctx.inFindBar — the
+  // document listener runs at capture phase, so the bar's own
+  // bubble-phase handler could never pre-empt it; the gate is the
+  // only thing keeping the bars' advertised ⌘⇧F working.
 
   it('matches ⌘⇧N → vaultQuickCapture (key === "N", code === "KeyN")', () => {
     const m = matchGlobalShortcut(
@@ -395,6 +397,26 @@ describe('matchGlobalShortcut — ENH-208 vault chords (owner re-pick 2026-06-10
       .toEqual({ id: 'openFind' })
     expect(matchGlobalShortcut(chord({ key: 'g', code: 'KeyG', meta: true }), ctx))
       .toEqual({ id: 'findNext' })
+  })
+
+  it('⌘⇧F yields to a focused find bar (ctx.inFindBar — the D22 retention clause)', () => {
+    // The document matcher runs at CAPTURE phase, before the find
+    // bar's input-local React handler — so the matcher must return
+    // null here or the bar's advertised find-previous chord would
+    // open the palette instead.
+    const m = matchGlobalShortcut(
+      chord({ key: 'F', code: 'KeyF', meta: true, shift: true }),
+      { inEditableSurface: false, inAnyTextInput: true, inFindBar: true }
+    )
+    expect(m).toBeNull()
+  })
+
+  it('⌘⇧N still captures with a find bar focused (only ⌘⇧F yields)', () => {
+    const m = matchGlobalShortcut(
+      chord({ key: 'N', code: 'KeyN', meta: true, shift: true }),
+      { inEditableSurface: false, inAnyTextInput: true, inFindBar: true }
+    )
+    expect(m).toEqual({ id: 'vaultQuickCapture' })
   })
 
   it('still matches inside an editable surface (capture + palette escape TipTap)', () => {

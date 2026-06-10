@@ -224,22 +224,24 @@ never moved automatically. Read the live rules with <code>duo vault schema</code
 <p>When a note mentions someone or something new, it becomes a real entity from the
 matching template — and your cursor never leaves the note you're writing.</p>
 <div class="flow-steps">
-  <div class="flow-step"><div class="step-label">1 · type</div><div class="step-body">…owns&nbsp;<span class="wikilink">[[Jordan Lee</span><span class="caret"></span><br><br><span style="color:var(--ink-ghost)">press ⇥</span></div></div>
-  <div class="flow-step"><div class="step-label">2 · pick a type</div><div class="step-body">…owns&nbsp;<span class="wikilink">[[Jordan Lee]]</span>
-    <div class="type-picker"><div class="tp-head">New — pick a type</div>
-      <div class="tp-row sel">person <span class="folder">people/</span></div>
-      <div class="tp-row">initiative <span class="folder">initiatives/</span></div>
-      <div class="tp-row">theme <span class="folder">themes/</span></div>
+  <div class="flow-step"><div class="step-label">1 · type</div><div class="step-body">…tracks&nbsp;<span class="wikilink">[[Onboarding</span><span class="caret"></span><br><br><span style="color:var(--ink-ghost)">press ⇥ on the New: row</span></div></div>
+  <div class="flow-step"><div class="step-label">2 · pick a type</div><div class="step-body">…tracks&nbsp;<span class="wikilink">[[Onboarding]]</span>
+    <div class="type-picker"><div class="tp-head">New note &ldquo;Onboarding&rdquo; — pick a type</div>
+      <div class="tp-row sel">initiative</div>
+      <div class="tp-row">person</div>
+      <div class="tp-row">theme</div>
+      <div class="tp-row" style="color:var(--ink-ghost)">+ new type…</div>
     </div></div></div>
-  <div class="flow-step"><div class="step-label">3 · keep typing</div><div class="step-body">…owns&nbsp;<span class="wikilink">[[Jordan Lee]]</span>&nbsp;on pricing.<span class="caret"></span>
-    <div class="toast">✓ created <code>people/Jordan Lee.md</code> from the person template</div></div></div>
+  <div class="flow-step"><div class="step-label">3 · keep typing</div><div class="step-body">…tracks&nbsp;<span class="wikilink">[[Onboarding]]</span>&nbsp;for Q3.<span class="caret"></span><br><br><span style="color:var(--ink-ghost)">the stub filed silently to <code>initiatives/Onboarding/Onboarding.md</code> — nothing interrupts you</span></div></div>
 </div>
-<p><strong>In the editor:</strong> type <code>[[Jordan Lee</code> and the <code>[[</code> suggester offers a
+<p><strong>In the editor:</strong> type <code>[[Onboarding</code> and the <code>[[</code> suggester offers a
 <strong>New:</strong> row. Picking it completes the link and pops the type picker — your template
-types plus <strong>"+ new type…"</strong> — and the stub files by the filing rules in the background;
-the caret never leaves the note, and ⎋ creates nothing. <strong>By narration:</strong> "Jordan Lee
-owns pricing now" — Claude confirms it's new with <code>duo vault schema</code> (checking aliases),
-then runs <code>duo vault stub person "Jordan Lee"</code> — the same code path the picker uses.</p>
+types plus <strong>"+ new type…"</strong> — and the stub files by the filing rules in the background,
+silently: no tab opens, the caret never leaves the note, and ⎋ creates nothing. One-word names
+for now — the <code>[[</code> suggester closes on a space, so multi-word entities take the
+narration path. <strong>By narration:</strong> "Jordan Lee owns pricing now" — Claude confirms
+it's new with <code>duo vault schema</code> (checking aliases), then runs
+<code>duo vault stub person "Jordan Lee"</code> — the same code path the picker uses.</p>
 <div class="takeaway"><strong>Shipped in Phase 2:</strong> <code>[[New Name]]</code> ⇥ on the <strong>New:</strong> row → the type-picker popover → stub created in the background; the caret stays put, ⎋ creates nothing.</div>
 </section>
 

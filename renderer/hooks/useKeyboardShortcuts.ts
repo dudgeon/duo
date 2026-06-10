@@ -419,7 +419,14 @@ export function useKeyboardShortcuts(opts: Options) {
       const ctx = {
         inEditableSurface: isInEditableSurface(document),
         // ENH-179 — gate ⌘Z reopen-last-closed-tab on this superset.
-        inAnyTextInput: isInAnyTextInput(document)
+        inAnyTextInput: isInAnyTextInput(document),
+        // ENH-208 (D22 re-pick) — yield ⌘⇧F to a focused find bar's
+        // input-local find-previous. This capture-phase handler fires
+        // BEFORE the bar's React onKeyDown, so the matcher must yield
+        // HERE — the bar can't defend itself with stopPropagation.
+        // Only this document path can have find-bar focus; the
+        // iframe/WCV forwarders' focus lives inside their surfaces.
+        inFindBar: !!(document.activeElement as HTMLElement | null)?.closest('[data-duo-findbar]')
       }
       const match = matchGlobalShortcut(e, ctx)
       if (!match) return

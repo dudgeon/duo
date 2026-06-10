@@ -49,6 +49,15 @@ export interface FocusContext {
    *  (falsy → matcher treats it as `!inAnyTextInput`, so older
    *  shortcuts behave unchanged). */
   inAnyTextInput?: boolean
+  /** ENH-208 (D22 re-pick) — true when focus is inside a find bar
+   *  (`[data-duo-findbar]`: the editor's FindBar and the canvas
+   *  PageFindBar). Gates the ⌘⇧F vault-search arm so the bars'
+   *  input-local ⌘⇧F (find-previous) keeps working: the document
+   *  CAPTURE-phase matcher fires before any React bubble handler, so
+   *  without this gate it would stopPropagation the keystroke away
+   *  from the find input. Optional — omitted means "not in a find
+   *  bar". */
+  inFindBar?: boolean
 }
 
 /** A typed registry of every global shortcut. Adding a row gives every
@@ -298,12 +307,15 @@ export function matchGlobalShortcut(
   }
   // ENH-208 Phase 2 (D22) — ⌘⇧F opens the vault-search palette.
   // Took the chord over from the global findPrev registration
-  // (ENH-023, removed): find-previous stays reachable via the find
-  // bar's input-local ⌘⇧F handler (FindBar.tsx), which
-  // stopPropagation()s before this matcher can see the keystroke —
-  // so the two never collide while the bar is focused. Use
-  // `e.code === 'KeyF'` for layout-safety (same as ⌘⇧A's KeyA).
-  if (meta && shift && !alt && !ctrl && e.code === 'KeyF') {
+  // (ENH-023, removed). Yields via `!ctx.inFindBar` while a find bar
+  // owns focus: the document matcher runs at CAPTURE phase, so it
+  // fires BEFORE the bars' input-local React handlers — without the
+  // gate it would stopPropagation the keystroke away and the
+  // advertised find-previous chord (FindBar/PageFindBar ▲ tooltips)
+  // would silently open the palette instead (the D22 re-pick keeps
+  // find-bar-local ⌘⇧F working). Use `e.code === 'KeyF'` for
+  // layout-safety (same as ⌘⇧A's KeyA).
+  if (meta && shift && !alt && !ctrl && e.code === 'KeyF' && !ctx.inFindBar) {
     return { id: 'openVaultSearchPalette' }
   }
 

@@ -26,10 +26,14 @@ import type { VaultSearchHitDto } from '@shared/host-api'
 
 export interface VaultSearchPick {
   hit: VaultSearchHitDto
-  /** 0-based index of the hit among ITS file's hits, document order —
-   *  the vaultGotoMatch occurrence contract. */
+  /** 0-based occurrence index within the file's BODY — comes from core
+   *  search's docMatchIndex (computed where the raw text + frontmatter
+   *  extent are known), so the palette and the editor's jump count the
+   *  same thing. Frontmatter hits (docMatchIndex null) fall back to 0 =
+   *  first body occurrence, the documented goto-match degradation. */
   matchIndex: number
-  /** The query at pick time (the occurrence scan's needle). */
+  /** The query THE HITS WERE COMPUTED FROM — not the live input, which
+   *  may be ahead of the debounced response at pick time. */
   query: string
 }
 
@@ -79,21 +83,6 @@ export function groupHitsByFile(hits: VaultSearchHitDto[]): VaultFileGroup[] {
   return groups
 }
 
-/**
- * 0-based position of hits[flatIdx] among ITS file's hits. Counts
- * same-file predecessors across the whole flat array (not adjacency),
- * so it stays correct even for a hypothetical interleaved response.
- *
- * Exported for ENH-208 unit tests.
- */
-export function matchIndexInFile(hits: VaultSearchHitDto[], flatIdx: number): number {
-  let n = 0
-  for (let i = 0; i < flatIdx; i++) {
-    if (hits[i].absPath === hits[flatIdx].absPath) n++
-  }
-  return n
-}
-
 /** One render segment of an excerpt — `match: true` spans get the
  *  highlight styling. */
 export interface ExcerptSegment {
@@ -140,7 +129,9 @@ export function VaultSearchPalette({ open, activePath, onPick, onDismiss }: Vaul
   const [activeIdx, setActiveIdx] = useState(0)
   const [searching, setSearching] = useState(false)
   const [result, setResult] = useState<
-    { root: string; hits: VaultSearchHitDto[] } | { error: string } | null
+    | { root: string; hits: VaultSearchHitDto[]; limit: number; query: string }
+    | { error: string }
+    | null
   >(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
   // Stale-response guard — searches resolve out of order when the user
@@ -179,11 +170,17 @@ export function VaultSearchPalette({ open, activePath, onPick, onDismiss }: Vaul
     setSearching(true)
     const timer = setTimeout(() => {
       void (async () => {
-        const res = await window.electron.vault.search({ query, activePath, limit: 100 })
+        // No explicit limit — main defaults to the core cap shared with
+        // `duo vault search` (CLI parity), and echoes the effective limit
+        // back so the footer can flag truncation honestly.
+        const res = await window.electron.vault.search({ query, activePath })
         if (seq !== seqRef.current) return // stale — a newer keystroke owns the UI
         setSearching(false)
         if (res.ok) {
-          setResult({ root: res.root, hits: res.hits })
+          // Commit the PRODUCING query with the hits: Enter during the
+          // next debounce window must pick with this needle, not the
+          // fresher input text the hits were never computed from.
+          setResult({ root: res.root, hits: res.hits, limit: res.limit, query })
         } else {
           setResult({ error: res.error })
         }
@@ -206,15 +203,26 @@ export function VaultSearchPalette({ open, activePath, onPick, onDismiss }: Vaul
   if (!open) return null
 
   const pick = (flatIdx: number) => {
-    const hit = hits[flatIdx]
+    if (!result || !('hits' in result)) return
+    const hit = result.hits[flatIdx]
     if (!hit) return
-    onPick({ hit, matchIndex: matchIndexInFile(hits, flatIdx), query })
+    // docMatchIndex is core-computed against the file's BODY (what the
+    // editor doc contains); null = frontmatter hit → 0 (first-match
+    // fallback per the goto-match contract). result.query, not the live
+    // input — the hits were computed from THAT needle.
+    onPick({ hit, matchIndex: hit.docMatchIndex ?? 0, query: result.query })
   }
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       e.preventDefault()
       onDismiss()
+      return
+    }
+    if (e.key === 'Tab') {
+      // Keep focus inside the open overlay — tabbing out would land
+      // keystrokes in whatever sits under the backdrop.
+      e.preventDefault()
       return
     }
     if (e.key === 'ArrowDown') {
@@ -336,8 +344,16 @@ export function VaultSearchPalette({ open, activePath, onPick, onDismiss }: Vaul
           <span className="truncate">
             {searching
               ? 'Searching…'
-              : root
-              ? 'Vault: ' + abbreviateHome(root, home) + (hits.length > 0 ? ' · ' + hits.length + (hits.length === 1 ? ' match' : ' matches') : '')
+              : root && result && 'hits' in result
+              ? 'Vault: ' + abbreviateHome(root, home) +
+                (hits.length > 0
+                  ? ' · ' +
+                    // A list capped at the limit is almost certainly
+                    // truncated — say "first N", never a false total.
+                    (hits.length >= result.limit
+                      ? 'first ' + hits.length + ' matches'
+                      : hits.length + (hits.length === 1 ? ' match' : ' matches'))
+                  : '')
               : ''}
           </span>
         </div>

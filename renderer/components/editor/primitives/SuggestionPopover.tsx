@@ -60,7 +60,10 @@ export interface SuggestionPopoverHandle {
   onKeyDown: (event: KeyboardEvent) => boolean
 }
 
-const ITEM_LIMIT_VISIBLE = 8
+// Exported so withCreateNoteRow can pin the D4 create row INSIDE the
+// rendered window — rows past this slice exist for keyboard-wrap but
+// never render, which must not happen to a feature's entry point.
+export const ITEM_LIMIT_VISIBLE = 8
 
 export const SuggestionPopover = forwardRef<SuggestionPopoverHandle, SuggestionPopoverProps>(
   function SuggestionPopover({ items, command, clientRect, loading, visible = true }, ref) {
@@ -117,7 +120,9 @@ export const SuggestionPopover = forwardRef<SuggestionPopoverHandle, SuggestionP
         style={positionStyle(rect)}
         className="duo-suggestion-popover"
         role="listbox"
-        aria-label="Vault file suggestions"
+        // Shape-neutral: the list now also carries @today smart tokens
+        // (D21) and the New:-row action (D4), not just vault files.
+        aria-label="Suggestions"
       >
         {loading && isEmpty && (
           <div className="duo-suggestion-empty">Searching vault…</div>

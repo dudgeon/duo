@@ -1058,6 +1058,11 @@ export interface VaultSearchHitDto {
   line: number
   /** The matching line, trimmed, capped for display. */
   excerpt: string
+  /** 0-based occurrence index within the file's BODY (frontmatter
+   *  stripped — what the editor doc contains); null for frontmatter hits.
+   *  The palette hands this to the editor's goto-match jump so producer
+   *  and consumer count the same thing (D22). */
+  docMatchIndex: number | null
 }
 
 export interface ElectronVaultAPI {
@@ -1070,13 +1075,16 @@ export interface ElectronVaultAPI {
     { ok: true; path: string; absPath: string; root: string } | { ok: false; error: string }
   >
   /** ⌘⇧F — full-text search over the UI-resolved vault (D22). Same
-   *  code path as `duo vault search`. */
+   *  code path AND default cap as `duo vault search`; the effective
+   *  limit echoes back so the palette can flag a truncated list
+   *  ("first N matches") instead of reporting a false total. */
   search: (opts: {
     query: string
     activePath?: string | null
     limit?: number
   }) => Promise<
-    { ok: true; root: string; hits: VaultSearchHitDto[] } | { ok: false; error: string }
+    | { ok: true; root: string; hits: VaultSearchHitDto[]; limit: number }
+    | { ok: false; error: string }
   >
   /** Type-picker — create a templated entity stub filed by the D19
    *  rules. Same code path as `duo vault stub <type> <name>`;
@@ -1094,12 +1102,15 @@ export interface ElectronVaultAPI {
     vaultRoot: string
   }) => Promise<{ ok: true; types: string[] } | { ok: false; error: string }>
   /** Type-picker "+ new type…" — write a minimal `templates/<type>.md`
-   *  (idempotent). Deliberate CLI asymmetry: agents create templates by
-   *  writing the file directly, so no `duo` verb twin exists. */
+   *  (idempotent). The handler normalizes the name (safeName + lowercase);
+   *  callers MUST use the returned canonical `type` for any follow-up
+   *  stub call — the raw filter text may not match the template registry.
+   *  Deliberate CLI asymmetry: agents create templates by writing the
+   *  file directly, so no `duo` verb twin exists. */
   createType: (opts: {
     vaultRoot: string
     type: string
-  }) => Promise<{ ok: true; path: string } | { ok: false; error: string }>
+  }) => Promise<{ ok: true; path: string; type: string } | { ok: false; error: string }>
 }
 
 export interface ElectronProjectsAPI {

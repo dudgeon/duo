@@ -1,29 +1,25 @@
 // ENH-208 Phase 2 (D22) — vault-search palette helper tests.
 //
 // Mirrors TabSearchPalette.test.ts's scope: the pure helpers (per-file
-// grouping, excerpt match segmentation, per-file match-index
-// computation, home abbreviation) are the pieces worth unit-testing
-// without React rendering. The overlay shell (debounce orchestration,
-// stale-response guard, focus management) stays covered by smoke
-// walks. matchIndexInFile is the load-bearing one: it feeds the
-// vaultGotoMatch occurrence contract (the editor jumps to the Nth
-// occurrence of the query, not a disk line), so an off-by-one here
-// lands the caret on the wrong match.
+// grouping, excerpt match segmentation, home abbreviation) are the
+// pieces worth unit-testing without React rendering. The overlay shell
+// (debounce orchestration, stale-response guard, focus management)
+// stays covered by smoke walks. The goto-match occurrence index is NOT
+// computed here anymore — core/vault search emits docMatchIndex per
+// hit (see core/vault/search.test.ts), computed where the raw text and
+// frontmatter extent are known, so palette and editor count the same
+// thing.
 
 import { describe, it, expect } from 'vitest'
-import {
-  groupHitsByFile,
-  matchIndexInFile,
-  segmentExcerpt,
-  abbreviateHome
-} from './VaultSearchPalette'
+import { groupHitsByFile, segmentExcerpt, abbreviateHome } from './VaultSearchPalette'
 import type { VaultSearchHitDto } from '@shared/host-api'
 
 const hit = (path: string, line: number, excerpt: string): VaultSearchHitDto => ({
   path,
   absPath: '/vault/' + path,
   line,
-  excerpt
+  excerpt,
+  docMatchIndex: 0
 })
 
 describe('groupHitsByFile (ENH-208 per-file result grouping)', () => {
@@ -62,43 +58,14 @@ describe('groupHitsByFile (ENH-208 per-file result grouping)', () => {
     expect(groups[0].hits.map((h) => h.line)).toEqual([3, 12])
   })
 
-  it('groups by adjacency — fine for real responses (path-sorted), and matchIndexInFile does not depend on it', () => {
+  it('groups by adjacency — fine for real responses (path-sorted)', () => {
     // core/vault search returns hits ordered by path then line, so
     // same-file hits are always adjacent. A hypothetical interleaved
     // input produces two groups for the same file — acceptable for
-    // display; the goto-match index is computed independently.
+    // display; the goto-match index rides each hit (docMatchIndex)
+    // so grouping shape can't corrupt it.
     const hits = [hit('a.md', 1, 'x'), hit('b.md', 1, 'x'), hit('a.md', 5, 'x')]
     expect(groupHitsByFile(hits)).toHaveLength(3)
-  })
-})
-
-describe('matchIndexInFile (ENH-208 goto-match occurrence index)', () => {
-  const hits = [
-    hit('a.md', 2, 'alpha'), // flat 0 → a.md match 0
-    hit('a.md', 8, 'alpha'), // flat 1 → a.md match 1
-    hit('b.md', 1, 'alpha'), // flat 2 → b.md match 0
-    hit('b.md', 4, 'alpha'), // flat 3 → b.md match 1
-    hit('b.md', 9, 'alpha') // flat 4 → b.md match 2
-  ]
-
-  it('is 0 for the first hit of each file', () => {
-    expect(matchIndexInFile(hits, 0)).toBe(0)
-    expect(matchIndexInFile(hits, 2)).toBe(0)
-  })
-
-  it('counts only same-file predecessors', () => {
-    expect(matchIndexInFile(hits, 1)).toBe(1)
-    expect(matchIndexInFile(hits, 3)).toBe(1)
-    expect(matchIndexInFile(hits, 4)).toBe(2)
-  })
-
-  it('stays correct for an interleaved (non-adjacent) response shape', () => {
-    const interleaved = [
-      hit('a.md', 1, 'x'), // a.md match 0
-      hit('b.md', 1, 'x'), // b.md match 0
-      hit('a.md', 5, 'x') // a.md match 1 — counted across the gap
-    ]
-    expect(matchIndexInFile(interleaved, 2)).toBe(1)
   })
 })
 
