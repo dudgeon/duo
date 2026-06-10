@@ -28,7 +28,7 @@ I built Duo, an agent-friendly IDE for product managers and knowledge workers. I
 
 Duo is free, open source, does not capture or send any of your data anywhere, and lets you work with whatever agent you want.
 
-![Duo's main window — file navigator on the left, terminal in the middle, and the working pane on the right, where documents and pages open](images/about-duo/main-window.png)
+![Duo's main window — the file navigator, a live Claude conversation, and the working pane in split view: a PRD beside the prototype it specifies, with a selected requirement one click from the conversation](images/about-duo/main-window.png)
 
 At its core, Duo is an IDE for knowledge work, with four main features:
 
