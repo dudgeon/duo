@@ -1,6 +1,7 @@
 import { app, BrowserWindow, Menu, dialog, ipcMain, nativeImage, nativeTheme, protocol, session, shell, webContents, clipboard } from 'electron'
 import type { MenuItemConstructorOptions, WebContents } from 'electron'
 import * as nodeFs from 'fs/promises'
+import { watch as fsWatchSync } from 'fs'
 import * as nodePath from 'path'
 import { execSync, execFile } from 'child_process'
 import { promisify } from 'util'
@@ -1649,6 +1650,8 @@ app.whenReady().then(async () => {
   // then refresh the menu so the "Allow Multiple Windows" checkbox reflects the
   // saved value (the initial menu build at boot ran before this load).
   await settingsService.load()
+  // ENH-208 — reflect CLI `duo vault default` writes in the Settings menu.
+  installDefaultVaultPrefWatcher()
   void rebuildAppMenu()
 
   // ENH-191 P5a (Tier-1) — seed the per-window session map from disk BEFORE the
@@ -2976,6 +2979,13 @@ function installAppMenu(): void {
             // value immediately, not on the next unrelated rebuild.
             void settingsService.set({ multiWindow: item.checked }).then(() => rebuildAppMenu())
           }
+        },
+        // ENH-208 Phase 2 (D11) — the machine-global default vault: the
+        // target of ⇧⌘N quick-capture and ⌘⇧F vault search. Same pref file
+        // as `duo vault default` (~/.claude/duo/vault.json).
+        {
+          label: 'Default Vault',
+          submenu: buildDefaultVaultSubmenu()
         }
       ]
     },
@@ -3180,6 +3190,121 @@ function buildRecentWorkspacesSubmenu(): MenuItemConstructorOptions[] {
     }
   })
   return items
+}
+
+// ENH-208 Phase 2 (D11) — Settings → Default Vault. The submenu lists vaults
+// detected from the focused window's navigator cwd (core/vault listVaults —
+// bounded depth-4 BFS, node_modules/.git skipped) plus the current default
+// even when it lives elsewhere. Selecting writes ~/.claude/duo/vault.json,
+// the SAME file `duo vault default` reads/writes — the menu is just a UI
+// editor for it. rebuildAppMenu fires on every window focus, so the scan
+// result is cached per-cwd for a short TTL (in-memory only — no sidecar).
+const VAULT_SCAN_TTL_MS = 20_000
+const vaultScanCache = new Map<string, { at: number; roots: string[] }>()
+function detectedVaultsFor(cwd: string | undefined): string[] {
+  if (!cwd) return []
+  const hit = vaultScanCache.get(cwd)
+  const now = Date.now()
+  if (hit && now - hit.at < VAULT_SCAN_TTL_MS) return hit.roots
+  let roots: string[] = []
+  try {
+    roots = vaultCore.listVaults(cwd).map((v) => v.root)
+  } catch {
+    // best-effort: the submenu still offers the current default + Choose…
+  }
+  vaultScanCache.set(cwd, { at: now, roots })
+  return roots
+}
+
+function menuVaultLabel(root: string): string {
+  const home = homedir()
+  const display = root.startsWith(home) ? `~${root.slice(home.length)}` : root
+  return `${nodePath.basename(root)}  —  ${display}`
+}
+
+function buildDefaultVaultSubmenu(): MenuItemConstructorOptions[] {
+  const current = vaultCore.readDefaultVault()
+  const cwd = navStateCache.getOrDefault(focusedWindowId()).cwd
+  const detected = detectedVaultsFor(cwd)
+  // The current default sorts in even when it's outside the scanned cwd —
+  // the radio must always be able to show the live truth.
+  const roots = [...new Set([...(current ? [current] : []), ...detected])].sort()
+  const items: MenuItemConstructorOptions[] = [
+    {
+      label: 'None',
+      type: 'radio',
+      checked: current == null,
+      click: () => {
+        vaultCore.clearDefaultVault()
+        void rebuildAppMenu()
+      },
+    },
+    ...roots.map(
+      (root): MenuItemConstructorOptions => ({
+        label: menuVaultLabel(root),
+        type: 'radio',
+        checked: current === root,
+        click: () => {
+          try {
+            vaultCore.setDefaultVault(root)
+          } catch {
+            // vault vanished since the scan — the rebuild below self-heals
+          }
+          void rebuildAppMenu()
+        },
+      }),
+    ),
+    { type: 'separator' },
+    {
+      label: 'Choose Vault…',
+      click: () => {
+        void chooseDefaultVaultViaDialog()
+      },
+    },
+  ]
+  return items
+}
+
+async function chooseDefaultVaultViaDialog(): Promise<void> {
+  const win = windowByIdOrPrimary(focusedWindowId())
+  if (!win || win.isDestroyed()) return
+  const result = await dialog.showOpenDialog(win, {
+    title: 'Choose Default Vault',
+    message: 'Pick a folder containing an .obsidian/ directory',
+    properties: ['openDirectory'],
+  })
+  if (result.canceled || result.filePaths.length === 0) return
+  const picked = result.filePaths[0]
+  try {
+    vaultCore.setDefaultVault(picked)
+  } catch {
+    await dialog.showMessageBox(win, {
+      type: 'warning',
+      message: 'Not a vault',
+      detail: `${picked} has no .obsidian/ directory. Ask Claude to run \`duo vault init\` there first, or pick an existing vault.`,
+    })
+  }
+  void rebuildAppMenu()
+}
+
+// ENH-208 — `duo vault default <path>` can rewrite the pref from any
+// terminal while the app runs. Watch the pref's directory (the write is an
+// atomic tmp+rename, so watching the file itself would drop the inode) and
+// rebuild the menu so the radios reflect a CLI write without waiting for
+// the next focus-driven rebuild.
+function installDefaultVaultPrefWatcher(): void {
+  try {
+    const prefDir = nodePath.dirname(vaultCore.DEFAULT_VAULT_FILE)
+    const prefName = nodePath.basename(vaultCore.DEFAULT_VAULT_FILE)
+    let timer: NodeJS.Timeout | null = null
+    fsWatchSync(prefDir, (_event, name) => {
+      if (name !== prefName) return
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => void rebuildAppMenu(), 150)
+    })
+  } catch {
+    // best-effort: without the watcher the menu still refreshes on focus
+  }
 }
 
 // ENH-167 — set the window title from the active workspace pointer.
