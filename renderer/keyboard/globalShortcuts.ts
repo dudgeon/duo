@@ -68,7 +68,6 @@ export type ShortcutId =
   | 'focusBreadcrumbEdit'
   | 'openFind'
   | 'findNext'
-  | 'findPrev'
   | 'toggleFilesColumn'
   | 'togglePaneFocus'
   | 'fontBumpUp'
@@ -175,6 +174,20 @@ export type ShortcutId =
   // dialogs, address bar, breadcrumb edit, browser-pane focus.
   // Owner ask: "cmd+z reopens recently closed tab if tab".
   | 'reopenLastClosedTab'
+  // ENH-208 Phase 2 (D11) — ⌘⇧N captures an untyped inbox note into
+  // the UI-resolved vault (default vault first, else the active
+  // file's vault). Dispatches the 'duo-vault-capture' CustomEvent;
+  // App.tsx owns the IPC call + opening the created note. Owner
+  // re-pick 2026-06-10: this chord was New Folder (ENH-169), which
+  // moved to ⌥⇧⌘N.
+  | 'vaultQuickCapture'
+  // ENH-208 Phase 2 (D22) — ⌘⇧F opens the vault-search palette
+  // (full-text search over the vault, hits grouped by file; Enter
+  // opens the hit and jumps the editor to the match). Took the chord
+  // over from the global findPrev registration (removed) — the find
+  // bar's input-local ⌘⇧F handler (FindBar.tsx) still owns
+  // find-previous while the bar is focused.
+  | 'openVaultSearchPalette'
 
 export interface ShortcutMatch {
   id: ShortcutId
@@ -222,12 +235,25 @@ export function matchGlobalShortcut(
     return { id: 'newMarkdownFile' }
   }
 
-  // ENH-169 (Sprint 20) — ⌘⇧N: new folder in the navigator's current
+  // ENH-169 (Sprint 20) — ⌥⇧⌘N: new folder in the navigator's current
   // cwd. Mirrors macOS Finder. Owner ask: "new file menu actions for
   // new file, new folder (inherits navigator focus as default
   // location)" — the chord parity for the File menu items.
-  if (meta && shift && !alt && !ctrl && key === 'n') {
+  // ENH-208 owner re-pick (2026-06-10): moved from ⌘⇧N to ⌥⇧⌘N so
+  // vault quick-capture could take the more reachable chord. Use
+  // `e.code === 'KeyN'` because Option mangles the produced character
+  // on macOS (same gotcha as the ⌘⌥M / ⌘⇧A code-vs-key lessons).
+  if (meta && shift && alt && !ctrl && e.code === 'KeyN') {
     return { id: 'newFolder' }
+  }
+
+  // ENH-208 Phase 2 (D11) — ⌘⇧N captures an untyped note into the
+  // UI-resolved vault's inbox (default vault first, else the active
+  // file's vault — main owns the resolution). Chord freed by the
+  // ENH-169 newFolder move above. `e.code === 'KeyN'` for
+  // layout-safety (same as ⌘⇧A's KeyA).
+  if (meta && shift && !alt && !ctrl && e.code === 'KeyN') {
+    return { id: 'vaultQuickCapture' }
   }
 
   // ⌘W — close tab.
@@ -270,10 +296,15 @@ export function matchGlobalShortcut(
   if (meta && !shift && !alt && !ctrl && key === 'g') {
     return { id: 'findNext' }
   }
-  // ENH-023 — ⌘⇧F previous match (avoids the ⌘⇧G conflict with
-  // breadcrumb-edit Go to folder).
-  if (meta && shift && !alt && !ctrl && key === 'f') {
-    return { id: 'findPrev' }
+  // ENH-208 Phase 2 (D22) — ⌘⇧F opens the vault-search palette.
+  // Took the chord over from the global findPrev registration
+  // (ENH-023, removed): find-previous stays reachable via the find
+  // bar's input-local ⌘⇧F handler (FindBar.tsx), which
+  // stopPropagation()s before this matcher can see the keystroke —
+  // so the two never collide while the bar is focused. Use
+  // `e.code === 'KeyF'` for layout-safety (same as ⌘⇧A's KeyA).
+  if (meta && shift && !alt && !ctrl && e.code === 'KeyF') {
+    return { id: 'openVaultSearchPalette' }
   }
 
   // ⌘B — toggle the Files column. Yields to the local editor when

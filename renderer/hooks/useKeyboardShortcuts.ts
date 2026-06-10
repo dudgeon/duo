@@ -56,10 +56,11 @@ interface Options {
   /** ENH-023 — find-in-document. App.tsx routes these to the active
    *  markdown editor's FindBar. ⌘F opens / re-focuses; ⌘G cycles to
    *  next match (works even with bar closed if there's a stored
-   *  query); ⌘⇧F cycles to previous. */
+   *  query). Find-previous is input-local to the find bar (⌘⇧F /
+   *  ⇧Enter while it's focused) — the global ⌘⇧F chord moved to the
+   *  vault-search palette (ENH-208 D22). */
   openFind?: () => void
   findNext?: () => void
-  findPrev?: () => void
   /** Sprint 3 Phase 3b — Split View chord handlers. ⌘\ moves the
    *  active main tab into the aux slot; ⌘⇧\ promotes aux back to
    *  main (closes the split AND keeps the file open). For pure-close
@@ -204,9 +205,6 @@ export function useKeyboardShortcuts(opts: Options) {
         case 'findNext':
           opts.findNext?.()
           return
-        case 'findPrev':
-          opts.findPrev?.()
-          return
         case 'sendToDuo': {
           // Stage 15.3 — ⌘D dispatches a CustomEvent that each
           // editor / canvas / browser-pane surface listens for and
@@ -335,6 +333,18 @@ export function useKeyboardShortcuts(opts: Options) {
           // for. Same indirection as sendToDuo and startComment so
           // this hook stays free of palette state.
           window.dispatchEvent(new CustomEvent('duo-open-tab-search'))
+          return
+        case 'openVaultSearchPalette':
+          // ENH-208 Phase 2 (D22) — ⌘⇧F. Same CustomEvent indirection
+          // as openTabSearchPalette; App.tsx toggles the
+          // VaultSearchPalette overlay.
+          window.dispatchEvent(new CustomEvent('duo-open-vault-search'))
+          return
+        case 'vaultQuickCapture':
+          // ENH-208 Phase 2 (D11) — ⌘⇧N. App.tsx owns the capture IPC
+          // call + opening the created inbox note; the event keeps
+          // this hook free of vault state.
+          window.dispatchEvent(new CustomEvent('duo-vault-capture'))
           return
         case 'focusTerminalPane':
           opts.focusTerminalPane?.()

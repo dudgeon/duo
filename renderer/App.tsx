@@ -5,6 +5,8 @@ import { TerminalPane } from './components/TerminalPane'
 import { WorkingPane } from './components/WorkingPane'
 import { TabSearchPalette, type TabSearchEntry } from './components/TabSearchPalette'
 import { VaultQuickSwitcher } from './components/VaultQuickSwitcher'
+import { VaultSearchPalette } from './components/VaultSearchPalette'
+import { parkGotoMatch, VAULT_GOTO_MATCH_EVENT } from './components/editor/vaultGotoMatch'
 import { useVaultIndex } from './components/editor/vaultIndex'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { FirstLaunchBanner } from './components/FirstLaunchBanner'
@@ -462,6 +464,11 @@ export function App() {
   // Distinct from tabSearchOpen (⌘⇧A — open tabs). Sources its file
   // list from useVaultIndex below, keyed off the active file's path.
   const [vaultQuickSwitcherOpen, setVaultQuickSwitcherOpen] = useState<boolean>(false)
+  // ENH-208 Phase 2 (D22) — ⌘⇧F vault-search palette overlay state.
+  // Distinct from both above: full-text search over the UI-resolved
+  // vault, IPC-backed (window.electron.vault.search) rather than
+  // sourced from a renderer-side index.
+  const [vaultSearchOpen, setVaultSearchOpen] = useState<boolean>(false)
 
   // ENH-041 / Sprint 3 — Split View ("aux") state. Locked spec at
   // docs/prd/canvas-split-view-research.html. v1 is single-slot
@@ -2627,6 +2634,53 @@ export function App() {
     return () => window.removeEventListener('duo-open-tab-search', handler)
   }, [])
 
+  // ENH-208 Phase 2 (D22) — toggle the vault-search palette when ⌘⇧F
+  // fires. Same toggle-on-event shape as the tab-search palette above.
+  useEffect(() => {
+    const handler = () => setVaultSearchOpen((open) => !open)
+    window.addEventListener('duo-open-vault-search', handler)
+    return () => window.removeEventListener('duo-open-vault-search', handler)
+  }, [])
+
+  // ENH-208 Phase 2 (D11) — ⌘⇧N quick-capture. Creates an untyped
+  // inbox note in the UI-resolved vault (main resolves the default
+  // vault first, then the active file's enclosing vault — the renderer
+  // only supplies activePath) and opens it in the editor ready to
+  // type. On {ok:false} the IPC error text already explains the fix
+  // (Settings → Default Vault), so surface it verbatim; no toast
+  // system exists yet (deferred at ENH-098), so the native confirm
+  // dialog with a single OK is the notice affordance.
+  useEffect(() => {
+    const handler = () => {
+      void (async () => {
+        const activePath = activeWorking.kind === 'file'
+          ? fileTabs.find((t) => t.id === activeWorking.id)?.path ?? null
+          : null
+        const result = await window.electron.vault.capture({ activePath })
+        if (result.ok) {
+          const name = result.path.slice(result.path.lastIndexOf('/') + 1) || result.path
+          await openFileSmart(result.absPath, name)
+          // Same OS-level focus reclaim as the ⌘O switcher pick
+          // (Sprint 11 walk-3) — when the chord fired from a
+          // non-renderer focus (browser pane / terminal), the new
+          // editor can mount "background" without it.
+          window.electron.keyboard?.reclaimFocus?.()
+        } else {
+          void window.electron.dialog.confirm({
+            title: 'Vault capture failed',
+            message: result.error,
+            buttons: ['OK'],
+            defaultId: 0,
+            cancelId: 0,
+            type: 'warning'
+          })
+        }
+      })()
+    }
+    window.addEventListener('duo-vault-capture', handler)
+    return () => window.removeEventListener('duo-vault-capture', handler)
+  }, [activeWorking, fileTabs, openFileSmart])
+
   // ENH-080 walk-1 fix — mute the browser WebContentsView(s) while the
   // palette is open. Without this the WCV composites over the renderer
   // overlay (the palette's z-50 doesn't beat the WCV — that's why
@@ -2635,10 +2689,11 @@ export function App() {
   // body was hidden behind the still-visible page content.
   //
   // Sprint 11 ENH-096 B.4 — VaultQuickSwitcher (⌘O) gets the same
-  // treatment. Either overlay open → mute WCVs.
+  // treatment. ENH-208 (D22) — VaultSearchPalette (⌘⇧F) joins the
+  // set. Any overlay open → mute WCVs.
   useEffect(() => {
-    window.electron.browser.setOverlayMuted(tabSearchOpen || vaultQuickSwitcherOpen)
-  }, [tabSearchOpen, vaultQuickSwitcherOpen])
+    window.electron.browser.setOverlayMuted(tabSearchOpen || vaultQuickSwitcherOpen || vaultSearchOpen)
+  }, [tabSearchOpen, vaultQuickSwitcherOpen, vaultSearchOpen])
 
   // Sprint 11 ENH-096 B.4 — vault index for the ⌘O quick switcher.
   // Keyed off the active file's path; recomputes only on vault-root
@@ -3509,18 +3564,12 @@ export function App() {
         ? 'duo-page-find-next'
         : 'duo-editor-find-next'
       window.dispatchEvent(new CustomEvent(evt))
-    },
-    findPrev: () => {
-      const activeFileType = activeWorking.kind === 'file'
-        ? fileTabs.find(f => f.id === activeWorking.id)?.type
-        : null
-      const evt = activeWorking.kind === 'browser'
-        ? 'duo-browser-find-prev'
-        : activeFileType === 'page'
-        ? 'duo-page-find-prev'
-        : 'duo-editor-find-prev'
-      window.dispatchEvent(new CustomEvent(evt))
     }
+    // ENH-208 (D22) — no findPrev callback anymore: the global ⌘⇧F
+    // chord moved to the vault-search palette. Find-previous stays
+    // reachable via each find bar's input-local handlers (⌘⇧F /
+    // ⇧Enter while the bar is focused). The duo-*-find-prev window
+    // events those bars listen for are no longer fired from here.
   })
 
   // ⌘` menu-accelerator path. The app menu registers the same
@@ -4616,6 +4665,42 @@ export function App() {
           window.electron.keyboard?.reclaimFocus?.()
         }}
         onDismiss={() => setVaultQuickSwitcherOpen(false)}
+      />
+      {/* ENH-208 Phase 2 (D22) — VaultSearchPalette overlay (⌘⇧F).
+          Full-text search over the UI-resolved vault via the vault
+          IPC. Mounted parallel to TabSearchPalette / VaultQuickSwitcher
+          so the same z-index + WCV overlay-mute rules apply. */}
+      <VaultSearchPalette
+        open={vaultSearchOpen}
+        activePath={
+          activeWorking.kind === 'file'
+            ? fileTabs.find((t) => t.id === activeWorking.id)?.path ?? null
+            : null
+        }
+        onPick={({ hit, matchIndex, query }) => {
+          setVaultSearchOpen(false)
+          const name = hit.path.slice(hit.path.lastIndexOf('/') + 1) || hit.path
+          void openFileSmart(hit.absPath, name)
+          // D22 goto-match handoff — park FIRST (a just-opened file's
+          // editor hasn't mounted yet; the mounting editor claims the
+          // parked copy), then fire the live event for the
+          // already-open case. vaultGotoMatch.ts owns the contract:
+          // the editor jumps to the matchIndex-th occurrence of the
+          // query, not a raw disk line.
+          parkGotoMatch({ path: hit.absPath, query, matchIndex })
+          window.dispatchEvent(new CustomEvent(VAULT_GOTO_MATCH_EVENT, {
+            detail: { path: hit.absPath, query, matchIndex }
+          }))
+          // Same OS-level focus reclaim as the ⌘O switcher pick
+          // (Sprint 11 walk-3) — the overlay input's unmount can
+          // strand focus on document.body before openFile's rAF
+          // chain runs.
+          window.electron.keyboard?.reclaimFocus?.()
+        }}
+        onDismiss={() => {
+          setVaultSearchOpen(false)
+          window.electron.keyboard?.reclaimFocus?.()
+        }}
       />
       {/* ENH-080 — tab-search palette overlay. Mounted at the top of
           the app so its z-50 sits above the working pane and titlebar.

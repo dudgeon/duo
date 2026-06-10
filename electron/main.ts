@@ -2829,11 +2829,17 @@ function installAppMenu(): void {
         },
         {
           label: 'New Folder…',
-          accelerator: 'CmdOrCtrl+Shift+N',
+          // ENH-208 owner re-pick (2026-06-10) — ⌘⇧N now belongs to vault
+          // quick-capture (D11); New Folder moved here. Menu accelerators
+          // beat the renderer's chord matcher, so this MUST stay in sync
+          // with globalShortcuts.ts (⌥⇧⌘N → newFolder) or the menu would
+          // swallow the capture chord.
+          accelerator: 'Alt+Shift+CmdOrCtrl+N',
           click: () => safeSendFocused(IPC.NEW_FOLDER_REQUEST)
         },
         // ENH-191 P5a (S3) — open a SECOND window (blank, its own workspace).
-        // ⌥⌘N because ⌘N / ⌘⇧N are taken by New File / New Folder. Gated on the
+        // ⌥⌘N because ⌘N is New File and ⌘⇧N is vault quick-capture
+        // (ENH-208 re-pick; New Folder sits at ⌥⇧⌘N). Gated on the
         // "Allow Multiple Windows" setting below; openNewWindow no-ops with a
         // structured result when off (the CLI verb surfaces the disabled error).
         {

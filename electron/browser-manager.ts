@@ -1327,6 +1327,14 @@ export class BrowserManager {
         // but input.code === 'Slash' regardless). Same code-vs-key
         // lesson as the previous chord — see globalShortcuts.ts.
         input.code === 'Slash' ||
+        // ENH-208 (2026-06-10 re-pick) — ⌥⇧⌘N = New Folder's new home
+        // (⌘⇧N moved to vault quick-capture). Option mangles input.key
+        // ('n' becomes a dead/accented character on most layouts), so the
+        // key==='n' entry above never matches the alt chord — same
+        // code-vs-key lesson as Slash. Gated on alt+shift so plain ⌘N
+        // (new file) and ⌘⇧N (capture, matched via key==='n') keep their
+        // existing entries.
+        (input.alt && input.shift && input.code === 'KeyN') ||
         // ENH-080 walk-1 fix — ⌘⇧A = tab-search palette. Without this
         // entry, Chromium's "select all" handler claims the chord when
         // the browser pane has focus and the renderer never sees the
