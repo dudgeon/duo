@@ -18,6 +18,14 @@
 
 ---
 
+## 2026-06-10 (v0.10.1 cut — Vault Phase 1 release + BUG-200 terminal-collapse data-loss fix)
+
+**v0.10.1 cut (patch).** Shipped two things that had landed on `main` since v0.10.0: **BUG-200** — collapsing the terminal pane was terminating *every* terminal session (it unmounted the pane, firing each terminal's cleanup `pty.kill`); fixed by hiding the pane via `display:none` while keeping it mounted (rail renders as a sibling), plus a `TERMINAL_MIN_COLS` resize floor as a BUG-156-class backstop. Root-caused via a multi-agent investigation, live-verified (xterm-host count holds 6→6 through collapse; active shell PID unchanged across collapse/expand), 3 regression tests, [PR #90](https://github.com/dudgeon/duo/pull/90). And the **ENH-208 vault** Phase 1 + Phase 2-start (PRs #83–#88), released rather than held dark. Pre-cut, the full `v0.10.0..main` diff was re-reviewed for blockers (3 reviewers + adversarial verification → 0 confirmed blockers; 1 non-blocking major = `base render` throws on an empty `.base`, filed as **FOLLOWUP-046**; path traversal live-tested as not exploitable; both prior vault bugs confirmed fixed).
+
+**Deferred from this cut (owner-directed):** the DMG build + GitHub Release (a parallel agent holds the dev Electron) and the tag push (await owner); the `tasks.md` archive-move + the FOLLOWUP-046 ledger filing (the origin working tree held a concurrent agent's uncommitted `tasks.md` WIP — including a **BUG-200 number collision**: the other agent independently filed a different BUG-200 (CriticMarkup ins/del) + BUG-199/201/202. Owner ruling: keep this BUG-200 (merged incumbent), the other agent renumbers theirs). Cut from a clean `release/v0.10.1` worktree off `origin/main`; `package.json` was already 0.10.1, so no version bump. **Owed next:** push `release/v0.10.1` → `main` + the `v0.10.1` tag, then `bash scripts/dist-signed.sh` + `gh release create` once the dev Electron is free; file FOLLOWUP-046 in `tasks.md` once the concurrent WIP lands.
+
+---
+
 ## 2026-06-09 (ENH-208 Vault — Phase 1 SHIPPED + Phase 2 started, 6 PRs merged to main)
 
 **ENH-208 "vault" — networked work-notes on plain Obsidian conventions.** Built

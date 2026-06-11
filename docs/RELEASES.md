@@ -25,6 +25,16 @@
 
 ---
 
+## v0.10.1 — 2026-06-10 — Vault arrives (Phase 1) · the terminal-collapse data-loss fix
+
+**Why this lands here.** Two unrelated things converged. First, a P0: collapsing the terminal pane was *terminating every terminal session* — it unmounted the pane, and each terminal's unmount cleanup unconditionally killed its PTY, so a single collapse wiped every running shell and live Claude session (expand handed you fresh shells). That's data loss on a one-click gesture, so it ships the moment it's verified. Second, the ENH-208 **vault** line (Phase 1 + the start of Phase 2) had already merged to `main` since v0.10.0, so this cut *releases* it rather than holding it dark: a `duo vault` CLI cluster for Obsidian-convention work-notes — init/capture, read verbs, a wikilink graph, and `.base` lint/render — plus a default-vault preference and the headless `@today` smart-token models the capture-UX UI (queued for v0.11.0) will sit on.
+
+**The fix, precisely.** Root-caused via a multi-agent investigation + adversarial verification: collapse swapped the `<TabBar/> + <TerminalPane/>` subtree for the collapsed rail, unmounting every `TerminalInstance`, whose mount-effect cleanup calls `pty.kill`. The fix keeps the subtree mounted under a true `display:none` (the rail renders as a sibling), so PTYs and scrollback survive; a `TERMINAL_MIN_COLS` floor in `PtyManager.resize` backstops the BUG-156 reflow class an adversarial reviewer flagged would otherwise sneak back in. Live-verified — terminals stay mounted through a collapse, and the active shell's PID is identical across collapse/expand — with 3 regression tests. The whole `v0.10.0..main` diff was re-reviewed for release blockers before the cut (none found; one non-blocking `base render` edge case filed as FOLLOWUP-046).
+
+**What this is and isn't.** This is the *bug-fix-plus-already-merged-features* cut, not the deliberate vault launch — the capture-UX UI (Settings picker, ⇧⌘N capture chord, ⌘⇧F vault search) is still in flight and lands in v0.11.0. The DMG build + GitHub release are **deferred** for this tag (a parallel agent holds the dev Electron); the tag is cut now so the P0 fix is recorded, and the distributable follows when the build host is free. Cut from a clean `release/v0.10.1` worktree off `origin/main`.
+
+---
+
 ## v0.10.0 — 2026-06-08 — Multi-window: a real second window · navigator/terminal UX
 
 **Why this lands here.** v0.9.2 landed the multi-window *foundation* inert (the registry-of-one spine, no second window). v0.10.0 is the payoff: `⌥⌘N` / `duo window new` opens a genuine second window with its own workspace, browser pane, navigator, terminals, and geometry — and the whole CLI surface becomes window-addressable (a `DUO_WINDOW` env stamp per terminal + `duo --window N` + `duo windows`). It rides on two earlier all-dark interims — P4 (the versioned session envelope, #78) and P5a/P5b (the window-2 machinery, #73) — each merged byte-identical-at-N=1 and adversarially reviewed (the P5 capstone was grep-verified to have zero residual fail-loud resolution points, with 1093 tests + an 8/8 smoke walk). Two standalone navigator/terminal UX features ride along: revert-to-All when a terminal opens outside the focused project (ENH-204, #79) and drag-a-path-into-the-terminal (ENH-207, #81).
