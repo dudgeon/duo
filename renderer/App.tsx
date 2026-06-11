@@ -1335,6 +1335,35 @@ export function App() {
     }
     return map
   }, [browserTabs, railProjects])
+  // ENH-210 — faint "you-are-here" pill source. Resolve the project that
+  // owns the SINGLE active surface (a terminal OR a canvas/working tab,
+  // never both — there is only ever one focused surface across the app).
+  // `focusedColumn` is that cross-pane signal: 'terminal' → the active
+  // terminal; 'working'/'files' → the active working tab (the navigator
+  // folds into the canvas side since it drives it, it is not a distinct
+  // project source). Browser-mode tabs count via browserTabMembership
+  // (D2). Consumed only in All mode by the rail (it gates on
+  // focusedProject === null), but derived unconditionally — cheap.
+  const activeSurfaceProject = useMemo<string | null>(() => {
+    if (focusedColumn === 'terminal') {
+      return terminalMembership[activeTabId] ?? null
+    }
+    // 'working' or 'files' → the active working tab.
+    if (activeWorking.kind === 'file') {
+      return tabMembership[activeWorking.id] ?? null
+    }
+    // Browser mode — resolve the active (non-aux) browser tab's project.
+    const activeBrowser = browserTabs.find((bt) => bt.isActive && !bt.inAux)
+    return activeBrowser ? (browserTabMembership.get(activeBrowser.id) ?? null) : null
+  }, [
+    focusedColumn,
+    activeTabId,
+    terminalMembership,
+    activeWorking,
+    tabMembership,
+    browserTabs,
+    browserTabMembership
+  ])
   const visibleBrowserTabIds = useMemo<ReadonlySet<number> | undefined>(() => {
     if (focusedProject === null) return undefined
     const visible = new Set<number>()
@@ -4122,6 +4151,7 @@ export function App() {
         <ProjectRail
           projects={railProjects}
           focusedProject={focusedProject}
+          activeProject={activeSurfaceProject}
           onFocus={handleProjectFocus}
           counts={projectCounts}
           onTogglePin={handleTogglePin}
