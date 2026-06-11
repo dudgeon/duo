@@ -128,14 +128,26 @@ export const SuggestingMode = Extension.create<unknown, SuggestingModeStorage>({
               const finalStart = rest.map(newStart, 1)
               const finalEnd = rest.map(newEnd, -1)
               if (finalEnd <= finalStart) return
-              // Skip if the inserted text spans a node we shouldn't
-              // mark (code blocks, fenced code). InsertionMark is
-              // configured `allowedIn` to exclude inline-code already,
-              // but the schema doesn't enforce on code_block kids —
-              // walk the range and skip if any node is a code block.
+              // BUG (inline-code) — skip if the inserted text spans a
+              // node/mark we can't represent a CriticMarkup token in.
+              // Two cases:
+              //   • fenced `codeBlock` nodes (CM tokens don't belong in
+              //     fenced code), and
+              //   • inline `code` marks — StarterKit's `code` mark has
+              //     `excludes: '_'`, so InsertionMark can NEVER coexist
+              //     with it. Stamping anyway yields a no-op AddMarkStep;
+              //     on the native-input path that no-op transaction
+              //     redraws the just-typed range and swallows the typed
+              //     character (caret moves, text vanishes, nothing
+              //     tracked). Mirror the fenced-code exclusion: bail so
+              //     the native insert runs untracked.
               let skip = false
               newState.doc.nodesBetween(finalStart, finalEnd, (node) => {
                 if (node.type.name === 'codeBlock') {
+                  skip = true
+                  return false
+                }
+                if (node.isText && node.marks.some(m => m.type.name === 'code')) {
                   skip = true
                   return false
                 }
@@ -178,7 +190,7 @@ export const SuggestingMode = Extension.create<unknown, SuggestingModeStorage>({
  *   - No previous/next character (boundary) → return false (let
  *     default delete handle node-merging logic).
  */
-function wrapAsDeletionWithView(
+export function wrapAsDeletionWithView(
   ext: { storage: SuggestingModeStorage },
   view: EditorView,
   direction: 'backspace' | 'delete'
@@ -194,6 +206,15 @@ function wrapAsDeletionWithView(
   const parent = $from.parent
   if (parent.type.name === 'codeBlock') return false
 
+  // BUG (inline-code) — same constraint as the insertion path. The
+  // `code` mark has `excludes: '_'`, so DeletionMark can never be added
+  // to inline-code text. Without this guard we'd consume the keystroke
+  // (return true), apply a no-op addMark, and move the caret — deleting
+  // nothing and tracking nothing (the reported "caret moves but text not
+  // edited" swallow). Bail when the bytes we'd strike are inside inline
+  // code so the native delete runs (untracked, matching fenced code).
+  const CodeMark = schema.marks.code
+
   // BUG-138 walk-1 fix — same merge-killing concern as Phase 4b. Don't
   // stamp ts on the deletion mark; same-author single mark merges
   // across consecutive Backspace strokes.
@@ -207,6 +228,8 @@ function wrapAsDeletionWithView(
   // first, then resolve positions against `tr.doc` for the Selection.
 
   if (from !== to) {
+    // Inline-code guard: let the native delete handle code spans.
+    if (CodeMark && state.doc.rangeHasMark(from, to, CodeMark)) return false
     // Non-empty selection. Wrap with DeletionMark + collapse cursor
     // to the end of the marked range.
     const tr = state.tr.addMark(from, to, mark)
@@ -224,6 +247,8 @@ function wrapAsDeletionWithView(
     // of the marked range).
     const $prev = state.doc.resolve(prevPos)
     if (DelMark.isInSet($prev.marks())) return false
+    // Inline-code guard: native delete handles the code span.
+    if (CodeMark && state.doc.rangeHasMark(prevPos, from, CodeMark)) return false
     const tr = state.tr.addMark(prevPos, from, mark)
     tr.setSelection(Selection.near(tr.doc.resolve(prevPos)))
     tr.setMeta(META_AUTO, true)
@@ -235,6 +260,8 @@ function wrapAsDeletionWithView(
     if (nextPos > state.doc.content.size) return false  // doc end
     const $next = state.doc.resolve(to)
     if (DelMark.isInSet($next.marks())) return false
+    // Inline-code guard: native delete handles the code span.
+    if (CodeMark && state.doc.rangeHasMark(to, nextPos, CodeMark)) return false
     const tr = state.tr.addMark(to, nextPos, mark)
     tr.setSelection(Selection.near(tr.doc.resolve(nextPos)))
     tr.setMeta(META_AUTO, true)
