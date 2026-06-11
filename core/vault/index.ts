@@ -10,11 +10,13 @@ export type {
 } from './types'
 
 export { walk, readNotes, parseFile, splitFrontmatter, extractWikilinks, SKIP_DIRS } from './parse'
-export { isVaultRoot, findVaultRoot, listVaults, listVaultRootsAsync, resolveVault } from './detect'
+export { isVaultRoot, findVaultRoot, listVaults, resolveVault } from './detect'
 export {
   readDefaultVault,
   setDefaultVault,
   clearDefaultVault,
+  rememberVault,
+  listKnownVaults,
   resolveVaultOrDefault,
   resolveVaultForUi,
   DEFAULT_VAULT_FILE,

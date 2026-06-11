@@ -3209,45 +3209,17 @@ function buildRecentWorkspacesSubmenu(): MenuItemConstructorOptions[] {
   return items
 }
 
-// ENH-208 Phase 2 (D11) — Settings → Default Vault. The submenu lists vaults
-// detected from the focused window's navigator cwd (core/vault listVaults —
-// bounded depth-4 BFS, node_modules/.git skipped) plus the current default
-// even when it lives elsewhere. Selecting writes ~/.claude/duo/vault.json,
-// the SAME file `duo vault default` reads/writes — the menu is just a UI
-// editor for it. rebuildAppMenu fires on every window focus, so the scan
-// result is cached per-cwd for a short TTL (in-memory only — no sidecar).
-const VAULT_SCAN_TTL_MS = 20_000
-const vaultScanCache = new Map<string, { at: number; roots: string[] }>()
-let vaultScanInFlightCwd: string | null = null
-function detectedVaultsFor(cwd: string | undefined): string[] {
-  if (!cwd) return []
-  const hit = vaultScanCache.get(cwd)
-  if (hit && Date.now() - hit.at < VAULT_SCAN_TTL_MS) return hit.roots
-  // Menu builds are synchronous and fire on every window focus — NEVER
-  // scan on this path (a depth-4 BFS over a big cwd would jank the main
-  // thread at boot/focus). Serve stale-or-empty now; refresh off-stack and
-  // rebuild the menu only when the result actually changed.
-  if (vaultScanInFlightCwd !== cwd) {
-    vaultScanInFlightCwd = cwd
-    void vaultCore
-      .listVaultRootsAsync(cwd)
-      .then((roots) => {
-        const prev = vaultScanCache.get(cwd)?.roots ?? []
-        vaultScanCache.set(cwd, { at: Date.now(), roots })
-        if (prev.join('\n') !== roots.join('\n')) void rebuildAppMenu()
-      })
-      .catch(() => {
-        // best-effort: stamp the cache so a failing cwd isn't re-scanned
-        // every rebuild; the submenu still offers the default + Choose…
-        vaultScanCache.set(cwd, { at: Date.now(), roots: vaultScanCache.get(cwd)?.roots ?? [] })
-      })
-      .finally(() => {
-        vaultScanInFlightCwd = null
-      })
-  }
-  return hit?.roots ?? []
-}
-
+// ENH-208 Phase 2 (D11) — Settings → Default Vault. The default vault VALUE is
+// machine-global (~/.claude/duo/vault.json), so the picker is WINDOW-INDEPENDENT:
+// it lists the KNOWN vaults (every vault ever set as default or `vault init`'d —
+// `listKnownVaults`, self-healed against the live filesystem) ∪ the current
+// default, plus Choose Vault… for anything else. The same rows show in every
+// window — no per-window-cwd scan — and clearing the default keeps the known
+// list (so a cleared vault outside any workspace isn't stranded). Selecting
+// writes the SAME file `duo vault default` reads/writes — the menu is just a UI
+// editor for it. `listKnownVaults` is a cheap file read + isVaultRoot stats over
+// a handful of entries, so it stays on the synchronous menu-build path safely
+// (no BFS, no jank — the reason the old cwd-scan needed async machinery).
 function menuVaultLabel(root: string): string {
   const home = homedir()
   // Prefix-guarded abbreviation: '/Users/geoff-backup' must not render as
@@ -3260,11 +3232,9 @@ function menuVaultLabel(root: string): string {
 
 function buildDefaultVaultSubmenu(): MenuItemConstructorOptions[] {
   const current = vaultCore.readDefaultVault()
-  const cwd = navStateCache.getOrDefault(focusedWindowId()).cwd
-  const detected = detectedVaultsFor(cwd)
-  // The current default sorts in even when it's outside the scanned cwd —
-  // the radio must always be able to show the live truth.
-  const roots = [...new Set([...(current ? [current] : []), ...detected])].sort()
+  // The current default unions in even if it somehow isn't in the known list
+  // yet (it always should be — setDefaultVault records it — but belt + braces).
+  const roots = [...new Set([...vaultCore.listKnownVaults(), ...(current ? [current] : [])])].sort()
   const items: MenuItemConstructorOptions[] = [
     {
       label: 'None',
@@ -3284,7 +3254,8 @@ function buildDefaultVaultSubmenu(): MenuItemConstructorOptions[] {
           try {
             vaultCore.setDefaultVault(root)
           } catch {
-            // vault vanished since the scan — the rebuild below self-heals
+            // vault vanished since the menu built — the rebuild below
+            // self-heals (listKnownVaults drops the dead entry)
           }
           void rebuildAppMenu()
         },

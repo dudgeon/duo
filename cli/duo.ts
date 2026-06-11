@@ -2343,6 +2343,10 @@ async function main(): Promise<void> {
           const folder = positionalArgs(subRest, [])[0]
           if (!folder) die('Usage: duo vault init <folder> [--force]')
           const result = vault.initVault(path.resolve(process.cwd(), folder), { force: subRest.includes('--force') })
+          // ENH-208 — register the freshly-scaffolded vault so the Settings →
+          // Default Vault picker offers it (window-independent known list)
+          // before it's ever been set as the default.
+          vault.rememberVault(result.root)
           for (const w of result.warnings) process.stderr.write(`duo: warning — ${w}\n`)
           out(result)
         } else if (sub === 'list') {

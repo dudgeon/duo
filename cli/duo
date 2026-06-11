@@ -2780,36 +2780,73 @@ var import_node_fs3 = __toESM(require("node:fs"));
 var import_node_path3 = __toESM(require("node:path"));
 var import_node_os = __toESM(require("node:os"));
 var DEFAULT_VAULT_FILE = import_node_path3.default.join(import_node_os.default.homedir(), ".claude", "duo", "vault.json");
-function readDefaultVault(filePath = DEFAULT_VAULT_FILE) {
+function readPrefs(filePath) {
   let raw;
   try {
     raw = import_node_fs3.default.readFileSync(filePath, "utf8");
   } catch {
-    return null;
+    return {};
   }
   try {
     const parsed = JSON.parse(raw);
-    const p = typeof parsed.defaultVault === "string" ? parsed.defaultVault : null;
-    return p && isVaultRoot(p) ? p : null;
+    return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
-    return null;
+    return {};
   }
+}
+function writePrefs(prefs, filePath) {
+  const out2 = {};
+  if (prefs.defaultVault) out2.defaultVault = prefs.defaultVault;
+  if (prefs.knownVaults && prefs.knownVaults.length > 0) out2.knownVaults = prefs.knownVaults;
+  import_node_fs3.default.mkdirSync(import_node_path3.default.dirname(filePath), { recursive: true });
+  const tmp = `${filePath}.${process.pid}.tmp`;
+  import_node_fs3.default.writeFileSync(tmp, JSON.stringify(out2, null, 2) + "\n");
+  import_node_fs3.default.renameSync(tmp, filePath);
+}
+function readDefaultVault(filePath = DEFAULT_VAULT_FILE) {
+  const p = readPrefs(filePath).defaultVault;
+  return typeof p === "string" && isVaultRoot(p) ? p : null;
 }
 function setDefaultVault(target, filePath = DEFAULT_VAULT_FILE) {
   const abs = import_node_path3.default.resolve(target);
   if (!isVaultRoot(abs)) {
     throw new Error(`not a vault (no .obsidian/): ${abs}. Run \`duo vault init ${target}\` first.`);
   }
-  import_node_fs3.default.mkdirSync(import_node_path3.default.dirname(filePath), { recursive: true });
-  const tmp = `${filePath}.${process.pid}.tmp`;
-  import_node_fs3.default.writeFileSync(tmp, JSON.stringify({ defaultVault: abs }, null, 2) + "\n");
-  import_node_fs3.default.renameSync(tmp, filePath);
+  const prefs = readPrefs(filePath);
+  prefs.defaultVault = abs;
+  prefs.knownVaults = [.../* @__PURE__ */ new Set([...prefs.knownVaults ?? [], abs])];
+  writePrefs(prefs, filePath);
   return abs;
 }
+function rememberVault(target, filePath = DEFAULT_VAULT_FILE) {
+  const abs = import_node_path3.default.resolve(target);
+  if (!isVaultRoot(abs)) return;
+  const prefs = readPrefs(filePath);
+  const known = new Set(prefs.knownVaults ?? []);
+  if (known.has(abs)) return;
+  known.add(abs);
+  prefs.knownVaults = [...known];
+  writePrefs(prefs, filePath);
+}
 function clearDefaultVault(filePath = DEFAULT_VAULT_FILE) {
-  try {
-    import_node_fs3.default.unlinkSync(filePath);
-  } catch {
+  const prefs = readPrefs(filePath);
+  if (prefs.defaultVault === void 0) {
+    if (!prefs.knownVaults || prefs.knownVaults.length === 0) {
+      try {
+        import_node_fs3.default.unlinkSync(filePath);
+      } catch {
+      }
+    }
+    return;
+  }
+  delete prefs.defaultVault;
+  if (!prefs.knownVaults || prefs.knownVaults.length === 0) {
+    try {
+      import_node_fs3.default.unlinkSync(filePath);
+    } catch {
+    }
+  } else {
+    writePrefs(prefs, filePath);
   }
 }
 function resolveVaultOrDefault(cwd, explicit, filePath = DEFAULT_VAULT_FILE) {
@@ -2957,7 +2994,45 @@ function orphans(root) {
 // core/vault/search.ts
 var import_node_fs6 = __toESM(require("node:fs"));
 var import_node_path6 = __toESM(require("node:path"));
-function search(root, query, limit = 200) {
+var VAULT_SEARCH_DEFAULT_LIMIT = 200;
+function frontmatterEndLine(lines) {
+  if (lines[0] !== "---") return null;
+  for (let j = 1; j < lines.length; j++) {
+    if (lines[j] === "---") return j;
+  }
+  return null;
+}
+function occurrencesIn(hay, needle) {
+  let n = 0;
+  let idx = hay.indexOf(needle);
+  while (idx !== -1) {
+    n++;
+    idx = hay.indexOf(needle, idx + needle.length);
+  }
+  return n;
+}
+function scanRaw(raw, needle, relPath, absPath, hits, limit) {
+  const lines = raw.split("\n");
+  const fmEnd = frontmatterEndLine(lines);
+  let bodyOccurrences = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const inFrontmatter = fmEnd !== null && i <= fmEnd;
+    const occurrences = occurrencesIn(lines[i].toLowerCase(), needle);
+    if (occurrences > 0) {
+      hits.push({
+        path: relPath,
+        absPath,
+        line: i + 1,
+        excerpt: lines[i].trim().slice(0, 200),
+        docMatchIndex: inFrontmatter ? null : bodyOccurrences
+      });
+      if (hits.length >= limit) return false;
+    }
+    if (!inFrontmatter) bodyOccurrences += occurrences;
+  }
+  return true;
+}
+function search(root, query, limit = VAULT_SEARCH_DEFAULT_LIMIT) {
   const needle = query.toLowerCase();
   if (!needle) return [];
   const hits = [];
@@ -2968,18 +3043,8 @@ function search(root, query, limit = 200) {
     } catch {
       continue;
     }
-    const lines = raw.split("\n");
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].toLowerCase().includes(needle)) {
-        hits.push({
-          path: import_node_path6.default.relative(root, abs).split(import_node_path6.default.sep).join("/"),
-          absPath: abs,
-          line: i + 1,
-          excerpt: lines[i].trim().slice(0, 200)
-        });
-        if (hits.length >= limit) return hits;
-      }
-    }
+    const rel = import_node_path6.default.relative(root, abs).split(import_node_path6.default.sep).join("/");
+    if (!scanRaw(raw, needle, rel, abs, hits, limit)) break;
   }
   return hits;
 }
@@ -5804,6 +5869,7 @@ To confirm, re-run:
           const folder = positionalArgs(subRest, [])[0];
           if (!folder) die("Usage: duo vault init <folder> [--force]");
           const result = initVault(path11.resolve(process.cwd(), folder), { force: subRest.includes("--force") });
+          rememberVault(result.root);
           for (const w of result.warnings) process.stderr.write(`duo: warning \u2014 ${w}
 `);
           out(result);

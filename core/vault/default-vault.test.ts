@@ -10,6 +10,8 @@ import {
   readDefaultVault,
   setDefaultVault,
   clearDefaultVault,
+  rememberVault,
+  listKnownVaults,
   resolveVaultOrDefault,
   resolveVaultForUi,
 } from './index'
@@ -35,11 +37,14 @@ describe('default-vault pref', () => {
     expect(readDefaultVault(prefFile)).toBeNull()
   })
 
-  it('sets + reads a default vault (validated, absolute)', () => {
+  it('sets + reads a default vault (validated, absolute) + records it as known', () => {
     const set = setDefaultVault(vaultA, prefFile)
     expect(set).toBe(vaultA)
     expect(readDefaultVault(prefFile)).toBe(vaultA)
-    expect(JSON.parse(fs.readFileSync(prefFile, 'utf8'))).toEqual({ defaultVault: vaultA })
+    expect(JSON.parse(fs.readFileSync(prefFile, 'utf8'))).toEqual({
+      defaultVault: vaultA,
+      knownVaults: [vaultA],
+    })
   })
 
   it('refuses a non-vault target', () => {
@@ -57,6 +62,61 @@ describe('default-vault pref', () => {
     setDefaultVault(vaultA, prefFile)
     fs.rmSync(vaultA, { recursive: true, force: true }) // vault deleted out from under the pref
     expect(readDefaultVault(prefFile)).toBeNull() // resolves live, never a dead path
+  })
+})
+
+describe('known vaults (ENH-208 Phase 2 — window-independent picker)', () => {
+  it('clearing the default PRESERVES the known list (the stranding bug)', () => {
+    setDefaultVault(vaultA, prefFile)
+    setDefaultVault(vaultB, prefFile) // both now known; B is the default
+    clearDefaultVault(prefFile)
+    expect(readDefaultVault(prefFile)).toBeNull()
+    // The picker can still offer A and B even though nothing is the default.
+    expect(listKnownVaults(prefFile)).toEqual([vaultA, vaultB].sort())
+  })
+
+  it('rememberVault records without changing the default', () => {
+    rememberVault(vaultA, prefFile)
+    expect(readDefaultVault(prefFile)).toBeNull() // not made the default
+    expect(listKnownVaults(prefFile)).toEqual([vaultA])
+  })
+
+  it('rememberVault is idempotent and refuses non-vaults', () => {
+    rememberVault(vaultA, prefFile)
+    rememberVault(vaultA, prefFile)
+    rememberVault(path.join(dir, 'not-a-vault'), prefFile)
+    expect(listKnownVaults(prefFile)).toEqual([vaultA])
+  })
+
+  it('listKnownVaults self-heals — a deleted vault drops off the list', () => {
+    setDefaultVault(vaultA, prefFile)
+    rememberVault(vaultB, prefFile)
+    fs.rmSync(vaultA, { recursive: true, force: true })
+    expect(listKnownVaults(prefFile)).toEqual([vaultB]) // A filtered out live
+  })
+
+  it('clearing a legacy file (default only, no known list) removes it entirely', () => {
+    // A pre-knownVaults file: just { defaultVault }. Clearing leaves nothing
+    // to keep, so the file is removed (returns to a clean unset state).
+    fs.writeFileSync(prefFile, JSON.stringify({ defaultVault: vaultA }) + '\n')
+    clearDefaultVault(prefFile)
+    expect(fs.existsSync(prefFile)).toBe(false)
+  })
+
+  it('clearing keeps the file while any known entry remains (filtered live on read)', () => {
+    setDefaultVault(vaultA, prefFile) // known: [vaultA]
+    fs.rmSync(vaultA, { recursive: true, force: true }) // vault deleted, but the raw entry persists
+    clearDefaultVault(prefFile)
+    expect(fs.existsSync(prefFile)).toBe(true) // raw knownVaults non-empty → file kept
+    expect(listKnownVaults(prefFile)).toEqual([]) // …but the dead entry is filtered on read
+  })
+
+  it('the same known list resolves regardless of caller (window-independent)', () => {
+    // No cwd/window input — listKnownVaults is a pure read of the global file,
+    // so every window's menu build sees the identical set.
+    setDefaultVault(vaultA, prefFile)
+    rememberVault(vaultB, prefFile)
+    expect(listKnownVaults(prefFile)).toEqual([vaultA, vaultB].sort())
   })
 })
 

@@ -205,12 +205,12 @@ shared with the renderer in Phase 3).
 
 | Verb | What it does | Output |
 |---|---|---|
-| `duo vault init <folder> [--force]` | Scaffold a vault: `.obsidian/` + starter templates (D19 filing rules) + inbox/registry folders + `bases/processing.base` + README | JSON `{root, created[], warnings[]}` |
+| `duo vault init <folder> [--force]` | Scaffold a vault: `.obsidian/` + starter templates (D19 filing rules) + inbox/registry folders + `bases/processing.base` + README. Records the new vault in `knownVaults` so the Settings picker offers it before it's ever set as default | JSON `{root, created[], warnings[]}` |
 | `duo vault list` | Vaults detected from the cwd (enclosing + nested) | JSON `[{root, name, noteCount}]` |
 | `duo vault schema [--vault p]` | The L0 corpus — types/entities/aliases/props-per-type/observed-enums/templates; a live function over frontmatter, never cached (no-sidecar) | JSON `Corpus` |
 | `duo vault capture [--template t] [--text …] [--title …] [--open]` | Timestamped inbox note (D6); untyped by default, `--template` stamps a type | JSON `{path, absPath, type}` |
 | `duo vault stub <type> <name> [--open]` | Create a typed entity stub from its template, D19-filed; idempotent. CLI twin of the silent-stub `[[New Name]]`⇥ (ENH-208 P3) | JSON `{path, absPath, type, created}` |
-| `duo vault default [<path>\|--clear]` | Read/set the default vault (D11 — CLI twin of the Settings → Default Vault picker; one pref file, `~/.claude/duo/vault.json`, so CLI writes reflect live in the menu). Vault verbs resolve `--vault` → enclosing → default → error | JSON `{defaultVault}` |
+| `duo vault default [<path>\|--clear]` | Read/set the default vault (D11 — CLI twin of the Settings → Default Vault picker; one pref file, `~/.claude/duo/vault.json`, so CLI writes reflect live in the menu). The value is machine-global (persists across windows/workspaces/restarts); setting one also records it in the file's `knownVaults` list so the picker is window-independent, and `--clear` keeps that list (only the active default is unset). Vault verbs resolve `--vault` → enclosing → default → error | JSON `{defaultVault}` |
 | `duo vault search <query> [--vault p]` | Case-insensitive full-text search (CLI twin of ⌘⇧F, D22) | JSON `[{path, absPath, line, excerpt}]` |
 | `duo graph backlinks <note> [--vault p]` | Notes linking to `<note>` (basename-resolved, scans frontmatter + body) | JSON `[{path, absPath, line, excerpt}]` |
 | `duo graph orphans [--vault p]` | Notes with no inbound and no outbound links (a processing work-list) | JSON `string[]` |

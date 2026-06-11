@@ -99,43 +99,6 @@ export function listVaults(cwd: string, maxDepth = 4): VaultInfo[] {
     .map((root) => ({ root, name: path.basename(root), noteCount: countNotes(root) }))
 }
 
-/** Async, roots-only variant of {@link listVaults} for the Electron main
- *  process: the Settings → Default Vault submenu refreshes detection off
- *  the (synchronous, focus-driven) menu-build path, and a sync depth-4 BFS
- *  over a big cwd would jank the main thread. Same semantics — enclosing
- *  walk-up + bounded downward BFS, SCAN_SKIP + dot-dirs skipped, a vault
- *  root is terminal — without the per-vault noteCount walk the menu
- *  doesn't need. */
-export async function listVaultRootsAsync(cwd: string, maxDepth = 4): Promise<string[]> {
-  const roots = new Set<string>()
-
-  const enclosing = findVaultRoot(cwd) // walk-up is a handful of stats — cheap
-  if (enclosing) roots.add(enclosing)
-
-  const queue: { dir: string; depth: number }[] = [{ dir: path.resolve(cwd), depth: 0 }]
-  while (queue.length) {
-    const { dir, depth } = queue.shift()!
-    if (isVaultRoot(dir)) {
-      roots.add(dir)
-      continue
-    }
-    if (depth >= maxDepth) continue
-    let entries: fs.Dirent[]
-    try {
-      entries = await fs.promises.readdir(dir, { withFileTypes: true })
-    } catch {
-      continue
-    }
-    for (const e of entries) {
-      if (e.isDirectory() && !SCAN_SKIP.has(e.name) && !e.name.startsWith('.')) {
-        queue.push({ dir: path.join(dir, e.name), depth: depth + 1 })
-      }
-    }
-  }
-
-  return [...roots].sort()
-}
-
 /** Resolve the vault root for a verb: an explicit `--vault` flag wins,
  *  else walk up from `cwd`. Throws a clear error when neither resolves. */
 export function resolveVault(cwd: string, explicit?: string | null): string {
