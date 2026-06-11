@@ -167,6 +167,19 @@ The ENH-208 D22 re-pick retired the GLOBAL ⌘⇧F find-previous dispatch (the c
 **Tests owed.** T3 (watcher not stopped/recreated on toggle; `updateWatchPaths` called with delta only) + T4 (git-tick with unchanged data → referentially-equal Maps, row render-count unchanged) — sketched in the PRD § B.6.
 
 **Cross-refs.** [ENH-211 PRD](prd/enh-211-navigator-stability-prd.md) (§ B.4 D3/D4/D5, § B.6 tests, § C plan), ENH-211 (P0 parent), ENH-152c (git watcher = M3 substrate), `renderer/hooks/useNavigator.ts` watch effect, `electron/files-service.ts` (`updateWatchPaths`), `electron/preload.ts` (`files.watch`).
+### ENH-210: Worktree-aware Duo — surfaces, identity, navigator, lifecycle (decision playground)
+
+**Status:** 🟡 **Decisions OPEN — 6 decision cards pending owner walk** of [`docs/research/worktree-ux.html`](docs/research/worktree-ux.html). Surfaces in every smoke walk until the owner walks the playground and pastes back the decision set (rule 11 + research-report-review-task rule). **Priority:** Strategic — agents-in-worktrees is the parallel-agent workflow Duo exists to host. **Effort:** research done; implementation scope depends on D1/D5/D6. **Filed:** 2026-06-10.
+
+**Ask (owner, 2026-06-10).** "Figure out the UX for Duo to work with git worktrees — which surfaces need to be worktree-aware (just the terminal? terminal + navigator?); a user should intuitively and visually know which agent is in a worktree vs in main."
+
+**The three failures today.** (1) **Identity** — a worktree agent's tab reads `claude · youthful-chebyshev-885712` (cwd basename = codename folder; and for Claude-managed worktrees the *branch* is a codename too, so branch-display alone doesn't fix it). (2) **Differentiation** — main vs worktree is invisible on the tab strip. (3) **File access** — the navigator stays rooted at the main checkout, so the worktree agent's edits are off-screen.
+
+**Existing plumbing (no new git machinery needed).** Live cwd already polled per-tab (lsof, 5s); `git.status(cwd)` already returns `{branch, dirty, ahead, behind, workTreeRoot}`; the six-hue project palette is locked + hash-stable per root; multi-window (ENH-191) shipped; `git worktree list --porcelain` reads the sibling map live (no sidecar — rule 12).
+
+**Deliverable.** Decision-bearing HTML playground at [`docs/research/worktree-ux.html`](docs/research/worktree-ux.html) (Atelier kernel, mock tab-strips + navigator panes + window diagrams, 6 decision cards + Copy-decisions footer, per rule 11). Decisions: D1 surface scope (rec: terminal + navigator) · D2 worktree tab identity (rec: editable label defaulting to repo + branch chip — the only fix for agent-codename worktrees; agents self-label via CLI for parity) · D3 differentiation signal (rec: hash-stable hue per checkout from the project palette, dot on tab + tinted navigator ribbon) · D4 navigator behavior (rec: worktrees section in the tree, click-to-switch; follow-active-terminal as a layerable option) · D5 lifecycle (rec: read verbs — `duo worktree list` + checkout fields in `duo status`/`duo nav state`) · D6 window mapping (rec: none in v1; "open worktree in window" affordance as the bridge option). Deferred (in-playground): merge/cleanup UX, working-pane provenance badges, dirty/ahead tab ticks, DUO_WORKTREE hook awareness.
+
+**Stays open until** the owner walks the playground (`duo open docs/research/worktree-ux.html`), copies decisions back, and implementation is scoped from the locked set.
 
 ---
 
