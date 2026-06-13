@@ -2731,6 +2731,8 @@ function setupIPC(): void {
       // activate handler is a harmless no-op (never a duplicate spawn).
       const activateSend = makeSafeSend(() => ctx.window)
       activateSend(IPC.TERMINAL_ACTIVATE_TAB, { tabId: action.tabId })
+      // Expand the terminal pane if it's collapsed so the focused session shows.
+      void revealTerminalIfCollapsed(action.windowId)
       return { ok: true }
     }
 
@@ -2752,6 +2754,7 @@ function setupIPC(): void {
       if (win && !win.isDestroyed()) {
         win.focus()
         makeSafeSend(() => ctx!.window)(IPC.TERMINAL_ACTIVATE_TAB, { tabId: liveNow.tabId })
+        void revealTerminalIfCollapsed(liveNow.windowId)
         return { ok: true }
       }
     } else if (liveNow?.kind === 'external' && !action.force) {
@@ -2772,6 +2775,8 @@ function setupIPC(): void {
       cwd: action.cwd,
       cmd: buildResumeCommand(action.uuid, { fork: isFork }),
     })
+    // Expand the terminal pane if collapsed so the spawned session is visible.
+    if (res.ok) void revealTerminalIfCollapsed(senderId)
     return res.ok ? { ok: true } : { ok: false, error: res.error }
   })
 }
@@ -4298,6 +4303,7 @@ async function sessionOpenForCli(
     }
     win.focus()
     makeSafeSend(() => ctx!.window)(IPC.TERMINAL_ACTIVATE_TAB, { tabId: hit.tabId })
+    void revealTerminalIfCollapsed(hit.windowId)
     return { ok: true, action: 'focus' }
   }
   if (hit?.kind === 'external' && !force) {
@@ -4323,6 +4329,7 @@ async function sessionOpenForCli(
     cwd,
     cmd: buildResumeCommand(uuid, { fork: isFork }),
   })
+  if (res.ok) void revealTerminalIfCollapsed(targetWindowId)
   return res.ok ? { ok: true, action: isFork ? 'fork' : 'resume' } : { ok: false, error: res.error }
 }
 
@@ -4348,6 +4355,29 @@ export async function revealMainPaneIfCollapsed(): Promise<void> {
     win.webContents.send(IPC.PANE_FOCUS_JUMP, 'main')
   } catch (err) {
     console.warn('[main] revealMainPaneIfCollapsed failed:', (err as Error)?.message ?? err)
+  }
+}
+
+// ENH-212 — the terminal analog of revealMainPaneIfCollapsed. When a Home
+// session action opens/resumes/forks/focuses a session whose terminal lives in
+// a fully-collapsed terminal pane (splitPct === 0), the spawned/focused
+// terminal would be invisible. Expand the pane to a comfortable 50/50 so the
+// session is actually on screen. Idempotent: no-op unless the pane is fully
+// collapsed. Fire-and-forget at the call sites — a cosmetic reveal must never
+// fail or delay the focus/resume result.
+export async function revealTerminalIfCollapsed(windowId?: number): Promise<void> {
+  const win = windowByIdOrPrimary(windowId) // identity, never focus
+  if (!win || win.isDestroyed()) return
+  try {
+    const layout = (await win.webContents.executeJavaScript(
+      'typeof window.__duoGetLayout === "function" ? window.__duoGetLayout() : null',
+      true
+    )) as { splitPct?: number } | null
+    if (layout && layout.splitPct === 0) {
+      setSplit(50, win.id)
+    }
+  } catch (err) {
+    console.warn('[main] revealTerminalIfCollapsed failed:', (err as Error)?.message ?? err)
   }
 }
 

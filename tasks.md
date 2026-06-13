@@ -13,7 +13,9 @@
 
 **FORK-1 — RESOLVED (v0.10.3 walk-1 SKIP, fix commit this turn).** Owner caught it: the Home "Fork" button + `duo session open --force` ran plain `claude --resume <uuid>` — identical to Resume — so forking a session still live OUTSIDE Duo attached a SECOND writer to the same session JSONL (clobber risk), not a true fork. Fixed: a forced re-entry into a live-external session now runs `claude --resume <uuid> --fork-session` (Claude CLI flag → branches a NEW session id from current state; the original is untouched). Closed sessions still plain-resume in place. Both command sites (`HOME_SESSION_ACTION` UI handler + `sessionOpenForCli`) route through one pure `buildResumeCommand(uuid, {fork})` helper in `claude-session-tracker.ts` (+3 unit tests; UI=CLI parity). CLI `session open` now returns `action: 'fork'`. Fork dialog + SessionRow tooltip copy corrected (was describing the OLD conflict, which `--fork-session` eliminates). 4-surface CLI docs synced (check:skill-currency PASS). Live-verified: external+`--force` → `action:'fork'`; external+no-force → refuse; never-fork holds.
 
-**→ Next: focused re-walk of FORK-1 (rev2) → propose `cut-version`.**
+**EXPAND-1 — RESOLVED (owner ask 2026-06-13, fix commit this turn).** Opening/resuming/forking/focusing a session whose terminal lives in a fully-collapsed terminal pane (`splitPct === 0`) left the session invisible. New `revealTerminalIfCollapsed(windowId)` helper (terminal analog of `revealMainPaneIfCollapsed`) reads `__duoGetLayout()` and, only when `splitPct === 0`, expands to 50/50. Wired fire-and-forget into all 5 Home session legs (3 in `HOME_SESSION_ACTION`: focus / duo-focus / resume-fork; 2 in `sessionOpenForCli`: focus / resume-fork). Idempotent; no-op unless collapsed.
+
+**→ Next: focused re-walk of FORK-1 + EXPAND-1 (rev2) → propose `cut-version`.**
 
 **Live verification (2026-06-12, dev build, DOM/CLI probes — computer-use can't reach the worktree Electron).** ✅ Home tab synthesized at slot 0 (leftmost, `kind:'home'`, `duo://home`); ✅ greeting renders with briefing data ("…N sessions open; freshest is …"); ✅ two hero panels with REAL projects (duo 68 sess / stoop 8 sess) + recency + counts; ✅ 7 spine rows; ✅ open-session join detected a live session (open-pill); ✅ real transcript snippet; ✅ PinnedNav slot-0 Home row (visible, non-removable); ✅ close-refusal + empty context-menu for home (source-verified `canClose=false`, Pin/Move-to-split gated); ✅ `duo home show` / `home state --json` (9 projects) / `term tabs`; ✅ **`duo session open <uuid>` resume → new shell tab in the current window at the SESSION's recorded cwd running `claude --resume`** (worktree-cwd fix confirmed live).
 
@@ -34,6 +36,23 @@
 **Data plumbing already exists:** `electron/claude-session-tracker.ts` (encodeProjectDir, JSONL scan, readBannerTitle, readMessageCount, cleanAndTruncate). No sidecar cache — read live per ENH-183 § D9.
 
 **Next:** owner walks the study → lock decisions → PRD at docs/prd/ → implement off the all-worktrees-merged baseline.
+
+---
+
+### ENH-217: Manual refresh button in the Home view
+
+**Status:** 📋 Backlog (non-blocking — logged 2026-06-13 during the ENH-212
+v0.10.3 walk). **Priority:** P3. **Effort:** S.
+
+Home auto-refreshes (30s pollers + event-driven `HOME_SHOW` refetch + the
+`duo home refresh` CLI verb), but there's no in-view affordance for the user to
+force a refresh on demand — e.g. after closing a session in another window, or
+when a just-launched session hasn't been picked up yet. Add a small refresh
+control in the Home header (icon button) that calls the same snapshot refetch
+the 30s poller / `duo home refresh` use. Keep it subtle (Atelier ghost button);
+a brief spin/disabled state during the refetch is enough feedback. CLI parity
+already exists (`duo home refresh`), so this is the UI-side half of an existing
+capability. Owner ask, verbatim: *"a manual refresh button in the home view."*
 
 ---
 
