@@ -2295,6 +2295,14 @@ function setupIPC(): void {
     return getGitStatus(cwd)
   })
 
+  // ENH-210 — list the git worktrees of the repo at cwd (main first,
+  // cwd's worktree flagged isCurrent). Powers the navigator Worktrees
+  // section. Returns [] for non-repos / git errors.
+  ipcMain.handle(IPC.GIT_WORKTREES, async (_event, { cwd }: { cwd: string }) => {
+    const { listWorktrees } = await import('../core/git/worktree')
+    return listWorktrees(cwd)
+  })
+
   // ENH-182 — D2 marker probe (renderer → main). Returns true if
   // `dir` contains a CLAUDE.md file or a .claude/ subdirectory.
   // Used by useProjects to detect project markers for dirs the

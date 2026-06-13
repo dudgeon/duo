@@ -21,6 +21,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { DirEntry, MenuTemplateItem, NavPinEntry, GitStatusSnapshot } from '@shared/types'
 import { formatGitStatusChip, formatGitStatusTooltip, repoBasenameFor } from '@shared/host-api'
+import type { WorktreeInfo } from '@shared/host-api'
+import { projectColorToken } from '../projectColors'
 import type { NavigatorState, NavigatorActions } from '../hooks/useNavigator'
 import type { NavPinsApi } from '../hooks/useNavPins'
 import { DUO_FS_PATH_MIME, formatPathsForTerminal } from './dragPathPayload'
@@ -133,6 +135,31 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
         if (cancelled) return
         setGitChip('')
         setGitSnap(null)
+      }
+    }
+    void refresh()
+    const onFocus = () => { void refresh() }
+    window.addEventListener('focus', onFocus)
+    return () => {
+      cancelled = true
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [state.cwd, rootEntriesOverride])
+
+  // ENH-210 — worktrees of the repo the navigator cwd is in. Only
+  // rendered when the repo has MORE THAN ONE worktree (a lone main
+  // checkout gets no section — the section exists to surface siblings).
+  // Refreshed on cwd change + focus, same cadence as the git chip.
+  const [worktrees, setWorktrees] = useState<WorktreeInfo[]>([])
+  useEffect(() => {
+    if (rootEntriesOverride !== undefined) { setWorktrees([]); return }
+    let cancelled = false
+    const refresh = async () => {
+      try {
+        const list = await window.electron.git.worktrees(state.cwd)
+        if (!cancelled) setWorktrees(list.length > 1 ? list : [])
+      } catch {
+        if (!cancelled) setWorktrees([])
       }
     }
     void refresh()
@@ -861,6 +888,73 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
         childRepoMap={childRepoMap}
         dirtyFileMap={dirtyFileMap}
       />
+      {worktrees.length > 1 && (
+        <WorktreesSection worktrees={worktrees} onSwitch={(p) => actions.navigateTo(p)} />
+      )}
+    </div>
+  )
+}
+
+// ENH-210 — navigator Worktrees section (D4-C). Lists the repo's
+// worktrees below the tree; click re-roots the navigator to that
+// checkout (`actions.navigateTo`). The current worktree is marked +
+// non-clickable; linked worktrees carry the same hash-stable hue dot
+// the terminal tabs use, so a checkout reads as one color across the
+// whole app. Main checkout: git-branch glyph, no hue (the baseline).
+function WorktreesSection({
+  worktrees,
+  onSwitch
+}: {
+  worktrees: WorktreeInfo[]
+  onSwitch: (path: string) => void
+}) {
+  return (
+    <div className="mt-1 border-t border-paper-rule">
+      <div className="px-3 pt-1.5 pb-1 text-[9.5px] font-semibold uppercase tracking-wider text-ink-ghost">
+        Worktrees · {worktrees.length}
+      </div>
+      {worktrees.map((wt) => {
+        const label = wt.branch || (wt.detached ? `detached @ ${wt.head}` : wt.head || 'worktree')
+        const tip = `${wt.path}${wt.prunable ? '\n(stale — run `git worktree prune`)' : ''}`
+        return (
+          <button
+            key={wt.path}
+            type="button"
+            disabled={wt.isCurrent}
+            onClick={() => { if (!wt.isCurrent) onSwitch(wt.path) }}
+            title={tip}
+            className={[
+              'w-full flex items-center gap-2 px-3 py-1 text-left text-[12px] transition-colors',
+              wt.isCurrent
+                ? 'bg-accent-soft text-ink cursor-default'
+                : 'text-ink-soft hover:bg-paper-edge cursor-pointer',
+              wt.prunable ? 'opacity-60' : ''
+            ].join(' ')}
+          >
+            {wt.isMain ? (
+              // Main checkout — git-branch glyph, no hue.
+              <span className="text-ink-ghost inline-flex items-center shrink-0" aria-hidden="true">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="6" x2="6" y1="3" y2="15" />
+                  <circle cx="18" cy="6" r="3" />
+                  <circle cx="6" cy="18" r="3" />
+                  <path d="M18 9a9 9 0 0 1-9 9" />
+                </svg>
+              </span>
+            ) : (
+              // Linked worktree — hash-stable hue dot (matches its tab).
+              <span
+                className="shrink-0 w-[7px] h-[7px] rounded-sm"
+                style={{ backgroundColor: projectColorToken(wt.colorIndex) }}
+                aria-hidden="true"
+              />
+            )}
+            <span className="truncate flex-1">{label}</span>
+            {wt.isMain && <span className="text-[9px] uppercase tracking-wide text-ink-ghost shrink-0">main</span>}
+            {wt.isCurrent && <span className="text-[9px] uppercase tracking-wide text-accent shrink-0">current</span>}
+          </button>
+        )
+      })}
     </div>
   )
 }

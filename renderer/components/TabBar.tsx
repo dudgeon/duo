@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MenuTemplateItem, TabSession } from '@shared/types'
+import { useWorktreeBadges, type WorktreeBadge } from '../hooks/useWorktreeBadges'
+import { projectColorToken } from '../projectColors'
 
 interface TabBarProps {
   tabs: TabSession[]
@@ -74,6 +76,11 @@ export function TabBar({
   // dragend. Mirrors WorkingTabStrip's dropTargetId.
   const [dropTargetId, setDropTargetId] = useState<string | null>(null)
 
+  // ENH-210 — per-tab worktree badge (hue dot + ⎇ marker), keyed by
+  // cwd. Only LINKED worktrees get a badge; main checkouts stay
+  // unmarked. Probes git in the main process; cached + focus-refreshed.
+  const worktreeBadges = useWorktreeBadges(tabs)
+
   // ENH-188 — move a tab one slot left/right within the visible strip.
   // `tabs` here is already the visible (project-filtered) set, so its
   // index order IS the strip order. Mirrors WorkingTabStrip.moveTabBy
@@ -121,6 +128,8 @@ export function TabBar({
             onCloseSelf={() => onClose(tab.id)}
             canClose={tabs.length > 1}
             onRevealCwd={onRevealCwd}
+            // ENH-210 — worktree badge (undefined for main-checkout tabs).
+            worktree={worktreeBadges.get(tab.cwd)}
             // ENH-024 — only the active tab gets the ref; previous
             // active tab loses the assignment naturally on re-render.
             buttonRef={tab.id === activeTabId ? activeTabRef : undefined}
@@ -246,12 +255,16 @@ interface TabProps {
   onDragLeave?: (e: React.DragEvent) => void
   onDrop?: (e: React.DragEvent) => void
   onDragEnd?: (e: React.DragEvent) => void
+  /** ENH-210 — present only when this tab's cwd is a LINKED worktree;
+   *  drives the hue dot + ⎇ marker + worktree tooltip. */
+  worktree?: WorktreeBadge
 }
 
 function Tab({
   tab, isActive, onSelect, onCloseSelf, canClose, buttonRef, onRevealCwd,
   index, total, canReorder, onMoveTab, onCloseOthers,
-  isDropTarget, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd
+  isDropTarget, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd,
+  worktree
 }: TabProps) {
   // ENH-188 — right-click → native context menu, approaching parity
   // with the canvas-tab menu (WorkingTabStrip). Items are grouped:
@@ -337,7 +350,11 @@ function Tab({
         // canvas strip (WorkingTabItem) uses for its drag affordance.
         isDropTarget ? 'ring-2 ring-accent ring-inset' : ''
       ].join(' ')}
-      title={tab.title}
+      title={
+        worktree
+          ? `Worktree of ${worktree.repoName || 'repo'} · ⎇ ${worktree.branch || 'detached'}\n${tab.cwd}`
+          : tab.title
+      }
     >
       {/* Accent top-stripe for active — mirrors WorkingTabStrip + the mock. */}
       {isActive && (
@@ -347,9 +364,33 @@ function Tab({
         />
       )}
 
+      {/* ENH-210 — per-checkout hue dot: the at-a-glance "this agent is
+          in a linked worktree" signal (D3-B). Main-checkout tabs have
+          no badge, so they read as the unmarked baseline. */}
+      {worktree && (
+        <span
+          aria-hidden="true"
+          className="shrink-0 w-[7px] h-[7px] rounded-sm"
+          style={{ backgroundColor: projectColorToken(worktree.colorIndex) }}
+        />
+      )}
+
       <TabIcon kind={tab.kind} active={isActive} />
 
       <span className="truncate leading-none not-italic">{tab.title}</span>
+
+      {/* ENH-210 — worktree marker (⎇) in the checkout's hue. Reinforces
+          the dot so the signal survives color-blindness (color is never
+          the only carrier, per the palette rules). */}
+      {worktree && (
+        <span
+          aria-hidden="true"
+          className="shrink-0 not-italic text-[11px] leading-none font-sans"
+          style={{ color: projectColorToken(worktree.colorIndex) }}
+        >
+          ⎇
+        </span>
+      )}
 
       {canClose && (
         <span

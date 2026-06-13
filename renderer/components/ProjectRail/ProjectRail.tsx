@@ -21,18 +21,7 @@
 import { useMemo } from 'react'
 import type { Project, MenuTemplateItem } from '@shared/types'
 import { computeProjectAbbreviations } from '@shared/projects'
-
-/** Map colorIndex (0..5) → CSS var. Mirrors the six `--duo-project-*`
- *  tokens in `renderer/styles/globals.css` (which themselves mirror the
- *  Atelier kernel at `skill/references/duo-atelier.css`). */
-const PROJECT_COLOR_TOKENS = [
-  'var(--duo-project-pine)',
-  'var(--duo-project-harbor)',
-  'var(--duo-project-iris)',
-  'var(--duo-project-plum)',
-  'var(--duo-project-rose)',
-  'var(--duo-project-moss)'
-] as const
+import { PROJECT_COLOR_TOKENS } from '../../projectColors'
 
 /** Phase 3 D12 — live counts of member tabs/terminals per project,
  *  used to build the bulk-close menu label and to confirm before

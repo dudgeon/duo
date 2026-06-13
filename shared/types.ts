@@ -2141,6 +2141,9 @@ export const IPC = {
   BROWSER_RELEASE_AUX_TAB: 'browser:release-aux-tab',
   // ENH-152a — git status probe for the Navigator root chip. renderer → main.
   GIT_STATUS: 'git:status',
+  // ENH-210 — list the worktrees of the repo at cwd. Powers the
+  // navigator Worktrees section. renderer → main.
+  GIT_WORKTREES: 'git:worktrees',
   // ENH-182 — D2 marker probe. Returns true if `dir` contains a
   // CLAUDE.md file or a .claude/ directory (a project marker per
   // the project-as-filter-layer model). Renderer → main; called by

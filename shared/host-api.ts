@@ -1287,6 +1287,10 @@ export interface ElectronGitAPI {
   /** ENH-152a — get a git status snapshot for a directory. Renderer
    *  uses this for the Navigator root chip. */
   status(cwd: string): Promise<GitStatusSnapshot>
+  /** ENH-210 — list the git worktrees of the repo at `cwd` (main
+   *  first, the cwd's worktree flagged `isCurrent`). Powers the
+   *  navigator Worktrees section. Returns [] for non-repos. */
+  worktrees(cwd: string): Promise<WorktreeInfo[]>
   /** ENH-151 — clone a GitHub repo via gh / git. Used by the
    *  File → Clone… modal. */
   clone(req: CloneRequest): Promise<CloneResult>
