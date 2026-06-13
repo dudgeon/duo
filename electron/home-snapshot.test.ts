@@ -110,6 +110,15 @@ async function mkRealDir(rel: string): Promise<string> {
   return abs
 }
 
+/** Make a real dir that QUALIFIES as a project root — a `.git/` dir, the
+ *  same signal the project rail uses (gitRoot || marker). The rollup folds
+ *  nested cwds into the deepest such ancestor. */
+async function mkGitRoot(rel: string): Promise<string> {
+  const abs = await mkRealDir(rel)
+  await fs.mkdir(path.join(abs, '.git'), { recursive: true })
+  return abs
+}
+
 /** Make a real git WORKTREE dir: a `.git` FILE pointing at the main repo's
  *  worktrees subdir. Returns { worktree, mainRepo } absolute paths. */
 async function mkWorktree(mainRel: string, worktreeName: string): Promise<{ worktree: string; mainRepo: string }> {
@@ -135,8 +144,10 @@ describe('rollupProjects — D8 fold contract', () => {
     expect(rolled[0].sessions.map((s) => s.stat.id)).toEqual(['w1'])
   })
 
-  it('folds a nested cwd into the shallowest enclosing real root (prefix fold)', async () => {
-    const outer = await mkRealDir('proj-outer')
+  it('folds a nested cwd into the deepest enclosing real (git/marker) root', async () => {
+    // proj-outer qualifies (git root); the nested cwd is NOT itself a root,
+    // so its session folds up into proj-outer.
+    const outer = await mkGitRoot('proj-outer')
     const nested = await mkRealDir('proj-outer/packages/inner')
     const raw = [
       { encodedDir: 'e1', cwd: outer, sessions: [{ id: 's-outer', mtimeMs: 2, sizeBytes: 1 }] },
@@ -148,9 +159,39 @@ describe('rollupProjects — D8 fold contract', () => {
     expect(rolled[0].sessions.map((s) => s.stat.id).sort()).toEqual(['s-inner', 's-outer'])
   })
 
+  it('folds into the DEEPEST root when nested dirs both qualify (rail-consistent)', async () => {
+    // Both outer and inner are git roots → inner stays its own project
+    // (deepest enclosing), matching the project rail's deepestEnclosingRoot.
+    const outer = await mkGitRoot('mono')
+    const inner = await mkGitRoot('mono/packages/inner')
+    const raw = [
+      { encodedDir: 'e1', cwd: outer, sessions: [{ id: 's-outer', mtimeMs: 2, sizeBytes: 1 }] },
+      { encodedDir: 'e2', cwd: inner, sessions: [{ id: 's-inner', mtimeMs: 1, sizeBytes: 1 }] },
+    ]
+    const rolled = await rollupProjects(raw)
+    expect(rolled.map((r) => r.rootPath).sort()).toEqual([outer, inner].sort())
+  })
+
+  it('a non-qualifying parent cwd does NOT swallow its git-root children (home-dir collapse regression)', async () => {
+    // The bug found in live verify: a one-off session whose cwd was the
+    // home dir made the shallowest-fold collapse EVERY project under it
+    // into one ~/ bucket. With git/marker qualification, the parent does
+    // not qualify, so children stay separate and the parent stands alone.
+    const parent = await mkRealDir('home-like')            // NOT a git root
+    const childA = await mkGitRoot('home-like/repo-a')
+    const childB = await mkGitRoot('home-like/repo-b')
+    const raw = [
+      { encodedDir: 'e0', cwd: parent, sessions: [{ id: 's-home', mtimeMs: 3, sizeBytes: 1 }] },
+      { encodedDir: 'e1', cwd: childA, sessions: [{ id: 's-a', mtimeMs: 2, sizeBytes: 1 }] },
+      { encodedDir: 'e2', cwd: childB, sessions: [{ id: 's-b', mtimeMs: 1, sizeBytes: 1 }] },
+    ]
+    const rolled = await rollupProjects(raw)
+    expect(rolled.map((r) => r.rootPath).sort()).toEqual([parent, childA, childB].sort())
+  })
+
   it('keeps SIBLING roots separate (neither is an ancestor of the other)', async () => {
-    const a = await mkRealDir('sib-a')
-    const b = await mkRealDir('sib-b')
+    const a = await mkGitRoot('sib-a')
+    const b = await mkGitRoot('sib-b')
     const raw = [
       { encodedDir: 'e1', cwd: a, sessions: [{ id: 'sa', mtimeMs: 1, sizeBytes: 1 }] },
       { encodedDir: 'e2', cwd: b, sessions: [{ id: 'sb', mtimeMs: 1, sizeBytes: 1 }] },
@@ -174,7 +215,7 @@ describe('rollupProjects — D8 fold contract', () => {
 
 describe('subPath badges (D8) + hue stability', () => {
   it('tags a nested session with its relative subPath, leaves the root session bare', async () => {
-    const outer = await mkRealDir('badge-outer')
+    const outer = await mkGitRoot('badge-outer')
     const nested = await mkRealDir('badge-outer/sub/dir')
     await writeSession({ encoded: 'eo', uuid: 'root-sess', cwd: outer, ageSec: 10 })
     await writeSession({ encoded: 'en', uuid: 'nested-sess', cwd: nested, ageSec: 20 })
@@ -458,7 +499,11 @@ describe('buildHomeSnapshot — perf + bytes-read bound (85-session tree)', () =
     const elapsed = performance.now() - t0
 
     expect(snap.projects).toHaveLength(17)
-    expect(slurped).toEqual([]) // no .jsonl ever readFile-slurped
-    expect(elapsed).toBeLessThan(100)
+    expect(slurped).toEqual([]) // no .jsonl ever readFile-slurped (the load-bearing bound)
+    // Timing is a soft guard, generous enough to survive full-suite parallel
+    // contention. The rollup probes each unique ancestor dir once (memoized
+    // git-root/marker stat) — real but bounded fs work; the strict assertion
+    // above (zero JSONL slurps) is what actually protects the 270MB-file trap.
+    expect(elapsed).toBeLessThan(500)
   })
 })

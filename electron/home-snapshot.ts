@@ -25,8 +25,10 @@ import path from 'path'
 import os from 'os'
 import {
   ancestors,
+  deepestEnclosingRoot,
   hashColorIndex,
 } from '../shared/projects'
+import { hasMarker } from '../core/projects-service'
 import {
   listTopLevelSessions,
   readSessionHeadMeta,
@@ -158,6 +160,17 @@ async function mainRepoForWorktree(dir: string): Promise<string | null> {
   }
 }
 
+/**
+ * Is `dir` a git repository root? `.git` qualifies whether it is a
+ * directory (normal repo) or a file (worktree / submodule) — mirrors
+ * core/git/scan.ts. One half of the rail's project-qualification gate
+ * (the other is `hasMarker`, CLAUDE.md / .claude). Never throws.
+ */
+async function isGitRoot(dir: string): Promise<boolean> {
+  const stat = await fs.stat(path.join(dir, '.git')).catch(() => null)
+  return !!stat && (stat.isDirectory() || stat.isFile())
+}
+
 // ── enumeration ─────────────────────────────────────────────────────────
 
 interface RawProjectDir {
@@ -234,33 +247,35 @@ export async function rollupProjects(raw: RawProjectDir[]): Promise<RolledProjec
     resolved.push({ encodedDir: r.encodedDir, cwd: r.cwd, root: main ?? r.cwd, sessions: r.sessions })
   })
 
-  // Pass 2 — path-prefix fold into the SHALLOWEST enclosing real root (D8:
-  // "nested cwds fold into the shallowest real root" — the owner-locked
-  // "fold into the OUTERMOST project" rollup choice). The qualifying set is
-  // every resolved root; a nested root collapses into the shallowest root in
-  // the set that is an ancestor of (or equal to) it. ancestors() walks
-  // dir → parent → … → /, so the LAST set-member in that walk is the
-  // shallowest enclosing root. Siblings (neither an ancestor of the other)
-  // resolve to themselves and never merge.
+  // Pass 2 — fold each resolved root into its DEEPEST enclosing real
+  // project root, matching the project rail's model (D8 + the owner's
+  // "fold into the real project" rollup choice).
   //
-  // DELIBERATE DIVERGENCE from shared/projects.ts deepestEnclosingRoot()
-  // (the project rail's rollup, which folds into the DEEPEST/innermost
-  // enclosing root). Home re-entry is a high-level "which project was I in"
-  // surface, so the owner chose outermost; the rail is fine-grained active
-  // work, so it uses innermost. Same monorepo can group differently on the
-  // two surfaces by design — do not "fix" this to deepest without re-opening
-  // ENH-212 D8.
-  const rootSet = new Set(resolved.map((r) => r.root))
-  const shallowestEnclosing = (root: string): string => {
-    let fold = root
-    for (const anc of ancestors(root)) {
-      if (rootSet.has(anc)) fold = anc // keep walking up; last hit wins
+  // EMPIRICAL CORRECTION (2026-06-12, live verify): an earlier draft folded
+  // into the SHALLOWEST enclosing *session* root, with every resolved cwd
+  // its own qualifier. Because the user had at least one session whose cwd
+  // was the home directory, EVERY project collapsed into ~/ — one
+  // "geoffreydudgeon" bucket of 83 sessions, directly violating the
+  // "6–12 projects" goal. The rail never has this problem because it
+  // qualifies against (gitRoot || marker), not arbitrary cwds. Home now
+  // does the same: build the qualifying set from git-root / CLAUDE.md /
+  // .claude ancestors (shared/projects.ts deriveProjects § D2), then fold
+  // via the shared deepestEnclosingRoot(). A cwd with no qualifying
+  // ancestor (e.g. a one-off session in ~/) keeps its own cwd as a
+  // degenerate root so it still appears rather than vanishing.
+  const qualifying = new Set<string>()
+  const probed = new Set<string>() // memo: stat each unique ancestor once
+  await mapLimit(resolved, READ_CONCURRENCY, async (r) => {
+    for (const dir of ancestors(r.root)) {
+      if (probed.has(dir)) continue
+      probed.add(dir) // claim synchronously (before the await) so shared
+      // ancestors across roots are probed exactly once, positive OR negative
+      if (await isGitRoot(dir) || await hasMarker(dir)) qualifying.add(dir)
     }
-    return fold
-  }
+  })
   const byRoot = new Map<string, RolledSession[]>()
   for (const r of resolved) {
-    const fold = shallowestEnclosing(r.root)
+    const fold = deepestEnclosingRoot(r.root, qualifying) ?? r.root
     const list = byRoot.get(fold) ?? []
     for (const s of r.sessions) {
       list.push({ stat: s, encodedDir: r.encodedDir, cwd: r.cwd })
