@@ -1,8 +1,9 @@
 /* ENH-212 — Home re-entry surface styling. Atelier voice throughout: paper
    surfaces, ink text, the warm accent, the six --duo-project-* hues for
    project identity. Layout is responsive via CONTAINER queries sized to the
-   pane (not the window): the two hero panels sit side-by-side when the Home
-   container is >= 720px wide and stack full-width below that. */
+   pane (not the window): the two hero panels sit side-by-side only when the
+   Home container is wide enough for each to be comfortable (≈400px), and
+   stack full-width below that. */
 
 .duo-home {
   /* Container query context (D2) — heroes respond to the PANE width, not
@@ -63,14 +64,21 @@
 /* ── Hero panels ─────────────────────────────────────────────────────── */
 .duo-home-heroes {
   display: grid;
-  grid-template-columns: 1fr; /* stacked by default (narrow container) */
+  grid-template-columns: minmax(0, 1fr); /* stacked by default (narrow container) */
   gap: 20px;
   margin-bottom: 32px;
 }
 
-@container duo-home (min-width: 720px) {
+/* Two-up only when each hero clears ~400px (820px content ≈ 2×400 + 20 gap).
+   Below that they stack full-width — better than crushing both. The columns
+   are minmax(0,1fr), NOT 1fr: a plain 1fr is minmax(auto,1fr), so a hero with
+   a long unbreakable token (file-chip path, snippet word) blows out its
+   min-content and squeezes the other to a sliver (observed 684/281px). The 0
+   floor lets both columns shrink equally to a true 50/50, content clipping/
+   ellipsizing inside instead of stealing width. */
+@container duo-home (min-width: 820px) {
   .duo-home-heroes {
-    grid-template-columns: 1fr 1fr; /* two-up when the pane is wide */
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 }
 
