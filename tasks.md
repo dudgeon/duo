@@ -37,11 +37,13 @@
 
 **Cross-refs.** ENH-208 D4, `extensions/WikilinkSuggestion.ts`, `extensions/createNoteRow.ts`.
 
-### FOLLOWUP-047: Remove the orphaned find-prev window listeners (global ⌘⇧F retired)
+### FOLLOWUP-047: Remove the orphaned find-prev window listeners (global ⌘⇧F retired) + the deliberate browser find-bar asymmetry
 
-**Status:** 🆕 Filed (2026-06-10, out of ENH-208 Phase 2). **Priority:** P3 (dead code, no user impact). **Effort:** XS.
+**Status:** 🆕 Filed (2026-06-10, out of ENH-208 Phase 2; widened 2026-06-12 per owner decision). **Priority:** P3 (dead code, no user impact). **Effort:** XS.
 
 The ENH-208 D22 re-pick retired the GLOBAL ⌘⇧F find-previous dispatch (the chord now opens the vault-search palette; the find bars' input-local ⌘⇧F still works via the matcher's `ctx.inFindBar` yield). The window-event listeners that consumed the old global dispatch remain, now unreachable: `renderer/components/Page/PageTab.tsx` (`duo-page-find-prev`, ~line 1233) and `renderer/components/BrowserRenderer.tsx` (`duo-browser-find-prev`, ~line 199); MarkdownEditor's copy was already removed with the re-pick. Delete the two listeners + any now-unused dispatch constants; grep `find-prev` to confirm nothing else consumes them.
+
+**Deliberate asymmetry (owner decision, 2026-06-12 — DOCUMENT, don't change).** The browser pane's find bar is **⇧Enter-only** for find-previous: it does not set `data-duo-findbar` and has no input-local ⌘⇧F handler, so ⌘⇧F while it's focused opens the vault-search palette (the `ctx.inFindBar` yield never fires — the bar isn't marked). The editor + canvas bars keep BOTH input-local ⌘⇧F and ⇧Enter. This is intentional, not residue of the cleanup above — whoever picks this item up should remove the dead listeners without "fixing" the asymmetry.
 
 **Cross-refs.** ENH-208 D22 re-pick (PRD), `renderer/keyboard/globalShortcuts.ts` (`inFindBar` gate), FOLLOWUP-048.
 

@@ -3567,9 +3567,12 @@ export function App() {
     }
     // ENH-208 (D22) — no findPrev callback anymore: the global ⌘⇧F
     // chord moved to the vault-search palette. Find-previous stays
-    // reachable via each find bar's input-local handlers (⌘⇧F /
-    // ⇧Enter while the bar is focused). The duo-*-find-prev window
-    // events those bars listen for are no longer fired from here.
+    // reachable per bar, but NOT uniformly: the editor + canvas bars
+    // keep input-local ⌘⇧F and ⇧Enter; the BROWSER bar is ⇧Enter-only
+    // (it has no data-duo-findbar / local ⌘⇧F — the chord opens the
+    // palette there; FOLLOWUP-047 records the deliberate asymmetry).
+    // The duo-*-find-prev window events those bars listen for are no
+    // longer fired from here.
   })
 
   // ⌘` menu-accelerator path. The app menu registers the same

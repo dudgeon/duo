@@ -1305,12 +1305,15 @@ export class BrowserManager {
         // letting Chromium do its default reload, which previously
         // also nuked terminal sessions when the menu role was bound).
         key === 'r' ||
-        // ENH-028 — ⌘F / ⌘G / ⌘⇧F = find-in-page. Without forwarding,
-        // Chromium would consume these inside the page (its built-in
-        // find UI doesn't render in WebContentsView, so ⌘F was a
-        // no-op when the user was focused on a page). Renderer's
-        // openFind/findNext/findPrev branches on activeWorking and
-        // dispatches the right window event.
+        // ENH-028 — ⌘F / ⌘G = find-in-page; ENH-208 (D22) — ⌘⇧F =
+        // the vault-search palette. Without forwarding, Chromium
+        // would consume these inside the page (its built-in find UI
+        // doesn't render in WebContentsView, so ⌘F was a no-op when
+        // the user was focused on a page). Renderer's openFind /
+        // findNext branch on activeWorking and dispatch the right
+        // window event; the browser find bar's find-previous is
+        // ⇧Enter-only (the global findPrev chord was retired —
+        // FOLLOWUP-047 documents the asymmetry).
         key === 'f' ||
         key === 'g' ||
         key === '[' ||
