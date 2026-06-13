@@ -22,7 +22,7 @@ import type { HomeSnapshot, HomeProject, HomeSession } from '@shared/types'
 import { GreetingLine } from './GreetingLine'
 import { HeroPanel } from './HeroPanel'
 import { SpineRow } from './SpineRow'
-import { selectHeroes, selectSpine, foldSpine, rootsWithUnattributedLiveClaude } from './homeModel'
+import { selectHeroes, selectSpine, foldSpine, freshestSession } from './homeModel'
 import './Home.css'
 
 /** Heroes show their 3 most-recent sessions inline (§ 1); the snapshot's
@@ -43,16 +43,14 @@ interface HomeViewProps {
   onSnapshotChange?: (snap: HomeSnapshot | null) => void
 }
 
-/** Pending-resume confirm state for the live-but-idle guard (§ 4.3). */
-interface PendingResume {
-  session: HomeSession
-  project: HomeProject
-}
-
 export function HomeView({ isActive, onSnapshotChange }: HomeViewProps) {
   const [snapshot, setSnapshot] = useState<HomeSnapshot | null>(null)
   const [spineExpanded, setSpineExpanded] = useState(false)
-  const [pendingResume, setPendingResume] = useState<PendingResume | null>(null)
+  // Round-2 #4 — which spine projects are expanded to reveal their sessions.
+  const [expandedSpine, setExpandedSpine] = useState<Set<string>>(() => new Set())
+  // A transient notice (e.g. "session runs outside Duo") shown when an action
+  // can't proceed — replaces the old fork-confirm dialog. Null = hidden.
+  const [notice, setNotice] = useState<string | null>(null)
 
   // Guard against a late-resolving fetch landing after unmount / after the
   // surface went inactive. Mirrors the cancelled-flag pattern the editor
@@ -99,53 +97,55 @@ export function HomeView({ isActive, onSnapshotChange }: HomeViewProps) {
     return () => onSnapshotChange?.(null)
   }, [snapshot, onSnapshotChange])
 
-  // ── Click contract (§ 4.3) ─────────────────────────────────────────
-  const unattributedRoots = snapshot
-    ? rootsWithUnattributedLiveClaude(snapshot.projects, snapshot.unattributedLiveCwds)
-    : new Set<string>()
-
-  const doFocus = useCallback((session: HomeSession) => {
-    if (!session.open) return
-    void window.electron.home.sessionAction({
-      op: 'focus',
-      windowId: session.open.windowId,
-      tabId: session.open.tabId
-    })
-  }, [])
-
-  const doResume = useCallback((session: HomeSession, _project: HomeProject) => {
-    void window.electron.home.sessionAction({
-      op: 'resume',
-      uuid: session.uuid,
-      // D6 — resume runs in the SESSION's REAL recorded cwd, carried verbatim
-      // on the snapshot. Do NOT reconstruct from rootPath + subPath: a sibling
-      // git worktree folds into its MAIN repo (root = main repo) with subPath
-      // undefined, so that reconstruction would resume in the main repo and
-      // Claude Code could not locate the worktree-encoded session JSONL.
-      // subPath stays a display-only badge.
-      cwd: session.cwd
-    })
-  }, [])
-
-  // A session click: focus when open, else resume — gated behind a confirm
-  // when the project root hosts an unattributed live claude (§ 4.3).
-  const onActivateSession = useCallback((project: HomeProject, session: HomeSession) => {
-    if (session.open) {
-      doFocus(session)
+  // ── Click contract (§ 4.3 — process-primary, focus-not-fork) ───────────
+  // A session click resolves to ONE of three outcomes by its liveness:
+  //   - open.kind 'duo'      → focus the hosting Duo tab (raise its window)
+  //   - open.kind 'external' → it's live OUTSIDE Duo; we can't focus it, and
+  //                            we must NOT fork it → show a notice, do nothing
+  //   - not open             → resume `claude --resume` in a new tab here.
+  // Main re-checks liveness at click time too (never-fork backstop), so even a
+  // stale snapshot can't fork: a resume that main finds is actually live comes
+  // back !ok and we surface the message instead of spawning a duplicate.
+  const onActivateSession = useCallback((session: HomeSession) => {
+    const open = session.open
+    if (open?.kind === 'duo') {
+      void window.electron.home.sessionAction({ op: 'focus', windowId: open.windowId, tabId: open.tabId })
       return
     }
-    if (unattributedRoots.has(project.rootPath)) {
-      setPendingResume({ session, project })
+    if (open?.kind === 'external') {
+      setNotice('That session is running outside Duo (another terminal or the desktop app). Open it there — Duo won’t start a second copy.')
       return
     }
-    doResume(session, project)
-  }, [doFocus, doResume, unattributedRoots])
+    // Resume — D6: run in the SESSION's REAL recorded cwd (carried verbatim on
+    // the snapshot). Do NOT reconstruct from rootPath + subPath: a sibling git
+    // worktree folds into its MAIN repo with subPath undefined, so that would
+    // resume in the wrong dir. subPath is a display-only badge.
+    void window.electron.home
+      .sessionAction({ op: 'resume', uuid: session.uuid, cwd: session.cwd })
+      .then((res) => {
+        // Main's never-fork re-check refused (it went live in the gap) — tell
+        // the user rather than silently doing nothing.
+        if (res && !res.ok && res.error) setNotice(res.error)
+      })
+  }, [])
 
-  // A spine row click activates the project's latest session.
-  const onActivateProject = useCallback((project: HomeProject) => {
-    const latest = project.sessions[0]
-    if (latest) onActivateSession(project, latest)
-  }, [onActivateSession])
+  // SessionList / Hero / Spine hand us (project, session); the project arg is
+  // display-only here (cwd lives on the session), so we drop it.
+  const onActivateSessionInProject = useCallback(
+    (_project: HomeProject, session: HomeSession) => onActivateSession(session),
+    [onActivateSession]
+  )
+
+  // Round-2 #4 — a spine row click EXPANDS/collapses the project (reveals its
+  // sessions in place); it no longer resumes the latest session.
+  const onToggleSpine = useCallback((project: HomeProject) => {
+    setExpandedSpine((prev) => {
+      const next = new Set(prev)
+      if (next.has(project.rootPath)) next.delete(project.rootPath)
+      else next.add(project.rootPath)
+      return next
+    })
+  }, [])
 
   // Recent-file chip click → open the file in Duo's editor. App.tsx owns
   // the open-file machinery (openFileSmart); we hand it the path via a
@@ -155,11 +155,6 @@ export function HomeView({ isActive, onSnapshotChange }: HomeViewProps) {
     const name = path.slice(path.lastIndexOf('/') + 1) || path
     window.dispatchEvent(new CustomEvent('duo-home-open-file', { detail: { path, name } }))
   }, [])
-
-  const confirmPendingResume = useCallback(() => {
-    if (pendingResume) doResume(pendingResume.session, pendingResume.project)
-    setPendingResume(null)
-  }, [pendingResume, doResume])
 
   // ── Render ──────────────────────────────────────────────────────────
   if (!snapshot) {
@@ -173,10 +168,14 @@ export function HomeView({ isActive, onSnapshotChange }: HomeViewProps) {
   const heroes = selectHeroes(snapshot.projects)
   const spine = selectSpine(snapshot.projects)
   const { visible: visibleSpine, hiddenCount } = foldSpine(spine, spineExpanded)
+  const freshest = freshestSession(snapshot.projects)
 
   return (
     <div className="duo-home" data-duo-tab-kind="home">
-      <GreetingLine greeting={snapshot.greeting} />
+      <GreetingLine
+        greeting={snapshot.greeting}
+        onClickFreshest={freshest ? () => onActivateSession(freshest.session) : undefined}
+      />
 
       {heroes.length > 0 && (
         <div className="duo-home-heroes">
@@ -184,7 +183,7 @@ export function HomeView({ isActive, onSnapshotChange }: HomeViewProps) {
             <HeroPanel
               key={project.rootPath}
               project={project}
-              onActivateSession={onActivateSession}
+              onActivateSession={onActivateSessionInProject}
               onOpenFile={onOpenFile}
             />
           ))}
@@ -197,7 +196,9 @@ export function HomeView({ isActive, onSnapshotChange }: HomeViewProps) {
             <SpineRow
               key={project.rootPath}
               project={project}
-              onActivateProject={onActivateProject}
+              expanded={expandedSpine.has(project.rootPath)}
+              onToggle={onToggleSpine}
+              onActivateSession={onActivateSessionInProject}
             />
           ))}
           {/* D5 — the fold expander. Visible when rows are hidden
@@ -222,32 +223,20 @@ export function HomeView({ isActive, onSnapshotChange }: HomeViewProps) {
         </div>
       )}
 
-      {pendingResume && (
+      {notice && (
         <div className="duo-home-confirm-backdrop" role="dialog" aria-modal="true">
           <div className="duo-home-confirm">
             <p className="duo-home-confirm-title font-serif text-ink">
-              A live Claude is already running here
+              Already running
             </p>
-            <p className="duo-home-confirm-body text-ink-soft">
-              There is a running <strong>claude</strong> in{' '}
-              <span className="duo-home-confirm-path">{pendingResume.project.displayName}</span>{' '}
-              that Duo is not hosting. Resuming this session in a new terminal could
-              fork a session that is already in use.
-            </p>
+            <p className="duo-home-confirm-body text-ink-soft">{notice}</p>
             <div className="duo-home-confirm-actions">
               <button
                 type="button"
-                className="duo-home-confirm-cancel"
-                onClick={() => setPendingResume(null)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
                 className="duo-home-confirm-go"
-                onClick={confirmPendingResume}
+                onClick={() => setNotice(null)}
               >
-                Resume anyway
+                Got it
               </button>
             </div>
           </div>

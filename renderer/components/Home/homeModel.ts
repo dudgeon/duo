@@ -6,7 +6,6 @@
 // these; it never re-derives any of this logic inline.
 
 import type { GreetingData, HomeProject } from '@shared/types'
-import { ancestors } from '@shared/projects'
 
 /** Map colorIndex (0..5) → CSS var. Mirrors the six `--duo-project-*`
  *  tokens in `renderer/styles/globals.css` (which themselves mirror the
@@ -135,6 +134,42 @@ export function greetingLine(greeting: GreetingData): string {
   return `${lead} ${sessions}`
 }
 
+/** Round-2 feedback #3 — the greeting split so the freshest-thread TITLE can
+ *  render as a clickable accent span (focus/resume that session) while the
+ *  rest stays plain serif text. `freshestTitle` is null when the greeting has
+ *  no freshest thread (nothing to make clickable); the component then renders
+ *  `before` alone. Mirrors greetingLine()'s wording exactly so the two never
+ *  drift. Pure + testable. */
+export function greetingParts(greeting: GreetingData): {
+  before: string
+  freshestTitle: string | null
+  after: string
+} {
+  const lead = greeting.firstName
+    ? `Welcome back, ${greeting.firstName} —`
+    : 'Welcome back —'
+
+  if (!greeting.freshest) {
+    // No freshest thread → nothing clickable; reuse the plain line verbatim.
+    return { before: greetingLine(greeting), freshestTitle: null, after: '' }
+  }
+
+  if (greeting.openCount === 0) {
+    return {
+      before: `${lead} all quiet since `,
+      freshestTitle: null,
+      after: ageWords(greeting.freshest.ageMs),
+    }
+  }
+
+  const sessions = `${greeting.openCount} ${plural(greeting.openCount, 'session')} open`
+  return {
+    before: `${lead} ${sessions}; freshest is `,
+    freshestTitle: greeting.freshest.title,
+    after: `, ${ageWords(greeting.freshest.ageMs)}`,
+  }
+}
+
 /** Relative path → display label for a session's subPath badge (D8). Empty
  *  / root subPaths return null so the component can skip the badge. */
 export function subPathLabel(subPath: string | undefined): string | null {
@@ -150,23 +185,17 @@ export function fileChipLabel(path: string): string {
   return i >= 0 ? path.slice(i + 1) : path
 }
 
-/** § 4.3 [V] live-but-idle guard — set of project root paths that enclose
- *  an unattributed live `claude` cwd. A `resume` click on a session whose
- *  project root is in this set (and which has no open-pill) is gated behind
- *  a confirm, so the click can't fork a concurrently-running session that
- *  fails every join leg. A root matches when it equals, or is an ancestor
- *  of, one of `unattributedLiveCwds`. Empty/absent input ⇒ empty set. */
-export function rootsWithUnattributedLiveClaude(
-  projects: HomeProject[],
-  unattributedLiveCwds: string[] | undefined
-): Set<string> {
-  const out = new Set<string>()
-  if (!unattributedLiveCwds || unattributedLiveCwds.length === 0) return out
-  const roots = new Set(projects.map((p) => p.rootPath))
-  for (const cwd of unattributedLiveCwds) {
-    for (const anc of ancestors(cwd)) {
-      if (roots.has(anc)) out.add(anc)
+/** Round-2 feedback #3 — the freshest session across all projects (max
+ *  modifiedAt), returned with its project so the greeting's clickable title
+ *  can focus/resume it. Null when there are no sessions. Pure + testable. */
+export function freshestSession(
+  projects: HomeProject[]
+): { project: HomeProject; session: import('@shared/types').HomeSession } | null {
+  let best: { project: HomeProject; session: import('@shared/types').HomeSession } | null = null
+  for (const project of projects) {
+    for (const session of project.sessions) {
+      if (!best || session.modifiedAt > best.session.modifiedAt) best = { project, session }
     }
   }
-  return out
+  return best
 }

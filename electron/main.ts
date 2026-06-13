@@ -88,9 +88,9 @@ import { WorkspaceFileService } from '../core/workspace-file-service'
 import { WorkspaceHistoryService } from '../core/workspace-history-service'
 import { ActiveWorkspaceService } from '../core/active-workspace-service'
 import { BROWSER_SESSION_PARTITION } from '../core/constants'
-import { ClaudePresenceProbe, probeAllTabs } from '../core/claude-presence'
-import { detectLatestClaudeSession } from './claude-session-tracker'
-import { buildHomeSnapshot, listHomeSessions, joinOpenSessions, type OpenByUuid, type LivePtyForJoin, type PersistedPointer } from './home-snapshot'
+import { ClaudePresenceProbe, mapLiveClaudeOwners } from '../core/claude-presence'
+import { detectLatestClaudeSession, encodeProjectDir, listTopLevelSessions } from './claude-session-tracker'
+import { buildHomeSnapshot, listHomeSessions, attributeOpenSessions, type OpenByUuid, type LiveCwdGroup } from './home-snapshot'
 import { BrowserHistoryService } from '../core/browser-history-service'
 import { ExternalDomainsService } from '../core/external-domains-service'
 import { EventBus, type DuoEventSource } from '../core/event-bus'
@@ -2737,6 +2737,23 @@ function setupIPC(): void {
     if (!/^[0-9a-f-]{36}$/.test(action.uuid)) {
       return { ok: false, error: `uuid must be a UUID, got: ${action.uuid}` }
     }
+    // NEVER-FORK re-check (owner directive 2026-06-13): re-attribute liveness
+    // at CLICK time, not just at snapshot time, so a session that went live in
+    // the gap can't be forked. If it's now live in Duo → focus it instead; if
+    // it's live OUTSIDE Duo → refuse (we can't focus an external terminal, but
+    // we must not spawn a duplicate `claude --resume` against a running one).
+    const liveNow = (await buildHomeOpenJoin()).openByUuid.get(action.uuid)
+    if (liveNow?.kind === 'duo') {
+      const ctx = registry.get(liveNow.windowId)
+      const win = ctx?.window as BrowserWindow | undefined
+      if (win && !win.isDestroyed()) {
+        win.focus()
+        makeSafeSend(() => ctx!.window)(IPC.TERMINAL_ACTIVATE_TAB, { tabId: liveNow.tabId })
+        return { ok: true }
+      }
+    } else if (liveNow?.kind === 'external') {
+      return { ok: false, error: 'That session is running outside Duo — focus it in its own terminal. Duo won’t start a second copy.' }
+    }
     const senderId = BrowserWindow.fromWebContents(event.sender)?.id
     const res = await dispatchNewTabToWindow(senderId, {
       kind: 'shell',
@@ -3498,78 +3515,70 @@ async function getLiveCwdsForIds(
 
 interface HomeOpenJoin {
   openByUuid: OpenByUuid
-  unattributedLiveCwds: string[]
 }
 
 /**
- * Compute the open-session join + the live-but-idle guard cwds. For every
- * live PTY across ALL windows:
- *   1. lsof its child pid's cwd (async execFileAsync variant — NEVER the
- *      blocking execSync at getLiveCwdForPid) [V].
- *   2. Look up the persisting window's terminal that matches that cwd and
- *      carries a lastClaudeSession.id → map that uuid to {windowId, tabId}.
- * Then probeAllTabs (one ps) classifies each live PTY as claude-hosting and
- * surfaces the unattributed live-claude pids; we resolve those pids' cwds
- * (already lsof'd above where they're a Duo PTY; otherwise lsof on demand)
- * into unattributedLiveCwds for the renderer's confirm-gate.
+ * Compute the open-session attribution — PROCESS-primary (ENH-212 round-2).
+ * One `ps` parse finds every live `claude` and the Duo PTY (if any) that owns
+ * it; we lsof each claude's cwd, group by cwd, and (per cwd) read the freshest
+ * session uuids. attributeOpenSessions then marks the N freshest uuids open —
+ * Duo-hosted ones focusable, the rest `external`. Covers Duo tabs, external
+ * terminals, and the desktop app alike — the "ALL running sessions, focus-not-
+ * fork" guarantee. A cwd with no project dir (e.g. the desktop app's internal
+ * agent-mode claude under Application Support) maps to no sessions and is
+ * dropped — so it never raises a false "could fork" warning.
  */
 async function buildHomeOpenJoin(): Promise<HomeOpenJoin> {
   const live = ptyManager.listAllLive()
-  if (live.length === 0) {
-    // Still surface any external (non-Duo) claude as unattributed so an
-    // idle-but-running external session is confirm-gated.
-    const probe = await probeAllTabs([])
-    const cwds = await resolveCwdsForPids(probe.unattributedClaudePids)
-    return { openByUuid: new Map(), unattributedLiveCwds: cwds }
-  }
-
-  // Step 1 — one lsof batch: live PTY → its live cwd + owning window, shaped
-  // for the pure joinOpenSessions (the lsof'd cwd falls back to launch cwd).
   const primaryId = registry.primary()?.id ?? -1
-  const liveForJoin: LivePtyForJoin[] = await Promise.all(
-    live.map(async (s): Promise<LivePtyForJoin> => {
-      const cwd = s.pid ? await getLiveCwdForPidAsync(s.pid) : null
-      return {
-        tabId: s.id,
-        cwd: cwd ?? s.cwd,
-        windowId: s.ownerWindowId >= 0 ? s.ownerWindowId : primaryId,
-      }
-    })
-  )
-
-  // Step 2 — gather each window's PERSISTED terminal pointers (the in-memory
-  // session-state map; read live, never a sidecar — D9). A terminal carries
-  // {cwd, lastClaudeSession.id} but no tab id, so the pure join matches a
-  // live PTY to a persisted terminal by (windowId, cwd) and attributes the
-  // persisted uuid to the LIVE tab id. NO mtime leg (D13).
-  const pointers: PersistedPointer[] = []
-  for (const ctx of registry.all()) {
-    const flat = sessionStateService.loadFlatForWindow(ctx.id)
-    for (const t of flat.terminals) {
-      const uuid = t.lastClaudeSession?.id
-      if (uuid) pointers.push({ windowId: ctx.id, cwd: t.cwd, uuid })
+  // Duo PTY shell pid -> {windowId, tabId} for owner lookup.
+  const ptyByPid = new Map<number, { windowId: number; tabId: string }>()
+  for (const s of live) {
+    if (s.pid != null) {
+      ptyByPid.set(s.pid, { windowId: s.ownerWindowId >= 0 ? s.ownerWindowId : primaryId, tabId: s.id })
     }
   }
-  const openByUuid = joinOpenSessions(liveForJoin, pointers)
 
-  // Step 3 — probeAllTabs: classify the live PTYs + collect unattributed
-  // live-claude pids. A Duo PTY whose tree hosts claude is "owned"; the
-  // unattributed set is every live claude outside those trees.
-  const rootPids = live.map((s) => s.pid).filter((p): p is number => p != null)
-  const probe = await probeAllTabs(rootPids)
-  const unattributedLiveCwds = await resolveCwdsForPids(probe.unattributedClaudePids)
+  // One `ps` parse: every live claude + the owning Duo PTY pid (or null).
+  const claudeProcs = await mapLiveClaudeOwners([...ptyByPid.keys()])
+  if (claudeProcs.length === 0) return { openByUuid: new Map() }
 
-  return { openByUuid, unattributedLiveCwds }
+  // Resolve each live claude's cwd (async lsof variant, never the blocking one).
+  const withCwd = await Promise.all(
+    claudeProcs.map(async (c) => ({ ...c, cwd: await getLiveCwdForPidAsync(c.pid) }))
+  )
+
+  // Group by cwd; a cwd with no ~/.claude/projects dir / no sessions is not a
+  // Home session (desktop-internal claude, a scratch dir) and is skipped.
+  const byCwd = new Map<string, typeof withCwd>()
+  for (const c of withCwd) {
+    if (!c.cwd) continue
+    const list = byCwd.get(c.cwd)
+    if (list) list.push(c)
+    else byCwd.set(c.cwd, [c])
+  }
+
+  const groups: LiveCwdGroup[] = []
+  for (const [cwd, members] of byCwd) {
+    const projectDir = join(homedir(), '.claude', 'projects', encodeProjectDir(cwd))
+    const sessions = await listTopLevelSessions(projectDir)
+    if (sessions.length === 0) continue
+    sessions.sort((a, b) => b.mtimeMs - a.mtimeMs)
+    const duoTabs: Array<{ windowId: number; tabId: string }> = []
+    let externalCount = 0
+    for (const m of members) {
+      const owner = m.ownerPtyPid != null ? ptyByPid.get(m.ownerPtyPid) : undefined
+      if (owner) duoTabs.push(owner)
+      else externalCount++
+    }
+    groups.push({ cwd, duoTabs, externalCount, uuidsByRecency: sessions.map((s) => s.id) })
+  }
+
+  return { openByUuid: attributeOpenSessions(groups) }
 }
 
 /** Resolve a set of pids to their lsof cwds (deduped, best-effort). Used
  *  for the unattributed-live-claude guard. */
-async function resolveCwdsForPids(pids: number[]): Promise<string[]> {
-  if (pids.length === 0) return []
-  const cwds = await Promise.all(pids.map((p) => getLiveCwdForPidAsync(p)))
-  return [...new Set(cwds.filter((c): c is string => !!c))]
-}
-
 // ENH-212 — in-flight coalescing for HOME_SNAPSHOT (N windows × 30s pollers
 // would otherwise fan out N concurrent recomputes). A TRANSIENT shared
 // promise, NOT a cache (D9 clean): set on the first concurrent call, cleared
@@ -3593,7 +3602,6 @@ async function computeHomeSnapshot(limitPerProject?: number): Promise<HomeSnapsh
     return buildHomeSnapshot({
       limitPerProject,
       openByUuid: join.openByUuid,
-      unattributedLiveCwds: join.unattributedLiveCwds,
     })
   })()
   homeSnapshotInflight.set(key, work)
@@ -4250,7 +4258,7 @@ async function sessionOpenForCli(
   }
   const join = await buildHomeOpenJoin()
   const hit = join.openByUuid.get(uuid)
-  if (hit) {
+  if (hit?.kind === 'duo') {
     // FOCUS leg — raise the hosting window + activate its terminal tab.
     const ctx = registry.get(hit.windowId)
     const win = ctx?.window as BrowserWindow | undefined
@@ -4260,6 +4268,11 @@ async function sessionOpenForCli(
     win.focus()
     makeSafeSend(() => ctx!.window)(IPC.TERMINAL_ACTIVATE_TAB, { tabId: hit.tabId })
     return { ok: true, action: 'focus' }
+  }
+  if (hit?.kind === 'external') {
+    // NEVER-FORK: live outside Duo — we can't focus it, but we must not spawn
+    // a duplicate `claude --resume` against a running session.
+    return { ok: false, error: 'session is running outside Duo (another terminal / the desktop app) — Duo will not start a second copy' }
   }
   // RESUME leg — needs a cwd. D15 — addressed window (cliTargetWindowId, e.g.
   // `--window 2`), else the primary window when unstamped — same identity

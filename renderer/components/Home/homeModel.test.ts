@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   greetingLine,
+  greetingParts,
+  freshestSession,
   selectHeroes,
   selectSpine,
   foldSpine,
@@ -9,10 +11,9 @@ import {
   projectHue,
   subPathLabel,
   fileChipLabel,
-  rootsWithUnattributedLiveClaude,
   SPINE_FOLD_AFTER
 } from './homeModel'
-import type { HomeProject, GreetingData } from '@shared/types'
+import type { HomeProject, HomeSession, GreetingData } from '@shared/types'
 
 const MIN = 60_000
 const HOUR = 60 * MIN
@@ -199,28 +200,52 @@ describe('subPathLabel + fileChipLabel', () => {
   })
 })
 
-describe('rootsWithUnattributedLiveClaude (§ 4.3 live-but-idle guard)', () => {
-  const projects = [project('alpha', 100), project('beta', 90)]
-  // project() roots are /Users/x/<name>
-
-  it('empty / absent input → empty set', () => {
-    expect(rootsWithUnattributedLiveClaude(projects, undefined).size).toBe(0)
-    expect(rootsWithUnattributedLiveClaude(projects, []).size).toBe(0)
+describe('greetingParts (round-2 #3 — clickable freshest title)', () => {
+  it('splits N-open greeting around the freshest title', () => {
+    const g: GreetingData = { firstName: 'Geoff', openCount: 2, freshest: { title: 'Fix the bug', ageMs: 12 * MIN } }
+    const parts = greetingParts(g)
+    expect(parts.before).toBe('Welcome back, Geoff — 2 sessions open; freshest is ')
+    expect(parts.freshestTitle).toBe('Fix the bug')
+    expect(parts.after).toBe(', 12 minutes ago')
+    // The reassembled text must match greetingLine() exactly (no drift).
+    expect(parts.before + parts.freshestTitle + parts.after).toBe(greetingLine(g))
   })
 
-  it('exact-root cwd match flags the root', () => {
-    const set = rootsWithUnattributedLiveClaude(projects, ['/Users/x/alpha'])
-    expect(set.has('/Users/x/alpha')).toBe(true)
-    expect(set.has('/Users/x/beta')).toBe(false)
+  it('no freshest → plain line, nothing clickable', () => {
+    const g: GreetingData = { firstName: 'Geoff', openCount: 1, freshest: undefined }
+    const parts = greetingParts(g)
+    expect(parts.freshestTitle).toBeNull()
+    expect(parts.before).toBe(greetingLine(g))
   })
 
-  it('nested cwd flags the enclosing root (ancestor match)', () => {
-    const set = rootsWithUnattributedLiveClaude(projects, ['/Users/x/beta/src/sub'])
-    expect(set.has('/Users/x/beta')).toBe(true)
+  it('0 open with a freshest → title not clickable (the age is the tail, not the thread)', () => {
+    const g: GreetingData = { firstName: 'Geoff', openCount: 0, freshest: { title: 'old thread', ageMs: 3 * DAY } }
+    const parts = greetingParts(g)
+    expect(parts.freshestTitle).toBeNull()
+    expect(parts.before + parts.after).toBe(greetingLine(g))
+  })
+})
+
+describe('freshestSession (round-2 #3)', () => {
+  function sess(uuid: string, modifiedAt: number): HomeSession {
+    return { uuid, title: uuid, titleSource: 'jsonl-firstmsg', modifiedAt, cwd: `/Users/x/${uuid}` }
+  }
+  function projWith(name: string, sessions: HomeSession[]): HomeProject {
+    return { ...project(name, 0), sessions }
+  }
+
+  it('returns the single most-recent session across all projects', () => {
+    const projects = [
+      projWith('alpha', [sess('a1', 100), sess('a2', 300)]),
+      projWith('beta', [sess('b1', 500), sess('b2', 200)]),
+    ]
+    const f = freshestSession(projects)
+    expect(f?.session.uuid).toBe('b1')
+    expect(f?.project.displayName).toBe('beta')
   })
 
-  it('unrelated cwd flags nothing', () => {
-    const set = rootsWithUnattributedLiveClaude(projects, ['/Users/x/gamma/deep'])
-    expect(set.size).toBe(0)
+  it('null when there are no sessions', () => {
+    expect(freshestSession([project('empty', 0)])).toBeNull()
+    expect(freshestSession([])).toBeNull()
   })
 })

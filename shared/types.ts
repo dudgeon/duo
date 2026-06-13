@@ -1569,10 +1569,24 @@ export interface GreetingData {
   freshest?: { title: string; ageMs: number }
 }
 
-/** One session row. `open` is present only when an evidence-gated join
- *  (live PTY cwd + persisted lastClaudeSession pointer) attributes the
- *  session to a live terminal tab. Tab ids are resolved live per
- *  snapshot, never persisted. */
+/** Liveness attribution for a session (D13, ENH-212 round-2 refit).
+ *  Detection is process-primary: a live `claude` process (confirmed via
+ *  `ps`) in a cwd whose freshest JSONL is this session.
+ *   - `duo`: the claude runs inside a Duo terminal tab → the pill FOCUSES
+ *     that tab (raising its window). Tab ids resolved live, never persisted.
+ *   - `external`: the claude runs OUTSIDE Duo (another terminal, the
+ *     desktop app) → Duo can't focus it, and a resume click must REFUSE
+ *     (never fork a running session). This is the "ALL running sessions,
+ *     focus-not-fork" guarantee.
+ *  This refines D13's "no mtime heuristic": liveness comes from the live
+ *  PROCESS (not bare cwd-recency); the JSONL mtime only disambiguates WHICH
+ *  uuid, on a live, recomputed-every-snapshot, non-persisted signal. */
+export type HomeSessionOpen =
+  | { kind: 'duo'; windowId: number; tabId: string }
+  | { kind: 'external' }
+
+/** One session row. `open` is present only when a live `claude` process is
+ *  attributed to this session (see HomeSessionOpen). */
 export interface HomeSession {
   uuid: string
   title: string
@@ -1587,7 +1601,7 @@ export interface HomeSession {
   /** D8 rollup — set when the session's cwd is nested below the rolled-up
    *  project root (worktree / sub-directory); relative path for the badge. */
   subPath?: string
-  open?: { windowId: number; tabId: string }
+  open?: HomeSessionOpen
 }
 
 /** One rolled-up project (D8: worktrees fold into their main repo;
@@ -1615,12 +1629,6 @@ export interface HomeSnapshot {
   /** Sorted by lastActiveAt desc — first two are the hero panels, the
    *  rest the spine stack. */
   projects: HomeProject[]
-  /** ENH-212 § 4.3 [V] live-but-idle guard — cwds of live `claude`
-   *  processes Duo does NOT host (an external Terminal.app claude, a
-   *  detached one). A session whose root path matches one of these but
-   *  has no open-pill resumes behind a confirm step so a click can't fork
-   *  a concurrently-running session. Empty/absent ⇒ no extra guard. */
-  unattributedLiveCwds?: string[]
 }
 
 /** `HOME_SESSION_ACTION` payload — the click contract (§ 4.3). Focus

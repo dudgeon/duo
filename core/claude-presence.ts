@@ -278,3 +278,59 @@ export function probeAllTabs(rootPids: number[]): Promise<ProbeAllTabsResult> {
     })
   })
 }
+
+/** One live `claude` process + the Duo terminal that owns it. */
+export interface LiveClaudeProc {
+  pid: number
+  /** The Duo PTY shell pid whose descendant tree contains this claude, or
+   *  null when the claude runs OUTSIDE any Duo terminal (external terminal,
+   *  the desktop app). Drives the `duo` vs `external` open attribution. */
+  ownerPtyPid: number | null
+}
+
+/**
+ * Find EVERY live `claude` process on the box and attribute each to the Duo
+ * PTY shell that owns it (claude is a descendant of that pid), if any. One
+ * `ps -ax -o pid,ppid,comm` parse + an upward parent walk per claude pid.
+ * `duoPtyPids` is the set of Duo terminal shell pids (PtyManager.listAllLive).
+ *
+ * This is the process-primary liveness signal for Home (ENH-212 round-2): a
+ * running claude is ground truth that a session is live — covering Duo tabs,
+ * external terminals, and the desktop app alike — so the open-pill / never-
+ * fork guarantee no longer depends on the laggy persisted pointer. Never
+ * throws — resolves to [] on `ps` failure.
+ */
+export function mapLiveClaudeOwners(duoPtyPids: number[]): Promise<LiveClaudeProc[]> {
+  const duoSet = new Set(duoPtyPids)
+  return new Promise((resolve) => {
+    const child = spawn('ps', ['-ax', '-o', 'pid,ppid,comm'], { stdio: ['ignore', 'pipe', 'ignore'] })
+    let stdout = ''
+    child.stdout.on('data', (chunk) => { stdout += chunk.toString() })
+    child.on('error', () => resolve([]))
+    child.on('close', () => {
+      const byParent = parsePsByParent(stdout)
+      // child → parent index for the upward walk.
+      const parentOf = new Map<number, number>()
+      for (const [ppid, kids] of byParent) for (const k of kids) parentOf.set(k.pid, ppid)
+      // every live claude pid.
+      const out: LiveClaudeProc[] = []
+      for (const kids of byParent.values()) {
+        for (const k of kids) {
+          const basename = k.comm.split('/').pop() ?? k.comm
+          if (basename !== 'claude') continue
+          // walk up the ancestry; first Duo PTY pid hit owns this claude.
+          let cur: number | undefined = k.pid
+          const seen = new Set<number>()
+          let owner: number | null = null
+          while (cur != null && !seen.has(cur)) {
+            seen.add(cur)
+            if (duoSet.has(cur)) { owner = cur; break }
+            cur = parentOf.get(cur)
+          }
+          out.push({ pid: k.pid, ownerPtyPid: owner })
+        }
+      }
+      resolve(out)
+    })
+  })
+}

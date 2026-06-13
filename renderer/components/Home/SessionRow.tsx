@@ -17,23 +17,30 @@ interface SessionRowProps {
 
 export function SessionRow({ session, onActivate }: SessionRowProps) {
   const sub = subPathLabel(session.subPath)
-  const isOpen = !!session.open
+  const open = session.open
+  const title =
+    open?.kind === 'duo'
+      ? 'Running in a Duo terminal — click to focus it'
+      : open?.kind === 'external'
+        ? 'Running outside Duo (another terminal / the desktop app) — focus it there'
+        : 'Resume this session in a new terminal'
   return (
     <button
       type="button"
       className="duo-home-session-row"
       onClick={() => onActivate(session)}
-      title={
-        isOpen
-          ? 'Open in a live terminal — click to focus it'
-          : 'Resume this session in a new terminal'
-      }
+      title={title}
     >
       <span className="duo-home-session-title">{session.title}</span>
       {sub && <span className="duo-home-subpath-badge">{sub}</span>}
-      {isOpen && (
-        <span className="duo-home-open-pill" aria-label="Open in a live terminal">
+      {open?.kind === 'duo' && (
+        <span className="duo-home-open-pill" aria-label="Running in a Duo terminal">
           open
+        </span>
+      )}
+      {open?.kind === 'external' && (
+        <span className="duo-home-open-pill is-external" aria-label="Running outside Duo">
+          running
         </span>
       )}
       <span className="duo-home-session-age">{ageShort(Date.now() - session.modifiedAt)}</span>

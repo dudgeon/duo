@@ -39,6 +39,7 @@ import type {
   GreetingData,
   HomeProject,
   HomeSession,
+  HomeSessionOpen,
   HomeSnapshot,
 } from '../shared/types'
 
@@ -367,55 +368,52 @@ function detectFirstName(): string | undefined {
 
 // ── snapshot assembly ───────────────────────────────────────────────────
 
-/** Injected open-session evidence (built main-side from the live PTY lsof
- *  + persisted lastClaudeSession pointer join). Keyed by session uuid. */
-export type OpenByUuid = ReadonlyMap<string, { windowId: number; tabId: string }>
+/** Injected open-session evidence (built main-side from the live `claude`
+ *  process scan). Keyed by session uuid → its liveness attribution. */
+export type OpenByUuid = ReadonlyMap<string, HomeSessionOpen>
 
-/** A live PTY for the open-session join: its tab id, the lsof'd live cwd,
- *  and its owning window. */
-export interface LivePtyForJoin {
-  tabId: string
-  /** lsof'd live cwd (falls back to the launch cwd main-side). */
-  cwd: string | null
-  windowId: number
-}
-
-/** A persisted terminal pointer (cwd → the lastClaudeSession.id captured for
- *  the tab that ran at that cwd), grouped per window. */
-export interface PersistedPointer {
-  windowId: number
+/** One cwd that currently hosts ≥1 live `claude` process, with everything
+ *  the pure attributor needs: the Duo tabs running claude there (focusable),
+ *  the count of EXTERNAL live claudes there (non-Duo — focus-not-fork), and
+ *  the cwd's session uuids freshest-first (mtime desc, from a stat-only dir
+ *  scan). The IO that builds this (ps / lsof / dir read) lives in main. */
+export interface LiveCwdGroup {
   cwd: string
-  uuid: string
+  duoTabs: Array<{ windowId: number; tabId: string }>
+  externalCount: number
+  uuidsByRecency: string[]
 }
 
 /**
- * Pure open-session join (D13 — evidence-gated ONLY). A session is "open"
- * iff a LIVE PTY's cwd matches the cwd of a persisted terminal carrying that
- * session's lastClaudeSession.id, in the SAME window. Maps the persisted
- * uuid to the LIVE tab id.
+ * Pure open-session attribution (ENH-212 round-2; D13-refining). Liveness is
+ * PROCESS-primary: each LiveCwdGroup is a cwd with N = duoTabs.length +
+ * externalCount confirmed-live claude processes. The N freshest session uuids
+ * in that cwd are the live sessions - Duo-hosted ones first (so they get
+ * focusable duo pills), the remainder external (focus-not-fork).
  *
- * There is deliberately NO mtime leg: the newest-jsonl-mtime-≤2min heuristic
- * is the banned speculative inference (D13). The only inputs are the live
- * cwd + the captured pointer — no file mtimes are consulted here.
- *
- * Extracted pure (no fs / ps / lsof) so the join contract is unit-testable.
+ * This is NOT the banned D13 heuristic: a uuid is marked open ONLY because a
+ * live claude PROCESS exists in its cwd (not because a tab merely sits in a
+ * cwd with a recent JSONL). The mtime ordering only disambiguates WHICH uuid
+ * among a cwd's sessions, on a live, recomputed-every-snapshot, non-persisted
+ * signal. Pure (no fs / ps / lsof) so the contract is unit-testable.
  */
-export function joinOpenSessions(
-  live: readonly LivePtyForJoin[],
-  pointers: readonly PersistedPointer[]
-): Map<string, { windowId: number; tabId: string }> {
-  // Index persisted pointers by (windowId, cwd) → uuid (first wins).
-  const byWindowCwd = new Map<string, string>()
-  for (const p of pointers) {
-    const key = `${p.windowId} ${p.cwd}`
-    if (!byWindowCwd.has(key)) byWindowCwd.set(key, p.uuid)
-  }
-  const openByUuid = new Map<string, { windowId: number; tabId: string }>()
-  for (const s of live) {
-    if (!s.cwd) continue
-    const uuid = byWindowCwd.get(`${s.windowId} ${s.cwd}`)
-    if (uuid && !openByUuid.has(uuid)) {
-      openByUuid.set(uuid, { windowId: s.windowId, tabId: s.tabId })
+export function attributeOpenSessions(groups: readonly LiveCwdGroup[]): Map<string, HomeSessionOpen> {
+  const openByUuid = new Map<string, HomeSessionOpen>()
+  for (const g of groups) {
+    let i = 0
+    // Duo-hosted claudes claim the freshest uuids -> focusable pills.
+    for (const tab of g.duoTabs) {
+      const uuid = g.uuidsByRecency[i]
+      if (uuid == null) break
+      i++
+      if (!openByUuid.has(uuid)) openByUuid.set(uuid, { kind: 'duo', windowId: tab.windowId, tabId: tab.tabId })
+    }
+    // Remaining live claudes in this cwd run outside Duo -> external.
+    for (let e = 0; e < g.externalCount; e++) {
+      const uuid = g.uuidsByRecency[i]
+      if (uuid == null) break
+      i++
+      if (!openByUuid.has(uuid)) openByUuid.set(uuid, { kind: 'external' })
     }
   }
   return openByUuid
@@ -426,10 +424,9 @@ export interface BuildHomeSnapshotDeps {
   projectsRoot?: string
   /** Sessions surfaced per project (heroes show 3). */
   limitPerProject?: number
-  /** Evidence-gated open-session join (D13). Absent ⇒ no open pills. */
+  /** Process-primary open-session attribution (uuid → duo|external).
+   *  Absent ⇒ no open pills. */
   openByUuid?: OpenByUuid
-  /** Live-but-idle guard cwds (§ 4.3 [V]). Absent ⇒ no extra guard. */
-  unattributedLiveCwds?: string[]
   /** First-name override (tests); production reads os.userInfo(). */
   firstName?: string | undefined
   /** Clock injection for deterministic age math in tests. */
@@ -529,9 +526,6 @@ export async function buildHomeSnapshot(deps: BuildHomeSnapshotDeps = {}): Promi
     generatedAt: now,
     greeting,
     projects,
-    ...(deps.unattributedLiveCwds && deps.unattributedLiveCwds.length > 0
-      ? { unattributedLiveCwds: deps.unattributedLiveCwds }
-      : {}),
   }
 }
 

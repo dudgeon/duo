@@ -24,9 +24,8 @@ import {
   rollupProjects,
   scanRecentFiles,
   buildGreeting,
-  joinOpenSessions,
-  type LivePtyForJoin,
-  type PersistedPointer,
+  attributeOpenSessions,
+  type LiveCwdGroup,
 } from './home-snapshot'
 import { hashColorIndex } from '../shared/projects'
 import type { HomeProject } from '../shared/types'
@@ -358,21 +357,24 @@ describe('buildHomeSnapshot — assembly', () => {
     expect(snap.projects[0].sessionCount).toBe(4) // total preserved for the expander
   })
 
-  it('marks a session open when the injected join attributes it', async () => {
+  it('marks a session open (duo) when the injected attribution hosts it', async () => {
     const proj = await mkRealDir('open-proj')
     await writeSession({ encoded: 'e-open', uuid: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', cwd: proj })
-    const openByUuid = new Map([['aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', { windowId: 2, tabId: 'tab-7' }]])
+    const openByUuid = new Map([['aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', { kind: 'duo', windowId: 2, tabId: 'tab-7' } as const]])
     const snap = await buildHomeSnapshot({ projectsRoot, openByUuid, firstName: undefined })
     const p = snap.projects.find((p) => p.rootPath === proj)!
-    expect(p.sessions[0].open).toEqual({ windowId: 2, tabId: 'tab-7' })
+    expect(p.sessions[0].open).toEqual({ kind: 'duo', windowId: 2, tabId: 'tab-7' })
     expect(snap.greeting.openCount).toBe(1)
   })
 
-  it('surfaces unattributedLiveCwds when supplied', async () => {
-    const proj = await mkRealDir('guard-proj')
-    await writeSession({ encoded: 'e-guard', uuid: 'g1', cwd: proj })
-    const snap = await buildHomeSnapshot({ projectsRoot, unattributedLiveCwds: ['/tmp/external'], firstName: undefined })
-    expect(snap.unattributedLiveCwds).toEqual(['/tmp/external'])
+  it('marks a session open (external) for a live claude running outside Duo', async () => {
+    const proj = await mkRealDir('ext-proj')
+    await writeSession({ encoded: 'e-ext', uuid: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', cwd: proj })
+    const openByUuid = new Map([['eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', { kind: 'external' } as const]])
+    const snap = await buildHomeSnapshot({ projectsRoot, openByUuid, firstName: undefined })
+    const p = snap.projects.find((p) => p.rootPath === proj)!
+    expect(p.sessions[0].open).toEqual({ kind: 'external' })
+    expect(snap.greeting.openCount).toBe(1)
   })
 
   // Regression — the sibling-worktree resume cwd bug (ENH-212 review).
@@ -410,7 +412,7 @@ describe('buildHomeSnapshot — assembly', () => {
     await writeSession({ encoded: 'e-do-1', uuid: 'd1', cwd: proj, ageSec: 20 })
     await writeSession({ encoded: 'e-do-2', uuid: 'd2', cwd: proj, ageSec: 30 })
     await writeSession({ encoded: 'e-do-3', uuid: 'd3', cwd: proj, ageSec: 40 })
-    const openByUuid = new Map([['d3', { windowId: 1, tabId: 'tab-deep' }]])
+    const openByUuid = new Map([['d3', { kind: 'duo', windowId: 1, tabId: 'tab-deep' } as const]])
 
     const snap = await buildHomeSnapshot({ projectsRoot, limitPerProject: 3, openByUuid, firstName: undefined })
     const p = snap.projects.find((p) => p.rootPath === proj)!
@@ -421,46 +423,64 @@ describe('buildHomeSnapshot — assembly', () => {
   })
 })
 
-// ── open-session join (D13) — pointer hit / stale / NO mtime leg ───────────
+// ── process-primary open attribution (ENH-212 round-2) ─────────────────────
 
-describe('joinOpenSessions — D13 evidence-gated', () => {
-  const POINTER: PersistedPointer = { windowId: 1, cwd: '/Users/x/proj', uuid: 'uuid-a' }
-
-  it('pointer HIT — a live PTY at the pointer cwd in the same window attributes the uuid to the LIVE tab id', () => {
-    const live: LivePtyForJoin[] = [{ tabId: 'tab-live', cwd: '/Users/x/proj', windowId: 1 }]
-    const open = joinOpenSessions(live, [POINTER])
-    expect(open.get('uuid-a')).toEqual({ windowId: 1, tabId: 'tab-live' })
+describe('attributeOpenSessions — process-primary', () => {
+  it('one live Duo claude → freshest uuid in its cwd is open (duo, focusable)', () => {
+    const groups: LiveCwdGroup[] = [{
+      cwd: '/Users/x/proj',
+      duoTabs: [{ windowId: 1, tabId: 'tab-live' }],
+      externalCount: 0,
+      uuidsByRecency: ['fresh', 'older', 'oldest'],
+    }]
+    const open = attributeOpenSessions(groups)
+    expect(open.get('fresh')).toEqual({ kind: 'duo', windowId: 1, tabId: 'tab-live' })
+    expect(open.size).toBe(1) // only ONE live claude → only the freshest uuid
   })
 
-  it('STALE pointer — no live PTY at that cwd ⇒ the session is CLOSED (no entry)', () => {
-    // The tab that captured the pointer has been closed; no live PTY matches.
-    const open = joinOpenSessions([], [POINTER])
-    expect(open.has('uuid-a')).toBe(false)
-    expect(open.size).toBe(0)
+  it('one EXTERNAL live claude (no Duo owner) → freshest uuid open as external', () => {
+    const groups: LiveCwdGroup[] = [{
+      cwd: '/Users/x/proj',
+      duoTabs: [],
+      externalCount: 1,
+      uuidsByRecency: ['fresh', 'older'],
+    }]
+    const open = attributeOpenSessions(groups)
+    expect(open.get('fresh')).toEqual({ kind: 'external' })
+    expect(open.size).toBe(1)
   })
 
-  it('live PTY at a DIFFERENT cwd does not match (cwd is part of the evidence)', () => {
-    const live: LivePtyForJoin[] = [{ tabId: 'tab-live', cwd: '/Users/x/other', windowId: 1 }]
-    expect(joinOpenSessions(live, [POINTER]).size).toBe(0)
+  it('N live claudes in one cwd → the N freshest uuids open, Duo-hosted first', () => {
+    // 2 Duo tabs + 1 external = 3 live claudes → top-3 freshest marked open.
+    const groups: LiveCwdGroup[] = [{
+      cwd: '/Users/x/mono',
+      duoTabs: [{ windowId: 1, tabId: 'a' }, { windowId: 1, tabId: 'b' }],
+      externalCount: 1,
+      uuidsByRecency: ['u1', 'u2', 'u3', 'u4'],
+    }]
+    const open = attributeOpenSessions(groups)
+    expect(open.get('u1')).toEqual({ kind: 'duo', windowId: 1, tabId: 'a' })
+    expect(open.get('u2')).toEqual({ kind: 'duo', windowId: 1, tabId: 'b' })
+    expect(open.get('u3')).toEqual({ kind: 'external' })
+    expect(open.has('u4')).toBe(false) // only 3 live processes → u4 stays closed
   })
 
-  it('live PTY in a DIFFERENT window does not match (window is part of the evidence)', () => {
-    const live: LivePtyForJoin[] = [{ tabId: 'tab-live', cwd: '/Users/x/proj', windowId: 2 }]
-    expect(joinOpenSessions(live, [POINTER]).size).toBe(0)
+  it('NO live claude in a cwd → nothing open (the group simply is not present)', () => {
+    // The IO layer drops cwds with no live claude / no project dir, so an empty
+    // group list yields no open sessions — a tab merely existing never opens.
+    expect(attributeOpenSessions([]).size).toBe(0)
   })
 
-  it('NO mtime leg — a live PTY with NO captured pointer is NEVER joined (D13 banned heuristic)', () => {
-    // A live shell sitting in a project cwd whose newest jsonl was touched
-    // seconds ago must NOT be inferred as open: there is no pointer for it.
-    const live: LivePtyForJoin[] = [{ tabId: 'tab-live', cwd: '/Users/x/proj', windowId: 1 }]
-    // Pointers carry NO mtime field — the join has no way to use one.
-    const open = joinOpenSessions(live, [])
-    expect(open.size).toBe(0)
-  })
-
-  it('null live cwd (lsof failed) does not match', () => {
-    const live: LivePtyForJoin[] = [{ tabId: 'tab-live', cwd: null, windowId: 1 }]
-    expect(joinOpenSessions(live, [POINTER]).size).toBe(0)
+  it('fewer sessions than live claudes → marks only what exists, never throws', () => {
+    const groups: LiveCwdGroup[] = [{
+      cwd: '/Users/x/proj',
+      duoTabs: [{ windowId: 1, tabId: 'a' }, { windowId: 1, tabId: 'b' }],
+      externalCount: 0,
+      uuidsByRecency: ['only-one'],
+    }]
+    const open = attributeOpenSessions(groups)
+    expect(open.get('only-one')).toEqual({ kind: 'duo', windowId: 1, tabId: 'a' })
+    expect(open.size).toBe(1)
   })
 })
 
