@@ -1,7 +1,7 @@
 import { app, BrowserWindow, Menu, dialog, ipcMain, nativeImage, nativeTheme, protocol, session, shell, webContents, clipboard } from 'electron'
 import type { MenuItemConstructorOptions, WebContents } from 'electron'
 import * as nodeFs from 'fs/promises'
-import { watch as fsWatchSync } from 'fs'
+import { watch as fsWatchSync, mkdirSync as fsMkdirSync } from 'fs'
 import * as nodePath from 'path'
 import { execSync, execFile } from 'child_process'
 import { promisify } from 'util'
@@ -102,6 +102,7 @@ import { InstalledPacksService } from '../core/installed-packs-service'
 import * as vaultCore from '../core/vault'
 import { IPC, EMPTY_SESSION_STATE } from '../shared/types'
 import { htmlBoilerplate } from '../shared/html-boilerplate'
+import { abbreviateHome } from '../shared/path-display'
 import type {
   BrowserBounds,
   BrowserState,
@@ -2138,6 +2139,9 @@ function setupIPC(): void {
     IPC.VAULT_STUB,
     (_event, { vaultRoot, type, name }: { vaultRoot: string; type: string; name: string }) => {
       try {
+        if (!vaultCore.isVaultRoot(vaultRoot)) {
+          return { ok: false, error: `not a vault (no .obsidian/): ${vaultRoot}` }
+        }
         const result = vaultCore.createEntityStub(vaultRoot, type, name)
         return { ok: true, ...result }
       } catch (e) {
@@ -2147,6 +2151,9 @@ function setupIPC(): void {
   )
   ipcMain.handle(IPC.VAULT_TYPES, (_event, { vaultRoot }: { vaultRoot: string }) => {
     try {
+      if (!vaultCore.isVaultRoot(vaultRoot)) {
+        return { ok: false, error: `not a vault (no .obsidian/): ${vaultRoot}` }
+      }
       const types = vaultCore
         .loadTemplates(vaultRoot)
         .map((t) => t.type)
@@ -2158,29 +2165,17 @@ function setupIPC(): void {
   })
   ipcMain.handle(
     IPC.VAULT_CREATE_TYPE,
-    async (_event, { vaultRoot, type }: { vaultRoot: string; type: string }) => {
+    (_event, { vaultRoot, type }: { vaultRoot: string; type: string }) => {
       try {
         if (!vaultCore.isVaultRoot(vaultRoot)) {
           return { ok: false, error: `not a vault (no .obsidian/): ${vaultRoot}` }
         }
-        const stem = vaultCore.safeName(type).toLowerCase()
-        if (!stem) return { ok: false, error: 'empty type name' }
-        const rel = `templates/${stem}.md`
-        const abs = nodePath.join(vaultRoot, rel)
-        try {
-          await nodeFs.access(abs) // exists → idempotent no-op, like createEntityStub
-        } catch {
-          await nodeFs.mkdir(nodePath.dirname(abs), { recursive: true })
-          // Minimal soft-schema: no folder/filingParent, so fresh stubs of
-          // this type land in the notes/YYYY/MM time-bucket (D19 residue).
-          await nodeFs.writeFile(abs, `---\ntype: ${stem}\n---\n`)
-        }
-        // Return the CANONICAL type name — the caller must stub with `type`
-        // from this result, not its raw filter text: createEntityStub
-        // matches template types strictly, so a raw "Meeting Note" against
-        // the normalized "meeting note" template would dead-end on
-        // `unknown type` forever.
-        return { ok: true, path: rel, type: stem }
+        // createType returns the CANONICAL type name — the caller must stub
+        // with `type` from this result, not its raw filter text:
+        // createEntityStub matches template types strictly, so a raw
+        // "Meeting Note" against the normalized "meeting note" template
+        // would dead-end on `unknown type` forever.
+        return { ok: true, ...vaultCore.createType(vaultRoot, type) }
       } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : String(e) }
       }
@@ -3221,13 +3216,10 @@ function buildRecentWorkspacesSubmenu(): MenuItemConstructorOptions[] {
 // a handful of entries, so it stays on the synchronous menu-build path safely
 // (no BFS, no jank — the reason the old cwd-scan needed async machinery).
 function menuVaultLabel(root: string): string {
-  const home = homedir()
-  // Prefix-guarded abbreviation: '/Users/geoff-backup' must not render as
-  // '~-backup' under home '/Users/geoff' (same fix as the palette's
-  // abbreviateHome helper).
-  const display =
-    root === home ? '~' : root.startsWith(home + '/') ? `~${root.slice(home.length)}` : root
-  return `${nodePath.basename(root)}  —  ${display}`
+  // abbreviateHome is the shared, tested prefix-guarded abbreviation
+  // (also the palette footer's): '/Users/geoff-backup' must not render
+  // as '~-backup' under home '/Users/geoff'.
+  return `${nodePath.basename(root)}  —  ${abbreviateHome(root, homedir())}`
 }
 
 function buildDefaultVaultSubmenu(): MenuItemConstructorOptions[] {
@@ -3236,13 +3228,17 @@ function buildDefaultVaultSubmenu(): MenuItemConstructorOptions[] {
   // yet (it always should be — setDefaultVault records it — but belt + braces).
   const roots = [...new Set([...vaultCore.listKnownVaults(), ...(current ? [current] : [])])].sort()
   const items: MenuItemConstructorOptions[] = [
+    // No explicit rebuildAppMenu() in these click handlers: every write
+    // path (menu radios, Choose Vault… dialog, CLI `duo vault default`)
+    // lands in the pref file, and installDefaultVaultPrefWatcher is the
+    // SINGLE rebuild trigger — an explicit call here would just double the
+    // rebuild ~150ms apart.
     {
       label: 'None',
       type: 'radio',
       checked: current == null,
       click: () => {
         vaultCore.clearDefaultVault()
-        void rebuildAppMenu()
       },
     },
     ...roots.map(
@@ -3254,10 +3250,11 @@ function buildDefaultVaultSubmenu(): MenuItemConstructorOptions[] {
           try {
             vaultCore.setDefaultVault(root)
           } catch {
-            // vault vanished since the menu built — the rebuild below
-            // self-heals (listKnownVaults drops the dead entry)
+            // vault vanished since the menu built — the watcher-driven
+            // rebuild self-heals (listKnownVaults drops the dead entry);
+            // worst case (no write → no event) the radios refresh on the
+            // next focus-driven rebuild.
           }
-          void rebuildAppMenu()
         },
       }),
     ),
@@ -3284,25 +3281,33 @@ async function chooseDefaultVaultViaDialog(): Promise<void> {
   const picked = result.filePaths[0]
   try {
     vaultCore.setDefaultVault(picked)
+    // No rebuildAppMenu() — the pref-file write just made fires the
+    // watcher, the single rebuild trigger (see buildDefaultVaultSubmenu).
   } catch {
+    // No write happened, so no rebuild is needed — nothing changed.
     await dialog.showMessageBox(win, {
       type: 'warning',
       message: 'Not a vault',
       detail: `${picked} has no .obsidian/ directory. Ask Claude to run \`duo vault init\` there first, or pick an existing vault.`,
     })
   }
-  void rebuildAppMenu()
 }
 
 // ENH-208 — `duo vault default <path>` can rewrite the pref from any
 // terminal while the app runs. Watch the pref's directory (the write is an
 // atomic tmp+rename, so watching the file itself would drop the inode) and
 // rebuild the menu so the radios reflect a CLI write without waiting for
-// the next focus-driven rebuild.
+// the next focus-driven rebuild. This watcher is the SINGLE rebuild
+// trigger for ALL pref writers — the menu/dialog click handlers don't call
+// rebuildAppMenu() themselves (that doubled every rebuild ~150ms apart).
 function installDefaultVaultPrefWatcher(): void {
   try {
     const prefDir = nodePath.dirname(vaultCore.DEFAULT_VAULT_FILE)
     const prefName = nodePath.basename(vaultCore.DEFAULT_VAULT_FILE)
+    // Ensure the dir exists before watching: on a fresh machine the first
+    // ever pref write creates it, and fs.watch on a missing dir would
+    // throw — silently losing the single trigger for that first write.
+    fsMkdirSync(prefDir, { recursive: true })
     let timer: NodeJS.Timeout | null = null
     fsWatchSync(prefDir, (_event, name) => {
       if (name !== prefName) return
