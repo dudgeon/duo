@@ -163,3 +163,95 @@ describe('SocketServer — DUO_WINDOW addressing (ENH-191 P5a Tier-3)', () => {
     expect(res.result).toEqual(WINDOWS)
   })
 })
+
+// ENH-212 (Home) — `duo home` / `duo term` / `duo session open` verb routing.
+// Pins each verb to its NavBridge method (show vs refresh share showHome; state
+// pulls getHomeState; term tabs/tab map to the two enumeration/activate methods;
+// session open routes through sessionOpen with the action surfaced) plus the
+// unknown-op guards. Same pure-node dispatch harness as above.
+describe('SocketServer — ENH-212 Home CLI routing', () => {
+  it('`duo home` (default show) and `home refresh` both call showHome', async () => {
+    const d = stubDeps()
+    const showHome = vi.fn(() => ({ ok: true }))
+    const nav = { showHome } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    // Bare `duo home` arrives as { op: 'show' } from the CLI; refresh as { op: 'refresh' }.
+    const r1 = await dispatch(server, 'home', { op: 'show' })
+    const r2 = await dispatch(server, 'home', { op: 'refresh' })
+    expect(r1.ok).toBe(true)
+    expect(r2.ok).toBe(true)
+    expect(showHome).toHaveBeenCalledTimes(2)
+  })
+
+  it('`duo home state` pulls getHomeState and returns its snapshot', async () => {
+    const d = stubDeps()
+    const snap = { greeting: { openCount: 0 }, projects: [] }
+    const getHomeState = vi.fn(async () => snap)
+    const nav = { getHomeState } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'home', { op: 'state' })
+    expect(res.ok).toBe(true)
+    expect(res.result).toEqual(snap)
+    expect(getHomeState).toHaveBeenCalledTimes(1)
+  })
+
+  it('an unknown home op fails cleanly (umbrella try/catch → {ok:false})', async () => {
+    const d = stubDeps()
+    const nav = { showHome: vi.fn(() => ({ ok: true })) } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'home', { op: 'bogus' })
+    expect(res.ok).toBe(false)
+    expect(res.error).toMatch(/Unknown home op/)
+  })
+
+  it('`duo term tabs` enumerates via listTerminalTabs', async () => {
+    const d = stubDeps()
+    const tabs = { tabs: [{ id: 't_a', kind: 'shell', cwd: '/x', title: 'a', active: true }], activeTabId: 't_a' }
+    const listTerminalTabs = vi.fn(async () => tabs)
+    const nav = { listTerminalTabs } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'term', { op: 'tabs' })
+    expect(res.ok).toBe(true)
+    expect(res.result).toEqual(tabs)
+    expect(listTerminalTabs).toHaveBeenCalledTimes(1)
+  })
+
+  it('`duo term tab <id>` activates by id', async () => {
+    const d = stubDeps()
+    const activateTerminalTab = vi.fn(() => ({ ok: true }))
+    const nav = { activateTerminalTab } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'term', { op: 'tab', tabId: 't_b' })
+    expect(res.ok).toBe(true)
+    expect(activateTerminalTab).toHaveBeenCalledWith('t_b')
+  })
+
+  it('`duo term tab` without an id fails cleanly', async () => {
+    const d = stubDeps()
+    const nav = { activateTerminalTab: vi.fn(() => ({ ok: true })) } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'term', { op: 'tab' })
+    expect(res.ok).toBe(false)
+    expect(res.error).toMatch(/requires <id>/)
+  })
+
+  it('`duo session open <uuid>` routes through sessionOpen and surfaces the action', async () => {
+    const d = stubDeps()
+    const sessionOpen = vi.fn(async () => ({ ok: true as const, action: 'focus' as const }))
+    const nav = { sessionOpen } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'session', { op: 'open', uuid: 'u1', cwd: '/p' })
+    expect(res.ok).toBe(true)
+    expect(res.result).toEqual({ ok: true, action: 'focus' })
+    expect(sessionOpen).toHaveBeenCalledWith('u1', '/p')
+  })
+
+  it('`duo session open` without a uuid fails cleanly', async () => {
+    const d = stubDeps()
+    const nav = { sessionOpen: vi.fn() } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'session', { op: 'open' })
+    expect(res.ok).toBe(false)
+    expect(res.error).toMatch(/requires <uuid>/)
+  })
+})

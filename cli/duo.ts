@@ -405,6 +405,12 @@ const VERBS: VerbSpec[] = [
     summary: 'Close a terminal tab — no arg closes the focused one; <n> (1-indexed) closes that specific terminal tab.'
   },
   {
+    name: 'term',
+    group: 'Terminal',
+    args: '<tabs|tab> [<id>]',
+    summary: 'Switch the focused terminal tab. term tabs enumerates the window\'s terminal tabs ([{id, kind, cwd, title, active}]); term tab <id> activates the tab with that id (take the id from "term tabs" — NOT a bare index; "duo tab <n>" owns the browser number space). Honors --window N.'
+  },
+  {
     name: 'claude-return',
     group: 'Terminal',
     args: '[submit|newline]',
@@ -441,8 +447,14 @@ const VERBS: VerbSpec[] = [
   {
     name: 'session',
     group: 'Workspace & projects',
-    args: '<list|resume> [args]',
-    summary: 'Claude session lifecycle. session list [--cwd <path>] lists prior "<uuid>.jsonl" sessions in the CWD ({uuid, title, source, messageCount, modifiedAt}); session resume <tabId> <uuid> spawns "claude --resume <uuid>" in the named tab\'s PTY.'
+    args: '<list|resume|open> [args]',
+    summary: 'Claude session lifecycle. session list [--cwd <path>] lists prior "<uuid>.jsonl" sessions in the CWD ({uuid, title, source, messageCount, modifiedAt}); session resume <tabId> <uuid> spawns "claude --resume <uuid>" in the named tab\'s PTY; session open <uuid> [--cwd <path>] is the Home click contract — focuses the session\'s live tab if open, else spawns "claude --resume <uuid>" in a new tab in the primary window (--cwd required to resume).'
+  },
+  {
+    name: 'home',
+    group: 'Workspace & projects',
+    args: '[show|state|refresh] [--json]',
+    summary: 'Home, the re-entry surface (slot 0). Bare "duo home" (or "home show") focuses/synthesizes Home in the target window; home state [--json] prints what the user sees (greeting + rolled-up projects with their sessions); home refresh forces a snapshot refetch. Honors --window N. No "home close" — Home is non-closable by design.'
   },
 
   // ── Repo & git ──
@@ -2267,7 +2279,7 @@ async function main(): Promise<void> {
         //   duo session resume <tabId> <uuid>
         const sub = rest[0]
         if (!sub) {
-          die('Usage: duo session <list|resume> [args]')
+          die('Usage: duo session <list|resume|open> [args]')
         }
         if (sub === 'list') {
           const cwd = flagValue(rest, '--cwd')
@@ -2279,8 +2291,54 @@ async function main(): Promise<void> {
           const uuid = rest[2]
           if (!tabId || !uuid) die('Usage: duo session resume <tabId> <uuid>')
           out(await send('session', { op: 'resume', tabId, uuid }))
+        } else if (sub === 'open') {
+          // ENH-212 — the Home click contract: focus-if-open, else resume
+          // (in the primary window — D15). --cwd required to resume.
+          const uuid = rest[1]
+          if (!uuid) die('Usage: duo session open <uuid> [--cwd <path>]')
+          const cwd = flagValue(rest, '--cwd')
+          const payload: Record<string, unknown> = { op: 'open', uuid }
+          if (cwd) payload.cwd = cwd
+          out(await send('session', payload))
         } else {
-          die(`Unknown session sub-op: ${sub}. Expected list|resume.`)
+          die(`Unknown session sub-op: ${sub}. Expected list|resume|open.`)
+        }
+        break
+      }
+
+      case 'home': {
+        // ENH-212 — Home re-entry surface CLI parity. Bare "duo home" maps
+        // to show. show/refresh push HOME_SHOW (refresh refetches when Home
+        // is active); state [--json] pulls __duoGetHomeState. --window N is
+        // applied by send()'s envelope (DUO_WINDOW stamp), like every verb.
+        const sub = rest[0] ?? 'show'
+        if (sub === 'show' || sub === 'refresh') {
+          out(await send('home', { op: sub }))
+        } else if (sub === 'state') {
+          // Output is already JSON; --json is accepted for symmetry (no-op).
+          out(await send('home', { op: 'state' }))
+        } else {
+          die(`Unknown home sub-op: ${sub}. Expected show|state|refresh.`)
+        }
+        break
+      }
+
+      case 'term': {
+        // ENH-212 — terminal-tab switching. term tabs enumerates the
+        // window's terminal tabs; term tab <id> activates one by its id
+        // (from "term tabs" — NOT a bare index). Honors --window N.
+        const sub = rest[0]
+        if (!sub) {
+          die('Usage: duo term <tabs|tab> [<id>]')
+        }
+        if (sub === 'tabs') {
+          out(await send('term', { op: 'tabs' }))
+        } else if (sub === 'tab') {
+          const tabId = rest[1]
+          if (!tabId) die('Usage: duo term tab <id>   (id from "duo term tabs")')
+          out(await send('term', { op: 'tab', tabId }))
+        } else {
+          die(`Unknown term sub-op: ${sub}. Expected tabs|tab.`)
         }
         break
       }

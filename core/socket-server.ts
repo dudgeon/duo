@@ -284,6 +284,34 @@ export interface NavBridge {
   /** ENH-191 P5a (Tier-3) — enumerate open windows for `duo windows` +
    *  cross-window addressing. */
   listWindows: () => Array<{ id: number; primary: boolean; focused: boolean; activeWorkspace: import('../shared/types').ActiveWorkspace | null }>
+  /** ENH-212 (Home) — `duo home` / `duo home show` / `duo home refresh`.
+   *  Pushes HOME_SHOW to the addressed window (cliTargetWindowId, else
+   *  primary — identity, never focus). The renderer's App activates Home
+   *  and HomeView refetches (the single Home main→renderer channel, PRD
+   *  § 4.4). Returns a clean error when the window isn't ready. */
+  showHome: () => { ok: boolean; error?: string }
+  /** ENH-212 (Home) — `duo home state [--json]`. Pulls the renderer's
+   *  `window.__duoGetHomeState()` (executeJavaScript) — the same
+   *  always-fresh, no-cache pull pattern as `duo status` / `duo layout`.
+   *  Returns null when Home hasn't fetched a snapshot yet. */
+  getHomeState: () => Promise<unknown>
+  /** ENH-212 — `duo term tabs`. Enumerate the addressed window's terminal
+   *  tabs ([{id, kind, cwd, title, active}]) so `duo term tab <id>` can
+   *  target one by its stable id (NOT a bare index). Reads the renderer's
+   *  `__duoGetLayout().terminal` (always-fresh pull). */
+  listTerminalTabs: () => Promise<unknown>
+  /** ENH-212 — `duo term tab <id>`. Activate the terminal tab with that id
+   *  by pushing TERMINAL_ACTIVATE_TAB to the addressed window. The
+   *  renderer's focusTerminalTab returns false for an unknown id, so a
+   *  stale id is a harmless no-op (never an error from main's side). */
+  activateTerminalTab: (tabId: string) => { ok: boolean; error?: string }
+  /** ENH-212 — `duo session open <uuid> [--cwd <path>]`. The full Home
+   *  click contract, main-side: if a live terminal tab already hosts the
+   *  session (evidence-gated open join), focus it (raising its window);
+   *  else spawn `claude --resume <uuid>` in a new tab in the primary
+   *  window (D15 — no DUO_WINDOW stamp resolves to primary, identity,
+   *  never focus). uuid regex-validated. */
+  sessionOpen: (uuid: string, cwd?: string) => Promise<{ ok: boolean; action?: 'focus' | 'resume'; error?: string }>
 }
 
 /** ENH-195 (review) — canonicalize a path for open-vs-closed routing:
@@ -1916,9 +1944,63 @@ export class SocketServer {
             const r = this.nav.sessionResume(tabId, uuid)
             if (!r.ok) throw new Error(r.error ?? 'resume failed')
             result = { ok: true }
+          } else if (op === 'open') {
+            // ENH-212 — `duo session open <uuid> [--cwd <path>]`. The full
+            // Home click contract main-side: focus-if-open, else spawn
+            // `claude --resume <uuid>` in a new tab in the primary window
+            // (D15). Unlike `resume`, there's no <tabId> — main resolves the
+            // host tab from the live open-session join.
+            const uuid = args['uuid'] as string | undefined
+            const cwd = args['cwd'] as string | undefined
+            if (!uuid) throw new Error('duo session open requires <uuid>')
+            const r = await this.nav.sessionOpen(uuid, cwd)
+            if (!r.ok) throw new Error(r.error ?? 'open failed')
+            result = { ok: true, action: r.action }
           } else {
             // ENH-183 pared 2026-05-25 (Option A): rename + hydrate ops removed.
-            throw new Error(`Unknown session op: ${op}. Expected list|resume.`)
+            throw new Error(`Unknown session op: ${op}. Expected list|resume|open.`)
+          }
+          break
+        }
+
+        case 'home': {
+          // ENH-212 (Home) — re-entry surface CLI parity. Discriminated op:
+          //   show           → focus/synthesize Home (HOME_SHOW push)
+          //   state [--json] → pull the renderer's __duoGetHomeState()
+          //   refresh        → force a refetch (HOME_SHOW; refetches when active)
+          // Bare `duo home` defaults to `show` (the CLI maps it). `--window N`
+          // / DUO_WINDOW honored by main's helpers (identity, never focus).
+          const op = (args['op'] as string | undefined) ?? 'show'
+          if (op === 'show' || op === 'refresh') {
+            const r = this.nav.showHome()
+            if (!r.ok) throw new Error(r.error ?? 'home show failed')
+            result = { ok: true }
+          } else if (op === 'state') {
+            result = await this.nav.getHomeState()
+          } else {
+            throw new Error(`Unknown home op: ${op}. Expected show|state|refresh.`)
+          }
+          break
+        }
+
+        case 'term': {
+          // ENH-212 — terminal-tab switching parity (CLI-COVERAGE § Terminal
+          // P0). Discriminated op:
+          //   tabs     → enumerate the addressed window's terminal tabs
+          //   tab <id> → activate the tab with that id (TERMINAL_ACTIVATE_TAB)
+          // The <id> comes from `tabs`, NOT a bare index — `duo tab <n>` owns
+          // the browser number space.
+          const op = args['op'] as string | undefined
+          if (op === 'tabs') {
+            result = await this.nav.listTerminalTabs()
+          } else if (op === 'tab') {
+            const tabId = args['tabId'] as string | undefined
+            if (!tabId) throw new Error('duo term tab requires <id> (from `duo term tabs`)')
+            const r = this.nav.activateTerminalTab(tabId)
+            if (!r.ok) throw new Error(r.error ?? 'term tab failed')
+            result = { ok: true }
+          } else {
+            throw new Error(`Unknown term op: ${op}. Expected tabs|tab.`)
           }
           break
         }
