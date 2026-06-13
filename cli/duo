@@ -3252,7 +3252,7 @@ function seedFrontmatterLines(template) {
 }
 function captureNote(root, opts = {}) {
   const now = opts.date ?? /* @__PURE__ */ new Date();
-  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
   const titlePart = opts.title ? " " + slugify(opts.title) : "";
   const base = `${stamp}${titlePart}`;
   let rel = import_node_path7.default.join("inbox", `${base}.md`);

@@ -265,9 +265,11 @@ export function seedFrontmatterLines(template: TypeTemplate): string[] {
 
 /** Create an atomic inbox note (D6). Untyped by default; `--template <type>`
  *  stamps that type's frontmatter from the template registry. `text`
- *  becomes the body. The filename is timestamped to the SECOND, and a
- *  collision guard appends ` 2`, ` 3`, … if a note with the same stamp +
- *  title already exists — so rapid same-second/same-title captures never
+ *  becomes the body. The filename is timestamped to the SECOND
+ *  (`YYYY-MM-DD-HHMMSS` — the date and time joined by a hyphen, no space, so
+ *  a no-title capture is a single space-free token; owner ask 2026-06-12),
+ *  and a collision guard appends ` 2`, ` 3`, … if a note with the same stamp
+ *  + title already exists — so rapid same-second/same-title captures never
  *  silently overwrite each other. */
 export function captureNote(
   root: string,
@@ -275,7 +277,7 @@ export function captureNote(
 ): CaptureResult {
   const now = opts.date ?? new Date()
   const stamp =
-    `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ` +
+    `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-` +
     `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
   const titlePart = opts.title ? ' ' + slugify(opts.title) : ''
   const base = `${stamp}${titlePart}`
