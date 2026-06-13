@@ -6,6 +6,11 @@
 // (↑↓ to move, Tab/Enter to select, Esc to dismiss) is handled here;
 // the parent suggestion extension forwards keydown events from TipTap.
 //
+// ENH-208 Phase 2 — items widened from VaultFile-only to a union:
+// SmartToken rows (D21 — `@today` etc., rendered with the resolved
+// date as subtitle) and the CreateNoteItem row (D4 — the final
+// `New: "…" — pick type…` offer on unresolved wikilink queries).
+//
 // Visual register: same Atelier palette as the toolbar / SaveControl.
 // White card with paper-rule border, accent-soft tint on the active
 // row. Mounted via React Portal to document.body so absolute
@@ -16,13 +21,20 @@
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { VaultFile } from '../wikilinkResolver'
+import { isSmartToken, type SmartToken } from '../smartTokens'
+import { isCreateNoteItem, type CreateNoteItem } from '../extensions/createNoteRow'
+
+/** Everything a suggester can put in the list. VaultFile rows insert
+ *  `[[basename]]`; SmartToken rows insert their resolved plain text;
+ *  the CreateNoteItem row inserts the wikilink + opens the type picker. */
+export type SuggestionItem = VaultFile | SmartToken | CreateNoteItem
 
 export interface SuggestionPopoverProps {
-  items: VaultFile[]
+  items: SuggestionItem[]
   /** Called when the user picks an item (Tab/Enter or click). The
    *  parent suggestion extension uses this to actually insert text
    *  into the document. */
-  command: (item: VaultFile) => void
+  command: (item: SuggestionItem) => void
   /** clientRect of the trigger position in viewport coords. Used to
    *  anchor the popover. May be null between caret moves. */
   clientRect: (() => DOMRect | null) | null
@@ -48,7 +60,10 @@ export interface SuggestionPopoverHandle {
   onKeyDown: (event: KeyboardEvent) => boolean
 }
 
-const ITEM_LIMIT_VISIBLE = 8
+// Exported so withCreateNoteRow can pin the D4 create row INSIDE the
+// rendered window — rows past this slice exist for keyboard-wrap but
+// never render, which must not happen to a feature's entry point.
+export const ITEM_LIMIT_VISIBLE = 8
 
 export const SuggestionPopover = forwardRef<SuggestionPopoverHandle, SuggestionPopoverProps>(
   function SuggestionPopover({ items, command, clientRect, loading, visible = true }, ref) {
@@ -105,7 +120,9 @@ export const SuggestionPopover = forwardRef<SuggestionPopoverHandle, SuggestionP
         style={positionStyle(rect)}
         className="duo-suggestion-popover"
         role="listbox"
-        aria-label="Vault file suggestions"
+        // Shape-neutral: the list now also carries @today smart tokens
+        // (D21) and the New:-row action (D4), not just vault files.
+        aria-label="Suggestions"
       >
         {loading && isEmpty && (
           <div className="duo-suggestion-empty">Searching vault…</div>
@@ -115,7 +132,7 @@ export const SuggestionPopover = forwardRef<SuggestionPopoverHandle, SuggestionP
         )}
         {items.slice(0, ITEM_LIMIT_VISIBLE).map((item, idx) => (
           <button
-            key={item.absPath}
+            key={itemKey(item)}
             type="button"
             role="option"
             aria-selected={idx === activeIdx}
@@ -131,10 +148,7 @@ export const SuggestionPopover = forwardRef<SuggestionPopoverHandle, SuggestionP
             }}
             onMouseEnter={() => setActiveIdx(idx)}
           >
-            <span className="duo-suggestion-basename">{item.basename}</span>
-            {item.relPath !== `${item.basename}.${item.ext}` && (
-              <span className="duo-suggestion-relpath">{item.relPath}</span>
-            )}
+            {renderItemContent(item)}
           </button>
         ))}
         {items.length > ITEM_LIMIT_VISIBLE && (
@@ -148,7 +162,49 @@ export const SuggestionPopover = forwardRef<SuggestionPopoverHandle, SuggestionP
   }
 )
 
-function positionStyle(rect: DOMRect): React.CSSProperties {
+/** Stable React key across the three row shapes. */
+function itemKey(item: SuggestionItem): string {
+  if (isSmartToken(item)) return item.id
+  if (isCreateNoteItem(item)) return 'duo-create-note'
+  return item.absPath
+}
+
+/** Row body per item shape. SmartToken rows (D21) carry a small calendar
+ *  glyph + the resolved value as the muted subtitle; the CreateNoteItem
+ *  row (D4) reuses the muted hint styling so it reads as an action, not
+ *  a file. VaultFile rows are unchanged. */
+function renderItemContent(item: SuggestionItem) {
+  if (isSmartToken(item)) {
+    return (
+      <>
+        <span aria-hidden="true">📅</span>
+        <span className="duo-suggestion-basename">{item.label}</span>
+        <span className="duo-suggestion-relpath">{item.detail}</span>
+      </>
+    )
+  }
+  if (isCreateNoteItem(item)) {
+    return (
+      <>
+        <span className="duo-suggestion-relpath">New:</span>
+        <span className="duo-suggestion-basename">&ldquo;{item.query}&rdquo;</span>
+        <span className="duo-suggestion-relpath">— pick type…</span>
+      </>
+    )
+  }
+  return (
+    <>
+      <span className="duo-suggestion-basename">{item.basename}</span>
+      {item.relPath !== `${item.basename}.${item.ext}` && (
+        <span className="duo-suggestion-relpath">{item.relPath}</span>
+      )}
+    </>
+  )
+}
+
+/** Exported for the TypePickerPopover (ENH-208 D4), which anchors at the
+ *  caret rect with the same below-the-caret / flip-above-when-clipped rule. */
+export function positionStyle(rect: DOMRect): React.CSSProperties {
   const POPOVER_HEIGHT_ESTIMATE = 240
   const VIEWPORT_GAP = 8
   const flipAbove = rect.bottom + POPOVER_HEIGHT_ESTIMATE > window.innerHeight - VIEWPORT_GAP

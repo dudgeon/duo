@@ -6,6 +6,12 @@
 // trip is unified (the user can `@`-pick or `[[`-pick; both produce
 // the same source representation).
 //
+// ENH-208 Phase 2 (D21) — smart tokens (`@today` / `@tomorrow` /
+// `@yesterday` / `@now`) rank FIRST in the same popover. They only
+// appear once the query matches a keyword (smartTokensFor returns []
+// on empty query, so a bare `@` stays files-only) and insert their
+// resolved PLAIN TEXT (an ISO date by default), not a wikilink.
+//
 // Sibling to WikilinkSuggestion. Same render lifecycle, same vault
 // index source, different trigger shape + insertion shape.
 
@@ -20,11 +26,13 @@ import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion
 const AT_MENTION_KEY = new PluginKey('atMention')
 import {
   SuggestionPopover,
+  type SuggestionItem,
   type SuggestionPopoverHandle,
   type SuggestionPopoverProps
 } from '../primitives/SuggestionPopover'
 import type { VaultFile } from '../wikilinkResolver'
 import { findAtMentionMatch } from './suggestionMatchers'
+import { isSmartToken, mergeSuggestionItems, smartTokensFor, type SmartToken } from '../smartTokens'
 
 export interface AtMentionOptions {
   getItems: () => VaultFile[]
@@ -60,16 +68,22 @@ export const AtMention = Extension.create<AtMentionOptions>({
 
         items: ({ query }) => {
           const all = opts.getItems()
-          return opts.rank(all, query)
+          // D21 — tokens first, files after, capped at the existing
+          // limit. smartTokensFor is [] for an empty query, so the
+          // bare-`@` list is unchanged.
+          return mergeSuggestionItems(smartTokensFor(query), opts.rank(all, query))
         },
 
         command: ({ editor, range, props }) => {
-          const item = props as VaultFile
+          const item = props as VaultFile | SmartToken
           // `@` inserts the canonical wikilink form so the source on
           // disk reads `[[Foo]]` regardless of which trigger the
           // user opened the popover with. WikilinkDecorations then
-          // renders + click-handles it on the next render.
-          const insert = `[[${item.basename}]]`
+          // renders + click-handles it on the next render. Smart
+          // tokens (D21) instead land their resolved plain text —
+          // same range mechanics (replace the `@query` trigger), no
+          // trailing space, different content.
+          const insert = isSmartToken(item) ? item.insertText : `[[${item.basename}]]`
           editor
             .chain()
             .focus()
@@ -90,7 +104,7 @@ export const AtMention = Extension.create<AtMentionOptions>({
               component = new ReactRenderer(SuggestionPopover, {
                 props: {
                   items: props.items,
-                  command: (item: VaultFile) => props.command(item),
+                  command: (item: SuggestionItem) => props.command(item),
                   clientRect: props.clientRect ?? null,
                   loading: opts.isLoading?.() ?? false,
                   visible: true
@@ -101,7 +115,7 @@ export const AtMention = Extension.create<AtMentionOptions>({
             onUpdate(props: SuggestionProps) {
               component?.updateProps({
                 items: props.items,
-                command: (item: VaultFile) => props.command(item),
+                command: (item: SuggestionItem) => props.command(item),
                 clientRect: props.clientRect ?? null,
                 loading: opts.isLoading?.() ?? false,
                 visible: !dismissed

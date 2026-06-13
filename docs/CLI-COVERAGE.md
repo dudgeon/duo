@@ -194,7 +194,7 @@ are absent and `TERM_PROGRAM` is whatever the parent terminal sets.
 Stage 20's `duo doctor` (D5 — distinguishes "running outside Duo"
 from "running inside Duo but transport failing").
 
-### Vault (ENH-208 Phase 1 — read verbs)
+### Vault (ENH-208 — filesystem-direct verbs)
 
 Work-notes on plain Obsidian-vault conventions. **These verbs read the
 filesystem directly — no socket, no running app** (a deliberate parity
@@ -205,22 +205,27 @@ shared with the renderer in Phase 3).
 
 | Verb | What it does | Output |
 |---|---|---|
-| `duo vault init <folder> [--force]` | Scaffold a vault: `.obsidian/` + starter templates (D19 filing rules) + inbox/registry folders + `bases/processing.base` + README | JSON `{root, created[], warnings[]}` |
+| `duo vault init <folder> [--force]` | Scaffold a vault: `.obsidian/` + starter templates (D19 filing rules) + inbox/registry folders + `bases/processing.base` + README. Records the new vault in `knownVaults` so the Settings picker offers it before it's ever set as default | JSON `{root, created[], warnings[]}` |
 | `duo vault list` | Vaults detected from the cwd (enclosing + nested) | JSON `[{root, name, noteCount}]` |
 | `duo vault schema [--vault p]` | The L0 corpus — types/entities/aliases/props-per-type/observed-enums/templates; a live function over frontmatter, never cached (no-sidecar) | JSON `Corpus` |
 | `duo vault capture [--template t] [--text …] [--title …] [--open]` | Timestamped inbox note (D6); untyped by default, `--template` stamps a type | JSON `{path, absPath, type}` |
 | `duo vault stub <type> <name> [--open]` | Create a typed entity stub from its template, D19-filed; idempotent. CLI twin of the silent-stub `[[New Name]]`⇥ (ENH-208 P3) | JSON `{path, absPath, type, created}` |
-| `duo vault default [<path>\|--clear]` | Read/set the default vault (D11 — CLI twin of the Phase-2 Settings field; `~/.claude/duo/vault.json`). Vault verbs resolve `--vault` → enclosing → default → error | JSON `{defaultVault}` |
-| `duo vault search <query> [--vault p]` | Case-insensitive full-text search (CLI twin of ⌘⇧F, D22) | JSON `[{path, absPath, line, excerpt}]` |
+| `duo vault default [<path>\|--clear]` | Read/set the default vault (D11 — CLI twin of the Settings → Default Vault picker; one pref file, `~/.claude/duo/vault.json`, so CLI writes reflect live in the menu). The value is machine-global (persists across windows/workspaces/restarts); setting one also records it in the file's `knownVaults` list so the picker is window-independent, and `--clear` keeps that list (only the active default is unset). Vault verbs resolve `--vault` → enclosing → default → error. Every output shape echoes `knownVaults` alongside the default | JSON `{defaultVault, knownVaults}` |
+| `duo vault search <query> [--vault p]` | Case-insensitive full-text search (CLI twin of ⌘⇧F, D22). 200-hit default cap; `docMatchIndex` = body-occurrence index (`null` for frontmatter hits) | JSON `[{path, absPath, line, excerpt, docMatchIndex}]` |
 | `duo graph backlinks <note> [--vault p]` | Notes linking to `<note>` (basename-resolved, scans frontmatter + body) | JSON `[{path, absPath, line, excerpt}]` |
 | `duo graph orphans [--vault p]` | Notes with no inbound and no outbound links (a processing work-list) | JSON `string[]` |
 | `duo base lint <file\|--all> [--vault p]` | Validate a base against the corpus (bad types / unresolved `[[entities]]` / off-enum / unknown fns), each with a "did you mean"; advisory, never blocks (D15) | JSON `[{source, findings[]}]` |
 | `duo base render <file\|note> [--out p] [--open]` | Evaluate filters/formulas over live frontmatter → a stamped Duo-owned HTML artifact (D13/D16); `--open` surfaces it as a tab | JSON `{path, sourceHash, bases[]}` |
 
-`duo vault default` ships the Phase-2 default-vault CLI twin (the storage +
-verb fallback; the Settings picker UI is the matching renderer work). Still
-to land in Phase 2: the capture chord (⇧⌘N), `@today` smart tokens, the
-⌘⇧F vault-search palette, and the silent-stub type-picker — all renderer UI.
+The Phase-2 renderer layer shipped (2026-06-10) with UI↔verb twins
+throughout: the Settings → Default Vault picker ↔ `duo vault default`, the
+⇧⌘N quick-capture chord ↔ bare `duo vault capture`, the ⌘⇧F vault-search
+palette ↔ `duo vault search`, and the silent-stub type-picker ↔
+`duo vault stub` (same code path). `@today` smart tokens stay a deliberate
+human-only convenience (agents write dates directly — no verb). One
+deliberate UI-only asymmetry: the type-picker's "+ new type…" writes
+`templates/<type>.md` directly — agents create a type by writing the
+template file; there is no verb.
 
 ---
 
