@@ -153,6 +153,7 @@ for the authoritative usage text.
 | `duo workspace new` | **ENH-167** — **resets the workspace in-place** (parity with File > New Workspace menu). One fresh shell terminal at the live CWD of the previously-frontmost terminal (via `lsof`, spawn-CWD fallback); every working-pane tab dropped except pinned (browser pins restored via `electron/main.ts` § BUG-057 block; file pins via `App.tsx` § `pinAutoOpenRanRef`); active-workspace pointer cleared; window title back to "Duo". CLI skips the GUI Save-current prompt; the File menu item shows the Save / Don't Save / Cancel prompt when anything is open. |
 | `duo session list [--cwd <path>]` | **ENH-183** — list prior Claude `<uuid>.jsonl` sessions in a CWD (defaults to active terminal's cwd). Returns `[{uuid, title, source, messageCount, modifiedAt}]`; `source` ∈ `customTitle`/`aiTitle`/`jsonl-firstmsg`/`uuid` (D5 read ladder). Powers the S1 pills surface in the polymorphic SessionHeader. |
 | `duo session resume <tabId> <uuid>` | **ENH-183** — spawn `claude --resume <uuid>` in the named tab's PTY. Same wire as clicking an S1 pill or S3 Resume button. `<tabId>` resolves through `PtyManager.getCwd` for cwd validation. |
+| `duo session open <uuid> [--cwd <path>]` | **ENH-212 (Home)** — the full Home click contract, main-side: compute the live evidence-gated open-session join (`buildHomeOpenJoin`); if a live terminal tab hosts `<uuid>`, **focus** it (raise window + `TERMINAL_ACTIVATE_TAB`) — never a duplicate spawn; else **resume** `claude --resume <uuid>` in a new tab in the addressed-or-primary window (D15; `--cwd` required to resume). Unlike `session resume`, no `<tabId>` — main resolves the host tab. Returns `{ ok, action: 'focus'\|'resume' }`. |
 <!-- ENH-183 pared 2026-05-25 (Option A): `duo session rename` +
      `duo session hydrate` removed. Resume affordances (S1 pills + S3
      restore offer) remain; force-rename + auto-hydration dropped as
@@ -164,6 +165,8 @@ for the authoritative usage text.
 | `duo project unpin <name\|root>` | **ENH-182 Phase 4** — opposite of pin. Only removes when present (no-op otherwise). |
 | `duo project close <name\|root>` | **ENH-182 Phase 4** — push `PROJECTS_CLOSE_REQUEST` to the renderer, which runs the same `handleCloseProject(root)` pipeline as the right-click "Close N terminals and M tabs" menu — including the `dialog.confirm` gate when any member terminal is `kind: 'claude'`, the atomic membership flush, and the fresh-shell spawn when closing the entire focus would leave the strip empty. |
 | `duo workspace-pill-menu [on\|off\|toggle]` | **ENH-184 (Sprint 23 / v0.8.0)** — toggle ENH-171's workspace-pill click-to-open-menu (default OFF in v0.8.0). Bare read returns cached value (renderer pushes via `WORKSPACE_PILL_MENU_PUSH` on every change); arg writes push `WORKSPACE_PILL_MENU_SET` to renderer, which applies via the existing `setWorkspacePillMenuFlag` helper (localStorage write + in-window event). |
+| `duo home` / `duo home show` / `duo home refresh` | **ENH-212 (Home)** — focus/synthesize **Home** (the permanent slot-0 re-entry surface) in the addressed-or-primary window by pushing `HOME_SHOW` (the single Home main→renderer channel — App activates Home + HomeView refetches). `refresh` shares the push to force a live refetch. Honors `--window N`. No `home close` verb — Home is non-closable by design (see § 3 asymmetries). |
+| `duo home state [--json]` | **ENH-212 (Home)** — pull the renderer's `window.__duoGetHomeState()` (the same always-fresh, no-cache pull pattern as `duo status` / `duo layout`): `{generatedAt, greeting, projects[]}` — rolled-up roots, recent sessions, green-pill open joins, recent-file chips. `null` until Home has fetched once. |
 | `duo --version` / `-v` | Print version |
 | `duo --help` / `-h` | Usage |
 
@@ -237,16 +240,18 @@ Audited against the UI surface as of 2026-04-24. Priorities:
 
 Today the agent can create new terminal tabs (Stage 19c) and close them
 (`duo close-terminal-tab`, FOLLOWUP-020 — shipped). Switching the *focused*
-terminal tab from the CLI is the remaining gap. Since Duo terminals are
-*the place the agent lives*, terminal-tab switching is the parity hole left
-to close.
+terminal tab from the CLI was the remaining gap; **ENH-212 (Home) closed it
+2026-06-12** with `duo term tabs` (enumerate) + `duo term tab <id>` (activate).
+Since Duo terminals are *the place the agent lives*, terminal-tab switching
+was the last parity hole here — now closed (`duo term close`/`duo term write`
+below remain optional follow-ups).
 
 | Verb | UI parallel | Shape |
 |---|---|---|
 | ✅ `duo new-tab [--shell\|--claude] [--cwd <path>] [--cmd <cmd>]` | `⌘T`/`⌘⇧T`, split-button `+` (claude) / `>` (shell) | **Shipped 2026-04-26 (Stage 19c D27).** Returns `{id, kind, cwd, title}`. `--claude` (and the `+` button) auto-launches `claude` after the shell starts; `--shell` opens vanilla. No flag follows the user's most recent manual choice (`localStorage['duo.lastNewTabKind']`, default `'claude'`). `--cmd` pre-types (no Enter) — overlaps intentionally with Backlog `duo tab (was 15d) --cmd`; lock semantics at 15d kickoff. Renamed from `duo term new` per Stage 19 D27. |
-| `duo term tabs` | Visible strip | Returns `[{id, title, cwd, kind, active, cozy}]` (Stage 19 adds `kind`) |
-| `duo term tab <id>` | `⌘1-9`, tab click | Activates the tab |
-| `duo term close <id>` | `⌘W` in terminal focus, × on chip | Refuses the last |
+| ✅ `duo term tabs` | Visible strip | **Shipped 2026-06-12 (ENH-212).** Returns `{tabs: [{id, kind, cwd, title, active}], activeTabId}` — reads the renderer's `__duoGetLayout().terminal` (always-fresh). Honors `--window N`. |
+| ✅ `duo term tab <id>` | `⌘1-9`, tab click | **Shipped 2026-06-12 (ENH-212).** Activates the tab by its `id` (from `duo term tabs` — NOT a bare index; `duo tab <n>` owns the browser number space). Pushes `TERMINAL_ACTIVATE_TAB`; a stale id is a harmless no-op. Closes the documented P0 gap. |
+| `duo term close <id>` | `⌘W` in terminal focus, × on chip | Refuses the last (`duo close-terminal-tab [<n>]` ships the index-based form today) |
 | `duo term write <id> <data>` | User typing | Synthesize input (separate from `--cmd` which is pre-type + no Enter) |
 
 **Note:** current `duo tab <n>` and `duo close <n>` address browser tabs.

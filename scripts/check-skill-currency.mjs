@@ -173,12 +173,16 @@ const SUBCOMMANDS = {
   nav: ['state', 'pin', 'unpin', 'pins'],
   file: ['rename', 'trash'],
   workspace: ['save', 'open', 'list-recent', 'current', 'new'],
-  session: ['list', 'resume'],
+  // ENH-212 (Home) — `duo session open <uuid>` is the Home click contract.
+  session: ['list', 'resume', 'open'],
   project: ['list', 'focus', 'pin', 'unpin', 'close'],
   pack: ['list', 'uninstall'],
   packs: ['list'],
   // ENH-191 P5a (S3c) — `duo window new` opens a second window.
   window: ['new'],
+  // ENH-212 (Home) — re-entry surface + terminal-tab switching.
+  home: ['show', 'state', 'refresh'],
+  term: ['tabs', 'tab'],
 }
 
 // Tokens that legitimately follow `duo <verb>` in prose but are NOT verbs:

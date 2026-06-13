@@ -32,7 +32,10 @@ ACTIVE ones. Home answers "where was I?" for everything else:
 - **Click an open session** → focus its existing terminal tab, raising its
   window if needed. Never duplicates.
 - **Click a closed session** → new terminal tab in the *current* window
-  running `claude --resume <uuid>` in the project root.
+  running `claude --resume <uuid>` in the **session's recorded cwd** (the
+  exact dir the JSONL was written from — the project root for a normal
+  session, the worktree/subdir path for a folded one; resuming at the
+  rolled-up root would point `--resume` at a dir with no transcript).
 - **Responsive**: heroes side-by-side when the pane is wide (≥ ~720px
   container width), stacked full-width when narrow — container queries, sized
   to the pane, not the window.

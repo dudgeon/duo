@@ -255,6 +255,8 @@ empty.
 | `duo gh-auth` | Probe `gh auth status`. Returns `{ ghInstalled, authenticated, host, user, ghNotFound }`. Use before `duo clone` on a private repo to know whether auth needs to happen first. |
 | `duo close-tab` | Close the focused working-pane tab (file/canvas/viewer/browser-mode HTML). CLI parity for the ⌘W chord on the working strip. Pinned-tab gating still routes through a `dialog.confirm`. Returns `{ ok }`. |
 | `duo close-terminal-tab [<n>]` | Close a terminal tab. No arg → focused tab; `<n>` (1-indexed) → that specific terminal tab. Returns `{ ok }`. |
+| `duo term tabs` | Enumerate the window's terminal tabs: `{tabs: [{id, kind, cwd, title, active}], activeTabId}`. Use it to discover the `id` for `duo term tab`. Honors `--window N`. |
+| `duo term tab <id>` | Switch the focused terminal tab to the one with that `id` (from `duo term tabs`). **Not** a bare index — `duo tab <n>` addresses *browser* tabs. Returns `{ ok }`. |
 | `duo window new` | ENH-191 P5a — open a SECOND app window (blank; its own workspace/browser/navigator). Same as File → New Window (⌥⌘N). Gated on "Allow Multiple Windows" (Settings, default on); exits non-zero when off. CLI parity for the menu item. |
 | `duo windows` | ENH-191 P5a (Tier-3) — list open windows `[{id, primary, focused, activeWorkspace}]`. Pair with the global `--window N` flag (or a terminal's auto-stamped `DUO_WINDOW`) to target one: `duo --window 2 dom body`. |
 | `duo workspace save [<path>] [--name <n>] [--save-as]` | Write the open tabs + terminals + browser tabs to a `.duo-workspace` file. `<path>` omitted writes to the active workspace (Save); with `<path>` (Save As). `--name` overrides the human-readable name. Autosave mirror keeps the file in sync — no extra writes needed. Returns `{ path, name }`. |
@@ -264,6 +266,9 @@ empty.
 | `duo workspace new` | **Resets the workspace in-place.** One fresh shell terminal at the live CWD of the previously-frontmost terminal; every working-pane tab dropped except pinned (file + browser pins survive); active-workspace pointer cleared. CLI skips the GUI Save-current prompt. Returns `{ ok }`. |
 | `duo session list [--cwd <path>]` | List prior Claude sessions in a CWD. Returns `[{uuid, title, source, messageCount, modifiedAt}]`. `source` ∈ `customTitle`/`aiTitle`/`jsonl-firstmsg`/`uuid`. Default cwd = active terminal's. Use this to find a session UUID to resume. |
 | `duo session resume <tabId> <uuid>` | Spawn `claude --resume <uuid>` in the named tab. Get `<tabId>` from `duo layout`'s `terminal.tabs[].id`. |
+| `duo session open <uuid> [--cwd <path>]` | The Home click contract: if a live terminal tab already hosts `<uuid>`, **focus** it (raising its window) — never duplicates; else **resume** it in a new tab in the primary window (`--cwd` required to resume). Returns `{ ok, action: 'focus'\|'resume' }`. |
+| `duo home` / `duo home show` / `duo home refresh` | Focus/synthesize the Home re-entry surface (slot 0) in the target window; `refresh` forces a live snapshot refetch. Honors `--window N`. No `home close` — Home is non-closable. |
+| `duo home state [--json]` | Print what Home currently shows: `{generatedAt, greeting, projects[]}` (rolled-up project roots with their recent sessions + open/`green-pill` joins). `null` until Home has fetched once. |
 <!-- `duo session rename` + `duo session hydrate` were removed. Use
      Claude's own `/rename <title>` slash command inside the TUI. -->
 | `duo project list` | JSON snapshot of the project rail: derived projects + focused root + per-project member counts. Run this first to discover project names before any other `duo project` verb. |
