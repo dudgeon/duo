@@ -4103,7 +4103,7 @@ function lintVault(root, target) {
 }
 
 // cli/duo.ts
-var VERSION = true ? "0.11.0" : "0.0.0-dev";
+var VERSION = true ? "0.10.3" : "0.0.0-dev";
 var VERBS = [
   // ── Browser & tabs ──
   {
