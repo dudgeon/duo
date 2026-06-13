@@ -15,7 +15,9 @@
 
 **EXPAND-1 — RESOLVED (owner ask 2026-06-13, fix commit this turn).** Opening/resuming/forking/focusing a session whose terminal lives in a fully-collapsed terminal pane (`splitPct === 0`) left the session invisible. New `revealTerminalIfCollapsed(windowId)` helper (terminal analog of `revealMainPaneIfCollapsed`) reads `__duoGetLayout()` and, only when `splitPct === 0`, expands to 50/50. Wired fire-and-forget into all 5 Home session legs (3 in `HOME_SESSION_ACTION`: focus / duo-focus / resume-fork; 2 in `sessionOpenForCli`: focus / resume-fork). Idempotent; no-op unless collapsed.
 
-**→ Next: focused re-walk of FORK-1 + EXPAND-1 (rev2) → propose `cut-version`.**
+**FORK-1 + EXPAND-1 agent-verified (2026-06-13, owner: "verify yourself; these are both trivial").** FORK-1: 3 passing unit tests pin the exact command strings + `action:'fork'` on a real external session + never-fork refuse (the `--fork-session` flag scrolls under Claude's alt-screen TUI at runtime, so it's proven by action-return ∘ unit test, not eyeballed). EXPAND-1: real collapse (splitPct 0) → resume leg (0→50 + new tab) and focus leg (0→50). Walk-1's other 5 items already PASSed. No re-walk needed.
+
+**→ Next: propose `cut-version` (v0.10.3).**
 
 **Live verification (2026-06-12, dev build, DOM/CLI probes — computer-use can't reach the worktree Electron).** ✅ Home tab synthesized at slot 0 (leftmost, `kind:'home'`, `duo://home`); ✅ greeting renders with briefing data ("…N sessions open; freshest is …"); ✅ two hero panels with REAL projects (duo 68 sess / stoop 8 sess) + recency + counts; ✅ 7 spine rows; ✅ open-session join detected a live session (open-pill); ✅ real transcript snippet; ✅ PinnedNav slot-0 Home row (visible, non-removable); ✅ close-refusal + empty context-menu for home (source-verified `canClose=false`, Pin/Move-to-split gated); ✅ `duo home show` / `home state --json` (9 projects) / `term tabs`; ✅ **`duo session open <uuid>` resume → new shell tab in the current window at the SESSION's recorded cwd running `claude --resume`** (worktree-cwd fix confirmed live).
 
