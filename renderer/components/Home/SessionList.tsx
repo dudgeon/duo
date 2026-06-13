@@ -7,7 +7,7 @@
 // The session-click contract is owned by the parent (HomeView); this list
 // reports clicks via onActivateSession.
 
-import { useCallback, useState } from 'react'
+import { Fragment, useCallback, useState } from 'react'
 import type { HomeProject, HomeSession } from '@shared/types'
 import { SessionRow } from './SessionRow'
 
@@ -17,13 +17,12 @@ const EXPANDER_PAGE = 20
 interface SessionListProps {
   project: HomeProject
   onActivateSession: (project: HomeProject, session: HomeSession) => void
-  /** uuid of the session currently linked-highlighted (hero snippet hover). */
-  linkedUuid?: string | null
-  /** Report a row hover up so the parent can highlight the linked snippet. */
-  onHoverSession?: (uuid: string | null) => void
+  /** round-2 #B — the last-response snippet, rendered as an indented reply
+   *  directly beneath its source session row (heroes only; spine passes none). */
+  snippet?: { sessionUuid: string; text: string }
 }
 
-export function SessionList({ project, onActivateSession, linkedUuid, onHoverSession }: SessionListProps) {
+export function SessionList({ project, onActivateSession, snippet }: SessionListProps) {
   const [expanded, setExpanded] = useState(false)
   const [extra, setExtra] = useState<HomeSession[]>([])
   const [loading, setLoading] = useState(false)
@@ -63,15 +62,38 @@ export function SessionList({ project, onActivateSession, linkedUuid, onHoverSes
   return (
     <>
       <div className="duo-home-sessions">
-        {project.sessions.map((s) => (
-          <SessionRow
-            key={s.uuid}
-            session={s}
-            onActivate={(session) => onActivateSession(project, session)}
-            linked={linkedUuid === s.uuid}
-            onHover={onHoverSession}
-          />
-        ))}
+        {project.sessions.map((s) => {
+          const reply = snippet && snippet.sessionUuid === s.uuid ? snippet : null
+          const row = (
+            <SessionRow
+              session={s}
+              onActivate={(session) => onActivateSession(project, session)}
+              hasReplyBelow={!!reply}
+            />
+          )
+          // round-2 #B — wrap the source row + its snippet reply in one
+          // connected group (shared tint), the reply indented with a rail.
+          return reply ? (
+            <div key={s.uuid} className="duo-home-session-group">
+              {row}
+              <div className="duo-home-snippet-reply">
+                <span className="duo-home-snippet-reply-rail" aria-hidden="true" />
+                <button
+                  type="button"
+                  className="duo-home-hero-snippet"
+                  onClick={() => onActivateSession(project, s)}
+                  title={`Last response in “${s.title}” — click to open it`}
+                  aria-label={`Last response in ${s.title}; click to open the session`}
+                >
+                  <span className="duo-home-hero-snippet-label">Last</span>
+                  <span className="duo-home-hero-snippet-text">{reply.text}</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <Fragment key={s.uuid}>{row}</Fragment>
+          )
+        })}
         {expanded &&
           extra.map((s) => (
             <SessionRow

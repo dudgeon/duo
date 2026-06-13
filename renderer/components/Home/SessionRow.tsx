@@ -13,14 +13,13 @@ import { ageShort, subPathLabel } from './homeModel'
 interface SessionRowProps {
   session: HomeSession
   onActivate: (session: HomeSession) => void
-  /** Highlighted because the hero snippet (its last response) is linked to
-   *  this session and is currently hovered (round-2 feedback). */
-  linked?: boolean
-  /** Report hover so the parent can highlight the linked snippet in turn. */
-  onHover?: (uuid: string | null) => void
+  /** True when this row is the source of the snippet reply rendered directly
+   *  beneath it (round-2 #B) — squares its bottom corners so the row + reply
+   *  read as one connected unit. */
+  hasReplyBelow?: boolean
 }
 
-export function SessionRow({ session, onActivate, linked = false, onHover }: SessionRowProps) {
+export function SessionRow({ session, onActivate, hasReplyBelow = false }: SessionRowProps) {
   const sub = subPathLabel(session.subPath)
   const open = session.open
   const title =
@@ -32,10 +31,8 @@ export function SessionRow({ session, onActivate, linked = false, onHover }: Ses
   return (
     <button
       type="button"
-      className={`duo-home-session-row${linked ? ' is-linked' : ''}`}
+      className={`duo-home-session-row${hasReplyBelow ? ' has-reply-below' : ''}`}
       onClick={() => onActivate(session)}
-      onMouseEnter={() => onHover?.(session.uuid)}
-      onMouseLeave={() => onHover?.(null)}
       title={title}
     >
       <span className="duo-home-session-title">{session.title}</span>
