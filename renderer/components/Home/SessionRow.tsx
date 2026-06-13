@@ -26,7 +26,7 @@ export function SessionRow({ session, onActivate, hasReplyBelow = false }: Sessi
     open?.kind === 'duo'
       ? 'Running in a Duo terminal — click to focus it'
       : open?.kind === 'external'
-        ? 'Running outside Duo (another terminal / the desktop app) — click to resume a second copy here'
+        ? 'Running outside Duo (another terminal / the desktop app) — click to fork a second copy here'
         : 'Resume this session in a new terminal'
   return (
     <button

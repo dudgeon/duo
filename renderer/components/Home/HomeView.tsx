@@ -237,12 +237,13 @@ export function HomeView({ isActive, onSnapshotChange }: HomeViewProps) {
         <div className="duo-home-confirm-backdrop" role="dialog" aria-modal="true">
           <div className="duo-home-confirm">
             <p className="duo-home-confirm-title font-serif text-ink">
-              This session is running outside Duo
+              Fork this session?
             </p>
             <p className="duo-home-confirm-body text-ink-soft">
-              It’s live in another terminal or the Claude desktop app, so Duo can’t
-              focus it. Resuming here starts a <strong>second copy</strong> — both
-              would write to the same session and could conflict.
+              It’s already running outside Duo (another terminal or the Claude
+              desktop app), so Duo can’t focus it. Forking starts a{' '}
+              <strong>second copy</strong> — both would write to the same
+              session and could conflict.
             </p>
             <div className="duo-home-confirm-actions">
               <button
@@ -261,7 +262,7 @@ export function HomeView({ isActive, onSnapshotChange }: HomeViewProps) {
                   doResume(s, true)
                 }}
               >
-                Resume anyway
+                Fork session
               </button>
             </div>
           </div>
