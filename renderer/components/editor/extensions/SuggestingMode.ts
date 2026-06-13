@@ -128,8 +128,8 @@ export const SuggestingMode = Extension.create<unknown, SuggestingModeStorage>({
               const finalStart = rest.map(newStart, 1)
               const finalEnd = rest.map(newEnd, -1)
               if (finalEnd <= finalStart) return
-              // BUG (inline-code) — skip if the inserted text spans a
-              // node/mark we can't represent a CriticMarkup token in.
+              // BUG (inline-code) — skip if the inserted text lives
+              // somewhere we can't represent a CriticMarkup token in.
               // Two cases:
               //   • fenced `codeBlock` nodes (CM tokens don't belong in
               //     fenced code), and
@@ -141,18 +141,31 @@ export const SuggestingMode = Extension.create<unknown, SuggestingModeStorage>({
               //     character (caret moves, text vanishes, nothing
               //     tracked). Mirror the fenced-code exclusion: bail so
               //     the native insert runs untracked.
+              // The inline-code skip applies only when the ENTIRE
+              // inserted range is code-marked. For MIXED ranges (a paste
+              // of plain text + a code span) we stamp unconditionally:
+              // PM's Mark.addToSet enforces the code mark's
+              // `excludes: '_'` per text node, so the insertion mark
+              // sticks to the plain fragments and is refused on the
+              // code-marked ones — exactly the tracking we want.
               let skip = false
+              let sawCodeText = false
+              let sawNonCodeText = false
               newState.doc.nodesBetween(finalStart, finalEnd, (node) => {
                 if (node.type.name === 'codeBlock') {
                   skip = true
                   return false
                 }
-                if (node.isText && node.marks.some(m => m.type.name === 'code')) {
-                  skip = true
-                  return false
+                if (node.isText) {
+                  if (node.marks.some(m => m.type.name === 'code')) {
+                    sawCodeText = true
+                  } else {
+                    sawNonCodeText = true
+                  }
                 }
                 return !skip
               })
+              if (sawCodeText && !sawNonCodeText) skip = true
               if (skip) return
               tr.addMark(finalStart, finalEnd, insMark.create({ author }))
               modified = true
@@ -190,6 +203,7 @@ export const SuggestingMode = Extension.create<unknown, SuggestingModeStorage>({
  *   - No previous/next character (boundary) → return false (let
  *     default delete handle node-merging logic).
  */
+// Exported for tests only — not part of the extension's public API.
 export function wrapAsDeletionWithView(
   ext: { storage: SuggestingModeStorage },
   view: EditorView,
@@ -229,6 +243,11 @@ export function wrapAsDeletionWithView(
 
   if (from !== to) {
     // Inline-code guard: let the native delete handle code spans.
+    // Deliberate disposition — a selection PARTIALLY overlapping a code
+    // span (straddling its boundary) also trips this guard, so the
+    // WHOLE range falls through to the native (untracked) delete. A
+    // half-tracked deletion (struck-through plain text next to silently
+    // removed code) would be semantically confusing.
     if (CodeMark && state.doc.rangeHasMark(from, to, CodeMark)) return false
     // Non-empty selection. Wrap with DeletionMark + collapse cursor
     // to the end of the marked range.
