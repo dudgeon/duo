@@ -1,8 +1,10 @@
 // ENH-208 Phase 2 (D22) — vault-search palette helper tests.
 //
 // Mirrors TabSearchPalette.test.ts's scope: the pure helpers (per-file
-// grouping, excerpt match segmentation, home abbreviation) are the
-// pieces worth unit-testing without React rendering. The overlay shell
+// grouping, excerpt match segmentation) are the pieces worth
+// unit-testing without React rendering. (Home abbreviation moved to
+// shared/path-display.ts — tested there — when the Settings → Default
+// Vault menu labels started sharing it.) The overlay shell
 // (debounce orchestration, stale-response guard, focus management)
 // stays covered by smoke walks. The goto-match occurrence index is NOT
 // computed here anymore — core/vault search emits docMatchIndex per
@@ -11,7 +13,7 @@
 // thing.
 
 import { describe, it, expect } from 'vitest'
-import { groupHitsByFile, segmentExcerpt, abbreviateHome } from './VaultSearchPalette'
+import { groupHitsByFile, segmentExcerpt } from './VaultSearchPalette'
 import type { VaultSearchHitDto } from '@shared/host-api'
 
 const hit = (path: string, line: number, excerpt: string): VaultSearchHitDto => ({
@@ -120,29 +122,5 @@ describe('segmentExcerpt (ENH-208 excerpt match highlight)', () => {
 
   it('returns the excerpt untouched for an empty query', () => {
     expect(segmentExcerpt('anything', '')).toEqual([{ text: 'anything', match: false }])
-  })
-})
-
-describe('abbreviateHome (ENH-208 footer vault label)', () => {
-  it('abbreviates a path under home', () => {
-    expect(abbreviateHome('/Users/g/vault', '/Users/g')).toBe('~/vault')
-  })
-
-  it('abbreviates home itself to ~', () => {
-    expect(abbreviateHome('/Users/g', '/Users/g')).toBe('~')
-  })
-
-  it('does not abbreviate a sibling that merely shares the prefix string', () => {
-    // '/Users/gg' starts with '/Users/g' as a string but is NOT under
-    // that home dir — the separator check prevents the false positive.
-    expect(abbreviateHome('/Users/gg/vault', '/Users/g')).toBe('/Users/gg/vault')
-  })
-
-  it('leaves paths outside home untouched', () => {
-    expect(abbreviateHome('/tmp/vault', '/Users/g')).toBe('/tmp/vault')
-  })
-
-  it('passes through unchanged when home is empty', () => {
-    expect(abbreviateHome('/Users/g/vault', '')).toBe('/Users/g/vault')
   })
 })

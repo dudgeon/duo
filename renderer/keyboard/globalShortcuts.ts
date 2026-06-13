@@ -541,3 +541,17 @@ export function isInAnyTextInput(doc: Document): boolean {
   if (tag === 'INPUT' || tag === 'TEXTAREA') return true
   return false
 }
+
+/**
+ * ENH-208 (D22 re-pick) — detect whether focus sits inside a find bar
+ * (`[data-duo-findbar]`: the editor's FindBar and the canvas
+ * PageFindBar set the attribute). This is the derivation behind
+ * `ctx.inFindBar`, which makes ⌘⇧F yield to the bar's input-local
+ * find-previous instead of opening the vault-search palette. The
+ * attribute name is a cross-file contract — pinned by
+ * findBarContext.test.ts.
+ */
+export function isInFindBar(doc: Document): boolean {
+  const active = doc.activeElement as HTMLElement | null
+  return !!active?.closest('[data-duo-findbar]')
+}

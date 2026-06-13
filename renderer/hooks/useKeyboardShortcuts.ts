@@ -21,6 +21,7 @@ import {
   matchGlobalShortcut,
   isInEditableSurface,
   isInAnyTextInput,
+  isInFindBar,
   type ShortcutId
 } from '../keyboard/globalShortcuts'
 import { cycleNext } from '../keyboard/tabCycle'
@@ -426,7 +427,7 @@ export function useKeyboardShortcuts(opts: Options) {
         // HERE — the bar can't defend itself with stopPropagation.
         // Only this document path can have find-bar focus; the
         // iframe/WCV forwarders' focus lives inside their surfaces.
-        inFindBar: !!(document.activeElement as HTMLElement | null)?.closest('[data-duo-findbar]')
+        inFindBar: isInFindBar(document)
       }
       const match = matchGlobalShortcut(e, ctx)
       if (!match) return

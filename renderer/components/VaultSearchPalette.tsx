@@ -23,6 +23,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { VaultSearchHitDto } from '@shared/host-api'
+import { abbreviateHome } from '@shared/path-display'
 
 export interface VaultSearchPick {
   hit: VaultSearchHitDto
@@ -111,17 +112,6 @@ export function segmentExcerpt(excerpt: string, query: string): ExcerptSegment[]
     segments.push({ text: excerpt.slice(idx + query.length), match: false })
   }
   return segments
-}
-
-/**
- * Home-abbreviate a path for the footer ('/Users/g/vault' → '~/vault').
- * Exported for ENH-208 unit tests.
- */
-export function abbreviateHome(p: string, home: string): string {
-  if (!home) return p
-  if (p === home) return '~'
-  if (p.startsWith(home + '/')) return '~' + p.slice(home.length)
-  return p
 }
 
 export function VaultSearchPalette({ open, activePath, onPick, onDismiss }: VaultSearchPaletteProps) {
@@ -252,6 +242,11 @@ export function VaultSearchPalette({ open, activePath, onPick, onDismiss }: Vaul
   const error = result && 'error' in result ? result.error : null
   const home = window.electron.env.HOME || ''
 
+  // The PRODUCING query for excerpt highlighting — same contract as
+  // pick(): during the next debounce window the live input may be ahead
+  // of the hits, and segmenting with it paints stale/absent needles.
+  const producedQuery = result && 'hits' in result ? result.query : query
+
   const renderBody = () => {
     if (!query.trim()) {
       return <li className="px-4 py-3 text-ink-mute text-sm">Type to search the vault&apos;s notes (full text, case-insensitive).</li>
@@ -298,7 +293,7 @@ export function VaultSearchPalette({ open, activePath, onPick, onDismiss }: Vaul
                   {hit.line}
                 </span>
                 <span className="truncate text-sm">
-                  {segmentExcerpt(hit.excerpt, query).map((seg, k) =>
+                  {segmentExcerpt(hit.excerpt, producedQuery).map((seg, k) =>
                     seg.match ? (
                       <span key={k} className={['font-semibold', active ? 'underline' : 'text-accent'].join(' ')}>
                         {seg.text}

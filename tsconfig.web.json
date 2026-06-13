@@ -20,5 +20,9 @@
     "core/markdown/**/*",
     "core/json/**/*"
   ],
-  "exclude": ["node_modules"]
+  // vaultGotoMatchBridge.test.ts deliberately crosses layers (core/vault
+  // search -> editor jump) to pin the docMatchIndex bridge; core/vault is
+  // node-only (node:fs), so the composite web project can't list it.
+  // vitest still runs the test -- it's only excluded from tsc.
+  "exclude": ["node_modules", "renderer/components/editor/vaultGotoMatchBridge.test.ts"]
 }
