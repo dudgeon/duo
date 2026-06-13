@@ -302,3 +302,151 @@ describe('matchGlobalShortcut — ENH-179 ⌘Z reopen last closed tab (Sprint 20
     expect(m).toEqual({ id: 'reopenLastClosedTab' })
   })
 })
+
+describe('matchGlobalShortcut — ENH-208 vault chords (owner re-pick 2026-06-10)', () => {
+  // Two chord moves landed together: ⌘⇧N became vault quick-capture
+  // (New Folder / ENH-169 moved to ⌥⇧⌘N), and ⌘⇧F became the
+  // vault-search palette (the global findPrev registration was
+  // removed). Find-previous stays reachable while a find bar is
+  // focused because the matcher YIELDS via ctx.inFindBar — the
+  // document listener runs at capture phase, so the bar's own
+  // bubble-phase handler could never pre-empt it; the gate is the
+  // only thing keeping the bars' advertised ⌘⇧F working.
+
+  it('matches ⌘⇧N → vaultQuickCapture (key === "N", code === "KeyN")', () => {
+    const m = matchGlobalShortcut(
+      chord({ key: 'N', code: 'KeyN', meta: true, shift: true }),
+      ctx
+    )
+    expect(m).toEqual({ id: 'vaultQuickCapture' })
+  })
+
+  it('matches ⌘⇧N regardless of the produced e.key case (code-based, WCV-forward shape)', () => {
+    // The browser-pane forwarder rebuilds a synthetic KeyboardEvent
+    // from main's before-input-event payload; the key field can carry
+    // either case depending on the source. The matcher reads e.code.
+    const m = matchGlobalShortcut(
+      chord({ key: 'n', code: 'KeyN', meta: true, shift: true }),
+      ctx
+    )
+    expect(m).toEqual({ id: 'vaultQuickCapture' })
+  })
+
+  it('⌘⇧N no longer yields newFolder (ENH-169 moved to ⌥⇧⌘N)', () => {
+    const m = matchGlobalShortcut(
+      chord({ key: 'N', code: 'KeyN', meta: true, shift: true }),
+      ctx
+    )
+    expect(m?.id).not.toBe('newFolder')
+  })
+
+  it('matches ⌥⇧⌘N → newFolder even when Option mangles e.key', () => {
+    // Option on macOS modifies the produced character (Option+N is the
+    // dead-key tilde on US layouts), so e.key is NOT 'n'/'N' here.
+    // The matcher must read e.code === 'KeyN' — same lesson class as
+    // ⌘⌥M ('µ') and BUG-075's Slash chords.
+    const m = matchGlobalShortcut(
+      chord({ key: '˜', code: 'KeyN', meta: true, shift: true, alt: true }),
+      ctx
+    )
+    expect(m).toEqual({ id: 'newFolder' })
+  })
+
+  it('does NOT match ⌘⌥N (no shift) — that chord stays free for the renderer', () => {
+    // ⌥⌘N is the app-menu New Window accelerator (ENH-191); the menu
+    // owns it before the renderer would see it, and the matcher must
+    // not claim it on any forward path either.
+    const m = matchGlobalShortcut(
+      chord({ key: '˜', code: 'KeyN', meta: true, alt: true }),
+      ctx
+    )
+    expect(m).toBeNull()
+  })
+
+  it('plain ⌘N still yields newMarkdownFile', () => {
+    const m = matchGlobalShortcut(chord({ key: 'n', code: 'KeyN', meta: true }), ctx)
+    expect(m).toEqual({ id: 'newMarkdownFile' })
+  })
+
+  it('matches ⌘⇧F → openVaultSearchPalette (key === "F", code === "KeyF")', () => {
+    const m = matchGlobalShortcut(
+      chord({ key: 'F', code: 'KeyF', meta: true, shift: true }),
+      ctx
+    )
+    expect(m).toEqual({ id: 'openVaultSearchPalette' })
+  })
+
+  it('matches ⌘⇧F with a lowercase produced key too (code-based)', () => {
+    const m = matchGlobalShortcut(
+      chord({ key: 'f', code: 'KeyF', meta: true, shift: true }),
+      ctx
+    )
+    expect(m).toEqual({ id: 'openVaultSearchPalette' })
+  })
+
+  it('global ⌘⇧F no longer yields findPrev (registration removed)', () => {
+    const m = matchGlobalShortcut(
+      chord({ key: 'F', code: 'KeyF', meta: true, shift: true }),
+      ctx
+    )
+    expect(m?.id).not.toBe('findPrev')
+  })
+
+  it('⌘F / ⌘G are unchanged (openFind / findNext)', () => {
+    expect(matchGlobalShortcut(chord({ key: 'f', code: 'KeyF', meta: true }), ctx))
+      .toEqual({ id: 'openFind' })
+    expect(matchGlobalShortcut(chord({ key: 'g', code: 'KeyG', meta: true }), ctx))
+      .toEqual({ id: 'findNext' })
+  })
+
+  it('⌘⇧F yields to a focused find bar (ctx.inFindBar — the D22 retention clause)', () => {
+    // The document matcher runs at CAPTURE phase, before the find
+    // bar's input-local React handler — so the matcher must return
+    // null here or the bar's advertised find-previous chord would
+    // open the palette instead.
+    const m = matchGlobalShortcut(
+      chord({ key: 'F', code: 'KeyF', meta: true, shift: true }),
+      { inEditableSurface: false, inAnyTextInput: true, inFindBar: true }
+    )
+    expect(m).toBeNull()
+  })
+
+  it('⌘⇧N still captures with a find bar focused (only ⌘⇧F yields)', () => {
+    const m = matchGlobalShortcut(
+      chord({ key: 'N', code: 'KeyN', meta: true, shift: true }),
+      { inEditableSurface: false, inAnyTextInput: true, inFindBar: true }
+    )
+    expect(m).toEqual({ id: 'vaultQuickCapture' })
+  })
+
+  it('still matches inside an editable surface (capture + palette escape TipTap)', () => {
+    // Both chords are global intents, not letter-formatting — they
+    // must fire from inside the markdown editor / canvas like ⌘⇧A
+    // does (the in-document escape pattern returns true on match).
+    const editorCtx = { inEditableSurface: true }
+    expect(matchGlobalShortcut(chord({ key: 'N', code: 'KeyN', meta: true, shift: true }), editorCtx))
+      .toEqual({ id: 'vaultQuickCapture' })
+    expect(matchGlobalShortcut(chord({ key: 'F', code: 'KeyF', meta: true, shift: true }), editorCtx))
+      .toEqual({ id: 'openVaultSearchPalette' })
+    expect(matchGlobalShortcut(chord({ key: '˜', code: 'KeyN', meta: true, shift: true, alt: true }), editorCtx))
+      .toEqual({ id: 'newFolder' })
+  })
+
+  it('does NOT match without meta', () => {
+    expect(matchGlobalShortcut(chord({ key: 'N', code: 'KeyN', shift: true }), ctx)).toBeNull()
+    expect(matchGlobalShortcut(chord({ key: 'F', code: 'KeyF', shift: true }), ctx)).toBeNull()
+  })
+
+  it('does NOT match with ctrl also held (chords are meta-exact)', () => {
+    expect(matchGlobalShortcut(chord({ key: 'N', code: 'KeyN', meta: true, shift: true, ctrl: true }), ctx)).toBeNull()
+    expect(matchGlobalShortcut(chord({ key: 'F', code: 'KeyF', meta: true, shift: true, ctrl: true }), ctx)).toBeNull()
+  })
+
+  it('does NOT match ⌥⇧⌘F (alt-modified palette chord reserved for future intent)', () => {
+    const m = matchGlobalShortcut(
+      chord({ key: 'Ï', code: 'KeyF', meta: true, shift: true, alt: true }),
+      ctx
+    )
+    expect(m).toBeNull()
+  })
+})

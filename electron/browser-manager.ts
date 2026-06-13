@@ -1305,12 +1305,15 @@ export class BrowserManager {
         // letting Chromium do its default reload, which previously
         // also nuked terminal sessions when the menu role was bound).
         key === 'r' ||
-        // ENH-028 — ⌘F / ⌘G / ⌘⇧F = find-in-page. Without forwarding,
-        // Chromium would consume these inside the page (its built-in
-        // find UI doesn't render in WebContentsView, so ⌘F was a
-        // no-op when the user was focused on a page). Renderer's
-        // openFind/findNext/findPrev branches on activeWorking and
-        // dispatches the right window event.
+        // ENH-028 — ⌘F / ⌘G = find-in-page; ENH-208 (D22) — ⌘⇧F =
+        // the vault-search palette. Without forwarding, Chromium
+        // would consume these inside the page (its built-in find UI
+        // doesn't render in WebContentsView, so ⌘F was a no-op when
+        // the user was focused on a page). Renderer's openFind /
+        // findNext branch on activeWorking and dispatch the right
+        // window event; the browser find bar's find-previous is
+        // ⇧Enter-only (the global findPrev chord was retired —
+        // FOLLOWUP-047 documents the asymmetry).
         key === 'f' ||
         key === 'g' ||
         key === '[' ||
@@ -1327,6 +1330,14 @@ export class BrowserManager {
         // but input.code === 'Slash' regardless). Same code-vs-key
         // lesson as the previous chord — see globalShortcuts.ts.
         input.code === 'Slash' ||
+        // ENH-208 (2026-06-10 re-pick) — ⌥⇧⌘N = New Folder's new home
+        // (⌘⇧N moved to vault quick-capture). Option mangles input.key
+        // ('n' becomes a dead/accented character on most layouts), so the
+        // key==='n' entry above never matches the alt chord — same
+        // code-vs-key lesson as Slash. Gated on alt+shift so plain ⌘N
+        // (new file) and ⌘⇧N (capture, matched via key==='n') keep their
+        // existing entries.
+        (input.alt && input.shift && input.code === 'KeyN') ||
         // ENH-080 walk-1 fix — ⌘⇧A = tab-search palette. Without this
         // entry, Chromium's "select all" handler claims the chord when
         // the browser pane has focus and the renderer never sees the
@@ -1398,9 +1409,15 @@ export class BrowserManager {
       // focus call is a no-op and the palette opens with no caret —
       // the user sees the dim backdrop but typing goes nowhere. Same
       // family as ⌘F.
+      // ENH-208 — ⌥⇧⌘N (New Folder's re-picked home) and ⌘⇧N (vault
+      // quick-capture) both end in a renderer input taking focus (the
+      // navigator's inline-rename input / the opened capture note's
+      // editor). The key==='n' entry covers ⌘⇧N, but Option mangles
+      // input.key, so the alt chord needs the code-based test.
       const needsRendererFocus =
         key === 't' || key === 'n' || key === 'l' || key === 'f' ||
-        (input.code === 'KeyA' && input.shift)
+        (input.code === 'KeyA' && input.shift) ||
+        (input.alt && input.shift && input.code === 'KeyN')
       if (needsRendererFocus) {
         this.window.webContents.focus()
       }

@@ -59,6 +59,11 @@ import { useVaultIndex, rankVaultFiles } from './vaultIndex'
 import { WriteWarningBanner } from './primitives/WriteWarningBanner'
 import { SendToDuoPill } from './primitives/SendToDuoPill'
 import { NewCommentComposer } from './primitives/NewCommentComposer'
+// ENH-208 D4 — silent-stub type picker, opened by WikilinkSuggestion's
+// create row. ENH-208 D22 — the vault-search palette's goto-match handoff.
+import { TypePickerPopover } from './primitives/TypePickerPopover'
+import { jumpToMatch } from './gotoMatchJump'
+import { consumeGotoMatch, VAULT_GOTO_MATCH_EVENT, type VaultGotoMatch } from './vaultGotoMatch'
 import { formatSendPayload } from './sendFormat'
 import { useSelectionFormat } from '../../hooks/useSelectionFormat'
 import { matchGlobalShortcut } from '../../keyboard/globalShortcuts'
@@ -456,6 +461,14 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   vaultFilesRef.current = vaultIndex.files
   const vaultLoadingRef = useRef(vaultIndex.loading)
   vaultLoadingRef.current = vaultIndex.loading
+  // ENH-208 D4 — vault root threaded through a ref for the same
+  // static-extension-list reason as vaultFilesRef above (gates the
+  // create row in WikilinkSuggestion). The picker state is the pending
+  // stub request: the wikilink target + the post-insert caret rect the
+  // popover anchors to; null = closed.
+  const vaultRootRef = useRef(vaultIndex.vaultRoot)
+  vaultRootRef.current = vaultIndex.vaultRoot
+  const [stubPicker, setStubPicker] = useState<{ name: string; rect: DOMRect | null } | null>(null)
 
   const extensions = useMemo(
     () => [
@@ -589,7 +602,14 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       WikilinkSuggestion.configure({
         getItems: () => vaultFilesRef.current,
         isLoading: () => vaultLoadingRef.current,
-        rank: rankVaultFiles
+        rank: rankVaultFiles,
+        // ENH-208 D4 — the create row needs the vault root (gates the
+        // offer) and a way to hand the inserted name + caret rect to
+        // the TypePickerPopover. setStubPicker is a stable useState
+        // setter, safe to close over in this useMemo([]) list; the
+        // root reads through the ref so it stays fresh.
+        getVaultRoot: () => vaultRootRef.current,
+        onCreateStub: (payload) => setStubPicker(payload)
       }),
       // Sprint 11 ENH-105 — `@` filename autocomplete. Same vault
       // index, parallel popover. Inserts the canonical `[[wikilink]]`
@@ -1887,10 +1907,14 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   }, [editor, path, isNew])
 
   // ── ⌘F find bar wiring (ENH-023) ────────────────────────────────────────
-  // App.tsx routes the global ⌘F / ⌘G / ⌘⇧F shortcuts into custom
-  // events on `window`. Only one MarkdownEditor is mounted at a time
-  // (WorkingPane swaps activeRenderer per-tab), so this listener is
-  // unambiguous: whichever editor is mounted handles the event.
+  // App.tsx routes the global ⌘F / ⌘G shortcuts into custom events on
+  // `window`. Only one MarkdownEditor is mounted at a time (WorkingPane
+  // swaps activeRenderer per-tab), so this listener is unambiguous:
+  // whichever editor is mounted handles the event. ENH-208 retired the
+  // GLOBAL ⌘⇧F findPrev id (the chord now opens the vault search
+  // palette), so the 'duo-editor-find-prev' listener is gone — find-prev
+  // stays reachable via the FindBar's input-local ⌘⇧F / ⇧↩ / ↑ and the
+  // ▲ button.
   useEffect(() => {
     if (!editor) return
     const onOpen = () => setFindOpen(true)
@@ -1901,20 +1925,56 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       if (total > 0) setFindOpen(true)
       editor.commands.findNext()
     }
-    const onPrev = () => {
-      const total = editor.storage.findHighlight?.total as number ?? 0
-      if (total > 0) setFindOpen(true)
-      editor.commands.findPrev()
-    }
     window.addEventListener('duo-editor-find-open', onOpen)
     window.addEventListener('duo-editor-find-next', onNext)
-    window.addEventListener('duo-editor-find-prev', onPrev)
     return () => {
       window.removeEventListener('duo-editor-find-open', onOpen)
       window.removeEventListener('duo-editor-find-next', onNext)
-      window.removeEventListener('duo-editor-find-prev', onPrev)
     }
   }, [editor])
+
+  // ── Vault goto-match (ENH-208 D22) ──────────────────────────────────────
+  // The vault-search palette opens a hit "at line" by asking for the Nth
+  // occurrence of its query — not a disk line number, because the doc
+  // omits frontmatter (it lives in the Properties panel). Two delivery
+  // paths (vaultGotoMatch.ts): a parked request claimed here once the
+  // doc body has loaded, and a live window event for the already-open
+  // case. The live handler ALSO consumes the parked copy so a stale
+  // request can never replay on a later remount.
+  useEffect(() => {
+    if (!editor || !loaded || isNew) return
+    const runJump = (req: { query: string; matchIndex: number }) => {
+      jumpToMatch(editor, req)
+      // ENH-022 v2 / BUG-043 belt-and-braces — PM's scrollIntoView can
+      // miss the editor's real scroll container (2-3 ancestors above
+      // view.dom). Resolve the selection's DOM node and native-scroll
+      // it after the chain's transaction has rendered.
+      requestAnimationFrame(() => {
+        try {
+          const dom = editor.view.domAtPos(editor.state.selection.from)
+          const node = dom.node.nodeType === 1
+            ? (dom.node as HTMLElement)
+            : (dom.node.parentElement as HTMLElement | null)
+          if (node && typeof node.scrollIntoView === 'function') {
+            node.scrollIntoView({ block: 'center', behavior: 'smooth' })
+          }
+        } catch {
+          /* domAtPos can throw on edge positions; the chain already
+             attempted the scroll, so swallow */
+        }
+      })
+    }
+    const parked = consumeGotoMatch(path)
+    if (parked) runJump(parked)
+    const onGoto = (ev: Event) => {
+      const detail = (ev as CustomEvent<VaultGotoMatch>).detail
+      if (!detail || detail.path !== path) return
+      consumeGotoMatch(detail.path)
+      runJump(detail)
+    }
+    window.addEventListener(VAULT_GOTO_MATCH_EVENT, onGoto)
+    return () => window.removeEventListener(VAULT_GOTO_MATCH_EVENT, onGoto)
+  }, [editor, loaded, path, isNew])
 
   // Stage 27 — `selection:set` editor-target listener. Companion to
   // PageTab's same-named effect: a canvas action button that wants
@@ -2515,6 +2575,29 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           excerpt={newCommentAt.excerpt}
           onSubmit={handleSubmitNewComment}
           onCancel={handleCancelNewComment}
+        />
+      )}
+      {/* ENH-208 D4 — silent-stub type picker. Opens after the create
+          row inserted [[name]]; picking a type stubs through the same
+          code path as `duo vault stub` and closes WITHOUT opening a
+          tab. Esc / click-outside cancels — the unresolved link stays
+          (harmless, Obsidian-compatible). */}
+      {stubPicker && vaultIndex.vaultRoot && (
+        <TypePickerPopover
+          vaultRoot={vaultIndex.vaultRoot}
+          name={stubPicker.name}
+          anchorRect={stubPicker.rect}
+          onCreated={() => {
+            setStubPicker(null)
+            // The new stub must show up in the suggesters' index (and
+            // flip any unresolved-link styling) without a manual refresh.
+            vaultIndex.refresh()
+            editor?.commands.focus()
+          }}
+          onCancel={() => {
+            setStubPicker(null)
+            editor?.commands.focus()
+          }}
         />
       )}
     </div>

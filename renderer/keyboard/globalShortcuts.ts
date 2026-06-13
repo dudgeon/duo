@@ -49,6 +49,15 @@ export interface FocusContext {
    *  (falsy → matcher treats it as `!inAnyTextInput`, so older
    *  shortcuts behave unchanged). */
   inAnyTextInput?: boolean
+  /** ENH-208 (D22 re-pick) — true when focus is inside a find bar
+   *  (`[data-duo-findbar]`: the editor's FindBar and the canvas
+   *  PageFindBar). Gates the ⌘⇧F vault-search arm so the bars'
+   *  input-local ⌘⇧F (find-previous) keeps working: the document
+   *  CAPTURE-phase matcher fires before any React bubble handler, so
+   *  without this gate it would stopPropagation the keystroke away
+   *  from the find input. Optional — omitted means "not in a find
+   *  bar". */
+  inFindBar?: boolean
 }
 
 /** A typed registry of every global shortcut. Adding a row gives every
@@ -68,7 +77,6 @@ export type ShortcutId =
   | 'focusBreadcrumbEdit'
   | 'openFind'
   | 'findNext'
-  | 'findPrev'
   | 'toggleFilesColumn'
   | 'togglePaneFocus'
   | 'fontBumpUp'
@@ -175,6 +183,20 @@ export type ShortcutId =
   // dialogs, address bar, breadcrumb edit, browser-pane focus.
   // Owner ask: "cmd+z reopens recently closed tab if tab".
   | 'reopenLastClosedTab'
+  // ENH-208 Phase 2 (D11) — ⌘⇧N captures an untyped inbox note into
+  // the UI-resolved vault (default vault first, else the active
+  // file's vault). Dispatches the 'duo-vault-capture' CustomEvent;
+  // App.tsx owns the IPC call + opening the created note. Owner
+  // re-pick 2026-06-10: this chord was New Folder (ENH-169), which
+  // moved to ⌥⇧⌘N.
+  | 'vaultQuickCapture'
+  // ENH-208 Phase 2 (D22) — ⌘⇧F opens the vault-search palette
+  // (full-text search over the vault, hits grouped by file; Enter
+  // opens the hit and jumps the editor to the match). Took the chord
+  // over from the global findPrev registration (removed) — the find
+  // bar's input-local ⌘⇧F handler (FindBar.tsx) still owns
+  // find-previous while the bar is focused.
+  | 'openVaultSearchPalette'
 
 export interface ShortcutMatch {
   id: ShortcutId
@@ -222,12 +244,25 @@ export function matchGlobalShortcut(
     return { id: 'newMarkdownFile' }
   }
 
-  // ENH-169 (Sprint 20) — ⌘⇧N: new folder in the navigator's current
+  // ENH-169 (Sprint 20) — ⌥⇧⌘N: new folder in the navigator's current
   // cwd. Mirrors macOS Finder. Owner ask: "new file menu actions for
   // new file, new folder (inherits navigator focus as default
   // location)" — the chord parity for the File menu items.
-  if (meta && shift && !alt && !ctrl && key === 'n') {
+  // ENH-208 owner re-pick (2026-06-10): moved from ⌘⇧N to ⌥⇧⌘N so
+  // vault quick-capture could take the more reachable chord. Use
+  // `e.code === 'KeyN'` because Option mangles the produced character
+  // on macOS (same gotcha as the ⌘⌥M / ⌘⇧A code-vs-key lessons).
+  if (meta && shift && alt && !ctrl && e.code === 'KeyN') {
     return { id: 'newFolder' }
+  }
+
+  // ENH-208 Phase 2 (D11) — ⌘⇧N captures an untyped note into the
+  // UI-resolved vault's inbox (default vault first, else the active
+  // file's vault — main owns the resolution). Chord freed by the
+  // ENH-169 newFolder move above. `e.code === 'KeyN'` for
+  // layout-safety (same as ⌘⇧A's KeyA).
+  if (meta && shift && !alt && !ctrl && e.code === 'KeyN') {
+    return { id: 'vaultQuickCapture' }
   }
 
   // ⌘W — close tab.
@@ -270,10 +305,18 @@ export function matchGlobalShortcut(
   if (meta && !shift && !alt && !ctrl && key === 'g') {
     return { id: 'findNext' }
   }
-  // ENH-023 — ⌘⇧F previous match (avoids the ⌘⇧G conflict with
-  // breadcrumb-edit Go to folder).
-  if (meta && shift && !alt && !ctrl && key === 'f') {
-    return { id: 'findPrev' }
+  // ENH-208 Phase 2 (D22) — ⌘⇧F opens the vault-search palette.
+  // Took the chord over from the global findPrev registration
+  // (ENH-023, removed). Yields via `!ctx.inFindBar` while a find bar
+  // owns focus: the document matcher runs at CAPTURE phase, so it
+  // fires BEFORE the bars' input-local React handlers — without the
+  // gate it would stopPropagation the keystroke away and the
+  // advertised find-previous chord (FindBar/PageFindBar ▲ tooltips)
+  // would silently open the palette instead (the D22 re-pick keeps
+  // find-bar-local ⌘⇧F working). Use `e.code === 'KeyF'` for
+  // layout-safety (same as ⌘⇧A's KeyA).
+  if (meta && shift && !alt && !ctrl && e.code === 'KeyF' && !ctx.inFindBar) {
+    return { id: 'openVaultSearchPalette' }
   }
 
   // ⌘B — toggle the Files column. Yields to the local editor when
@@ -497,4 +540,18 @@ export function isInAnyTextInput(doc: Document): boolean {
   const tag = active.tagName
   if (tag === 'INPUT' || tag === 'TEXTAREA') return true
   return false
+}
+
+/**
+ * ENH-208 (D22 re-pick) — detect whether focus sits inside a find bar
+ * (`[data-duo-findbar]`: the editor's FindBar and the canvas
+ * PageFindBar set the attribute). This is the derivation behind
+ * `ctx.inFindBar`, which makes ⌘⇧F yield to the bar's input-local
+ * find-previous instead of opening the vault-search palette. The
+ * attribute name is a cross-file contract — pinned by
+ * findBarContext.test.ts.
+ */
+export function isInFindBar(doc: Document): boolean {
+  const active = doc.activeElement as HTMLElement | null
+  return !!active?.closest('[data-duo-findbar]')
 }

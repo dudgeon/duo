@@ -21,6 +21,7 @@ import {
   matchGlobalShortcut,
   isInEditableSurface,
   isInAnyTextInput,
+  isInFindBar,
   type ShortcutId
 } from '../keyboard/globalShortcuts'
 import { cycleNext } from '../keyboard/tabCycle'
@@ -56,10 +57,11 @@ interface Options {
   /** ENH-023 — find-in-document. App.tsx routes these to the active
    *  markdown editor's FindBar. ⌘F opens / re-focuses; ⌘G cycles to
    *  next match (works even with bar closed if there's a stored
-   *  query); ⌘⇧F cycles to previous. */
+   *  query). Find-previous is input-local to the find bar (⌘⇧F /
+   *  ⇧Enter while it's focused) — the global ⌘⇧F chord moved to the
+   *  vault-search palette (ENH-208 D22). */
   openFind?: () => void
   findNext?: () => void
-  findPrev?: () => void
   /** Sprint 3 Phase 3b — Split View chord handlers. ⌘\ moves the
    *  active main tab into the aux slot; ⌘⇧\ promotes aux back to
    *  main (closes the split AND keeps the file open). For pure-close
@@ -204,9 +206,6 @@ export function useKeyboardShortcuts(opts: Options) {
         case 'findNext':
           opts.findNext?.()
           return
-        case 'findPrev':
-          opts.findPrev?.()
-          return
         case 'sendToDuo': {
           // Stage 15.3 — ⌘D dispatches a CustomEvent that each
           // editor / canvas / browser-pane surface listens for and
@@ -336,6 +335,18 @@ export function useKeyboardShortcuts(opts: Options) {
           // this hook stays free of palette state.
           window.dispatchEvent(new CustomEvent('duo-open-tab-search'))
           return
+        case 'openVaultSearchPalette':
+          // ENH-208 Phase 2 (D22) — ⌘⇧F. Same CustomEvent indirection
+          // as openTabSearchPalette; App.tsx toggles the
+          // VaultSearchPalette overlay.
+          window.dispatchEvent(new CustomEvent('duo-open-vault-search'))
+          return
+        case 'vaultQuickCapture':
+          // ENH-208 Phase 2 (D11) — ⌘⇧N. App.tsx owns the capture IPC
+          // call + opening the created inbox note; the event keeps
+          // this hook free of vault state.
+          window.dispatchEvent(new CustomEvent('duo-vault-capture'))
+          return
         case 'focusTerminalPane':
           opts.focusTerminalPane?.()
           return
@@ -409,7 +420,14 @@ export function useKeyboardShortcuts(opts: Options) {
       const ctx = {
         inEditableSurface: isInEditableSurface(document),
         // ENH-179 — gate ⌘Z reopen-last-closed-tab on this superset.
-        inAnyTextInput: isInAnyTextInput(document)
+        inAnyTextInput: isInAnyTextInput(document),
+        // ENH-208 (D22 re-pick) — yield ⌘⇧F to a focused find bar's
+        // input-local find-previous. This capture-phase handler fires
+        // BEFORE the bar's React onKeyDown, so the matcher must yield
+        // HERE — the bar can't defend itself with stopPropagation.
+        // Only this document path can have find-bar focus; the
+        // iframe/WCV forwarders' focus lives inside their surfaces.
+        inFindBar: isInFindBar(document)
       }
       const match = matchGlobalShortcut(e, ctx)
       if (!match) return

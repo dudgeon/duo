@@ -3,6 +3,50 @@
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
 
+### ENH-213: ⌘⇧F vault-search palette is occluded by the canvas/WCV during search
+
+**Status:** 🆕 Filed (2026-06-12, ENH-208 v0.10.1 walk — owner, non-blocking). **Priority:** P2. **Effort:** S–M (investigate overlay-mute coverage).
+
+**Symptom (owner, walk PASS w/ note).** With a canvas page (or browser tab) in the working pane, opening the ⌘⇧F vault-search palette shows distracting bleed-through from the composited surface behind the overlay — "the canvas occlusion is distracting during search operation." Functionally fine (search + open-at-match work); it's a visual-occlusion polish.
+
+**Fix sketch.** The palette is already in App.tsx's `setOverlayMuted` union (the WCV-occlusion guard) — but the owner still sees occlusion, so the mute likely doesn't cover the **canvas** tab kind (PageTab iframe), only the browser WCV. Audit what `setOverlayMuted` actually hides for `activeWorking.kind === 'page'` vs `'browser'`; the TabSearchPalette / VaultQuickSwitcher overlays share the same machinery, so the fix is shared. Cross-ref the WCV-occlusion remediation notes in `docs/DECISIONS.md`.
+
+### ENH-214: ⌘⇧F should also surface templates so they're findable + editable
+
+**Status:** 🆕 Filed (2026-06-12, ENH-208 v0.10.1 walk — owner, non-blocking). **Priority:** P2. **Effort:** S.
+
+**Symptom (owner).** "⌘⇧F should also surface templates so I can easily find and edit them." Today `core/vault/search.ts` walks via the shared `walk()` which skips `templates/` (in `SKIP_DIRS`, the D5 query-exclusion), so a search never returns template files — there's no quick path to open `templates/person.md` to edit a type's schema.
+
+**Fix sketch.** Two options: (a) include `templates/` in the search scan and tag those hits (e.g. a "template" group/badge in the palette) so they're visually distinct from entity hits; or (b) a dedicated affordance (a `templates ▸` section in the palette, or a `duo vault templates` verb the picker reuses). Keep the corpus/lint exclusion intact — this is search-surface only. Decide (a) vs (b) with the owner; (a) is the smaller change.
+
+### ENH-215: Opening a typed entity note should default its metadata panel to shown
+
+**Status:** 🆕 Filed (2026-06-12, ENH-208 v0.10.1 walk — owner, non-blocking). **Priority:** P2. **Effort:** S.
+
+**Symptom (owner).** "For a typed entity, like person, when we open it the metadata should default to show." Opening a note that carries a `type:` (an entity from a template) should default the editor's FrontmatterPanel to expanded, since the frontmatter fields ARE the entity's data — not collapsed behind a toggle.
+
+**Fix sketch.** In the markdown editor's FrontmatterPanel mount, default `expanded = true` when the parsed frontmatter has a `type:` key (typed entity) — keep the current default (collapsed, or last-state) for ordinary notes. Verify against the per-file persisted panel state so the owner's manual collapse still sticks within a session. `renderer/components/editor/FrontmatterPanel.tsx` + its mount in `MarkdownEditor.tsx`.
+
+### FOLLOWUP-048: Multi-word names can't reach the silent-stub type-picker — the `[[` suggester closes on whitespace
+
+**Status:** 🆕 Filed (2026-06-10, out of ENH-208 Phase 2). **Priority:** P2. **Effort:** S–M (matcher widening + popover-dismiss semantics). _(Renumbered from FOLLOWUP-046 on the v0.10.1 rebase — main's v0.10.1 release notes claimed 046 for the `base render`-on-empty-`.base` follow-up; merged incumbent keeps the number.)_
+
+**Symptom.** D4's example gesture is `[[Jordan Lee]]` ⇥ → type picker — but `findWikilinkMatch` (`renderer/components/editor/extensions/suggestionMatchers.ts`) rejects whitespace in the query, so typing the space after "Jordan" closes the popover before the New: row can be offered. Popover stubs are single-word today; multi-word entities take the narration path (`duo vault stub person "Jordan Lee"`) or cmd+click create. The Vault Guide ch4 documents the limitation explicitly.
+
+**Fix sketch.** Widen the matcher to allow spaces (Obsidian behavior: the `[[` session stays open until `]]`, Escape, or a newline). The risk to manage: a stray `[[` followed by continued prose keeps the popover open — mirror Obsidian's dismissal rules (close on `]]` / Escape / newline + a query-length cap) and extend `suggestionMatchers.test.ts` with the in-prose cases. Then drop the one-word caveat from `docs/guide/vault-guide.html` ch4 + the createNoteRow comment.
+
+**Cross-refs.** ENH-208 D4, `extensions/WikilinkSuggestion.ts`, `extensions/createNoteRow.ts`.
+
+### FOLLOWUP-047: Remove the orphaned find-prev window listeners (global ⌘⇧F retired) + the deliberate browser find-bar asymmetry
+
+**Status:** 🆕 Filed (2026-06-10, out of ENH-208 Phase 2; widened 2026-06-12 per owner decision). **Priority:** P3 (dead code, no user impact). **Effort:** XS.
+
+The ENH-208 D22 re-pick retired the GLOBAL ⌘⇧F find-previous dispatch (the chord now opens the vault-search palette; the find bars' input-local ⌘⇧F still works via the matcher's `ctx.inFindBar` yield). The window-event listeners that consumed the old global dispatch remain, now unreachable: `renderer/components/Page/PageTab.tsx` (`duo-page-find-prev`, ~line 1233) and `renderer/components/BrowserRenderer.tsx` (`duo-browser-find-prev`, ~line 199); MarkdownEditor's copy was already removed with the re-pick. Delete the two listeners + any now-unused dispatch constants; grep `find-prev` to confirm nothing else consumes them.
+
+**Deliberate asymmetry (owner decision, 2026-06-12 — DOCUMENT, don't change).** The browser pane's find bar is **⇧Enter-only** for find-previous: it does not set `data-duo-findbar` and has no input-local ⌘⇧F handler, so ⌘⇧F while it's focused opens the vault-search palette (the `ctx.inFindBar` yield never fires — the bar isn't marked). The editor + canvas bars keep BOTH input-local ⌘⇧F and ⇧Enter. This is intentional, not residue of the cleanup above — whoever picks this item up should remove the dead listeners without "fixing" the asymmetry.
+
+**Cross-refs.** ENH-208 D22 re-pick (PRD), `renderer/keyboard/globalShortcuts.ts` (`inFindBar` gate), FOLLOWUP-048.
+
 ### BUG-200: Collapsing the terminal pane terminates ALL terminal sessions
 
 **Status:** 🚧 In progress — surgical fix implemented + **live-verified** on `claude/practical-jones-a07605` (this branch); awaiting owner smoke-walk + cut. **Priority:** P0 (data loss — kills running shells / live Claude sessions). **Effort:** S (surgical) · robust hardening split to ENH-209.

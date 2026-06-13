@@ -26,6 +26,64 @@
 
 ---
 
+## 2026-06-10 (ENH-208 Phase 2 capture UX — five renderer features BUILT + adversarially reviewed, one PR pending owner walk)
+
+**The remaining Phase-2 UI, built in one continuous ultracode session** on
+`claude/thirsty-brahmagupta-125a0a` (8 commits): a 5-reader subsystem map →
+two locked-decision conflicts surfaced to the owner via AUQ (**both PRD chords
+collided with shipped bindings** — D11's ⇧⌘N was New Folder/ENH-169, D22's
+⌘⇧F was the global find-previous; owner picked: capture wins ⌘⇧N with New
+Folder → ⌥⇧⌘N, search wins ⌘⇧F with global find-prev retired) → a 3-lane
+parallel build (keyboard/palette · editor suggesters · docs) on disjoint file
+sets → a 27-agent find→refute review (20 confirmed findings = 12 root causes,
+2 refuted) → an inline fix wave → live dev verification.
+
+- **Foundation:** five `vault:*` IPC channels; main imports core/vault directly
+  (same code paths as the CLI verbs — byte-identical artifacts). New core
+  `resolveVaultForUi` (UI surfaces resolve default-FIRST, inverting the CLI's
+  enclosing-first order; D11/D22).
+- **Settings → Default Vault** (menu radio submenu per the 2026-05-22
+  menu-not-modal lock): detected-vault radios (async `listVaultRootsAsync`
+  scan, TTL-cached — never a sync BFS on the focus-driven rebuild path) +
+  Choose Vault… dialog; fs-watch on vault.json so `duo vault default` writes
+  reflect live.
+- **⇧⌘N capture** → untyped inbox note (bare `duo vault capture` parity),
+  opened focused; no-vault error names Settings → Default Vault. Accelerator +
+  matcher + WCV forward list moved together for the New Folder re-pick.
+- **⌘⇧F VaultSearchPalette** (TabSearchPalette shell clone): debounced
+  searchAsync (yields on main — no N>1 IPC jank), grouped hits, honest
+  "first N" truncation footer, Enter → file-at-match. **The congruence fix:**
+  core search now emits per-hit `docMatchIndex` (body-occurrence index,
+  non-overlapping advance matching FindHighlight; null for frontmatter hits)
+  so the palette and the editor's jump count the same thing — the review
+  caught the original line-vs-occurrence mismatch.
+- **@today tokens** ranked ahead of files in the @ popover (plain-text
+  insert); **silent-stub type-picker** on the `[[` New: row (template types +
+  "+ new type…" → `createType` returns the CANONICAL name the stub must use —
+  the review's empirically-reproduced HIGH; row pinned inside the popover's
+  8-row render window).
+- **Review highlights:** the ⌘⇧F capture-phase hijack of the find bars'
+  input-local find-previous (the D22 "retained" clause was unimplemented —
+  fixed with a `ctx.inFindBar` matcher yield + tests); the sync vault scan on
+  menu rebuilds (HIGH, now cache-only + async refresh); pick/debounce query
+  coherence; ⌥⇧⌘N missing from the WCV focus-reclaim set.
+- **Live-verified on the dev build** (fixture vault at /tmp/enh208-vault):
+  capture chord E2E (note created + opened), palette search (4 hits, 3
+  files), goto-match landing on the exact occurrence (offset-level probes:
+  hit[0]→occurrence 0, the line-6 hit→occurrence 2 across a multi-occurrence
+  line + frontmatter), createType("Decision Log")→"decision log"→stub
+  succeeds, find-bar ⌘⇧F yield (no palette). Keystroke-only items
+  (@today/type-picker popovers, Settings menu visual, ⌥⇧⌘N) ride the owner
+  smoke-walk. **1270 tests · typecheck · skill-currency clean.**
+- **Owed:** owner smoke-walk → merge the one PR → cut (likely v0.11.0) →
+  `sync:claude` at merge (deferred deliberately) → re-point/clear the
+  default-vault pref (targets the walk fixture). Filed FOLLOWUP-048
+  (multi-word `[[` suggester — D4's multi-word example can't reach the popover
+  today; renumbered from 046 on the v0.10.1 rebase — main claimed 046 for its
+  `base render` follow-up) + FOLLOWUP-047 (orphaned find-prev listeners).
+
+---
+
 ## 2026-06-09 (ENH-208 Vault — Phase 1 SHIPPED + Phase 2 started, 6 PRs merged to main)
 
 **ENH-208 "vault" — networked work-notes on plain Obsidian conventions.** Built
