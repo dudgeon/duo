@@ -182,7 +182,7 @@ const SUBCOMMANDS = {
   window: ['new'],
   // ENH-212 (Home) — re-entry surface + terminal-tab switching.
   home: ['show', 'state', 'refresh'],
-  term: ['tabs', 'tab'],
+  term: ['tabs', 'tab', 'close'],
 }
 
 // Tokens that legitimately follow `duo <verb>` in prose but are NOT verbs:

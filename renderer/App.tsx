@@ -2325,6 +2325,15 @@ export function App() {
     return activate((tabId) => { focusTerminalTab(tabId) })
   }, [focusTerminalTab])
 
+  // ENH-212 — `duo term close <id>` push. Route through the existing closeTab
+  // (kills the PTY, enforces the floor-of-1 + closed-tab ring). Main already
+  // refused a live-claude tab unless --force, so here we just close.
+  useEffect(() => {
+    const onClose = window.electron.home?.onTerminalCloseTab
+    if (typeof onClose !== 'function') return
+    return onClose((tabId) => { closeTab(tabId) })
+  }, [closeTab])
+
   useEffect(() => {
     const onShow = window.electron.home?.onHomeShow
     if (typeof onShow !== 'function') {

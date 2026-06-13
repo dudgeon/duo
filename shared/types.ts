@@ -2230,7 +2230,12 @@ export const IPC = {
   // Dedicated channel (NOT the BrowserManager playground path); the
   // renderer handler reuses the `terminal:focus` body. Also ships the
   // `duo term tab <id>` CLI verb generally.
-  TERMINAL_ACTIVATE_TAB: 'terminal:activate-tab'
+  TERMINAL_ACTIVATE_TAB: 'terminal:activate-tab',
+  // ENH-212 — main → renderer push to CLOSE a terminal tab by id (the
+  // `duo term close <id>` verb). Renderer routes through the existing
+  // closeTab path (kills the PTY); main refuses a live-claude tab unless
+  // --force (BUG-200 data-loss caution).
+  TERMINAL_CLOSE_TAB: 'terminal:close-tab'
 } as const
 
 

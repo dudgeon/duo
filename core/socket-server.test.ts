@@ -235,6 +235,27 @@ describe('SocketServer — ENH-212 Home CLI routing', () => {
     expect(res.error).toMatch(/requires <id>/)
   })
 
+  it('`duo term close <id> [--force]` routes through closeTerminalTabById', async () => {
+    const d = stubDeps()
+    const closeTerminalTabById = vi.fn(async () => ({ ok: true }))
+    const nav = { closeTerminalTabById } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    expect((await dispatch(server, 'term', { op: 'close', tabId: 't_c' })).ok).toBe(true)
+    expect(closeTerminalTabById).toHaveBeenCalledWith('t_c', false)
+    await dispatch(server, 'term', { op: 'close', tabId: 't_c', force: true })
+    expect(closeTerminalTabById).toHaveBeenCalledWith('t_c', true)
+  })
+
+  it('`duo term close` surfaces the live-claude refusal', async () => {
+    const d = stubDeps()
+    const closeTerminalTabById = vi.fn(async () => ({ ok: false, error: 'tab is running a live claude session — pass --force to close it anyway' }))
+    const nav = { closeTerminalTabById } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'term', { op: 'close', tabId: 't_c' })
+    expect(res.ok).toBe(false)
+    expect(res.error).toMatch(/--force/)
+  })
+
   it('`duo session open <uuid>` routes through sessionOpen and surfaces the action', async () => {
     const d = stubDeps()
     const sessionOpen = vi.fn(async () => ({ ok: true as const, action: 'focus' as const }))

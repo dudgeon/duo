@@ -305,6 +305,10 @@ export interface NavBridge {
    *  renderer's focusTerminalTab returns false for an unknown id, so a
    *  stale id is a harmless no-op (never an error from main's side). */
   activateTerminalTab: (tabId: string) => { ok: boolean; error?: string }
+  /** ENH-212 — `duo term close <id> [--force]`. Close the terminal tab by id
+   *  (kills its PTY); refuses a live-claude tab unless force. Distinct from
+   *  the by-INDEX `closeTerminalTab` (FOLLOWUP-020). */
+  closeTerminalTabById: (tabId: string, force?: boolean) => Promise<{ ok: boolean; error?: string }>
   /** ENH-212 — `duo session open <uuid> [--cwd <path>]`. The full Home
    *  click contract, main-side: if a live terminal tab already hosts the
    *  session (evidence-gated open join), focus it (raising its window);
@@ -1987,8 +1991,10 @@ export class SocketServer {
         case 'term': {
           // ENH-212 — terminal-tab switching parity (CLI-COVERAGE § Terminal
           // P0). Discriminated op:
-          //   tabs     → enumerate the addressed window's terminal tabs
-          //   tab <id> → activate the tab with that id (TERMINAL_ACTIVATE_TAB)
+          //   tabs       → enumerate the addressed window's terminal tabs
+          //   tab <id>   → activate the tab with that id (TERMINAL_ACTIVATE_TAB)
+          //   close <id> → close the tab with that id (refused if live claude
+          //                unless --force)
           // The <id> comes from `tabs`, NOT a bare index — `duo tab <n>` owns
           // the browser number space.
           const op = args['op'] as string | undefined
@@ -2000,8 +2006,15 @@ export class SocketServer {
             const r = this.nav.activateTerminalTab(tabId)
             if (!r.ok) throw new Error(r.error ?? 'term tab failed')
             result = { ok: true }
+          } else if (op === 'close') {
+            const tabId = args['tabId'] as string | undefined
+            if (!tabId) throw new Error('duo term close requires <id> (from `duo term tabs`)')
+            const force = args['force'] === true || args['force'] === 'true'
+            const r = await this.nav.closeTerminalTabById(tabId, force)
+            if (!r.ok) throw new Error(r.error ?? 'term close failed')
+            result = { ok: true }
           } else {
-            throw new Error(`Unknown term op: ${op}. Expected tabs|tab.`)
+            throw new Error(`Unknown term op: ${op}. Expected tabs|tab|close.`)
           }
           break
         }

@@ -407,8 +407,8 @@ const VERBS: VerbSpec[] = [
   {
     name: 'term',
     group: 'Terminal',
-    args: '<tabs|tab> [<id>]',
-    summary: 'Switch the focused terminal tab. term tabs enumerates the window\'s terminal tabs ([{id, kind, cwd, title, active}]); term tab <id> activates the tab with that id (take the id from "term tabs" — NOT a bare index; "duo tab <n>" owns the browser number space). Honors --window N.'
+    args: '<tabs|tab|close> [<id>] [--force]',
+    summary: 'Manage terminal tabs. term tabs enumerates the window\'s terminal tabs ([{id, kind, cwd, title, active}]); term tab <id> activates the tab with that id; term close <id> [--force] closes it (kills its PTY — refused if a live claude is running there unless --force). Take ids from "term tabs" — NOT a bare index; "duo tab <n>" owns the browser number space. Honors --window N.'
   },
   {
     name: 'claude-return',
@@ -2328,12 +2328,14 @@ async function main(): Promise<void> {
       }
 
       case 'term': {
-        // ENH-212 — terminal-tab switching. term tabs enumerates the
-        // window's terminal tabs; term tab <id> activates one by its id
-        // (from "term tabs" — NOT a bare index). Honors --window N.
+        // ENH-212 — terminal-tab management. term tabs enumerates the
+        // window's terminal tabs; term tab <id> activates one by its id;
+        // term close <id> [--force] closes one (refused if it's running a
+        // live claude unless --force). ids come from "term tabs" — NOT a bare
+        // index. Honors --window N.
         const sub = rest[0]
         if (!sub) {
-          die('Usage: duo term <tabs|tab> [<id>]')
+          die('Usage: duo term <tabs|tab|close> [<id>] [--force]')
         }
         if (sub === 'tabs') {
           out(await send('term', { op: 'tabs' }))
@@ -2341,8 +2343,14 @@ async function main(): Promise<void> {
           const tabId = rest[1]
           if (!tabId) die('Usage: duo term tab <id>   (id from "duo term tabs")')
           out(await send('term', { op: 'tab', tabId }))
+        } else if (sub === 'close') {
+          const tabId = rest[1]
+          if (!tabId) die('Usage: duo term close <id> [--force]   (id from "duo term tabs")')
+          const payload: Record<string, unknown> = { op: 'close', tabId }
+          if (rest.includes('--force')) payload.force = true
+          out(await send('term', payload))
         } else {
-          die(`Unknown term sub-op: ${sub}. Expected tabs|tab.`)
+          die(`Unknown term sub-op: ${sub}. Expected tabs|tab|close.`)
         }
         break
       }

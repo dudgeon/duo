@@ -1553,6 +1553,7 @@ app.whenReady().then(async () => {
     getHomeState: getHomeStateForCli,
     listTerminalTabs: listTerminalTabsForCli,
     activateTerminalTab: activateTerminalTabForCli,
+    closeTerminalTabById: closeTerminalTabForCli,
     htmlComment: dispatchHtmlComment,
     htmlCommentsList: dispatchHtmlCommentsList,
     newTab: dispatchNewTab,
@@ -4244,6 +4245,26 @@ function activateTerminalTabForCli(tabId: string): { ok: boolean; error?: string
   const win = windowByIdOrPrimary(undefined) // identity, never focus
   if (!win || win.isDestroyed()) return { ok: false, error: 'Duo window not ready' }
   makeSafeSend(() => win)(IPC.TERMINAL_ACTIVATE_TAB, { tabId })
+  return { ok: true }
+}
+
+// `duo term close <id> [--force]` — close a terminal tab by id. Closing kills
+// the tab's PTY (BUG-200 data-loss class), so a tab running a live `claude` is
+// REFUSED unless --force. The renderer routes the push through its existing
+// closeTab path (which enforces the floor-of-1 and the closed-tab ring).
+async function closeTerminalTabForCli(tabId: string, force = false): Promise<{ ok: boolean; error?: string }> {
+  const win = windowByIdOrPrimary(undefined) // identity, never focus
+  if (!win || win.isDestroyed()) return { ok: false, error: 'Duo window not ready' }
+  if (!force) {
+    const live = ptyManager.listAllLive().find((s) => s.id === tabId)
+    if (live?.pid != null) {
+      const procs = await mapLiveClaudeOwners([live.pid])
+      if (procs.some((c) => c.ownerPtyPid === live.pid)) {
+        return { ok: false, error: 'tab is running a live claude session — pass --force to close it anyway' }
+      }
+    }
+  }
+  makeSafeSend(() => win)(IPC.TERMINAL_CLOSE_TAB, { tabId })
   return { ok: true }
 }
 

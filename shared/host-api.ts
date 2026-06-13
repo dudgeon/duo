@@ -1241,6 +1241,9 @@ export interface ElectronHomeAPI {
    *  leg of the click contract + `duo term tab <id>`). The handler
    *  reuses the `terminal:focus` body. Returns a cleanup function. */
   onTerminalActivateTab(cb: (tabId: string) => void): () => void
+  /** main → renderer push to CLOSE a terminal tab by id (`duo term close
+   *  <id>`). The handler routes through the existing closeTab path. */
+  onTerminalCloseTab(cb: (tabId: string) => void): () => void
 }
 
 declare global {

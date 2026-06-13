@@ -942,6 +942,11 @@ const api: ElectronAPI = {
       const handler = (_e: unknown, payload: { tabId: string }) => cb(payload.tabId)
       ipcRenderer.on(IPC.TERMINAL_ACTIVATE_TAB, handler)
       return () => ipcRenderer.removeListener(IPC.TERMINAL_ACTIVATE_TAB, handler)
+    },
+    onTerminalCloseTab: (cb: (tabId: string) => void) => {
+      const handler = (_e: unknown, payload: { tabId: string }) => cb(payload.tabId)
+      ipcRenderer.on(IPC.TERMINAL_CLOSE_TAB, handler)
+      return () => ipcRenderer.removeListener(IPC.TERMINAL_CLOSE_TAB, handler)
     }
   }
 }
