@@ -15,7 +15,7 @@
   - `'working'` / `'files'` → the active working tab's project. The navigator (`'files'`) folds into the working side because it drives the canvas; it is not a distinct project source.
 - **D2 — Browser mode counts.** The active working tab contributes regardless of kind (page/file/json/image/pdf **and** browser). A `file://` browser tab resolves via `browserTabMembership`; non-`file://` URLs (and no-project surfaces) yield no pill.
 - **D3 — All mode only.** Gated on `focusedProject === null`. In focused mode the strong focused-tile treatment already owns the signal; the pill never competes with it. The All tile itself is never pilled (the active surface always resolves to a *project* root, not `null`).
-- **D4 — Faint, clearly sub-focused.** A low-alpha tinted fill (`color-mix(in srgb, <tint> 14%, transparent)`) — the established faint-tint idiom — distinct from the focused state's full-hue fill + white text + left notch.
+- **D4 — Faint, clearly sub-focused.** A low-alpha tinted fill (`color-mix(in srgb, <tint> 14%, transparent)`) — same idiom family as the globals.css faint tints (12%/22%) — distinct from the focused state's full-hue fill + white text + left notch.
 
 **Implementation.** `renderer/App.tsx` derives `activeSurfaceProject` (memo off `focusedColumn`, `activeTabId`, `activeWorking`, the three membership maps, `browserTabs`) and passes it to `ProjectRail` as `activeProject`. `renderer/components/ProjectRail/ProjectRail.tsx` marks the tile whose `root === activeProject` **only when** `focusedProject === null && !focused`, rendering the faint pill.
 

@@ -180,10 +180,12 @@ function ProjectTile({
 }: ProjectTileProps) {
   const tint = PROJECT_COLOR_TOKENS[project.colorIndex] ?? PROJECT_COLOR_TOKENS[0]
   // ENH-210 — faint tinted fill for the active-surface tile in All mode.
-  // Low-alpha mix of the project tint over transparent — the established
-  // faint-tint idiom (globals.css). Clearly sub-focused vs the focused
-  // state's full-hue fill. `active` is already gated to !focused upstream.
-  const faintFill = `color-mix(in srgb, ${tint} 14%, transparent)`
+  // Low-alpha mix of the project tint over transparent — same idiom family
+  // as the globals.css faint tints (12%/22%). Clearly sub-focused vs the
+  // focused state's full-hue fill. `active` is already gated to !focused
+  // upstream. The fill itself lives in globals.css keyed off
+  // data-active-surface (so hover:bg- still wins); only the per-project
+  // tint flows through as a CSS custom property.
 
   // ENH-182 Phase 3 D12 — right-click context menu. Reuses the
   // generic menu.popup IPC (CLAUDE.md § 4 area 10 pattern), so the
@@ -243,7 +245,13 @@ function ProjectTile({
           ? 'text-white'
           : 'text-[color:var(--duo-ink)] hover:bg-[color:var(--duo-paper)]'
       ].join(' ')}
-      style={focused ? { background: tint } : active ? { background: faintFill } : undefined}
+      style={
+        focused
+          ? { background: tint }
+          : active
+            ? ({ '--rail-active-tint': tint } as React.CSSProperties)
+            : undefined
+      }
     >
       <span style={!focused ? { color: tint } : undefined}>{abbreviation}</span>
       {/* Quiet-bloom underline — colored hint when not focused. Hidden
