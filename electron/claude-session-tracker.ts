@@ -21,6 +21,30 @@ import path from 'path'
 import os from 'os'
 
 /**
+ * Build the PTY command line for re-entering a Claude session, shared by the
+ * Home click contract (HOME_SESSION_ACTION) and the `duo session open` CLI
+ * verb so UI and CLI never diverge.
+ *
+ * `fork: true` appends `--fork-session`, which tells Claude to branch a NEW
+ * session id from the current state instead of continuing the existing one.
+ * This is the FORK path — taken only when the user *forces* re-entry into a
+ * session that is still live OUTSIDE Duo (another terminal / the desktop app).
+ * Without `--fork-session` a second `--resume` on a still-running session would
+ * attach two writers to the same JSONL and clobber the original's transcript.
+ *
+ * `fork: false` (the default) is a plain resume — continue a genuinely-closed
+ * session in place. The trailing newline auto-runs the command in the spawned
+ * shell (parity with the legacy sessionResume PTY write).
+ *
+ * Callers must validate `uuid` (UUID regex) before passing it here.
+ */
+export function buildResumeCommand(uuid: string, opts?: { fork?: boolean }): string {
+  return opts?.fork
+    ? `claude --resume ${uuid} --fork-session\n`
+    : `claude --resume ${uuid}\n`
+}
+
+/**
  * Encode an absolute filesystem path the way Claude Code does to map
  * a cwd to its `~/.claude/projects/<dir>/` subdirectory. Both `/` and
  * `.` are mapped to `-` — verified against the live filesystem:

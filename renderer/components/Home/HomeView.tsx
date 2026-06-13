@@ -241,9 +241,9 @@ export function HomeView({ isActive, onSnapshotChange }: HomeViewProps) {
             </p>
             <p className="duo-home-confirm-body text-ink-soft">
               It’s already running outside Duo (another terminal or the Claude
-              desktop app), so Duo can’t focus it. Forking starts a{' '}
-              <strong>second copy</strong> — both would write to the same
-              session and could conflict.
+              desktop app), so Duo can’t focus it. Forking branches a{' '}
+              <strong>new session</strong> from its current state — your copy
+              runs independently and won’t disturb the original.
             </p>
             <div className="duo-home-confirm-actions">
               <button

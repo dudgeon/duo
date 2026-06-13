@@ -9,6 +9,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import os from 'os'
 import {
+  buildResumeCommand,
   encodeProjectDir,
   cleanAndTruncate,
   readBannerTitle,
@@ -17,6 +18,28 @@ import {
   readSessionTailMeta,
   readSessionHeadMeta,
 } from './claude-session-tracker'
+
+describe('buildResumeCommand — ENH-212 fork vs resume', () => {
+  const uuid = '75b057bd-07fd-4a08-a633-671e94587dd5'
+
+  it('plain resume continues the session in place (no --fork-session)', () => {
+    expect(buildResumeCommand(uuid)).toBe(`claude --resume ${uuid}\n`)
+    expect(buildResumeCommand(uuid, { fork: false })).toBe(`claude --resume ${uuid}\n`)
+  })
+
+  it('fork appends --fork-session so a still-live session is branched, not clobbered', () => {
+    // The bug the owner caught on the v0.10.3 walk: the Fork button ran a plain
+    // `--resume`, attaching a second writer to the running session's JSONL.
+    expect(buildResumeCommand(uuid, { fork: true })).toBe(
+      `claude --resume ${uuid} --fork-session\n`
+    )
+  })
+
+  it('always ends with a newline so the spawned shell auto-runs it', () => {
+    expect(buildResumeCommand(uuid).endsWith('\n')).toBe(true)
+    expect(buildResumeCommand(uuid, { fork: true }).endsWith('\n')).toBe(true)
+  })
+})
 
 describe('encodeProjectDir — ENH-177', () => {
   it('encodes a simple home path', () => {

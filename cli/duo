@@ -4399,7 +4399,7 @@ var VERBS = [
     name: "session",
     group: "Workspace & projects",
     args: "<list|resume|open> [args]",
-    summary: `Claude session lifecycle. session list [--cwd <path>] lists prior "<uuid>.jsonl" sessions in the CWD ({uuid, title, source, messageCount, modifiedAt}); session resume <tabId> <uuid> spawns "claude --resume <uuid>" in the named tab's PTY; session open <uuid> [--cwd <path>] is the Home click contract \u2014 focuses the session's live tab if open, else spawns "claude --resume <uuid>" in a new tab in the primary window (--cwd required to resume).`
+    summary: `Claude session lifecycle. session list [--cwd <path>] lists prior "<uuid>.jsonl" sessions in the CWD ({uuid, title, source, messageCount, modifiedAt}); session resume <tabId> <uuid> spawns "claude --resume <uuid>" in the named tab's PTY; session open <uuid> [--cwd <path>] [--force] is the Home click contract \u2014 focuses the session's live tab if open, else spawns "claude --resume <uuid>" in a new tab in the primary window (--cwd required to resume; a session live OUTSIDE Duo is refused unless --force, which FORKS via --fork-session).`
   },
   {
     name: "home",

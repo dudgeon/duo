@@ -315,7 +315,7 @@ export interface NavBridge {
    *  else spawn `claude --resume <uuid>` in a new tab in the primary
    *  window (D15 — no DUO_WINDOW stamp resolves to primary, identity,
    *  never focus). uuid regex-validated. */
-  sessionOpen: (uuid: string, cwd?: string, force?: boolean) => Promise<{ ok: boolean; action?: 'focus' | 'resume'; error?: string }>
+  sessionOpen: (uuid: string, cwd?: string, force?: boolean) => Promise<{ ok: boolean; action?: 'focus' | 'resume' | 'fork'; error?: string }>
 }
 
 /** ENH-195 (review) — canonicalize a path for open-vs-closed routing:

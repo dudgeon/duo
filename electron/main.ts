@@ -89,7 +89,7 @@ import { WorkspaceHistoryService } from '../core/workspace-history-service'
 import { ActiveWorkspaceService } from '../core/active-workspace-service'
 import { BROWSER_SESSION_PARTITION } from '../core/constants'
 import { ClaudePresenceProbe, mapLiveClaudeOwners } from '../core/claude-presence'
-import { detectLatestClaudeSession, encodeProjectDir, listTopLevelSessions } from './claude-session-tracker'
+import { buildResumeCommand, detectLatestClaudeSession, encodeProjectDir, listTopLevelSessions } from './claude-session-tracker'
 import { buildHomeSnapshot, listHomeSessions, attributeOpenSessions, type OpenByUuid, type LiveCwdGroup } from './home-snapshot'
 import { BrowserHistoryService } from '../core/browser-history-service'
 import { ExternalDomainsService } from '../core/external-domains-service'
@@ -2758,16 +2758,19 @@ function setupIPC(): void {
       return {
         ok: false,
         externalLive: true,
-        error: 'That session is running outside Duo (another terminal / the desktop app). Resuming it here starts a second copy.',
+        error: 'That session is running outside Duo (another terminal / the desktop app). Forking it here branches a new session from its current state.',
       }
     }
     const senderId = BrowserWindow.fromWebContents(event.sender)?.id
+    // Fork vs resume. A *forced* click on a session still live OUTSIDE Duo is a
+    // FORK — branch a NEW session id (--fork-session) so the original running
+    // copy's transcript isn't clobbered by a second writer on the same id. A
+    // plain resume of a genuinely-closed session continues it in place.
+    const isFork = liveNow?.kind === 'external' && action.force === true
     const res = await dispatchNewTabToWindow(senderId, {
       kind: 'shell',
       cwd: action.cwd,
-      // Trailing newline so the resume command auto-runs (parity with the
-      // sessionResume verb's `claude --resume <uuid>\n` PTY write).
-      cmd: `claude --resume ${action.uuid}\n`,
+      cmd: buildResumeCommand(action.uuid, { fork: isFork }),
     })
     return res.ok ? { ok: true } : { ok: false, error: res.error }
   })
@@ -4280,7 +4283,7 @@ async function sessionOpenForCli(
   uuid: string,
   cwd?: string,
   force = false
-): Promise<{ ok: boolean; action?: 'focus' | 'resume'; error?: string }> {
+): Promise<{ ok: boolean; action?: 'focus' | 'resume' | 'fork'; error?: string }> {
   if (!/^[0-9a-f-]{36}$/.test(uuid)) {
     return { ok: false, error: `uuid must be a UUID, got: ${uuid}` }
   }
@@ -4300,8 +4303,8 @@ async function sessionOpenForCli(
   if (hit?.kind === 'external' && !force) {
     // Live outside Duo — Duo can't focus it. Refuse by default so a stray
     // invocation doesn't fork a running session; `--force` overrides (the
-    // user's call — parity with the UI's "Resume anyway").
-    return { ok: false, error: 'session is running outside Duo (another terminal / the desktop app) — pass --force to resume a second copy anyway' }
+    // user's call — parity with the UI's Fork dialog).
+    return { ok: false, error: 'session is running outside Duo (another terminal / the desktop app) — pass --force to fork it (a new session branched from this one)' }
   }
   // RESUME leg — needs a cwd. D15 — addressed window (cliTargetWindowId, e.g.
   // `--window 2`), else the primary window when unstamped — same identity
@@ -4310,15 +4313,17 @@ async function sessionOpenForCli(
   if (!cwd) {
     return { ok: false, error: 'session is not open; pass --cwd <path> to resume it in a new tab' }
   }
+  // Fork vs resume — parity with the HOME_SESSION_ACTION leg: a forced open of
+  // a session still live OUTSIDE Duo forks (--fork-session, a new session id);
+  // a genuinely-closed session resumes in place.
+  const isFork = hit?.kind === 'external' && force
   const targetWindowId = windowByIdOrPrimary(undefined)?.id
   const res = await dispatchNewTabToWindow(targetWindowId, {
     kind: 'shell',
     cwd,
-    // Trailing newline so the resume auto-runs (parity with sessionResume +
-    // the HOME_SESSION_ACTION resume leg).
-    cmd: `claude --resume ${uuid}\n`,
+    cmd: buildResumeCommand(uuid, { fork: isFork }),
   })
-  return res.ok ? { ok: true, action: 'resume' } : { ok: false, error: res.error }
+  return res.ok ? { ok: true, action: isFork ? 'fork' : 'resume' } : { ok: false, error: res.error }
 }
 
 // ENH-130 — `duo edit --reveal` / `duo open --reveal` reveal flow.

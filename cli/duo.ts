@@ -448,7 +448,7 @@ const VERBS: VerbSpec[] = [
     name: 'session',
     group: 'Workspace & projects',
     args: '<list|resume|open> [args]',
-    summary: 'Claude session lifecycle. session list [--cwd <path>] lists prior "<uuid>.jsonl" sessions in the CWD ({uuid, title, source, messageCount, modifiedAt}); session resume <tabId> <uuid> spawns "claude --resume <uuid>" in the named tab\'s PTY; session open <uuid> [--cwd <path>] is the Home click contract — focuses the session\'s live tab if open, else spawns "claude --resume <uuid>" in a new tab in the primary window (--cwd required to resume).'
+    summary: 'Claude session lifecycle. session list [--cwd <path>] lists prior "<uuid>.jsonl" sessions in the CWD ({uuid, title, source, messageCount, modifiedAt}); session resume <tabId> <uuid> spawns "claude --resume <uuid>" in the named tab\'s PTY; session open <uuid> [--cwd <path>] [--force] is the Home click contract — focuses the session\'s live tab if open, else spawns "claude --resume <uuid>" in a new tab in the primary window (--cwd required to resume; a session live OUTSIDE Duo is refused unless --force, which FORKS via --fork-session).'
   },
   {
     name: 'home',
@@ -2294,8 +2294,9 @@ async function main(): Promise<void> {
         } else if (sub === 'open') {
           // ENH-212 — the Home click contract: focus-if-open, else resume
           // (in the primary window — D15). --cwd required to resume. --force
-          // resumes a SECOND copy even when the session is live outside Duo
-          // (otherwise refused; parity with the UI's "Resume anyway").
+          // FORKS (claude --resume --fork-session, a new branched session id)
+          // when the session is live outside Duo (otherwise refused; parity
+          // with the UI's Fork dialog) so the running copy isn't clobbered.
           const uuid = rest[1]
           if (!uuid) die('Usage: duo session open <uuid> [--cwd <path>] [--force]')
           const cwd = flagValue(rest, '--cwd')
