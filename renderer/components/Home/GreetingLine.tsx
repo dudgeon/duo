@@ -21,14 +21,24 @@ export function GreetingLine({ greeting, onClickFreshest }: GreetingLineProps) {
       {before}
       {freshestTitle && (
         onClickFreshest ? (
-          <button
-            type="button"
+          // A true inline element (not a <button>, which Chromium forces to
+          // inline-block) so a long title soft-wraps within the sentence flow.
+          // role/tabindex/keydown keep it keyboard-operable.
+          <span
+            role="button"
+            tabIndex={0}
             className="duo-home-greeting-thread"
             onClick={onClickFreshest}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onClickFreshest()
+              }
+            }}
             title="Pick up this session"
           >
             {freshestTitle}
-          </button>
+          </span>
         ) : (
           <span className="duo-home-greeting-thread is-static">{freshestTitle}</span>
         )

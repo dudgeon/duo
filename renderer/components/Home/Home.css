@@ -31,14 +31,22 @@
 }
 
 /* Round-2 #3 — the freshest-thread title inside the greeting: accent + bold +
-   clickable (focus/resume that session). Inherits the serif greeting font. */
+   clickable (focus/resume that session). Inherits the serif greeting font.
+   It must flow as INLINE text so a long title soft-wraps within the sentence
+   (a <button> defaults to inline-block + text-align:center, which centered the
+   wrapped 2nd line and orphaned the trailing ", N ago" — round-2 feedback). */
 .duo-home-greeting-thread {
+  display: inline;
   font: inherit;
   font-weight: 700;
   color: var(--duo-accent);
   background: none;
   border: none;
   padding: 0;
+  margin: 0;
+  text-align: inherit;     /* override the <button> default (center) */
+  white-space: normal;     /* allow the title to wrap mid-phrase */
+  vertical-align: baseline;
   cursor: pointer;
   text-decoration: underline;
   text-decoration-color: color-mix(in srgb, var(--duo-accent) 40%, transparent);
