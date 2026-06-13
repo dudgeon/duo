@@ -474,6 +474,23 @@ describe('ENH-212 Home data primitives', () => {
       expect(meta.titleSource).toBe('jsonl-firstmsg')
     })
 
+    it('uses a /rename custom-title that sits PAST the head window (tail scan)', async () => {
+      // round-2 feedback: `/rename` appends a custom-title entry wherever the
+      // user runs it — typically deep in the session, beyond the 16KB head.
+      // The first user message is in the head; a huge filler pushes the
+      // custom-title past 16KB so only the tail scan can find it.
+      const file = path.join(dir, 'head-rename-late.jsonl')
+      await fs.writeFile(file, jsonl([
+        userEntry('please fix the bug in the parser', { cwd: '/Users/x/proj' }),
+        assistantEntry('z'.repeat(40 * 1024)),
+        { type: 'custom-title', customTitle: 'Parser rewrite', sessionId: 's' },
+      ]))
+      const meta = await readSessionHeadMeta(file)
+      expect(meta.cwd).toBe('/Users/x/proj') // cwd still from the head
+      expect(meta.title).toBe('Parser rewrite') // title from the tail
+      expect(meta.titleSource).toBe('customTitle')
+    })
+
     it('drops the trailing partial line when the file extends past 16KB', async () => {
       // First line carries the cwd; a giant second line straddles the
       // 16KB boundary and must be discarded, not parsed.

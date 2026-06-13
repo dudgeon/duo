@@ -65,6 +65,11 @@ const RECENT_FILES_SKIP_NAMES = new Set([
   'composer.lock',
   '.DS_Store',
 ])
+/** File extensions excluded from recent files — workspace manifests
+ *  (.duo-workspace, .code-workspace) are Duo/editor config, not "recent
+ *  work" a user thinks of as a file (round-2 feedback). Matched on the
+ *  trailing dot-segment so `stoop.duo-workspace` → `duo-workspace`. */
+const RECENT_FILES_SKIP_EXT = new Set(['duo-workspace', 'code-workspace', 'workspace'])
 /** Per-file read budget (D14) — an iCloud-evicted JSONL that stalls past
  *  this renders snippet-less rather than blocking the whole snapshot. */
 const PER_FILE_TIMEOUT_MS = 1200
@@ -309,7 +314,8 @@ export async function scanRecentFiles(root: string): Promise<{ path: string; mti
         continue
       }
       if (!e.isFile()) continue
-      if (RECENT_FILES_SKIP_NAMES.has(e.name) || e.name.startsWith('.')) continue
+      const ext = e.name.slice(e.name.lastIndexOf('.') + 1)
+      if (RECENT_FILES_SKIP_NAMES.has(e.name) || e.name.startsWith('.') || RECENT_FILES_SKIP_EXT.has(ext)) continue
       const full = path.join(dir, e.name)
       const stat = await fs.stat(full).catch(() => null)
       if (!stat) continue

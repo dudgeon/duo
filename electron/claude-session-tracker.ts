@@ -393,8 +393,16 @@ const TAIL_META_LADDER = [64 * 1024, 256 * 1024, 1024 * 1024, 2 * 1024 * 1024]
 
 /** Head window for `readSessionHeadMeta`. Head lines (queue ops, the
  *  first user/system entries) are small — 16KB covers the cwd
- *  evidence + the title-ladder entries cheaply. */
+ *  evidence + the first-message title rung cheaply. */
 const HEAD_META_BYTES = 16 * 1024
+
+/** Tail window for `readSessionHeadMeta`'s TITLE scan. A `/rename`
+ *  (`custom-title`) or auto `ai-title` entry is appended WHEN the user
+ *  runs it — usually deep in the session, not the head. So the title
+ *  ladder also scans a tail window; without this, Home showed the first
+ *  prompt for renamed sessions (round-2 feedback). cwd still comes from
+ *  the head only (it lives in the first entries). */
+const TAIL_META_BYTES = 16 * 1024
 
 export interface TopLevelSessionStat {
   /** Session UUID (the `.jsonl` basename). */
@@ -603,7 +611,22 @@ export async function readSessionHeadMeta(file: string): Promise<SessionHeadMeta
       }
     }
 
-    const title = titleFromLines(lines)
+    // Title ladder over head + a TAIL window: a `/rename` (custom-title) or
+    // ai-title entry usually sits late in the session, so a head-only scan
+    // would miss it and fall back to the first prompt. Skip the tail when the
+    // head already covers the whole file; cap the tail so it never overlaps
+    // the head (no duplicate lines for files just over HEAD_META_BYTES).
+    let titleLines = lines
+    if (len < stat.size) {
+      const tailLen = Math.min(TAIL_META_BYTES, stat.size - len)
+      const tailBuf = Buffer.alloc(tailLen)
+      await handle.read(tailBuf, 0, tailLen, stat.size - tailLen)
+      const firstNewline = tailBuf.indexOf(0x0a /* \n */)
+      const tailSlice = firstNewline >= 0 ? tailBuf.subarray(firstNewline + 1) : tailBuf
+      titleLines = [...lines, ...splitLines(tailSlice)]
+    }
+
+    const title = titleFromLines(titleLines)
     return {
       cwd: cwd ?? anyCwd,
       ...(title ? { title: title.title, titleSource: title.source } : {})

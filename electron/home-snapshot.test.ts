@@ -271,6 +271,18 @@ describe('scanRecentFiles — bounds + ignore list', () => {
     }
   })
 
+  it('excludes workspace manifests (.duo-workspace / .code-workspace)', async () => {
+    const root = await mkRealDir('ws-proj')
+    await fs.writeFile(path.join(root, 'real.ts'), 'x')
+    await fs.writeFile(path.join(root, 'ws-proj.duo-workspace'), '{}')
+    await fs.writeFile(path.join(root, 'project.code-workspace'), '{}')
+    const out = await scanRecentFiles(root)
+    const names = out.map((f) => path.basename(f.path))
+    expect(names).toContain('real.ts')
+    expect(names).not.toContain('ws-proj.duo-workspace')
+    expect(names).not.toContain('project.code-workspace')
+  })
+
   it('descends at most 2 levels (depth bound)', async () => {
     const root = await mkRealDir('depth-proj')
     await fs.writeFile(path.join(root, 'top.ts'), 'x')
