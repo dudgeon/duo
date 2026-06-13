@@ -1614,9 +1614,12 @@ export interface HomeProject {
   lastActiveAt: number
   /** Total sessions for the root — drives the "all N sessions" expander. */
   sessionCount: number
-  /** Italic last-line transcript snippet (hero panels only); absent when
-   *  the tail read timed out (D14 iCloud-evicted) or found no text. */
-  snippet?: string
+  /** Last-response snippet (hero panels only) — the most-recent session's
+   *  last assistant message. Carries `sessionUuid` so the renderer can link
+   *  it to that session's row + make it clickable (focus/resume), and the
+   *  full `text` for the hover-to-expand. Absent when the tail read timed out
+   *  (D14 iCloud-evicted) or found no assistant text. */
+  snippet?: { sessionUuid: string; text: string }
   /** The most recent sessions, capped by HOME_SNAPSHOT's limitPerProject. */
   sessions: HomeSession[]
   /** Shallow mtime scan of the root (depth ≤2, top 5). */

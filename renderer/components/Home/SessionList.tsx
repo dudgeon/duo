@@ -17,9 +17,13 @@ const EXPANDER_PAGE = 20
 interface SessionListProps {
   project: HomeProject
   onActivateSession: (project: HomeProject, session: HomeSession) => void
+  /** uuid of the session currently linked-highlighted (hero snippet hover). */
+  linkedUuid?: string | null
+  /** Report a row hover up so the parent can highlight the linked snippet. */
+  onHoverSession?: (uuid: string | null) => void
 }
 
-export function SessionList({ project, onActivateSession }: SessionListProps) {
+export function SessionList({ project, onActivateSession, linkedUuid, onHoverSession }: SessionListProps) {
   const [expanded, setExpanded] = useState(false)
   const [extra, setExtra] = useState<HomeSession[]>([])
   const [loading, setLoading] = useState(false)
@@ -64,6 +68,8 @@ export function SessionList({ project, onActivateSession }: SessionListProps) {
             key={s.uuid}
             session={s}
             onActivate={(session) => onActivateSession(project, session)}
+            linked={linkedUuid === s.uuid}
+            onHover={onHoverSession}
           />
         ))}
         {expanded &&

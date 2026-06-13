@@ -6,6 +6,7 @@
 // The session-click contract and the recent-file-open bridge are owned by
 // the parent (HomeView); HeroPanel reports clicks via the callbacks.
 
+import { useState } from 'react'
 import type { HomeProject, HomeSession } from '@shared/types'
 import { SessionList } from './SessionList'
 import { ageShort, projectHue, fileChipLabel } from './homeModel'
@@ -17,6 +18,16 @@ interface HeroPanelProps {
 }
 
 export function HeroPanel({ project, onActivateSession, onOpenFile }: HeroPanelProps) {
+  // Round-2 feedback — the last-response snippet is now a first-class link to
+  // its source session: hovering it (or its row) highlights the pair, hovering
+  // expands the full text, and clicking focuses/resumes that session.
+  const [linkedUuid, setLinkedUuid] = useState<string | null>(null)
+  const snippet = project.snippet
+  const snippetSession = snippet
+    ? project.sessions.find((s) => s.uuid === snippet.sessionUuid)
+    : undefined
+  const snippetLinked = !!snippet && linkedUuid === snippet.sessionUuid
+
   return (
     <section className="duo-home-hero" aria-label={`${project.displayName} project`}>
       <header className="duo-home-hero-head">
@@ -33,11 +44,35 @@ export function HeroPanel({ project, onActivateSession, onOpenFile }: HeroPanelP
         </span>
       </header>
 
-      {project.snippet && (
-        <p className="duo-home-hero-snippet font-serif text-ink-soft">{project.snippet}</p>
+      {snippet && (
+        <button
+          type="button"
+          className={`duo-home-hero-snippet font-serif text-ink-soft${snippetLinked ? ' is-linked' : ''}`}
+          onClick={() => snippetSession && onActivateSession(project, snippetSession)}
+          onMouseEnter={() => setLinkedUuid(snippet.sessionUuid)}
+          onMouseLeave={() => setLinkedUuid(null)}
+          title={
+            snippetSession
+              ? `Last response in “${snippetSession.title}” — click to open it`
+              : undefined
+          }
+          aria-label={
+            snippetSession
+              ? `Last response in ${snippetSession.title}; click to open the session`
+              : 'Last response'
+          }
+        >
+          <span className="duo-home-hero-snippet-quote" aria-hidden="true">“</span>
+          <span className="duo-home-hero-snippet-text">{snippet.text}</span>
+        </button>
       )}
 
-      <SessionList project={project} onActivateSession={onActivateSession} />
+      <SessionList
+        project={project}
+        onActivateSession={onActivateSession}
+        linkedUuid={linkedUuid}
+        onHoverSession={setLinkedUuid}
+      />
 
       {project.recentFiles.length > 0 && (
         <div className="duo-home-hero-chips" aria-label="Recent files">

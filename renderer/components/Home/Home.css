@@ -112,17 +112,60 @@
   white-space: nowrap;
 }
 
+/* The last-response snippet — a clickable link to its source session
+   (round-2 feedback). Block button styled as quiet italic prose. Clamped to
+   2 lines at rest; hovering expands to the full response (scrolls if long)
+   and highlights the linked session row via the shared is-linked state. */
 .duo-home-hero-snippet {
-  margin: 0;
+  display: block;
+  width: 100%;
+  margin: 0 0 2px;
+  padding: 4px 8px 4px 10px;
+  border: none;
+  border-left: 2px solid transparent;
+  border-radius: 0 6px 6px 0;
+  background: transparent;
+  text-align: left;
+  font-family: inherit;
   font-style: italic;
   font-size: 14px;
   line-height: 1.45;
-  /* Keep the snippet to a couple of lines so a long last-line transcript
-     doesn't blow out the panel height. */
+  color: var(--duo-ink-soft);
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.duo-home-hero-snippet-quote {
+  font-size: 18px;
+  line-height: 0;
+  vertical-align: -3px;
+  margin-right: 2px;
+  color: var(--duo-ink-mute);
+}
+.duo-home-hero-snippet-text {
+  /* Clamp to 2 lines at rest. */
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+/* Hover (or keyboard focus) — expand to the full response + link-highlight. */
+.duo-home-hero-snippet:hover,
+.duo-home-hero-snippet:focus-visible,
+.duo-home-hero-snippet.is-linked {
+  background: color-mix(in srgb, var(--duo-accent) 7%, transparent);
+  border-left-color: color-mix(in srgb, var(--duo-accent) 55%, transparent);
+  outline: none;
+}
+.duo-home-hero-snippet:hover .duo-home-hero-snippet-text,
+.duo-home-hero-snippet:focus-visible .duo-home-hero-snippet-text {
+  -webkit-line-clamp: unset;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+/* The reciprocal end of the link — the source session row lit by snippet hover. */
+.duo-home-session-row.is-linked {
+  background: color-mix(in srgb, var(--duo-accent) 7%, transparent);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--duo-accent) 55%, transparent);
 }
 
 .duo-home-hero-sessions,

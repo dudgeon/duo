@@ -73,6 +73,11 @@ const RECENT_FILES_SKIP_EXT = new Set(['duo-workspace', 'code-workspace', 'works
 /** Per-file read budget (D14) — an iCloud-evicted JSONL that stalls past
  *  this renders snippet-less rather than blocking the whole snapshot. */
 const PER_FILE_TIMEOUT_MS = 1200
+
+/** Cap on the hero last-response snippet text carried in the snapshot. The
+ *  renderer clamps to ~2 lines and expands on hover; this bounds the payload
+ *  for a pathologically long response while still giving the hover real text. */
+const SNIPPET_MAX_CHARS = 4000
 /** Concurrency cap for the seek-based reads (§ 4.2 — p-limit ~8; p-limit
  *  isn't a dependency, so a tiny hand-rolled limiter does the job). */
 const READ_CONCURRENCY = 8
@@ -496,14 +501,19 @@ export async function buildHomeSnapshot(deps: BuildHomeSnapshotDeps = {}): Promi
       }
     })
 
-    // Hero snippet — the freshest session's last assistant line (D3).
-    let snippet: string | undefined
+    // Hero snippet — the freshest session's last assistant response (D3),
+    // tagged with that session's uuid so the renderer links it to the row +
+    // makes it clickable. Capped so a huge response doesn't bloat the
+    // snapshot; the renderer clamps further and expands on hover.
+    let snippet: { sessionUuid: string; text: string } | undefined
     if (isHero && sorted.length > 0) {
       const file = path.join(sorted[0].encodedDir, `${sorted[0].stat.id}.jsonl`)
       const tail = await withTimeout(readSessionTailMeta(file), {
         snippet: null, gitBranch: null, sessionId: null, timestamp: null,
       })
-      if (tail.snippet) snippet = tail.snippet
+      if (tail.snippet) {
+        snippet = { sessionUuid: sorted[0].stat.id, text: tail.snippet.slice(0, SNIPPET_MAX_CHARS) }
+      }
     }
 
     // Recent files — heroes only (the chips are a hero affordance, § 1);
