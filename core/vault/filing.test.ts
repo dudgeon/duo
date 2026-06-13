@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
-import { initVault, loadTemplates, stubPathFor, createEntityStub, safeName } from './index'
+import { initVault, loadTemplates, stubPathFor, createEntityStub, createType, safeName } from './index'
 
 let root: string
 beforeEach(() => {
@@ -69,5 +69,39 @@ describe('createEntityStub', () => {
 
   it('throws a clear error for an unknown type', () => {
     expect(() => createEntityStub(root, 'nope', 'X', { asOf: AS_OF })).toThrow(/unknown type "nope"/)
+  })
+})
+
+describe('createType (the silent-stub New: row, via VAULT_CREATE_TYPE)', () => {
+  it('normalizes to the canonical name and writes the template', () => {
+    const r = createType(root, 'Decision Log')
+    expect(r.type).toBe('decision log')
+    expect(r.path).toBe('templates/decision log.md')
+    const content = fs.readFileSync(path.join(root, r.path), 'utf8')
+    expect(content).toContain('type: decision log')
+  })
+
+  it('the returned canonical name stubs; the raw input would not', () => {
+    const r = createType(root, 'Decision Log')
+    // The contract the IPC comment pins: stub with the RESULT's type…
+    const stub = createEntityStub(root, r.type, 'Q3 pricing call', { asOf: AS_OF })
+    expect(stub.created).toBe(true)
+    expect(stub.path).toBe('notes/2026/06/Q3 pricing call.md') // no folder → D19 residue
+    // …because the raw filter text dead-ends on strict type matching.
+    expect(() => createEntityStub(root, 'Decision Log', 'Another call', { asOf: AS_OF })).toThrow(
+      /unknown type "Decision Log"/,
+    )
+  })
+
+  it('is idempotent — an existing template is left untouched', () => {
+    const first = createType(root, 'ritual')
+    fs.writeFileSync(path.join(root, first.path), '---\ntype: ritual\ncadence:\n---\n')
+    const second = createType(root, 'Ritual') // normalizes to the same stem
+    expect(second).toEqual(first)
+    expect(fs.readFileSync(path.join(root, first.path), 'utf8')).toContain('cadence:')
+  })
+
+  it('throws when the name normalizes to nothing', () => {
+    expect(() => createType(root, '???')).toThrow(/empty type name/)
   })
 })

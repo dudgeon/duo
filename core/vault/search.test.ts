@@ -57,6 +57,20 @@ describe('search docMatchIndex (palette → editor goto-match congruence)', () =
     expect(hits[0].docMatchIndex).toBe(0) // not null — splitFrontmatter would not strip it
   })
 
+  it('CRLF files count like the editor (fences with \\r, excerpts without)', () => {
+    // The editor's splitter tolerates \r and trailing whitespace on fence
+    // lines (markdown-io FENCE_RE) — search must agree or docMatchIndex
+    // drifts by however many needles the frontmatter holds.
+    note('crlf.md', '---\r\nstatus: blocked\r\n--- \r\n\r\nblocked once\r\nstill blocked\r\n')
+    const hits = search(dir, 'blocked')
+    expect(hits.map((h) => [h.line, h.docMatchIndex])).toEqual([
+      [2, null], // frontmatter — fence recognized despite \r + trailing space
+      [5, 0],
+      [6, 1],
+    ])
+    for (const h of hits) expect(h.excerpt).not.toContain('\r')
+  })
+
   it('non-overlapping advance matches the editor scan rule', () => {
     note('e.md', 'aaaa\nfind aa here\n')
     // 'aa' in 'aaaa' = 2 non-overlapping occurrences (not 3).
@@ -82,6 +96,16 @@ describe('searchAsync parity with search', () => {
     expect(search(dir, 'cap me', 7).length).toBe(7)
     expect((await searchAsync(dir, 'cap me', 7)).length).toBe(7)
     expect(VAULT_SEARCH_DEFAULT_LIMIT).toBe(200)
+  })
+
+  it('the async walk skips the same dirs as the sync one', async () => {
+    note('.obsidian/config.md', 'skipped needle\n')
+    note('templates/person.md', 'skipped needle\n')
+    note('real.md', 'skipped needle\n')
+    const sync = search(dir, 'skipped needle')
+    const async_ = await searchAsync(dir, 'skipped needle')
+    expect(async_).toEqual(sync)
+    expect(async_.map((h) => h.path)).toEqual(['real.md'])
   })
 
   it('returns [] for an empty query', async () => {

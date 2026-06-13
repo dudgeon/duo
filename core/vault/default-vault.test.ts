@@ -15,6 +15,7 @@ import {
   resolveVaultOrDefault,
   resolveVaultForUi,
 } from './index'
+import { writePrefs } from './default-vault'
 import { initVault } from './scaffold'
 
 let dir: string
@@ -117,6 +118,42 @@ describe('known vaults (ENH-208 Phase 2 — window-independent picker)', () => {
     setDefaultVault(vaultA, prefFile)
     rememberVault(vaultB, prefFile)
     expect(listKnownVaults(prefFile)).toEqual([vaultA, vaultB].sort())
+  })
+})
+
+describe('pref-file shape hardening (hand-edited / malformed files)', () => {
+  it('a non-array knownVaults ({knownVaults: 42}) degrades to [] — no throw', () => {
+    fs.writeFileSync(prefFile, JSON.stringify({ knownVaults: 42 }) + '\n')
+    expect(listKnownVaults(prefFile)).toEqual([])
+  })
+
+  it('a string knownVaults ({knownVaults: "/x"}) is not spread into characters', () => {
+    fs.writeFileSync(prefFile, JSON.stringify({ knownVaults: '/x' }) + '\n')
+    expect(listKnownVaults(prefFile)).toEqual([])
+    setDefaultVault(vaultA, prefFile) // pre-fix: spread '/x' into ['/', 'x']
+    expect(JSON.parse(fs.readFileSync(prefFile, 'utf8')).knownVaults).toEqual([vaultA])
+  })
+
+  it('non-string entries inside a knownVaults array are filtered out', () => {
+    fs.writeFileSync(prefFile, JSON.stringify({ knownVaults: [vaultA, 7, null] }) + '\n')
+    expect(listKnownVaults(prefFile)).toEqual([vaultA])
+  })
+
+  it('a non-string defaultVault reads as unset', () => {
+    fs.writeFileSync(prefFile, JSON.stringify({ defaultVault: ['/x'] }) + '\n')
+    expect(readDefaultVault(prefFile)).toBeNull()
+  })
+})
+
+describe('knownVaults lost-update guard (CLI + Electron race)', () => {
+  it('writePrefs union-merges with the on-disk knownVaults', () => {
+    // Simulate the race: another writer landed vaultB on disk AFTER this
+    // writer's read (its prefs object only knows about vaultA).
+    fs.writeFileSync(prefFile, JSON.stringify({ knownVaults: [vaultB] }) + '\n')
+    writePrefs({ defaultVault: vaultA, knownVaults: [vaultA] }, prefFile)
+    const onDisk = JSON.parse(fs.readFileSync(prefFile, 'utf8'))
+    expect(onDisk.defaultVault).toBe(vaultA) // last-writer-wins, by design
+    expect([...onDisk.knownVaults].sort()).toEqual([vaultA, vaultB].sort()) // monotonic
   })
 })
 

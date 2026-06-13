@@ -6,21 +6,28 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { walk } from './parse'
+import { walk, SKIP_DIRS } from './parse'
 import type { SearchHit } from './types'
 
 /** One cap shared by the CLI verb, the main-process IPC handler, and the
  *  palette (CLI-parity rule: same code path, same arguments). */
 export const VAULT_SEARCH_DEFAULT_LIMIT = 200
 
+/** A frontmatter fence line. Tolerates trailing whitespace, matching the
+ *  EDITOR's splitter (`markdown-io.ts`'s `/^---\s*\r?\n/`) rather than
+ *  parse.ts's byte-exact `^---\n` — docMatchIndex must count what the
+ *  editor doc contains, and the editor strips a `---  ` fence too. */
+const FENCE_RE = /^---\s*$/
+
 /** Frontmatter line extent: the index of the CLOSING `---` fence when the
- *  file opens with one, else null. Mirrors splitFrontmatter's regex
- *  (`^---\n…\n---\n?`) in line terms, so docMatchIndex counts exactly what
- *  the editor doc contains (the editor strips frontmatter into a panel). */
+ *  file opens with one, else null. Mirrors the editor splitter
+ *  (markdown-io's splitFrontmatter) in line terms, so docMatchIndex counts
+ *  exactly what the editor doc contains (the editor strips frontmatter
+ *  into a panel). */
 function frontmatterEndLine(lines: string[]): number | null {
-  if (lines[0] !== '---') return null
+  if (!FENCE_RE.test(lines[0] ?? '')) return null
   for (let j = 1; j < lines.length; j++) {
-    if (lines[j] === '---') return j
+    if (FENCE_RE.test(lines[j])) return j
   }
   return null
 }
@@ -49,7 +56,10 @@ function scanRaw(
   hits: SearchHit[],
   limit: number,
 ): boolean {
-  const lines = raw.split('\n')
+  // CRLF congruence: strip the trailing `\r` per line so fence detection,
+  // occurrence counting, and excerpts all see what the editor's
+  // `\r?\n`-tolerant splitter sees — and excerpts never carry a stray `\r`.
+  const lines = raw.split('\n').map((l) => (l.endsWith('\r') ? l.slice(0, -1) : l))
   const fmEnd = frontmatterEndLine(lines)
   // Running count of needle occurrences in BODY lines above the cursor —
   // the metric the editor's goto-match consumes (D22). Frontmatter hits
@@ -93,11 +103,35 @@ export function search(root: string, query: string, limit = VAULT_SEARCH_DEFAULT
   return hits
 }
 
+/** Async twin of parse.ts's `walk` — same SKIP_DIRS, same not-following-
+ *  symlinks semantics, but every directory read awaits (so the event loop
+ *  breathes per directory rather than blocking for the whole traversal).
+ *  Only the async search path uses it; the sync `walk` stays the CLI's. */
+async function walkAsync(dir: string, skip: Set<string> = SKIP_DIRS): Promise<string[]> {
+  const acc: string[] = []
+  let entries: fs.Dirent[]
+  try {
+    entries = await fs.promises.readdir(dir, { withFileTypes: true })
+  } catch {
+    return acc
+  }
+  for (const e of entries) {
+    const full = path.join(dir, e.name)
+    if (e.isDirectory()) {
+      if (!skip.has(e.name)) acc.push(...(await walkAsync(full, skip)))
+    } else {
+      acc.push(full)
+    }
+  }
+  return acc
+}
+
 /** Async variant for the Electron main process: the ⌘⇧F palette searches on
  *  every (debounced) keystroke, and a sync walk on the main thread would
  *  jank every window's IPC at N>1. Identical semantics to `search` — same
- *  walk order, matcher, limit, scanRaw — with awaited reads and a yield
- *  every few files so the event loop keeps breathing. */
+ *  walk order, matcher, limit, scanRaw — with an awaited traversal
+ *  (walkAsync), awaited reads, and a yield every few files so the event
+ *  loop keeps breathing. */
 export async function searchAsync(
   root: string,
   query: string,
@@ -106,7 +140,7 @@ export async function searchAsync(
   const needle = query.toLowerCase()
   if (!needle) return []
   const hits: SearchHit[] = []
-  const files = walk(root)
+  const files = (await walkAsync(root))
     .filter((p) => p.endsWith('.md'))
     .sort()
   for (let i = 0; i < files.length; i++) {

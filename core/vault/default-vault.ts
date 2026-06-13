@@ -28,13 +28,17 @@ import { isVaultRoot, findVaultRoot, resolveVault } from './detect'
 /** Default storage path. Overridable for tests. */
 export const DEFAULT_VAULT_FILE = path.join(os.homedir(), '.claude', 'duo', 'vault.json')
 
-interface VaultPrefs {
+export interface VaultPrefs {
   defaultVault?: string
   knownVaults?: string[]
 }
 
-/** Raw read — no validation, returns `{}` on missing / unreadable / malformed.
- *  Callers validate paths live (isVaultRoot) so a stale entry never resolves. */
+/** Shape-hardened read — returns `{}` on missing / unreadable / malformed,
+ *  and normalizes each field so a hand-edited file with the wrong types
+ *  (`{knownVaults: 42}`, `{knownVaults: "/x"}`) degrades to defaults instead
+ *  of throwing downstream (or spreading a string into characters).
+ *  Callers still validate paths live (isVaultRoot) so a stale entry never
+ *  resolves. */
 function readPrefs(filePath: string): VaultPrefs {
   let raw: string
   try {
@@ -44,18 +48,36 @@ function readPrefs(filePath: string): VaultPrefs {
   }
   try {
     const parsed = JSON.parse(raw) as unknown
-    return parsed && typeof parsed === 'object' ? (parsed as VaultPrefs) : {}
+    if (!parsed || typeof parsed !== 'object') return {}
+    const rec = parsed as Record<string, unknown>
+    const prefs: VaultPrefs = {}
+    if (typeof rec.defaultVault === 'string') prefs.defaultVault = rec.defaultVault
+    if (Array.isArray(rec.knownVaults)) {
+      prefs.knownVaults = rec.knownVaults.filter((v): v is string => typeof v === 'string')
+    }
+    return prefs
   } catch {
     return {}
   }
 }
 
 /** Atomic write (tmp + rename). Omits empty fields so a cleared, never-known
- *  file stays `{}`-shaped rather than carrying empty arrays. */
-function writePrefs(prefs: VaultPrefs, filePath: string): void {
+ *  file stays `{}`-shaped rather than carrying empty arrays.
+ *
+ *  Lost-update guard: the CLI and the Electron main process both
+ *  read-modify-write this file with no lock, so re-read at write time and
+ *  union-merge `knownVaults` — the list is MONOTONIC under a race (a
+ *  concurrent writer's registration can be reordered, never dropped).
+ *  `defaultVault` stays last-writer-wins: it's a single user intent.
+ *
+ *  Exported for the lost-update unit test only — production callers go
+ *  through set/remember/clear. */
+export function writePrefs(prefs: VaultPrefs, filePath: string): void {
+  const onDisk = readPrefs(filePath).knownVaults ?? []
+  const known = [...new Set([...onDisk, ...(prefs.knownVaults ?? [])])]
   const out: VaultPrefs = {}
   if (prefs.defaultVault) out.defaultVault = prefs.defaultVault
-  if (prefs.knownVaults && prefs.knownVaults.length > 0) out.knownVaults = prefs.knownVaults
+  if (known.length > 0) out.knownVaults = known
   fs.mkdirSync(path.dirname(filePath), { recursive: true })
   const tmp = `${filePath}.${process.pid}.tmp`
   fs.writeFileSync(tmp, JSON.stringify(out, null, 2) + '\n')
