@@ -21,7 +21,17 @@ reach the worktree dev Electron; use `duo dom --js` for the renderer shell, `duo
 for the browser pane; never `location.reload()` — it crashes the dev build). Full
 suite green (~1291). Dev build was last running on this worktree.
 
-**🛑 TWO ISSUES TO RESOLVE BEFORE THE SMOKE-WALK (owner, 2026-06-13) — do these FIRST:**
+**✅ The two pre-smoke-walk issues are RESOLVED (2026-06-13) — next step is `/smoke-walk` → cut.**
+TITLE-1: confirmed Home already reuses the session-resume title mechanism (ladder identical to
+`duo session list` / Claude's own picker; no concise summary exists beyond ai-title; first-prompts
+are genuinely un-auto-titled recent sessions) — no new mechanism; one real bug fixed (spine
+non-newest sessions showed bare uuids → now titled). RESP-1: two-hero columns were unequal
+(`1fr 1fr` blew one to 684/281) + breakpoint too low → fixed to `minmax(0,1fr)` 50/50 + 820px
+breakpoint, verified across pane widths. Detail: `tasks.md` ENH-212. Historical context of the two
+issues kept below for reference.
+
+<details><summary>(resolved) original two-issue writeup</summary>
+
 1. **Session identifier still shows the first prompt, not the Claude summary.** The
    owner still perceives first-prompt titles dominating where they expect the
    generated summary. Prior investigation concluded the `ai-title` (Haiku auto-summary)
@@ -43,7 +53,9 @@ suite green (~1291). Dev build was last running on this worktree.
    720px threshold is wrong for real split-pane widths. Verify live across pane widths
    (`duo split <pct>` to vary the working-pane width).
 
-**After those two → `/smoke-walk` (via the Skill tool) → propose `cut-version`.** Per
+</details>
+
+**Next → `/smoke-walk` (via the Skill tool) → propose `cut-version`.** Per
 the owner's "build all 4, then cut" call, the prior open-items round (greeting RealName,
 first-prompt wrapper cleanup, fork wording, `duo term close`) is DONE + verified.
 Full ENH-212 detail + the resolved open-items round: `tasks.md` ENH-212 entry.
