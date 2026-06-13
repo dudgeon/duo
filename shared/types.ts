@@ -1637,7 +1637,20 @@ export interface HomeSnapshot {
  *  (D6 — identity, never focus). */
 export type HomeSessionAction =
   | { op: 'focus'; windowId: number; tabId: string }
-  | { op: 'resume'; uuid: string; cwd: string }
+  // `force` = the user acknowledged the fork warning for a session that is
+  // live OUTSIDE Duo (the "running" pill). Without it, resume refuses when the
+  // session is found live-external at click time (the never-fork backstop for
+  // an accidental click on a session that went live in the snapshot gap).
+  | { op: 'resume'; uuid: string; cwd: string; force?: boolean }
+
+/** Result of HOME_SESSION_ACTION. `externalLive` is set when a resume was
+ *  refused because the session is live OUTSIDE Duo and `force` wasn't given —
+ *  the renderer turns that into the warn-then-fork confirm. */
+export interface HomeSessionActionResult {
+  ok: boolean
+  error?: string
+  externalLive?: boolean
+}
 
 // ── IPC channel names (renderer ↔ main) ─────────────────────────────────────
 

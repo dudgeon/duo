@@ -1233,7 +1233,7 @@ export interface ElectronHomeAPI {
    *  activates its terminal tab; resume spawns `claude --resume <uuid>`
    *  in the sender's window. Openness is re-checked main-side before
    *  any spawn. */
-  sessionAction(action: import('./types').HomeSessionAction): Promise<{ ok: boolean; error?: string }>
+  sessionAction(action: import('./types').HomeSessionAction): Promise<import('./types').HomeSessionActionResult>
   /** main → renderer push from `duo home` — focus/synthesize the Home
    *  tab. Returns a cleanup function. */
   onHomeShow(cb: () => void): () => void

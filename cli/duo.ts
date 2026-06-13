@@ -2293,12 +2293,16 @@ async function main(): Promise<void> {
           out(await send('session', { op: 'resume', tabId, uuid }))
         } else if (sub === 'open') {
           // ENH-212 — the Home click contract: focus-if-open, else resume
-          // (in the primary window — D15). --cwd required to resume.
+          // (in the primary window — D15). --cwd required to resume. --force
+          // resumes a SECOND copy even when the session is live outside Duo
+          // (otherwise refused; parity with the UI's "Resume anyway").
           const uuid = rest[1]
-          if (!uuid) die('Usage: duo session open <uuid> [--cwd <path>]')
+          if (!uuid) die('Usage: duo session open <uuid> [--cwd <path>] [--force]')
           const cwd = flagValue(rest, '--cwd')
+          const force = rest.includes('--force')
           const payload: Record<string, unknown> = { op: 'open', uuid }
           if (cwd) payload.cwd = cwd
+          if (force) payload.force = true
           out(await send('session', payload))
         } else {
           die(`Unknown session sub-op: ${sub}. Expected list|resume|open.`)

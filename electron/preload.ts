@@ -932,7 +932,7 @@ const api: ElectronAPI = {
     listSessions: (root: string, offset: number, limit: number) =>
       ipcRenderer.invoke(IPC.HOME_LIST_SESSIONS, { root, offset, limit }) as Promise<import('../shared/types').HomeSession[]>,
     sessionAction: (action: import('../shared/types').HomeSessionAction) =>
-      ipcRenderer.invoke(IPC.HOME_SESSION_ACTION, action) as Promise<{ ok: boolean; error?: string }>,
+      ipcRenderer.invoke(IPC.HOME_SESSION_ACTION, action) as Promise<import('../shared/types').HomeSessionActionResult>,
     onHomeShow: (cb: () => void) => {
       const handler = () => cb()
       ipcRenderer.on(IPC.HOME_SHOW, handler)

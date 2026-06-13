@@ -133,7 +133,8 @@ import type {
   WorkingAuxSnapshot,
   HomeSnapshot,
   HomeSession,
-  HomeSessionAction
+  HomeSessionAction,
+  HomeSessionActionResult
 } from '../shared/types'
 
 // Last nav state snapshot the renderer pushed. Drives `duo nav state`.
@@ -2716,7 +2717,7 @@ function setupIPC(): void {
   // its terminal tab (openness re-checked first). Resume: spawn a new shell tab
   // running `claude --resume <uuid>` in the SENDER's window (D6 — identity,
   // never focus), uuid regex-validated (cf. sessionResume).
-  ipcMain.handle(IPC.HOME_SESSION_ACTION, async (event, action: HomeSessionAction): Promise<{ ok: boolean; error?: string }> => {
+  ipcMain.handle(IPC.HOME_SESSION_ACTION, async (event, action: HomeSessionAction): Promise<HomeSessionActionResult> => {
     if (action.op === 'focus') {
       const ctx = registry.get(action.windowId)
       if (!ctx) return { ok: false, error: `window ${action.windowId} is no longer open` }
@@ -2737,11 +2738,12 @@ function setupIPC(): void {
     if (!/^[0-9a-f-]{36}$/.test(action.uuid)) {
       return { ok: false, error: `uuid must be a UUID, got: ${action.uuid}` }
     }
-    // NEVER-FORK re-check (owner directive 2026-06-13): re-attribute liveness
-    // at CLICK time, not just at snapshot time, so a session that went live in
-    // the gap can't be forked. If it's now live in Duo → focus it instead; if
-    // it's live OUTSIDE Duo → refuse (we can't focus an external terminal, but
-    // we must not spawn a duplicate `claude --resume` against a running one).
+    // Liveness re-check at CLICK time (not just snapshot time). If it's now
+    // live in a Duo tab → focus it instead (focusing never forks). If it's
+    // live OUTSIDE Duo → refuse UNLESS the user forced it: forking is the
+    // user's call (owner directive 2026-06-13), but an *accidental* click on a
+    // session that went live in the snapshot gap must not silently fork — so
+    // we report externalLive and let the renderer warn-then-confirm.
     const liveNow = (await buildHomeOpenJoin()).openByUuid.get(action.uuid)
     if (liveNow?.kind === 'duo') {
       const ctx = registry.get(liveNow.windowId)
@@ -2751,8 +2753,12 @@ function setupIPC(): void {
         makeSafeSend(() => ctx!.window)(IPC.TERMINAL_ACTIVATE_TAB, { tabId: liveNow.tabId })
         return { ok: true }
       }
-    } else if (liveNow?.kind === 'external') {
-      return { ok: false, error: 'That session is running outside Duo — focus it in its own terminal. Duo won’t start a second copy.' }
+    } else if (liveNow?.kind === 'external' && !action.force) {
+      return {
+        ok: false,
+        externalLive: true,
+        error: 'That session is running outside Duo (another terminal / the desktop app). Resuming it here starts a second copy.',
+      }
     }
     const senderId = BrowserWindow.fromWebContents(event.sender)?.id
     const res = await dispatchNewTabToWindow(senderId, {
@@ -4251,7 +4257,8 @@ function activateTerminalTabForCli(tabId: string): { ok: boolean; error?: string
 // renderer's HomeView.doResume which always supplies the session cwd.
 async function sessionOpenForCli(
   uuid: string,
-  cwd?: string
+  cwd?: string,
+  force = false
 ): Promise<{ ok: boolean; action?: 'focus' | 'resume'; error?: string }> {
   if (!/^[0-9a-f-]{36}$/.test(uuid)) {
     return { ok: false, error: `uuid must be a UUID, got: ${uuid}` }
@@ -4269,10 +4276,11 @@ async function sessionOpenForCli(
     makeSafeSend(() => ctx!.window)(IPC.TERMINAL_ACTIVATE_TAB, { tabId: hit.tabId })
     return { ok: true, action: 'focus' }
   }
-  if (hit?.kind === 'external') {
-    // NEVER-FORK: live outside Duo — we can't focus it, but we must not spawn
-    // a duplicate `claude --resume` against a running session.
-    return { ok: false, error: 'session is running outside Duo (another terminal / the desktop app) — Duo will not start a second copy' }
+  if (hit?.kind === 'external' && !force) {
+    // Live outside Duo — Duo can't focus it. Refuse by default so a stray
+    // invocation doesn't fork a running session; `--force` overrides (the
+    // user's call — parity with the UI's "Resume anyway").
+    return { ok: false, error: 'session is running outside Duo (another terminal / the desktop app) — pass --force to resume a second copy anyway' }
   }
   // RESUME leg — needs a cwd. D15 — addressed window (cliTargetWindowId, e.g.
   // `--window 2`), else the primary window when unstamped — same identity

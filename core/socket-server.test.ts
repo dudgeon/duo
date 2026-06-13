@@ -243,7 +243,17 @@ describe('SocketServer — ENH-212 Home CLI routing', () => {
     const res = await dispatch(server, 'session', { op: 'open', uuid: 'u1', cwd: '/p' })
     expect(res.ok).toBe(true)
     expect(res.result).toEqual({ ok: true, action: 'focus' })
-    expect(sessionOpen).toHaveBeenCalledWith('u1', '/p')
+    expect(sessionOpen).toHaveBeenCalledWith('u1', '/p', false)
+  })
+
+  it('`duo session open --force` threads force=true through to sessionOpen', async () => {
+    const d = stubDeps()
+    const sessionOpen = vi.fn(async () => ({ ok: true as const, action: 'resume' as const }))
+    const nav = { sessionOpen } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'session', { op: 'open', uuid: 'u1', cwd: '/p', force: true })
+    expect(res.ok).toBe(true)
+    expect(sessionOpen).toHaveBeenCalledWith('u1', '/p', true)
   })
 
   it('`duo session open` without a uuid fails cleanly', async () => {

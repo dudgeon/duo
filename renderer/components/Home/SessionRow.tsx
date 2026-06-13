@@ -22,7 +22,7 @@ export function SessionRow({ session, onActivate }: SessionRowProps) {
     open?.kind === 'duo'
       ? 'Running in a Duo terminal — click to focus it'
       : open?.kind === 'external'
-        ? 'Running outside Duo (another terminal / the desktop app) — focus it there'
+        ? 'Running outside Duo (another terminal / the desktop app) — click to resume a second copy here'
         : 'Resume this session in a new terminal'
   return (
     <button

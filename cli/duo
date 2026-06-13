@@ -5774,10 +5774,12 @@ To confirm, re-run:
           out(await send("session", { op: "resume", tabId, uuid }));
         } else if (sub === "open") {
           const uuid = rest[1];
-          if (!uuid) die("Usage: duo session open <uuid> [--cwd <path>]");
+          if (!uuid) die("Usage: duo session open <uuid> [--cwd <path>] [--force]");
           const cwd = flagValue(rest, "--cwd");
+          const force = rest.includes("--force");
           const payload = { op: "open", uuid };
           if (cwd) payload.cwd = cwd;
+          if (force) payload.force = true;
           out(await send("session", payload));
         } else {
           die(`Unknown session sub-op: ${sub}. Expected list|resume|open.`);

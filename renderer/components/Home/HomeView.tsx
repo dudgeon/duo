@@ -48,9 +48,11 @@ export function HomeView({ isActive, onSnapshotChange }: HomeViewProps) {
   const [spineExpanded, setSpineExpanded] = useState(false)
   // Round-2 #4 — which spine projects are expanded to reveal their sessions.
   const [expandedSpine, setExpandedSpine] = useState<Set<string>>(() => new Set())
-  // A transient notice (e.g. "session runs outside Duo") shown when an action
-  // can't proceed — replaces the old fork-confirm dialog. Null = hidden.
+  // A transient notice (e.g. an unexpected action error). Null = hidden.
   const [notice, setNotice] = useState<string | null>(null)
+  // The session pending a fork-confirm — set when the user clicks a session
+  // that's live OUTSIDE Duo. We warn, but let the user fork it (their call).
+  const [forkConfirm, setForkConfirm] = useState<HomeSession | null>(null)
 
   // Guard against a late-resolving fetch landing after unmount / after the
   // surface went inactive. Mirrors the cancelled-flag pattern the editor
@@ -106,6 +108,23 @@ export function HomeView({ isActive, onSnapshotChange }: HomeViewProps) {
   // Main re-checks liveness at click time too (never-fork backstop), so even a
   // stale snapshot can't fork: a resume that main finds is actually live comes
   // back !ok and we surface the message instead of spawning a duplicate.
+  // Resume in the SESSION's REAL recorded cwd (D6) — never reconstruct from
+  // rootPath + subPath (a sibling worktree folds into its main repo with
+  // subPath undefined). `force` skips the live-external refusal (the user
+  // chose to fork after the warning).
+  const doResume = useCallback((session: HomeSession, force: boolean) => {
+    void window.electron.home
+      .sessionAction({ op: 'resume', uuid: session.uuid, cwd: session.cwd, force })
+      .then((res) => {
+        if (res && !res.ok) {
+          // The session went live OUTSIDE Duo in the snapshot gap — don't
+          // silently fork; warn-then-allow via the same confirm.
+          if (res.externalLive) setForkConfirm(session)
+          else if (res.error) setNotice(res.error)
+        }
+      })
+  }, [])
+
   const onActivateSession = useCallback((session: HomeSession) => {
     const open = session.open
     if (open?.kind === 'duo') {
@@ -113,21 +132,12 @@ export function HomeView({ isActive, onSnapshotChange }: HomeViewProps) {
       return
     }
     if (open?.kind === 'external') {
-      setNotice('That session is running outside Duo (another terminal or the desktop app). Open it there — Duo won’t start a second copy.')
+      // Live outside Duo — warn, but let the user fork it (their call).
+      setForkConfirm(session)
       return
     }
-    // Resume — D6: run in the SESSION's REAL recorded cwd (carried verbatim on
-    // the snapshot). Do NOT reconstruct from rootPath + subPath: a sibling git
-    // worktree folds into its MAIN repo with subPath undefined, so that would
-    // resume in the wrong dir. subPath is a display-only badge.
-    void window.electron.home
-      .sessionAction({ op: 'resume', uuid: session.uuid, cwd: session.cwd })
-      .then((res) => {
-        // Main's never-fork re-check refused (it went live in the gap) — tell
-        // the user rather than silently doing nothing.
-        if (res && !res.ok && res.error) setNotice(res.error)
-      })
-  }, [])
+    doResume(session, false)
+  }, [doResume])
 
   // SessionList / Hero / Spine hand us (project, session); the project arg is
   // display-only here (cwd lives on the session), so we drop it.
@@ -223,11 +233,46 @@ export function HomeView({ isActive, onSnapshotChange }: HomeViewProps) {
         </div>
       )}
 
+      {forkConfirm && (
+        <div className="duo-home-confirm-backdrop" role="dialog" aria-modal="true">
+          <div className="duo-home-confirm">
+            <p className="duo-home-confirm-title font-serif text-ink">
+              This session is running outside Duo
+            </p>
+            <p className="duo-home-confirm-body text-ink-soft">
+              It’s live in another terminal or the Claude desktop app, so Duo can’t
+              focus it. Resuming here starts a <strong>second copy</strong> — both
+              would write to the same session and could conflict.
+            </p>
+            <div className="duo-home-confirm-actions">
+              <button
+                type="button"
+                className="duo-home-confirm-cancel"
+                onClick={() => setForkConfirm(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="duo-home-confirm-go"
+                onClick={() => {
+                  const s = forkConfirm
+                  setForkConfirm(null)
+                  doResume(s, true)
+                }}
+              >
+                Resume anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {notice && (
         <div className="duo-home-confirm-backdrop" role="dialog" aria-modal="true">
           <div className="duo-home-confirm">
             <p className="duo-home-confirm-title font-serif text-ink">
-              Already running
+              Couldn’t open the session
             </p>
             <p className="duo-home-confirm-body text-ink-soft">{notice}</p>
             <div className="duo-home-confirm-actions">

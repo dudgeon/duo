@@ -311,7 +311,7 @@ export interface NavBridge {
    *  else spawn `claude --resume <uuid>` in a new tab in the primary
    *  window (D15 — no DUO_WINDOW stamp resolves to primary, identity,
    *  never focus). uuid regex-validated. */
-  sessionOpen: (uuid: string, cwd?: string) => Promise<{ ok: boolean; action?: 'focus' | 'resume'; error?: string }>
+  sessionOpen: (uuid: string, cwd?: string, force?: boolean) => Promise<{ ok: boolean; action?: 'focus' | 'resume'; error?: string }>
 }
 
 /** ENH-195 (review) — canonicalize a path for open-vs-closed routing:
@@ -1952,8 +1952,9 @@ export class SocketServer {
             // host tab from the live open-session join.
             const uuid = args['uuid'] as string | undefined
             const cwd = args['cwd'] as string | undefined
+            const force = args['force'] === true || args['force'] === 'true'
             if (!uuid) throw new Error('duo session open requires <uuid>')
-            const r = await this.nav.sessionOpen(uuid, cwd)
+            const r = await this.nav.sessionOpen(uuid, cwd, force)
             if (!r.ok) throw new Error(r.error ?? 'open failed')
             result = { ok: true, action: r.action }
           } else {
