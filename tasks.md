@@ -27,9 +27,9 @@
 
 **Fix sketch.** In the markdown editor's FrontmatterPanel mount, default `expanded = true` when the parsed frontmatter has a `type:` key (typed entity) — keep the current default (collapsed, or last-state) for ordinary notes. Verify against the per-file persisted panel state so the owner's manual collapse still sticks within a session. `renderer/components/editor/FrontmatterPanel.tsx` + its mount in `MarkdownEditor.tsx`.
 
-### FOLLOWUP-046: Multi-word names can't reach the silent-stub type-picker — the `[[` suggester closes on whitespace
+### FOLLOWUP-048: Multi-word names can't reach the silent-stub type-picker — the `[[` suggester closes on whitespace
 
-**Status:** 🆕 Filed (2026-06-10, out of ENH-208 Phase 2). **Priority:** P2. **Effort:** S–M (matcher widening + popover-dismiss semantics).
+**Status:** 🆕 Filed (2026-06-10, out of ENH-208 Phase 2). **Priority:** P2. **Effort:** S–M (matcher widening + popover-dismiss semantics). _(Renumbered from FOLLOWUP-046 on the v0.10.1 rebase — main's v0.10.1 release notes claimed 046 for the `base render`-on-empty-`.base` follow-up; merged incumbent keeps the number.)_
 
 **Symptom.** D4's example gesture is `[[Jordan Lee]]` ⇥ → type picker — but `findWikilinkMatch` (`renderer/components/editor/extensions/suggestionMatchers.ts`) rejects whitespace in the query, so typing the space after "Jordan" closes the popover before the New: row can be offered. Popover stubs are single-word today; multi-word entities take the narration path (`duo vault stub person "Jordan Lee"`) or cmd+click create. The Vault Guide ch4 documents the limitation explicitly.
 
@@ -43,7 +43,7 @@
 
 The ENH-208 D22 re-pick retired the GLOBAL ⌘⇧F find-previous dispatch (the chord now opens the vault-search palette; the find bars' input-local ⌘⇧F still works via the matcher's `ctx.inFindBar` yield). The window-event listeners that consumed the old global dispatch remain, now unreachable: `renderer/components/Page/PageTab.tsx` (`duo-page-find-prev`, ~line 1233) and `renderer/components/BrowserRenderer.tsx` (`duo-browser-find-prev`, ~line 199); MarkdownEditor's copy was already removed with the re-pick. Delete the two listeners + any now-unused dispatch constants; grep `find-prev` to confirm nothing else consumes them.
 
-**Cross-refs.** ENH-208 D22 re-pick (PRD), `renderer/keyboard/globalShortcuts.ts` (`inFindBar` gate), FOLLOWUP-046.
+**Cross-refs.** ENH-208 D22 re-pick (PRD), `renderer/keyboard/globalShortcuts.ts` (`inFindBar` gate), FOLLOWUP-048.
 
 ### BUG-200: Collapsing the terminal pane terminates ALL terminal sessions
 

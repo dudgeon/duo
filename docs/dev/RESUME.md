@@ -15,8 +15,8 @@ skill-currency clean. **Owed: owner smoke-walk (keystroke items: @today popover,
 type-picker, Settings menu, ⌥⇧⌘N) → merge the ONE PR → cut (likely v0.11.0) →
 `npm run sync:claude` at merge/cut (deliberately deferred — skill/ describes
 unmerged behavior until then) → re-point or clear the default-vault pref (it
-targets the /tmp walk fixture).** New follow-ups: FOLLOWUP-046 (multi-word `[[`
-suggester), FOLLOWUP-047 (orphaned find-prev listeners). Phase-1/Phase-2-model
+targets the /tmp walk fixture).** New follow-ups: FOLLOWUP-048 (multi-word `[[`
+suggester; renumbered from 046 on the v0.10.1 rebase), FOLLOWUP-047 (orphaned find-prev listeners). Phase-1/Phase-2-model
 history (PRs #83–#88) + the ENH-191 detail below remain valid. PRD:
 `docs/prd/enh-208-vault.md`; scope detail: top of `active-sprint.md`.
 

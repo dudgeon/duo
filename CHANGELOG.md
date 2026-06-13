@@ -19,7 +19,18 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.10.0 cut 2026-06-08.
+> Empty — v0.10.1 cut 2026-06-10.
+
+## [0.10.1] — 2026-06-10 — Vault (Obsidian-convention work-notes) · terminal-collapse data-loss fix
+
+### Added
+- **Vault — networked work-notes on plain Obsidian conventions (ENH-208 Phase 1 + Phase 2 start, PRs #83–#88).** A `duo vault` CLI cluster for an Obsidian-compatible notes vault: init + capture, read verbs, a wikilink `graph`, and `.base` lint/render (a lightweight saved-view format). Phase 2 adds a default-vault preference (`duo vault default`) and the headless `@today` smart-token + silent-stub models the capture-UX UI (v0.11.0) will sit on. How-to in the bundled `duo` skill (`skill/references/vault.md`) + the 10-chapter Vault Guide (`docs/guide/vault-guide.html`).
+
+### Fixed
+- **Collapsing the terminal pane no longer terminates every terminal session (BUG-200).** Collapse used to unmount the terminal subtree, firing each terminal's cleanup `pty.kill` — killing every running shell / Claude session (expand spawned fresh ones). Collapse now hides the pane via `display:none` while keeping it mounted, so sessions + scrollback survive. A `TERMINAL_MIN_COLS` floor in `PtyManager.resize` backstops the related reflow class (BUG-156).
+
+### Known issues
+- `duo base render` on an empty / comments-only `.base` file exits with a one-line error instead of warn-and-rendering (FOLLOWUP-046, non-blocking — clean stderr + exit 1, no crash/data loss; `duo base lint` handles the same input gracefully).
 
 ## [0.10.0] — 2026-06-08 — Multi-window: a real second window · navigator/terminal UX
 
@@ -1913,7 +1924,8 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.10.1...HEAD
+[0.10.1]: https://github.com/dudgeon/duo/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/dudgeon/duo/compare/v0.9.2...v0.10.0
 [0.9.2]: https://github.com/dudgeon/duo/compare/v0.9.1...v0.9.2
 [0.8.4]: https://github.com/dudgeon/duo/compare/v0.8.2...v0.8.4

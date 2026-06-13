@@ -49,7 +49,7 @@
 > dev verification: capture chord E2E, palette search + congruent goto-match
 > (multi-occurrence line + frontmatter-hit cases), createType→stub canonical
 > chain, find-bar yield. **1270 tests, typecheck + skill-currency clean.**
-> Known limitation filed: FOLLOWUP-046 (the `[[` suggester closes on
+> Known limitation filed: FOLLOWUP-048 (the `[[` suggester closes on
 > whitespace → popover stubs single-word; narration covers multi-word).
 > Owner-walk items that need real keystrokes: @today popover render,
 > type-picker feel, Settings menu visual, ⌥⇧⌘N New Folder. Default vault is
