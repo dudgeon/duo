@@ -73,12 +73,12 @@ joins it into a re-entry surface.
 | D5 | The rest | Spine stack; folds after ~8 with "N older projects" expander |
 | D6 | Resume target | Closed session resumes in the **current** window (sender's window via `resolveBySender` — identity, never focus) |
 | D7 | Placement | Permanent slot 0: synthesized PinnedNav row (above persisted pins, visible at zero pins) + `f:home` tab sorted leftmost, no close affordance |
-| D8 | Project rollup | Worktrees fold into their main repo (`.git` file `gitdir:` pointer); nested cwds fold into shallowest real root (path-prefix via `shared/projects.ts` `ancestors`/`deepestEnclosingRoot`); sessions carry a `subPath` badge |
+| D8 | Project rollup | Worktrees fold into their main repo (`.git` file `gitdir:` pointer); nested cwds fold into the **deepest enclosing real project root** — qualified by `(gitRoot \|\| CLAUDE.md/.claude marker)`, via `shared/projects.ts` `deepestEnclosingRoot` (rail-consistent); sessions carry a `subPath` badge. **(Revised 2026-06-13 from "shallowest/outermost": live-verify showed shallowest collapsed every project under `~/` into one 83-session bucket once any session had run from the home dir.)** |
 | D9 | Data freshness | Live recompute per snapshot; zero persistence of Home state anywhere (no envelope entry, no pins.json entry, no sidecar) |
 | D10 | Naming | **"Home"** — new `vocabulary.md` entry; tab title "Home"; verb `duo home` |
 | D11 | Activation | Auto-activate only when a window has no restored `activeWorking`; otherwise background |
 | D12 | Greeting name | `os.userInfo()` first name, omitted gracefully when unavailable |
-| D13 | Open-session evidence | Evidence-gated joins ONLY: live PTY cwd (lsof) + persisted `lastClaudeSession` pointer. **The newest-jsonl-mtime-≤2min heuristic is banned** — it is the exact speculative inference the ENH-183 D9 post-walk-1 amendment prohibits **[V]** |
+| D13 | Open-session evidence | **PROCESS-primary (revised 2026-06-13 after round-2 live feedback).** Liveness = a live `claude` PROCESS (one `ps` parse via `mapLiveClaudeOwners`); per cwd the freshest N JSONLs are the live sessions. Each is `open: { kind: 'duo', windowId, tabId }` (claude runs inside a Duo PTY → focusable) or `{ kind: 'external' }` (runs outside Duo → focus-not-fork). **Never-fork:** the resume action re-checks liveness at click time (duo→focus, external→refuse, only truly-closed→spawn). This *refines* D13's original ban: a uuid is marked open only because a live process exists (not bare cwd-recency); mtime only orders uuids within a cwd, on a live, non-persisted, recomputed-every-snapshot signal. The original pointer-only join was too laggy (captured ~1 of N live sessions) — replaced. |
 | D14 | iCloud-evicted JSONLs | Per-file read timeout → session renders snippet-less; no visible "evicted" affordance in v1 |
 | D15 | `duo session open` outside Duo | No `DUO_WINDOW` stamp → primary window (identity resolution), consistent with every other verb |
 
