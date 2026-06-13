@@ -3,6 +3,20 @@
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
 
+### ENH-212: Default home screen — project/session re-entry surface
+
+**Status:** ⏳ Spec locked 2026-06-12 — PRD at [docs/prd/enh-212-home.md](docs/prd/enh-212-home.md); ready to build. Decision trail: three studies ([round 1](docs/research/home-screen-study.html) → [round 2](docs/research/home-screen-study-v2.html), #13 Two-Up Spread won → [round 3 variations](docs/research/home-screen-study-13.html)) + AUQ locks (naming "Home", activate-only-when-nothing-restored, spine fold after ~8, os.userInfo greeting). Architecture from ultracode workflow wf_27e8ee52-257 (3 competing designs, judged, 3 adversarial verifiers — D9 mtime-heuristic ban, Pin/Move-to-split persistence leaks, exponential JSONL tail reads, PR #75/#91/#93 merge anchors all folded into the PRD). **Priority:** P1. **Effort:** L. **Filed:** 2026-06-12.
+
+**Ask (owner, 2026-06-12).** A default home screen for Duo: the average user has hundreds of Claude sessions across 6–12 projects (some nested). The active-project rail covers ACTIVE projects; this surface is for jumping back into INACTIVE ones — most-recent projects, the last few sessions within each (with a path to scan deeper), recently-edited files at a glance. Target density: ~24 sessions / 6 projects in 1.5–2 MacBook screens. Clicking an open session FOCUSES it (never duplicates); clicking a closed one reopens + `claude --resume`s it in a terminal. Working premise: a pinned HTML page whose state persists across windows — model-challenging sub-features get surfaced, not silently absorbed.
+
+**Model tensions surfaced (not yet resolved).** (1) A plain pinned HTML page can't do the job — it needs live data in (session scan) and privileged actions out (focus terminal / spawn resume); likely a dedicated WorkingTab kind instead. (2) Pins are per-window state in the v2 session envelope; a cross-window-persistent Home pin is a new concept (study D7). (3) Resume-target window post-ENH-191 multi-window (study D6).
+
+**Data plumbing already exists:** `electron/claude-session-tracker.ts` (encodeProjectDir, JSONL scan, readBannerTitle, readMessageCount, cleanAndTruncate). No sidecar cache — read live per ENH-183 § D9.
+
+**Next:** owner walks the study → lock decisions → PRD at docs/prd/ → implement off the all-worktrees-merged baseline.
+
+---
+
 ### BUG-200: Collapsing the terminal pane terminates ALL terminal sessions
 
 **Status:** 🚧 In progress — surgical fix implemented + **live-verified** on `claude/practical-jones-a07605` (this branch); awaiting owner smoke-walk + cut. **Priority:** P0 (data loss — kills running shells / live Claude sessions). **Effort:** S (surgical) · robust hardening split to ENH-209.

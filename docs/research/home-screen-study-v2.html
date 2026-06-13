@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>Duo Home Screen — 12 daring visions (ENH-212, round 2)</title>
+<style>
+/* duo-atelier.css kernel (inlined) */
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+  --project-pine:   #2E7D74;
+  --project-harbor: #3C6E93;
+  --project-iris:   #5B57A6;
+  --project-plum:   #87508F;
+  --project-rose:   #A4506A;
+  --project-moss:   #69763A;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0; background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+body { padding: 32px 40px 96px; max-width: 1000px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 { font-family: "New York","Iowan Old Style",Georgia,serif; font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px; }
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill {
+  display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft);
+  color: var(--accent); font-weight: 600; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.04em; margin-right: 6px;
+}
+.intro { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 14px 18px; margin-bottom: 28px; font-size: 13.5px; color: var(--ink-soft); }
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 { font-family: "New York","Iowan Old Style",Georgia,serif; font-weight: 600; margin: 36px 0 12px; font-size: 19px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px; }
+h3 { font-family: -apple-system,"SF Pro Text",system-ui,sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+p { margin: 8px 0; }
+code { font-family: ui-monospace,"SF Mono",Menlo,monospace; font-size: 12.5px; background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; }
+.decision-card { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 16px 18px; margin: 18px 0; }
+.decision-card .q-title { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px; }
+.decision-card .q-prompt { font-family: "New York","Iowan Old Style",Georgia,serif; font-weight: 500; font-size: 17px; color: var(--ink); margin: 0 0 12px; line-height: 1.35; }
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option { display: block; background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 10px 12px; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes { width: 100%; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px; }
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+.copy-bar { position: sticky; bottom: 0; margin: 32px -40px -96px; padding: 16px 40px; background: color-mix(in srgb, var(--paper-deep) 96%, transparent); border-top: 1.5px solid var(--paper-rule); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count, .copy-bar #shortlist-count { color: var(--accent); font-weight: 700; }
+.copy-bar button { background: var(--accent); color: white; border: none; border-radius: 5px; padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background 0.12s; }
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* ——— shared mock framework ——— */
+.vision { margin: 38px 0 44px; }
+.vision-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 2px; }
+.vision-head .vnum { font-family: "New York","Iowan Old Style",Georgia,serif; font-style: italic; color: var(--accent); font-size: 18px; font-weight: 600; min-width: 28px; }
+.vision-head h3 { margin: 0; font-size: 16px; }
+.vision-head .shortlist { margin-left: auto; font-size: 12px; color: var(--ink-mute); display: flex; align-items: center; gap: 6px; cursor: pointer; border: 1px solid var(--paper-rule); border-radius: 12px; padding: 2px 10px; background: var(--paper); user-select: none; white-space: nowrap; }
+.vision-head .shortlist input { accent-color: var(--accent); cursor: pointer; }
+.vision-head .shortlist:has(input:checked) { border-color: var(--accent); color: var(--accent); font-weight: 600; background: color-mix(in srgb, var(--accent) 7%, var(--paper)); }
+.vision .thesis { font-size: 13px; color: var(--ink-mute); margin: 0 0 10px; }
+.vision .verdict { font-size: 12px; color: var(--ink-soft); margin: 9px 0 0; }
+.vision .verdict b { color: var(--ink); }
+
+.mock { border: 1.5px solid var(--paper-edge); border-radius: 9px; background: var(--paper); box-shadow: 0 2px 10px rgba(43,38,32,0.08), 0 12px 28px rgba(43,38,32,0.06); overflow: hidden; font-size: 10.5px; line-height: 1.45; }
+.mock .titlebar { display: flex; align-items: center; gap: 5px; background: var(--paper-deep); border-bottom: 1px solid var(--paper-edge); padding: 6px 10px; }
+.mock .titlebar .tl { width: 8px; height: 8px; border-radius: 50%; background: var(--paper-rule); }
+.mock .titlebar .tname { margin-left: 8px; font-family: "New York","Iowan Old Style",Georgia,serif; font-style: italic; color: var(--ink-mute); font-size: 10px; }
+.mock .canvas { padding: 16px 20px; }
+
+.pdot { display: inline-block; width: 7px; height: 7px; border-radius: 2px; vertical-align: 1px; margin-right: 5px; flex: none; }
+.pine { background: var(--project-pine); } .harbor { background: var(--project-harbor); } .iris { background: var(--project-iris); }
+.plum { background: var(--project-plum); } .rose { background: var(--project-rose); } .moss { background: var(--project-moss); }
+.open-pill { flex: none; font-size: 8px; font-weight: 700; letter-spacing: 0.05em; color: var(--pass); border: 1px solid color-mix(in srgb, var(--pass) 40%, transparent); border-radius: 7px; padding: 0 5px; text-transform: uppercase; background: color-mix(in srgb, var(--pass) 8%, var(--paper)); }
+.fchip { display: inline-block; font-family: ui-monospace,"SF Mono",Menlo,monospace; font-size: 8.5px; color: var(--ink-mute); background: var(--paper-deep); border: 1px solid var(--paper-edge); border-radius: 3px; padding: 0 4px; margin: 1px 2px 1px 0; }
+.more-link { font-size: 9.5px; color: var(--accent); cursor: pointer; }
+
+.snippet { font-family: "New York","Iowan Old Style",Georgia,serif; font-style: italic; color: var(--ink-mute); font-size: 9.5px; line-height: 1.35; }
+
+/* ════ 13 Two-Up Spread ════ */
+.spread { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+.hero-panel { border: 1.5px solid var(--paper-edge); border-radius: 7px; padding: 11px 13px; background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 4%, var(--paper)), var(--paper)); position: relative; }
+.hero-panel .corner { position: absolute; top: 0; right: 0; width: 0; height: 0; border-top: 16px solid var(--accent-soft); border-left: 16px solid transparent; border-top-right-radius: 7px; }
+.hero-name { font-family: "New York",Georgia,serif; font-style: italic; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+.hero-name .when { margin-left: auto; font-style: normal; font-family: -apple-system,system-ui,sans-serif; font-size: 9px; color: var(--ink-ghost); font-weight: 400; }
+.srow { display: flex; align-items: center; gap: 6px; padding: 3px 0; border-bottom: 1px solid var(--paper-deep); }
+.srow .t { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink-soft); }
+.srow .age { color: var(--ink-ghost); font-size: 9px; flex: none; }
+.spine-stack .spine { display: flex; align-items: center; gap: 7px; padding: 4px 8px; border-left: 3px solid var(--paper-rule); margin: 3px 0; background: var(--paper-deep); border-radius: 0 4px 4px 0; }
+.spine-stack .spine .nm { font-weight: 600; color: var(--ink); }
+.spine-stack .spine .ct { color: var(--ink-ghost); font-size: 9px; }
+.spine-stack .spine .age { margin-left: auto; color: var(--ink-ghost); font-size: 9px; }
+
+/* ════ 14 Open Notebook ════ */
+.notebook { display: grid; grid-template-columns: 1fr 1fr 26px; background: #fdfbf5; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--paper-edge); overflow: hidden; }
+.nb-page { padding: 12px 16px; position: relative; }
+.nb-page.left { border-right: 1px solid var(--paper-edge); background-image: linear-gradient(90deg, transparent 22px, color-mix(in srgb, var(--fail) 18%, transparent) 22px, color-mix(in srgb, var(--fail) 18%, transparent) 23px, transparent 23px); }
+.nb-page .ruled { border-bottom: 1px solid color-mix(in srgb, var(--project-harbor) 16%, transparent); padding: 4px 0 4px 14px; }
+.nb-head { font-family: "New York",Georgia,serif; font-style: italic; font-size: 13px; font-weight: 600; padding-left: 14px; margin-bottom: 4px; display: flex; align-items: center; gap: 4px; }
+.nb-ribbons { display: flex; flex-direction: column; gap: 4px; padding: 12px 6px; background: var(--paper-deep); }
+.ribbon { height: 22px; border-radius: 2px 0 0 2px; position: relative; }
+.ribbon::after { content: ""; position: absolute; left: 0; bottom: -5px; border-left: 9px solid transparent; border-right: 9px solid transparent; border-top: 5px solid currentColor; filter: brightness(0.85); }
+
+/* ════ 15 The Letter ════ */
+.letter { background: #fdfbf4; border: 1px solid var(--paper-edge); border-radius: 4px; padding: 22px 30px; font-family: "New York","Iowan Old Style",Georgia,serif; box-shadow: 0 1px 0 var(--paper-edge); max-width: 600px; margin: 0 auto; }
+.letter .salut { font-size: 17px; font-style: italic; color: var(--ink); margin-bottom: 10px; }
+.letter p { font-size: 11.5px; line-height: 1.7; color: var(--ink-soft); margin: 0 0 9px; }
+.letter a { color: var(--accent); text-decoration: underline; text-decoration-color: var(--accent-soft); cursor: pointer; }
+.letter .ps { font-size: 10.5px; color: var(--ink-mute); border-top: 1px solid var(--paper-edge); margin-top: 12px; padding-top: 9px; }
+.letter .sign { font-style: italic; color: var(--ink-ghost); font-size: 11px; margin-top: 12px; }
+
+/* ════ 16 Hearth (heat) ════ */
+.hearth { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 14%, var(--paper)) 0%, var(--paper) 38%, var(--paper-deep) 100%); padding: 14px 16px; border-radius: 6px; }
+.ember { border-radius: 7px; padding: 12px 14px; margin-bottom: 10px; }
+.ember.hot { background: var(--paper); border: 1.5px solid color-mix(in srgb, var(--accent) 45%, var(--paper-edge)); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 10%, transparent), 0 3px 14px color-mix(in srgb, var(--accent) 18%, transparent); }
+.ember.warm { background: color-mix(in srgb, var(--paper) 92%, var(--accent)); border: 1px solid var(--paper-edge); }
+.ember-name { font-weight: 700; font-size: 11.5px; display: flex; align-items: center; gap: 5px; }
+.ember-name .heat { margin-left: auto; font-size: 8px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); font-weight: 700; }
+.ash { display: flex; align-items: center; gap: 8px; padding: 4px 8px; opacity: 0.6; filter: grayscale(0.4); font-size: 9.5px; }
+
+/* ════ 17 Cover Flow ════ */
+.coverflow { display: flex; align-items: center; justify-content: center; gap: 0; padding: 14px 0 10px; perspective: 700px; min-height: 130px; }
+.cover { border-radius: 8px; flex: none; transition: 0.2s; }
+.cover.side { width: 70px; height: 96px; background: var(--paper-deep); border: 1px solid var(--paper-edge); transform: rotateY(38deg) scale(0.86); opacity: 0.62; box-shadow: -4px 4px 12px rgba(0,0,0,0.08); display: flex; align-items: flex-end; padding: 6px; }
+.cover.side.right { transform: rotateY(-38deg) scale(0.86); box-shadow: 4px 4px 12px rgba(0,0,0,0.08); }
+.cover.side .mini { font-weight: 700; font-size: 8.5px; color: var(--ink-mute); }
+.cover.center { width: 230px; height: 124px; background: var(--paper); border: 1.5px solid var(--accent); box-shadow: 0 8px 22px rgba(43,38,32,0.16); padding: 11px 13px; z-index: 2; margin: 0 -14px; }
+.filmstrip { display: flex; gap: 5px; justify-content: center; padding-top: 6px; border-top: 1px solid var(--paper-deep); }
+.filmstrip .fr { font-size: 8.5px; color: var(--ink-mute); padding: 2px 7px; border-radius: 9px; background: var(--paper-deep); display: flex; align-items: center; gap: 3px; }
+.filmstrip .fr.on { background: var(--accent); color: white; }
+
+/* ════ 18 Workbench ════ */
+.bench { display: grid; grid-template-columns: 1fr 130px; gap: 12px; }
+.bench-main { border: 1.5px solid var(--paper-edge); border-radius: 7px; overflow: hidden; }
+.bench-term { background: var(--code-bg); color: var(--code-ink); font-family: ui-monospace,Menlo,monospace; font-size: 9px; padding: 8px 10px; line-height: 1.5; }
+.bench-term .pr { color: #8fae6f; }
+.bench-term .dim { color: #7d756a; }
+.bench-body { padding: 9px 12px; }
+.pegboard { background: var(--paper-deep); border-radius: 7px; padding: 9px; background-image: radial-gradient(var(--paper-rule) 1px, transparent 1px); background-size: 12px 12px; }
+.peg { background: var(--paper); border: 1px solid var(--paper-edge); border-radius: 5px; padding: 5px 7px; margin-bottom: 6px; font-size: 9px; }
+.peg .nm { font-weight: 600; display: flex; align-items: center; gap: 4px; }
+.peg .age { color: var(--ink-ghost); font-size: 8px; }
+
+/* ════ 19 Fisheye Timeline ════ */
+.fisheye { display: flex; align-items: stretch; gap: 6px; padding: 8px 0; }
+.fe-card { border: 1.5px solid var(--paper-edge); border-radius: 6px; padding: 9px 11px; flex: none; background: var(--paper); }
+.fe-card.now { width: 200px; border-color: var(--accent); box-shadow: 0 3px 12px rgba(196,106,28,0.14); }
+.fe-card.near { width: 130px; }
+.fe-beads { display: flex; align-items: center; gap: 3px; padding-left: 4px; }
+.fe-bead { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.fe-bead.s { width: 6px; height: 6px; }
+.fe-bead.xs { width: 4px; height: 4px; opacity: 0.6; }
+.fe-axis { display: flex; justify-content: space-between; font-size: 8px; color: var(--ink-ghost); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 4px; padding: 0 4px; }
+
+/* ════ 20 Bookshelf ════ */
+.shelf { display: flex; align-items: flex-end; gap: 4px; padding: 14px 14px 0; min-height: 150px; border-bottom: 6px solid #6f5b3e; border-radius: 0 0 4px 4px; background: linear-gradient(180deg, var(--paper), var(--paper-deep)); }
+.book { width: 26px; border-radius: 3px 3px 0 0; color: white; writing-mode: vertical-rl; text-orientation: mixed; font-size: 8.5px; font-weight: 700; padding: 7px 2px; text-align: center; box-shadow: inset -3px 0 5px rgba(0,0,0,0.18); cursor: pointer; }
+.book.b-pine { background: var(--project-pine); } .book.b-iris { background: var(--project-iris); } .book.b-plum { background: var(--project-plum); } .book.b-rose { background: var(--project-rose); } .book.b-moss { background: var(--project-moss); }
+.open-book { flex: 1; background: #fdfbf5; border: 1px solid var(--paper-edge); border-radius: 5px 5px 0 0; padding: 11px 14px; margin: 0 4px; box-shadow: 0 -3px 14px rgba(0,0,0,0.1); align-self: stretch; }
+.open-book .ob-head { font-family: "New York",Georgia,serif; font-style: italic; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 4px; margin-bottom: 5px; }
+
+/* ════ 21 Strata ════ */
+.core { border-radius: 6px; overflow: hidden; border: 1px solid var(--paper-edge); }
+.stratum { padding: 10px 14px; border-bottom: 1px solid rgba(0,0,0,0.06); }
+.stratum.s0 { background: var(--paper); }
+.stratum.s1 { background: color-mix(in srgb, var(--paper-deep) 70%, var(--paper)); padding: 7px 14px; }
+.stratum.s2 { background: var(--paper-deep); padding: 5px 14px; }
+.stratum.s3 { background: color-mix(in srgb, var(--paper-rule) 50%, var(--paper-deep)); padding: 4px 14px; font-size: 9px; }
+.stratum .age-label { font-size: 8px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-ghost); font-weight: 700; float: right; }
+
+/* ════ 22 Marquee (split-flap) ════ */
+.board { background: #1c1a17; border-radius: 7px; padding: 12px 14px; }
+.flap-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid #34302a; }
+.flap-row .flaps { display: flex; gap: 2px; }
+.flap { background: #2b2823; color: #e8e0cb; font-family: ui-monospace,Menlo,monospace; font-weight: 700; font-size: 9px; padding: 2px 1px; border-radius: 2px; min-width: 11px; text-align: center; border-bottom: 1px solid #100f0d; }
+.flap-row.hero .flap { font-size: 12px; min-width: 14px; padding: 4px 2px; color: #f2b15a; }
+.flap-row .meta-r { margin-left: auto; color: #9a9080; font-size: 8.5px; display: flex; align-items: center; gap: 5px; }
+.flap-row .proj { font-size: 8.5px; color: #c9bfa9; }
+
+/* ════ 23 Gallery Wall ════ */
+.gallery { position: relative; padding: 12px; background: var(--paper-deep); border-radius: 6px; min-height: 200px; }
+.frame { position: absolute; background: var(--paper); border: 4px solid #fff; box-shadow: 0 3px 9px rgba(0,0,0,0.14); border-radius: 2px; padding: 7px 9px; }
+.frame .ttl { font-weight: 700; font-size: 9px; }
+.frame .sub { color: var(--ink-ghost); font-size: 8px; display: flex; align-items: center; gap: 3px; margin-top: 2px; }
+.frame .nail { position: absolute; top: -3px; left: 50%; width: 4px; height: 4px; border-radius: 50%; background: var(--ink-ghost); }
+.gallery .thread { position: absolute; height: 1px; background: var(--paper-rule); transform-origin: left center; }
+
+/* ════ 24 Concierge ════ */
+.briefing { background: var(--ink); color: var(--paper); border-radius: 9px; padding: 14px 18px; margin-bottom: 12px; }
+.briefing .av { display: flex; align-items: center; gap: 7px; font-family: "New York",Georgia,serif; font-style: italic; font-size: 13px; margin-bottom: 7px; }
+.briefing .av .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); }
+.briefing .brief-txt { font-size: 11px; line-height: 1.6; color: var(--paper-edge); }
+.briefing .brief-txt b { color: white; }
+.pickup { border: 1.5px solid var(--accent); border-radius: 7px; padding: 10px 13px; background: color-mix(in srgb, var(--accent) 5%, var(--paper)); margin-bottom: 10px; }
+.pickup .lead { font-size: 8px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--accent); font-weight: 700; }
+.queue-row { display: flex; align-items: center; gap: 7px; padding: 4px 6px; border-bottom: 1px solid var(--paper-deep); font-size: 9.5px; }
+.queue-row .age { margin-left: auto; color: var(--ink-ghost); font-size: 9px; }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Duo Home Screen — twelve daring visions</h1>
+  <div class="meta">
+    <span class="pill">ENH-212</span><span class="pill">Round 2</span>
+    2026-06-12 · braver, warmer, prominence-graded · shortlist + decide + Copy
+  </div>
+</header>
+
+<div class="intro">
+  <strong>The brief shifted.</strong> Round 1 was too safe — the keepers were
+  <em>#2 (cards, as a floor), #3's idea of giving the 1–2 most-recent projects real visual
+  prominence, and #12's warmth/voice</em>. These twelve push much harder on all three:
+  earned prominence, content-richness (last-message snippets, mini-terminals — not just titles),
+  metaphor, asymmetry, and a touch of skeuomorphism — while staying inside the Atelier palette
+  (cream paper, ochre accent, serif chrome, the six project hues). Same sample world throughout:
+  <strong>6 projects, 24 sessions, 2 open</strong>. Numbering continues at 13 so they don't
+  collide with round 1. Shortlist 2–4, answer the decisions, hit Copy.
+</div>
+
+<!-- ════════ 13 Two-Up Spread ════════ -->
+<section class="vision" data-vision="13" data-vname="Two-Up Spread">
+  <div class="vision-head"><span class="vnum">13</span><h3>Two-Up Spread</h3>
+    <label class="shortlist"><input type="checkbox" data-shortlist="13"> Shortlist</label></div>
+  <p class="thesis">The literal answer to "1–2 recent get prominence." The two most-recent projects are full magazine-spread panels — sessions, files, a last-line snippet. Everything else compresses to a spine stack below.</p>
+  <div class="mock"><div class="titlebar"><span class="tl"></span><span class="tl"></span><span class="tl"></span><span class="tname">Home</span></div>
+  <div class="canvas">
+    <div class="spread">
+      <div class="hero-panel"><div class="corner"></div>
+        <div class="hero-name"><span class="pdot pine"></span>duo<span class="when">12 min ago · 142 sessions</span></div>
+        <div class="snippet" style="margin:4px 0 7px;">"…so the fix must hide via a true display:none — the cols floor is the structural backstop."</div>
+        <div class="srow"><span class="pdot pine" style="opacity:0"></span><span class="t">Fix terminal pane collapse</span><span class="open-pill">open</span><span class="age">12m</span></div>
+        <div class="srow"><span class="t">Multi-window envelope migration</span><span class="age">2h</span></div>
+        <div class="srow"><span class="t">Roadmap triage + sprint planning</span><span class="age">1d</span></div>
+        <div style="margin-top:6px;"><span class="fchip">terminal-pane.tsx</span><span class="fchip">session-state.ts</span><span class="fchip">tasks.md</span><span class="more-link">142 →</span></div>
+      </div>
+      <div class="hero-panel"><div class="corner"></div>
+        <div class="hero-name"><span class="pdot harbor"></span>home-brain<span class="when">2 h ago · 67 sessions</span></div>
+        <div class="snippet" style="margin:4px 0 7px;">"…moving the travel domain under domains/ and splitting 2026 into its own file."</div>
+        <div class="srow"><span class="t">Travel domain restructure</span><span class="open-pill">open</span><span class="age">2h</span></div>
+        <div class="srow"><span class="t">Inbox triage automation</span><span class="age">2d</span></div>
+        <div class="srow"><span class="t">Knowledge-base reorg pass 3</span><span class="age">4d</span></div>
+        <div style="margin-top:6px;"><span class="fchip">domains/travel/plan.md</span><span class="fchip">inbox.md</span><span class="more-link">67 →</span></div>
+      </div>
+    </div>
+    <div class="spine-stack">
+      <div class="spine" style="border-left-color:var(--project-iris)"><span class="pdot iris"></span><span class="nm">agents-for-everyone</span><span class="ct">38 · last: Docs site IA</span><span class="age">1d</span></div>
+      <div class="spine" style="border-left-color:var(--project-plum)"><span class="pdot plum"></span><span class="nm">work-harness</span><span class="ct">24 · last: Spec template v2</span><span class="age">3d</span></div>
+      <div class="spine" style="border-left-color:var(--project-rose)"><span class="pdot rose"></span><span class="nm">travel</span><span class="ct">11 · last: Summer itinerary</span><span class="age">1w</span></div>
+      <div class="spine" style="border-left-color:var(--project-moss)"><span class="pdot moss"></span><span class="nm">field-notes</span><span class="ct">9 · last: Q2 reading notes</span><span class="age">2w</span></div>
+    </div>
+  </div></div>
+  <p class="verdict"><b>~1.3 screens.</b> The cleanest realization of what you liked in #2 + #3, plus the snippet adds "pick up mid-thought." Risk: hard-coding "two" heroes is arbitrary if your two hottest projects aren't where you want to re-enter.</p>
+</section>
+
+<!-- ════════ 14 Open Notebook ════════ -->
+<section class="vision" data-vision="14" data-vname="Open Notebook">
+  <div class="vision-head"><span class="vnum">14</span><h3>The Open Notebook</h3>
+    <label class="shortlist"><input type="checkbox" data-shortlist="14"> Shortlist</label></div>
+  <p class="thesis">Duo as a book left open with the pen still in it. The two facing pages are your most-recent projects, written on ruled paper. Colored ribbon bookmarks down the edge jump to the others — pull a ribbon and the page turns.</p>
+  <div class="mock"><div class="titlebar"><span class="tl"></span><span class="tl"></span><span class="tl"></span><span class="tname">Home</span></div>
+  <div class="canvas" style="background:var(--paper-deep); padding:18px;">
+    <div class="notebook">
+      <div class="nb-page left">
+        <div class="nb-head"><span class="pdot pine"></span>duo <span style="font-size:9px;color:var(--ink-ghost);font-style:normal;font-family:-apple-system">— today</span></div>
+        <div class="ruled"><span class="t">Fix terminal pane collapse</span> <span class="open-pill">open</span></div>
+        <div class="ruled">Multi-window envelope migration <span style="color:var(--ink-ghost)">2h</span></div>
+        <div class="ruled">Roadmap triage + sprint planning <span style="color:var(--ink-ghost)">1d</span></div>
+        <div class="ruled" style="border:none;color:var(--accent);">142 sessions — turn for more ›</div>
+      </div>
+      <div class="nb-page">
+        <div class="nb-head"><span class="pdot harbor"></span>home-brain <span style="font-size:9px;color:var(--ink-ghost);font-style:normal;font-family:-apple-system">— this morning</span></div>
+        <div class="ruled"><span class="t">Travel domain restructure</span> <span class="open-pill">open</span></div>
+        <div class="ruled">Inbox triage automation <span style="color:var(--ink-ghost)">2d</span></div>
+        <div class="ruled">Knowledge-base reorg pass 3 <span style="color:var(--ink-ghost)">4d</span></div>
+        <div class="ruled" style="border:none;color:var(--accent);">67 sessions — turn for more ›</div>
+      </div>
+      <div class="nb-ribbons">
+        <div class="ribbon ink-iris" style="background:var(--project-iris);color:var(--project-iris)"></div>
+        <div class="ribbon" style="background:var(--project-plum);color:var(--project-plum)"></div>
+        <div class="ribbon" style="background:var(--project-rose);color:var(--project-rose)"></div>
+        <div class="ribbon" style="background:var(--project-moss);color:var(--project-moss)"></div>
+      </div>
+    </div>
+  </div></div>
+  <p class="verdict"><b>~1 screen.</b> The most tactile evolution of #12 — strong "your desk, your book" identity, and ribbons are a genuinely novel project-switcher. Risk: ruled-paper skeuomorphism can tip twee, and only 2 projects show at rest (rest are ribbons).</p>
+</section>
+
+<!-- ════════ 15 The Letter ════════ -->
+<section class="vision" data-vision="15" data-vname="The Letter">
+  <div class="vision-head"><span class="vnum">15</span><h3>The Letter</h3>
+    <label class="shortlist"><input type="checkbox" data-shortlist="15"> Shortlist</label></div>
+  <p class="thesis">Duo writes you back. A short letter that opens with where you left off, names the projects in prose, and links every session inline. The boldest take on #12's voice — Home as correspondence, not a dashboard.</p>
+  <div class="mock"><div class="titlebar"><span class="tl"></span><span class="tl"></span><span class="tl"></span><span class="tname">Home</span></div>
+  <div class="canvas" style="background:var(--paper-deep); padding:18px;">
+    <div class="letter">
+      <div class="salut">Welcome back, Geoff —</div>
+      <p>You stepped away twelve minutes into <a><span class="pdot pine"></span>fixing the terminal-pane collapse</a> <span class="open-pill">open</span>. It's still open in a terminal; pick it up where you left it. Before that you spent the morning on <a>the multi-window envelope migration</a> over in <b>duo</b> — 142 sessions deep now.</p>
+      <p>Over in <a><span class="pdot harbor"></span>home-brain</a> the <a>travel-domain restructure</a> is open <span class="open-pill">open</span> from two hours ago, and <a>inbox triage</a> has been waiting since Tuesday. <b>agents-for-everyone</b> rests at yesterday's <a>docs-site IA</a>; <b>work-harness</b> has been quiet since the <a>spec template</a> three days back.</p>
+      <p class="ps"><b>Resting:</b> travel (1 week) · field-notes (2 weeks). <a>Open the full index →</a></p>
+      <div class="sign">— Duo</div>
+    </div>
+  </div></div>
+  <p class="verdict"><b>Under 1 screen, most distinctive of all.</b> Nothing else feels like this. But it leans hardest on session-title quality, has the lowest density (≤5 projects before it sprawls), and reads slower than any list — a vibe, not a scanner.</p>
+</section>
+
+<!-- ════════ 16 Hearth ════════ -->
+<section class="vision" data-vision="16" data-vname="Hearth">
+  <div class="vision-head"><span class="vnum">16</span><h3>Hearth</h3>
+    <label class="shortlist"><input type="checkbox" data-shortlist="16"> Shortlist</label></div>
+  <p class="thesis">Prominence as temperature. The page is a warm-to-cool gradient: your hottest project glows at the top with an ember halo and full detail; warm ones sit in the middle band; cold ones are grey ash one-liners at the bottom. Heat <em>is</em> recency — no labels needed.</p>
+  <div class="mock"><div class="titlebar"><span class="tl"></span><span class="tl"></span><span class="tl"></span><span class="tname">Home</span></div>
+  <div class="canvas" style="padding:0;">
+    <div class="hearth">
+      <div class="ember hot">
+        <div class="ember-name"><span class="pdot pine"></span>duo<span class="heat">● live · 12m</span></div>
+        <div class="srow"><span class="t">Fix terminal pane collapse</span><span class="open-pill">open</span><span class="age">12m</span></div>
+        <div class="srow"><span class="t">Multi-window envelope migration</span><span class="age">2h</span></div>
+        <div class="srow" style="border:none"><span class="t">Roadmap triage</span><span class="age">1d</span></div>
+        <div style="margin-top:5px"><span class="fchip">terminal-pane.tsx</span><span class="fchip">session-state.ts</span></div>
+      </div>
+      <div class="ember warm">
+        <div class="ember-name"><span class="pdot harbor"></span>home-brain<span class="heat" style="color:var(--warn)">warm · 2h</span></div>
+        <div class="srow"><span class="t">Travel domain restructure</span><span class="open-pill">open</span><span class="age">2h</span></div>
+        <div class="srow" style="border:none"><span class="t">Inbox triage automation</span><span class="age">2d</span></div>
+      </div>
+      <div class="ember warm" style="background:color-mix(in srgb, var(--paper) 96%, var(--accent))">
+        <div class="ember-name"><span class="pdot iris"></span>agents-for-everyone<span class="heat" style="color:var(--ink-mute)">1d</span></div>
+        <div class="srow" style="border:none"><span class="t">Docs site IA</span><span class="age">1d</span></div>
+      </div>
+      <div class="ash"><span class="pdot plum"></span>work-harness <span style="margin-left:auto">3d · 24</span></div>
+      <div class="ash"><span class="pdot rose"></span>travel <span style="margin-left:auto">1w · 11</span></div>
+      <div class="ash"><span class="pdot moss"></span>field-notes <span style="margin-left:auto">2w · 9</span></div>
+    </div>
+  </div></div>
+  <p class="verdict"><b>~1.2 screens.</b> Variable density with an emotional logic you feel instantly — "where's the heat." Demotes stale projects without hiding them. Risk: the gradient is decorative weight, and "ash" styling could read as disabled/broken to some.</p>
+</section>
+
+<!-- ════════ 17 Cover Flow ════════ -->
+<section class="vision" data-vision="17" data-vname="Cover Flow">
+  <div class="vision-head"><span class="vnum">17</span><h3>Cover Flow</h3>
+    <label class="shortlist"><input type="checkbox" data-shortlist="17"> Shortlist</label></div>
+  <p class="thesis">Time-Machine for your projects. The most-recent project is a large center "cover" with its sessions; the neighbors peek in 3-D on either side. A thin filmstrip below indexes all of them. Arrow-key or click to bring another to center.</p>
+  <div class="mock"><div class="titlebar"><span class="tl"></span><span class="tl"></span><span class="tl"></span><span class="tname">Home</span></div>
+  <div class="canvas">
+    <div class="coverflow">
+      <div class="cover side"><span class="mini"><span class="pdot moss"></span>field-notes</span></div>
+      <div class="cover side"><span class="mini"><span class="pdot harbor"></span>home-brain</span></div>
+      <div class="cover center">
+        <div class="hero-name"><span class="pdot pine"></span>duo<span class="when">12 min · 142 sessions</span></div>
+        <div class="srow"><span class="t">Fix terminal pane collapse</span><span class="open-pill">open</span><span class="age">12m</span></div>
+        <div class="srow"><span class="t">Multi-window envelope migration</span><span class="age">2h</span></div>
+        <div class="srow" style="border:none"><span class="t">Roadmap triage + sprint planning</span><span class="age">1d</span></div>
+        <div style="margin-top:5px"><span class="fchip">terminal-pane.tsx</span><span class="fchip">tasks.md</span></div>
+      </div>
+      <div class="cover side right"><span class="mini"><span class="pdot iris"></span>agents-for-ev…</span></div>
+      <div class="cover side right"><span class="mini"><span class="pdot plum"></span>work-harness</span></div>
+    </div>
+    <div class="filmstrip">
+      <div class="fr on"><span class="pdot pine"></span>duo</div>
+      <div class="fr"><span class="pdot harbor"></span>home-brain</div>
+      <div class="fr"><span class="pdot iris"></span>agents</div>
+      <div class="fr"><span class="pdot plum"></span>work-harness</div>
+      <div class="fr"><span class="pdot rose"></span>travel</div>
+      <div class="fr"><span class="pdot moss"></span>field-notes</div>
+    </div>
+  </div></div>
+  <p class="verdict"><b>Fixed ~1 screen.</b> Maximum prominence for one project, genuinely fun, and the filmstrip scales to any project count without scroll. Risk: only one project is legible at a time — it's a browser, not an overview; weakest at cross-project glance.</p>
+</section>
+
+<!-- ════════ 18 Workbench ════════ -->
+<section class="vision" data-vision="18" data-vname="Workbench">
+  <div class="vision-head"><span class="vnum">18</span><h3>The Workbench</h3>
+    <label class="shortlist"><input type="checkbox" data-shortlist="18"> Shortlist</label></div>
+  <p class="thesis">Peek at the bench you walked away from. The hero project shows a frozen frame of its last terminal — the actual last command + Claude's last line — plus the files left out. Other projects hang on a pegboard rail as tools to pick up.</p>
+  <div class="mock"><div class="titlebar"><span class="tl"></span><span class="tl"></span><span class="tl"></span><span class="tname">Home</span></div>
+  <div class="canvas">
+    <div class="bench">
+      <div class="bench-main">
+        <div class="bench-term">
+          <div><span class="pr">duo ❯</span> claude --resume <span class="dim">(terminal collapse fix)</span></div>
+          <div class="dim">› verified: 6 hosts stayed mounted through collapse; PID identical…</div>
+          <div><span class="pr">❯</span> <span style="opacity:.5">▋</span></div>
+        </div>
+        <div class="bench-body">
+          <div class="hero-name"><span class="pdot pine"></span>duo<span class="when">paused 12 min ago · 142 sessions</span></div>
+          <div class="srow"><span class="t">Fix terminal pane collapse</span><span class="open-pill">open</span><span class="age">12m</span></div>
+          <div class="srow" style="border:none"><span class="t">Multi-window envelope migration</span><span class="age">2h</span></div>
+          <div style="margin-top:5px"><span style="font-size:8px;color:var(--ink-ghost)">LEFT OUT:</span> <span class="fchip">terminal-pane.tsx</span><span class="fchip">core/pty-manager.ts</span></div>
+        </div>
+      </div>
+      <div class="pegboard">
+        <div style="font-size:8px;color:var(--ink-mute);font-weight:700;margin-bottom:5px">ON THE RAIL</div>
+        <div class="peg"><div class="nm"><span class="pdot harbor"></span>home-brain <span class="open-pill" style="margin-left:auto">open</span></div><div class="age">2h · travel restructure</div></div>
+        <div class="peg"><div class="nm"><span class="pdot iris"></span>agents-for-ev…</div><div class="age">1d · docs IA</div></div>
+        <div class="peg"><div class="nm"><span class="pdot plum"></span>work-harness</div><div class="age">3d · spec v2</div></div>
+        <div class="peg" style="opacity:.7"><div class="nm"><span class="pdot rose"></span>travel · <span class="pdot moss" style="margin-left:3px"></span>field-notes</div><div class="age">1–2w</div></div>
+      </div>
+    </div>
+  </div></div>
+  <p class="verdict"><b>~1 screen.</b> The terminal-frame snippet is the strongest "resume mid-action" cue of any vision — Duo is uniquely able to show it. Risk: needs live JSONL tail per project (cost), and the frozen-terminal frame is a new component to build.</p>
+</section>
+
+<!-- ════════ 19 Fisheye Timeline ════════ -->
+<section class="vision" data-vision="19" data-vname="Fisheye Timeline">
+  <div class="vision-head"><span class="vnum">19</span><h3>Fisheye Timeline</h3>
+    <label class="shortlist"><input type="checkbox" data-shortlist="19"> Shortlist</label></div>
+  <p class="thesis">One time axis, magnified at "now." The most-recent sessions are big cards on the left; as you move right (back in time) they shrink to beads, then dots. Prominence isn't assigned — it falls out of the geometry. Project = bead color.</p>
+  <div class="mock"><div class="titlebar"><span class="tl"></span><span class="tl"></span><span class="tl"></span><span class="tname">Home</span></div>
+  <div class="canvas">
+    <div class="fisheye">
+      <div class="fe-card now">
+        <div class="hero-name" style="font-size:12px"><span class="pdot pine"></span>Terminal collapse fix<span class="when">12m</span></div>
+        <div class="snippet" style="margin-top:3px">"…display:none, cols floor at 8 as backstop."</div>
+        <div style="margin-top:4px"><span class="open-pill">open</span> <span style="font-size:8.5px;color:var(--ink-ghost)">duo · 81 msgs</span></div>
+      </div>
+      <div class="fe-card near">
+        <div class="hero-name" style="font-size:10px"><span class="pdot harbor"></span>Travel restructure<span class="when">2h</span></div>
+        <div style="margin-top:3px"><span class="open-pill">open</span></div>
+      </div>
+      <div class="fe-card near" style="width:108px">
+        <div class="hero-name" style="font-size:10px"><span class="pdot pine"></span>Envelope migration</div>
+        <div style="font-size:8px;color:var(--ink-ghost);margin-top:2px">2h · 214 msgs</div>
+      </div>
+      <div class="fe-beads">
+        <div class="fe-bead iris" style="background:var(--project-iris)" title="Docs site IA"></div>
+        <div class="fe-bead pine" style="background:var(--project-pine)"></div>
+        <div class="fe-bead harbor" style="background:var(--project-harbor)"></div>
+        <div class="fe-bead s" style="background:var(--project-plum)"></div>
+        <div class="fe-bead s" style="background:var(--project-iris)"></div>
+        <div class="fe-bead s" style="background:var(--project-harbor)"></div>
+        <div class="fe-bead xs" style="background:var(--project-rose)"></div>
+        <div class="fe-bead xs" style="background:var(--project-moss)"></div>
+        <div class="fe-bead xs" style="background:var(--project-plum)"></div>
+      </div>
+    </div>
+    <div class="fe-axis"><span>now</span><span>today</span><span>this week</span><span>older →</span></div>
+    <div style="font-size:9px;color:var(--ink-ghost);margin-top:6px">hover any bead for its session · drag the axis to magnify a different moment</div>
+  </div></div>
+  <p class="verdict"><b>~½ screen, the most compact.</b> Prominence-by-geometry is conceptually elegant and unmistakably novel. Risk: it's fundamentally time-ordered, so re-entering a <em>specific cold project</em> means hunting the right-side beads — the exact weakness of round-1's Day Stream, dressed up.</p>
+</section>
+
+<!-- ════════ 20 Bookshelf ════════ -->
+<section class="vision" data-vision="20" data-vname="Bookshelf">
+  <div class="vision-head"><span class="vnum">20</span><h3>The Bookshelf</h3>
+    <label class="shortlist"><input type="checkbox" data-shortlist="20"> Shortlist</label></div>
+  <p class="thesis">Projects are books on a shelf — spine color is the project hue, spine height is session count. The one or two you're reading are pulled out and lying open, showing sessions + files. Click any spine to pull it open.</p>
+  <div class="mock"><div class="titlebar"><span class="tl"></span><span class="tl"></span><span class="tl"></span><span class="tname">Home</span></div>
+  <div class="canvas" style="padding:0;">
+    <div class="shelf">
+      <div class="book b-iris" style="height:118px">agents · 38</div>
+      <div class="open-book">
+        <div class="ob-head"><span class="pdot pine"></span>duo <span style="font-size:9px;color:var(--ink-ghost);font-style:normal;font-family:-apple-system">— open, 12 min ago · 142</span></div>
+        <div class="srow"><span class="t">Fix terminal pane collapse</span><span class="open-pill">open</span><span class="age">12m</span></div>
+        <div class="srow"><span class="t">Multi-window envelope migration</span><span class="age">2h</span></div>
+        <div class="srow" style="border:none"><span class="t">Roadmap triage</span><span class="age">1d</span></div>
+        <div style="margin-top:5px"><span class="fchip">terminal-pane.tsx</span><span class="fchip">session-state.ts</span><span class="fchip">tasks.md</span></div>
+      </div>
+      <div class="book b-plum" style="height:96px">work-harness · 24</div>
+      <div class="book b-rose" style="height:74px">travel · 11</div>
+      <div class="book b-moss" style="height:66px">field-notes · 9</div>
+      <div class="book" style="height:132px;background:var(--project-harbor)">home-brain · 67</div>
+    </div>
+  </div></div>
+  <p class="verdict"><b>~1 screen.</b> Spine-height-as-session-count is information you read at a glance with zero text; the library metaphor is warm and very Atelier. Risk: vertical spine titles are slow to read, and at 12+ projects the shelf gets crowded (a second shelf, or it scrolls).</p>
+</section>
+
+<!-- ════════ 21 Strata ════════ -->
+<section class="vision" data-vision="21" data-vname="Strata">
+  <div class="vision-head"><span class="vnum">21</span><h3>Strata</h3>
+    <label class="shortlist"><input type="checkbox" data-shortlist="21"> Shortlist</label></div>
+  <p class="thesis">A core sample of your work. Today is the thick top layer in full detail; each older band is thinner and more compressed, like sediment. Density falls off with age automatically. Drag a boundary to "excavate" an older layer into full view.</p>
+  <div class="mock"><div class="titlebar"><span class="tl"></span><span class="tl"></span><span class="tl"></span><span class="tname">Home</span></div>
+  <div class="canvas" style="padding:0;">
+    <div class="core">
+      <div class="stratum s0"><span class="age-label">Today</span>
+        <div class="hero-name"><span class="pdot pine"></span>duo <span style="font-size:9px;color:var(--ink-ghost);font-weight:400">· 12 min</span></div>
+        <div class="srow"><span class="t">Fix terminal pane collapse</span><span class="open-pill">open</span><span class="age">12m</span></div>
+        <div class="srow"><span class="t">Multi-window envelope migration</span><span class="age">2h</span></div>
+        <div class="srow" style="border:none"><span class="pdot harbor"></span><span class="t">home-brain — travel restructure</span><span class="open-pill">open</span><span class="age">2h</span></div>
+      </div>
+      <div class="stratum s1"><span class="age-label">Yesterday</span>
+        <span class="pdot iris"></span>agents — docs IA · <span class="pdot pine"></span>duo — roadmap triage · <span class="pdot pine"></span>distro pack polish
+      </div>
+      <div class="stratum s2"><span class="age-label">This week</span>
+        <span class="pdot harbor"></span>inbox triage · <span class="pdot iris"></span>chapter 4 · <span class="pdot plum"></span>spec v2 · <span class="pdot harbor"></span>KB reorg · <span class="pdot plum"></span>meta-spec sweep
+      </div>
+      <div class="stratum s3"><span class="age-label">Older</span>
+        <span class="pdot rose"></span>travel (1w) · <span class="pdot moss"></span>field-notes (2w) · 11 more deeper ↓
+      </div>
+    </div>
+  </div></div>
+  <p class="verdict"><b>~¾ screen.</b> Honest variable density — the page literally spends pixels in proportion to recency, and "excavate" is a fresh take on depth. Risk: it's time-stratified, so like the Fisheye it serves "recent" better than "that one cold project," and mixes projects within a layer.</p>
+</section>
+
+<!-- ════════ 22 Marquee ════════ -->
+<section class="vision" data-vision="22" data-vname="Marquee">
+  <div class="vision-head"><span class="vnum">22</span><h3>The Marquee</h3>
+    <label class="shortlist"><input type="checkbox" data-shortlist="22"> Shortlist</label></div>
+  <p class="thesis">A split-flap departures board. Your next "departure" — the session to re-board — clacks up top in big flaps; the rest of the board lists what's boarding behind it. The most playful, most un-Duo, riskiest-in-tone vision here.</p>
+  <div class="mock"><div class="titlebar"><span class="tl"></span><span class="tl"></span><span class="tl"></span><span class="tname">Home</span></div>
+  <div class="canvas" style="padding:14px;">
+    <div class="board">
+      <div class="flap-row hero">
+        <div class="flaps"><span class="flap">T</span><span class="flap">E</span><span class="flap">R</span><span class="flap">M</span><span class="flap">I</span><span class="flap">N</span><span class="flap">A</span><span class="flap">L</span><span class="flap" style="background:transparent">&nbsp;</span><span class="flap">F</span><span class="flap">I</span><span class="flap">X</span></div>
+        <div class="meta-r"><span class="open-pill">open</span><span class="proj">● duo</span><span style="color:#f2b15a">NOW</span></div>
+      </div>
+      <div class="flap-row"><div class="flaps"><span class="flap">TRAVEL RESTRUCTURE</span></div><div class="meta-r"><span class="open-pill">open</span><span class="proj">● home-brain</span>2h</div></div>
+      <div class="flap-row"><div class="flaps"><span class="flap">ENVELOPE MIGRATION</span></div><div class="meta-r"><span class="proj">● duo</span>2h</div></div>
+      <div class="flap-row"><div class="flaps"><span class="flap">DOCS SITE IA</span></div><div class="meta-r"><span class="proj">● agents</span>1d</div></div>
+      <div class="flap-row"><div class="flaps"><span class="flap">SPEC TEMPLATE V2</span></div><div class="meta-r"><span class="proj">● work-harness</span>3d</div></div>
+      <div class="flap-row" style="border:none"><div class="flaps"><span class="flap" style="color:#7d756a">+ 19 MORE · 6 GATES</span></div><div class="meta-r">all projects ›</div></div>
+    </div>
+  </div></div>
+  <p class="verdict"><b>~¾ screen.</b> Memorable, kinetic, and the flap-animation-on-update is a delight. But it's tonally loud for a calm Atelier "desk," reads as a time-feed (cold-project re-entry is buried), and dark-on-cream fights the palette.</p>
+</section>
+
+<!-- ════════ 23 Gallery Wall ════════ -->
+<section class="vision" data-vision="23" data-vname="Gallery Wall">
+  <div class="vision-head"><span class="vnum">23</span><h3>Gallery Wall</h3>
+    <label class="shortlist"><input type="checkbox" data-shortlist="23"> Shortlist</label></div>
+  <p class="thesis">Recent work hung salon-style. Sessions are framed cards of varying size — biggest = most recent — arranged on a wall, with faint threads drawn between sessions that touched the same file. Spatial memory + relationship at a glance.</p>
+  <div class="mock"><div class="titlebar"><span class="tl"></span><span class="tl"></span><span class="tl"></span><span class="tname">Home</span></div>
+  <div class="canvas" style="padding:0;">
+    <div class="gallery" style="height:210px">
+      <div class="thread" style="left:118px; top:64px; width:120px; transform:rotate(22deg)"></div>
+      <div class="thread" style="left:150px; top:78px; width:160px; transform:rotate(-9deg)"></div>
+      <div class="frame" style="left:18px; top:22px; width:150px"><span class="nail"></span>
+        <div class="ttl">Terminal collapse fix <span class="open-pill">open</span></div>
+        <div class="sub"><span class="pdot pine"></span>duo · 12m · 81 msgs</div>
+        <div style="margin-top:4px"><span class="fchip">terminal-pane.tsx</span></div>
+      </div>
+      <div class="frame" style="left:210px; top:34px; width:124px"><span class="nail"></span>
+        <div class="ttl">Travel restructure <span class="open-pill">open</span></div>
+        <div class="sub"><span class="pdot harbor"></span>home-brain · 2h</div>
+      </div>
+      <div class="frame" style="left:118px; top:120px; width:118px"><span class="nail"></span>
+        <div class="ttl">Envelope migration</div>
+        <div class="sub"><span class="pdot pine"></span>duo · 2h</div>
+        <div style="margin-top:3px"><span class="fchip">session-state.ts</span></div>
+      </div>
+      <div class="frame" style="left:300px; top:108px; width:104px"><span class="nail"></span>
+        <div class="ttl">Docs site IA</div>
+        <div class="sub"><span class="pdot iris"></span>agents · 1d</div>
+      </div>
+      <div class="frame" style="left:418px; top:50px; width:92px"><span class="nail"></span>
+        <div class="ttl">Spec v2</div>
+        <div class="sub"><span class="pdot plum"></span>3d</div>
+      </div>
+      <div class="frame" style="left:432px; top:138px; width:88px; opacity:.8"><span class="nail"></span>
+        <div class="ttl" style="font-size:8.5px">travel · field-notes</div>
+        <div class="sub">resting →</div>
+      </div>
+    </div>
+  </div></div>
+  <p class="verdict"><b>~1 screen.</b> The only vision that shows cross-session <em>relationships</em> (shared-file threads) — uniquely Duo, since it knows which files each session touched. Risk: free-floating layout is the hardest to make non-chaotic, and absolute positions don't reflow gracefully.</p>
+</section>
+
+<!-- ════════ 24 Concierge ════════ -->
+<section class="vision" data-vision="24" data-vname="Concierge">
+  <div class="vision-head"><span class="vnum">24</span><h3>The Concierge</h3>
+    <label class="shortlist"><input type="checkbox" data-shortlist="24"> Shortlist</label></div>
+  <p class="thesis">Duo briefs you, then points. A dark "agent" banner gives a one-breath spoken-style summary, surfaces the single highest-value place to pick up, then lists the rest as a calm queue. Leans all the way into Duo-as-assistant.</p>
+  <div class="mock"><div class="titlebar"><span class="tl"></span><span class="tl"></span><span class="tl"></span><span class="tname">Home</span></div>
+  <div class="canvas">
+    <div class="briefing">
+      <div class="av"><span class="dot"></span>Good afternoon, Geoff.</div>
+      <div class="brief-txt">You've got <b>2 sessions still open</b> across duo and home-brain. <b>4 projects went quiet</b> this week — work-harness, travel and field-notes haven't been touched in days. The freshest thread is the terminal-collapse fix you left <b>12 minutes ago</b>.</div>
+    </div>
+    <div class="pickup">
+      <div class="lead">Pick up where you left off</div>
+      <div class="hero-name" style="margin-top:3px"><span class="pdot pine"></span>Fix terminal pane collapse<span class="when">duo · 12 min · open</span></div>
+      <div class="snippet" style="margin-top:3px">"…hide via a true display:none — the cols floor is the structural backstop."</div>
+    </div>
+    <div style="font-size:8px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-ghost);font-weight:700;margin:8px 0 3px">Also waiting</div>
+    <div class="queue-row"><span class="pdot harbor"></span><span>Travel domain restructure</span><span class="open-pill">open</span><span class="age">home-brain · 2h</span></div>
+    <div class="queue-row"><span class="pdot iris"></span><span>Docs site information architecture</span><span class="age">agents · 1d</span></div>
+    <div class="queue-row"><span class="pdot plum"></span><span>Spec template v2</span><span class="age">work-harness · 3d</span></div>
+    <div class="queue-row" style="border:none"><span class="pdot rose"></span><span>travel</span> · <span class="pdot moss"></span><span>field-notes</span><span class="age">resting · all projects →</span></div>
+  </div></div>
+  <p class="verdict"><b>~1 screen.</b> The only vision that makes a <em>recommendation</em> ("start here") rather than just listing — most agent-native, and the briefing reads in one second. Risk: if the heuristic picks the wrong "pickup," it's actively annoying; the dark banner is a strong stylistic bet.</p>
+</section>
+
+<h2>Decisions</h2>
+<p style="font-size:13px; color:var(--ink-mute);">These are tuned to the daring direction. Shortlist 2–4 visions above, then answer — shortlist + answers travel together in the Copy payload.</p>
+
+<section class="decision-card">
+  <div class="q-title">Decision A · Voice</div>
+  <h3 class="q-prompt">Does Home speak, or does it just show?</h3>
+  <p class="q-context">The round-2 visions split sharply: some narrate/recommend (Letter 15, Concierge 24, Notebook 14), most just present. This is the biggest tonal fork — and the one your "#12 is the only creative one" reaction points at.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="dA" value="narrated"><div class="q-option-body"><div class="q-option-title">Narrated — Duo addresses you <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">Prose/briefing voice (15, 24, 14). Most distinctive, most Duo-as-partner. Lives or dies on session-title quality.</div></div></label>
+    <label class="q-option"><input type="radio" name="dA" value="silent"><div class="q-option-body"><div class="q-option-title">Silent — present, don't talk</div><div class="q-option-rationale">Cards/shelves/boards (13, 16, 17, 20). Calmer, scales better, no awkward-phrasing risk.</div></div></label>
+    <label class="q-option"><input type="radio" name="dA" value="one-line"><div class="q-option-body"><div class="q-option-title">One line of voice, then silent</div><div class="q-option-rationale">A single greeting/briefing line (Concierge's banner) atop an otherwise visual layout. Hybrid.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="dA" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision B · How prominence is earned</div>
+  <h3 class="q-prompt">What makes the 1–2 hero projects big?</h3>
+  <p class="q-context">You liked giving recent projects prominence. But "most recent" and "where I most need to re-enter" can differ — the project you touched 12 min ago needs the <em>least</em> help.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="dB" value="recency"><div class="q-option-body"><div class="q-option-title">Recency — newest 1–2 go big <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">Simple, predictable, matches "pick up where I left off" (13, 16, 17, 19, 21). Ship this; revisit if it feels wrong.</div></div></label>
+    <label class="q-option"><input type="radio" name="dB" value="open"><div class="q-option-body"><div class="q-option-title">Open sessions first, then recency</div><div class="q-option-rationale">Anything with a live terminal heroes first — the truest "resume" signal — recency breaks ties.</div></div></label>
+    <label class="q-option"><input type="radio" name="dB" value="count"><div class="q-option-body"><div class="q-option-title">Fixed count, user can re-pin</div><div class="q-option-rationale">Always exactly 2 heroes, but you can swap which. Stable spatial memory; small curation cost.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="dB" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision C · Content richness</div>
+  <h3 class="q-prompt">How much of each session do we show beyond its title?</h3>
+  <p class="q-context">The daring visions bet on richer content — a last-message snippet (13, 19, 24), a frozen terminal frame (18), shared-file threads (23). Each is something only Duo can show, but each costs a JSONL read and a new component.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="dC" value="snippet"><div class="q-option-body"><div class="q-option-title">Last-line snippet on hero sessions <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">The "pick up mid-thought" cue, cheaply (tail the hero JSONL only). Biggest payoff per unit cost.</div></div></label>
+    <label class="q-option"><input type="radio" name="dC" value="terminal"><div class="q-option-body"><div class="q-option-title">Frozen terminal frame (Workbench)</div><div class="q-option-rationale">Last command + last reply, verbatim. Strongest resume cue; most build + read cost.</div></div></label>
+    <label class="q-option"><input type="radio" name="dC" value="files"><div class="q-option-body"><div class="q-option-title">Files only, no snippets</div><div class="q-option-rationale">Title + recent-file chips, nothing from inside the transcript. Cheapest, least evocative.</div></div></label>
+    <label class="q-option"><input type="radio" name="dC" value="threads"><div class="q-option-body"><div class="q-option-title">Shared-file relationships (Gallery)</div><div class="q-option-rationale">Show which sessions touched the same files. Unique, but only legible in a spatial layout.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="dC" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision D · Metaphor commitment</div>
+  <h3 class="q-prompt">How far do we lean into a physical metaphor?</h3>
+  <p class="q-context">Notebook (14), Bookshelf (20), Hearth (16), Marquee (22) commit to a real-world object. It's where the warmth lives — and where it can tip twee or fight the calm.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="dD" value="restrained"><div class="q-option-body"><div class="q-option-title">Restrained — one metaphor, lightly <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">A single organizing idea (the spread, the ember-glow) without full skeuomorphism. Warm but still calm.</div></div></label>
+    <label class="q-option"><input type="radio" name="dD" value="full"><div class="q-option-body"><div class="q-option-title">Full skeuomorphism</div><div class="q-option-rationale">Ruled paper, book spines, brass departures board. Maximum identity, real twee risk.</div></div></label>
+    <label class="q-option"><input type="radio" name="dD" value="none"><div class="q-option-body"><div class="q-option-title">None — clean panels</div><div class="q-option-rationale">Prominence via size/color only, no object metaphor. Safest; closest to round-1 #2.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="dD" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision E · The lead vision</div>
+  <h3 class="q-prompt">If you had to pick one to prototype first, which?</h3>
+  <p class="q-context">Your shortlist captures favorites; this names the one to build a real, data-backed prototype of next. (Free-text if it's a blend — e.g. "Two-Up frame + Concierge briefing line + snippet.")</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="dE" value="two-up"><div class="q-option-body"><div class="q-option-title">13 Two-Up Spread <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">Nails the prominence brief, lowest build risk, plays well with a snippet + an optional briefing line.</div></div></label>
+    <label class="q-option"><input type="radio" name="dE" value="concierge"><div class="q-option-body"><div class="q-option-title">24 Concierge</div><div class="q-option-rationale">Most agent-native; recommends rather than lists. Build if Decision A leans narrated.</div></div></label>
+    <label class="q-option"><input type="radio" name="dE" value="hearth"><div class="q-option-body"><div class="q-option-title">16 Hearth</div><div class="q-option-rationale">Variable density with emotional logic; silent. Build if A leans silent + B leans recency.</div></div></label>
+    <label class="q-option"><input type="radio" name="dE" value="letter"><div class="q-option-body"><div class="q-option-title">15 The Letter</div><div class="q-option-rationale">The purest evolution of the #12 you liked. Highest distinctiveness, lowest density.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="dE" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 5 decisions · <span id="shortlist-count">0</span> shortlisted</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  var KEYS = ['dA','dB','dC','dD','dE'];
+  var TITLES = { dA:'Voice', dB:'How prominence is earned', dC:'Content richness', dD:'Metaphor commitment', dE:'Lead vision' };
+  function refresh() {
+    var answered = 0;
+    KEYS.forEach(function (k) { if (document.querySelector('input[name="' + k + '"]:checked')) answered++; });
+    document.getElementById('answered-count').textContent = String(answered);
+    document.getElementById('shortlist-count').textContent = String(document.querySelectorAll('input[data-shortlist]:checked').length);
+  }
+  document.addEventListener('change', refresh);
+  document.getElementById('copy-btn').addEventListener('click', function () {
+    var lines = ['ENH-212 home-screen study (round 2) decisions', ''];
+    var sl = [];
+    document.querySelectorAll('input[data-shortlist]:checked').forEach(function (cb) {
+      var sec = cb.closest('.vision');
+      sl.push('#' + sec.getAttribute('data-vision') + ' ' + sec.getAttribute('data-vname'));
+    });
+    lines.push('SHORTLIST: ' + (sl.length ? sl.join(', ') : '(none)'));
+    lines.push('');
+    KEYS.forEach(function (k) {
+      var sel = document.querySelector('input[name="' + k + '"]:checked');
+      lines.push('[' + (sel ? sel.value : 'UNANSWERED') + '] ' + k.slice(1) + '. ' + TITLES[k]);
+      var n = document.querySelector('.q-notes[data-decision="' + k + '"]');
+      if (n && n.value.trim()) lines.push('    ' + n.value.trim());
+    });
+    var btn = this;
+    navigator.clipboard.writeText(lines.join('\n')).then(function () {
+      btn.classList.add('copied'); btn.textContent = 'Copied';
+      setTimeout(function () { btn.classList.remove('copied'); btn.textContent = 'Copy decisions'; }, 2000);
+    });
+  });
+  refresh();
+})();
+</script>
+
+</body>
+</html>
