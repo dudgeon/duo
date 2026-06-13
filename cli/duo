@@ -33,7 +33,7 @@ var import_crypto = require("crypto");
 var import_node_fs = __toESM(require("node:fs"));
 var import_node_path = __toESM(require("node:path"));
 
-// ../../../Users/geoffreydudgeon/Documents/GitHub/duo/node_modules/js-yaml/dist/js-yaml.mjs
+// node_modules/js-yaml/dist/js-yaml.mjs
 function isNothing(subject) {
   return typeof subject === "undefined" || subject === null;
 }
@@ -4103,7 +4103,7 @@ function lintVault(root, target) {
 }
 
 // cli/duo.ts
-var VERSION = true ? "0.10.1" : "0.0.0-dev";
+var VERSION = true ? "0.10.2" : "0.0.0-dev";
 var VERBS = [
   // ── Browser & tabs ──
   {

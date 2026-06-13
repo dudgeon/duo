@@ -19,7 +19,28 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.10.1 cut 2026-06-10.
+> Empty — v0.10.2 cut 2026-06-12.
+
+## [0.10.2] — 2026-06-12 — Vault capture UX (ENH-208 Phase 2) · suggesting-mode inline-code fix · review-hardened
+
+### Added
+- **Vault capture UX — the five Phase 2 features (ENH-208, PR #91, owner-walked 8/8).** Settings → **Default Vault** picker (machine-global, backed by a self-healing `knownVaults` list in `~/.claude/duo/vault.json` — same rows in every window); **⇧⌘N** quick-capture inbox note (same code path as bare `duo vault capture`, opens focused); **⌘⇧F** vault-search palette (debounced, grouped by file, Enter jumps to the *picked occurrence* via the new per-hit `docMatchIndex`); **@today** smart tokens in the `@` suggester (plain-text date insertion, D21); silent-stub **type-picker** on `[[NewName` (template types + `+ new type…`, runs the exact `duo vault stub` path, D4).
+- **`duo vault default` echoes `knownVaults`** alongside `defaultVault` (all three shapes: bare read / set / `--clear`) — CLI parity with the Settings picker; documented across all four CLI surfaces.
+- **Faint "you-are-here" pill on the project rail in All mode (ENH-210, PR #93).** The parent project of the single active surface (terminal *or* canvas/working tab, browser-mode `file://` tabs included) gets a low-alpha tinted pill — gated to All mode, never competing with the strong focused-tile state.
+
+### Changed
+- **Chord re-picks (PRD D11/D22 amendments, owner 2026-06-10).** ⇧⌘N is now vault capture (**New Folder → ⌥⇧⌘N**, moved across the renderer matcher + File-menu accelerator + WCV forward list together). ⌘⇧F is now vault search; the *global* find-previous is retired — the editor + canvas find bars keep input-local ⌘⇧F via a `ctx.inFindBar` matcher yield; the browser pane's find bar is **⇧Enter-only** (deliberate asymmetry, recorded in FOLLOWUP-047).
+- **`duo vault search` hits carry `docMatchIndex`** (body-occurrence index; null for frontmatter hits) and a 200-hit default cap — shared with the ⌘⇧F palette so both count the same thing.
+- **Post-review hardening (22 adversarially-verified findings fixed in-branch before merge).** Highlights: the vault directory walk is now async (no per-keystroke sync `readdir` on the main process); CRLF/whitespace-fenced frontmatter counts congruently with the editor; `vault.json` parsing shape-hardens malformed prefs and union-merges `knownVaults` against on-disk state (concurrent CLI + menu writers can't drop entries); `VAULT_STUB`/`VAULT_TYPES` IPC validate `isVaultRoot` like their sibling; the Default Vault menu rebuilds once per change (pref-watcher is the single trigger); `createType` extracted to `core/vault` with canonical-name regression tests; one shared `abbreviateHome` helper (menu + palette); palette excerpt highlights use the committed query.
+
+### Fixed
+- **Suggesting mode no longer swallows edits inside inline `code` (PR #92).** Typing, backspace, forward-delete, and selection-delete inside backticks now work — untracked, matching fenced-code behavior (CriticMarkup tokens can't live inside code). Mixed insertions (plain text + code) keep tracking on the plain fragments; the insert-path regression test is transaction-level and empirically falsifiable.
+- **Active-pill tile keeps its hover feedback (ENH-210 polish).** The faint fill moved from an inline style to a `[data-active-surface]` CSS rule with a hover override.
+
+### Known issues
+- ENH-213 (⌘⇧F palette occluded by the canvas during search), ENH-214 (palette should surface templates), ENH-215 (typed-entity metadata panel default-show) — filed from the owner walk, non-blocking.
+- FOLLOWUP-048 — the `[[` suggester closes on whitespace, so popover stubs are single-word; multi-word entities go via `duo vault stub`.
+- Grafted backlog filings from a stranded working tree: BUG-199 (`duo doc edit` re-serialization churn), BUG-201 (theme re-follows macOS appearance in window 2), BUG-202 (markdown tab empty-state race), BUG-203 (CriticMarkup ins/del don't survive reload — renumbered from a colliding BUG-200).
 
 ## [0.10.1] — 2026-06-10 — Vault (Obsidian-convention work-notes) · terminal-collapse data-loss fix
 
@@ -1925,6 +1946,7 @@ the agent-driven HTML canvas, and the visual identity.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
 [Unreleased]: https://github.com/dudgeon/duo/compare/v0.10.1...HEAD
+[0.10.2]: https://github.com/dudgeon/duo/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/dudgeon/duo/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/dudgeon/duo/compare/v0.9.2...v0.10.0
 [0.9.2]: https://github.com/dudgeon/duo/compare/v0.9.1...v0.9.2
