@@ -921,6 +921,28 @@ const api: ElectronAPI = {
       ipcRenderer.on(IPC.GIT_WATCH_INVALIDATE, handler)
       return () => ipcRenderer.removeListener(IPC.GIT_WATCH_INVALIDATE, handler)
     }
+  },
+  // ENH-212 — Home re-entry surface. Snapshot + expander + click
+  // contract are pure invokes (main recomputes live every call — D9);
+  // onHomeShow / onTerminalActivateTab are the `duo home` / `duo term
+  // tab` push subscriptions.
+  home: {
+    snapshot: (limitPerProject?: number) =>
+      ipcRenderer.invoke(IPC.HOME_SNAPSHOT, { limitPerProject }) as Promise<import('../shared/types').HomeSnapshot>,
+    listSessions: (root: string, offset: number, limit: number) =>
+      ipcRenderer.invoke(IPC.HOME_LIST_SESSIONS, { root, offset, limit }) as Promise<import('../shared/types').HomeSession[]>,
+    sessionAction: (action: import('../shared/types').HomeSessionAction) =>
+      ipcRenderer.invoke(IPC.HOME_SESSION_ACTION, action) as Promise<{ ok: boolean; error?: string }>,
+    onHomeShow: (cb: () => void) => {
+      const handler = () => cb()
+      ipcRenderer.on(IPC.HOME_SHOW, handler)
+      return () => ipcRenderer.removeListener(IPC.HOME_SHOW, handler)
+    },
+    onTerminalActivateTab: (cb: (tabId: string) => void) => {
+      const handler = (_e: unknown, payload: { tabId: string }) => cb(payload.tabId)
+      ipcRenderer.on(IPC.TERMINAL_ACTIVATE_TAB, handler)
+      return () => ipcRenderer.removeListener(IPC.TERMINAL_ACTIVATE_TAB, handler)
+    }
   }
 }
 

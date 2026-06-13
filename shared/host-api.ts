@@ -1039,6 +1039,10 @@ export interface ElectronAPI {
   // ENH-184 (Sprint 23 / v0.8.0) — workspace-pill click-to-open-menu
   // CLI parity. Renderer pushes flag changes; main pushes CLI writes.
   workspacePillMenu: ElectronWorkspacePillMenuAPI
+  // ENH-212 — Home re-entry surface: live snapshot, paged session
+  // expander, the session click contract, and the `duo home` /
+  // `duo term tab` push subscriptions.
+  home: ElectronHomeAPI
 }
 
 export interface ElectronProjectsAPI {
@@ -1212,6 +1216,31 @@ export interface ElectronGitAPI {
   /** ENH-152c — subscribe to debounced invalidation events from the
    *  active watcher. Returns a cleanup function. */
   onWatchInvalidate(cb: () => void): () => void
+}
+
+// ENH-212 — Home re-entry surface. All reads recompute live in main on
+// every call (D9 invariant — no cache, no sidecar). Backed by
+// electron/home-snapshot.ts + claude-session-tracker primitives.
+export interface ElectronHomeAPI {
+  /** Full Home snapshot: greeting + rolled-up projects with their most
+   *  recent sessions. `limitPerProject` caps sessions per project
+   *  (heroes show 3; main applies its default when omitted). */
+  snapshot(limitPerProject?: number): Promise<import('./types').HomeSnapshot>
+  /** Paged "all N sessions" expander for one project root. Lazy titles —
+   *  rows beyond the snapshot's cap resolve on demand. */
+  listSessions(root: string, offset: number, limit: number): Promise<import('./types').HomeSession[]>
+  /** Session click contract (§ 4.3): focus raises the hosting window +
+   *  activates its terminal tab; resume spawns `claude --resume <uuid>`
+   *  in the sender's window. Openness is re-checked main-side before
+   *  any spawn. */
+  sessionAction(action: import('./types').HomeSessionAction): Promise<{ ok: boolean; error?: string }>
+  /** main → renderer push from `duo home` — focus/synthesize the Home
+   *  tab. Returns a cleanup function. */
+  onHomeShow(cb: () => void): () => void
+  /** main → renderer push to activate a terminal tab by id (the focus
+   *  leg of the click contract + `duo term tab <id>`). The handler
+   *  reuses the `terminal:focus` body. Returns a cleanup function. */
+  onTerminalActivateTab(cb: (tabId: string) => void): () => void
 }
 
 declare global {

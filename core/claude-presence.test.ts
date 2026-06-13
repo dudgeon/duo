@@ -118,3 +118,45 @@ describe('ClaudePresenceProbe — idle park (ENH-191 P3-S8d)', () => {
     expect(p.isPolling()).toBe(false) // running=false → no resurrection
   })
 })
+
+// ENH-212 — probeAllTabs: ONE ps parse → BFS descendant walk per root pid,
+// returns the per-root claude verdict + the set of live claude pids NOT owned
+// by any supplied root (the live-but-idle guard input). Reuses the same
+// child_process.spawn mock above (h.psTable drives the canned ps output).
+describe('probeAllTabs — ENH-212 multi-root BFS', () => {
+  it('returns a per-root verdict (claude-hosting vs not) from one ps parse', async () => {
+    // pid 100's tree hosts claude (100 → 110 zsh → 120 claude);
+    // pid 200's tree is shell-only (200 → 210 zsh).
+    h.psTable = 'PID PPID COMM\n100 1 login\n110 100 zsh\n120 110 claude\n200 1 login\n210 200 zsh\n'
+    const { probeAllTabs } = await import('./claude-presence')
+    const res = await probeAllTabs([100, 200])
+    expect(res.claudeByRoot.get(100)).toBe(true)
+    expect(res.claudeByRoot.get(200)).toBe(false)
+  })
+
+  it('surfaces an UNATTRIBUTED live claude (outside every supplied root tree)', async () => {
+    // pid 100's tree hosts claude (owned). pid 900 is a detached external
+    // claude under no supplied root → unattributed.
+    h.psTable = 'PID PPID COMM\n100 1 zsh\n120 100 claude\n900 1 claude\n'
+    const { probeAllTabs } = await import('./claude-presence')
+    const res = await probeAllTabs([100])
+    expect(res.claudeByRoot.get(100)).toBe(true)
+    expect(res.unattributedClaudePids).toEqual([900]) // 120 is owned by root 100
+  })
+
+  it('no roots → every live claude is unattributed', async () => {
+    h.psTable = 'PID PPID COMM\n100 1 zsh\n120 100 claude\n900 1 claude\n'
+    const { probeAllTabs } = await import('./claude-presence')
+    const res = await probeAllTabs([])
+    expect(res.unattributedClaudePids.sort((a, b) => a - b)).toEqual([120, 900])
+  })
+
+  it('handles a deep descendant chain (BFS past intermediate shells)', async () => {
+    // 100 → 101 → 102 → 103 claude — claude is 3 levels down.
+    h.psTable = 'PID PPID COMM\n100 1 zsh\n101 100 sh\n102 101 node\n103 102 claude\n'
+    const { probeAllTabs } = await import('./claude-presence')
+    const res = await probeAllTabs([100])
+    expect(res.claudeByRoot.get(100)).toBe(true)
+    expect(res.unattributedClaudePids).toEqual([]) // 103 is inside root 100's tree
+  })
+})

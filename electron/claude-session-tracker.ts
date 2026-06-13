@@ -145,7 +145,14 @@ export async function readBannerTitle(
   if (!lines || lines.length === 0) {
     return { title: shortUuid(sessionUuid), source: 'uuid' }
   }
+  return titleFromLines(lines) ?? { title: shortUuid(sessionUuid), source: 'uuid' }
+}
 
+/** Rungs 1–3 of the D5 title ladder over an already-read set of JSONL
+ *  lines. Shared by `readBannerTitle` (full read ladder) and
+ *  `readSessionHeadMeta` (ENH-212 head-16KB read). Returns null when
+ *  no rung fires — callers fall back to the short UUID. */
+function titleFromLines(lines: string[]): BannerTitleResult | null {
   // Reverse scan for the latest custom-title entry.
   for (let i = lines.length - 1; i >= 0; i--) {
     const parsed = safeParse(lines[i])
@@ -172,7 +179,7 @@ export async function readBannerTitle(
     }
   }
 
-  return { title: shortUuid(sessionUuid), source: 'uuid' }
+  return null
 }
 
 /**
@@ -370,6 +377,241 @@ export async function listPriorSessions(
     return out
   } catch {
     return []
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ENH-212 — Home data primitives (stat-only enumeration + seek-based
+// head/tail metadata reads)
+// ---------------------------------------------------------------------------
+
+/** Tail-read growth ladder for `readSessionTailMeta`. Single JSONL
+ *  lines on the reference machine reach ~400KB (giant thinking
+ *  blocks), so a fixed 64KB window can yield ZERO complete lines —
+ *  grow exponentially, capped at 2MB (PRD ENH-212 § 4.2 [V]). */
+const TAIL_META_LADDER = [64 * 1024, 256 * 1024, 1024 * 1024, 2 * 1024 * 1024]
+
+/** Head window for `readSessionHeadMeta`. Head lines (queue ops, the
+ *  first user/system entries) are small — 16KB covers the cwd
+ *  evidence + the title-ladder entries cheaply. */
+const HEAD_META_BYTES = 16 * 1024
+
+export interface TopLevelSessionStat {
+  /** Session UUID (the `.jsonl` basename). */
+  id: string
+  mtimeMs: number
+  sizeBytes: number
+}
+
+/**
+ * Stat-only enumeration of the top-level `<uuid>.jsonl` files in a
+ * `~/.claude/projects/<encoded-cwd>/` directory. Subagent transcripts
+ * live under `<uuid>/subagents/**` SUBDIRECTORIES (observed live
+ * 2026-06-12, incl. nested `subagents/workflows/<wf>/agent-*.jsonl`)
+ * and are excluded structurally — only direct-child regular files are
+ * considered. Never throws; missing/unreadable dir → [].
+ */
+export async function listTopLevelSessions(projectDir: string): Promise<TopLevelSessionStat[]> {
+  try {
+    const entries = await fs.readdir(projectDir, { withFileTypes: true })
+    const out: TopLevelSessionStat[] = []
+    for (const e of entries) {
+      if (!e.isFile() || !e.name.endsWith('.jsonl')) continue
+      const id = e.name.slice(0, -'.jsonl'.length)
+      if (!id) continue
+      const stat = await fs.stat(path.join(projectDir, e.name)).catch(() => null)
+      if (!stat) continue
+      out.push({ id, mtimeMs: stat.mtimeMs, sizeBytes: stat.size })
+    }
+    return out
+  } catch {
+    return []
+  }
+}
+
+export interface SessionTailMeta {
+  /** Text of the last non-sidechain assistant entry; falls back to
+   *  the `lastPrompt` text of a `last-prompt` record when no
+   *  assistant text is within the read window. */
+  snippet: string | null
+  gitBranch: string | null
+  sessionId: string | null
+  /** Latest `timestamp` seen in the tail window, ms epoch. */
+  timestamp: number | null
+}
+
+const EMPTY_TAIL_META: SessionTailMeta = {
+  snippet: null,
+  gitBranch: null,
+  sessionId: null,
+  timestamp: null
+}
+
+/**
+ * Seek-based tail read of a session JSONL (fd + position — NEVER a
+ * full-file read; sessions reach 270MB). Reads the trailing window,
+ * trimming the leading partial line after any seek, and parses for:
+ *
+ *   - snippet: last `type:"assistant"` entry with `!isSidechain` and
+ *     a text content block (`last-prompt.lastPrompt` fallback)
+ *   - gitBranch / sessionId / latest timestamp
+ *
+ * Window grows 64KB → 256KB → 1MB → 2MB (cap), stopping as soon as an
+ * assistant snippet is found or the window covers the whole file.
+ * Never throws — corrupt/missing files degrade to all-null fields.
+ */
+export async function readSessionTailMeta(file: string): Promise<SessionTailMeta> {
+  let handle: Awaited<ReturnType<typeof fs.open>> | null = null
+  try {
+    handle = await fs.open(file, 'r')
+    const stat = await handle.stat()
+    let last: SessionTailMeta = EMPTY_TAIL_META
+    for (const want of TAIL_META_LADDER) {
+      const len = Math.min(want, stat.size)
+      const position = stat.size - len
+      const buf = Buffer.alloc(len)
+      await handle.read(buf, 0, len, position)
+      let slice = buf
+      if (position > 0) {
+        // Seeked mid-file — drop the leading partial line.
+        const firstNewline = buf.indexOf(0x0a /* \n */)
+        slice = firstNewline >= 0 ? buf.subarray(firstNewline + 1) : Buffer.alloc(0)
+      }
+      const scan = scanTailLines(splitLines(slice))
+      last = {
+        snippet: scan.assistantSnippet ?? scan.lastPromptText,
+        gitBranch: scan.gitBranch,
+        sessionId: scan.sessionId,
+        timestamp: scan.timestamp
+      }
+      // Stop growing once the needed kind (assistant snippet) is in
+      // hand, or once the window already covers the whole file.
+      if (scan.assistantSnippet !== null || len >= stat.size) return last
+    }
+    return last
+  } catch {
+    return EMPTY_TAIL_META
+  } finally {
+    await handle?.close().catch(() => {})
+  }
+}
+
+interface TailScan {
+  assistantSnippet: string | null
+  lastPromptText: string | null
+  gitBranch: string | null
+  sessionId: string | null
+  timestamp: number | null
+}
+
+/** Reverse scan of tail-window lines: latest-wins for every field. */
+function scanTailLines(lines: string[]): TailScan {
+  const scan: TailScan = {
+    assistantSnippet: null,
+    lastPromptText: null,
+    gitBranch: null,
+    sessionId: null,
+    timestamp: null
+  }
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const parsed = safeParse(lines[i])
+    if (!parsed) continue
+    if (scan.gitBranch === null && typeof parsed.gitBranch === 'string' && parsed.gitBranch.length > 0) {
+      scan.gitBranch = parsed.gitBranch
+    }
+    if (scan.sessionId === null && typeof parsed.sessionId === 'string' && parsed.sessionId.length > 0) {
+      scan.sessionId = parsed.sessionId
+    }
+    if (scan.timestamp === null && typeof parsed.timestamp === 'string') {
+      const ts = Date.parse(parsed.timestamp)
+      if (!Number.isNaN(ts)) scan.timestamp = ts
+    }
+    if (scan.assistantSnippet === null && parsed.type === 'assistant' && parsed.isSidechain !== true) {
+      const text = extractAssistantText(parsed)
+      if (text) scan.assistantSnippet = text
+    }
+    if (scan.lastPromptText === null && parsed.type === 'last-prompt' && typeof parsed.lastPrompt === 'string' && parsed.lastPrompt.length > 0) {
+      scan.lastPromptText = parsed.lastPrompt
+    }
+  }
+  return scan
+}
+
+/** Pull the last text content block from a `type:"assistant"` entry.
+ *  Assistant content is a block array (thinking / text / tool_use…);
+ *  the LAST text block is the user-visible closing line. */
+function extractAssistantText(parsed: Record<string, unknown>): string | null {
+  const message = parsed.message as Record<string, unknown> | undefined
+  const content = message?.content
+  if (typeof content === 'string') return content.trim() || null
+  if (!Array.isArray(content)) return null
+  for (let i = content.length - 1; i >= 0; i--) {
+    const block = content[i]
+    if (block && typeof block === 'object') {
+      const b = block as Record<string, unknown>
+      if (b.type === 'text' && typeof b.text === 'string') {
+        const text = b.text.trim()
+        if (text) return text
+      }
+    }
+  }
+  return null
+}
+
+export interface SessionHeadMeta {
+  /** ROLLUP evidence (PRD ENH-212 D8 [V]): the cwd recorded on the
+   *  first user/system entry — never a reversed encodeProjectDir. */
+  cwd: string | null
+  title?: string
+  titleSource?: BannerTitleSource
+}
+
+/**
+ * Seek-based head-16KB read. The head lines are small (queue ops +
+ * the first user/system entries), so 16KB covers both the cwd
+ * evidence and the title ladder in one cheap read. The trailing
+ * partial line of the window is dropped. Never throws — degrades to
+ * `{ cwd: null }`.
+ */
+export async function readSessionHeadMeta(file: string): Promise<SessionHeadMeta> {
+  let handle: Awaited<ReturnType<typeof fs.open>> | null = null
+  try {
+    handle = await fs.open(file, 'r')
+    const stat = await handle.stat()
+    const len = Math.min(HEAD_META_BYTES, stat.size)
+    const buf = Buffer.alloc(len)
+    await handle.read(buf, 0, len, 0)
+    let slice = buf
+    if (len < stat.size) {
+      // Window ends mid-file — drop the trailing partial line.
+      const lastNewline = buf.lastIndexOf(0x0a /* \n */)
+      slice = lastNewline >= 0 ? buf.subarray(0, lastNewline) : Buffer.alloc(0)
+    }
+    const lines = splitLines(slice)
+
+    // cwd: first user/system entry carrying one; any-entry fallback
+    // (assistant entries carry cwd too — equally valid evidence).
+    let cwd: string | null = null
+    let anyCwd: string | null = null
+    for (const line of lines) {
+      const parsed = safeParse(line)
+      if (!parsed || typeof parsed.cwd !== 'string' || parsed.cwd.length === 0) continue
+      if (anyCwd === null) anyCwd = parsed.cwd
+      if (parsed.type === 'user' || parsed.type === 'system') {
+        cwd = parsed.cwd
+        break
+      }
+    }
+
+    const title = titleFromLines(lines)
+    return {
+      cwd: cwd ?? anyCwd,
+      ...(title ? { title: title.title, titleSource: title.source } : {})
+    }
+  } catch {
+    return { cwd: null }
+  } finally {
+    await handle?.close().catch(() => {})
   }
 }
 
