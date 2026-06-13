@@ -514,10 +514,12 @@ export async function buildHomeSnapshot(deps: BuildHomeSnapshotDeps = {}): Promi
       // ladder is custom-title (/rename) → ai-title (Claude's Haiku summary)
       // → first prompt → uuid (ENH-183 D5; sessions-index.json is a
       // deprecated cache, NOT consulted — C1 lock).
-      const wantTitle = isHero || sIdx === 0
-      const head = wantTitle
-        ? await withTimeout(readSessionHeadMeta(file), { cwd: null })
-        : { cwd: null as string | null }
+      // Read the best title for EVERY visible session. The earlier
+      // "spine reads only its newest" optimization left non-newest spine
+      // rows as bare 8-char uuids when expanded — even when they had an
+      // ai-title / first prompt (TITLE-1). Head reads are cheap seek reads
+      // and the visible set is bounded (≤ limitPerProject per project).
+      const head = await withTimeout(readSessionHeadMeta(file), { cwd: null })
       const open = openByUuid.get(rs.stat.id)
       return {
         uuid: rs.stat.id,
