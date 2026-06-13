@@ -21,6 +21,7 @@
 // against a temp projects tree with no Electron / no ps / no lsof.
 
 import { promises as fs } from 'fs'
+import { execFileSync } from 'child_process'
 import path from 'path'
 import os from 'os'
 import {
@@ -359,22 +360,50 @@ export function buildGreeting(
   }
 }
 
-/** os.userInfo() first name (D12) — the leading token of the GECOS / username
- *  fallback, omitted entirely when nothing usable is available. */
+/** Greeting first name (D12). Prefers the macOS account DISPLAY name
+ *  (RealName, e.g. "Geoff Dudgeon" → "Geoff") over the bare login
+ *  ("geoffreydudgeon"); omits gracefully when nothing usable is found.
+ *  Cached for the process — the account name never changes mid-session, so
+ *  the one `dscl` call runs at most once (every-30s snapshots don't re-shell). */
+let firstNameCache: { value: string | undefined } | null = null
 function detectFirstName(): string | undefined {
+  if (firstNameCache) return firstNameCache.value
+  const value = computeFirstName()
+  firstNameCache = { value }
+  return value
+}
+
+function cap(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+function computeFirstName(): string | undefined {
+  let username = ''
   try {
-    const info = os.userInfo()
-    // username is always present; there's no portable real-name field, so
-    // use the login name's leading token when it looks like a name. A bare
-    // login like "geoffreydudgeon" is acceptable; an empty/odd value omits.
-    const raw = (info.username ?? '').trim()
-    if (!raw) return undefined
-    const first = raw.split(/[\s._-]+/)[0]
-    if (!first) return undefined
-    return first.charAt(0).toUpperCase() + first.slice(1)
+    username = (os.userInfo().username ?? '').trim()
   } catch {
     return undefined
   }
+  // macOS: the account display name is the first/best source. execFileSync
+  // (no shell) so the username can't inject; tight timeout; failure falls
+  // through to the login-name token.
+  if (username && process.platform === 'darwin') {
+    try {
+      const out = execFileSync('dscl', ['.', '-read', `/Users/${username}`, 'RealName'], {
+        timeout: 1500,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).toString()
+      // Output is "RealName:\n Geoff Dudgeon" (multiline) or "RealName: Geoff".
+      const real = out.replace(/^RealName:/m, '').replace(/\s+/g, ' ').trim()
+      const realFirst = real.split(' ')[0]
+      if (realFirst) return cap(realFirst)
+    } catch {
+      // dscl unavailable / no RealName → fall through.
+    }
+  }
+  // Fallback: the login name's leading token ("geoff.dudgeon" → "Geoff").
+  const first = username.split(/[\s._-]+/)[0]
+  return first ? cap(first) : undefined
 }
 
 // ── snapshot assembly ───────────────────────────────────────────────────

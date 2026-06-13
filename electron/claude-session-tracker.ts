@@ -221,13 +221,33 @@ export async function readMessageCount(
  *
  * Returns the empty string if nothing usable remains.
  */
+/** Wrapper / machinery tags that the harness injects into the FIRST "user"
+ *  message — slash-command plumbing, local-command caveats + stdout, IDE
+ *  hints, system reminders. Stripped (paired content + lone tags) so a
+ *  session whose opener is pure machinery yields an empty title and the
+ *  forward scan falls through to the first REAL prompt (round-2 feedback:
+ *  titles like "<local-command-caveat>Caveat: …" leaked through). */
+const TITLE_WRAPPER_TAGS = [
+  'ide_opened_file',
+  'local-command-caveat',
+  'local-command-stdout',
+  'command-name',
+  'command-message',
+  'command-args',
+  'command-contents',
+  'system-reminder',
+]
+
 export function cleanAndTruncate(raw: string): string {
   if (!raw) return ''
   let s = raw
 
-  // Strip ide_opened_file wrappers, with or without closing tag.
-  s = s.replace(/<ide_opened_file>[\s\S]*?<\/ide_opened_file>/g, ' ')
-  s = s.replace(/<\/?ide_opened_file>/g, ' ')
+  // Strip each wrapper family — paired (with content) first, then any lone
+  // opening/closing tags left behind.
+  for (const tag of TITLE_WRAPPER_TAGS) {
+    s = s.replace(new RegExp(`<${tag}>[\\s\\S]*?</${tag}>`, 'g'), ' ')
+    s = s.replace(new RegExp(`</?${tag}>`, 'g'), ' ')
+  }
 
   // Collapse whitespace + trim.
   s = s.replace(/\s+/g, ' ').trim()
