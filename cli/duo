@@ -33,7 +33,7 @@ var import_crypto = require("crypto");
 var import_node_fs = __toESM(require("node:fs"));
 var import_node_path = __toESM(require("node:path"));
 
-// ../../../node_modules/js-yaml/dist/js-yaml.mjs
+// ../../../Users/geoffreydudgeon/Documents/GitHub/duo/node_modules/js-yaml/dist/js-yaml.mjs
 function isNothing(subject) {
   return typeof subject === "undefined" || subject === null;
 }
@@ -2789,15 +2789,24 @@ function readPrefs(filePath) {
   }
   try {
     const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : {};
+    if (!parsed || typeof parsed !== "object") return {};
+    const rec = parsed;
+    const prefs = {};
+    if (typeof rec.defaultVault === "string") prefs.defaultVault = rec.defaultVault;
+    if (Array.isArray(rec.knownVaults)) {
+      prefs.knownVaults = rec.knownVaults.filter((v) => typeof v === "string");
+    }
+    return prefs;
   } catch {
     return {};
   }
 }
 function writePrefs(prefs, filePath) {
+  const onDisk = readPrefs(filePath).knownVaults ?? [];
+  const known = [.../* @__PURE__ */ new Set([...onDisk, ...prefs.knownVaults ?? []])];
   const out2 = {};
   if (prefs.defaultVault) out2.defaultVault = prefs.defaultVault;
-  if (prefs.knownVaults && prefs.knownVaults.length > 0) out2.knownVaults = prefs.knownVaults;
+  if (known.length > 0) out2.knownVaults = known;
   import_node_fs3.default.mkdirSync(import_node_path3.default.dirname(filePath), { recursive: true });
   const tmp = `${filePath}.${process.pid}.tmp`;
   import_node_fs3.default.writeFileSync(tmp, JSON.stringify(out2, null, 2) + "\n");
@@ -2827,6 +2836,9 @@ function rememberVault(target, filePath = DEFAULT_VAULT_FILE) {
   known.add(abs);
   prefs.knownVaults = [...known];
   writePrefs(prefs, filePath);
+}
+function listKnownVaults(filePath = DEFAULT_VAULT_FILE) {
+  return (readPrefs(filePath).knownVaults ?? []).filter(isVaultRoot).sort();
 }
 function clearDefaultVault(filePath = DEFAULT_VAULT_FILE) {
   const prefs = readPrefs(filePath);
@@ -2995,10 +3007,11 @@ function orphans(root) {
 var import_node_fs6 = __toESM(require("node:fs"));
 var import_node_path6 = __toESM(require("node:path"));
 var VAULT_SEARCH_DEFAULT_LIMIT = 200;
+var FENCE_RE = /^---\s*$/;
 function frontmatterEndLine(lines) {
-  if (lines[0] !== "---") return null;
+  if (!FENCE_RE.test(lines[0] ?? "")) return null;
   for (let j = 1; j < lines.length; j++) {
-    if (lines[j] === "---") return j;
+    if (FENCE_RE.test(lines[j])) return j;
   }
   return null;
 }
@@ -3012,7 +3025,7 @@ function occurrencesIn(hay, needle) {
   return n;
 }
 function scanRaw(raw, needle, relPath, absPath, hits, limit) {
-  const lines = raw.split("\n");
+  const lines = raw.split("\n").map((l) => l.endsWith("\r") ? l.slice(0, -1) : l);
   const fmEnd = frontmatterEndLine(lines);
   let bodyOccurrences = 0;
   for (let i = 0; i < lines.length; i++) {
@@ -5878,13 +5891,13 @@ To confirm, re-run:
         } else if (sub === "default") {
           if (subRest.includes("--clear")) {
             clearDefaultVault();
-            out({ defaultVault: null });
+            out({ defaultVault: null, knownVaults: listKnownVaults() });
           } else {
             const target = positionalArgs(subRest, [])[0];
             if (target) {
-              out({ defaultVault: setDefaultVault(target) });
+              out({ defaultVault: setDefaultVault(target), knownVaults: listKnownVaults() });
             } else {
-              out({ defaultVault: readDefaultVault() });
+              out({ defaultVault: readDefaultVault(), knownVaults: listKnownVaults() });
             }
           }
         } else if (sub === "schema") {

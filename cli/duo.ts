@@ -2356,15 +2356,18 @@ async function main(): Promise<void> {
           // `duo vault default`        → print the current default (JSON)
           // `duo vault default <path>` → set it (validates it's a vault)
           // `duo vault default --clear` → unset it
+          // Every shape echoes `knownVaults` too (the self-healed list the
+          // Settings picker offers): setting records the vault there, and
+          // --clear preserves the list — the echo makes both visible.
           if (subRest.includes('--clear')) {
             vault.clearDefaultVault()
-            out({ defaultVault: null })
+            out({ defaultVault: null, knownVaults: vault.listKnownVaults() })
           } else {
             const target = positionalArgs(subRest, [])[0]
             if (target) {
-              out({ defaultVault: vault.setDefaultVault(target) })
+              out({ defaultVault: vault.setDefaultVault(target), knownVaults: vault.listKnownVaults() })
             } else {
-              out({ defaultVault: vault.readDefaultVault() })
+              out({ defaultVault: vault.readDefaultVault(), knownVaults: vault.listKnownVaults() })
             }
           }
         } else if (sub === 'schema') {
