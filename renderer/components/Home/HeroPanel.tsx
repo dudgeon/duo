@@ -62,7 +62,7 @@ export function HeroPanel({ project, onActivateSession, onOpenFile }: HeroPanelP
               : 'Last response'
           }
         >
-          <span className="duo-home-hero-snippet-quote" aria-hidden="true">“</span>
+          <span className="duo-home-hero-snippet-label">Last</span>
           <span className="duo-home-hero-snippet-text">{snippet.text}</span>
         </button>
       )}

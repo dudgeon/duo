@@ -117,7 +117,12 @@
    2 lines at rest; hovering expands to the full response (scrolls if long)
    and highlights the linked session row via the shared is-linked state. */
 .duo-home-hero-snippet {
-  display: block;
+  /* The clamp container itself (so the inline "Last" label + the italic text
+     flow together on the same lines — no forced break after a prefix). */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
   width: 100%;
   margin: 0 0 2px;
   padding: 4px 8px 4px 10px;
@@ -127,26 +132,24 @@
   background: transparent;
   text-align: left;
   font-family: inherit;
-  font-style: italic;
   font-size: 14px;
   line-height: 1.45;
   color: var(--duo-ink-soft);
   cursor: pointer;
   transition: background 0.12s ease, border-color 0.12s ease;
 }
-.duo-home-hero-snippet-quote {
-  font-size: 18px;
-  line-height: 0;
-  vertical-align: -3px;
-  margin-right: 2px;
+/* "Last" prefix — small, upright, muted; flows inline before the response. */
+.duo-home-hero-snippet-label {
+  font-style: normal;
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--duo-ink-mute);
+  margin-right: 6px;
 }
 .duo-home-hero-snippet-text {
-  /* Clamp to 2 lines at rest. */
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  font-style: italic;
 }
 /* Hover (or keyboard focus) — expand to the full response + link-highlight. */
 .duo-home-hero-snippet:hover,
@@ -156,8 +159,8 @@
   border-left-color: color-mix(in srgb, var(--duo-accent) 55%, transparent);
   outline: none;
 }
-.duo-home-hero-snippet:hover .duo-home-hero-snippet-text,
-.duo-home-hero-snippet:focus-visible .duo-home-hero-snippet-text {
+.duo-home-hero-snippet:hover,
+.duo-home-hero-snippet:focus-visible {
   -webkit-line-clamp: unset;
   max-height: 40vh;
   overflow-y: auto;

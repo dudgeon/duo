@@ -481,7 +481,10 @@ export async function buildHomeSnapshot(deps: BuildHomeSnapshotDeps = {}): Promi
     const sessions: HomeSession[] = await mapLimit(visible, READ_CONCURRENCY, async (rs, sIdx) => {
       const file = path.join(rs.encodedDir, `${rs.stat.id}.jsonl`)
       // Spine roots only read a head title for their NEWEST session (§ 4.2
-      // [V]); heroes read a head title for every visible session.
+      // [V]); heroes read a head title for every visible session. The head
+      // ladder is custom-title (/rename) → ai-title (Claude's Haiku summary)
+      // → first prompt → uuid (ENH-183 D5; sessions-index.json is a
+      // deprecated cache, NOT consulted — C1 lock).
       const wantTitle = isHero || sIdx === 0
       const head = wantTitle
         ? await withTimeout(readSessionHeadMeta(file), { cwd: null })
