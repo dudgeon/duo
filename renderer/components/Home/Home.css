@@ -1,0 +1,366 @@
+/* ENH-212 — Home re-entry surface styling. Atelier voice throughout: paper
+   surfaces, ink text, the warm accent, the six --duo-project-* hues for
+   project identity. Layout is responsive via CONTAINER queries sized to the
+   pane (not the window): the two hero panels sit side-by-side when the Home
+   container is >= 720px wide and stack full-width below that. */
+
+.duo-home {
+  /* Container query context (D2) — heroes respond to the PANE width, not
+     the viewport, so a narrow split stacks them even on a wide window. */
+  container-type: inline-size;
+  container-name: duo-home;
+  height: 100%;
+  overflow-y: auto;
+  padding: 28px 32px 48px;
+  background: var(--duo-paper);
+}
+
+.duo-home-loading,
+.duo-home-empty {
+  padding: 24px 4px;
+  font-size: 15px;
+}
+
+/* ── Greeting (D4) — styled serif TEXT, no box / card ─────────────────── */
+.duo-home-greeting {
+  margin: 0 0 28px;
+  font-size: 22px;
+  line-height: 1.4;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+
+/* ── Hero panels ─────────────────────────────────────────────────────── */
+.duo-home-heroes {
+  display: grid;
+  grid-template-columns: 1fr; /* stacked by default (narrow container) */
+  gap: 20px;
+  margin-bottom: 32px;
+}
+
+@container duo-home (min-width: 720px) {
+  .duo-home-heroes {
+    grid-template-columns: 1fr 1fr; /* two-up when the pane is wide */
+  }
+}
+
+.duo-home-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 18px 16px;
+  border: 1px solid var(--duo-paper-rule);
+  border-radius: 10px;
+  background: var(--duo-paper-deep);
+}
+
+.duo-home-hero-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+.duo-home-hero-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.duo-home-hero-name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.duo-home-hero-meta {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--duo-ink-mute);
+  white-space: nowrap;
+}
+
+.duo-home-hero-snippet {
+  margin: 0;
+  font-style: italic;
+  font-size: 14px;
+  line-height: 1.45;
+  /* Keep the snippet to a couple of lines so a long last-line transcript
+     doesn't blow out the panel height. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.duo-home-hero-sessions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* ── Session row ─────────────────────────────────────────────────────── */
+.duo-home-session-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border-radius: 6px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--duo-ink-soft);
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.duo-home-session-row:hover {
+  background: var(--duo-paper-edge);
+  color: var(--duo-ink);
+}
+
+.duo-home-session-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.duo-home-session-age {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--duo-ink-mute);
+}
+
+/* Green "open" pill — a session hosted by a live terminal (evidence-gated
+   join). Distinct from the accent so "open" reads as a status, not a
+   selection. */
+.duo-home-open-pill {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 999px;
+  color: #ffffff;
+  background: var(--duo-project-pine); /* teal-green, reads as "live" */
+}
+
+/* D8 worktree / nested-cwd badge. */
+.duo-home-subpath-badge {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', ui-monospace, monospace;
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--duo-ink-mute);
+  background: var(--duo-paper-edge);
+}
+
+/* ── Hero expander ("all N sessions") ────────────────────────────────── */
+.duo-home-hero-expander {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 3px 6px;
+  font-size: 12px;
+  color: var(--duo-accent-ink);
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.duo-home-hero-expander:hover {
+  background: var(--duo-accent-soft);
+}
+
+.duo-home-hero-expander:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ── Recent-file chips ───────────────────────────────────────────────── */
+.duo-home-hero-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.duo-home-file-chip {
+  max-width: 100%;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', ui-monospace, monospace;
+  color: var(--duo-ink-soft);
+  background: var(--duo-paper);
+  border: 1px solid var(--duo-paper-rule);
+  border-radius: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: border-color 0.12s ease, color 0.12s ease;
+}
+
+.duo-home-file-chip:hover {
+  border-color: var(--duo-accent);
+  color: var(--duo-ink);
+}
+
+/* ── Spine stack ─────────────────────────────────────────────────────── */
+.duo-home-spine {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.duo-home-spine-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 8px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--duo-ink-soft);
+  transition: background 0.12s ease;
+}
+
+.duo-home-spine-row:hover {
+  background: var(--duo-paper-deep);
+}
+
+.duo-home-spine-color {
+  width: 3px;
+  align-self: stretch;
+  min-height: 16px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.duo-home-spine-name {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--duo-ink);
+}
+
+.duo-home-spine-count {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--duo-ink-mute);
+}
+
+.duo-home-spine-latest {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--duo-ink-mute);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.duo-home-spine-age {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--duo-ink-mute);
+}
+
+.duo-home-spine-fold {
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--duo-accent-ink);
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.duo-home-spine-fold:hover {
+  background: var(--duo-accent-soft);
+}
+
+/* ── Live-but-idle resume confirm (§ 4.3) — inline, Atelier-styled ────── */
+.duo-home-confirm-backdrop {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.32);
+  z-index: 20;
+}
+
+.duo-home-confirm {
+  max-width: 420px;
+  margin: 16px;
+  padding: 20px 22px 18px;
+  border: 1px solid var(--duo-paper-rule);
+  border-radius: 12px;
+  background: var(--duo-paper);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+}
+
+.duo-home-confirm-title {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.duo-home-confirm-body {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.duo-home-confirm-path {
+  font-weight: 600;
+  color: var(--duo-ink);
+}
+
+.duo-home-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.duo-home-confirm-cancel,
+.duo-home-confirm-go {
+  padding: 6px 14px;
+  font-size: 13px;
+  border-radius: 7px;
+  cursor: pointer;
+  border: 1px solid var(--duo-paper-rule);
+}
+
+.duo-home-confirm-cancel {
+  color: var(--duo-ink-soft);
+  background: var(--duo-paper-deep);
+}
+
+.duo-home-confirm-cancel:hover {
+  background: var(--duo-paper-edge);
+}
+
+.duo-home-confirm-go {
+  color: #ffffff;
+  background: var(--duo-accent);
+  border-color: var(--duo-accent);
+}
+
+.duo-home-confirm-go:hover {
+  filter: brightness(1.05);
+}

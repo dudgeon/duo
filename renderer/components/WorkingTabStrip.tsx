@@ -348,7 +348,11 @@ export function WorkingTabStrip({
               void handleClose(tab)
             }}
             onContextMenu={(e) => { void handleContextMenu(e, tab) }}
-            canClose={tabs.length > 1}
+            // ENH-212 — Home is non-closable (the single slot-0 guard);
+            // never render its close glyph. closeFileTab also hard-refuses
+            // f:home, but suppressing the affordance keeps the contract
+            // visible to the user.
+            canClose={tabs.length > 1 && tab.type !== 'home'}
             // ENH-024 — only the active tab gets the ref so the
             // useEffect above can scroll it into view.
             buttonRef={tab.isActive ? activeTabRef : undefined}
@@ -561,6 +565,9 @@ function parseBrowserId(stripId: string): number | null {
 
 function tabLabel(tab: WorkingTab): string {
   if (tab.type === 'browser') return tab.title || tab.url || 'New tab'
+  // ENH-212 — Home's title falls back to "Home" so a synthesized tab with
+  // no explicit title still reads correctly.
+  if (tab.type === 'home') return tab.title || 'Home'
   return tab.title
 }
 
@@ -604,6 +611,16 @@ function buildTabMenuTemplate(opts: {
   const { tabId, pinned, path, tabs, onTogglePin, onRevealInNavigator, onStartRenameFromTab, onMoveTab, onMoveToSplit, onMoveBrowserTabToSplit, onEditInCanvas, onOpenInBrowser } = opts
   const tab = tabs.find(t => t.id === tabId)
   const items: MenuTemplateItem[] = []
+
+  // ENH-212 [V] — Home gets an EMPTY context menu. Its sentinel
+  // `path: 'duo://home'` is truthy, so without this guard the file-mgmt
+  // block below would offer Reveal / Rename / Copy path / Trash on a
+  // non-file. "Pin tab" and "Move to Split View" are ALSO excluded
+  // (return-early covers them): both would persist the `duo://home`
+  // sentinel into pins.json / the aux-split SessionState field and break
+  // restore. (Move-tab-left/right is suppressed too — Home always sorts
+  // leftmost, so reordering it is meaningless.)
+  if (tab?.type === 'home') return items
 
   if (path) {
     if (onRevealInNavigator) {
@@ -758,6 +775,14 @@ function TypeIcon({ type, active }: { type: WorkingTabType; active: boolean }) {
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
             <rect x="1" y="2" width="8" height="6" rx="0.5" stroke="currentColor" strokeWidth="1" />
             <path d="M2.5 4l1.2 1.5L2.5 7M5 7h2.5" stroke="currentColor" strokeWidth="0.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )
+      case 'home':
+        // ENH-212 — house glyph for the permanent Home tab.
+        return (
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+            <path d="M1.4 5L5 1.6 8.6 5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M2.4 4.4V8.3h5.2V4.4" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         )
       case 'image':

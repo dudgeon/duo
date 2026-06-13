@@ -15,6 +15,7 @@ import { PageTab } from './Page/PageTab'
 import { PdfPreview, UnknownFilePreview } from './FileRenderers'
 import { ImageView } from './ImageView'
 import { JsonView } from './Json/JsonView'
+import { HomeView } from './Home/HomeView'
 import { WorkingTabStrip } from './WorkingTabStrip'
 import { useBrowserState } from '../hooks/useBrowserState'
 import { classifyFile } from './fileClassifier'
@@ -175,6 +176,10 @@ interface WorkingPaneProps {
    *  are non-file URLs treated as cross-project reference material.
    *  Same `undefined` semantics as visibleFileTabIds. */
   visibleBrowserTabIds?: ReadonlySet<number>
+  /** ENH-212 — Home publishes its last-fetched snapshot UP so App can
+   *  expose it via `window.__duoGetHomeState()` (`duo home state`). Threaded
+   *  straight to HomeView; null arg clears it. */
+  onHomeSnapshot?: (snap: import('@shared/types').HomeSnapshot | null) => void
 }
 
 export function WorkingPane({
@@ -210,7 +215,8 @@ export function WorkingPane({
   onOpenCanvasTabInBrowser,
   isCanvasCollapsed = false,
   onToggleCanvasCollapsed,
-  onAuxTrash
+  onAuxTrash,
+  onHomeSnapshot
 }: WorkingPaneProps) {
   const { tabs: browserTabs, addTab, switchTab, closeTab: closeBrowserTab } = useBrowserState()
 
@@ -379,9 +385,17 @@ export function WorkingPane({
   // Pinned tabs sort to leftmost (Stage 24); ENH-042 layers tabOrder
   // on top, sorting WITHIN each zone independently so a user reorder
   // never crosses the pinned/unpinned boundary.
+  //
+  // ENH-212 — Home (kind: 'home') sorts before EVERYTHING, even pins: it
+  // is the permanent slot-0 surface. It's excluded from the pinned + the
+  // unpinned zones so the tabOrder reorder logic never touches it (it has
+  // no close affordance and no Move-left/right menu entry either).
+  const homeTabs = unsortedTabs.filter(t => t.type === 'home')
+  const nonHomeTabs = unsortedTabs.filter(t => t.type !== 'home')
   const mergedTabsAll: WorkingTab[] = [
-    ...unsortedTabs.filter(t => t.pinned).sort(byOrder),
-    ...unsortedTabs.filter(t => !t.pinned).sort(byOrder)
+    ...homeTabs,
+    ...nonHomeTabs.filter(t => t.pinned).sort(byOrder),
+    ...nonHomeTabs.filter(t => !t.pinned).sort(byOrder)
   ]
   // ENH-182 Phase 2 + Phase 2b — visibility filter. When focus is
   // active, the host passes the set of file-tab ids AND browser-tab
@@ -391,6 +405,8 @@ export function WorkingPane({
   // below stay full-sized so editor state isn't lost for hidden tabs.
   const mergedTabs: WorkingTab[] = visibleFileTabIds
     ? mergedTabsAll.filter((t) => {
+        // ENH-212 — Home is permanent slot-0; never filtered by project focus.
+        if (t.type === 'home') return true
         if (t.pinned) return true
         if (t.type === 'browser') {
           // Phase 2b: gate browser tabs by visibleBrowserTabIds when
@@ -620,6 +636,13 @@ export function WorkingPane({
           isActive={isFileActive(tab.id)}
         />
       )
+    }
+    if (tab.type === 'home') {
+      // ENH-212 — the permanent re-entry surface (slot 0). Plain in-document
+      // DOM (no iframe). isActive gates ALL of HomeView's fetching (BUG-046
+      // hidden-mount tolerance): a Home tab kept mounted-but-hidden must not
+      // poll. Branch placed AFTER editor/page (PR #75 merge posture).
+      return <HomeView isActive={isFileActive(tab.id)} onSnapshotChange={onHomeSnapshot} />
     }
     return <UnknownFilePreview tab={asWorkingTab(tab)} />
   }

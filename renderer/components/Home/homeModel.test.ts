@@ -1,0 +1,226 @@
+import { describe, it, expect } from 'vitest'
+import {
+  greetingLine,
+  selectHeroes,
+  selectSpine,
+  foldSpine,
+  ageShort,
+  ageWords,
+  projectHue,
+  subPathLabel,
+  fileChipLabel,
+  rootsWithUnattributedLiveClaude,
+  SPINE_FOLD_AFTER
+} from './homeModel'
+import type { HomeProject, GreetingData } from '@shared/types'
+
+const MIN = 60_000
+const HOUR = 60 * MIN
+const DAY = 24 * HOUR
+const WEEK = 7 * DAY
+
+/** Minimal HomeProject factory — only the fields the selectors read. */
+function project(name: string, lastActiveAt: number, colorIndex = 0): HomeProject {
+  return {
+    rootPath: `/Users/x/${name}`,
+    displayName: name,
+    colorIndex,
+    lastActiveAt,
+    sessionCount: 1,
+    sessions: [],
+    recentFiles: []
+  }
+}
+
+describe('greetingLine (D4 + D12)', () => {
+  it('full briefing — name + open count + freshest thread', () => {
+    const g: GreetingData = {
+      firstName: 'Geoff',
+      openCount: 2,
+      freshest: { title: 'the terminal-collapse fix', ageMs: 12 * MIN }
+    }
+    expect(greetingLine(g)).toBe(
+      'Welcome back, Geoff — 2 sessions open; freshest is the terminal-collapse fix, 12 minutes ago'
+    )
+  })
+
+  it('singular session — "1 session open"', () => {
+    const g: GreetingData = {
+      firstName: 'Geoff',
+      openCount: 1,
+      freshest: { title: 'a fix', ageMs: 1 * MIN }
+    }
+    expect(greetingLine(g)).toBe(
+      'Welcome back, Geoff — 1 session open; freshest is a fix, 1 minute ago'
+    )
+  })
+
+  it('D12 degradation — no firstName opens "Welcome back —"', () => {
+    const g: GreetingData = {
+      openCount: 3,
+      freshest: { title: 'thing', ageMs: 2 * HOUR }
+    }
+    expect(greetingLine(g)).toBe(
+      'Welcome back — 3 sessions open; freshest is thing, 2 hours ago'
+    )
+  })
+
+  it('D4 degradation — 0 open → "all quiet since <age>"', () => {
+    const g: GreetingData = {
+      firstName: 'Geoff',
+      openCount: 0,
+      freshest: { title: 'old work', ageMs: 3 * DAY }
+    }
+    expect(greetingLine(g)).toBe('Welcome back, Geoff — all quiet since 3 days ago')
+  })
+
+  it('D4 degradation — 0 open + no freshest → "all quiet" (no since tail)', () => {
+    const g: GreetingData = { firstName: 'Geoff', openCount: 0 }
+    expect(greetingLine(g)).toBe('Welcome back, Geoff — all quiet')
+  })
+
+  it('D4 + D12 — 0 open, no name, no freshest → "Welcome back — all quiet"', () => {
+    const g: GreetingData = { openCount: 0 }
+    expect(greetingLine(g)).toBe('Welcome back — all quiet')
+  })
+
+  it('open count but no freshest known → trims the "; freshest…" tail', () => {
+    const g: GreetingData = { firstName: 'Geoff', openCount: 2 }
+    expect(greetingLine(g)).toBe('Welcome back, Geoff — 2 sessions open')
+  })
+})
+
+describe('ageShort', () => {
+  it('under a minute → "just now"', () => {
+    expect(ageShort(0)).toBe('just now')
+    expect(ageShort(59_000)).toBe('just now')
+  })
+  it('minutes / hours / days / weeks grain', () => {
+    expect(ageShort(12 * MIN)).toBe('12m ago')
+    expect(ageShort(5 * HOUR)).toBe('5h ago')
+    expect(ageShort(3 * DAY)).toBe('3d ago')
+    expect(ageShort(2 * WEEK)).toBe('2w ago')
+  })
+  it('negative / NaN delta clamps to "just now"', () => {
+    expect(ageShort(-5000)).toBe('just now')
+    expect(ageShort(NaN)).toBe('just now')
+  })
+})
+
+describe('ageWords', () => {
+  it('singular vs plural agreement', () => {
+    expect(ageWords(1 * MIN)).toBe('1 minute ago')
+    expect(ageWords(2 * MIN)).toBe('2 minutes ago')
+    expect(ageWords(1 * HOUR)).toBe('1 hour ago')
+    expect(ageWords(1 * DAY)).toBe('1 day ago')
+    expect(ageWords(1 * WEEK)).toBe('1 week ago')
+  })
+  it('under a minute → "moments ago"', () => {
+    expect(ageWords(30_000)).toBe('moments ago')
+  })
+})
+
+describe('hero / spine selection', () => {
+  it('first two projects are heroes; the rest are spine', () => {
+    const projects = [
+      project('a', 100),
+      project('b', 90),
+      project('c', 80),
+      project('d', 70)
+    ]
+    expect(selectHeroes(projects).map((p) => p.displayName)).toEqual(['a', 'b'])
+    expect(selectSpine(projects).map((p) => p.displayName)).toEqual(['c', 'd'])
+  })
+
+  it('fewer than two projects — heroes is the whole list, spine empty', () => {
+    const one = [project('solo', 100)]
+    expect(selectHeroes(one).map((p) => p.displayName)).toEqual(['solo'])
+    expect(selectSpine(one)).toEqual([])
+    expect(selectHeroes([])).toEqual([])
+    expect(selectSpine([])).toEqual([])
+  })
+})
+
+describe('foldSpine (D5 — fold after 8)', () => {
+  const spine = Array.from({ length: 14 }, (_, i) => project(`p${i}`, 100 - i))
+
+  it('collapsed — shows the first 8, hides the rest', () => {
+    const { visible, hiddenCount } = foldSpine(spine, false)
+    expect(visible).toHaveLength(SPINE_FOLD_AFTER)
+    expect(hiddenCount).toBe(14 - SPINE_FOLD_AFTER)
+    expect(visible[0].displayName).toBe('p0')
+    expect(visible[7].displayName).toBe('p7')
+  })
+
+  it('expanded — shows everything, hiddenCount 0', () => {
+    const { visible, hiddenCount } = foldSpine(spine, true)
+    expect(visible).toHaveLength(14)
+    expect(hiddenCount).toBe(0)
+  })
+
+  it('exactly 8 spine rows does not fold', () => {
+    const eight = Array.from({ length: 8 }, (_, i) => project(`p${i}`, 100 - i))
+    const { visible, hiddenCount } = foldSpine(eight, false)
+    expect(visible).toHaveLength(8)
+    expect(hiddenCount).toBe(0)
+  })
+
+  it('fewer than 8 spine rows never folds', () => {
+    const three = Array.from({ length: 3 }, (_, i) => project(`p${i}`, 100 - i))
+    const { visible, hiddenCount } = foldSpine(three, false)
+    expect(visible).toHaveLength(3)
+    expect(hiddenCount).toBe(0)
+  })
+})
+
+describe('projectHue', () => {
+  it('maps colorIndex 0..5 to the six --duo-project-* tokens', () => {
+    expect(projectHue(0)).toBe('var(--duo-project-pine)')
+    expect(projectHue(5)).toBe('var(--duo-project-moss)')
+  })
+  it('wraps out-of-range indices and falls back on NaN', () => {
+    expect(projectHue(6)).toBe('var(--duo-project-pine)')
+    expect(projectHue(-1)).toBe('var(--duo-project-moss)')
+    expect(projectHue(NaN)).toBe('var(--duo-project-pine)')
+  })
+})
+
+describe('subPathLabel + fileChipLabel', () => {
+  it('subPathLabel trims slashes and nulls out empties', () => {
+    expect(subPathLabel('worktrees/foo')).toBe('worktrees/foo')
+    expect(subPathLabel('/sub/')).toBe('sub')
+    expect(subPathLabel('')).toBeNull()
+    expect(subPathLabel(undefined)).toBeNull()
+    expect(subPathLabel('/')).toBeNull()
+  })
+  it('fileChipLabel returns the basename', () => {
+    expect(fileChipLabel('/Users/x/proj/README.md')).toBe('README.md')
+    expect(fileChipLabel('bare.txt')).toBe('bare.txt')
+  })
+})
+
+describe('rootsWithUnattributedLiveClaude (§ 4.3 live-but-idle guard)', () => {
+  const projects = [project('alpha', 100), project('beta', 90)]
+  // project() roots are /Users/x/<name>
+
+  it('empty / absent input → empty set', () => {
+    expect(rootsWithUnattributedLiveClaude(projects, undefined).size).toBe(0)
+    expect(rootsWithUnattributedLiveClaude(projects, []).size).toBe(0)
+  })
+
+  it('exact-root cwd match flags the root', () => {
+    const set = rootsWithUnattributedLiveClaude(projects, ['/Users/x/alpha'])
+    expect(set.has('/Users/x/alpha')).toBe(true)
+    expect(set.has('/Users/x/beta')).toBe(false)
+  })
+
+  it('nested cwd flags the enclosing root (ancestor match)', () => {
+    const set = rootsWithUnattributedLiveClaude(projects, ['/Users/x/beta/src/sub'])
+    expect(set.has('/Users/x/beta')).toBe(true)
+  })
+
+  it('unrelated cwd flags nothing', () => {
+    const set = rootsWithUnattributedLiveClaude(projects, ['/Users/x/gamma/deep'])
+    expect(set.size).toBe(0)
+  })
+})
