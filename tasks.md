@@ -128,6 +128,27 @@ The ENH-208 D22 re-pick retired the GLOBAL ⌘⇧F find-previous dispatch (the c
 
 ---
 
+### ENH-211: Kill navigator render-flicker (stable-while-revalidate file tree)
+
+**Status:** 🆕 Filed 2026-06-11. **Priority:** **High** (P0 user-visible jank on the single most-used pane — the navigator visibly flashes whenever an agent writes files, the exact scenario Duo exists for). **Effort:** S–M (P0 is a self-contained two-hook edit; P1 is incremental). **Sequenced after ENH-210** (worktree-aware Duo, sibling `claude/youthful-chebyshev-885712`) — rebase onto post-ENH-210 `main`; every code surface is disjoint (see PRD § C).
+
+**Symptom (owner report, 2026-06-10).** "A lot of flickering in the file navigator." Reproduces whenever the filesystem under the navigator changes: the affected subtree blanks to the literal `Loading…` placeholder for a frame; a write **directly in cwd** blanks the **whole tree**; a *burst* of writes (`npm install`, `git checkout`, a batch agent edit) produces sustained flashing. Expand/collapse flickers too, and every git-watch tick re-renders every row.
+
+**Root cause (6 verified mechanisms — code investigation + adversarial verifier, all line refs confirmed against current source).**
+- **M1 (primary).** `useNavigator.handleEvent` (`useNavigator.ts:286–294`) **deletes** the parent dir's cached listing on every chokidar event then re-fetches async; while in flight `listings.get(parent)===null` and `TreeNodes` (`FileTree.tsx:1015`) renders `Loading…`. Root rows = `listings.get(state.cwd)` (`FileTree.tsx:100`), so a cwd-level write blanks the whole tree. No renderer-side debounce. Identical in the user-claude pane (`useUserClaudeNavigator.ts:169–178`).
+- **M2 (primary).** The watch effect deps `[cwd, expanded, ensureListing]` (`useNavigator.ts:333`) tear down + recreate the chokidar watcher on **any** expand/collapse, and a belt-and-suspenders block (`316–324`) **deletes every visible folder's listing** and re-lists on each resubscribe — expanding one folder blanks all.
+- **M3 (primary).** The ENH-152c git watcher (`main.ts:2333–2335`, 250ms debounce) → `gitRefreshTick++` (`FileTree.tsx:313–316`) re-runs three probe effects, each producing a **new** `Map`/object identity; `TreeNodes`/`TreeNode` are **unmemoized** (no `React.memo`) so every row re-renders each tick.
+- **M4 (root cause of M1/M2 visibility).** Both `ensureListing` impls **seed `null`** before the async resolves and never hold the prior entries — no stale-while-revalidate. This is *why* deletes flash rather than swap silently. **Highest-leverage single fix.**
+- **M5 / M6 (amplifiers).** The ribbon-suppression + `childRepoMap` + `dirtyFileMap` effects each fan out their own `files.list`/`scanReposIn`/`dirtyFilesFor` probes per tick (repaints several times per event); a window `'focus'` listener (`FileTree.tsx:139–140`) re-probes git on every refocus.
+
+**Fix (D1–D5, see PRD).** **P0:** D1 stale-while-revalidate the `listings` cache (don't delete before refetch — both hooks) + D2 coalesce/debounce fs events (80–120ms trailing). This pair alone removes the visible flash and is independently shippable. **P1:** D3 incremental `updateWatchPaths` (drop the resubscribe-nuke), D5 deep-equal/return-prev guard on the git Maps, D4 `React.memo` rows with per-row primitive git props (after D5). **Regression tests owed** (the watch/refresh lineage BUG-007 → ENH-147 → BUG-125 → ENH-152c → ENH-211 has churned this code repeatedly with no invariant test): stale-while-revalidate invariant, event coalescing, watcher stability, git-identity stability — `renderer/hooks/useNavigator.flicker.test.ts` + a `FileTree` render-count RTL test.
+
+**Docs.** Full PRD at [`docs/prd/enh-211-navigator-stability-prd.md`](prd/enh-211-navigator-stability-prd.md) — also the **canonical navigator feature compendium** (Part A: genesis + locked decisions + full enhancement/bug history + current architecture with file:line anchors; Part B: this fix; Part C: post-ENH-210 execution plan + conflict matrix).
+
+**Cross-refs.** `renderer/hooks/useNavigator.ts`, `renderer/hooks/useUserClaudeNavigator.ts`, `renderer/components/FileTree.tsx`, `electron/files-service.ts` (`updateWatchPaths:486–512`), `electron/main.ts` (git-watcher ~2282–2347), `electron/preload.ts` (`files.watch` ~302). Related: ENH-152c (git watcher = M3 substrate), BUG-007 / ENH-147 (`removed`-event + multi-select-prune lineage), BUG-125 (symlink event paths), BUG-135 + FOLLOWUP-041 + BUG-165/167 (ribbon/ENOENT lineage — adjacent, not in scope), ENH-182 (project-lens re-root churn that compounds), ENH-210 (sequencing predecessor).
+
+---
+
 ### BUG-200: Collapsing the terminal pane terminates ALL terminal sessions
 
 **Status:** 🚧 In progress — surgical fix implemented + **live-verified** on `claude/practical-jones-a07605` (this branch); awaiting owner smoke-walk + cut. **Priority:** P0 (data loss — kills running shells / live Claude sessions). **Effort:** S (surgical) · robust hardening split to ENH-209.

@@ -1,5 +1,20 @@
 # Active sprint state — ENH-208 Vault: Phase 1 SHIPPED + Phase 2 in flight (v0.10.0 carry-forward below)
 
+## ENH-211 — navigator render-flicker (PRD filed, not yet built, 2026-06-11)
+
+> **Owner report:** "a lot of flickering in the file navigator." Root-caused to
+> 6 verified mechanisms (M1–M6): the `listings` cache `delete`s before refetch so
+> every fs event flashes the `Loading…` placeholder (whole tree when the write is
+> in cwd), no renderer-side debounce, the watcher tears down on every
+> expand/collapse, and unmemoized rows re-render on every git-watch tick. **PRD
+> filed** at `docs/prd/enh-211-navigator-stability-prd.md` (also the canonical
+> navigator feature compendium). **Plan:** P0 = D1 stale-while-revalidate + D2
+> coalesce (the standalone flash-killer); P1 = D3 incremental watch / D5 git-Map
+> identity guard / D4 row memoization; regression tests owed. **Sequenced after
+> ENH-210** (sibling `youthful-chebyshev-885712`) — rebase onto post-ENH-210
+> `main`; code surfaces are disjoint, only `tasks.md` + this file are append-region
+> conflicts. Full writeup: `tasks.md` ENH-211.
+
 ## BUG-200 — terminal-collapse data-loss fix (in flight, this branch, 2026-06-10)
 
 > **Owner-initiated, parallel to ENH-208.** Collapsing the terminal pane was
