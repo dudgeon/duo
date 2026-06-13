@@ -167,6 +167,7 @@ These four answer "what is the user looking at right now?" — reach for them be
 | `duo git-status [<path>]` | git status snapshot for a directory (defaults to `$HOME`). Backs the Navigator root chip ("clean stays invisible"); also useful directly to agents who want to make decisions about a checkout's state before proposing edits. | JSON: `{ isRepo, workTreeRoot, branch, head, dirty, changedCount, ahead, behind }` |
 | `duo clone <url> [<dir>] [--json]` | Clone a GitHub repo. Uses `gh repo clone` when gh is authenticated (handles HTTPS + SSH transparently); falls back to plain `git clone` for public repos. `<url>` accepts gh shorthand (owner/repo) when gh is available, full HTTPS/SSH URL otherwise. With `--json`, structured CloneResult — branch on `errorKind` ∈ `{ bad-url, auth-missing, clone-failed }`. | text \| JSON when `--json` |
 | `duo gh-auth` | Probe `gh auth status`. Tell agents whether `duo clone` will succeed on private repos before they try. | JSON: `{ ghInstalled, authenticated, host, user, ghNotFound }` |
+| `duo worktree [list] [<path>]` | List the git worktrees of the repo at `<path>` (defaults to the cwd). Reads git directly — no running app. Lets an agent tell whether it is in a linked worktree vs the main checkout, and enumerate siblings. The CLI twin of the navigator Worktrees section. | JSON: `[{ path, branch, head, isMain, isCurrent, detached, prunable, colorIndex }]` (main first, cwd's worktree flagged `isCurrent`) |
 
 ## Workspace, session & project management
 

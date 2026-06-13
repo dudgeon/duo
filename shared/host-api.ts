@@ -1153,6 +1153,42 @@ export interface GitStatusSnapshot {
   ahead: number
   behind: number
   reason?: 'not-a-repo' | 'git-not-found' | 'git-error'
+  /** ENH-210 — worktree awareness. True when `workTreeRoot` is a
+   *  LINKED worktree (created via `git worktree add`) rather than the
+   *  repo's main/primary checkout. Detected by comparing this
+   *  worktree's gitdir against the shared common gitdir. */
+  isLinkedWorktree?: boolean
+  /** ENH-210 — absolute path of the repo's MAIN worktree (the dir
+   *  whose `.git` is the common gitdir). Equals `workTreeRoot` in the
+   *  main checkout; differs in a linked worktree. The repo's stable
+   *  identity anchor — `repoName` is its basename. */
+  mainWorktreeRoot?: string
+  /** ENH-210 — basename of `mainWorktreeRoot` (e.g. 'duo'). The
+   *  repo's display name for the terminal-tab chip + navigator. */
+  repoName?: string
+}
+
+/**
+ * ENH-210 — one entry per `git worktree list` row. The main worktree
+ * sorts first (`isMain: true`); `isCurrent` flags the worktree the
+ * query cwd resolves into. `colorIndex` is the hash-stable project
+ * hue for this checkout (shared/projects.ts palette) — main checkouts
+ * stay uncolored in the UI, but the index is always populated so the
+ * CLI/JSON consumers don't have to recompute it.
+ */
+export interface WorktreeInfo {
+  path: string
+  branch: string
+  head: string
+  isMain: boolean
+  isCurrent: boolean
+  /** True when the worktree dir no longer exists on disk (a stale
+   *  `git worktree` entry awaiting `prune`). */
+  prunable?: boolean
+  /** True when git reports the worktree's branch as checked-out-and-
+   *  locked-elsewhere or detached. Mirrors porcelain `detached`. */
+  detached?: boolean
+  colorIndex: number
 }
 
 /**

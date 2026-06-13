@@ -20,6 +20,7 @@ import type { DuoRequest, DuoResponse } from '../shared/types'
 // read the vault — PRD Phase 4). Only `base render --open` / `vault
 // capture --open` reach the app (to surface a tab), and only when asked.
 import * as vault from '../core/vault'
+import { listWorktrees } from '../core/git/worktree'
 
 // Injected at build time from package.json by scripts/build-cli.mjs via
 // esbuild `define`, so the CLI version always tracks the real release —
@@ -474,6 +475,12 @@ const VERBS: VerbSpec[] = [
     name: 'gh-auth',
     group: 'Repo & git',
     summary: 'Probe "gh auth status". Prints JSON { ghInstalled, authenticated, host, user, ghNotFound } so agents can decide whether "duo clone" will work on private repos before trying.'
+  },
+  {
+    name: 'worktree',
+    group: 'Repo & git',
+    args: '[list] [<path>]',
+    summary: 'List the git worktrees of the repo at <path> (defaults to the cwd) as JSON: [{ path, branch, head, isMain, isCurrent, detached, prunable, colorIndex }], main checkout first, the cwd\'s worktree flagged isCurrent. Reads git directly (no running app needed). Lets an agent see whether it is in a linked worktree vs the main checkout, and enumerate its siblings — the CLI twin of the navigator Worktrees section.'
   },
 
   // ── Health & install ──
@@ -2214,6 +2221,20 @@ async function main(): Promise<void> {
         // the Clone modal + future Doctor panel.
         //   duo gh-auth
         out(await send('gh-auth', {}))
+        break
+      }
+      case 'worktree': {
+        // ENH-210 — list the git worktrees of a repo. Reads git
+        // DIRECTLY (like the vault verbs) — no socket / running app
+        // needed, so it works from any terminal and inside a sandbox.
+        //   duo worktree [list] [<path>]   — defaults to the cwd.
+        // The optional 'list' subcommand is accepted for symmetry with
+        // future worktree subverbs; bare `duo worktree` lists too.
+        const args2 = rest[0] === 'list' ? rest.slice(1) : rest
+        const target = args2[0]
+          ? path.resolve(process.cwd(), args2[0])
+          : process.cwd()
+        out(await listWorktrees(target))
         break
       }
       case 'close-tab': {
