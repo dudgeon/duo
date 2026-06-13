@@ -124,6 +124,17 @@ export function useNavigator(initialCwd: string) {
   // is the current cwd without re-creating the callback every navigation.
   const cwdRef = useRef(cwd)
 
+  // ENH-211 D2 — renderer-side coalesce of file events. The watch effect
+  // (and thus `handleEvent`) is recreated on every cwd/expanded change, so
+  // the pending-dir set + debounce timer MUST live in a ref that survives
+  // that recreation — a per-closure timer would never coalesce across
+  // events. `handleEvent` adds changed parent-dirs here and arms the timer;
+  // the trailing-edge flush re-lists each dir ONCE per burst.
+  const pendingRefetchRef = useRef<{ dirs: Set<string>; timer: ReturnType<typeof setTimeout> | null }>({
+    dirs: new Set(),
+    timer: null
+  })
+
   // Persist whenever relevant state changes. Debounce is minimal because
   // these are tiny writes.
   useEffect(() => {
@@ -196,11 +207,16 @@ export function useNavigator(initialCwd: string) {
   }, [])
 
   // Shared helper that (lazily) fetches a directory listing and caches it.
+  // ENH-211 D1 — stale-while-revalidate: only seed the `null` loading
+  // sentinel on the FIRST-EVER load of a path (nothing to show yet). When
+  // an entry already exists, leave the prior DirEntry[] in the Map and
+  // OVERWRITE it only when the new list resolves — so a refetch never
+  // blanks already-painted rows to "Loading…".
   const ensureListing = useCallback((path: string) => {
     setListings(prev => {
-      if (prev.has(path)) return prev
+      if (prev.has(path)) return prev // keep stale entries; refetch overwrites on resolve
       const next = new Map(prev)
-      next.set(path, null) // sentinel: loading
+      next.set(path, null) // sentinel: loading (first-ever load only)
       return next
     })
     window.electron.files.list(path).then(
@@ -285,17 +301,26 @@ export function useNavigator(initialCwd: string) {
 
     const handleEvent = (event: { kind: 'added' | 'changed' | 'removed'; path: string }) => {
       const parent = event.path.slice(0, event.path.lastIndexOf('/')) || cwd
-      setListings(prev => {
-        if (!prev.has(parent)) return prev
-        const next = new Map(prev)
-        next.delete(parent)
-        return next
-      })
-      ensureListing(parent)
+      // ENH-211 D1 — do NOT delete/null the parent listing before refetch;
+      // ensureListing now overwrites the stale array in place on resolve.
+      // ENH-211 D2 — coalesce the refetch: collect the parent dir and flush
+      // on a trailing-edge debounce so a burst yields ONE re-list per dir.
+      const pending = pendingRefetchRef.current
+      pending.dirs.add(parent)
+      if (pending.timer) clearTimeout(pending.timer)
+      pending.timer = setTimeout(() => {
+        pending.timer = null
+        if (cancelled) return // watcher torn down — don't refetch after teardown
+        const dirs = Array.from(pending.dirs)
+        pending.dirs.clear()
+        for (const dir of dirs) ensureListing(dir)
+      }, 100)
       if (event.kind === 'removed') {
         // ENH-147 — drop the removed path from the multi-select map; if
         // it was the primary, advance primary to any remaining entry
-        // (or null if the set emptied).
+        // (or null if the set emptied). ENH-211 keeps this SYNCHRONOUS —
+        // only the listing refetch above is debounced; a deleted file's
+        // selection must clear at once.
         setSelectedItems(curr => {
           if (!curr.has(event.path)) return curr
           const next = new Map(curr)
@@ -313,15 +338,10 @@ export function useNavigator(initialCwd: string) {
       // watcher is fully attached, so any events that fired during
       // the sub-resub window are reflected. Cheap (one fs.readdir per
       // visible folder) and keeps the tree honest.
-      for (const p of paths) {
-        setListings(prev => {
-          if (!prev.has(p)) return prev
-          const next = new Map(prev)
-          next.delete(p)
-          return next
-        })
-        ensureListing(p)
-      }
+      // ENH-211 D1 — refetch in place; do NOT delete the existing listing
+      // first (ensureListing overwrites on resolve), so a resubscribe
+      // doesn't blank already-painted folders to "Loading…".
+      for (const p of paths) ensureListing(p)
     }).catch(err => {
       console.warn('[nav] watch failed:', err instanceof Error ? err.message : err)
     })
@@ -329,6 +349,12 @@ export function useNavigator(initialCwd: string) {
     return () => {
       cancelled = true
       if (unwatch) void unwatch()
+      // ENH-211 D2 — clear any pending debounced refetch so no setState
+      // fires after teardown. (The trailing flush also re-checks
+      // `cancelled` as a second guard.)
+      const pending = pendingRefetchRef.current
+      if (pending.timer) { clearTimeout(pending.timer); pending.timer = null }
+      pending.dirs.clear()
     }
   }, [cwd, expanded, ensureListing])
 
@@ -440,11 +466,9 @@ export function useNavigator(initialCwd: string) {
   const toggleShowDotfiles = useCallback(() => setShowDotfiles(s => !s), [])
 
   const refresh = useCallback((path: string) => {
-    setListings(prev => {
-      const next = new Map(prev)
-      next.delete(path)
-      return next
-    })
+    // ENH-211 D1 — refetch in place; keep the stale listing until the new
+    // one resolves (ensureListing overwrites on resolve) instead of
+    // deleting first and flashing the "Loading…" sentinel.
     ensureListing(path)
   }, [ensureListing])
 

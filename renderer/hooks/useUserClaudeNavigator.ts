@@ -67,6 +67,15 @@ export function useUserClaudeNavigator(home: string): UserClaudeNavigatorApi {
   const [listings, setListings] = useState<Map<string, DirEntry[] | null>>(() => new Map())
   const [curatedRootEntries, setCuratedRootEntries] = useState<DirEntry[] | null>(null)
 
+  // ENH-211 D2 — renderer-side coalesce of file events. The watch effect
+  // (and thus `handleEvent`) is recreated on every expanded change, so the
+  // pending-dir set + debounce timer MUST live in a ref that survives that
+  // recreation. Mirrors useNavigator.ts.
+  const pendingRefetchRef = useRef<{ dirs: Set<string>; timer: ReturnType<typeof setTimeout> | null }>({
+    dirs: new Set(),
+    timer: null
+  })
+
   useEffect(() => {
     try { localStorage.setItem(LS_KEY_SHOW_ALL, showAll ? '1' : '0') } catch { /* ignore */ }
   }, [showAll])
@@ -74,11 +83,16 @@ export function useUserClaudeNavigator(home: string): UserClaudeNavigatorApi {
     try { localStorage.setItem(LS_KEY_EXPANDED, JSON.stringify([...expanded])) } catch { /* ignore */ }
   }, [expanded])
 
+  // ENH-211 D1 — stale-while-revalidate: only seed the `null` loading
+  // sentinel on the FIRST-EVER load of a path; when an entry already
+  // exists, keep the prior DirEntry[] and OVERWRITE only when the new list
+  // resolves, so a refetch never blanks already-painted rows. Mirrors
+  // useNavigator.ts.
   const ensureListing = useCallback((path: string) => {
     setListings(prev => {
-      if (prev.has(path)) return prev
+      if (prev.has(path)) return prev // keep stale entries; refetch overwrites on resolve
       const next = new Map(prev)
-      next.set(path, null)
+      next.set(path, null) // sentinel: loading (first-ever load only)
       return next
     })
     window.electron.files.list(path).then(
@@ -168,13 +182,19 @@ export function useUserClaudeNavigator(home: string): UserClaudeNavigatorApi {
 
     const handleEvent = (event: FileChangeEvent) => {
       const parent = event.path.slice(0, event.path.lastIndexOf('/')) || userClaudeRoot
-      setListings(prev => {
-        if (!prev.has(parent)) return prev
-        const next = new Map(prev)
-        next.delete(parent)
-        return next
-      })
-      ensureListing(parent)
+      // ENH-211 D1 — do NOT delete/null the parent listing before refetch.
+      // ENH-211 D2 — coalesce the refetch on a trailing-edge debounce so a
+      // burst yields ONE re-list per dir. Mirrors useNavigator.ts.
+      const pending = pendingRefetchRef.current
+      pending.dirs.add(parent)
+      if (pending.timer) clearTimeout(pending.timer)
+      pending.timer = setTimeout(() => {
+        pending.timer = null
+        if (cancelled) return // watcher torn down — don't refetch after teardown
+        const dirs = Array.from(pending.dirs)
+        pending.dirs.clear()
+        for (const dir of dirs) ensureListing(dir)
+      }, 100)
     }
 
     void window.electron.files.watch(paths, handleEvent).then(stop => {
@@ -186,6 +206,11 @@ export function useUserClaudeNavigator(home: string): UserClaudeNavigatorApi {
     return () => {
       cancelled = true
       if (unwatch) void unwatch()
+      // ENH-211 D2 — clear any pending debounced refetch so no setState
+      // fires after teardown.
+      const pending = pendingRefetchRef.current
+      if (pending.timer) { clearTimeout(pending.timer); pending.timer = null }
+      pending.dirs.clear()
     }
   }, [userClaudeRoot, expanded, ensureListing])
 
@@ -244,11 +269,8 @@ export function useUserClaudeNavigator(home: string): UserClaudeNavigatorApi {
   }, [])
 
   const refresh = useCallback((path: string) => {
-    setListings(prev => {
-      const next = new Map(prev)
-      next.delete(path)
-      return next
-    })
+    // ENH-211 D1 — refetch in place; keep the stale listing until the new
+    // one resolves instead of deleting first and flashing "Loading…".
     ensureListing(path)
   }, [ensureListing])
 
