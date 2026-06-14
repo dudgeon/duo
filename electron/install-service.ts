@@ -241,6 +241,11 @@ export function composeManagedClaudeMdBlock(version: string): string {
     '',
     'Duo (https://github.com/dudgeon/duo) is installed on this machine — a desktop app pairing Claude Code terminals with an embedded browser, file tree, markdown editor, and HTML canvas. When the user references Duo\'s surfaces ("the browser pane", "the editor", "what\'s selected", a `duo` CLI verb), reach for the **`duo` skill** at `~/.claude/skills/duo/SKILL.md` or delegate multi-step CLI sequences to the **`duo` subagent**. If a `duo` command hangs or returns `ECONNREFUSED`, see `~/.claude/skills/duo/references/sandbox-troubleshooting.md`. For enterprise / managed Claude Code installs (hooks disabled, restrictive permissions), see `~/.claude/skills/duo/references/enterprise-deployments.md`.',
     '',
+    '**Permission requests — batch within the task, stay scoped to it.** Matters most on managed / enterprise installs, where auto-approve is usually off and even reading a single file prompts the user:',
+    '',
+    '- *Batch approvals.* When work spans many files in the project, request the broadest scope the task legitimately needs in one prompt — ask to read the whole directory or repository rather than prompting file-by-file — so the user approves once instead of dozens of times.',
+    '- *Stay scoped.* Request access only to what the current task touches. Don\'t ask to read unrelated applications\' data or OS surfaces (e.g. the macOS Music library) the work doesn\'t require. Narrow scope when IT policy demands it, but don\'t self-clamp below what the task legitimately needs.',
+    '',
     `*Auto-managed by Duo v${version}. Re-runs on every Duo install/upgrade; the version above is the source of truth for whether the latest block landed.*`,
     '<!-- duo:end -->'
   ].join('\n')

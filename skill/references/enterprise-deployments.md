@@ -14,6 +14,7 @@
 ## Contents
 
 - [Mechanism dependency map](#mechanism-dependency-map)
+- [Permission prompts in managed installs](#permission-prompts-in-managed-installs)
 - [Common enterprise restrictions](#common-enterprise-restrictions)
 - [What still works (the hook-free path)](#what-still-works-the-hook-free-path)
 - [Reporting a Duo issue from a managed install](#reporting-a-duo-issue-from-a-managed-install)
@@ -44,6 +45,56 @@ of policy.
 in-Duo PTYs) and the PATH shim (load-bearing for in-Duo PTYs only).
 Both fail open — if they don't run, Duo still works; the agent just
 doesn't get the priming context until it triggers a skill load.
+
+---
+
+## Permission prompts in managed installs
+
+Managed Claude Code installs commonly disable auto-approve, so the
+agent must get explicit user (or policy) sign-off for actions that
+run silently elsewhere — reading a file, listing a directory,
+running a `duo` verb. Two behaviors keep that from becoming death
+by a thousand prompts. Both are also stated in the managed
+`~/.claude/CLAUDE.md` block so they reach every session, hooks or
+no hooks.
+
+### Batch approval requests
+
+When a task spans many files in the project, ask for the broadest
+scope the work *legitimately* needs in a single request, instead of
+prompting once per file:
+
+- Prefer "read everything under `src/`" or "read this repository"
+  over a file-by-file walk that fires a fresh prompt for each path.
+- Plan the read set before you start — enumerate the directory, then
+  request the directory, rather than discovering and re-prompting as
+  you go.
+- The same applies to `duo` verbs: if the admin allowlists
+  `Bash(duo:*)` once, every verb is covered; a per-verb allowlist
+  (`Bash(duo url:*)`, `Bash(duo edit:*)`) trades fewer privileges
+  for more prompts. Recommend the broadest entry the org will accept.
+
+The goal is one informed approval over a coherent scope, not dozens
+of trivial ones the user rubber-stamps without reading.
+
+### Don't request unrelated apps' or OS data
+
+The flip side of batching: breadth applies *within the task's
+surface*, never beyond it. Request access only to what the current
+work touches.
+
+- Don't ask to read unrelated applications' data or OS surfaces —
+  the macOS Music library, Photos, Mail, other apps' Application
+  Support directories — when the task doesn't involve them. Reports
+  of Duo sessions prompting for arbitrary app data trace to agent
+  behavior, not to Duo itself.
+- Stay inside the working tree / project the user pointed you at
+  unless the task genuinely requires reaching outside it; if it
+  does, say why before requesting.
+- This is about not *self-broadening*, not about clamping down.
+  Where enterprise IT enforces narrower limits, honor them — but
+  Duo doesn't add restrictions beyond what the task needs and what
+  policy already imposes.
 
 ---
 
