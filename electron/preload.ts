@@ -63,6 +63,10 @@ const IS_DEV = readArg('--duo-is-dev=', '0') === '1'
 // tabs. Read synchronously from --duo-blank (no IPC race). Default '0' (non-blank
 // = the boot/restored windows).
 const IS_BLANK = readArg('--duo-blank=', '0') === '1'
+// ENH-210 (D1-part2) — initial nav cwd for a window opened AT a path
+// (`duo window new --cwd` / "open worktree in new window"). Empty for
+// normal windows. Read synchronously so useNavigator can seed from it.
+const INITIAL_CWD = readArg('--duo-initial-cwd=', '')
 // ENH-191 P4 — fetch THIS window's id once, synchronously, at preload time so
 // window.electron.env.windowId is available BEFORE App.tsx module-eval reads
 // per-window localStorage keys. Resolves to main's registry id (mainWindow.id
@@ -84,7 +88,8 @@ const api: ElectronAPI = {
     appVersion: APP_VERSION,
     isDev: IS_DEV,
     windowId: WINDOW_ID,
-    blank: IS_BLANK
+    blank: IS_BLANK,
+    initialCwd: INITIAL_CWD
   },
 
   pty: {
@@ -407,6 +412,10 @@ const api: ElectronAPI = {
       const handler = () => cb()
       ipcRenderer.on(IPC.NEW_FOLDER_REQUEST, handler)
       return () => ipcRenderer.removeListener(IPC.NEW_FOLDER_REQUEST, handler)
+    },
+    // ENH-210 (D1-part2) — open a new window rooted at cwd.
+    openWindowAt: (cwd: string) => {
+      ipcRenderer.send(IPC.WINDOW_OPEN_AT, { cwd })
     }
   },
 

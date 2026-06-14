@@ -134,15 +134,49 @@ export function parseWorktreePorcelain(stdout: string, currentRoot: string): Wor
 }
 
 /**
+ * Per-worktree dirty + ahead/behind. Inlined here (rather than calling
+ * getGitStatus) to avoid a circular import — status.ts already imports
+ * resolveWorktreeIdentity from this module. Mirrors status.ts's two
+ * probes. Never throws; returns zeros on error.
+ */
+async function worktreeStatus(wtPath: string): Promise<Pick<WorktreeInfo, 'dirty' | 'changedCount' | 'ahead' | 'behind'>> {
+  const statusRes = await execGit('git', ['status', '--porcelain'], { cwd: wtPath })
+  const lines = statusRes.ok ? statusRes.stdout.split('\n').filter((l) => l.length > 0) : []
+  let ahead = 0
+  let behind = 0
+  const ab = await execGit('git', ['rev-list', '--left-right', '--count', '@{upstream}...HEAD'], { cwd: wtPath })
+  if (ab.ok) {
+    const parts = ab.stdout.trim().split(/\s+/)
+    if (parts.length === 2) {
+      behind = Number.parseInt(parts[0], 10) || 0
+      ahead = Number.parseInt(parts[1], 10) || 0
+    }
+  }
+  return { dirty: lines.length > 0, changedCount: lines.length, ahead, behind }
+}
+
+/**
  * List every worktree of the repo `cwd` belongs to. Returns [] for
  * non-repos / git errors (never throws). Main worktree first; the
  * worktree containing `cwd` is flagged `isCurrent`.
+ *
+ * `opts.withStatus` (the navigator dropdown, D4) additionally probes
+ * each worktree's dirty + ahead/behind — two extra git calls per
+ * worktree, so it's opt-in: the CLI `duo worktree` stays a single
+ * porcelain read.
  */
-export async function listWorktrees(cwd: string): Promise<WorktreeInfo[]> {
+export async function listWorktrees(
+  cwd: string,
+  opts: { withStatus?: boolean } = {}
+): Promise<WorktreeInfo[]> {
   const listRes = await execGit('git', ['worktree', 'list', '--porcelain'], { cwd })
   if (!listRes.ok) return []
   // Resolve which worktree the cwd is in so we can flag isCurrent.
   const topRes = await execGit('git', ['rev-parse', '--show-toplevel'], { cwd })
   const currentRoot = topRes.ok ? topRes.stdout.trim() : ''
-  return parseWorktreePorcelain(listRes.stdout, currentRoot)
+  const worktrees = parseWorktreePorcelain(listRes.stdout, currentRoot)
+  if (!opts.withStatus) return worktrees
+  return Promise.all(
+    worktrees.map(async (wt) => (wt.prunable ? wt : { ...wt, ...(await worktreeStatus(wt.path)) }))
+  )
 }

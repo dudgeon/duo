@@ -92,8 +92,13 @@ export interface NavigatorActions {
   revealAndSelect: (filePath: string) => void
 }
 
-export function useNavigator(initialCwd: string) {
+export function useNavigator(initialCwd: string, forceInitial = false) {
   const [cwd, setCwd] = useState<string>(() => {
+    // ENH-210 (D1-part2) — a window opened AT a path (`duo window new
+    // --cwd` / "open worktree in new window") must root THERE even if a
+    // reused window-id has a stale per-window localStorage cwd. forceInitial
+    // makes the explicit open-at win over LS; normal windows keep LS-first.
+    if (forceInitial) return initialCwd
     try { return localStorage.getItem(LS_KEY_CWD) || localStorage.getItem(LS_KEY_CWD_LEGACY) || initialCwd } catch { return initialCwd }
   })
   // ENH-147 — canonical multi-select map. Singular `selected` is derived

@@ -86,9 +86,9 @@ const VERBS: VerbSpec[] = [
   {
     name: 'window',
     group: 'Windows',
-    args: 'new',
+    args: 'new [--cwd <path>]',
     summary:
-      'Open a second app window — blank, with its own workspace, browser pane, and navigator. Same action as File → New Window (Opt+Cmd+N). Requires "Allow Multiple Windows" (Settings menu, default on); exits non-zero with a clean disabled-error when off. Subcommand: new.'
+      'Open a second app window — blank, with its own workspace, browser pane, and navigator. Same action as File → New Window (Opt+Cmd+N). --cwd roots the new window\'s navigator at a path (e.g. a git worktree) — the CLI twin of the navigator Worktrees dropdown\'s "open in new window". Requires "Allow Multiple Windows" (Settings menu, default on); exits non-zero with a clean disabled-error when off. Subcommand: new.'
   },
   {
     name: 'windows',
@@ -1159,8 +1159,14 @@ async function main(): Promise<void> {
         // scripts/agents see the failure (mirrors `duo clone`'s die-on-!ok),
         // not a clean exit with an {ok:false} body.
         const sub = rest[0]
-        if (sub !== 'new') die('Usage: duo window new')
-        const r = (await send('window', { action: 'new' })) as { ok?: boolean; error?: string }
+        if (sub !== 'new') die('Usage: duo window new [--cwd <path>]')
+        // ENH-210 (D1-part2) — `--cwd <path>` roots the new window's
+        // navigator at a worktree (resolved client-side like other paths).
+        const cwdIdx = rest.indexOf('--cwd')
+        const cwd = cwdIdx >= 0 && rest[cwdIdx + 1]
+          ? path.resolve(process.cwd(), rest[cwdIdx + 1])
+          : undefined
+        const r = (await send('window', cwd ? { action: 'new', cwd } : { action: 'new' })) as { ok?: boolean; error?: string }
         if (r && r.ok === false) die(r.error ?? 'duo window new failed (is "Allow Multiple Windows" enabled?)')
         out(r)
         break

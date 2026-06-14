@@ -326,7 +326,12 @@ function findVisibleWorkingPaneCE(scope: 'main' | 'aux'): HTMLElement | null {
 
 export function App() {
   const home = window.electron.env.HOME || '~'
-  const nav = useNavigator(home)
+  // ENH-210 (D1-part2) — a window opened AT a worktree (`duo window new
+  // --cwd` / "open in new window") roots its navigator there. The explicit
+  // open-at (forceInitial) wins over any stale per-window localStorage cwd
+  // (window ids are reused across restarts); normal windows stay LS-first.
+  const openAtCwd = window.electron.env.initialCwd
+  const nav = useNavigator(openAtCwd || home, !!openAtCwd)
   // Stage 22 — separate navigator state for the top "Your Claude
   // settings" pane (rooted at ~/.claude/). Lives at App level so its
   // expanded set + show-all toggle persist across re-mounts.

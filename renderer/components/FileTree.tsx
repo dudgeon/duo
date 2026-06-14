@@ -146,11 +146,15 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
     }
   }, [state.cwd, rootEntriesOverride])
 
-  // ENH-210 — worktrees of the repo the navigator cwd is in. Only
-  // rendered when the repo has MORE THAN ONE worktree (a lone main
-  // checkout gets no section — the section exists to surface siblings).
-  // Refreshed on cwd change + focus, same cadence as the git chip.
+  // ENH-210 (D4) — worktrees of the repo the navigator cwd is in. The
+  // git ribbon doubles as the active-checkout indicator + the trigger
+  // for a switch DROPDOWN (locked D4: ribbon-as-trigger, dropdown rows
+  // with dirty/ahead, click-only, replacing the old bottom-of-tree
+  // list). Populated only when the repo has >1 worktree. Refreshed on
+  // cwd change + focus, same cadence as the git chip.
   const [worktrees, setWorktrees] = useState<WorktreeInfo[]>([])
+  const [worktreesOpen, setWorktreesOpen] = useState(false)
+  const worktreeMenuRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
     if (rootEntriesOverride !== undefined) { setWorktrees([]); return }
     let cancelled = false
@@ -171,6 +175,24 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
     }
   }, [state.cwd, rootEntriesOverride])
 
+  // ENH-210 (D4) — close the worktree dropdown on Esc / outside-click
+  // (click-only model, D4.3-A). cwd change also closes it (switching
+  // re-roots, which re-runs the fetch effect; belt-and-suspenders here).
+  useEffect(() => {
+    if (!worktreesOpen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setWorktreesOpen(false) }
+    const onDown = (e: MouseEvent) => {
+      if (worktreeMenuRef.current && !worktreeMenuRef.current.contains(e.target as Node)) setWorktreesOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('mousedown', onDown)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('mousedown', onDown)
+    }
+  }, [worktreesOpen])
+  useEffect(() => { setWorktreesOpen(false) }, [state.cwd])
+
   // ENH-152a v2 — show the ribbon WHENEVER cwd is inside a git repo.
   // (proto-Q1 SLIM-TOP + proto-Q2 BREADCRUMB-DEEP, collapsed to
   // "always show ribbon when in repo".)
@@ -184,6 +206,16 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
   // fire on CHILD-FOLDERS that are repos.
   const repoName = repoBasenameFor(gitSnap?.workTreeRoot ?? null)
   const chipTooltip = gitSnap ? formatGitStatusTooltip(gitSnap, repoName) : ''
+
+  // ENH-210 (D4) — ribbon-as-trigger derivations. The ribbon becomes a
+  // dropdown trigger only when the repo has linked worktrees; it tints
+  // to the CURRENT checkout's hue (linked only — main stays uncolored,
+  // the locked baseline).
+  const hasLinkedWorktrees = worktrees.length > 1
+  const currentWorktree = worktrees.find((w) => w.isCurrent)
+  const currentWorktreeHue = currentWorktree && !currentWorktree.isMain
+    ? projectColorToken(currentWorktree.colorIndex)
+    : null
 
   // BUG-135 — ribbon strictness. Computed AFTER gitRefreshTick is
   // declared below so the effect's dep list can reference it. The
@@ -830,43 +862,75 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
           surprises them by showing in a directory they didn't realize
           was a git repo). */}
       {gitChip && isInRepo && gitSnap?.workTreeRoot && (
-        <div
-          className="px-3 py-1.5 mb-1 text-[11px] font-mono text-ink-mute border-b border-paper-rule bg-paper-deep flex items-center gap-2 cursor-context-menu hover:bg-paper-edge transition-colors"
-          title={`${chipTooltip}\n${gitSnap.workTreeRoot}`}
-          data-duo-git-ribbon="1"
-          onContextMenu={(e) => {
-            if (!gitSnap?.workTreeRoot) return
-            const ribbonEntry: DirEntry = {
-              name: repoName || 'repo',
-              path: gitSnap.workTreeRoot,
-              kind: 'directory'
+        <div ref={worktreeMenuRef} className="relative sticky top-0 z-20 mb-1">
+          {/* ENH-210 (D4) — git ribbon doubles as the active-checkout
+              indicator + worktree-switch trigger when the repo has
+              linked worktrees. Tints to the current checkout's hue
+              (linked only; main stays uncolored). Left-click toggles the
+              dropdown; right-click keeps the repo context menu. */}
+          <div
+            role={hasLinkedWorktrees ? 'button' : undefined}
+            aria-expanded={hasLinkedWorktrees ? worktreesOpen : undefined}
+            className={[
+              'px-3 py-1.5 text-[11px] font-mono text-ink-mute border-b border-paper-rule flex items-center gap-2 transition-colors hover:bg-paper-edge',
+              hasLinkedWorktrees ? 'cursor-pointer' : 'cursor-context-menu'
+            ].join(' ')}
+            style={{
+              background: currentWorktreeHue
+                ? `color-mix(in srgb, ${currentWorktreeHue} 13%, var(--duo-paper-deep))`
+                : 'var(--duo-paper-deep)'
+            }}
+            title={
+              hasLinkedWorktrees
+                ? `${chipTooltip}\n${gitSnap.workTreeRoot}\n\nClick to switch worktree`
+                : `${chipTooltip}\n${gitSnap.workTreeRoot}`
             }
-            void popupMenu(e, ribbonEntry, false)
-          }}
-        >
-          {/* Owner directive 2026-05-18 — match the per-folder
-              repo-chip icon. Same Lucide git-branch SVG as
-              FolderRepoChip, sized to fit the ribbon's text. */}
-          <span className="text-accent inline-flex items-center" aria-hidden="true">
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.25"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="6" x2="6" y1="3" y2="15" />
-              <circle cx="18" cy="6" r="3" />
-              <circle cx="6" cy="18" r="3" />
-              <path d="M18 9a9 9 0 0 1-9 9" />
-            </svg>
-          </span>
-          <span className="font-medium text-ink">{repoName || 'repo'}</span>
-          <span className="text-ink-mute">·</span>
-          <span className="truncate flex-1">{gitChip}</span>
+            data-duo-git-ribbon="1"
+            onClick={hasLinkedWorktrees ? () => setWorktreesOpen((o) => !o) : undefined}
+            onContextMenu={(e) => {
+              if (!gitSnap?.workTreeRoot) return
+              const ribbonEntry: DirEntry = {
+                name: repoName || 'repo',
+                path: gitSnap.workTreeRoot,
+                kind: 'directory'
+              }
+              void popupMenu(e, ribbonEntry, false)
+            }}
+          >
+            {/* Current-checkout marker: hue dot in a linked worktree,
+                else the Lucide git-branch glyph (main / plain repo). */}
+            {currentWorktreeHue ? (
+              <span
+                className="shrink-0 w-[8px] h-[8px] rounded-sm"
+                style={{ backgroundColor: currentWorktreeHue }}
+                aria-hidden="true"
+              />
+            ) : (
+              <span className="text-accent inline-flex items-center shrink-0" aria-hidden="true">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="6" x2="6" y1="3" y2="15" />
+                  <circle cx="18" cy="6" r="3" />
+                  <circle cx="6" cy="18" r="3" />
+                  <path d="M18 9a9 9 0 0 1-9 9" />
+                </svg>
+              </span>
+            )}
+            <span className="font-medium text-ink">{repoName || 'repo'}</span>
+            <span className="text-ink-mute">·</span>
+            <span className="truncate flex-1">{gitChip}</span>
+            {hasLinkedWorktrees && (
+              <span className="shrink-0 text-ink-ghost text-[8px] leading-none" aria-hidden="true">
+                {worktreesOpen ? '▲' : '▼'}
+              </span>
+            )}
+          </div>
+          {worktreesOpen && hasLinkedWorktrees && (
+            <WorktreeDropdown
+              worktrees={worktrees}
+              onSwitch={(p) => { actions.navigateTo(p); setWorktreesOpen(false) }}
+              onOpenInWindow={(p) => { void window.electron.nav.openWindowAt?.(p); setWorktreesOpen(false) }}
+            />
+          )}
         </div>
       )}
       <TreeNodes
@@ -888,70 +952,89 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
         childRepoMap={childRepoMap}
         dirtyFileMap={dirtyFileMap}
       />
-      {worktrees.length > 1 && (
-        <WorktreesSection worktrees={worktrees} onSwitch={(p) => actions.navigateTo(p)} />
-      )}
     </div>
   )
 }
 
-// ENH-210 — navigator Worktrees section (D4-C). Lists the repo's
-// worktrees below the tree; click re-roots the navigator to that
-// checkout (`actions.navigateTo`). The current worktree is marked +
-// non-clickable; linked worktrees carry the same hash-stable hue dot
-// the terminal tabs use, so a checkout reads as one color across the
-// whole app. Main checkout: git-branch glyph, no hue (the baseline).
-function WorktreesSection({
+// ENH-210 (D4) — navigator worktree-switch DROPDOWN. Replaces the
+// bottom-of-tree list (rejected v1) per the locked study: opens from the
+// git ribbon, overlays the tree (no scrolling), rows show hue + branch +
+// dirty/ahead chips + a current check, click re-roots via navigateTo.
+// Each row also offers "open in a new window" (D1-part2 Thread A). Main
+// checkout: git-branch glyph, no hue (baseline). Click-only (D4.3-A);
+// the parent handles Esc / outside-click close.
+function WorktreeDropdown({
   worktrees,
-  onSwitch
+  onSwitch,
+  onOpenInWindow
 }: {
   worktrees: WorktreeInfo[]
   onSwitch: (path: string) => void
+  onOpenInWindow: (path: string) => void
 }) {
   return (
-    <div className="mt-1 border-t border-paper-rule">
-      <div className="px-3 pt-1.5 pb-1 text-[9.5px] font-semibold uppercase tracking-wider text-ink-ghost">
-        Worktrees · {worktrees.length}
+    <div
+      role="menu"
+      className="absolute left-1 right-1 top-full mt-0.5 z-30 max-h-[60vh] overflow-y-auto scrollbar-none bg-surface-0 border border-paper-rule rounded-md shadow-[0_6px_20px_rgba(43,38,32,0.18)]"
+    >
+      <div className="px-3 pt-1.5 pb-1 text-[9px] font-semibold uppercase tracking-wider text-ink-ghost">
+        Switch worktree · {worktrees.length}
       </div>
       {worktrees.map((wt) => {
         const label = wt.branch || (wt.detached ? `detached @ ${wt.head}` : wt.head || 'worktree')
+        const status: string[] = []
+        if (wt.changedCount) status.push(`✱${wt.changedCount}`)
+        if (wt.ahead) status.push(`↑${wt.ahead}`)
+        if (wt.behind) status.push(`↓${wt.behind}`)
         const tip = `${wt.path}${wt.prunable ? '\n(stale — run `git worktree prune`)' : ''}`
         return (
-          <button
+          <div
             key={wt.path}
-            type="button"
-            disabled={wt.isCurrent}
-            onClick={() => { if (!wt.isCurrent) onSwitch(wt.path) }}
-            title={tip}
             className={[
-              'w-full flex items-center gap-2 px-3 py-1 text-left text-[12px] transition-colors',
-              wt.isCurrent
-                ? 'bg-accent-soft text-ink cursor-default'
-                : 'text-ink-soft hover:bg-paper-edge cursor-pointer',
+              'group/wt flex items-center gap-2 px-3 py-1 text-[12px] transition-colors',
+              wt.isCurrent ? 'bg-accent-soft text-ink' : 'text-ink-soft hover:bg-paper-edge',
               wt.prunable ? 'opacity-60' : ''
             ].join(' ')}
           >
-            {wt.isMain ? (
-              // Main checkout — git-branch glyph, no hue.
-              <span className="text-ink-ghost inline-flex items-center shrink-0" aria-hidden="true">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="6" x2="6" y1="3" y2="15" />
-                  <circle cx="18" cy="6" r="3" />
-                  <circle cx="6" cy="18" r="3" />
-                  <path d="M18 9a9 9 0 0 1-9 9" />
-                </svg>
-              </span>
-            ) : (
-              // Linked worktree — hash-stable hue dot (matches its tab).
-              <span
-                className="shrink-0 w-[7px] h-[7px] rounded-sm"
-                style={{ backgroundColor: projectColorToken(wt.colorIndex) }}
-                aria-hidden="true"
-              />
-            )}
-            <span className="truncate flex-1">{label}</span>
-            {wt.isCurrent && <span className="text-[9px] uppercase tracking-wide text-accent shrink-0">current</span>}
-          </button>
+            <button
+              type="button"
+              role="menuitem"
+              disabled={wt.isCurrent}
+              onClick={() => { if (!wt.isCurrent) onSwitch(wt.path) }}
+              title={tip}
+              className={['flex items-center gap-2 flex-1 min-w-0 text-left', wt.isCurrent ? 'cursor-default' : 'cursor-pointer'].join(' ')}
+            >
+              {wt.isMain ? (
+                <span className="text-ink-ghost inline-flex items-center shrink-0" aria-hidden="true">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="6" x2="6" y1="3" y2="15" />
+                    <circle cx="18" cy="6" r="3" />
+                    <circle cx="6" cy="18" r="3" />
+                    <path d="M18 9a9 9 0 0 1-9 9" />
+                  </svg>
+                </span>
+              ) : (
+                <span className="shrink-0 w-[7px] h-[7px] rounded-sm" style={{ backgroundColor: projectColorToken(wt.colorIndex) }} aria-hidden="true" />
+              )}
+              <span className="truncate flex-1">{label}</span>
+              {status.length > 0 && (
+                <span className="shrink-0 font-mono text-[10px] text-ink-mute">{status.join(' ')}</span>
+              )}
+              {wt.isCurrent && <span className="shrink-0 text-[9px] uppercase tracking-wide text-accent">current</span>}
+            </button>
+            {/* D1-part2 Thread A — open this worktree in a new window. */}
+            <button
+              type="button"
+              aria-label={`Open ${label} in a new window`}
+              title="Open in a new window"
+              onClick={(e) => { e.stopPropagation(); onOpenInWindow(wt.path) }}
+              className="shrink-0 flex items-center justify-center w-4 h-4 rounded text-ink-ghost opacity-0 group-hover/wt:opacity-100 hover:text-ink hover:bg-surface-2 transition-opacity transition-colors"
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M7 17 17 7M9 7h8v8" />
+              </svg>
+            </button>
+          </div>
         )
       })}
     </div>

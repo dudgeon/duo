@@ -1662,6 +1662,9 @@ export const IPC = {
   // preload time (sendSync), so per-window localStorage keys (cozy/fontBump/
   // nav) namespace by the SAME id the registry routes by (mainWindow.id).
   WINDOW_GET_ID: 'window:get-id',
+  // ENH-210 (D1-part2) — renderer → main: open a new window rooted at a
+  // cwd (the navigator Worktrees dropdown's "open in new window").
+  WINDOW_OPEN_AT: 'window:open-at',
   PTY_CREATE: 'pty:create',
   PTY_WRITE: 'pty:write',
   PTY_RESIZE: 'pty:resize',

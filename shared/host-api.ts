@@ -58,6 +58,12 @@ export interface ElectronEnv {
    *  pinned file tabs. False for the boot/restored windows. Injected
    *  synchronously via the --duo-blank additionalArgument (no IPC race). */
   blank: boolean
+  /** ENH-210 (D1-part2) — initial navigator cwd for a window opened AT a
+   *  path (`duo window new --cwd` / "open worktree in new window"). Empty
+   *  for normal boot/restored/blank windows. Injected synchronously via
+   *  the --duo-initial-cwd additionalArgument; useNavigator falls back to
+   *  it when this (blank) window has no per-window localStorage cwd. */
+  initialCwd: string
 }
 
 export interface ElectronPtyAPI {
@@ -343,6 +349,12 @@ export interface ElectronNavAPI {
    *  dispatches to its `newFolder` callback (same one the ⌘⇧N
    *  chord drives). Default location = navigator's current cwd. */
   onNewFolderRequest: (cb: () => void) => () => void
+  /** ENH-210 (D1-part2) — open a new window rooted at `cwd` (the
+   *  navigator Worktrees dropdown's "open in new window" affordance).
+   *  Routes to the same openNewWindow the menu + `duo window new --cwd`
+   *  use, with an initialCwd. No-ops with a console warn if multi-window
+   *  is disabled. */
+  openWindowAt: (cwd: string) => void
 }
 
 export interface ElectronEditorAPI {
@@ -1189,6 +1201,15 @@ export interface WorktreeInfo {
    *  locked-elsewhere or detached. Mirrors porcelain `detached`. */
   detached?: boolean
   colorIndex: number
+  /** ENH-210 (D4) — per-worktree dirty / ahead-behind, populated ONLY
+   *  when listWorktrees is called withStatus (the navigator dropdown).
+   *  Omitted for the cheap path (CLI `duo worktree`, which stays a single
+   *  porcelain read). `changedCount` = count of `git status --porcelain`
+   *  lines; ahead/behind are vs the worktree's upstream. */
+  dirty?: boolean
+  changedCount?: number
+  ahead?: number
+  behind?: number
 }
 
 /**

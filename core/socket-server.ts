@@ -104,7 +104,7 @@ export interface NavBridge {
   /** ENH-191 P5a (S3c) — open a SECOND window (`duo window new`). Gated on the
    *  multiWindow setting in main; returns a structured disabled-result when off
    *  (never a silent no-op — CLI-parity with the "New Window" menu item). */
-  openWindow: () => Promise<{ ok: boolean; error?: string }>
+  openWindow: (opts?: { cwd?: string }) => Promise<{ ok: boolean; error?: string }>
   /** Sprint 16 / v0.6.15 — current Claude-tab Enter key prefs
    *  (renderer \u2192 main cache). */
   getClaudeKeyPrefs: () => ClaudeKeyPrefsSnapshot
@@ -1091,12 +1091,15 @@ export class SocketServer {
         }
         case 'window': {
           // ENH-191 P5a (S3c) — `duo window new`. Only `new` is supported.
+          // ENH-210 (D1-part2) — optional `--cwd <path>` roots the new
+          // window's navigator at a worktree.
           const action = args['action']
           if (action !== 'new') {
             result = { ok: false, error: `unknown window subcommand: ${String(action ?? '(none)')} — try: duo window new` }
             break
           }
-          result = await this.nav.openWindow()
+          const cwd = typeof args['cwd'] === 'string' ? (args['cwd'] as string) : undefined
+          result = await this.nav.openWindow(cwd ? { cwd } : undefined)
           break
         }
 

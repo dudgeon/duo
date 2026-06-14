@@ -737,7 +737,7 @@ let hiddenFilesMenuItemId: string | null = null
 // Updated in the push handler below.
 let claudeReturnMenuItemId: string | null = null
 
-async function createWindow(opts: { restore?: boolean; restoreIndex?: number } = {}): Promise<WindowContext> {
+async function createWindow(opts: { restore?: boolean; restoreIndex?: number; initialCwd?: string } = {}): Promise<WindowContext> {
   // ENH-191 P5a (S3/Tier-3) — `restore` (default true) is the BOOT path: restore
   // the persisted session (browser tabs, pins, active workspace, geometry). The
   // boot loop passes restoreIndex i so window i hydrates the i-th persisted
@@ -745,6 +745,7 @@ async function createWindow(opts: { restore?: boolean; restoreIndex?: number } =
   // restore:false for a BLANK window (NFR-6.2 — not cloning window 1's content).
   const restore = opts.restore ?? true
   const restoreIndex = opts.restoreIndex ?? 0
+  const initialCwd = opts.initialCwd ?? ''
   const mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -772,7 +773,11 @@ async function createWindow(opts: { restore?: boolean; restoreIndex?: number } =
         // the pinned FILE tabs (App.tsx pin-auto-open). Read synchronously in
         // preload (no IPC race) into env.blank; the restored/boot windows are
         // non-blank. Known at construction, so additionalArguments is the seam.
-        `--duo-blank=${restore ? '0' : '1'}`
+        `--duo-blank=${restore ? '0' : '1'}`,
+        // ENH-210 (D1-part2) — seed the new window's navigator cwd when
+        // opened AT a path. Empty for normal windows; useNavigator falls
+        // back to it only when this (blank) window has no per-window LS.
+        `--duo-initial-cwd=${initialCwd}`
       ]
     }
   })
@@ -1244,13 +1249,15 @@ const blankWindowIds = new Set<number>()
 // verb both call THIS, so behavior is identical. New window opens blank
 // (restore:false) to its default cwd. [Behavior-changing — needs the
 // two-window smoke-walk; not autonomously verifiable.]
-async function openNewWindow(): Promise<{ ok: boolean; error?: string }> {
+async function openNewWindow(opts: { initialCwd?: string } = {}): Promise<{ ok: boolean; error?: string }> {
   if (!settingsService.get().multiWindow) {
     return { ok: false, error: 'multi-window is disabled (enable it in Settings)' }
   }
   // ENH-191 P5a (Tier-1) — createWindow({restore:false}) marks blankWindowIds
   // itself BEFORE loadURL (race-free); no post-hoc add here.
-  await createWindow({ restore: false })
+  // ENH-210 (D1-part2) — initialCwd seeds the new window's navigator when
+  // opened AT a worktree (still a blank window: restore:false).
+  await createWindow({ restore: false, initialCwd: opts.initialCwd })
   return { ok: true }
 }
 
@@ -1519,7 +1526,7 @@ app.whenReady().then(async () => {
     revealMainPaneIfCollapsed: revealMainPaneIfCollapsed,
     // ENH-191 P5a (S3c) — `duo window new` → the same openNewWindow the menu
     // item calls (flag-gated; identical behavior, CLAUDE.md §4 parity).
-    openWindow: openNewWindow,
+    openWindow: (opts) => openNewWindow({ initialCwd: opts?.cwd }),
     splitViewOpen: splitViewOpen,
     splitViewOpenBrowser: splitViewOpenBrowser,
     splitViewClose: splitViewClose,
@@ -1646,6 +1653,16 @@ app.whenReady().then(async () => {
   // double-register; event.sender resolves the calling window every time.
   ipcMain.on(IPC.WINDOW_GET_ID, (event) => {
     event.returnValue = BrowserWindow.fromWebContents(event.sender)?.id ?? -1
+  })
+
+  // ENH-210 (D1-part2) — renderer → main: open a new window rooted at a
+  // worktree (the navigator Worktrees dropdown). Same openNewWindow the
+  // menu + `duo window new --cwd` use; no-ops with a warn when multi-
+  // window is off (the dropdown affordance is best-effort, not gated UI).
+  ipcMain.on(IPC.WINDOW_OPEN_AT, (_event, { cwd }: { cwd: string }) => {
+    void openNewWindow({ initialCwd: cwd }).then((r) => {
+      if (!r.ok) console.warn('[main] WINDOW_OPEN_AT:', r.error)
+    })
   })
 
   // ENH-191 P5a — track the focused window for app-menu resolution (see
@@ -2300,7 +2317,10 @@ function setupIPC(): void {
   // section. Returns [] for non-repos / git errors.
   ipcMain.handle(IPC.GIT_WORKTREES, async (_event, { cwd }: { cwd: string }) => {
     const { listWorktrees } = await import('../core/git/worktree')
-    return listWorktrees(cwd)
+    // ENH-210 (D4) — the navigator dropdown shows per-worktree dirty /
+    // ahead-behind chips, so enrich with status. The CLI `duo worktree`
+    // calls listWorktrees directly (cheap, no status).
+    return listWorktrees(cwd, { withStatus: true })
   })
 
   // ENH-182 — D2 marker probe (renderer → main). Returns true if
