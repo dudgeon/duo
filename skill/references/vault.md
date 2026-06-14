@@ -13,7 +13,7 @@ The three layers, and who owns each:
 | Layer | What | Owner |
 |---|---|---|
 | **At rest** | markdown + `[[wikilinks]]` + YAML frontmatter + folders + `.base` files | Obsidian conventions — zero invention |
-| **Capture** | autocomplete, quick-capture, type-picker (mostly Phase-2 UI) | Duo UI |
+| **Capture** | autocomplete, ⇧⌘N quick-capture, ⌘⇧F search palette, the type-picker, `@today` tokens (shipped Phase-2 UI) | Duo UI |
 | **Agent** | filing, linking, fixing frontmatter, authoring rollups, processing | **you**, via the `duo vault` / `graph` / `base` verbs + this skill |
 
 **The cardinal rule (D1): keep the vault strict.** Only ever write plain
@@ -28,18 +28,21 @@ open correctly in Obsidian, don't write it.
 | `duo vault init <folder>` | scaffold a new vault (templates + folders + processing.base + README) |
 | `duo vault list` | find vaults under the cwd |
 | `duo vault schema [--vault p]` | get the **corpus** — types, entities, aliases, props-per-type, observed enums, templates. **Run this before authoring a base or filing a note** — it's the resolution table |
-| `duo vault capture [--template t] [--text …] [--title …]` | drop an atomic inbox note |
-| `duo vault search <query>` | full-text search |
+| `duo vault capture [--template t] [--text …] [--title …]` | drop an atomic inbox note (the ⇧⌘N twin — bare capture matches the chord exactly) |
+| `duo vault stub <type> <name> [--open]` | create a typed entity stub from its template, D19-filed; idempotent (the type-picker's twin — same code path) |
+| `duo vault default [<path>\|--clear]` | read/set the default vault (the Settings → Default Vault twin — one pref file, writes reflect live) |
+| `duo vault search <query>` | full-text search (the ⌘⇧F palette's twin) |
 | `duo graph backlinks <note>` | who links to a note (basename-resolved; scans frontmatter + body) |
 | `duo graph orphans` | notes with no links in or out (a tidy-up list) |
 | `duo base lint <file\|--all>` | validate a `.base` against the corpus before rendering |
 | `duo base render <file\|note> [--out p] [--open]` | render a rollup to a stamped HTML artifact |
 
-The vault resolves by walking up from the cwd to the nearest `.obsidian/`; pass
-`--vault <path>` to target another. **The corpus is computed live every time —
-never cache it to disk** (no-sidecar rule).
+Vault resolution order: explicit `--vault <path>` → the enclosing vault (walk
+up from the cwd to the nearest `.obsidian/`) → the default vault (`duo vault
+default`) → error. **The corpus is computed live every time — never cache it
+to disk** (no-sidecar rule).
 
-## Capture by narration (v1)
+## Capture by narration
 
 The owner narrates; you write the note. "note from the pricing sync: Alice wants
 the fee model by Friday" →
@@ -54,19 +57,26 @@ the fee model by Friday" →
 4. Leave anything you're unsure about for the processing pass — capture is fast
    and lossy by design; processing is where it gets filed and fixed.
 
-## Creating an entity stub (v1)
+The human's no-agent path is the **⇧⌘N quick-capture chord** — exact bare
+`duo vault capture` parity: an untyped inbox note in the default vault (else
+the active file's vault), opened in the editor focused. Expect those notes in
+the same processing work-list as yours.
+
+## Creating an entity stub
 
 When prose mentions a person/initiative/theme that doesn't exist yet:
 
 1. `duo vault schema` → confirm it's genuinely new (check `aliases` too — "Alice"
    may already resolve to `Alice Park`).
-2. Create the file from the matching template's frontmatter, in the type's
-   filing folder (see filing rules below). Keep it a **stub** — type + a few
-   known fields; processing enriches it later.
+2. `duo vault stub <type> <name>` — creates it from the matching template, filed
+   by the D19 rules; idempotent (never clobbers an existing note). Keep it a
+   **stub** — type + a few known fields; processing enriches it later.
 3. Link it from wherever it was mentioned.
 
-(The Phase-2 silent-stub UI does this on `[[New Name]]` ⇥ → type-picker. Until
-then, you are the type-picker.)
+(The human's in-editor gesture runs the same code path: `[[New Name]]` in the
+`[[` suggester offers a **New:** row → picking it completes the link and pops
+the type-picker — template types + "+ new type…" — and the stub files silently;
+the caret never leaves the note, Esc creates nothing.)
 
 ## Filing rules (D19) — read the templates
 
@@ -164,7 +174,12 @@ insertion-sized.
 
 - Obsidian-side `[[` creations land untyped in Obsidian's default folder;
   processing catches and types them. Expected — don't fight it.
-- Agents write dates directly (no verb); the `@today` smart-token suggester is a
-  human-only Phase-2 convenience.
-- `duo vault default` (the settings default-vault + ⇧⌘N chord + ⌘⇧F palette) is
-  Phase 2. Until then, always pass `--vault` or run from inside the vault.
+- Agents write dates directly (no verb); the `@today` smart tokens in the `@`
+  suggester (shipped) are the human's equivalent — they insert plain text, so
+  nothing downstream can tell who wrote the date.
+- The capture UX is shipped human UI with exact CLI twins: Settings → Default
+  Vault ↔ `duo vault default` · ⇧⌘N quick-capture ↔ bare `duo vault capture` ·
+  the ⌘⇧F palette ↔ `duo vault search` · the type-picker ↔ `duo vault stub`.
+  Agents pass `--vault`, run from inside the vault, or rely on the default.
+- The type-picker's "+ new type…" writes `templates/<type>.md` directly — agents
+  create a type by writing the template file; there is no verb.

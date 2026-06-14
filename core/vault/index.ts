@@ -15,14 +15,17 @@ export {
   readDefaultVault,
   setDefaultVault,
   clearDefaultVault,
+  rememberVault,
+  listKnownVaults,
   resolveVaultOrDefault,
+  resolveVaultForUi,
   DEFAULT_VAULT_FILE,
 } from './default-vault'
 export { buildCorpus, loadTemplates, parseBaseYaml } from './corpus'
 export { backlinks, orphans, type Backlink } from './graph'
-export { search } from './search'
+export { search, searchAsync, VAULT_SEARCH_DEFAULT_LIMIT } from './search'
 export { initVault, captureNote, seedFrontmatterLines, type InitResult, type CaptureResult } from './scaffold'
-export { stubPathFor, createEntityStub, safeName, type StubResult } from './filing'
+export { stubPathFor, createEntityStub, createType, safeName, type StubResult, type CreateTypeResult } from './filing'
 export {
   renderTarget,
   evaluateBaseDef,

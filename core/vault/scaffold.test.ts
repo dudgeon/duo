@@ -81,7 +81,9 @@ describe('vault capture', () => {
   it('drops an untyped, captured-stamped inbox note by default', () => {
     const v = initVault(path.join(root, 'v')).root
     const c = captureNote(v, { text: 'a quick thought', date: new Date('2026-06-09T14:32:05') })
-    expect(c.path).toMatch(/^inbox\/2026-06-09 143205\.md$/)
+    // YYYY-MM-DD-HHMMSS — date+time hyphen-joined so an untitled capture has
+    // no space in its name (owner ask 2026-06-12).
+    expect(c.path).toMatch(/^inbox\/2026-06-09-143205\.md$/)
     expect(c.type).toBeNull()
     const content = fs.readFileSync(c.absPath, 'utf8')
     expect(content).toContain('captured: 2026-06-09')

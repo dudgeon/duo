@@ -18,11 +18,75 @@
 
 ---
 
+## 2026-06-12 (v0.10.2 cut — Vault capture UX Phase 2 + inline-code suggesting fix + ENH-210 rail pill, landed via ultracode review→fix→merge pipeline)
+
+**v0.10.2 cut (patch, owner call over v0.11.0 — completes the v0.10.x vault chapter).** Three open PRs reviewed, hardened, and landed in one session. A 38-agent adversarial review (9 dimension-scoped finders, per-finding refuters, cross-PR interaction check) produced 22 confirmed / 6 refuted findings across **PR #91** (ENH-208 Phase 2 capture UX, owner-walked 8/8), **PR #92** (suggesting mode swallowed edits inside inline `code`), and **PR #93** (ENH-210 All-mode rail pill). All 22 confirmed findings were fixed *on the branches pre-merge* (owner intent calls via AUQ: browser find bar stays ⇧Enter-only documented in FOLLOWUP-047; PR #92's insert predicate narrowed so mixed pastes keep tracking; `duo vault default` echoes `knownVaults` — full 4-surface sync). Merge order 92 → 91 → 93 (93 took the expected tasks.md same-position conflict, kept both blocks). Post-merge verification on a fresh worktree: 1303 vitest / typecheck / skill-currency all green. **Also recovered:** four bug filings stranded uncommitted in this checkout's working tree since the v0.10.1 cut were grafted into the ledger — BUG-199 (doc-edit re-serialization churn), BUG-201 (theme re-follow), BUG-202 (markdown mount race), and the renumbered **BUG-203** (CriticMarkup ins/del persistence — was the colliding local BUG-200; merged incumbent kept the number per the multi-agent-collision rule). `sync:claude` run post-merge. **Owed next:** tag push (await owner), then `dist-signed.sh` + `gh release create v0.10.2`.
+
+---
+
 ## 2026-06-10 (v0.10.1 cut — Vault Phase 1 release + BUG-200 terminal-collapse data-loss fix)
 
 **v0.10.1 cut (patch).** Shipped two things that had landed on `main` since v0.10.0: **BUG-200** — collapsing the terminal pane was terminating *every* terminal session (it unmounted the pane, firing each terminal's cleanup `pty.kill`); fixed by hiding the pane via `display:none` while keeping it mounted (rail renders as a sibling), plus a `TERMINAL_MIN_COLS` resize floor as a BUG-156-class backstop. Root-caused via a multi-agent investigation, live-verified (xterm-host count holds 6→6 through collapse; active shell PID unchanged across collapse/expand), 3 regression tests, [PR #90](https://github.com/dudgeon/duo/pull/90). And the **ENH-208 vault** Phase 1 + Phase 2-start (PRs #83–#88), released rather than held dark. Pre-cut, the full `v0.10.0..main` diff was re-reviewed for blockers (3 reviewers + adversarial verification → 0 confirmed blockers; 1 non-blocking major = `base render` throws on an empty `.base`, filed as **FOLLOWUP-046**; path traversal live-tested as not exploitable; both prior vault bugs confirmed fixed).
 
 **Deferred from this cut (owner-directed):** the DMG build + GitHub Release (a parallel agent holds the dev Electron) and the tag push (await owner); the `tasks.md` archive-move + the FOLLOWUP-046 ledger filing (the origin working tree held a concurrent agent's uncommitted `tasks.md` WIP — including a **BUG-200 number collision**: the other agent independently filed a different BUG-200 (CriticMarkup ins/del) + BUG-199/201/202. Owner ruling: keep this BUG-200 (merged incumbent), the other agent renumbers theirs). Cut from a clean `release/v0.10.1` worktree off `origin/main`; `package.json` was already 0.10.1, so no version bump. **Owed next:** push `release/v0.10.1` → `main` + the `v0.10.1` tag, then `bash scripts/dist-signed.sh` + `gh release create` once the dev Electron is free; file FOLLOWUP-046 in `tasks.md` once the concurrent WIP lands.
+
+---
+
+## 2026-06-10 (ENH-208 Phase 2 capture UX — five renderer features BUILT + adversarially reviewed, one PR pending owner walk)
+
+**The remaining Phase-2 UI, built in one continuous ultracode session** on
+`claude/thirsty-brahmagupta-125a0a` (8 commits): a 5-reader subsystem map →
+two locked-decision conflicts surfaced to the owner via AUQ (**both PRD chords
+collided with shipped bindings** — D11's ⇧⌘N was New Folder/ENH-169, D22's
+⌘⇧F was the global find-previous; owner picked: capture wins ⌘⇧N with New
+Folder → ⌥⇧⌘N, search wins ⌘⇧F with global find-prev retired) → a 3-lane
+parallel build (keyboard/palette · editor suggesters · docs) on disjoint file
+sets → a 27-agent find→refute review (20 confirmed findings = 12 root causes,
+2 refuted) → an inline fix wave → live dev verification.
+
+- **Foundation:** five `vault:*` IPC channels; main imports core/vault directly
+  (same code paths as the CLI verbs — byte-identical artifacts). New core
+  `resolveVaultForUi` (UI surfaces resolve default-FIRST, inverting the CLI's
+  enclosing-first order; D11/D22).
+- **Settings → Default Vault** (menu radio submenu per the 2026-05-22
+  menu-not-modal lock): detected-vault radios (async `listVaultRootsAsync`
+  scan, TTL-cached — never a sync BFS on the focus-driven rebuild path) +
+  Choose Vault… dialog; fs-watch on vault.json so `duo vault default` writes
+  reflect live.
+- **⇧⌘N capture** → untyped inbox note (bare `duo vault capture` parity),
+  opened focused; no-vault error names Settings → Default Vault. Accelerator +
+  matcher + WCV forward list moved together for the New Folder re-pick.
+- **⌘⇧F VaultSearchPalette** (TabSearchPalette shell clone): debounced
+  searchAsync (yields on main — no N>1 IPC jank), grouped hits, honest
+  "first N" truncation footer, Enter → file-at-match. **The congruence fix:**
+  core search now emits per-hit `docMatchIndex` (body-occurrence index,
+  non-overlapping advance matching FindHighlight; null for frontmatter hits)
+  so the palette and the editor's jump count the same thing — the review
+  caught the original line-vs-occurrence mismatch.
+- **@today tokens** ranked ahead of files in the @ popover (plain-text
+  insert); **silent-stub type-picker** on the `[[` New: row (template types +
+  "+ new type…" → `createType` returns the CANONICAL name the stub must use —
+  the review's empirically-reproduced HIGH; row pinned inside the popover's
+  8-row render window).
+- **Review highlights:** the ⌘⇧F capture-phase hijack of the find bars'
+  input-local find-previous (the D22 "retained" clause was unimplemented —
+  fixed with a `ctx.inFindBar` matcher yield + tests); the sync vault scan on
+  menu rebuilds (HIGH, now cache-only + async refresh); pick/debounce query
+  coherence; ⌥⇧⌘N missing from the WCV focus-reclaim set.
+- **Live-verified on the dev build** (fixture vault at /tmp/enh208-vault):
+  capture chord E2E (note created + opened), palette search (4 hits, 3
+  files), goto-match landing on the exact occurrence (offset-level probes:
+  hit[0]→occurrence 0, the line-6 hit→occurrence 2 across a multi-occurrence
+  line + frontmatter), createType("Decision Log")→"decision log"→stub
+  succeeds, find-bar ⌘⇧F yield (no palette). Keystroke-only items
+  (@today/type-picker popovers, Settings menu visual, ⌥⇧⌘N) ride the owner
+  smoke-walk. **1270 tests · typecheck · skill-currency clean.**
+- **Owed:** owner smoke-walk → merge the one PR → cut (likely v0.11.0) →
+  `sync:claude` at merge (deferred deliberately) → re-point/clear the
+  default-vault pref (targets the walk fixture). Filed FOLLOWUP-048
+  (multi-word `[[` suggester — D4's multi-word example can't reach the popover
+  today; renumbered from 046 on the v0.10.1 rebase — main claimed 046 for its
+  `base render` follow-up) + FOLLOWUP-047 (orphaned find-prev listeners).
 
 ---
 

@@ -21,7 +21,21 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.10.0 cut 2026-06-08)*
+> *(empty — v0.10.2 cut 2026-06-12)*
+
+---
+
+## v0.10.2 — 2026-06-12 — Vault capture UX lands (Phase 2) · inline-code suggesting fix · the review-hardened cut
+
+**Why this lands here.** v0.10.1 shipped the vault's CLI/model layers and explicitly queued the capture UX; this cut delivers it — the five Phase 2 features (Settings → Default Vault picker, ⇧⌘N quick-capture, ⌘⇧F vault-search palette, @today tokens, the silent-stub type-picker) merged as PR #91 after an 8/8 owner walk. Two smaller PRs rode the same train: the suggesting-mode inline-`code` swallow fix (#92 — edits inside backticks were eaten, caret moving but nothing happening) and the All-mode "you-are-here" project-rail pill (#93). What makes this cut different is the path to merge: all three PRs went through a 38-agent adversarial review (every finding independently refuted-or-confirmed), and the 22 confirmed findings were fixed *on the branches before merging* — so the release carries the hardening, not a follow-up promise. It's v0.10.2 rather than v0.11.0 by owner call: the capture UX completes the v0.10.x vault chapter rather than opening a new one.
+
+**Key decisions baked in.**
+- **Chords are owner-picked, not PRD-inherited.** Both PRD-locked chords collided with shipped bindings; the owner re-picked: ⇧⌘N = capture (New Folder → ⌥⇧⌘N), ⌘⇧F = vault search with the *global* find-previous retired. The editor and canvas find bars keep input-local ⌘⇧F via a matcher yield; the browser pane's bar is deliberately ⇧Enter-only (FOLLOWUP-047 records the asymmetry rather than papering over it).
+- **The default vault is machine-global, and the CLI can see everything the menu can.** The picker lists a self-healing `knownVaults` registry (every vault ever set or init'd, live-filtered, never pruned on disk so transiently-unmounted volumes come back), and `duo vault default` now echoes that list — closing the last undeclared UI/CLI asymmetry in the feature.
+- **Inline code behaves like fenced code under track-changes — but no broader.** The fix declines suggesting interception only when the edit is genuinely inside code; mixed pastes keep tracking on their plain fragments (the narrow predicate was chosen over the safe-but-lossy all-or-nothing one).
+- **Review findings are merge gates, not backlog.** 22 confirmed findings (2 medium doc-drift, 1 falsifiability gap, plus correctness/security/perf lows) were fixed in-branch; the 6 refuted ones are documented so they don't get re-litigated.
+
+**What this is and isn't.** This completes ENH-208 Phases 1–2 (conventions + CLI + capture UX). Phases 3–4 (rollup rendering, processing loop) stay open, as do the walk-filed polish items (ENH-213/214/215) and the newly-grafted backlog (BUG-199/201/202/203 — including the CriticMarkup persistence story, BUG-203, which is the track-changes feature's next chapter).
 
 ---
 

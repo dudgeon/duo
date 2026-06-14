@@ -1714,3 +1714,19 @@ html.dark {
 [data-theme="dark"] .duo-qs-relpath,
 [data-theme="dark"] .duo-qs-empty,
 [data-theme="dark"] .duo-qs-footer { color: #9a9080; }
+
+/* ─────────────────────────────────────────────────────────────────────
+   ENH-210 — faint "you-are-here" pill on the active surface's project
+   tile (All mode). The 14% mix is the same idiom family as the
+   globals.css faint tints (12%/22%); the per-project tint arrives via
+   --rail-active-tint set inline on the tile. Keyed off the
+   data-active-surface attribute (not an inline background) so the
+   tile's hover:bg-[--duo-paper] utility still reads on hover — the
+   explicit :hover rule below guarantees it wins.
+   ───────────────────────────────────────────────────────────────────── */
+[data-active-surface] {
+  background: color-mix(in srgb, var(--rail-active-tint) 14%, transparent);
+}
+[data-active-surface]:hover {
+  background: var(--duo-paper);
+}

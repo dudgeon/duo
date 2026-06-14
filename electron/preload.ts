@@ -321,6 +321,16 @@ const api: ElectronAPI = {
       ipcRenderer.invoke(IPC.FILES_WATCH_UPDATE, { id, paths })
   },
 
+  // ENH-208 Phase 2 — vault UI affordances. Thin invoke wrappers; main
+  // runs the same core/vault code paths as the `duo vault` CLI verbs.
+  vault: {
+    capture: (opts) => ipcRenderer.invoke(IPC.VAULT_CAPTURE, opts ?? {}),
+    search: (opts) => ipcRenderer.invoke(IPC.VAULT_SEARCH, opts),
+    stub: (opts) => ipcRenderer.invoke(IPC.VAULT_STUB, opts),
+    types: (opts) => ipcRenderer.invoke(IPC.VAULT_TYPES, opts),
+    createType: (opts) => ipcRenderer.invoke(IPC.VAULT_CREATE_TYPE, opts)
+  },
+
   nav: {
     pushState: (snapshot: NavStateSnapshot) => {
       ipcRenderer.send(IPC.NAV_STATE_PUSH, snapshot)

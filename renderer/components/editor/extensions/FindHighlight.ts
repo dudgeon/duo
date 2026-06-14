@@ -29,7 +29,7 @@ import type { Node as PMNode } from '@tiptap/pm/model'
 
 const PLUGIN_KEY = new PluginKey<FindState>('duoFindHighlight')
 
-interface FindMatch {
+export interface FindMatch {
   from: number
   to: number
 }
@@ -65,7 +65,10 @@ function emptyState(): FindState {
   }
 }
 
-function findAllMatches(doc: PMNode, query: string, caseSensitive: boolean): FindMatch[] {
+// Exported for ENH-208 D22 (gotoMatchJump's occurrence scan) — the only
+// doc-text scanner with the per-character position mapping that keeps PM
+// positions correct across inline non-text nodes.
+export function findAllMatches(doc: PMNode, query: string, caseSensitive: boolean): FindMatch[] {
   if (!query) return []
   const needle = caseSensitive ? query : query.toLowerCase()
   const matches: FindMatch[] = []

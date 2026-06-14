@@ -3,6 +3,26 @@
 > Closed entries (✅ shipped / ❌ won't-do / 🟢 done) split out of [`tasks.md`](tasks.md) on 2026-05-31 (ENH-191 / D1) to keep the live backlog lean. **Open work lives in [tasks.md](tasks.md).** Section headers mirror the original; the cut-version skill appends newly-closed entries here.
 
 
+## v0.10.2 — vault capture UX Phase 2 + rail pill (shipped 2026-06-12)
+
+### ENH-210: Faint "you-are-here" pill on the active surface's project tile in All mode
+
+**Status:** ✅ **Shipped v0.10.2 (2026-06-12, [PR #93](https://github.com/dudgeon/duo/pull/93))** — owner waived a dedicated walk (functionality verified during the ENH-208 review cycle); post-review polish folded in (hover-preserving CSS fill via `[data-active-surface]` + `--rail-active-tint`). **Priority:** P2. **Effort:** S. **Filed:** 2026-06-11 (owner ask).
+
+**Ask (owner, 2026-06-11).** When the project rail is on **All** (`focusedProject === null`), give the parent project of the currently **active surface** a faint pill treatment, so there's an ambient "you-are-here" hint even when no project filter is engaged. Today All mode shows zero indication of which project owns what you're looking at — the strong focused-tile treatment only appears once you explicitly filter.
+
+**Design decisions (owner-clarified).**
+- **D1 — Single active surface, not a union.** There is exactly *one* active thing across the whole app at a time — a terminal **or** a canvas/working tab, never both. The pill follows that one surface, resolved from the existing cross-pane focus signal `focusedColumn` (`'files' | 'terminal' | 'working'`):
+  - `'terminal'` → the active terminal's project (`terminalMembership[activeTabId]`).
+  - `'working'` / `'files'` → the active working tab's project. The navigator (`'files'`) folds into the working side because it drives the canvas; it is not a distinct project source.
+- **D2 — Browser mode counts.** The active working tab contributes regardless of kind (page/file/json/image/pdf **and** browser). A `file://` browser tab resolves via `browserTabMembership`; non-`file://` URLs (and no-project surfaces) yield no pill.
+- **D3 — All mode only.** Gated on `focusedProject === null`. In focused mode the strong focused-tile treatment already owns the signal; the pill never competes with it. The All tile itself is never pilled (the active surface always resolves to a *project* root, not `null`).
+- **D4 — Faint, clearly sub-focused.** A low-alpha tinted fill (`color-mix(in srgb, <tint> 14%, transparent)`) — same idiom family as the globals.css faint tints (12%/22%) — distinct from the focused state's full-hue fill + white text + left notch.
+
+**Implementation.** `renderer/App.tsx` derives `activeSurfaceProject` (memo off `focusedColumn`, `activeTabId`, `activeWorking`, the three membership maps, `browserTabs`) and passes it to `ProjectRail` as `activeProject`. `renderer/components/ProjectRail/ProjectRail.tsx` marks the tile whose `root === activeProject` **only when** `focusedProject === null && !focused`, rendering the faint pill.
+
+**Cross-refs.** ENH-182 (project rail; Phase 3c/D11 auto-focus this complements — D11 switches *filter* on activation in focused mode; this is the ambient cue in All mode), `renderer/App.tsx` (`focusedColumn`, `terminalMembership` / `tabMembership` / `browserTabMembership`, ProjectRail render site), `renderer/components/ProjectRail/ProjectRail.tsx`.
+
 ## v0.9.0 / v0.9.1 — disk-sync conflict resolution + navigator affordances (shipped 2026-06-06)
 
 ### ENH-190: Navigator temporary-widen + drag-to-collapse + resize-handle affordance

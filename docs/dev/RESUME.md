@@ -64,19 +64,25 @@ Full ENH-212 detail + the resolved open-items round: `tasks.md` ENH-212 entry.
 
 ## (prior) ENH-208 Vault: Phase 1 SHIPPED + Phase 2 in flight (v0.10.0 released)
 
-**🛑 MOST RECENT — current initiative (2026-06-09): ENH-208 "vault".** Phase 1
-(skill-first slice) is **COMPLETE + on `main`** — the `duo vault` / `graph` /
-`base` CLI cluster, the `skill/references/vault.md` agent how-to, and the
-10-chapter Vault Guide (`docs/guide/vault-guide.html`) — PRs #83 #84 #85 #86.
-Phase 2 (capture UX) is **started**: #87 (`duo vault default` + default-vault
-pref) and #88 (the `@today` smart-token model + `duo vault stub` / D19 filing
-model) merged. **Remaining = renderer/keyboard UI** (Settings picker · ⇧⌘N chord ·
-⌘⇧F palette · `@today` AtMention wiring · silent-stub type-picker) — each needs a
-dev build + an **owner smoke-walk** per PR (NOT auto-mergeable); tasks #6–#10; the
-`enh-208-vault` worktree is parked for them. No version cut yet (owner holding for
-some UI, then likely v0.11.0). Full detail: top of `active-sprint.md` + the
-2026-06-09 `session-log.md` entry. PRD: `docs/prd/enh-208-vault.md`. The
-ENH-191 detail below remains valid history.
+**🛑 MOST RECENT — current state (2026-06-10): ENH-208 Phase 2 capture UX is
+BUILT** on branch `claude/thirsty-brahmagupta-125a0a` (worktree
+`thirsty-brahmagupta-125a0a`) — all five renderer/keyboard features: Settings →
+Default Vault picker · ⇧⌘N quick-capture · ⌘⇧F VaultSearchPalette (file-at-match
+via core `docMatchIndex`) · @today AtMention tokens · silent-stub type-picker.
+Two owner re-picks (AUQ 2026-06-10): **capture took ⌘⇧N (New Folder → ⌥⇧⌘N)**;
+**vault search took ⌘⇧F (global find-prev retired; find-bar-local kept via
+`ctx.inFindBar`)** — both amended into the PRD D11/D22 rows. Adversarially
+reviewed (12 confirmed findings fixed, 2 HIGH) + live-verified on a dev build
+against the `/tmp/enh208-vault` fixture (capture E2E · palette search + congruent
+jump · createType→stub canonical chain · find-bar yield). 1270 tests; typecheck +
+skill-currency clean. **Owed: owner smoke-walk (keystroke items: @today popover,
+type-picker, Settings menu, ⌥⇧⌘N) → merge the ONE PR → cut (likely v0.11.0) →
+`npm run sync:claude` at merge/cut (deliberately deferred — skill/ describes
+unmerged behavior until then) → re-point or clear the default-vault pref (it
+targets the /tmp walk fixture).** New follow-ups: FOLLOWUP-048 (multi-word `[[`
+suggester; renumbered from 046 on the v0.10.1 rebase), FOLLOWUP-047 (orphaned find-prev listeners). Phase-1/Phase-2-model
+history (PRs #83–#88) + the ENH-191 detail below remain valid. PRD:
+`docs/prd/enh-208-vault.md`; scope detail: top of `active-sprint.md`.
 
 ---
 

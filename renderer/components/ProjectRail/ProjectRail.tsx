@@ -51,6 +51,11 @@ export interface ProjectRailProps {
   projects: ReadonlyArray<Project>
   /** Currently focused project root, or `null` for "All". */
   focusedProject: string | null
+  /** ENH-210 — root of the project owning the single active surface
+   *  (the focused terminal OR canvas/working tab). Used ONLY in All mode
+   *  (`focusedProject === null`) to render a faint "you-are-here" pill on
+   *  that project's tile. `null` when the active surface has no project. */
+  activeProject?: string | null
   /** Called when a tile is clicked. Pass `null` for the All tile.
    *  Phase 1 may pass `undefined` to render in read-only mode (clicks
    *  are no-ops). */
@@ -69,6 +74,7 @@ export interface ProjectRailProps {
 export function ProjectRail({
   projects,
   focusedProject,
+  activeProject,
   onFocus,
   counts,
   onTogglePin,
@@ -100,6 +106,10 @@ export function ProjectRail({
           project={p}
           abbreviation={abbreviations.get(p.root) ?? '?'}
           focused={focusedProject === p.root}
+          // ENH-210 — faint "you-are-here" pill: only in All mode, only
+          // on the project owning the active surface, never when the tile
+          // is already in the strong focused state.
+          active={focusedProject === null && activeProject === p.root}
           onClick={() => onFocus?.(p.root)}
           counts={counts?.get(p.root)}
           onTogglePin={onTogglePin}
@@ -149,6 +159,9 @@ interface ProjectTileProps {
    *  otherwise collide with another `ai-pm-*` project. */
   abbreviation: string
   focused: boolean
+  /** ENH-210 — render the faint "you-are-here" pill (All mode only;
+   *  mutually exclusive with `focused`). */
+  active?: boolean
   onClick: () => void
   counts?: ProjectCounts
   onTogglePin?: (root: string) => void
@@ -159,12 +172,20 @@ function ProjectTile({
   project,
   abbreviation,
   focused,
+  active = false,
   onClick,
   counts,
   onTogglePin,
   onCloseProject
 }: ProjectTileProps) {
   const tint = PROJECT_COLOR_TOKENS[project.colorIndex] ?? PROJECT_COLOR_TOKENS[0]
+  // ENH-210 — faint tinted fill for the active-surface tile in All mode.
+  // Low-alpha mix of the project tint over transparent — same idiom family
+  // as the globals.css faint tints (12%/22%). Clearly sub-focused vs the
+  // focused state's full-hue fill. `active` is already gated to !focused
+  // upstream. The fill itself lives in globals.css keyed off
+  // data-active-surface (so hover:bg- still wins); only the per-project
+  // tint flows through as a CSS custom property.
 
   // ENH-182 Phase 3 D12 — right-click context menu. Reuses the
   // generic menu.popup IPC (CLAUDE.md § 4 area 10 pattern), so the
@@ -217,13 +238,20 @@ function ProjectTile({
       aria-pressed={focused}
       aria-label={`Focus ${project.name} (${project.root})`}
       data-project-tile={project.root}
+      data-active-surface={active ? 'true' : undefined}
       className={[
         'relative w-10 h-10 rounded-md flex items-center justify-center text-[11px] font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--duo-accent)]',
         focused
           ? 'text-white'
           : 'text-[color:var(--duo-ink)] hover:bg-[color:var(--duo-paper)]'
       ].join(' ')}
-      style={focused ? { background: tint } : undefined}
+      style={
+        focused
+          ? { background: tint }
+          : active
+            ? ({ '--rail-active-tint': tint } as React.CSSProperties)
+            : undefined
+      }
     >
       <span style={!focused ? { color: tint } : undefined}>{abbreviation}</span>
       {/* Quiet-bloom underline — colored hint when not focused. Hidden

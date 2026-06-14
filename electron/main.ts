@@ -1,6 +1,7 @@
 import { app, BrowserWindow, Menu, dialog, ipcMain, nativeImage, nativeTheme, protocol, session, shell, webContents, clipboard } from 'electron'
 import type { MenuItemConstructorOptions, WebContents } from 'electron'
 import * as nodeFs from 'fs/promises'
+import { watch as fsWatchSync, mkdirSync as fsMkdirSync } from 'fs'
 import * as nodePath from 'path'
 import { execSync, execFile } from 'child_process'
 import { promisify } from 'util'
@@ -96,8 +97,13 @@ import { ExternalDomainsService } from '../core/external-domains-service'
 import { EventBus, type DuoEventSource } from '../core/event-bus'
 import { PackLoader } from '../core/pack-loader'
 import { InstalledPacksService } from '../core/installed-packs-service'
+// ENH-208 Phase 2 — main runs the same vault core the CLI bundles, so the
+// renderer UI (⇧⌘N capture · ⌘⇧F search · type-picker · Settings picker)
+// produces byte-identical artifacts to `duo vault capture|search|stub|default`.
+import * as vaultCore from '../core/vault'
 import { IPC, EMPTY_SESSION_STATE } from '../shared/types'
 import { htmlBoilerplate } from '../shared/html-boilerplate'
+import { abbreviateHome } from '../shared/path-display'
 import type {
   BrowserBounds,
   BrowserState,
@@ -1658,6 +1664,8 @@ app.whenReady().then(async () => {
   // then refresh the menu so the "Allow Multiple Windows" checkbox reflects the
   // saved value (the initial menu build at boot ran before this load).
   await settingsService.load()
+  // ENH-208 — reflect CLI `duo vault default` writes in the Settings menu.
+  installDefaultVaultPrefWatcher()
   void rebuildAppMenu()
 
   // ENH-191 P5a (Tier-1) — seed the per-window session map from disk BEFORE the
@@ -2099,6 +2107,93 @@ function setupIPC(): void {
   ipcMain.handle(IPC.FILES_CONVERT_IMAGE_BYTES, (_event, { bytes, sourceMime }: { bytes: Uint8Array; sourceMime: string }) => {
     return filesService.convertImageBytes(bytes, sourceMime)
   })
+
+  // ENH-208 Phase 2 — vault UI IPC. Thin adapters over core/vault so the
+  // renderer affordances (⇧⌘N quick-capture, the ⌘⇧F vault-search palette,
+  // the silent-stub type-picker) share the EXACT code paths of the
+  // `duo vault capture|search|stub` CLI verbs. UI vault resolution is
+  // default-first (D11/D22): the default vault, else the active file's
+  // enclosing vault, else a clear "set a default vault" error. Handlers
+  // are window-agnostic (global pref + fs), so no sender resolution.
+  const NO_VAULT_ERROR =
+    'No vault found — set one in Settings → Default Vault, or open a file inside a vault.'
+  ipcMain.handle(IPC.VAULT_CAPTURE, (_event, { activePath }: { activePath?: string | null }) => {
+    try {
+      const root = vaultCore.resolveVaultForUi(activePath)
+      if (!root) return { ok: false, error: NO_VAULT_ERROR }
+      // Untyped capture — exact parity with bare `duo vault capture`;
+      // typing happens later via processing (D6) or `--template` from the CLI.
+      const result = vaultCore.captureNote(root, {})
+      return { ok: true, path: result.path, absPath: result.absPath, root }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+  ipcMain.handle(
+    IPC.VAULT_SEARCH,
+    async (_event, { query, activePath, limit }: { query: string; activePath?: string | null; limit?: number }) => {
+      try {
+        const root = vaultCore.resolveVaultForUi(activePath)
+        if (!root) return { ok: false, error: NO_VAULT_ERROR }
+        // Async + yielded: the palette fires per debounced keystroke, and a
+        // sync vault walk here would jank EVERY window's IPC at N>1. The
+        // limit defaults to the core cap shared with `duo vault search`
+        // (CLI-parity: same code path, same arguments) and echoes back so
+        // the palette can flag truncation.
+        const effectiveLimit = limit ?? vaultCore.VAULT_SEARCH_DEFAULT_LIMIT
+        const hits = await vaultCore.searchAsync(root, query, effectiveLimit)
+        return { ok: true, root, hits, limit: effectiveLimit }
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      }
+    },
+  )
+  ipcMain.handle(
+    IPC.VAULT_STUB,
+    (_event, { vaultRoot, type, name }: { vaultRoot: string; type: string; name: string }) => {
+      try {
+        if (!vaultCore.isVaultRoot(vaultRoot)) {
+          return { ok: false, error: `not a vault (no .obsidian/): ${vaultRoot}` }
+        }
+        const result = vaultCore.createEntityStub(vaultRoot, type, name)
+        return { ok: true, ...result }
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      }
+    },
+  )
+  ipcMain.handle(IPC.VAULT_TYPES, (_event, { vaultRoot }: { vaultRoot: string }) => {
+    try {
+      if (!vaultCore.isVaultRoot(vaultRoot)) {
+        return { ok: false, error: `not a vault (no .obsidian/): ${vaultRoot}` }
+      }
+      const types = vaultCore
+        .loadTemplates(vaultRoot)
+        .map((t) => t.type)
+        .sort()
+      return { ok: true, types }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+  ipcMain.handle(
+    IPC.VAULT_CREATE_TYPE,
+    (_event, { vaultRoot, type }: { vaultRoot: string; type: string }) => {
+      try {
+        if (!vaultCore.isVaultRoot(vaultRoot)) {
+          return { ok: false, error: `not a vault (no .obsidian/): ${vaultRoot}` }
+        }
+        // createType returns the CANONICAL type name — the caller must stub
+        // with `type` from this result, not its raw filter text:
+        // createEntityStub matches template types strictly, so a raw
+        // "Meeting Note" against the normalized "meeting note" template
+        // would dead-end on `unknown type` forever.
+        return { ok: true, ...vaultCore.createType(vaultRoot, type) }
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      }
+    },
+  )
 
   // Stage 24 — pinned WorkingPane tabs.
   ipcMain.handle(IPC.PINS_LIST, () => {
@@ -2838,11 +2933,17 @@ function installAppMenu(): void {
         },
         {
           label: 'New Folder…',
-          accelerator: 'CmdOrCtrl+Shift+N',
+          // ENH-208 owner re-pick (2026-06-10) — ⌘⇧N now belongs to vault
+          // quick-capture (D11); New Folder moved here. Menu accelerators
+          // beat the renderer's chord matcher, so this MUST stay in sync
+          // with globalShortcuts.ts (⌥⇧⌘N → newFolder) or the menu would
+          // swallow the capture chord.
+          accelerator: 'Alt+Shift+CmdOrCtrl+N',
           click: () => safeSendFocused(IPC.NEW_FOLDER_REQUEST)
         },
         // ENH-191 P5a (S3) — open a SECOND window (blank, its own workspace).
-        // ⌥⌘N because ⌘N / ⌘⇧N are taken by New File / New Folder. Gated on the
+        // ⌥⌘N because ⌘N is New File and ⌘⇧N is vault quick-capture
+        // (ENH-208 re-pick; New Folder sits at ⌥⇧⌘N). Gated on the
         // "Allow Multiple Windows" setting below; openNewWindow no-ops with a
         // structured result when off (the CLI verb surfaces the disabled error).
         {
@@ -2988,6 +3089,13 @@ function installAppMenu(): void {
             // value immediately, not on the next unrelated rebuild.
             void settingsService.set({ multiWindow: item.checked }).then(() => rebuildAppMenu())
           }
+        },
+        // ENH-208 Phase 2 (D11) — the machine-global default vault: the
+        // target of ⇧⌘N quick-capture and ⌘⇧F vault search. Same pref file
+        // as `duo vault default` (~/.claude/duo/vault.json).
+        {
+          label: 'Default Vault',
+          submenu: buildDefaultVaultSubmenu()
         }
       ]
     },
@@ -3192,6 +3300,121 @@ function buildRecentWorkspacesSubmenu(): MenuItemConstructorOptions[] {
     }
   })
   return items
+}
+
+// ENH-208 Phase 2 (D11) — Settings → Default Vault. The default vault VALUE is
+// machine-global (~/.claude/duo/vault.json), so the picker is WINDOW-INDEPENDENT:
+// it lists the KNOWN vaults (every vault ever set as default or `vault init`'d —
+// `listKnownVaults`, self-healed against the live filesystem) ∪ the current
+// default, plus Choose Vault… for anything else. The same rows show in every
+// window — no per-window-cwd scan — and clearing the default keeps the known
+// list (so a cleared vault outside any workspace isn't stranded). Selecting
+// writes the SAME file `duo vault default` reads/writes — the menu is just a UI
+// editor for it. `listKnownVaults` is a cheap file read + isVaultRoot stats over
+// a handful of entries, so it stays on the synchronous menu-build path safely
+// (no BFS, no jank — the reason the old cwd-scan needed async machinery).
+function menuVaultLabel(root: string): string {
+  // abbreviateHome is the shared, tested prefix-guarded abbreviation
+  // (also the palette footer's): '/Users/geoff-backup' must not render
+  // as '~-backup' under home '/Users/geoff'.
+  return `${nodePath.basename(root)}  —  ${abbreviateHome(root, homedir())}`
+}
+
+function buildDefaultVaultSubmenu(): MenuItemConstructorOptions[] {
+  const current = vaultCore.readDefaultVault()
+  // The current default unions in even if it somehow isn't in the known list
+  // yet (it always should be — setDefaultVault records it — but belt + braces).
+  const roots = [...new Set([...vaultCore.listKnownVaults(), ...(current ? [current] : [])])].sort()
+  const items: MenuItemConstructorOptions[] = [
+    // No explicit rebuildAppMenu() in these click handlers: every write
+    // path (menu radios, Choose Vault… dialog, CLI `duo vault default`)
+    // lands in the pref file, and installDefaultVaultPrefWatcher is the
+    // SINGLE rebuild trigger — an explicit call here would just double the
+    // rebuild ~150ms apart.
+    {
+      label: 'None',
+      type: 'radio',
+      checked: current == null,
+      click: () => {
+        vaultCore.clearDefaultVault()
+      },
+    },
+    ...roots.map(
+      (root): MenuItemConstructorOptions => ({
+        label: menuVaultLabel(root),
+        type: 'radio',
+        checked: current === root,
+        click: () => {
+          try {
+            vaultCore.setDefaultVault(root)
+          } catch {
+            // vault vanished since the menu built — the watcher-driven
+            // rebuild self-heals (listKnownVaults drops the dead entry);
+            // worst case (no write → no event) the radios refresh on the
+            // next focus-driven rebuild.
+          }
+        },
+      }),
+    ),
+    { type: 'separator' },
+    {
+      label: 'Choose Vault…',
+      click: () => {
+        void chooseDefaultVaultViaDialog()
+      },
+    },
+  ]
+  return items
+}
+
+async function chooseDefaultVaultViaDialog(): Promise<void> {
+  const win = windowByIdOrPrimary(focusedWindowId())
+  if (!win || win.isDestroyed()) return
+  const result = await dialog.showOpenDialog(win, {
+    title: 'Choose Default Vault',
+    message: 'Pick a folder containing an .obsidian/ directory',
+    properties: ['openDirectory'],
+  })
+  if (result.canceled || result.filePaths.length === 0) return
+  const picked = result.filePaths[0]
+  try {
+    vaultCore.setDefaultVault(picked)
+    // No rebuildAppMenu() — the pref-file write just made fires the
+    // watcher, the single rebuild trigger (see buildDefaultVaultSubmenu).
+  } catch {
+    // No write happened, so no rebuild is needed — nothing changed.
+    await dialog.showMessageBox(win, {
+      type: 'warning',
+      message: 'Not a vault',
+      detail: `${picked} has no .obsidian/ directory. Ask Claude to run \`duo vault init\` there first, or pick an existing vault.`,
+    })
+  }
+}
+
+// ENH-208 — `duo vault default <path>` can rewrite the pref from any
+// terminal while the app runs. Watch the pref's directory (the write is an
+// atomic tmp+rename, so watching the file itself would drop the inode) and
+// rebuild the menu so the radios reflect a CLI write without waiting for
+// the next focus-driven rebuild. This watcher is the SINGLE rebuild
+// trigger for ALL pref writers — the menu/dialog click handlers don't call
+// rebuildAppMenu() themselves (that doubled every rebuild ~150ms apart).
+function installDefaultVaultPrefWatcher(): void {
+  try {
+    const prefDir = nodePath.dirname(vaultCore.DEFAULT_VAULT_FILE)
+    const prefName = nodePath.basename(vaultCore.DEFAULT_VAULT_FILE)
+    // Ensure the dir exists before watching: on a fresh machine the first
+    // ever pref write creates it, and fs.watch on a missing dir would
+    // throw — silently losing the single trigger for that first write.
+    fsMkdirSync(prefDir, { recursive: true })
+    let timer: NodeJS.Timeout | null = null
+    fsWatchSync(prefDir, (_event, name) => {
+      if (name !== prefName) return
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => void rebuildAppMenu(), 150)
+    })
+  } catch {
+    // best-effort: without the watcher the menu still refreshes on focus
+  }
 }
 
 // ENH-167 — set the window title from the active workspace pointer.

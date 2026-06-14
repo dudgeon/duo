@@ -5,6 +5,13 @@
 // `[[<basename>]]`; the existing WikilinkDecorations plugin (Sprint
 // 8) handles rendering + cmd+click navigation post-insertion.
 //
+// ENH-208 Phase 2 (D4) — when the typed query names no existing note
+// (and the vault root is known), a synthetic final row offers
+// `New: "<query>" — pick type…`. Picking it inserts the wikilink
+// exactly like a normal pick, then hands the name + the caret rect to
+// `onCreateStub` so the host (MarkdownEditor) can open the
+// TypePickerPopover. The caret never leaves the note.
+//
 // Architecture: TipTap Extension wrapping the first-party Suggestion
 // utility. The renderer state (popover items, active idx) lives in a
 // ReactRenderer-mounted SuggestionPopover; the extension is purely
@@ -27,11 +34,14 @@ import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion
 const WIKILINK_SUGGESTION_KEY = new PluginKey('wikilinkSuggestion')
 import {
   SuggestionPopover,
+  ITEM_LIMIT_VISIBLE,
+  type SuggestionItem,
   type SuggestionPopoverHandle,
   type SuggestionPopoverProps
 } from '../primitives/SuggestionPopover'
 import type { VaultFile } from '../wikilinkResolver'
 import { findWikilinkMatch } from './suggestionMatchers'
+import { isCreateNoteItem, withCreateNoteRow, type CreateNoteItem } from './createNoteRow'
 
 export interface WikilinkSuggestionOptions {
   /** Returns the current vault file list. Called once per trigger
@@ -46,6 +56,15 @@ export interface WikilinkSuggestionOptions {
   /** Filter + rank the items against the query. Defaults to
    *  `rankVaultFiles` from vaultIndex.ts; tests can swap. */
   rank: (items: VaultFile[], query: string) => VaultFile[]
+  /** ENH-208 D4 — the host's vault root (null when the active file
+   *  isn't in a vault). Read through a ref closure like getItems so
+   *  the static extension list sees fresh values. The create row is
+   *  only offered when this returns non-null. */
+  getVaultRoot?: () => string | null
+  /** ENH-208 D4 — fired AFTER the create row's wikilink insert, with
+   *  the stub name + the post-insert caret rect (null if the rect
+   *  couldn't be measured). The host opens the TypePickerPopover. */
+  onCreateStub?: (payload: { name: string; rect: DOMRect | null }) => void
 }
 
 export const WikilinkSuggestion = Extension.create<WikilinkSuggestionOptions>({
@@ -88,7 +107,21 @@ export const WikilinkSuggestion = Extension.create<WikilinkSuggestionOptions>({
           // vault files" state.
           if (query.includes(']')) return []
           const all = opts.getItems()
-          return opts.rank(all, query)
+          // D4 — offer the `New: "<query>"…` row when nothing in the
+          // index has this basename and we know where a stub would go.
+          // Suppressed mid-walk too: an incomplete index can't answer
+          // "does this note exist", and offering New: for an existing
+          // note would mislead (the stub itself is idempotent, so the
+          // damage would be cosmetic — but don't offer it). The row pins
+          // inside the popover's render window (ITEM_LIMIT_VISIBLE) so a
+          // many-match query can't push the entry point off-screen.
+          return withCreateNoteRow(
+            opts.rank(all, query),
+            all,
+            query,
+            !!opts.getVaultRoot?.() && !(opts.isLoading?.() ?? false),
+            ITEM_LIMIT_VISIBLE
+          )
         },
 
         // Replace `[[<query>` with `[[<basename>]]`. The matcher's
@@ -96,13 +129,31 @@ export const WikilinkSuggestion = Extension.create<WikilinkSuggestionOptions>({
         // [from, to] cleanly swaps the user's in-progress trigger
         // for the canonical wikilink form.
         command: ({ editor, range, props }) => {
-          const item = props as VaultFile
-          const insert = `[[${item.basename}]]`
+          const item = props as VaultFile | CreateNoteItem
+          // D4 — the create row inserts `[[<query>]]` with the SAME
+          // range mechanics as a normal pick (caret lands after the
+          // closing brackets), then asks the host to open the type
+          // picker anchored at that caret.
+          const insert = isCreateNoteItem(item)
+            ? `[[${item.query}]]`
+            : `[[${item.basename}]]`
           editor
             .chain()
             .focus()
             .insertContentAt({ from: range.from, to: range.to }, insert)
             .run()
+          if (isCreateNoteItem(item)) {
+            let rect: DOMRect | null = null
+            try {
+              // coordsAtPos gives viewport coords for the post-insert
+              // caret — the anchor the TypePickerPopover positions on.
+              const c = editor.view.coordsAtPos(editor.state.selection.from)
+              rect = new DOMRect(c.left, c.top, 0, c.bottom - c.top)
+            } catch {
+              rect = null
+            }
+            opts.onCreateStub?.({ name: item.query, rect })
+          }
         },
 
         render: () => {
@@ -121,7 +172,7 @@ export const WikilinkSuggestion = Extension.create<WikilinkSuggestionOptions>({
             component = new ReactRenderer(SuggestionPopover, {
               props: {
                 items: props.items,
-                command: (item: VaultFile) => props.command(item),
+                command: (item: SuggestionItem) => props.command(item),
                 clientRect: props.clientRect ?? null,
                 loading: opts.isLoading?.() ?? false,
                 visible: true
@@ -143,7 +194,7 @@ export const WikilinkSuggestion = Extension.create<WikilinkSuggestionOptions>({
               // popover dismiss IMMEDIATELY on Escape.
               component?.updateProps({
                 items: props.items,
-                command: (item: VaultFile) => props.command(item),
+                command: (item: SuggestionItem) => props.command(item),
                 clientRect: props.clientRect ?? null,
                 loading: opts.isLoading?.() ?? false,
                 visible: !dismissed

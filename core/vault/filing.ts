@@ -42,6 +42,37 @@ export function stubPathFor(template: TypeTemplate, name: string, asOf: Date = n
   return `notes/${asOf.getFullYear()}/${pad(asOf.getMonth() + 1)}/${stem}.md`
 }
 
+export interface CreateTypeResult {
+  /** `templates/<stem>.md`, relative to the vault root. */
+  path: string
+  /** The CANONICAL type name (the normalized stem) — what stubs must use. */
+  type: string
+}
+
+/**
+ * Create a new soft-schema type: writes `templates/<stem>.md` with the type
+ * stamped (minimal — no folder/filingParent, so fresh stubs of the type
+ * land in the notes/YYYY/MM time-bucket, the D19 residue). Idempotent like
+ * createEntityStub: an existing template is left untouched.
+ *
+ * Returns the CANONICAL type name — callers must stub with `type` from the
+ * result, not their raw input: createEntityStub matches template types
+ * strictly, so a raw "Decision Log" against the normalized "decision log"
+ * template would dead-end on `unknown type` forever. Throws when the name
+ * normalizes to nothing.
+ */
+export function createType(root: string, type: string): CreateTypeResult {
+  const stem = safeName(type).toLowerCase()
+  if (!stem) throw new Error('empty type name')
+  const rel = `templates/${stem}.md`
+  const abs = path.join(root, rel)
+  if (!fs.existsSync(abs)) {
+    fs.mkdirSync(path.dirname(abs), { recursive: true })
+    fs.writeFileSync(abs, `---\ntype: ${stem}\n---\n`)
+  }
+  return { path: rel, type: stem }
+}
+
 export interface StubResult {
   /** Path relative to the vault root. */
   path: string

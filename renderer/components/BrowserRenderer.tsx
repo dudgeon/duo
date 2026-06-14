@@ -168,15 +168,22 @@ export function BrowserRenderer({ onSendToDuo, pillLabel }: BrowserRendererProps
   // ENH-028 — find-in-page state lives in the renderer; main owns the
   // actual webContents.findInPage call. ⌘F (forwarded as the
   // `duo-browser-find-open` window event by App.tsx when the active
-  // surface is the browser) opens the bar; ⎋ closes it; ⌘G / ⌘⇧G
-  // navigate. Match counts arrive via onFindResult from main.
+  // surface is the browser) opens the bar; ⎋ closes it; ⌘G / Enter =
+  // next; ⇧Enter in the bar = previous — the ONLY find-previous here,
+  // a deliberate asymmetry vs the editor/canvas bars (which also keep
+  // input-local ⌘⇧F; over the browser, ⌘⇧F opens the vault-search
+  // palette — FOLLOWUP-047). Match counts arrive via onFindResult
+  // from main.
   const [findOpen, setFindOpen] = useState(false)
   const [findQuery, setFindQuery] = useState('')
   const [findResult, setFindResult] = useState<BrowserFindResult | null>(null)
   const findInputRef = useRef<HTMLInputElement | null>(null)
 
-  // Open / focus / close hooks. App.tsx dispatches these on ⌘F /
-  // ⌘G / ⌘⇧G when the working pane's active surface is the browser.
+  // Open / focus / close hooks. App.tsx dispatches these on ⌘F / ⌘G
+  // when the working pane's active surface is the browser. (The
+  // `duo-browser-find-prev` listener below is orphaned — nothing
+  // dispatches it since the global find-prev chord was retired; its
+  // removal is FOLLOWUP-047.)
   useEffect(() => {
     const onOpen = () => {
       setFindOpen(true)

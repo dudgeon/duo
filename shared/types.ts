@@ -1784,6 +1784,18 @@ export const IPC = {
   // extension. Lives in main because nativeImage is main-only.
   FILES_CONVERT_IMAGE_BYTES: 'files:convert-image-bytes',
 
+  // ENH-208 Phase 2 — vault UI. The renderer affordances (⇧⌘N quick-capture,
+  // the ⌘⇧F vault-search palette, the silent-stub type-picker) call main,
+  // which runs the SAME core/vault code paths as the `duo vault
+  // capture|search|stub` CLI verbs — no logic duplication, byte-identical
+  // artifacts. Vault resolution for UI surfaces is default-vault-first
+  // (D11/D22): see core/vault `resolveVaultForUi`.
+  VAULT_CAPTURE: 'vault:capture',
+  VAULT_SEARCH: 'vault:search',
+  VAULT_STUB: 'vault:stub',
+  VAULT_TYPES: 'vault:types',
+  VAULT_CREATE_TYPE: 'vault:create-type',
+
   // Stage 24 — pinned WorkingPane tabs persisted to ~/.claude/duo/pins.json.
   PINS_LIST: 'pins:list',
   PINS_TOGGLE: 'pins:toggle',
