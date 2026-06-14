@@ -3,6 +3,18 @@
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
 
+### BUG-205: New-terminal (+) button tooltip claims the navigator cwd but spawns in the active terminal's cwd
+
+**Status:** 🆕 Filed 2026-06-14 (discovered while building ENH-210 smoke-walk fixtures). **Priority:** P3 (pre-existing; tooltip/behavior mismatch, not a crash). **Effort:** S.
+
+**Symptom.** The terminal strip's `+` / `>` split-button tooltip reads "New shell tab (⌘⇧T) in `<navigator cwd>`", but clicking it opens the terminal in the **active terminal's live cwd**, not the navigator cwd. Reproduced during the ENH-210 walk: nav at `~/duo-wt-demo--ui`, tooltip said `…/duo-wt-demo--ui`, but the spawned tab landed in `stoop` (the active tab's cwd). Workaround used in the smoke walk: navigator folder right-click → "Open terminal here" (deterministically opens in that folder).
+
+**Likely cause.** `pendingCwd` (the tooltip source, `computePendingCwd`) and the actual new-terminal cwd resolution in `App.tsx` (`onNewClaude`/`onNewShell`) diverge — the tooltip reads nav-derived pendingCwd while the spawn falls back to the active tab's live cwd. Pick one source of truth (probably: honor pendingCwd so the tooltip is accurate, or fix the tooltip to show the active-tab cwd).
+
+**Cross-refs.** `renderer/App.tsx` (`onNewClaude`/`onNewShell`, pendingCwd), `renderer/components/TabBar.tsx` (split-button tooltip), `renderer/hooks/useNavigator.ts` (`computePendingCwd`).
+
+---
+
 ### BUG-204: Navigator git ribbon (+ ENH-210 worktree dropdown) suppressed when the cwd path differs from git's resolved workTreeRoot (symlinked paths, e.g. /tmp → /private/tmp)
 
 **Status:** 🆕 Filed 2026-06-14 (discovered while building ENH-210 smoke-walk fixtures). **Priority:** P3 (edge case — symlinked repo roots; real `~/`-rooted repos unaffected). **Effort:** S.
