@@ -950,7 +950,6 @@ function WorktreesSection({
               />
             )}
             <span className="truncate flex-1">{label}</span>
-            {wt.isMain && <span className="text-[9px] uppercase tracking-wide text-ink-ghost shrink-0">main</span>}
             {wt.isCurrent && <span className="text-[9px] uppercase tracking-wide text-accent shrink-0">current</span>}
           </button>
         )
