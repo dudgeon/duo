@@ -3,6 +3,30 @@
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
 
+### BUG-206: Home rollup folds NESTED worktrees but not SIBLING worktrees (inconsistent) — should fold by git identity, not path containment
+
+**Status:** 🆕 Filed 2026-06-14 (owner-caught during the ENH-210 smoke walk). **Priority:** P2 (user-visible inconsistency in the Home view). **Effort:** M. **Parent:** ENH-212 (Home rollup); **fix substrate:** ENH-210 (`resolveWorktreeIdentity` → `mainWorktreeRoot`).
+
+**Symptom (owner, with screenshot).** In the Home view, the demo's **sibling** worktrees (`~/duo-wt-demo`, `~/duo-wt-demo--auth`) showed as **two discrete project cards**, while the `duo` repo's **nested** worktrees (`<duo>/.claude/worktrees/*`) were correctly **grouped under one "duo"** spine. Owner: *"why is this?"*
+
+**Root cause.** The rollup folds sessions by `deepestEnclosingRoot` (core/projects-service.ts) — pure **path containment**. duo's worktrees live *inside* `<duo>/` so they're enclosed → folded. The demo's worktrees are **siblings** (`git worktree add ../duo-wt-demo--auth`), not enclosed by `~/duo-wt-demo/` → each becomes its own root. The standard `git worktree add ../foo` pattern (siblings) is therefore never folded, contradicting ENH-212's intent ("worktrees fold into their main repo").
+
+**Fix direction.** Fold by **git worktree identity**, not path nesting: resolve each candidate root's `mainWorktreeRoot` (ENH-210's `resolveWorktreeIdentity`, already shipped) and group all worktrees of a repo under that main checkout regardless of where the worktree dir lives. This is the integration the ENH-210 planning workflow flagged ("ENH-212's folding could consume resolveWorktreeIdentity"). Cross-check the rail too (memory: project_home_rollup_must_match_rail — rail + Home must agree).
+
+**Cross-refs.** `core/projects-service.ts` (`deepestEnclosingRoot`), `renderer/hooks/useProjects.ts`, `renderer/components/Home/*`, ENH-212 (parent), `core/git/worktree.ts` (`resolveWorktreeIdentity` — the fix substrate).
+
+---
+
+### ENH-219: "Copy path" (+ shown path) should indicate when a file is inside a git worktree
+
+**Status:** 🆕 Filed 2026-06-14 (owner note during ENH-210 smoke walk, non-blocking). **Priority:** P3. **Effort:** S.
+
+**Ask (owner).** Right-click a file → "Copy path": the copied/shown path carries no signal that the file lives in a linked worktree (vs the main checkout). With ENH-210 making worktrees first-class, the path surfaces should hint provenance too — e.g. annotate the copied path, or add a "Copy path (worktree-relative)" / a provenance line. Revisit the exact treatment.
+
+**Cross-refs.** `renderer/components/FileTree.tsx` (copy-path menu item), ENH-210 (`resolveWorktreeIdentity` for the worktree check).
+
+---
+
 ### BUG-205: New-terminal (+) button tooltip claims the navigator cwd but spawns in the active terminal's cwd
 
 **Status:** 🆕 Filed 2026-06-14 (discovered while building ENH-210 smoke-walk fixtures). **Priority:** P3 (pre-existing; tooltip/behavior mismatch, not a crash). **Effort:** S.
@@ -201,7 +225,7 @@ The ENH-208 D22 re-pick retired the GLOBAL ⌘⇧F find-previous dispatch (the c
 - ~~D1-part2 Thread A~~ ✅ **implemented (commit f6fe51a):** "open worktree in new window" via the dropdown button + `duo window new --cwd <path>` (initialCwd threaded CLI→main→preload→useNavigator with forceInitial over stale per-window LS). Verified: windows rooted at enh-208-vault (CLI) + distracted-kilby (button).
 - ~~D1-part2 Thread B~~ ✅ **implemented (commit 968cd8b):** owner greenlit; driver = **navigator cwd** (locked). Titlebar shows a hue+repo·⎇branch chip ONLY for linked worktrees; main/non-repo = no chip (main uncolored, locked). Glance value is cross-window. Verified: enh-208-vault → iris chip; main → none.
 
-**ENH-210 is now feature-complete for v1.** Remaining: owner smoke-walk + cut; rebase onto main once `hungry-yalow` lands (trivial — tasks.md + cli/duo binary). Deferred follow-ons (tracked, not v1): D5-C lifecycle verbs (gated on evidence), D4 full keyboard nav, live-cwd-follow for badges, dirty/ahead on terminal tabs.
+**ENH-210 is feature-complete + SMOKE-WALKED (v0.10.4, 2026-06-14): 6 PASS / 1 SKIP** (SKIP = WT-CLI, agent-pre-walked). All UI surfaces validated by owner on the `~/duo-wt-demo` fixture: nav dropdown, titlebar chip, working-pane badge, terminal-tab chip, open-in-window, and the make-a-new-worktree procedure (git + live detection, no restart). Rebased onto main (v0.10.4) — clean. **Ready to cut.** Follow-ups filed from the walk: **BUG-206** (Home rollup doesn't fold sibling worktrees — fix via ENH-210's `mainWorktreeRoot`), **ENH-219** (copy-path worktree indicator), plus **BUG-204** (ribbon hidden on symlinked repo paths) + **BUG-205** (new-terminal tooltip vs cwd) found during fixture setup. Deferred follow-ons (tracked, not v1): D5-C lifecycle verbs (gated on evidence), D4 full keyboard nav, live-cwd-follow for badges, dirty/ahead on terminal tabs.
 
 **Original remaining line (superseded):** D1-part2 "open worktree in window" (Thread A only; titlebar chip Thread B split out + owner-gated).
 
