@@ -3,6 +3,18 @@
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
 
+### BUG-204: Navigator git ribbon (+ ENH-210 worktree dropdown) suppressed when the cwd path differs from git's resolved workTreeRoot (symlinked paths, e.g. /tmp → /private/tmp)
+
+**Status:** 🆕 Filed 2026-06-14 (discovered while building ENH-210 smoke-walk fixtures). **Priority:** P3 (edge case — symlinked repo roots; real `~/`-rooted repos unaffected). **Effort:** S.
+
+**Symptom.** A repo whose path is a symlink (macOS `/tmp` → `/private/tmp`) renders **no git ribbon** in the navigator — so the ENH-210 worktree switcher (which hangs off the ribbon) is also unreachable there. The titlebar worktree chip + `duo worktree` still work (they key off `git.status`, which resolves fine). Verified: a demo repo at `/tmp/wt-demo--auth` showed no ribbon; the identical repo at `~/duo-wt-demo--auth` showed it correctly.
+
+**Root cause (likely).** The BUG-135 ribbon-suppression heuristic (`ribbonSuppressed` / `isInRepo` in `FileTree.tsx`) compares the nav `state.cwd` string against `gitSnap.workTreeRoot`. git returns the *resolved* root (`/private/tmp/...`) while the nav cwd keeps the symlinked form (`/tmp/...`), so the "is the repo root at/above cwd" check fails and suppresses the ribbon. Fix: normalize both through `fs.realpath` (or compare resolved paths) before the strictness check.
+
+**Cross-refs.** `renderer/components/FileTree.tsx` (`ribbonSuppressed`/`isInRepo`, BUG-135), ENH-210 (the dropdown rides the ribbon).
+
+---
+
 ### ENH-217: Manual refresh button in the Home view
 
 **Status:** 📋 Backlog (non-blocking — logged 2026-06-13 during the ENH-212
