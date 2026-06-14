@@ -680,12 +680,12 @@
   </div>
 </article>
 
-<article class="item" data-keys="home session click open focus existing terminal tab raise window never duplicate closed resume claude --resume uuid current window project cwd evidence-gated lsof pointer enh-212">
+<article class="item" data-keys="home session click open running fork external focus existing terminal tab raise window never duplicate closed resume claude --resume uuid fork-session current window project cwd process-primary live claude pid expand collapsed enh-212">
   <div class="num">120</div>
   <div>
     <h3>Click a session on Home to jump back into it</h3>
-    <p class="why">Click a session row on Home and Duo does the right thing. If a live terminal tab already hosts that session (proven by its PTY cwd + the persisted session pointer — never guessed from a recent-file timestamp), Duo <strong>focuses</strong> that existing tab, raising its window if it lives in another one — it never spawns a duplicate. If the session is closed, Duo opens a new terminal tab in the current window running <code>claude --resume &lt;uuid&gt;</code> at the project root, so you land back in the conversation.</p>
-    <p class="how"><strong>UI</strong>Click any session row (or its green <code>open</code> pill) on a Home hero. <strong>CLI</strong><code>duo session open &lt;uuid&gt; [--cwd &lt;path&gt;]</code> — same contract: focus-if-open, else resume in a new tab. Returns <code>{ ok, action: 'focus'|'resume' }</code>.</p>
+    <p class="why">Click a session row on Home and Duo does the right thing — and never silently duplicates a running conversation. Detection is <strong>process-primary</strong>: a live <code>claude</code> process, traced up to its owning Duo terminal, is ground truth (not a guessed file timestamp). A session hosted in a Duo terminal shows an <code>open</code> pill → clicking <strong>focuses</strong> that tab, raising its window if it's elsewhere. A session running <em>outside</em> Duo (another terminal, the desktop app) shows a <code>running</code> pill → clicking offers to <strong>fork</strong> it (<code>claude --resume &lt;uuid&gt; --fork-session</code>, a new branched session id, so the original transcript isn't clobbered). A closed session has no pill → clicking opens a new terminal running <code>claude --resume &lt;uuid&gt;</code> at the session's recorded cwd. Either way, if your terminal pane was collapsed, it expands so you can see the session.</p>
+    <p class="how"><strong>UI</strong>Click any session row (or its pill) on a Home hero; the <code>running</code> → fork path confirms first. <strong>CLI</strong><code>duo session open &lt;uuid&gt; [--cwd &lt;path&gt;] [--force]</code> — same contract: focus-if-open, refuse-or-<code>--force</code>-fork if running elsewhere, else resume in a new tab. Returns <code>{ ok, action: 'focus'|'resume'|'fork' }</code>.</p>
   </div>
 </article>
 
@@ -1269,7 +1269,7 @@
 </article>
 
 <footer>
-  <p>This is Duo v0.10.2. Last updated 2026-06-12. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
+  <p>This is Duo v0.10.3. Last updated 2026-06-14. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
   <p style="margin-top:6px; color: var(--ink-ghost); font-size: 11px;">Find an item that should be here? Tell Claude — the cut-version skill updates this file with each release.</p>
 </footer>
 

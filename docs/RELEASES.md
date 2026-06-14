@@ -21,7 +21,21 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.10.2 cut 2026-06-12)*
+> *(empty — v0.10.3 cut 2026-06-14)*
+
+---
+
+## v0.10.3 — 2026-06-14 — Home: the default re-entry screen
+
+**Why this lands here.** ENH-212 is the one feature in this cut, and it's a foundational surface, so it ships on its own as a patch on top of v0.10.2's vault work. Duo users accumulate hundreds of Claude sessions across 6–12 projects; the active-project rail covers what you're in *now*, but there was no good way back into the *inactive* ones. Home fills that: the most-recent projects up top with their last few sessions and recently-edited files, a spine for the rest, and one-click re-entry that focuses a live session or resumes a closed one. It's v0.10.3 (a patch) rather than v0.11.0 by owner call — Home completes the re-entry story the multi-window/rail work opened, rather than starting a new chapter.
+
+**Key decisions baked in.**
+- **Open-detection is process-primary.** A live `claude` process, walked up its parent chain to the owning Duo PTY, is ground truth — not the laggy `lastClaudeSession` pointer. So a running session earns a focusable pill within seconds, and the never-fork guarantee re-checks liveness at *click* time: a Duo-hosted session focuses, an external one refuses-or-forks, only a genuinely-closed one spawns.
+- **No sidecar.** Every snapshot reads the JSONL transcripts live (ENH-183 D9); the only thing persisted is window layout. The project rollup folds worktrees/subdirs into their *deepest* enclosing git-root/marker, matching the project rail (the literal D8 "outermost" wording was degenerate in practice — it collapsed every home-dir session into one bucket).
+- **Fork is a real fork.** Clicking a session running *outside* Duo runs `claude --resume <uuid> --fork-session` — a new branched session id — so you never get two processes writing one transcript. Plain resume (closed sessions) continues in place. Both routes share one `buildResumeCommand` helper so the UI and the `duo session open` CLI verb can't drift.
+- **Titles reuse the resume-picker ladder.** customTitle (/rename) → aiTitle (Claude's auto-summary) → first prompt → uuid — identical to `duo session list` and Claude's own picker; there is no concise summary beyond ai-title, so first-prompt titles are simply un-auto-titled recent sessions.
+
+**What this is and isn't.** It's the re-entry *surface*, not a session manager — no rename / delete / search from Home yet, and the refresh is automatic (30s poll + events) with a manual refresh button queued as ENH-217. The design trail (three UI studies → the "Two-Up Spread" winner) and the full PRD (`docs/prd/enh-212-home.md`) live in the repo. Two fixes from the owner walk shipped with it: forking now branches a new session (was a plain resume that clobbered the original), and opening/resuming a session expands the terminal pane if it was collapsed.
 
 ---
 

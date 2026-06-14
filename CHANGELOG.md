@@ -19,7 +19,12 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.10.2 cut 2026-06-12.
+> Empty — v0.10.3 cut 2026-06-14.
+
+## [0.10.3] — 2026-06-14 — Home: the default project/session re-entry screen
+
+### Added
+- **Home — a default re-entry screen for inactive projects + sessions (ENH-212, PR #94).** A permanent, non-closable **Home** tab (slot 0, synthesized every boot, never persisted) for jumping back into projects you're *not* actively in (the project rail covers the active ones). It shows a serif greeting (your macOS first name + open-session count + the freshest thread, clickable), **two hero panels** for the most-recent projects — session rows, recent-file chips, and each project's last Claude response as an indented **"Last" reply** under its source row — and a compact **spine** of the remaining projects that expands its sessions in place. Open sessions carry a focusable pill (click → **focus** the hosting terminal/window, never a duplicate); sessions running *outside* Duo carry a "running" pill (click → **fork** with a warning — `claude --resume <uuid> --fork-session`, a new branched session id, so the original transcript isn't clobbered); closed sessions **resume** in a new terminal (which expands the terminal pane if it was collapsed). Detection is **process-primary** (a live `claude` process walked to its owning Duo PTY is ground truth) and every snapshot reads the JSONL transcripts **live** — no sidecar cache (ENH-183 D9). CLI parity: `duo home [show|state|refresh]`, `duo session open <uuid> [--cwd] [--force]`, `duo term tabs|tab <id>|close <id> [--force]`.
 
 ## [0.10.2] — 2026-06-12 — Vault capture UX (ENH-208 Phase 2) · suggesting-mode inline-code fix · review-hardened
 
@@ -1945,7 +1950,8 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.10.1...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.10.3...HEAD
+[0.10.3]: https://github.com/dudgeon/duo/compare/v0.10.2...v0.10.3
 [0.10.2]: https://github.com/dudgeon/duo/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/dudgeon/duo/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/dudgeon/duo/compare/v0.9.2...v0.10.0
