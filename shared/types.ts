@@ -1798,6 +1798,19 @@ export const IPC = {
   VAULT_STUB: 'vault:stub',
   VAULT_TYPES: 'vault:types',
   VAULT_CREATE_TYPE: 'vault:create-type',
+  // ENH-216 (VAULT MODE) — File → New Vault… dialog. The renderer
+  // collects { folder, name?, format } and calls VAULT_CREATE; main
+  // scaffolds the OKF or Obsidian vault via the SAME core/vault code
+  // the `duo vault init` CLI verb runs. VAULT_CREATE_PICK_DIR opens a
+  // native directory picker for the dialog's "Choose folder…" button
+  // (returns the chosen path or null on cancel). The `duo vault init`
+  // CLI verb stays in-CLI (no new DuoCommandName — D1/D2).
+  VAULT_CREATE: 'vault:create',
+  VAULT_CREATE_PICK_DIR: 'vault:create-pick-dir',
+  // ENH-216 — renderer mode probe (U7 consumer): reads the in-vault
+  // marker as the source of truth (D4) and returns 'okf' | 'obsidian'
+  // | null.
+  VAULT_DETECT: 'vault:detect',
 
   // Stage 24 — pinned WorkingPane tabs persisted to ~/.claude/duo/pins.json.
   PINS_LIST: 'pins:list',
@@ -2222,6 +2235,11 @@ export const IPC = {
   // menu item). Main echoes via NAV_OPEN_CLONE_MODAL with the same
   // payload so App.tsx's subscriber handles both paths uniformly.
   NAV_OPEN_CLONE_MODAL_REQUEST: 'nav:open-clone-modal-request',
+  // ENH-216 (VAULT MODE) — main → renderer push from the File → New
+  // Vault… menu entry. Renderer opens the New Vault dialog (OKF the
+  // default format — D2). Mirrors NAV_OPEN_CLONE_MODAL's menu-trigger
+  // pattern.
+  NAV_OPEN_NEW_VAULT_MODAL: 'nav:open-new-vault-modal',
 
   // ENH-183 C5 — read banner title + user-message-count from the
   // Claude JSONL store. Renderer → main; main consults JSONL only

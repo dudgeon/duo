@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>OKF vault mode — PRD &amp; decisions</title>
+<style>
+/* duo-atelier.css — canonical Atelier kernel for Duo HTML playgrounds. */
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+  --project-pine:   #2E7D74;
+  --project-harbor: #3C6E93;
+  --project-iris:   #5B57A6;
+  --project-plum:   #87508F;
+  --project-rose:   #A4506A;
+  --project-moss:   #69763A;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+body { padding: 32px 40px 96px; max-width: 920px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px;
+}
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill {
+  display: inline-block; padding: 2px 8px; border-radius: 10px;
+  background: var(--accent-soft); color: var(--accent);
+  font-weight: 600; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.04em; margin-right: 6px;
+}
+.intro {
+  background: var(--paper-deep); border: 1px solid var(--paper-rule);
+  border-radius: 6px; padding: 14px 18px; margin-bottom: 28px;
+  font-size: 13.5px; color: var(--ink-soft);
+}
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 600; margin: 36px 0 12px; font-size: 19px;
+  border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px;
+}
+h2 .sec-num { color: var(--accent); font-style: normal; font-size: 15px; margin-right: 8px; }
+h3 { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+h4 { margin: 16px 0 6px; font-size: 13.5px; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px;
+  background: var(--paper-deep); padding: 1px 5px; border-radius: 3px;
+}
+pre {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px; line-height: 1.5;
+  background: var(--code-bg); color: var(--code-ink);
+  padding: 14px 16px; border-radius: 6px; overflow-x: auto;
+}
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+.decision-card {
+  background: var(--paper-deep); border: 1.5px solid var(--paper-rule);
+  border-radius: 6px; padding: 16px 18px; margin: 18px 0 28px;
+  box-shadow: 0 1px 0 var(--paper-edge);
+}
+.decision-card .q-title {
+  font-weight: 700; font-size: 13px; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px;
+}
+.decision-card .q-prompt {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 500; font-size: 17px; color: var(--ink);
+  margin: 0 0 12px; line-height: 1.35;
+}
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option {
+  display: block; background: var(--paper);
+  border: 1.5px solid var(--paper-rule); border-radius: 5px;
+  padding: 10px 12px; cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--paper));
+}
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag {
+  font-size: 10px; background: var(--accent-soft); color: var(--accent);
+  text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em;
+  padding: 1px 6px; border-radius: 8px; margin-left: 6px;
+}
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes {
+  width: 100%; background: var(--paper); border: 1px solid var(--paper-rule);
+  border-radius: 4px; padding: 8px 10px; font-family: inherit;
+  font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px;
+}
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+details.deferred {
+  margin: 22px 0; padding: 12px 16px; background: var(--paper-deep);
+  border: 1px dashed var(--paper-rule); border-radius: 6px;
+}
+details.deferred summary { cursor: pointer; font-weight: 600; color: var(--ink-soft); font-size: 13.5px; }
+details.deferred[open] summary { color: var(--ink); }
+details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(--ink-soft); }
+.copy-bar {
+  position: sticky; bottom: 0; margin: 32px -40px -96px;
+  padding: 16px 40px;
+  background: color-mix(in srgb, var(--paper-deep) 96%, transparent);
+  border-top: 1.5px solid var(--paper-rule);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+}
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button {
+  background: var(--accent); color: white; border: none; border-radius: 5px;
+  padding: 9px 18px; font-family: inherit; font-size: 13.5px;
+  font-weight: 600; cursor: pointer; transition: background 0.12s;
+}
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* — Per-playground styles — */
+table.locked { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13px; }
+table.locked th, table.locked td {
+  border: 1px solid var(--paper-rule); padding: 7px 10px;
+  text-align: left; vertical-align: top;
+}
+table.locked th { background: var(--paper-deep); font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-mute); }
+table.locked td:first-child { font-weight: 600; white-space: nowrap; }
+
+pre.diagram { line-height: 1.5; }
+pre.diagram .note { color: #9a8f6e; font-style: italic; }
+pre.diagram .hot { color: #f4b96a; }
+pre.diagram .obs { color: #8fb3d9; }
+pre.diagram .okf { color: #9bd29a; }
+
+.option-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 14px 0; }
+.option-cards.two { grid-template-columns: repeat(2, 1fr); }
+.option-card {
+  background: var(--paper); border: 1.5px solid var(--paper-rule);
+  border-radius: 6px; padding: 12px 14px; font-size: 12.5px;
+}
+.option-card.recommended { border-color: var(--accent); }
+.option-card h4 { margin: 0 0 6px; font-size: 13px; }
+.option-card .badge {
+  font-size: 9.5px; background: var(--accent-soft); color: var(--accent);
+  text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em;
+  padding: 1px 6px; border-radius: 8px; margin-left: 4px; vertical-align: middle;
+}
+.option-card p { margin: 5px 0; color: var(--ink-soft); font-size: 12px; }
+.option-card .pro { color: var(--pass); }
+.option-card .con { color: var(--fail); }
+
+/* Editor / popover flow mock */
+.flow-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 14px 0; }
+.flow-step { background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 6px; overflow: hidden; }
+.flow-step .step-label {
+  background: var(--paper-deep); padding: 5px 10px; font-size: 11px;
+  font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-mute);
+  border-bottom: 1px solid var(--paper-rule);
+}
+.flow-step .step-body { padding: 12px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; min-height: 140px; position: relative; }
+.flow-step .caret { display: inline-block; width: 2px; height: 14px; background: var(--accent); vertical-align: text-bottom; animation: blink 1.1s step-end infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.flow-step .wikilink { color: var(--project-harbor); }
+.flow-step .mdlink { color: var(--project-moss); }
+.type-picker {
+  position: absolute; left: 18px; top: 50px;
+  background: white; border: 1px solid var(--paper-rule); border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(43,38,32,0.18);
+  font-family: -apple-system, system-ui, sans-serif; font-size: 12px;
+  min-width: 168px; overflow: hidden;
+}
+.type-picker .tp-head { padding: 6px 10px; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-ghost); border-bottom: 1px solid var(--paper-edge); }
+.type-picker .tp-row { padding: 6px 10px; display: flex; justify-content: space-between; }
+.type-picker .tp-row.sel { background: var(--accent); color: white; }
+.type-picker .tp-row .folder { color: var(--ink-ghost); font-size: 11px; }
+.type-picker .tp-row.sel .folder { color: rgba(255,255,255,0.75); }
+.toast {
+  margin-top: 10px; background: var(--paper-deep); border: 1px solid var(--paper-rule);
+  border-left: 3px solid var(--pass); border-radius: 4px; padding: 7px 10px;
+  font-family: -apple-system, system-ui, sans-serif; font-size: 11.5px; color: var(--ink-soft);
+}
+
+/* Render matrix */
+table.matrix { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 12.5px; }
+table.matrix th, table.matrix td { border: 1px solid var(--paper-rule); padding: 8px 10px; text-align: center; vertical-align: middle; }
+table.matrix th { background: var(--paper-deep); font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-mute); }
+table.matrix td.syntax { text-align: left; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; white-space: nowrap; }
+.chip-yes, .chip-no { display: inline-block; padding: 1px 9px; border-radius: 9px; font-size: 11px; font-weight: 700; color: white; }
+.chip-yes { background: var(--pass); }
+.chip-no { background: var(--fail); }
+.chip-soft { display: inline-block; padding: 1px 9px; border-radius: 9px; font-size: 11px; font-weight: 700; color: var(--ink-soft); background: var(--paper-deep); border: 1px solid var(--paper-rule); }
+
+/* New-Vault dialog mock */
+.dialog-mock {
+  max-width: 460px; margin: 16px auto; background: #f4f1ea;
+  border: 1px solid var(--paper-edge); border-radius: 12px;
+  box-shadow: 0 18px 50px rgba(43,38,32,0.22); overflow: hidden;
+  font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+}
+.dialog-mock .dlg-titlebar { height: 30px; background: linear-gradient(#e9e4d8,#ded7c6); border-bottom: 1px solid var(--paper-edge); display: flex; align-items: center; padding: 0 10px; gap: 6px; }
+.dialog-mock .traffic { width: 11px; height: 11px; border-radius: 50%; }
+.dialog-mock .traffic.r { background: #ec6a5e; } .dialog-mock .traffic.y { background: #f3bf4f; } .dialog-mock .traffic.g { background: #61c554; }
+.dialog-mock .dlg-title { margin-left: 8px; font-size: 12px; font-weight: 600; color: var(--ink-mute); }
+.dialog-mock .dlg-body { padding: 18px 20px 20px; }
+.dialog-mock .field { margin-bottom: 12px; }
+.dialog-mock .field label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-mute); margin-bottom: 4px; }
+.dialog-mock .field .input { background: white; border: 1px solid var(--paper-rule); border-radius: 5px; padding: 6px 9px; font-size: 12.5px; color: var(--ink); display: flex; justify-content: space-between; align-items: center; }
+.dialog-mock .field .input .muted { color: var(--ink-ghost); }
+.dialog-mock .fmt-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-mute); margin: 6px 0 6px; }
+.fmt-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.fmt-card { background: white; border: 1.5px solid var(--paper-rule); border-radius: 7px; padding: 10px 11px; cursor: default; }
+.fmt-card.sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, white); }
+.fmt-card .fmt-head { font-size: 12.5px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 6px; }
+.fmt-card .radio-dot { width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid var(--ink-ghost); flex: 0 0 auto; position: relative; }
+.fmt-card.sel .radio-dot { border-color: var(--accent); }
+.fmt-card.sel .radio-dot::after { content: ""; position: absolute; inset: 2.5px; border-radius: 50%; background: var(--accent); }
+.fmt-card .fmt-tag { font-size: 9px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 5px; border-radius: 7px; }
+.fmt-card .fmt-desc { font-size: 11px; color: var(--ink-soft); line-height: 1.4; margin-top: 6px; }
+.fmt-card .fmt-disk { font-size: 10.5px; font-family: ui-monospace, Menlo, monospace; color: var(--ink-mute); margin-top: 6px; background: var(--paper-deep); border-radius: 4px; padding: 4px 6px; }
+.dialog-mock .dlg-foot { display: flex; justify-content: flex-end; gap: 9px; margin-top: 16px; }
+.dialog-mock .btn { font-size: 12.5px; font-weight: 600; padding: 6px 16px; border-radius: 6px; border: 1px solid var(--paper-rule); background: white; color: var(--ink-soft); }
+.dialog-mock .btn.primary { background: var(--accent); border-color: var(--accent); color: white; }
+.menu-path { font-family: -apple-system, system-ui, sans-serif; font-size: 12px; color: var(--ink-mute); }
+.menu-path b { color: var(--ink); }
+
+.callout { background: color-mix(in srgb, var(--pass) 8%, var(--paper)); border: 1px solid color-mix(in srgb, var(--pass) 30%, var(--paper-rule)); border-left: 3px solid var(--pass); border-radius: 5px; padding: 11px 14px; margin: 14px 0; font-size: 13px; color: var(--ink-soft); }
+.callout strong { color: var(--ink); }
+
+@media (max-width: 760px) {
+  .option-cards, .option-cards.two, .flow-steps, .fmt-cards { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>OKF vault mode — PRD &amp; decisions</h1>
+  <div class="meta">
+    <span class="pill">Decision round</span>
+    <span class="pill">ENH-216</span>
+    <span class="pill">draft for sign-off</span>
+    2026-06-13 · a second at-rest serializer so Duo vaults publish to GitHub
+  </div>
+</header>
+
+<div class="intro">
+  <strong>The dilemma.</strong> Obsidian vaults are the popular format today, but the
+  highest-value future use case is knowledge bases that <strong>render and resolve on
+  github.com</strong> and in any tool — which points at standard markdown links with
+  relative paths (the shape the proposed <strong>Open Knowledge Format</strong>
+  standardizes). Duo's vault feature (ENH-208) is wired entirely to Obsidian
+  <code>[[wikilinks]]</code>, which render as <em>literal text</em> on GitHub.
+  <br><br>
+  <strong>The proposal.</strong> Add an <strong>OKF vault mode</strong> that keeps the
+  exact authoring ergonomics we have — the <code>[[ ]]</code> hotkey, the type-picker,
+  silent-stub creation — but writes <strong>standard markdown relative links</strong> at
+  rest. Format is chosen <strong>per vault</strong> (including a new <em>File ▸ New
+  Vault</em> picker), and the active vault toggles Duo between Obsidian mode and OKF mode.
+  <br><br>
+  Pick a radio per decision (they sit right next to each explanation), add notes, hit
+  <em>Copy decisions</em> at the bottom, and paste back to Claude. Recommendations are
+  tagged.
+</div>
+
+<h2><span class="sec-num">0</span>The reframe: one graph model, two serializers</h2>
+
+<p>The encouraging finding from reading the code: Duo already separates the three things
+that matter. The <strong>gesture</strong> (<code>[[</code> autocomplete + the silent-stub
+type-picker, <code>WikilinkSuggestion.ts</code>), the <strong>filing rule</strong> (where a
+new entity lands, <code>filing.ts</code> · <code>wikilinkCreate.ts</code>), and the
+<strong>at-rest syntax</strong> are distinct layers. Only the third is fused to Obsidian.</p>
+
+<p>So this is <em>not</em> a second vault system. The entity / type / edge model in
+<code>core/vault/</code> is format-agnostic; OKF mode is a <strong>second serializer +
+a second parser</strong> over the same model. Obsidian mode and OKF mode are two ways to
+write the same graph down.</p>
+
+<pre class="diagram">                    ┌───────────────────────────────┐
+   [[ gesture ]]    │   ONE graph model             │    duo vault verbs
+   type picker    → │   entities · types · edges    │ →  backlinks · schema
+   filing rules     │   <span class="note">core/vault/* — unchanged</span>     │    search · rollups
+                    └───────────────┬───────────────┘
+                          serialize │ parse
+                    ┌───────────────┴───────────────┐
+                    ▼                               ▼
+        <span class="obs">OBSIDIAN serializer</span>             <span class="okf">OKF serializer</span>
+        <span class="obs">[[Jordan Lee]]</span>                  <span class="okf">[Jordan Lee](./people/jordan-lee.md)</span>
+        <span class="obs">owner: "[[Alice]]"</span>              <span class="okf">owner: "people/alice.md"</span>
+        <span class="obs">.obsidian/ · *.base</span>             <span class="okf">index.md · log.md · okf_version</span>
+        <span class="obs">basename-resolved</span>               <span class="okf">path-resolved (Duo rewrites on move)</span>
+                    │                               │
+                    ▼                               ▼
+        opens in Obsidian               <span class="hot">renders on github.com ✓</span>
+                                        opens in Obsidian ✓  ·  any editor ✓</pre>
+
+<div class="callout">
+  <strong>Key fact that makes this worth doing:</strong> standard markdown links render in
+  <em>all three</em> targets — Duo, Obsidian, <em>and</em> github.com. Wikilinks only fail
+  on GitHub. So OKF mode is strictly more portable and <strong>still opens correctly in
+  Obsidian</strong> — the one thing it trades away is wikilink basename-resolution
+  (links surviving file moves for free), which Decision&nbsp;5 addresses head-on.
+</div>
+
+<h2><span class="sec-num">1</span>Where we are today (locked context)</h2>
+
+<table class="locked">
+  <tr><th>Aspect</th><th>Duo today (Obsidian mode)</th><th>OKF wants</th></tr>
+  <tr><td>Cross-links</td><td><code>[[wikilinks]]</code> in prose + YAML; basename-resolved</td><td>standard markdown links, path-resolved (<code>/abs</code> or <code>./rel</code>)</td></tr>
+  <tr><td>Frontmatter</td><td><code>---</code> YAML, free-string <code>type</code> (often absent)</td><td>same YAML; <code>type</code> <strong>required</strong> non-empty</td></tr>
+  <tr><td>Vault marker</td><td><code>.obsidian/</code> directory (detection gate)</td><td><code>okf_version</code> in a root <code>index.md</code></td></tr>
+  <tr><td>Rollups</td><td><code>.base</code> files → stamped HTML in <code>out/</code></td><td>(none) — <code>index.md</code> bullet listings (§6)</td></tr>
+  <tr><td>GitHub render</td><td><span class="chip-no">literal text</span> — wikilinks don't render</td><td><span class="chip-yes">clickable</span> — markdown links resolve to repo root</td></tr>
+</table>
+
+<p style="font-size:12.5px;color:var(--ink-mute)">Full alignment analysis (six dimensions,
+code-cited): the OKF gap is concentrated almost entirely in <em>link syntax</em>. Frontmatter,
+type semantics, and the directory-tree shape already align.</p>
+
+<h2><span class="sec-num">2</span>New Vault — choosing the format up front</h2>
+
+<p>You asked for a <strong>File ▸ New Vault</strong> mechanism that sets the format at
+creation. This is the natural front door: format is decided once, stamped into the vault,
+and never has to be re-detected ambiguously. The same choice is available to agents via the
+CLI for parity.</p>
+
+<p class="menu-path"><b>Duo ▸ File ▸ New Vault…</b> &nbsp;→ &nbsp;opens this dialog:</p>
+
+<div class="dialog-mock">
+  <div class="dlg-titlebar"><span class="traffic r"></span><span class="traffic y"></span><span class="traffic g"></span><span class="dlg-title">New Vault</span></div>
+  <div class="dlg-body">
+    <div class="field">
+      <label>Location</label>
+      <div class="input"><span>~/Documents/Vaults/</span><span class="muted">Choose…</span></div>
+    </div>
+    <div class="field">
+      <label>Name</label>
+      <div class="input"><span>Q3 Planning</span><span class="muted">|</span></div>
+    </div>
+    <div class="fmt-label">Format</div>
+    <div class="fmt-cards">
+      <div class="fmt-card sel">
+        <div class="fmt-head"><span class="radio-dot"></span>OKF bundle <span class="fmt-tag">default</span></div>
+        <div class="fmt-desc">Standard markdown + relative links. Renders on GitHub, opens in any editor and in Obsidian. Best for shareable / published KBs.</div>
+        <div class="fmt-disk">[Alice](./people/alice.md)<br>index.md · log.md</div>
+      </div>
+      <div class="fmt-card">
+        <div class="fmt-head"><span class="radio-dot"></span>Obsidian vault</div>
+        <div class="fmt-desc">[[wikilinks]] + .obsidian/. Max Obsidian-plugin compat; links survive moves for free. Best for a private, Obsidian-first vault.</div>
+        <div class="fmt-disk">[[Alice]]<br>.obsidian/ · *.base</div>
+      </div>
+    </div>
+    <div class="dlg-foot">
+      <span class="btn">Cancel</span><span class="btn primary">Create Vault</span>
+    </div>
+  </div>
+</div>
+
+<p style="font-size:12.5px;color:var(--ink-mute)">Creating a vault scaffolds the chosen
+serializer's marker + templates, sets it as the default/primary vault (so the editor
+immediately enters the matching mode), and records it in the known-vaults registry. CLI
+twin: <code>duo vault init &lt;path&gt; --format=okf|obsidian</code>.</p>
+
+<section class="decision-card">
+  <div class="q-title">Decision 1 · New Vault entry points</div>
+  <h3 class="q-prompt">How do you create a new vault and pick its format?</h3>
+  <p class="q-context">Per the CLI-parity rule, whatever the human can do the agent must do
+  too. The question is how much UI ships in v1.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d1" value="menu-dialog">
+      <div class="q-option-body">
+        <div class="q-option-title">File ▸ New Vault dialog + CLI flag <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">The dialog above (location · name · format picker) <em>and</em> <code>duo vault init --format</code>. Full parity, discoverable, one place to make the choice.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d1" value="cli-first">
+      <div class="q-option-body">
+        <div class="q-option-title">CLI-first (<code>duo vault init --format</code>), menu later</div>
+        <div class="q-option-rationale">Ship the flag now; add the File-menu dialog once the format model proves out. Cheapest, but no human-discoverable entry day one.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d1" value="settings">
+      <div class="q-option-body">
+        <div class="q-option-title">Settings ▸ Vaults panel (create + convert)</div>
+        <div class="q-option-rationale">A managed list where you add vaults and pick format, plus a "convert format" action. Heavier; bundles in format-conversion scope.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d1" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 2 · Default format in the picker</div>
+  <h3 class="q-prompt">Which format is pre-selected when you open New Vault?</h3>
+  <p class="q-context">The default steers the ecosystem. Your thesis is that
+  GitHub-portable KBs are the important use case — which argues for OKF as the default,
+  with Obsidian one click away.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d2" value="okf-default">
+      <div class="q-option-body">
+        <div class="q-option-title">OKF pre-selected <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">New vaults are portable-by-default; you opt into Obsidian-only when you specifically want the plugin ecosystem. Matches "the future is GitHub-shareable KBs".</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d2" value="obsidian-default">
+      <div class="q-option-body">
+        <div class="q-option-title">Obsidian pre-selected</div>
+        <div class="q-option-rationale">Match today's popularity + existing ENH-208 behavior; OKF is the deliberate opt-in. Least surprise for current users.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d2" value="remember">
+      <div class="q-option-body">
+        <div class="q-option-title">No default — remember last choice</div>
+        <div class="q-option-rationale">First run forces an explicit pick; subsequent New Vault dialogs default to whatever you chose last. Neutral, slightly more friction on the first vault.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d2" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<h2><span class="sec-num">3</span>Authoring: the <code>[[ ]]</code> gesture in OKF mode</h2>
+
+<p>The whole point: keep the gesture, change what lands on disk. In OKF mode, typing
+<code>[[Jordan Lee]]</code> and picking a type still creates the stub — but the editor
+writes a <strong>standard markdown relative link</strong>. The path is trivial to compute:
+Duo already knows the source note's location and where <code>filing.ts</code> files the new
+entity, so the link is one <code>path.relative()</code>.</p>
+
+<div class="flow-steps">
+  <div class="flow-step">
+    <div class="step-label">1 · You type the gesture (identical)</div>
+    <div class="step-body">Met with <span class="wikilink">[[Jordan Lee</span><span class="caret"></span><br><br>
+      <span style="font-family:-apple-system,system-ui;color:var(--ink-ghost);font-size:11px">same <code>[[</code> trigger as Obsidian mode</span>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="step-label">2 · Type picker (identical)</div>
+    <div class="step-body">Met with <span class="wikilink">[[Jordan Lee]]</span>
+      <div class="type-picker">
+        <div class="tp-head">create as…</div>
+        <div class="tp-row sel"><span>person</span><span class="folder">people/</span></div>
+        <div class="tp-row"><span>initiative</span><span class="folder">initiatives/</span></div>
+        <div class="tp-row"><span>theme</span><span class="folder">themes/</span></div>
+        <div class="tp-row"><span>+ new type…</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="step-label">3 · On resolve → markdown link on disk</div>
+    <div class="step-body">Met with <span class="mdlink">[Jordan Lee](./people/jordan-lee.md)</span><span class="caret"></span>
+      <div class="toast">✓ people/jordan-lee.md created · link written as a relative markdown link · renders on GitHub</div>
+    </div>
+  </div>
+</div>
+
+<section class="decision-card">
+  <div class="q-title">Decision 3 · Storage model — when does <code>[[Thing]]</code> become a markdown link?</div>
+  <h3 class="q-prompt">Where does the wikilink→markdown-link transform happen?</h3>
+  <p class="q-context">The core decision. Option A keeps disk always OKF-clean; B keeps the
+  editor buffer in wikilink form and converts on save (a display≠disk invariant — exactly
+  the BUG-085 autosave-fights-editor trap); C leaves source as Obsidian and only emits OKF
+  on a publish step.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d3" value="expand-on-resolve">
+      <div class="q-option-body">
+        <div class="q-option-title">A — Expand on resolve (gesture is input-only) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">The moment you pick/create, Duo writes <code>[Text](./rel.md)</code> to disk. No <code>[[ ]]</code> ever persists. Disk is always GitHub-ready; "the vault IS the publishable artifact" becomes literally true. Simplest invariant.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d3" value="display-store">
+      <div class="q-option-body">
+        <div class="q-option-title">B — Display as wikilink, store as markdown</div>
+        <div class="q-option-rationale">Editor still shows <code>[[ ]]</code>; serialize to markdown on save, re-parse on load. Identical in-editor feel, but needs a lossless round-trip and reintroduces the disk≠buffer hazard.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d3" value="export-only">
+      <div class="q-option-body">
+        <div class="q-option-title">C — Obsidian source + OKF export verb</div>
+        <div class="q-option-rationale">Source stays wikilinks; <code>duo vault export --okf</code> emits a markdown-link copy. Lowest risk, but the primary vault still isn't GitHub-renderable — doesn't satisfy "OKF at rest".</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d3" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<h2><span class="sec-num">4</span>Mode detection — how Duo knows which serializer is active</h2>
+
+<p>Mode is a property of the <strong>vault</strong>, not a global app switch. Whichever
+vault is active (the primary/default, or the one containing the open file) sets the editor's
+dialect. The open question is the source of truth for "which mode is this vault?"</p>
+
+<section class="decision-card">
+  <div class="q-title">Decision 4 · Mode detection / source of truth</div>
+  <h3 class="q-prompt">How does Duo decide a vault is OKF vs Obsidian?</h3>
+  <p class="q-context">Today <code>isVaultRoot</code> hard-requires <code>.obsidian/</code>
+  (<code>detect.ts:11</code>). OKF mode needs a second sentinel. The no-sidecar rule (CLAUDE.md
+  #12) says the source of truth should live <em>in</em> the vault.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d4" value="marker-wins">
+      <div class="q-option-body">
+        <div class="q-option-title">In-vault marker wins, registry is a pointer <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale"><code>.obsidian/</code> → Obsidian; root <code>index.md</code> with <code>okf_version</code> → OKF. Marker travels with the folder (a cloned OKF vault self-identifies); the known-vaults registry just records mode as a fast pointer. Honors no-sidecar.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d4" value="registry-only">
+      <div class="q-option-body">
+        <div class="q-option-title">Registry flag only</div>
+        <div class="q-option-rationale">Mode stored per-entry in <code>~/.claude/duo/vault.json</code>, set at init. Simple, but a vault cloned to another machine loses its mode until re-registered.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d4" value="sniff">
+      <div class="q-option-body">
+        <div class="q-option-title">Sniff existing link style</div>
+        <div class="q-option-rationale">Infer mode from whether files use <code>[[ ]]</code> or markdown links. Zero marker needed, but fragile on mixed/empty vaults — at best a fallback, not the contract.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d4" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<h2><span class="sec-num">5</span>The at-rest tradeoffs OKF mode forces</h2>
+
+<p>These are where OKF mode genuinely diverges from Obsidian mode. Each wants an owner call;
+none is purely cosmetic.</p>
+
+<h3>5a · Moves &amp; link stability — the real cost of leaving basename resolution</h3>
+<p>Obsidian mode resolves <code>[[Foo]]</code> by basename, so moving a file breaks nothing.
+OKF relative links are path-anchored: a move breaks every inbound link. Duo has the whole
+graph, so it <em>can</em> rewrite inbound links on move — the question is whether we commit to
+Duo owning moves.</p>
+
+<section class="decision-card">
+  <div class="q-title">Decision 5 · Move resilience in OKF mode</div>
+  <h3 class="q-prompt">When a file moves, what keeps its inbound links working?</h3>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d5" value="duo-rewrites">
+      <div class="q-option-body">
+        <div class="q-option-title">Duo owns moves — rewrites inbound links across the corpus <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale"><code>duo vault mv</code>, archive, and promote rewrite every link that points at the moved file (the graph already exists). Matches Obsidian-mode's "moves are safe" guarantee.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d5" value="abs-root">
+      <div class="q-option-body">
+        <div class="q-option-title">Use bundle-root absolute links (<code>/people/alice.md</code>)</div>
+        <div class="q-option-rationale">Survives moves of the <em>source</em> note (the target path is absolute). But OKF §5.1 leading-slash links only resolve on GitHub when the bundle sits at repo root, and a move of the <em>target</em> still breaks them. Half a fix.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d5" value="accept-broken">
+      <div class="q-option-body">
+        <div class="q-option-title">Accept brittleness (OKF tolerates broken links)</div>
+        <div class="q-option-rationale">OKF §5.3 says consumers must tolerate dangling links; processing proposes fixes later. Lowest build cost, worst day-to-day UX.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d5" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<h3>5b · Filenames</h3>
+<p>Obsidian happily uses <code>Customer Orders.md</code>. On GitHub, spaces become
+<code>%20</code> in URLs and some tooling balks; OKF examples use lowercase-hyphenated stems.
+Slugging lets us put the human name in OKF's recommended <code>title:</code> field and the
+clean stem on disk.</p>
+
+<section class="decision-card">
+  <div class="q-title">Decision 6 · Filename convention in OKF mode</div>
+  <h3 class="q-prompt">What does <code>[[Customer Orders]]</code> name the file?</h3>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d6" value="slug">
+      <div class="q-option-body">
+        <div class="q-option-title">Slugify → <code>customer-orders.md</code> + <code>title: Customer Orders</code> <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Clean URLs, no <code>%20</code>, uses OKF's <code>title</code> field; link text stays "Customer Orders". The display name lives in frontmatter, the path is portable.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d6" value="spaces">
+      <div class="q-option-body">
+        <div class="q-option-title">Keep human names with spaces (<code>Customer Orders.md</code>)</div>
+        <div class="q-option-rationale">Simplest, matches Obsidian-mode exactly; links carry <code>%20</code> and some renderers/clones are fussier. No <code>title</code> needed.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d6" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<h3>5c · Frontmatter edges</h3>
+<p>Duo encodes typed relationships in YAML (<code>owner: "[[Alice]]"</code>). OKF frontmatter
+is plain key/value — a wikilink string there is opaque to any consumer, and the body is where
+OKF expects links. We need a convention OKF mode writes (Duo still resolves it; GitHub never
+renders frontmatter anyway, so this is about portability + Duo's own graph).</p>
+
+<section class="decision-card">
+  <div class="q-title">Decision 7 · Frontmatter relationship fields</div>
+  <h3 class="q-prompt">How are typed edges (e.g. <code>owner</code>, <code>initiative</code>) written in OKF mode?</h3>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d7" value="relpath">
+      <div class="q-option-body">
+        <div class="q-option-title">Relative-path string Duo resolves (<code>owner: "../people/alice.md"</code>) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Portable, unambiguous, and Duo's parser resolves it to a graph edge. A naive consumer sees a path string (harmless); the relationship survives for anything that follows paths.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d7" value="plain">
+      <div class="q-option-body">
+        <div class="q-option-title">Plain display string (<code>owner: "Alice Park"</code>)</div>
+        <div class="q-option-rationale">Cleanest to read; but the edge is only recoverable by name-matching against the corpus (the same ambiguity basename resolution has) — Duo can do it, strangers can't.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d7" value="body">
+      <div class="q-option-body">
+        <div class="q-option-title">Move edges into the body as real markdown links</div>
+        <div class="q-option-rationale">Most OKF-idiomatic (§5 links live in prose); a "Relationships" section lists <code>[Alice](../people/alice.md)</code>. But it abandons typed/queryable frontmatter fields the rollups rely on.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d7" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<h3>5d · Rollups</h3>
+<p><code>.base</code> files and embedded <code>```base</code> blocks render live in Duo/Obsidian
+but show as inert code on GitHub. OKF's native "listing" surface is <code>index.md</code>
+(§6) — a bullet list of links + descriptions — which Duo can generate from the corpus. That
+turns our rollup into something GitHub renders for free.</p>
+
+<section class="decision-card">
+  <div class="q-title">Decision 8 · Rollups / listings in OKF mode</div>
+  <h3 class="q-prompt">What is a rollup, at rest, in an OKF vault?</h3>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d8" value="index-md">
+      <div class="q-option-body">
+        <div class="q-option-title">Generate static <code>index.md</code> listings from the corpus <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">A stamped, regenerable <code>index.md</code> per directory (OKF §6) — bullet lists of <code>[Title](rel) — description</code>. Renders natively on GitHub; Duo regenerates on change. Bonus: free <code>log.md</code> too.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d8" value="base-too">
+      <div class="q-option-body">
+        <div class="q-option-title">Keep <code>.base</code> for live views, add <code>index.md</code> for publish</div>
+        <div class="q-option-rationale">Live interactive rollup in Duo via <code>.base</code>; a generated <code>index.md</code> is the GitHub-facing snapshot. Two surfaces, one corpus.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d8" value="no-rollup">
+      <div class="q-option-body">
+        <div class="q-option-title">No rollups in OKF mode v1</div>
+        <div class="q-option-rationale">Ship links-only first; rollups/listing generation is a fast-follow. Smallest scope.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d8" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<h3>5e · Embeds / promote</h3>
+<p>The deferred D18 "promote a section to its own note" flow leaves an <code>![[embed]]</code>
+behind — no markdown equivalent (renders as literal <code>![[…]]</code> on GitHub). OKF mode
+needs a different residue.</p>
+
+<section class="decision-card">
+  <div class="q-title">Decision 9 · Promote / transclusion in OKF mode</div>
+  <h3 class="q-prompt">When a section is split into its own note, what's left behind?</h3>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d9" value="link">
+      <div class="q-option-body">
+        <div class="q-option-title">Leave a markdown link to the new note <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">A plain <code>See [Section](./section.md)</code>. Renders everywhere; no transclusion semantics, which OKF/GitHub don't have anyway.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d9" value="inline">
+      <div class="q-option-body">
+        <div class="q-option-title">Inline a copy of the content (snapshot)</div>
+        <div class="q-option-rationale">The section text stays in place + the new note holds the canonical copy. Renders fully on GitHub but duplicates content (drift risk).</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d9" value="defer">
+      <div class="q-option-body">
+        <div class="q-option-title">Defer promote in OKF mode</div>
+        <div class="q-option-rationale">Promote is already deferred in ENH-208; don't build an OKF variant until the Obsidian one ships.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d9" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<h3>5f · Required type / OKF conformance</h3>
+<p>OKF §9 requires a non-empty <code>type</code> on every concept doc. Today captures are
+untyped by default and the scaffolded <code>README.md</code> has no frontmatter — so a default
+vault fails conformance. OKF mode can stamp type by construction.</p>
+
+<section class="decision-card">
+  <div class="q-title">Decision 10 · Type stamping in OKF mode</div>
+  <h3 class="q-prompt">Does OKF mode guarantee every note has a <code>type</code>?</h3>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d10" value="stamp-all">
+      <div class="q-option-body">
+        <div class="q-option-title">Stamp <code>type</code> on everything (captures → <code>type: note</code>) + frontmatter on README <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">OKF mode passes §9 by construction; quick-captures get <code>type: note</code> (still the "process me" queue, just typed). Root listing is the OKF <code>index.md</code>, not a bare README.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d10" value="lint-warn">
+      <div class="q-option-body">
+        <div class="q-option-title">Allow untyped; lint-warn before publish</div>
+        <div class="q-option-rationale">Keep the untyped processing-queue feel; a pre-publish <code>duo vault lint</code> flags conformance gaps. Conformant only after you act on the warnings.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d10" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<h2><span class="sec-num">6</span>Why the payoff is real — the render matrix</h2>
+
+<p>The same content, two on-disk syntaxes, rendered three ways. Markdown links win in every
+column; wikilinks lose only on GitHub — but that column is the whole motivation.</p>
+
+<table class="matrix">
+  <tr><th>On-disk syntax</th><th>Duo</th><th>Obsidian</th><th>github.com</th></tr>
+  <tr>
+    <td class="syntax">[[Jordan Lee]]</td>
+    <td><span class="chip-yes">cmd+click</span></td>
+    <td><span class="chip-yes">native</span></td>
+    <td><span class="chip-no">literal text</span></td>
+  </tr>
+  <tr>
+    <td class="syntax">[Jordan Lee](./people/jordan-lee.md)</td>
+    <td><span class="chip-yes">Tier 1</span></td>
+    <td><span class="chip-yes">native</span></td>
+    <td><span class="chip-yes">clickable</span></td>
+  </tr>
+</table>
+<p style="font-size:12px;color:var(--ink-ghost)"><span class="chip-yes">Tier 1</span> = once
+Duo's graph/resolver/click-nav learn the markdown-link dialect (§7). Obsidian renders standard
+markdown links natively, so an OKF vault still opens correctly in Obsidian — OKF mode does not
+break the ENH-208 "opens in Obsidian always" guarantee.</p>
+
+<h2><span class="sec-num">7</span>Build sequencing</h2>
+
+<p>Roughly 90% of the wikilink machinery is reusable — autocomplete, type-picker,
+<code>stubPathFor</code>, idempotent stub creation all stay. The new surface area is two seams:
+the <code>command()</code> insert string, and the parse/resolve/click layer learning a second
+dialect.</p>
+
+<table class="locked">
+  <tr><th>Tier</th><th>What ships</th><th>Unlocks</th></tr>
+  <tr><td>1 · Reader</td><td>graph + resolver + click-nav parse <code>[x](./p.md)</code> &amp; <code>[x](/p.md)</code>; OKF detection marker</td><td>Duo <em>consumes</em> any GitHub-style KB (answers "do OKF KBs work with our featureset")</td></tr>
+  <tr><td>2 · Author</td><td>Decision 3 at the insert seam · slug filenames · type-on-everything · New Vault picker</td><td>Duo <em>produces</em> GitHub-ready vaults by default</td></tr>
+  <tr><td>3 · Native ops</td><td>move/rename link-rewrite · <code>index.md</code>/<code>log.md</code> generation · embed-free promote</td><td>full ergonomic parity with Obsidian mode</td></tr>
+</table>
+
+<section class="decision-card">
+  <div class="q-title">Decision 11 · What ships first</div>
+  <h3 class="q-prompt">Sequencing of the three tiers</h3>
+  <p class="q-context">Sequencing, not scope — all three stay on the map.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d11" value="reader-first">
+      <div class="q-option-body">
+        <div class="q-option-title">Tier 1 (Reader) first <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Highest value, lowest risk: immediately unblocks opening GitHub/OKF KBs in Duo. Then Tier 2 flips authoring, Tier 3 adds native ops.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d11" value="author-first">
+      <div class="q-option-body">
+        <div class="q-option-title">Tier 2 (Author) first</div>
+        <div class="q-option-rationale">Lead with New Vault + OKF authoring so your own new vaults are portable from day one; reading OKF bundles follows.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d11" value="all-at-once">
+      <div class="q-option-body">
+        <div class="q-option-title">Tiers 1+2 together as one milestone</div>
+        <div class="q-option-rationale">Read + author in one release so OKF mode feels complete; bigger first cut, later ship.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d11" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<details class="deferred">
+  <summary>Deferred / open questions (tracked, not forgotten)</summary>
+  <div class="deferred-body">
+    <ul>
+      <li><strong>Format conversion</strong> — an existing Obsidian vault → OKF (rewrite all links, slug filenames, generate index.md). Almost certainly a Tier-3+ verb (<code>duo vault convert</code>), not v1.</li>
+      <li><strong>Mixed/legacy vaults</strong> — a vault with both <code>.obsidian/</code> and an OKF marker. Decision 4's "marker wins" needs a tie-break order (proposal: explicit <code>okf_version</code> beats <code>.obsidian/</code>).</li>
+      <li><strong>Editor surface parity</strong> — does OKF-mode link click-nav also apply in the HTML canvas (renderer-surfaces parity rule)? Likely (c) Deferred for canvas.</li>
+      <li><strong>Citations (§8)</strong> — OKF's <code># Citations</code> convention has no Duo analog yet; could be a capture-affordance later.</li>
+      <li><strong>okf_version tracking</strong> — which OKF version Duo targets, and best-effort consumption of newer bundles (§11).</li>
+      <li><strong>Backlinks panel</strong> — "what links here" should work identically in both modes once Tier 1 lands (graph is dialect-agnostic above the parser).</li>
+    </ul>
+  </div>
+</details>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 11 decisions answered</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  var DECISIONS = [
+    { id: 'd1',  title: 'New Vault entry points' },
+    { id: 'd2',  title: 'Default format in the picker' },
+    { id: 'd3',  title: 'Storage model (wikilink to markdown-link transform)' },
+    { id: 'd4',  title: 'Mode detection / source of truth' },
+    { id: 'd5',  title: 'Move resilience' },
+    { id: 'd6',  title: 'Filename convention' },
+    { id: 'd7',  title: 'Frontmatter relationship fields' },
+    { id: 'd8',  title: 'Rollups / listings' },
+    { id: 'd9',  title: 'Promote / transclusion' },
+    { id: 'd10', title: 'Type stamping / conformance' },
+    { id: 'd11', title: 'Build sequencing' }
+  ];
+  var STORE_KEY = 'okf-vault-mode-r1';
+
+  function state() {
+    var s = {};
+    DECISIONS.forEach(function (d) {
+      var checked = document.querySelector('input[name="' + d.id + '"]:checked');
+      var notes = document.querySelector('.q-notes[data-decision="' + d.id + '"]');
+      s[d.id] = { value: checked ? checked.value : null, notes: notes ? notes.value : '' };
+    });
+    return s;
+  }
+
+  function save() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state())); } catch (e) {}
+    updateCount();
+  }
+
+  function restore() {
+    var raw = null;
+    try { raw = localStorage.getItem(STORE_KEY); } catch (e) {}
+    if (!raw) return;
+    var s;
+    try { s = JSON.parse(raw); } catch (e) { return; }
+    DECISIONS.forEach(function (d) {
+      var saved = s[d.id];
+      if (!saved) return;
+      if (saved.value) {
+        var input = document.querySelector('input[name="' + d.id + '"][value="' + saved.value + '"]');
+        if (input) input.checked = true;
+      }
+      var notes = document.querySelector('.q-notes[data-decision="' + d.id + '"]');
+      if (notes && saved.notes) notes.value = saved.notes;
+    });
+  }
+
+  function updateCount() {
+    var s = state(), n = 0;
+    DECISIONS.forEach(function (d) { if (s[d.id].value) n++; });
+    document.getElementById('answered-count').textContent = String(n);
+  }
+
+  function payload() {
+    var s = state();
+    var lines = ['OKF VAULT MODE — ENH-216 DECISIONS', ''];
+    DECISIONS.forEach(function (d) {
+      var v = s[d.id].value ? s[d.id].value.toUpperCase() : 'UNANSWERED';
+      lines.push('[' + v + '] ' + d.title);
+      if (s[d.id].notes && s[d.id].notes.trim()) {
+        lines.push('    notes: ' + s[d.id].notes.trim());
+      }
+      lines.push('');
+    });
+    return lines.join('\n');
+  }
+
+  document.querySelectorAll('input[type="radio"]').forEach(function (el) {
+    el.addEventListener('change', save);
+  });
+  document.querySelectorAll('.q-notes').forEach(function (el) {
+    el.addEventListener('input', save);
+  });
+
+  document.getElementById('copy-btn').addEventListener('click', function () {
+    var btn = this;
+    navigator.clipboard.writeText(payload()).then(function () {
+      btn.classList.add('copied');
+      btn.textContent = 'Copied — paste to Claude';
+      setTimeout(function () {
+        btn.classList.remove('copied');
+        btn.textContent = 'Copy decisions';
+      }, 2000);
+    });
+  });
+
+  restore();
+  updateCount();
+})();
+</script>
+
+</body>
+</html>

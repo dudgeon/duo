@@ -11,6 +11,16 @@
 //             enums), a *pure function over frontmatter* (the vault IS the
 //             schema). Never cached to disk (no-sidecar rule, CLAUDE.md § 12).
 
+import type { LinkRef, VaultMode } from '../markdown/vaultLinks'
+
+/** A vault's at-rest link serialization (ENH-216). ONE graph model, TWO
+ *  serializers: `obsidian` (wikilinks, the existing default) and `okf`
+ *  (standard markdown relative links). Mode is LIVE-DETECTED from the
+ *  in-vault marker (D4) — NEVER cached in a registry / prefs file.
+ *  Canonical home is the node-free `core/markdown/vaultLinks.ts` (in both
+ *  tsconfigs); re-exported here for the node-only vault tree's consumers. */
+export type { VaultMode }
+
 /** A parsed markdown note inside a vault. `basename`/`name` are
  *  extension-less (Obsidian resolves wikilinks by basename). */
 export interface VaultFile {
@@ -31,6 +41,13 @@ export interface VaultFile {
   /** Deduped wikilink targets found in the body, basename-only
    *  (`[[Foo|bar]]` and `[[Foo#h]]` both resolve to `Foo`). */
   links: string[]
+  /** ENH-216: every link occurrence (both wikilink + mdlink syntaxes) in
+   *  document order, with provenance — the richer companion to `links`
+   *  (which stays the deduped basename-key list, used by the graph).
+   *  Optional: producers populate it via {@link import('../markdown/vaultLinks').extractLinkRefs};
+   *  the legacy `parseFile` walk leaves it undefined until a later stage
+   *  wires it through (every extract path flows through `vaultLinks.ts`). */
+  linkRefs?: LinkRef[]
   /** File mtime in epoch-ms (used by stale-inbox processing checks). */
   mtimeMs: number
 }
@@ -92,12 +109,15 @@ export interface Corpus {
 
 /** A vault detected in the workspace (`duo vault list`). */
 export interface VaultInfo {
-  /** Absolute vault root (the folder containing `.obsidian/`). */
+  /** Absolute vault root (the folder containing the in-vault marker). */
   root: string
   /** Vault display name (the root folder's basename). */
   name: string
   /** Markdown note count (cheap signal of vault size). */
   noteCount: number
+  /** ENH-216: the vault's at-rest link mode, LIVE-DETECTED from the in-vault
+   *  marker (D4) at list time — never cached. */
+  mode: VaultMode
 }
 
 /** A full-text search hit (`duo vault search`, ⌘⇧F's CLI twin — D22). */

@@ -294,10 +294,19 @@ export interface RenderTargetResult {
   asOfLabel: string
 }
 
-function sourceHash(root: string): string {
+/** Stable source hash over the vault's note + base content — the staleness
+ *  key stamped into rendered artifacts AND into the OKF generated listings
+ *  (U3 `writeListings`). Exported (ENH-216) so `listings.ts` is the only
+ *  consumer; the generated `index.md` / `log.md` themselves are EXCLUDED
+ *  from the walk so a regenerated listing never perturbs its own hash. */
+export function sourceHash(root: string): string {
   const all: string[] = []
   const stack = [root]
   const SKIP = new Set(['.obsidian', '.trash', 'out', '.git', 'node_modules'])
+  // Generated OKF listings (root + per-dir index.md, root log.md) are build
+  // artifacts derived FROM the corpus — hashing them would make the hash
+  // depend on its own previous output (a feedback loop), so they're skipped.
+  const GENERATED = new Set(['index.md', 'log.md'])
   while (stack.length) {
     const dir = stack.pop()!
     let entries: fs.Dirent[]
@@ -310,7 +319,7 @@ function sourceHash(root: string): string {
       const full = path.join(dir, e.name)
       if (e.isDirectory()) {
         if (!SKIP.has(e.name)) stack.push(full)
-      } else if (e.name.endsWith('.md') || e.name.endsWith('.base')) {
+      } else if ((e.name.endsWith('.md') || e.name.endsWith('.base')) && !GENERATED.has(e.name)) {
         try {
           all.push(fs.readFileSync(full, 'utf8'))
         } catch {

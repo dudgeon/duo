@@ -31,6 +31,8 @@ import {
   type SuggestionPopoverProps
 } from '../primitives/SuggestionPopover'
 import type { VaultFile } from '../wikilinkResolver'
+import type { VaultMode } from '../../../../core/markdown/vaultLinks'
+import { okfLinkInsert } from '../okfLinks'
 import { findAtMentionMatch } from './suggestionMatchers'
 import { isSmartToken, mergeSuggestionItems, smartTokensFor, type SmartToken } from '../smartTokens'
 
@@ -38,6 +40,13 @@ export interface AtMentionOptions {
   getItems: () => VaultFile[]
   isLoading?: () => boolean
   rank: (items: VaultFile[], query: string) => VaultFile[]
+  /** ENH-216 (U7) — the active vault's at-rest link mode (D4). OKF
+   *  inserts a standard markdown relative link; Obsidian (the default)
+   *  keeps the [[ ]] form. Read through a ref closure for fresh values. */
+  getMode?: () => VaultMode
+  /** ENH-216 (U7) — the active document's path (SOURCE note), the
+   *  rel-link base in OKF mode. Null → fall back to the wikilink insert. */
+  getDocPath?: () => string | null
 }
 
 export const AtMention = Extension.create<AtMentionOptions>({
@@ -47,7 +56,9 @@ export const AtMention = Extension.create<AtMentionOptions>({
     return {
       getItems: () => [],
       isLoading: () => false,
-      rank: (items) => items
+      rank: (items) => items,
+      getMode: () => 'obsidian' as VaultMode,
+      getDocPath: () => null
     }
   },
 
@@ -76,14 +87,19 @@ export const AtMention = Extension.create<AtMentionOptions>({
 
         command: ({ editor, range, props }) => {
           const item = props as VaultFile | SmartToken
-          // `@` inserts the canonical wikilink form so the source on
-          // disk reads `[[Foo]]` regardless of which trigger the
-          // user opened the popover with. WikilinkDecorations then
-          // renders + click-handles it on the next render. Smart
-          // tokens (D21) instead land their resolved plain text —
-          // same range mechanics (replace the `@query` trigger), no
-          // trailing space, different content.
-          const insert = isSmartToken(item) ? item.insertText : `[[${item.basename}]]`
+          // A file pick inserts the resolved link in the vault's at-rest
+          // form: Obsidian → `[[basename]]` (WikilinkDecorations renders +
+          // click-handles it); OKF → a standard markdown relative link with
+          // the on-disk slug as link text (D3/D6). Smart tokens (D21) are
+          // unaffected — they land their resolved plain text (an ISO date)
+          // regardless of mode, with the same range mechanics.
+          const mode = opts.getMode?.() ?? 'obsidian'
+          const docPath = opts.getDocPath?.() ?? null
+          const insert = isSmartToken(item)
+            ? item.insertText
+            : (mode === 'okf' && docPath)
+              ? okfLinkInsert(item.basename, docPath, item.absPath)
+              : `[[${item.basename}]]`
           editor
             .chain()
             .focus()

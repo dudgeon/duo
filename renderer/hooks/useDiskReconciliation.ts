@@ -53,6 +53,12 @@ export type ReconcileSurface = 'markdown' | 'canvas' | 'json'
  *  growth if a write's chokidar event never arrives (A5 — no time eviction). */
 const ECHO_CAP = 32
 
+/** ENH-216 (U7) — how long to wait after a `removed` event before treating
+ *  it as a likely out-of-band MOVE (not a transient atomic-rename save). A
+ *  re-add / successful read inside this window cancels it. Generous enough
+ *  to ride out an editor's write-temp-then-rename save cycle. */
+const LIKELY_MOVE_DEBOUNCE_MS = 1200
+
 export interface DiskReconciliationOptions {
   /** Absolute path being edited. */
   path: string
@@ -109,6 +115,14 @@ export interface DiskReconciliationOptions {
   /** Called true when the watched file is deleted on disk, false when a
    *  subsequent read succeeds (B4 — the surface shows a "file removed" strip). */
   onFileRemoved?: (removed: boolean) => void
+  /** ENH-216 (U7) — best-effort move detection. Fired (debounced) when the
+   *  watched file is `removed` on disk and does NOT come back within
+   *  {@link LIKELY_MOVE_DEBOUNCE_MS} (a re-add / successful read cancels it).
+   *  An out-of-band move (Finder / git) looks exactly like this from a
+   *  single-file watcher's vantage. The surface decides what to surface —
+   *  in OKF mode an informational, non-blocking "links repair on next vault
+   *  open or via `duo vault relink`" toast. No new IPC; informational only. */
+  onLikelyMove?: () => void
   /** True when serialize() is valid SYNCHRONOUSLY right after applyReload
    *  (markdown: setContent is sync; json: re-parse is sync). False for the
    *  canvas, whose iframe remount is async — the canvas re-seeds the
@@ -303,6 +317,13 @@ export function useDiskReconciliation(opts: DiskReconciliationOptions): DiskReco
     if (isNew || !ready || !path) return
     let cancelled = false
     let unwatch: (() => Promise<void>) | null = null
+    // ENH-216 (U7) — debounce timer for the likely-move detection. Armed on
+    // `removed`, cleared on any successful read (the file came back / was a
+    // transient atomic-rename save). Fires onLikelyMove if it survives.
+    let moveTimer: ReturnType<typeof setTimeout> | null = null
+    const clearMoveTimer = () => {
+      if (moveTimer) { clearTimeout(moveTimer); moveTimer = null }
+    }
 
     void window.electron.files.watch([path], (event) => {
       if (cancelled || event.path !== path) return
@@ -310,10 +331,19 @@ export function useDiskReconciliation(opts: DiskReconciliationOptions): DiskReco
         // B4 — surface a "file removed" affordance; don't reload (the read
         // would fail). The next successful read clears it.
         optsRef.current.onFileRemoved?.(true)
+        // ENH-216 (U7) — best-effort move detection: if the file doesn't
+        // come back shortly, treat it as a likely out-of-band move. A
+        // re-add's successful read below clears this before it fires.
+        clearMoveTimer()
+        moveTimer = setTimeout(() => {
+          moveTimer = null
+          if (!cancelled) optsRef.current.onLikelyMove?.()
+        }, LIKELY_MOVE_DEBOUNCE_MS)
         return
       }
       void window.electron.files.read(path).then((res) => {
         if (cancelled) return
+        clearMoveTimer()   // the file is present — not a move
         optsRef.current.onFileRemoved?.(false)
         reconcile(decodeUtf8(res.bytes))
       }).catch(() => { /* mid-rename / unreadable — ignore */ })
@@ -331,7 +361,7 @@ export function useDiskReconciliation(opts: DiskReconciliationOptions): DiskReco
       }).catch(() => {})
     }).catch(() => { /* watcher unavailable — degrade gracefully */ })
 
-    return () => { cancelled = true; if (unwatch) void unwatch() }
+    return () => { cancelled = true; clearMoveTimer(); if (unwatch) void unwatch() }
   }, [path, ready, isNew, reconcile])
 
   // Reset per-path transient state (stale echo entries + a leftover banner

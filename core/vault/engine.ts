@@ -130,6 +130,11 @@ export function buildEngineFiles(notes: VaultFile[], asOf: Date): EngineFile[] {
       ext: n.ext,
       mtime: new DuoDate(new Date(n.mtimeMs), asOf),
       properties,
+      // ENH-216: `n.links` keys are now syntax-plural (wikilink + mdlink,
+      // folded via vaultLinks.targetKey). This site still wires the graph by
+      // matching against case-preserved basenames + parses wikilinks in
+      // frontmatter values; markdown-link frontmatter edges + key-based
+      // re-wiring are a Stage-4 concern (no logic change here).
       _rawLinks: n.links,
       links: [],
       backlinks: [],

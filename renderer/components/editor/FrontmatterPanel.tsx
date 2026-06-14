@@ -22,6 +22,8 @@ import {
   displayValue,
   type FrontmatterValue
 } from '../../../core/markdown/frontmatterParser'
+import { rewriteFrontmatterWikilinks } from './okfLinks'
+import type { VaultMode } from '../../../core/markdown/vaultLinks'
 
 /**
  * BUG-139 v1.1 Q5 — expanded-row display formatter.
@@ -54,9 +56,31 @@ interface Props {
   /** Persisted collapsed state from the sidecar. */
   collapsed: boolean
   onToggleCollapsed: () => void
+  /** ENH-216 (U7) D7 — the active vault's at-rest link mode. In 'okf'
+   *  mode, a `[[Name]]` gesture inside a frontmatter VALUE is rewritten to
+   *  a quoted relative-path string on COMMIT (the textarea has no live
+   *  fuzzy-pick — honest v1 limitation). 'obsidian' (default) is
+   *  unchanged. */
+  mode?: VaultMode
+  /** ENH-216 (U7) D7 — the active document's path (SOURCE note), the
+   *  rel-link base for the frontmatter wikilink rewrite. */
+  docPath?: string
+  /** ENH-216 (U7) D7 — resolve a wikilink name (the inner text of
+   *  `[[Name]]`) to the target note's path (abs or vault-relative, used as
+   *  the rel-link target). Returns null when the name resolves to no known
+   *  note — that gesture is left verbatim. */
+  resolveWikilink?: (name: string) => Promise<string | null> | string | null
 }
 
-export function FrontmatterPanel({ frontmatter, onChange, collapsed, onToggleCollapsed }: Props) {
+export function FrontmatterPanel({
+  frontmatter,
+  onChange,
+  collapsed,
+  onToggleCollapsed,
+  mode = 'obsidian',
+  docPath,
+  resolveWikilink
+}: Props) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<string>('')
   const [parseError, setParseError] = useState<string>('')
@@ -111,18 +135,49 @@ export function FrontmatterPanel({ frontmatter, onChange, collapsed, onToggleCol
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing, draft])
 
+  // ENH-216 (U7) D7 — busy-guard so a pending async wikilink rewrite isn't
+  // applied twice (e.g. blur AND a Save click racing on the same draft).
+  const committingRef = useRef(false)
+
   const commit = useCallback(() => {
-    const result = parseFrontmatter(draft)
-    if (!result.valid) {
-      setParseError(result.error)
-      return
-    }
-    setParseError('')
-    setEditing(false)
-    // Trim trailing newlines so the joined output is canonical.
-    const next = draft.replace(/\r?\n+$/, '')
-    onChange(next.length > 0 ? next : null)
-  }, [draft, onChange])
+    if (committingRef.current) return
+    committingRef.current = true
+    // ENH-216 (U7) D7 — in OKF mode, rewrite any `[[Name]]` gesture inside
+    // a frontmatter value to a quoted relative-path string BEFORE
+    // validating + committing. The resolve is async (it may hit the vault
+    // index), so the whole commit becomes async in OKF mode; Obsidian mode
+    // stays synchronous (resolveDraft resolves immediately to the draft).
+    const resolveDraft: Promise<string> =
+      mode === 'okf' && docPath && resolveWikilink && /\[\[[^\]]+?\]\]/.test(draft)
+        ? rewriteFrontmatterWikilinks(draft, docPath, resolveWikilink).then((r) => r.text)
+        : Promise.resolve(draft)
+
+    void resolveDraft.then((rewritten) => {
+      committingRef.current = false
+      const result = parseFrontmatter(rewritten)
+      if (!result.valid) {
+        setParseError(result.error)
+        // Reflect the rewrite in the textarea so the user sees what failed.
+        if (rewritten !== draft) setDraft(rewritten)
+        return
+      }
+      setParseError('')
+      setEditing(false)
+      // Trim trailing newlines so the joined output is canonical.
+      const next = rewritten.replace(/\r?\n+$/, '')
+      onChange(next.length > 0 ? next : null)
+    }).catch(() => {
+      // Rewrite failed (resolver threw) — fall back to committing the raw
+      // draft so the user's edit isn't lost; the [[Name]] stays verbatim.
+      committingRef.current = false
+      const result = parseFrontmatter(draft)
+      if (!result.valid) { setParseError(result.error); return }
+      setParseError('')
+      setEditing(false)
+      const next = draft.replace(/\r?\n+$/, '')
+      onChange(next.length > 0 ? next : null)
+    })
+  }, [draft, onChange, mode, docPath, resolveWikilink])
 
   const cancel = useCallback(() => {
     setEditing(false)

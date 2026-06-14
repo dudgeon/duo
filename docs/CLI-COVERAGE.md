@@ -198,25 +198,33 @@ are absent and `TERM_PROGRAM` is whatever the parent terminal sets.
 Stage 20's `duo doctor` (D5 — distinguishes "running outside Duo"
 from "running inside Duo but transport failing").
 
-### Vault (ENH-208 — filesystem-direct verbs)
+### Vault (ENH-208 + ENH-216 — filesystem-direct verbs)
 
-Work-notes on plain Obsidian-vault conventions. **These verbs read the
-filesystem directly — no socket, no running app** (a deliberate parity
-asymmetry that lets a headless processing job read the vault; PRD Phase 4).
-The vault is resolved by walking up from the cwd to the nearest `.obsidian/`;
+Work-notes on a vault. **These verbs read the filesystem directly — no socket,
+no running app** (a deliberate parity asymmetry that lets a headless processing
+job read the vault; PRD Phase 4). **ENH-216 — two at-rest formats, one graph
+model:** **OKF** (standard markdown relative links `[Display](./<note>.md)`, root
+`okf_version` `index.md` marker) and **Obsidian** (wikilinks `[[Display]]`,
+`.obsidian/` marker). `okf_version` wins if both markers are present (D4). The
+vault is resolved by walking up from the cwd to the nearest marker;
 `--vault <path>` overrides. Core lives in `core/vault/` (pure, fs-backed,
-shared with the renderer in Phase 3).
+shared with the renderer in Phase 3); the single node-free link helper is
+`core/markdown/vaultLinks.ts`.
 
 | Verb | What it does | Output |
 |---|---|---|
-| `duo vault init <folder> [--force]` | Scaffold a vault: `.obsidian/` + starter templates (D19 filing rules) + inbox/registry folders + `bases/processing.base` + README. Records the new vault in `knownVaults` so the Settings picker offers it before it's ever set as default | JSON `{root, created[], warnings[]}` |
+| `duo vault init <path> --format=okf\|obsidian [--name "…"] [--force]` | Scaffold a vault. **`--format` is REQUIRED** (ENH-216 D2 — deliberate asymmetry; the New Vault dialog defaults to OKF). `okf`: root `okf_version` `index.md` marker + static listings + starter templates (D19 filing rules) + inbox/registry folders, no `.obsidian/`. `obsidian`: `.obsidian/` + `bases/processing.base` + README (legacy, byte-identical to ENH-208). The fresh vault becomes the default and is recorded in `knownVaults` so the Settings picker offers it | JSON `{root, created[], warnings[], mode}` |
 | `duo vault list` | Vaults detected from the cwd (enclosing + nested) | JSON `[{root, name, noteCount}]` |
 | `duo vault schema [--vault p]` | The L0 corpus — types/entities/aliases/props-per-type/observed-enums/templates; a live function over frontmatter, never cached (no-sidecar) | JSON `Corpus` |
 | `duo vault capture [--template t] [--text …] [--title …] [--open]` | Timestamped inbox note (D6); untyped by default, `--template` stamps a type | JSON `{path, absPath, type}` |
 | `duo vault stub <type> <name> [--open]` | Create a typed entity stub from its template, D19-filed; idempotent. CLI twin of the silent-stub `[[New Name]]`⇥ (ENH-208 P3) | JSON `{path, absPath, type, created}` |
 | `duo vault default [<path>\|--clear]` | Read/set the default vault (D11 — CLI twin of the Settings → Default Vault picker; one pref file, `~/.claude/duo/vault.json`, so CLI writes reflect live in the menu). The value is machine-global (persists across windows/workspaces/restarts); setting one also records it in the file's `knownVaults` list so the picker is window-independent, and `--clear` keeps that list (only the active default is unset). Vault verbs resolve `--vault` → enclosing → default → error. Every output shape echoes `knownVaults` alongside the default | JSON `{defaultVault, knownVaults}` |
 | `duo vault search <query> [--vault p]` | Case-insensitive full-text search (CLI twin of ⌘⇧F, D22). 200-hit default cap; `docMatchIndex` = body-occurrence index (`null` for frontmatter hits) | JSON `[{path, absPath, line, excerpt, docMatchIndex}]` |
-| `duo graph backlinks <note> [--vault p]` | Notes linking to `<note>` (basename-resolved, scans frontmatter + body) | JSON `[{path, absPath, line, excerpt}]` |
+| `duo vault mv <from> <to> [--vault p]` | **ENH-216 D5 (clean path)** — move a note (vault-relative POSIX paths) and rewrite every inbound markdown link to its new home, re-basing the moved note's own outbound links. Throws on a dest collision (never clobbers). Prefer over `duo file rename` / shell `mv` for OKF vault notes | JSON `{fromRel, toRel, inboundRewritten:[{fromRel, count}], outboundRebased}` |
+| `duo vault relink [--dry-run] [--vault p]` | **ENH-216 D5 (out-of-band repair)** — re-resolve dangling markdown links by stable frontmatter `id:` (primary key, D10) then slug/basename fallback; rewrite the unambiguous ones, REPORT ambiguous + broken (warn-don't-block). Auto-runs on vault open; this verb is the headless/inspection twin. `--dry-run` reports without writing | JSON `{repaired:[{fromRel, oldHref, newHref, via:'id'\|'slug', targetRel}], ambiguous[], broken[]}` |
+| `duo vault publish [--index-only\|--log-only] [--dir] [--open] [--vault p]` | **ENH-216 D8** — (re)generate the OKF static listings from the corpus: root `index.md` (OKF section-6 bullets; frontmatter byte-preserved, body after the `<!-- duo:listing -->` fence) + `log.md` (section-7, `## YYYY-MM-DD` from mtimes). `--dir` adds per-folder `index.md`; `--index-only`/`--log-only` narrow; `--open` surfaces `index.md` as a tab. OKF-mode-gated (throws in Obsidian mode) | JSON `{mode, written[]}` |
+| `duo vault promote <note> --heading "<h>" --type <t> [--vault p]` | **ENH-216 D9** — split a `## heading` section into its own typed entity (D19-filed), removing it from the source note and leaving a markdown LINK behind (a `[[wikilink]]` in Obsidian) — NEVER an embed-transclusion. Heading matched case-insensitively | JSON `{entityRel, leftLink, created}` |
+| `duo graph backlinks <note> [--vault p]` | Notes linking to `<note>` — both wikilinks (basename-resolved) AND markdown relative links (ENH-216) are edges; scans frontmatter + body | JSON `[{path, absPath, line, excerpt}]` |
 | `duo graph orphans [--vault p]` | Notes with no inbound and no outbound links (a processing work-list) | JSON `string[]` |
 | `duo base lint <file\|--all> [--vault p]` | Validate a base against the corpus (bad types / unresolved `[[entities]]` / off-enum / unknown fns), each with a "did you mean"; advisory, never blocks (D15) | JSON `[{source, findings[]}]` |
 | `duo base render <file\|note> [--out p] [--open]` | Evaluate filters/formulas over live frontmatter → a stamped Duo-owned HTML artifact (D13/D16); `--open` surfaces it as a tab | JSON `{path, sourceHash, bases[]}` |

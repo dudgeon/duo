@@ -105,3 +105,49 @@ describe('createType (the silent-stub New: row, via VAULT_CREATE_TYPE)', () => {
     expect(() => createType(root, '???')).toThrow(/empty type name/)
   })
 })
+
+describe('OKF mode (ENH-216 D6/D10) — slugged stems, title + id stamped', () => {
+  it('stubPathFor slugs the on-disk stem (Customer Orders → customer-orders.md)', () => {
+    // parentless registry type → <folder>/<slug>.md
+    expect(stubPathFor(tpl(root, 'person'), 'Customer Orders', AS_OF, 'okf')).toBe(
+      'people/customer-orders.md',
+    )
+    // folder-note type → <folder>/<slug>/<slug>.md
+    expect(stubPathFor(tpl(root, 'initiative'), 'Q3 Launch', AS_OF, 'okf')).toBe(
+      'initiatives/q3-launch/q3-launch.md',
+    )
+    // parented type, no parent yet → slugged time-bucket residue
+    expect(stubPathFor(tpl(root, 'milestone'), 'Legal Review', AS_OF, 'okf')).toBe(
+      'notes/2026/06/legal-review.md',
+    )
+  })
+
+  it('createEntityStub slugs the stem, stamps title: (the human name, D6) + a stable id: (D10)', () => {
+    const r = createEntityStub(root, 'person', 'Customer Orders', { asOf: AS_OF, mode: 'okf' })
+    expect(r.created).toBe(true)
+    expect(r.path).toBe('people/customer-orders.md')
+    const content = fs.readFileSync(r.absPath, 'utf8')
+    // id is spliced right after the opening fence (D10 primary relink key).
+    expect(content).toMatch(/^---\nid: [0-9a-z]{8}\n/)
+    expect(content).toContain('type: person')
+    // D6: the human name lives in title:, not in the slugged on-disk stem.
+    expect(content).toContain('title: Customer Orders')
+    expect(content).toContain('role:') // template field still seeded
+  })
+
+  it('slug-collision guard: differing human names that slug-collide disambiguate, never clobber', () => {
+    const a = createEntityStub(root, 'person', 'Customer Orders', { asOf: AS_OF, mode: 'okf' })
+    const b = createEntityStub(root, 'person', 'customer orders', { asOf: AS_OF, mode: 'okf' })
+    expect(a.path).toBe('people/customer-orders.md')
+    expect(b.path).toBe('people/customer-orders-2.md') // -2 suffix, both created
+    expect(a.created).toBe(true)
+    expect(b.created).toBe(true)
+  })
+
+  it('createType slugs the template stem + canonical type in OKF mode', () => {
+    const r = createType(root, 'Decision Log', 'okf')
+    expect(r.type).toBe('decision-log')
+    expect(r.path).toBe('templates/decision-log.md')
+    expect(fs.readFileSync(path.join(root, r.path), 'utf8')).toContain('type: decision-log')
+  })
+})

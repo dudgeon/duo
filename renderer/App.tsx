@@ -13,6 +13,7 @@ import { FirstLaunchBanner } from './components/FirstLaunchBanner'
 import { UpdateAvailableBanner } from './components/UpdateAvailableBanner'
 import { ExternalRedirectedBanner } from './components/ExternalRedirectedBanner'
 import { CloneModal } from './components/CloneModal'
+import { NewVaultModal } from './components/NewVaultModal'
 import { LinkPromptModal } from './components/editor/LinkPromptModal'
 import { WorkspaceSwitcherDropdown } from './components/WorkspaceSwitcherDropdown'
 import type { FileTab, ActiveWorking } from './components/WorkingPane'
@@ -409,6 +410,18 @@ export function App() {
       window.dispatchEvent(new CustomEvent('duo-wcv-restore'))
     }
   }, [cloneModalOpen])
+  // ENH-216 (U7) — File → New Vault… modal visibility. Opened by the
+  // native File menu entry's IPC push (window.electron.nav
+  // .onOpenNewVaultModal). Same WCV-park hack as the Clone modal so the
+  // browser-pane WebContentsView doesn't paint over the modal.
+  const [newVaultModalOpen, setNewVaultModalOpen] = useState(false)
+  useEffect(() => {
+    if (newVaultModalOpen) {
+      window.dispatchEvent(new CustomEvent('duo-wcv-park'))
+    } else {
+      window.dispatchEvent(new CustomEvent('duo-wcv-restore'))
+    }
+  }, [newVaultModalOpen])
   const lastAutoCollapseState = useRef(false)
 
   // BUG-048 v3 — focusedColumn is mirrored into a ref alongside the
@@ -2722,6 +2735,15 @@ export function App() {
     })
   }, [])
 
+  // ENH-216 (U7) — File → New Vault… menu trigger. Mirrors the Clone
+  // modal's menu-driven open. The native menu item sends
+  // NAV_OPEN_NEW_VAULT_MODAL; this opens the dialog (OKF default — D2).
+  useEffect(() => {
+    return window.electron.nav.onOpenNewVaultModal(() => {
+      setNewVaultModalOpen(true)
+    })
+  }, [])
+
   // FOLLOWUP-020 — `duo close-terminal-tab [<n>]` from the CLI.
   // n omitted → close the focused terminal tab; n supplied (1-indexed)
   // → close that specific tab. Mirrors the ⌘W chord when focusedColumn
@@ -2889,8 +2911,33 @@ export function App() {
   // if no `.obsidian/` ancestor exists.
   useEffect(() => {
     const handler = async (e: Event) => {
-      const detail = (e as CustomEvent<{ target: string }>).detail
+      const detail = (e as CustomEvent<{ target: string; resolvedPath?: string }>).detail
       console.debug('[ENH-096 receive]', detail)
+      // ENH-216 (U7) — OKF markdown-link click-nav passes a PRE-RESOLVED
+      // absolute path (the editor already did the rel-link math against the
+      // doc's directory). Short-circuit the vault-walk: open it directly if
+      // it exists, otherwise fall through to the create-on-missing path
+      // below using the resolved path as the create target. Leaves the
+      // existing wikilink-target branch untouched (Obsidian / [[ ]]).
+      const resolvedPath = detail?.resolvedPath?.trim()
+      if (resolvedPath) {
+        try {
+          if (await window.electron.files.exists(resolvedPath)) {
+            const rname = resolvedPath.slice(resolvedPath.lastIndexOf('/') + 1) || resolvedPath
+            void openFileSmart(resolvedPath, rname)
+            return
+          }
+          // Target doesn't exist yet — Obsidian-parity create-on-click,
+          // but at the exact resolved path (the rel link already encoded
+          // where it should live). files.write mkdir-p's the parent.
+          await window.electron.files.write(resolvedPath, new Uint8Array())
+          const rname = resolvedPath.slice(resolvedPath.lastIndexOf('/') + 1) || resolvedPath
+          void openFileSmart(resolvedPath, rname)
+        } catch (err) {
+          console.warn('[ENH-216] pre-resolved md-link open/create failed:', resolvedPath, err)
+        }
+        return
+      }
       const wikilinkTarget = detail?.target?.trim()
       if (!wikilinkTarget) return
       // Strip block-ref / heading suffix; v1 doesn't resolve those —
@@ -4363,6 +4410,21 @@ export function App() {
         }}
         onCloned={(clonedTo) => {
           nav.actions.navigateTo(clonedTo)
+        }}
+      />
+      {/* ENH-216 (U7) — File → New Vault… modal. Pure-UI complement to the
+          `duo vault init` CLI. On success, navigate the navigator to the
+          new vault root and open the scaffolded entry artifact (OKF
+          index.md / Obsidian entry note) when one was produced. */}
+      <NewVaultModal
+        open={newVaultModalOpen}
+        onClose={() => setNewVaultModalOpen(false)}
+        onCreated={(root, openPath) => {
+          nav.actions.navigateTo(root)
+          if (openPath) {
+            const name = openPath.slice(openPath.lastIndexOf('/') + 1) || openPath
+            void openFileSmart(openPath, name)
+          }
         }}
       />
       {/* BUG-137 walk-3 follow-up — replacement for window.prompt

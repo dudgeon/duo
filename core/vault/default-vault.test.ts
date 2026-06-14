@@ -14,6 +14,7 @@ import {
   listKnownVaults,
   resolveVaultOrDefault,
   resolveVaultForUi,
+  detectVaultMode,
 } from './index'
 import { writePrefs } from './default-vault'
 import { initVault } from './scaffold'
@@ -26,6 +27,9 @@ let vaultB: string
 beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'duo-default-vault-'))
   prefFile = path.join(dir, 'vault.json')
+  // ENH-216 D2: initVault now defaults to OKF, so these scaffolded test
+  // vaults are OKF-mode — the default-vault pref is mode-agnostic (it stores
+  // a pointer only, never a mode key, D4) and must accept either mode.
   vaultA = initVault(path.join(dir, 'A')).root
   vaultB = initVault(path.join(dir, 'B')).root
 })
@@ -48,7 +52,18 @@ describe('default-vault pref', () => {
     })
   })
 
-  it('refuses a non-vault target', () => {
+  it('accepts an OKF vault and stores NO mode key (the pref is a pointer only, D4)', () => {
+    // The scaffolded vaultA is OKF (D2 default). setDefaultVault must accept
+    // it the same as an Obsidian vault, and the on-disk pref must carry only
+    // pointers — never a `mode` (mode is live-detected from the marker, D4).
+    expect(detectVaultMode(vaultA)).toBe('okf')
+    setDefaultVault(vaultA, prefFile)
+    const onDisk = JSON.parse(fs.readFileSync(prefFile, 'utf8'))
+    expect(Object.keys(onDisk).sort()).toEqual(['defaultVault', 'knownVaults'])
+    expect('mode' in onDisk).toBe(false)
+  })
+
+  it('refuses a non-vault target (the /not a vault/ guard still holds)', () => {
     expect(() => setDefaultVault(path.join(dir, 'not-a-vault'), prefFile)).toThrow(/not a vault/)
   })
 

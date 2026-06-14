@@ -1,46 +1,92 @@
-# Working in a vault (ENH-208)
+# Working in a vault (ENH-208 · ENH-216)
 
-> A **vault** is a folder containing `.obsidian/` — a strict
-> [Obsidian](https://obsidian.md) vault of work-notes: plain markdown +
-> `[[wikilinks]]` + YAML frontmatter + `.base` rollups. Duo adds capture,
-> search, and an **agent layer** (you) on top; the same folder opens
-> correctly in Obsidian proper at all times. This file is how you operate
-> in one. The end-user walkthrough with diagrams is the **Vault Guide**
-> (`docs/guide/vault-guide.html` — `duo open` it).
+> A **vault** is a folder of work-notes: plain markdown + YAML frontmatter +
+> folders + a link graph. Duo adds capture, search, and an **agent layer**
+> (you) on top. This file is how you operate in one. The end-user walkthrough
+> with diagrams is the **Vault Guide** (`docs/guide/vault-guide.html` —
+> `duo open` it).
+
+**Two at-rest formats — ONE graph model, TWO serializers (ENH-216).** The
+same notes/links/types form one graph; how a link is written to disk depends
+on the vault's format:
+
+| Format | Marker (source of truth) | Links at rest | Default for |
+|---|---|---|---|
+| **OKF** | root `index.md` with `okf_version:` frontmatter | standard markdown relative links `[Display](./<note>.md)` | the New Vault **dialog** (D2) |
+| **Obsidian** | a `.obsidian/` directory | `[[wikilinks]]` | the legacy / existing behavior |
+
+If both markers are present, **`okf_version` wins** (D4). The wikilink GESTURE
+is input-only everywhere — type `[[Name]]` to pick or stub a target; on resolve
+an OKF vault rewrites it to a markdown relative link, an Obsidian vault keeps
+the wikilink. **No double-square-bracket link ever persists in OKF mode** (D3).
 
 The three layers, and who owns each:
 
 | Layer | What | Owner |
 |---|---|---|
-| **At rest** | markdown + `[[wikilinks]]` + YAML frontmatter + folders + `.base` files | Obsidian conventions — zero invention |
+| **At rest** | markdown + YAML frontmatter + folders + a link graph (rel-md links in OKF, wikilinks in Obsidian) + `.base` rollups (Obsidian) / static listings (OKF) | format conventions — zero invention |
 | **Capture** | autocomplete, ⇧⌘N quick-capture, ⌘⇧F search palette, the type-picker, `@today` tokens (shipped Phase-2 UI) | Duo UI |
 | **Agent** | filing, linking, fixing frontmatter, authoring rollups, processing | **you**, via the `duo vault` / `graph` / `base` verbs + this skill |
 
-**The cardinal rule (D1): keep the vault strict.** Only ever write plain
-Obsidian: `[[wikilinks]]` in prose, typed fields in YAML frontmatter, folders,
-`.base` files. No Dataview inline fields, no invented syntax. If it wouldn't
-open correctly in Obsidian, don't write it.
+**The cardinal rule: write what the vault's format expects — and nothing
+invented.** Typed fields in YAML frontmatter, folders, no Dataview inline
+fields, no invented syntax, regardless of format. Then, per format:
+
+- **Obsidian mode (D1):** `[[wikilinks]]` in prose. If it wouldn't open
+  correctly in Obsidian proper, don't write it. `.base` rollups live in the
+  vault.
+- **OKF mode (D3):** standard markdown relative links `[Display](./<note>.md)` in
+  prose — **never** a persisted `[[wikilink]]`. Every note carries `type:` and
+  a stable `id:` (D10); listings are static, generated `index.md` + `log.md`
+  files (D8), not live `.base` queries.
 
 ## The verbs (all read the filesystem directly — no running app needed)
 
 | Verb | Use it to |
 |---|---|
-| `duo vault init <folder>` | scaffold a new vault (templates + folders + processing.base + README) |
-| `duo vault list` | find vaults under the cwd |
+| `duo vault init <path> --format=okf\|obsidian [--name "…"]` | scaffold a new vault. **`--format` is REQUIRED** (deliberate CLI↔dialog asymmetry, D2 — the New Vault dialog defaults to OKF). `okf` = rel-md links + `okf_version` `index.md` marker + static listings; `obsidian` = wikilinks + `.obsidian/` marker + `processing.base` + README. The fresh vault becomes the default |
+| `duo vault list` | find vaults under the cwd (OKF `okf_version` index.md OR `.obsidian/`) |
 | `duo vault schema [--vault p]` | get the **corpus** — types, entities, aliases, props-per-type, observed enums, templates. **Run this before authoring a base or filing a note** — it's the resolution table |
 | `duo vault capture [--template t] [--text …] [--title …]` | drop an atomic inbox note (the ⇧⌘N twin — bare capture matches the chord exactly) |
 | `duo vault stub <type> <name> [--open]` | create a typed entity stub from its template, D19-filed; idempotent (the type-picker's twin — same code path) |
 | `duo vault default [<path>\|--clear]` | read/set the default vault (the Settings → Default Vault twin — one pref file, writes reflect live) |
 | `duo vault search <query>` | full-text search (the ⌘⇧F palette's twin) |
-| `duo graph backlinks <note>` | who links to a note (basename-resolved; scans frontmatter + body) |
+| `duo vault mv <from> <to>` | **move a note + rewrite inbound links** (the D5 clean path — see *Moving a note* below). Prefer over `duo file rename` for OKF vault notes |
+| `duo vault relink [--dry-run]` | **repair links broken by an out-of-band move** (Finder/git) — re-resolve by stable `id:` → slug, rewrite the unambiguous, report ambiguous + broken |
+| `duo vault publish [--index-only\|--log-only] [--dir] [--open]` | (re)generate the OKF static listings (`index.md` + `log.md`) from the corpus (D8; OKF-mode only) |
+| `duo vault promote <note> --heading "<h>" --type <t>` | split a `## section` into its own typed entity, leaving a link behind (D9 — see *Running docs & promote*) |
+| `duo graph backlinks <note>` | who links to a note (wikilinks basename-resolved AND markdown rel links; scans frontmatter + body) |
 | `duo graph orphans` | notes with no links in or out (a tidy-up list) |
-| `duo base lint <file\|--all>` | validate a `.base` against the corpus before rendering |
+| `duo base lint <file\|--all>` | validate a `.base` against the corpus before rendering (Obsidian-mode rollups) |
 | `duo base render <file\|note> [--out p] [--open]` | render a rollup to a stamped HTML artifact |
 
 Vault resolution order: explicit `--vault <path>` → the enclosing vault (walk
-up from the cwd to the nearest `.obsidian/`) → the default vault (`duo vault
-default`) → error. **The corpus is computed live every time — never cache it
-to disk** (no-sidecar rule).
+up from the cwd to the nearest marker — an OKF `okf_version` index.md or an
+`.obsidian/`) → the default vault (`duo vault default`) → error. **The corpus is
+computed live every time — never cache it to disk** (no-sidecar rule).
+
+## Moving a note (D5) — links don't move themselves in OKF mode
+
+In **Obsidian mode**, wikilinks resolve by basename, so a moved note's inbound
+links survive a move untouched. In **OKF mode**, links are relative paths — a
+move changes the path every inbound `[Display](./<note>.md)` points at — so a move
+needs link repair. Two paths:
+
+- **`duo vault mv <from> <to>`** — the **clean path**. Duo moves the file
+  itself, so it knows every inbound markdown link: it recomputes each one for
+  the new location and rewrites it byte-anchored, and re-bases the moved note's
+  OWN outbound links from their new home. Throws on a dest collision (never
+  clobbers). Use this instead of `duo file rename` / shell `mv` for vault notes.
+- **`duo vault relink [--dry-run]`** — the **out-of-band repair**. Someone moved
+  or renamed files around Duo (Finder, git, a bulk script). Relink finds every
+  dangling markdown link and re-resolves each target by its stable frontmatter
+  `id:` first (the primary key, minted on every OKF note at create time, D10),
+  then by slug/basename fallback. It rewrites the ones that resolve
+  unambiguously and **reports** ambiguous (>1 candidate) and broken (0) — never
+  guesses (warn-don't-block). `--dry-run` reports without writing.
+- **Auto-relink on vault open** — Duo runs `relink` automatically when a vault
+  opens, so out-of-band moves self-heal as far as the keys allow; the explicit
+  verb is for headless/CI runs and for inspecting the ambiguous/broken report.
 
 ## Capture by narration
 
@@ -131,15 +177,31 @@ Renders are **stamped build artifacts** (D13): generated-at + source-hash +
 as-of date. Default writes to the vault's `out/`; re-render to refresh — the
 source hash detects staleness. There is no live watcher in v1.
 
+**OKF mode uses static listings, not live `.base` rollups (D8).** An OKF vault
+has no `.base` files; instead `duo vault publish` (re)generates plain-markdown
+**`index.md`** (a heading per type/group, then `* [Title](rel) - description`
+bullets — OKF section-6) and **`log.md`** (`## YYYY-MM-DD` groups newest-first
+from file mtimes — OKF section-7) from the corpus. The **root `index.md` IS the
+OKF mode marker** — its `okf_version`/`title`/`type: index` frontmatter is
+preserved byte-identically; publish only regenerates the body after the
+`<!-- duo:listing -->` fence, and stamps it with the source hash like a render
+artifact. `--index-only` / `--log-only` narrow the write; `--dir` also writes a
+per-folder `index.md`; `--open` surfaces the root `index.md` as a tab. Publish
+is OKF-mode-gated (it throws in an Obsidian vault — Obsidian stays
+byte-identical).
+
 ## Running docs & promote (P6)
 
 Keep low-ceremony series as one running doc — e.g.
 `initiatives/Q3 Launch/Meetings.md` with one `##` section per meeting, addressed
-as `[[Meetings#2026-06-09]]`. No file-per-thing churn. When a section earns its
-own properties or base visibility, **promote** it: split that `##` section into
-an entity file from the matching template and leave an `![[embed]]` behind
-(reversible — inline the embed to undo). This is a skill choreography over the
-existing file ops + `duo doc` verbs; there is no `duo vault promote` verb in v1.
+as `[[Meetings#2026-06-09]]` (Obsidian) / `[Meetings](./<series>.md)` (OKF). No
+file-per-thing churn. When a section earns its own properties or base
+visibility, **promote** it with `duo vault promote <note> --heading "<h>"
+--type <t>` (D9): it splits that `##` section into an entity file from the
+matching template, removes the section from the source note, and leaves a
+**LINK** where it was — a markdown relative link in OKF mode, a `[[wikilink]]`
+in Obsidian. **It is never an `![[embed]]`-transclusion** (D9 — promote means
+the section becomes a first-class note, not an inlined view).
 
 ## Processing (P8) — the agent pass
 
@@ -151,7 +213,9 @@ existing file ops + `duo doc` verbs; there is no `duo vault promote` verb in v1.
 2. **Do the ops**, but as *suggestions*:
    - **File** inbox/contextless notes per the D19 rules (move under a resolved
      parent; `notes/YYYY/MM/` otherwise). List every move in the report for
-     approval — wikilinks survive moves (basename-resolved).
+     approval. In Obsidian mode wikilinks survive moves (basename-resolved); in
+     OKF mode use **`duo vault mv`** so inbound markdown links are rewritten, or
+     run **`duo vault relink`** afterward to repair any out-of-band moves.
    - **Fix frontmatter + links** with **CriticMarkup tracked suggestions in Duo's
      exact format** — `duo doc insert` / `duo doc substitute` (which emit
      `{++…++}` / `{~~…~>…~~}`). **Never write literal `<ins>`/`<del>` HTML** —
@@ -183,3 +247,7 @@ insertion-sized.
   Agents pass `--vault`, run from inside the vault, or rely on the default.
 - The type-picker's "+ new type…" writes `templates/<type>.md` directly — agents
   create a type by writing the template file; there is no verb.
+- **`duo vault init --format` is REQUIRED on the CLI (D2)** even though the New
+  Vault dialog defaults to OKF. A deliberate asymmetry: a human picking from a
+  dialog has a sensible default; an agent scripting a vault should state the
+  at-rest format explicitly rather than inherit a silent default.

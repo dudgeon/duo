@@ -2,18 +2,54 @@
 // `vaultIndex.ts` walk-up (a vault = the nearest ancestor containing
 // `.obsidian/`) but in a node/fs context for the CLI. Phase 3 converges
 // the two onto one shared module.
+//
+// ENH-216 OKF mode — a vault now detects in one of TWO modes (D4). The
+// IN-VAULT marker is the source of truth (never a registry/prefs key):
+//   okf       — root `index.md` carries an `okf_version` frontmatter field.
+//   obsidian  — the legacy default: a `.obsidian/` directory at the root.
+// `okf_version` WINS if both markers are present (D4 tie-break).
 
 import fs from 'node:fs'
 import path from 'node:path'
-import type { VaultInfo } from './types'
+import type { VaultInfo, VaultMode } from './types'
+import { splitFrontmatter } from './parse'
 
-/** True when `dir` is a vault root (contains an `.obsidian/` directory). */
-export function isVaultRoot(dir: string): boolean {
+/** Read the `okf_version` field from a vault root's `index.md` frontmatter
+ *  (the OKF marker, D4 — the ROOT `index.md` ONLY). Returns the version
+ *  string, or null when the file is absent / has no `okf_version`. */
+export function readOkfVersion(dir: string): string | null {
+  let raw: string
   try {
-    return fs.statSync(path.join(dir, '.obsidian')).isDirectory()
+    raw = fs.readFileSync(path.join(dir, 'index.md'), 'utf8')
   } catch {
-    return false
+    return null
   }
+  const { frontmatter } = splitFrontmatter(raw)
+  const v = frontmatter.okf_version
+  if (typeof v === 'string') return v
+  if (typeof v === 'number') return String(v)
+  return null
+}
+
+/** Detect a vault's at-rest mode from its in-vault marker (D4). Returns:
+ *   - `'okf'`      when the root `index.md` has `okf_version` (WINS over
+ *     `.obsidian/` if both are present);
+ *   - `'obsidian'` when an `.obsidian/` directory is present;
+ *   - `null`       when `dir` is not a vault root at all. */
+export function detectVaultMode(dir: string): VaultMode | null {
+  if (readOkfVersion(dir) !== null) return 'okf'
+  try {
+    if (fs.statSync(path.join(dir, '.obsidian')).isDirectory()) return 'obsidian'
+  } catch {
+    /* not an obsidian vault */
+  }
+  return null
+}
+
+/** True when `dir` is a vault root in EITHER mode (ENH-216 widening — was
+ *  an `.obsidian/`-only probe). */
+export function isVaultRoot(dir: string): boolean {
+  return detectVaultMode(dir) !== null
 }
 
 /** Walk up from `startPath` (a file or directory) to the nearest enclosing
@@ -31,6 +67,16 @@ export function findVaultRoot(startPath: string): string | null {
     if (parent === dir) return null
     dir = parent
   }
+}
+
+/** Walk up from `startPath` to the nearest enclosing vault, returning both
+ *  its root AND its live-detected mode (ENH-216, D4), or null if none. The
+ *  mode companion to {@link findVaultRoot}. */
+export function findVaultWithMode(startPath: string): { root: string; mode: VaultMode } | null {
+  const root = findVaultRoot(startPath)
+  if (!root) return null
+  // A walk-up hit is a vault root, so detectVaultMode is non-null here.
+  return { root, mode: detectVaultMode(root)! }
 }
 
 // `templates` is excluded so `vault list`'s noteCount matches what the
@@ -96,7 +142,13 @@ export function listVaults(cwd: string, maxDepth = 4): VaultInfo[] {
 
   return [...roots]
     .sort()
-    .map((root) => ({ root, name: path.basename(root), noteCount: countNotes(root) }))
+    // A root in `roots` passed isVaultRoot, so detectVaultMode is non-null.
+    .map((root) => ({
+      root,
+      name: path.basename(root),
+      noteCount: countNotes(root),
+      mode: detectVaultMode(root)!,
+    }))
 }
 
 /** Resolve the vault root for a verb: an explicit `--vault` flag wins,
@@ -105,14 +157,14 @@ export function resolveVault(cwd: string, explicit?: string | null): string {
   if (explicit) {
     const abs = path.resolve(cwd, explicit)
     if (!isVaultRoot(abs)) {
-      throw new Error(`not a vault (no .obsidian/): ${abs}`)
+      throw new Error(`not a vault (no okf_version index.md or .obsidian/): ${abs}`)
     }
     return abs
   }
   const root = findVaultRoot(cwd)
   if (!root) {
     throw new Error(
-      `no vault found from ${cwd} (walked up looking for .obsidian/). ` +
+      `no vault found from ${cwd} (walked up looking for an okf_version index.md or .obsidian/). ` +
         `Pass --vault <path>, or run \`duo vault init <folder>\`.`,
     )
   }

@@ -10,7 +10,8 @@ import path from 'node:path'
 import os from 'node:os'
 import { isVaultRoot } from './detect'
 import { loadTemplates } from './corpus'
-import type { TypeTemplate } from './types'
+import { ensureNoteId } from './move'
+import type { TypeTemplate, VaultMode } from './types'
 
 const TB = '`'.repeat(3) // ``` — the markdown code fence
 
@@ -90,6 +91,27 @@ const INITIATIVE_TPL = [
   '      due: Earliest',
   '      status: Filled',
   TB,
+  '',
+].join('\n')
+
+// OKF initiative template — the SAME frontmatter + headings as the Obsidian
+// one but MINUS the embedded ```base rollup block (ENH-216: OKF has no
+// `.base` machinery; listings are static generated markdown, D8). The
+// folder-note filing rule still rides on the frontmatter.
+const INITIATIVE_TPL_OKF = [
+  '---',
+  'type: initiative',
+  'folder: initiatives',
+  'folderNote: true',
+  'owner:',
+  'status: active',
+  'due:',
+  'themes: []',
+  '---',
+  '',
+  '## Current state',
+  '',
+  '## Milestones',
   '',
 ].join('\n')
 
@@ -175,27 +197,63 @@ function readmeText(name: string): string {
   ].join('\n')
 }
 
+// The OKF root index.md (ENH-216, D4 + D8). Its frontmatter is the OKF
+// in-vault MARKER (`okf_version` — what `detectVaultMode` keys on) plus the
+// vault title + `type: index` (D10: every OKF note is type-stamped, root is
+// the index). The body starts with the EXACT listing fence `<!-- duo:listing
+// -->` — co-owned: scaffold (U2) writes the frontmatter + this fence seed,
+// the listings generator (U3) regex-replaces ONLY the body AFTER the
+// frontmatter, leaving the frontmatter byte-identical (never re-serialize the
+// YAML). Built by hand (not js-yaml dump) so the marker bytes are stable.
+function okfRootIndex(title: string): string {
+  return [
+    '---',
+    'okf_version: "0.1"',
+    `title: ${title}`,
+    'type: index',
+    '---',
+    '',
+    '<!-- duo:listing -->',
+    '',
+  ].join('\n')
+}
+
 // ── vault init ──────────────────────────────────────────────────────────────
 
 export interface InitResult {
   root: string
   created: string[]
   warnings: string[]
+  /** ENH-216: the at-rest link mode the vault was scaffolded in. */
+  mode: VaultMode
 }
 
 /** Scaffold a vault at `folder`. Refuses to clobber an existing vault
- *  unless `force`. Returns created paths + any advisory warnings. */
-export function initVault(folder: string, opts: { force?: boolean } = {}): InitResult {
+ *  unless `force`. Returns created paths, any advisory warnings, and the
+ *  at-rest link mode it scaffolded in.
+ *
+ *  ENH-216 (D2): `format` defaults to `okf` (the dialog default) — note the
+ *  deliberate asymmetry with the CLI, where `--format` is REQUIRED (the CLI
+ *  layer enforces that, not this fn). `obsidian` reproduces the legacy
+ *  scaffold BYTE-FOR-BYTE (a `.obsidian/` marker, `.base` rollups, a README);
+ *  `okf` writes a root `index.md` marker + static-listing seed, the same
+ *  templates minus the embedded `.base` block, and NO README / NO `bases/`. */
+export function initVault(
+  folder: string,
+  opts: { force?: boolean; format?: VaultMode; name?: string } = {},
+): InitResult {
+  const mode: VaultMode = opts.format ?? 'okf'
   const root = path.resolve(folder)
   if (isVaultRoot(root) && !opts.force) {
     throw new Error(
-      `${root} is already a vault (has .obsidian/). Pass --force to (re)write the starter scaffold ` +
-        `files — it overwrites edited starter templates / processing.base / README, but never touches ` +
-        `your own notes.`,
+      `${root} is already a vault (has an okf_version index.md or .obsidian/). Pass --force to ` +
+        `(re)write the starter scaffold files — it overwrites edited starter templates / ` +
+        `processing.base / README / index.md, but never touches your own notes.`,
     )
   }
   const created: string[] = []
   const warnings: string[] = []
+  const title = opts.name ?? path.basename(root)
 
   const mkdir = (rel: string) => {
     const abs = path.join(root, rel)
@@ -212,16 +270,39 @@ export function initVault(folder: string, opts: { force?: boolean } = {}): InitR
     created.push(rel)
   }
 
-  for (const d of ['.obsidian', 'templates', 'inbox', 'people', 'themes', 'initiatives', 'notes', 'bases', 'out']) mkdir(d)
+  if (mode === 'obsidian') {
+    // Legacy default — kept verbatim (byte-identical regression guard, ENH-216).
+    for (const d of ['.obsidian', 'templates', 'inbox', 'people', 'themes', 'initiatives', 'notes', 'bases', 'out'])
+      mkdir(d)
 
-  writeFile('.obsidian/app.json', APP_JSON + '\n')
-  writeFile('templates/person.md', PERSON_TPL)
-  writeFile('templates/theme.md', THEME_TPL)
-  writeFile('templates/initiative.md', INITIATIVE_TPL)
-  writeFile('templates/milestone.md', MILESTONE_TPL)
-  writeFile('templates/meeting.md', MEETING_TPL)
-  writeFile('bases/processing.base', PROCESSING_BASE)
-  writeFile('README.md', readmeText(path.basename(root)))
+    writeFile('.obsidian/app.json', APP_JSON + '\n')
+    writeFile('templates/person.md', PERSON_TPL)
+    writeFile('templates/theme.md', THEME_TPL)
+    writeFile('templates/initiative.md', INITIATIVE_TPL)
+    writeFile('templates/milestone.md', MILESTONE_TPL)
+    writeFile('templates/meeting.md', MEETING_TPL)
+    writeFile('bases/processing.base', PROCESSING_BASE)
+    writeFile('README.md', readmeText(path.basename(root)))
+  } else {
+    // OKF (ENH-216) — same content folders, but NO .obsidian/ and NO bases/
+    // (OKF has no `.base` machinery; listings are static generated markdown,
+    // D8). The OKF in-vault marker is the root index.md frontmatter (D4).
+    for (const d of ['templates', 'inbox', 'people', 'themes', 'initiatives', 'notes', 'out']) mkdir(d)
+
+    // The root index.md is co-owned: this writes the frontmatter marker +
+    // the `<!-- duo:listing -->` body seed; the listings generator (U3)
+    // regex-replaces ONLY the body after the frontmatter (D8).
+    writeFile('index.md', okfRootIndex(title))
+    // Same templates as Obsidian, type-stamped, MINUS the embedded `.base`
+    // block in the initiative template (no `.base` machinery in OKF).
+    writeFile('templates/person.md', PERSON_TPL)
+    writeFile('templates/theme.md', THEME_TPL)
+    writeFile('templates/initiative.md', INITIATIVE_TPL_OKF)
+    writeFile('templates/milestone.md', MILESTONE_TPL)
+    writeFile('templates/meeting.md', MEETING_TPL)
+    // No README (D10: the root listing is index.md, not a frontmatter-less
+    // README); no .obsidian/, no bases/.
+  }
 
   // iCloud-eviction trap (PRD risk): warn if the vault lives under
   // ~/Documents (where macOS Optimize Storage can evict file bytes).
@@ -233,7 +314,7 @@ export function initVault(folder: string, opts: { force?: boolean } = {}): InitR
         'or disable Optimize Storage for reliable local access.',
     )
   }
-  return { root, created, warnings }
+  return { root, created, warnings, mode }
 }
 
 // ── vault capture ───────────────────────────────────────────────────────────
@@ -254,9 +335,20 @@ function slugify(s: string): string {
 /** Frontmatter lines that stamp a type + seed its expected fields empty
  *  (arrays as `[]`, scalars blank), for a note created from a template.
  *  Shared by `captureNote` and `createEntityStub`. Excludes the `---`
- *  fences and any meta keys (those aren't entity fields). */
-export function seedFrontmatterLines(template: TypeTemplate): string[] {
+ *  fences and any meta keys (those aren't entity fields).
+ *
+ *  ENH-216: `type:` is ALWAYS emitted first (D10 — every OKF note is
+ *  type-stamped). In `okf` mode, when a human `title` is supplied it's
+ *  stamped right after `type:` (D6 — the on-disk stem is slugged, the human
+ *  name lives in `title:`). The `id:` is minted separately on the OKF create
+ *  path (`ensureNoteId`, D10), not here. New params default to `obsidian` so
+ *  existing call sites stay byte-identical. */
+export function seedFrontmatterLines(
+  template: TypeTemplate,
+  opts: { mode?: VaultMode; title?: string } = {},
+): string[] {
   const lines = [`type: ${template.type}`]
+  if (opts.mode === 'okf' && opts.title) lines.push(`title: ${opts.title}`)
   for (const field of template.fields) {
     lines.push(`${field}:${Array.isArray(template.frontmatter[field]) ? ' []' : ''}`)
   }
@@ -270,11 +362,18 @@ export function seedFrontmatterLines(template: TypeTemplate): string[] {
  *  a no-title capture is a single space-free token; owner ask 2026-06-12),
  *  and a collision guard appends ` 2`, ` 3`, … if a note with the same stamp
  *  + title already exists — so rapid same-second/same-title captures never
- *  silently overwrite each other. */
+ *  silently overwrite each other.
+ *
+ *  ENH-216: in `okf` mode EVERY note is type-stamped (D10) — an untemplated
+ *  capture stamps `type: note` rather than landing untyped — AND carries a
+ *  minted stable `id:` (via `ensureNoteId`, the D5 relink key). No `title:`
+ *  on a capture (inbox atoms have no human name). `mode` defaults to
+ *  `obsidian`, where capture stays untyped-by-default + id-free (unchanged). */
 export function captureNote(
   root: string,
-  opts: { template?: string; text?: string; title?: string; date?: Date } = {},
+  opts: { template?: string; text?: string; title?: string; date?: Date; mode?: VaultMode } = {},
 ): CaptureResult {
+  const mode: VaultMode = opts.mode ?? 'obsidian'
   const now = opts.date ?? new Date()
   const stamp =
     `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-` +
@@ -297,11 +396,19 @@ export function captureNote(
       throw new Error(`unknown template "${opts.template}" (known: ${known || 'none'})`)
     }
     type = tpl.type
-    fmLines.push(...seedFrontmatterLines(tpl))
+    fmLines.push(...seedFrontmatterLines(tpl, { mode }))
+  } else if (mode === 'okf') {
+    // D10: every OKF note is type-stamped; an untemplated capture is `note`.
+    type = 'note'
+    fmLines.push('type: note')
   }
   fmLines.push('---', '')
   const body = opts.text ? opts.text + '\n' : ''
   fs.mkdirSync(path.dirname(abs), { recursive: true })
   fs.writeFileSync(abs, fmLines.join('\n') + '\n' + body)
+  // D10: mint + stamp a stable id on every OKF note at create time (the D5
+  // primary relink key). `ensureNoteId` splices it into the just-written
+  // frontmatter byte-preservingly. Obsidian captures stay id-free (unchanged).
+  if (mode === 'okf') ensureNoteId(abs, root)
   return { path: rel, absPath: abs, type }
 }

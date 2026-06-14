@@ -40,6 +40,8 @@ import {
   type SuggestionPopoverProps
 } from '../primitives/SuggestionPopover'
 import type { VaultFile } from '../wikilinkResolver'
+import type { VaultMode } from '../../../../core/markdown/vaultLinks'
+import { okfLinkInsert } from '../okfLinks'
 import { findWikilinkMatch } from './suggestionMatchers'
 import { isCreateNoteItem, withCreateNoteRow, type CreateNoteItem } from './createNoteRow'
 
@@ -61,10 +63,27 @@ export interface WikilinkSuggestionOptions {
    *  the static extension list sees fresh values. The create row is
    *  only offered when this returns non-null. */
   getVaultRoot?: () => string | null
-  /** ENH-208 D4 — fired AFTER the create row's wikilink insert, with
-   *  the stub name + the post-insert caret rect (null if the rect
-   *  couldn't be measured). The host opens the TypePickerPopover. */
-  onCreateStub?: (payload: { name: string; rect: DOMRect | null }) => void
+  /** ENH-216 (U7) — the active vault's at-rest link mode (D4). Read
+   *  through a ref closure (like getItems) so the static extension list
+   *  sees fresh values. OKF branches command() onto standard markdown
+   *  relative links; Obsidian (the default) keeps the [[ ]] form. */
+  getMode?: () => VaultMode
+  /** ENH-216 (U7) — the active document's path (the SOURCE note), used
+   *  as the rel-link base in OKF mode. Null when unknown — the extension
+   *  falls back to the legacy wikilink insert. */
+  getDocPath?: () => string | null
+  /** ENH-208 D4 / ENH-216 (U7) — fired AFTER the create row's insert.
+   *  `name` is the human name the user typed; `rect` is the post-insert
+   *  caret rect (null if unmeasurable). `range` is the inserted
+   *  PLACEHOLDER's range (OKF mode only — the host rewrites it to a
+   *  markdown link once the stub's path is known via onCreated); null in
+   *  Obsidian mode (the [[ ]] is already its final form). The host opens
+   *  the TypePickerPopover from this. */
+  onCreateStub?: (payload: {
+    name: string
+    rect: DOMRect | null
+    range: { from: number; to: number } | null
+  }) => void
 }
 
 export const WikilinkSuggestion = Extension.create<WikilinkSuggestionOptions>({
@@ -74,7 +93,9 @@ export const WikilinkSuggestion = Extension.create<WikilinkSuggestionOptions>({
     return {
       getItems: () => [],
       isLoading: () => false,
-      rank: (items) => items
+      rank: (items) => items,
+      getMode: () => 'obsidian' as VaultMode,
+      getDocPath: () => null
     }
   },
 
@@ -124,24 +145,43 @@ export const WikilinkSuggestion = Extension.create<WikilinkSuggestionOptions>({
           )
         },
 
-        // Replace `[[<query>` with `[[<basename>]]`. The matcher's
-        // `range.from` points at the first `[` of `[[`, so replacing
-        // [from, to] cleanly swaps the user's in-progress trigger
-        // for the canonical wikilink form.
+        // The matcher's `range.from` points at the first `[` of `[[`, so
+        // replacing [from, to] cleanly swaps the user's in-progress
+        // trigger for the resolved link.
+        //
+        //   Obsidian (default): insert `[[basename]]` / `[[query]]` (the
+        //     create row's [[query]] is already its final form).
+        //   OKF (D3 expand-on-resolve): NO double-bracket link ever
+        //     persists. An EXISTING-note pick inserts a standard markdown
+        //     relative link with the on-disk SLUG as link text (D6). The
+        //     CREATE row inserts a plain-text PLACEHOLDER (the human name)
+        //     and hands its range to the host, which rewrites it to a
+        //     markdown link once the stub's path is known (onCreated).
         command: ({ editor, range, props }) => {
           const item = props as VaultFile | CreateNoteItem
-          // D4 — the create row inserts `[[<query>]]` with the SAME
-          // range mechanics as a normal pick (caret lands after the
-          // closing brackets), then asks the host to open the type
-          // picker anchored at that caret.
-          const insert = isCreateNoteItem(item)
-            ? `[[${item.query}]]`
-            : `[[${item.basename}]]`
+          const mode = opts.getMode?.() ?? 'obsidian'
+          const docPath = opts.getDocPath?.() ?? null
+          const okf = mode === 'okf' && !!docPath
+
+          let insert: string
+          if (isCreateNoteItem(item)) {
+            // OKF: a bare-text placeholder (the human name) that the host
+            // rewrites to a markdown link on stub-create. Obsidian: the
+            // canonical [[query]] form, already final.
+            insert = okf ? item.query : `[[${item.query}]]`
+          } else if (okf) {
+            // Existing-note pick — link text = the on-disk slug (D6).
+            insert = okfLinkInsert(item.basename, docPath as string, item.absPath)
+          } else {
+            insert = `[[${item.basename}]]`
+          }
+
           editor
             .chain()
             .focus()
             .insertContentAt({ from: range.from, to: range.to }, insert)
             .run()
+
           if (isCreateNoteItem(item)) {
             let rect: DOMRect | null = null
             try {
@@ -152,7 +192,13 @@ export const WikilinkSuggestion = Extension.create<WikilinkSuggestionOptions>({
             } catch {
               rect = null
             }
-            opts.onCreateStub?.({ name: item.query, rect })
+            // OKF: the placeholder occupies [range.from, range.from +
+            // insert.length]; the host rewrites that span once the stub
+            // path is known. Obsidian: no rewrite needed (range null).
+            const placeholderRange = okf
+              ? { from: range.from, to: range.from + insert.length }
+              : null
+            opts.onCreateStub?.({ name: item.query, rect, range: placeholderRange })
           }
         },
 

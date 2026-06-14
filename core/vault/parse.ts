@@ -7,6 +7,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { load as yamlLoad } from 'js-yaml'
+import { extractLinkRefs, extractLinkKeys } from '../markdown/vaultLinks'
 import type { VaultFile } from './types'
 
 /** Directories never walked for entities or queries. `templates/` is
@@ -57,13 +58,34 @@ export function splitFrontmatter(raw: string): {
   return { frontmatter: fm, body: raw.slice(m[0].length) }
 }
 
-const WIKILINK_RE = /\[\[([^\]|#]+)/g
+/** Strip a raw wikilink target (`Foo`, `Foo#h`, `path/to/Foo`) to its
+ *  case-preserved, anchor-/path-free basename. Folding (lowercasing, -/_
+ *  equivalence) is the graph KEY's job ({@link targetKey}); this preserves
+ *  the author's casing for the legacy basename surface. */
+function wikilinkBasename(rawTarget: string): string {
+  let t = rawTarget.split('#')[0].trim()
+  const slash = t.lastIndexOf('/')
+  if (slash >= 0) t = t.slice(slash + 1)
+  return t
+}
 
-/** Extract deduped, basename-only wikilink targets from text. `[[Foo|bar]]`
+/** Extract deduped, basename-only WIKILINK targets from text. `[[Foo|bar]]`
  *  and `[[Foo#heading]]` both resolve to `Foo`. Embeds (`![[Foo]]`) are
- *  included — an embed is still a graph edge. */
+ *  included — an embed is still a graph edge. ENH-216: now a wikilink-only
+ *  filtered alias over the single node-free extractor in `vaultLinks.ts` —
+ *  markdown-link edges flow through {@link extractLinkRefs}, not this. Dedup
+ *  is by move-proof `key` (so `Foo|bar` + `Foo#h` collapse) while the emitted
+ *  value keeps the author's casing (case-preserving Obsidian basename). */
 export function extractWikilinks(text: string): string[] {
-  return [...new Set([...text.matchAll(WIKILINK_RE)].map((m) => m[1].trim()))]
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const ref of extractLinkRefs(text)) {
+    if (ref.syntax !== 'wikilink') continue
+    if (seen.has(ref.key)) continue
+    seen.add(ref.key)
+    out.push(wikilinkBasename(ref.rawTarget))
+  }
+  return out
 }
 
 /** Parse one markdown file into a {@link VaultFile}. `root` is the vault
@@ -71,6 +93,8 @@ export function extractWikilinks(text: string): string[] {
 export function parseFile(absPath: string, root: string): VaultFile {
   const raw = fs.readFileSync(absPath, 'utf8')
   const { frontmatter, body } = splitFrontmatter(raw)
+  // ENH-216: extract once, both syntaxes (wikilink + mdlink), with provenance.
+  const refs = extractLinkRefs(raw)
   const rel = path.relative(root, absPath).split(path.sep).join('/')
   const basename = path.basename(absPath, path.extname(absPath))
   const dir = path.dirname(rel)
@@ -91,8 +115,11 @@ export function parseFile(absPath: string, root: string): VaultFile {
     // Graph edges are scanned over the FULL raw, not just the body:
     // typed frontmatter relationships (`owner: "[[Alice Park]]"`,
     // `initiative: "[[Q3 Launch]]"`) are real edges (matches the
-    // prototype's `_rawLinks`).
-    links: extractWikilinks(raw),
+    // prototype's `_rawLinks`). ENH-216: `links` is now the syntax-plural,
+    // move-proof KEY list (both wikilink + mdlink); `linkRefs` keeps the
+    // per-occurrence provenance.
+    links: extractLinkKeys(raw),
+    linkRefs: refs,
     mtimeMs,
   }
 }

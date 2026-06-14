@@ -15,6 +15,28 @@
 > `main`; code surfaces are disjoint, only `tasks.md` + this file are append-region
 > conflicts. Full writeup: `tasks.md` ENH-211.
 
+## ENH-216 — OKF vault mode (owner-initiated 2026-06-13, CODE-COMPLETE — awaiting live-UI smoke-walk)
+
+> **Owner thesis:** the important future use case for vaults is GitHub-renderable /
+> broadly-portable KBs → standard markdown links with relative paths (the proposed
+> **Open Knowledge Format**), not Obsidian `[[wikilinks]]` (which render as literal
+> text on github.com). **Proposal:** an **OKF vault mode** — a second serializer over
+> the same `core/vault/` graph model — keeping the `[[ ]]` gesture but writing
+> `[Text](./rel.md)` at rest; format chosen **per vault** via a new **File ▸ New Vault**
+> picker (+ `duo vault init --format` CLI twin), and the active vault toggles the mode.
+> **Status (2026-06-13):** all 11 decisions + 3 follow-ups LOCKED; **Stages 0–5
+> implemented** via two ultracode workflows (foundation/dialect-aware core/CLI/IPC/menu,
+> then the renderer seam + New Vault modal + auto-relink-on-open + guide/smoke-walk).
+> Verified at the code level: typecheck clean, **1425/1425 tests**, `cli/duo` rebuilt,
+> check:skill-currency 0 failures, `duo vault init --format=okf` produces the correct
+> on-disk shape. Found + fixed a live `vault:detect` IPC-handler gap (a missing
+> main-process handler that would have kept the editor out of OKF mode). **Rebased onto
+> `main` (0.10.4, post-ENH-210/211/212)** — conflicts were additive (preload nav-bridge,
+> this file) and re-verified green. **Next step:** the live-UI smoke-walk (manifest
+> `docs/dev/smoke-walks/v0.10.3.json`; walk vaults seeded at `/tmp/okf-smoke` +
+> `/tmp/obs-smoke`). Then `cut-version` — recommend **v0.11.0** (OKF is a new vault
+> format → minor bump). Tracked: `tasks.md` ENH-216; PRD `docs/research/okf-vault-mode.html`.
+
 ## BUG-200 — terminal-collapse data-loss fix (in flight, this branch, 2026-06-10)
 
 > **Owner-initiated, parallel to ENH-208.** Collapsing the terminal pane was
