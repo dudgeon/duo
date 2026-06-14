@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>Duo Home Screen — 12 visions (ENH-212)</title>
+<style>
+/* duo-atelier.css — canonical Atelier kernel for Duo HTML playgrounds. */
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+  --project-pine:   #2E7D74;
+  --project-harbor: #3C6E93;
+  --project-iris:   #5B57A6;
+  --project-plum:   #87508F;
+  --project-rose:   #A4506A;
+  --project-moss:   #69763A;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+body { padding: 32px 40px 96px; max-width: 980px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px;
+}
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill {
+  display: inline-block; padding: 2px 8px; border-radius: 10px;
+  background: var(--accent-soft); color: var(--accent);
+  font-weight: 600; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.04em; margin-right: 6px;
+}
+.intro {
+  background: var(--paper-deep); border: 1px solid var(--paper-rule);
+  border-radius: 6px; padding: 14px 18px; margin-bottom: 28px;
+  font-size: 13.5px; color: var(--ink-soft);
+}
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 600; margin: 36px 0 12px; font-size: 19px;
+  border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px;
+}
+h3 { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+h4 { margin: 16px 0 6px; font-size: 13.5px; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px;
+  background: var(--paper-deep); padding: 1px 5px; border-radius: 3px;
+}
+.decision-card {
+  background: var(--paper-deep); border: 1.5px solid var(--paper-rule);
+  border-radius: 6px; padding: 16px 18px; margin: 18px 0;
+}
+.decision-card .q-title {
+  font-weight: 700; font-size: 13px; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px;
+}
+.decision-card .q-prompt {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 500; font-size: 17px; color: var(--ink);
+  margin: 0 0 12px; line-height: 1.35;
+}
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option {
+  display: block; background: var(--paper); border: 1.5px solid var(--paper-rule);
+  border-radius: 5px; padding: 10px 12px; cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--paper));
+}
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag {
+  font-size: 10px; background: var(--accent-soft); color: var(--accent);
+  text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em;
+  padding: 1px 6px; border-radius: 8px; margin-left: 6px;
+}
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes {
+  width: 100%; background: var(--paper); border: 1px solid var(--paper-rule);
+  border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px;
+  color: var(--ink); resize: vertical; min-height: 50px;
+}
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+details.deferred {
+  margin: 22px 0; padding: 12px 16px; background: var(--paper-deep);
+  border: 1px dashed var(--paper-rule); border-radius: 6px;
+}
+details.deferred summary { cursor: pointer; font-weight: 600; color: var(--ink-soft); font-size: 13.5px; }
+details.deferred[open] summary { color: var(--ink); }
+details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(--ink-soft); }
+.copy-bar {
+  position: sticky; bottom: 0; margin: 32px -40px -96px; padding: 16px 40px;
+  background: color-mix(in srgb, var(--paper-deep) 96%, transparent);
+  border-top: 1.5px solid var(--paper-rule);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+}
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button {
+  background: var(--accent); color: white; border: none; border-radius: 5px;
+  padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600;
+  cursor: pointer; transition: background 0.12s;
+}
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* ————————————————————————————————————————————————————————————
+   Per-playground styles: the 12-vision mock framework
+   ———————————————————————————————————————————————————————————— */
+
+.vision { margin: 34px 0 40px; }
+.vision-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 2px; }
+.vision-head .vnum {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-style: italic; color: var(--accent); font-size: 18px; font-weight: 600;
+  min-width: 28px;
+}
+.vision-head h3 { margin: 0; font-size: 16px; }
+.vision-head .shortlist {
+  margin-left: auto; font-size: 12px; color: var(--ink-mute);
+  display: flex; align-items: center; gap: 6px; cursor: pointer;
+  border: 1px solid var(--paper-rule); border-radius: 12px; padding: 2px 10px;
+  background: var(--paper);
+  user-select: none; white-space: nowrap;
+}
+.vision-head .shortlist input { accent-color: var(--accent); cursor: pointer; }
+.vision-head .shortlist:has(input:checked) {
+  border-color: var(--accent); color: var(--accent); font-weight: 600;
+  background: color-mix(in srgb, var(--accent) 7%, var(--paper));
+}
+.vision .thesis { font-size: 13px; color: var(--ink-mute); margin: 0 0 10px; }
+.vision .verdict { font-size: 12px; color: var(--ink-soft); margin: 8px 0 0; }
+.vision .verdict b { color: var(--ink); }
+
+/* The mock app frame — a miniature Duo working-pane rendering */
+.mock {
+  border: 1.5px solid var(--paper-edge);
+  border-radius: 9px;
+  background: var(--paper);
+  box-shadow: 0 2px 10px rgba(43,38,32,0.08), 0 12px 28px rgba(43,38,32,0.06);
+  overflow: hidden;
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+.mock .titlebar {
+  display: flex; align-items: center; gap: 5px;
+  background: var(--paper-deep);
+  border-bottom: 1px solid var(--paper-edge);
+  padding: 6px 10px;
+}
+.mock .titlebar .tl { width: 8px; height: 8px; border-radius: 50%; background: var(--paper-rule); }
+.mock .titlebar .tname {
+  margin-left: 8px;
+  font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic;
+  color: var(--ink-mute); font-size: 10px;
+}
+.mock .canvas { padding: 14px 18px; }
+
+/* Building blocks shared across mocks */
+.pdot { display: inline-block; width: 7px; height: 7px; border-radius: 2px; vertical-align: 1px; margin-right: 5px; flex: none; }
+.pine   { background: var(--project-pine); }
+.harbor { background: var(--project-harbor); }
+.iris   { background: var(--project-iris); }
+.plum   { background: var(--project-plum); }
+.rose   { background: var(--project-rose); }
+.moss   { background: var(--project-moss); }
+.ink-pine   { color: var(--project-pine); }
+.ink-harbor { color: var(--project-harbor); }
+.ink-iris   { color: var(--project-iris); }
+.ink-plum   { color: var(--project-plum); }
+.ink-rose   { color: var(--project-rose); }
+.ink-moss   { color: var(--project-moss); }
+
+.mk-h {
+  display: flex; align-items: center; gap: 6px;
+  font-weight: 700; font-size: 11px; color: var(--ink);
+  margin: 10px 0 3px;
+}
+.mk-h:first-child { margin-top: 0; }
+.mk-h .meta { font-weight: 400; color: var(--ink-ghost); font-size: 9.5px; margin-left: 4px; }
+.mk-h .right { margin-left: auto; font-weight: 400; color: var(--ink-ghost); font-size: 9.5px; }
+
+.mk-s {
+  display: flex; align-items: center; gap: 6px;
+  padding: 2.5px 6px; border-radius: 4px; color: var(--ink-soft);
+}
+.mk-s:hover { background: var(--paper-deep); }
+.mk-s .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mk-s .age { margin-left: auto; color: var(--ink-ghost); font-size: 9px; flex: none; }
+.mk-s .msgs { color: var(--ink-ghost); font-size: 9px; flex: none; }
+.open-pill {
+  flex: none; font-size: 8px; font-weight: 700; letter-spacing: 0.05em;
+  color: var(--pass); border: 1px solid color-mix(in srgb, var(--pass) 40%, transparent);
+  border-radius: 7px; padding: 0 5px; text-transform: uppercase;
+  background: color-mix(in srgb, var(--pass) 8%, var(--paper));
+}
+.more-link { font-size: 9.5px; color: var(--accent); padding: 1px 6px; cursor: pointer; }
+
+.fchip {
+  display: inline-block; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 8.5px; color: var(--ink-mute);
+  background: var(--paper-deep); border: 1px solid var(--paper-edge);
+  border-radius: 3px; padding: 0 4px; margin: 1px 2px 1px 0;
+}
+.mk-files { margin: 2px 0 2px 13px; line-height: 1.7; }
+
+.card {
+  background: var(--paper); border: 1px solid var(--paper-edge);
+  border-radius: 6px; padding: 8px 10px;
+  box-shadow: 0 1px 2px rgba(43,38,32,0.05);
+}
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+.sort-bar {
+  display: flex; gap: 6px; align-items: center; margin-bottom: 10px;
+  font-size: 9.5px; color: var(--ink-ghost);
+}
+.sort-bar .chip {
+  border: 1px solid var(--paper-rule); border-radius: 9px; padding: 1px 8px;
+  color: var(--ink-mute); background: var(--paper);
+}
+.sort-bar .chip.on { background: var(--accent); color: white; border-color: var(--accent); }
+
+.day-rule {
+  display: flex; align-items: center; gap: 8px; margin: 10px 0 4px;
+  color: var(--ink-ghost); font-size: 9px; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 700;
+}
+.day-rule::after { content: ""; flex: 1; border-top: 1px solid var(--paper-edge); }
+
+table.mk-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+table.mk-table th {
+  text-align: left; font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--ink-ghost); font-weight: 700; padding: 2px 6px;
+  border-bottom: 1px solid var(--paper-rule);
+}
+table.mk-table td { padding: 2.5px 6px; border-bottom: 1px solid var(--paper-deep); color: var(--ink-soft); }
+table.mk-table td.age { color: var(--ink-ghost); font-size: 9px; white-space: nowrap; }
+
+.scale-note { font-size: 10px; color: var(--ink-ghost); text-align: right; margin-top: 3px; }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Duo Home Screen — twelve visions</h1>
+  <div class="meta">
+    <span class="pill">ENH-212</span>
+    <span class="pill">UI study</span>
+    2026-06-12 · shortlist the visions you like, answer the decisions, hit Copy
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> Twelve distinct layout visions for a default Duo home
+  screen — a pinned page whose job is <em>re-entry into inactive projects</em>: scan your
+  recent Claude projects, see the last few sessions in each (with a path to scan deeper),
+  glance at recently-edited files, and click to focus an open session or reopen-and-resume
+  a closed one. All mocks use the same sample world: <strong>6 projects, 24 sessions</strong>,
+  rendered in the Atelier app aesthetic at roughly half scale. Each mock shows the
+  <em>whole</em> screen unless marked otherwise. Use the <strong>Shortlist</strong> toggle on
+  the visions worth keeping (pick 2–4), then answer the decision cards at the bottom.
+</div>
+
+<h2>The sample world (shared across all mocks)</h2>
+<p style="font-size:13px; color:var(--ink-mute);">
+  <span class="pdot pine"></span><b>duo</b> (142 sessions, active 12 min ago) ·
+  <span class="pdot harbor"></span><b>home-brain</b> (67, 2 h) ·
+  <span class="pdot iris"></span><b>agents-for-everyone</b> (38, yesterday) ·
+  <span class="pdot plum"></span><b>work-harness</b> (24, 3 d) ·
+  <span class="pdot rose"></span><b>travel</b> (11, 1 w) ·
+  <span class="pdot moss"></span><b>field-notes</b> (9, 2 w).
+  Two sessions are currently open (green <span class="open-pill" style="font-size:9px;">open</span> pill — clicking those focuses, never duplicates).
+</p>
+
+<!-- ════════════════════════ VISION 1 ════════════════════════ -->
+<section class="vision" data-vision="1" data-vname="The Ledger">
+  <div class="vision-head">
+    <span class="vnum">1</span><h3>The Ledger</h3>
+    <label class="shortlist"><input type="checkbox" data-shortlist="1"> Shortlist</label>
+  </div>
+  <p class="thesis">One dense register, project-grouped, uniform density. The accountant's answer: everything in one column, nothing hidden, nothing decorated.</p>
+  <div class="mock"><div class="titlebar"><span class="tl"></span><span class="tl"></span><span class="tl"></span><span class="tname">Home</span></div>
+  <div class="canvas">
+    <div class="mk-h"><span class="pdot pine"></span>duo <span class="meta">142 sessions</span><span class="right">12 min ago</span></div>
+    <div class="mk-s"><span class="t">Fix terminal pane collapse killing sessions</span><span class="open-pill">open</span><span class="msgs">81 msgs</span><span class="age">12m</span></div>
+    <div class="mk-s"><span class="t">Multi-window session envelope migration</span><span class="msgs">214 msgs</span><span class="age">2h</span></div>
+    <div class="mk-s"><span class="t">Roadmap triage + sprint planning</span><span class="msgs">42 msgs</span><span class="age">1d</span></div>
+    <div class="mk-s more-link">show 139 more…</div>
+    <div class="mk-h"><span class="pdot harbor"></span>home-brain <span class="meta">67 sessions</span><span class="right">2 h ago</span></div>
+    <div class="mk-s"><span class="t">Travel domain restructure</span><span class="open-pill">open</span><span class="msgs">19 msgs</span><span class="age">2h</span></div>
+    <div class="mk-s"><span class="t">Inbox triage automation</span><span class="msgs">55 msgs</span><span class="age">2d</span></div>
+    <div class="mk-s"><span class="t">Knowledge-base reorg pass 3</span><span class="msgs">120 msgs</span><span class="age">4d</span></div>
+    <div class="mk-s more-link">show 64 more…</div>
+    <div class="mk-h"><span class="pdot iris"></span>agents-for-everyone <span class="meta">38 sessions</span><span class="right">yesterday</span></div>
+    <div class="mk-s"><span class="t">Docs site information architecture</span><span class="msgs">67 msgs</span><span class="age">1d</span></div>
+    <div class="mk-s"><span class="t">Chapter 4 draft — delegation patterns</span><span class="msgs">90 msgs</span><span class="age">2d</span></div>
+    <div class="mk-s"><span class="t">Skill catalog audit</span><span class="msgs">31 msgs</span><span class="age">5d</span></div>
+    <div class="mk-s more-link">show 35 more…</div>
+    <div class="mk-h"><span class="pdot plum"></span>work-harness <span class="meta">24 sessions</span><span class="right">3 d ago</span></div>
+    <div class="mk-s"><span class="t">Spec template v2 with eval hooks</span><span class="msgs">48 msgs</span><span class="age">3d</span></div>
+    <div class="mk-s"><span class="t">Meta-spec consistency sweep</span><span class="msgs">22 msgs</span><span class="age">6d</span></div>
+    <div class="mk-s more-link">show 22 more…</div>
+    <div class="mk-h"><span class="pdot rose"></span>travel <span class="meta">11 sessions</span><span class="right">1 w ago</span></div>
+    <div class="mk-s"><span class="t">Summer itinerary options</span><span class="msgs">36 msgs</span><span class="age">1w</span></div>
+    <div class="mk-s more-link">show 10 more…</div>
+    <div class="mk-h"><span class="pdot moss"></span>field-notes <span class="meta">9 sessions</span><span class="right">2 w ago</span></div>
+    <div class="mk-s"><span class="t">Q2 reading notes consolidation</span><span class="msgs">14 msgs</span><span class="age">2w</span></div>
+    <div class="mk-s more-link">show 8 more…</div>
+  </div></div>
+  <p class="verdict"><b>Fits the 1.5-screen budget easily.</b> Highest scanability per pixel; weakest at recent files (no room) and gives stale projects equal visual weight as hot ones.</p>
+</section>
+
+<!-- ════════════════════════ VISION 2 ════════════════════════ -->
+<section class="vision" data-vision="2" data-vname="Project Cards">
+  <div class="vision-head">
+    <span class="vnum">2</span><h3>Project Cards</h3>
+    <label class="shortlist"><input type="checkbox" data-shortlist="2"> Shortlist</label>
+  </div>
+  <p class="thesis">A two-column grid of equal project cards — each card holds 3 recent sessions plus a recent-files strip. The "dashboard" answer.</p>
+  <div class="mock"><div class="titlebar"><span class="tl"></span><span class="tl"></span><span class="tl"></span><span class="tname">Home</span></div>
+  <div class="canvas">
+    <div class="sort-bar">sort: <span class="chip on">recent</span><span class="chip">name</span><span class="chip">sessions</span></div>
+    <div class="grid2">
+      <div class="card">
+        <div class="mk-h"><span class="pdot pine"></span>duo <span class="right">12 min</span></div>
+        <div class="mk-s"><span class="t">Fix terminal pane collapse</span><span class="open-pill">open</span><span class="age">12m</span></div>
+        <div class="mk-s"><span class="t">Multi-window envelope migration</span><span class="age">2h</span></div>
+        <div class="mk-s"><span class="t">Roadmap triage</span><span class="age">1d</span></div>
+        <div class="mk-files"><span class="fchip">terminal-pane.tsx</span><span class="fchip">session-state.ts</span><span class="fchip">tasks.md</span></div>
+        <div class="mk-s more-link">all 142 sessions →</div>
+      </div>
+      <div class="card">
+        <div class="mk-h"><span class="pdot harbor"></span>home-brain <span class="right">2 h</span></div>
+        <div class="mk-s"><span class="t">Travel domain restructure</span><span class="open-pill">open</span><span class="age">2h</span></div>
+        <div class="mk-s"><span class="t">Inbox triage automation</span><span class="age">2d</span></div>
+        <div class="mk-s"><span class="t">Knowledge-base reorg</span><span class="age">4d</span></div>
+        <div class="mk-files"><span class="fchip">domains/travel.md</span><span class="fchip">inbox.md</span></div>
+        <div class="mk-s more-link">all 67 sessions →</div>
+      </div>
+      <div class="card">
+        <div class="mk-h"><span class="pdot iris"></span>agents-for-everyone <span class="right">1 d</span></div>
+        <div class="mk-s"><span class="t">Docs site IA</span><span class="age">1d</span></div>
+        <div class="mk-s"><span class="t">Chapter 4 draft</span><span class="age">2d</span></div>
+        <div class="mk-s"><span class="t">Skill catalog audit</span><span class="age">5d</span></div>
+        <div class="mk-files"><span class="fchip">docs/outline.md</span><span class="fchip">ch4.md</span></div>
+        <div class="mk-s more-link">all 38 sessions →</div>
+      </div>
+      <div class="card">
+        <div class="mk-h"><span class="pdot plum"></span>work-harness <span class="right">3 d</span></div>
+        <div class="mk-s"><span class="t">Spec template v2</span><span class="age">3d</span></div>
+        <div class="mk-s"><span class="t">Meta-spec sweep</span><span class="age">6d</span></div>
+        <div class="mk-files"><span class="fchip">specs/template.md</span></div>
+        <div class="mk-s more-link">all 24 sessions →</div>
+      </div>
+      <div class="card">
+        <div class="mk-h"><span class="pdot rose"></span>travel <span class="right">1 w</span></div>
+        <div class="mk-s"><span class="t">Summer itinerary options</span><span class="age">1w</span></div>
+        <div class="mk-s"><span class="t">Flight price tracking</span><span class="age">2w</span></div>
+        <div class="mk-files"><span class="fchip">itinerary.md</span></div>
+        <div class="mk-s more-link">all 11 sessions →</div>
+      </div>
+      <div class="card">
+        <div class="mk-h"><span class="pdot moss"></span>field-notes <span class="right">2 w</span></div>
+        <div class="mk-s"><span class="t">Q2 reading notes</span><span class="age">2w</span></div>
+        <div class="mk-s"><span class="t">Conference takeaways</span><span class="age">3w</span></div>
+        <div class="mk-files"><span class="fchip">q2-notes.md</span></div>
+        <div class="mk-s more-link">all 9 sessions →</div>
+      </div>
+    </div>
+  </div></div>
+  <p class="verdict"><b>~1.5 screens at 6 projects.</b> Recent files fit naturally; the grid reads as "places" rather than a feed. Equal-size cards waste space on stale projects and crowd hot ones.</p>
+</section>
+
+<!-- ════════════════════════ VISION 3 ════════════════════════ -->
+<section class="vision" data-vision="3" data-vname="Front Page">
+  <div class="vision-head">
+    <span class="vnum">3</span><h3>Front Page</h3>
+    <label class="shortlist"><input type="checkbox" data-shortlist="3"> Shortlist</label>
+  </div>
+  <p class="thesis">Newspaper hierarchy: your most-recent project is the above-the-fold lead story with full session + file detail; everything else is the column inches below.</p>
+  <div class="mock"><div class="titlebar"><span class="tl"></span><span class="tl"></span><span class="tl"></span><span class="tname">Home</span></div>
+  <div class="canvas">
+    <div style="border-bottom: 2px solid var(--ink); padding-bottom: 8px; margin-bottom: 10px;">
+      <div class="mk-h" style="font-size: 14px; font-family: 'New York', Georgia, serif; font-style: italic;"><span class="pdot pine" style="width:9px;height:9px;"></span>duo <span class="meta">picking up from 12 minutes ago</span></div>
+      <div class="grid2" style="margin-top: 6px;">
+        <div>
+          <div class="mk-s"><span class="t">Fix terminal pane collapse killing sessions</span><span class="open-pill">open</span><span class="age">12m</span></div>
+          <div class="mk-s"><span class="t">Multi-window envelope migration</span><span class="age">2h</span></div>
+          <div class="mk-s"><span class="t">Roadmap triage + sprint planning</span><span class="age">1d</span></div>
+          <div class="mk-s"><span class="t">Distro pack builder polish</span><span class="age">1d</span></div>
+          <div class="mk-s more-link">all 142 sessions →</div>
+        </div>
+        <div>
+          <div style="font-size:8.5px; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-ghost); font-weight:700; margin-bottom:2px;">Recently edited</div>
+          <div class="mk-files" style="margin-left:0;"><span class="fchip">terminal-pane.tsx</span><span class="fchip">session-state-service.ts</span><span class="fchip">tasks.md</span><span class="fchip">roadmap.html</span><span class="fchip">socket-server.ts</span><span class="fchip">SKILL.md</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="grid3">
+      <div>
+        <div class="mk-h"><span class="pdot harbor"></span>home-brain <span class="right">2h</span></div>
+        <div class="mk-s"><span class="t">Travel restructure</span><span class="open-pill">open</span></div>
+        <div class="mk-s"><span class="t">Inbox triage</span><span class="age">2d</span></div>
+        <div class="mk-h"><span class="pdot plum"></span>work-harness <span class="right">3d</span></div>
+        <div class="mk-s"><span class="t">Spec template v2</span><span class="age">3d</span></div>
+      </div>
+      <div>
+        <div class="mk-h"><span class="pdot iris"></span>agents-for-everyone <span class="right">1d</span></div>
+        <div class="mk-s"><span class="t">Docs site IA</span><span class="age">1d</span></div>
+        <div class="mk-s"><span class="t">Chapter 4 draft</span><span class="age">2d</span></div>
+        <div class="mk-h"><span class="pdot rose"></span>travel <span class="right">1w</span></div>
+        <div class="mk-s"><span class="t">Summer itinerary</span><span class="age">1w</span></div>
+      </div>
+      <div>
+        <div class="mk-h"><span class="pdot moss"></span>field-notes <span class="right">2w</span></div>
+        <div class="mk-s"><span class="t">Q2 reading notes</span><span class="age">2w</span></div>
+        <div class="mk-s"><span class="t">Conference takeaways</span><span class="age">3w</span></div>
+        <div class="mk-s more-link">3 older projects →</div>
+      </div>
+    </div>
+  </div></div>
+  <p class="verdict"><b>Under 1 screen.</b> Strong "welcome back to what you were doing" narrative; the lead-story slot is earned by recency. But the #1 project is usually the one you LEAST need help re-entering — it may deserve the least space, not the most.</p>
+</section>
+
+<!-- ════════════════════════ VISION 4 ════════════════════════ -->
+<section class="vision" data-vision="4" data-vname="Day Stream">
+  <div class="vision-head">
+    <span class="vnum">4</span><h3>Day Stream</h3>
+    <label class="shortlist"><input type="checkbox" data-shortlist="4"> Shortlist</label>
+  </div>
+  <p class="thesis">Pure reverse-chronology: sessions interleaved across projects, grouped by day. Time is the axis; project identity is just a colored dot. The "journal feed" answer.</p>
+  <div class="mock"><div class="titlebar"><span class="tl"></span><span class="tl"></span><span class="tl"></span><span class="tname">Home</span></div>
+  <div class="canvas">
+    <div class="day-rule">Today</div>
+    <div class="mk-s"><span class="pdot pine"></span><span class="t">Fix terminal pane collapse killing sessions</span><span class="open-pill">open</span><span class="age">12m</span></div>
+    <div class="mk-s"><span class="pdot harbor"></span><span class="t">Travel domain restructure</span><span class="open-pill">open</span><span class="age">2h</span></div>
+    <div class="mk-s"><span class="pdot pine"></span><span class="t">Multi-window envelope migration</span><span class="age">2h</span></div>
+    <div class="day-rule">Yesterday</div>
+    <div class="mk-s"><span class="pdot iris"></span><span class="t">Docs site information architecture</span><span class="age">1d</span></div>
+    <div class="mk-s"><span class="pdot pine"></span><span class="t">Roadmap triage + sprint planning</span><span class="age">1d</span></div>
+    <div class="mk-s"><span class="pdot pine"></span><span class="t">Distro pack builder polish</span><span class="age">1d</span></div>
+    <div class="day-rule">This week</div>
+    <div class="mk-s"><span class="pdot harbor"></span><span class="t">Inbox triage automation</span><span class="age">2d</span></div>
+    <div class="mk-s"><span class="pdot iris"></span><span class="t">Chapter 4 draft — delegation patterns</span><span class="age">2d</span></div>
+    <div class="mk-s"><span class="pdot plum"></span><span class="t">Spec template v2 with eval hooks</span><span class="age">3d</span></div>
+    <div class="mk-s"><span class="pdot harbor"></span><span class="t">Knowledge-base reorg pass 3</span><span class="age">4d</span></div>
+    <div class="mk-s"><span class="pdot iris"></span><span class="t">Skill catalog audit</span><span class="age">5d</span></div>
+    <div class="mk-s"><span class="pdot plum"></span><span class="t">Meta-spec consistency sweep</span><span class="age">6d</span></div>
+    <div class="day-rule">Older</div>
+    <div class="mk-s"><span class="pdot rose"></span><span class="t">Summer itinerary options</span><span class="age">1w</span></div>
+    <div class="mk-s"><span class="pdot moss"></span><span class="t">Q2 reading notes consolidation</span><span class="age">2w</span></div>
+    <div class="mk-s more-link">earlier sessions…</div>
+  </div></div>
+  <p class="verdict"><b>Most compact of all (&lt;1 screen).</b> Matches "what was I doing?" memory, which is temporal. But it actively fails the core job — re-entering an <em>inactive project</em> means scrolling past every hot project's noise to find it.</p>
+</section>
+
+<!-- ════════════════════════ VISION 5 ════════════════════════ -->
+<section class="vision" data-vision="5" data-vname="Master–Detail">
+  <div class="vision-head">
+    <span class="vnum">5</span><h3>Master–Detail</h3>
+    <label class="shortlist"><input type="checkbox" data-shortlist="5"> Shortlist</label>
+  </div>
+  <p class="thesis">A project list on the left; selecting one fills the right pane with its full session history and recent files. The "mail client" answer — built for deep scanning, not glancing.</p>
+  <div class="mock"><div class="titlebar"><span class="tl"></span><span class="tl"></span><span class="tl"></span><span class="tname">Home</span></div>
+  <div class="canvas" style="display:grid; grid-template-columns: 150px 1fr; gap: 0; padding: 0;">
+    <div style="border-right: 1px solid var(--paper-edge); padding: 10px 8px; background: var(--paper-deep);">
+      <div class="mk-s"><span class="pdot pine"></span><span class="t">duo</span><span class="age">12m</span></div>
+      <div class="mk-s" style="background: color-mix(in srgb, var(--project-harbor) 14%, var(--paper)); border-radius:4px;"><span class="pdot harbor"></span><span class="t"><b>home-brain</b></span><span class="age">2h</span></div>
+      <div class="mk-s"><span class="pdot iris"></span><span class="t">agents-for-ev…</span><span class="age">1d</span></div>
+      <div class="mk-s"><span class="pdot plum"></span><span class="t">work-harness</span><span class="age">3d</span></div>
+      <div class="mk-s"><span class="pdot rose"></span><span class="t">travel</span><span class="age">1w</span></div>
+      <div class="mk-s"><span class="pdot moss"></span><span class="t">field-notes</span><span class="age">2w</span></div>
+    </div>
+    <div style="padding: 10px 14px;">
+      <div class="mk-h"><span class="pdot harbor"></span>home-brain <span class="meta">67 sessions · ~/VSC Projects/home-brain</span></div>
+      <div class="mk-files" style="margin: 4px 0 8px 0;"><span class="fchip">domains/travel/plan.md</span><span class="fchip">inbox.md</span><span class="fchip">domains/travel/2026.md</span><span class="fchip">TASKS.md</span></div>
+      <div class="mk-s"><span class="t">Travel domain restructure</span><span class="open-pill">open</span><span class="msgs">19 msgs</span><span class="age">2h</span></div>
+      <div class="mk-s"><span class="t">Inbox triage automation</span><span class="msgs">55 msgs</span><span class="age">2d</span></div>
+      <div class="mk-s"><span class="t">Knowledge-base reorg pass 3</span><span class="msgs">120 msgs</span><span class="age">4d</span></div>
+      <div class="mk-s"><span class="t">Calendar sync experiment</span><span class="msgs">23 msgs</span><span class="age">5d</span></div>
+      <div class="mk-s"><span class="t">Professional development KB merge</span><span class="msgs">77 msgs</span><span class="age">1w</span></div>
+      <div class="mk-s"><span class="t">Meal planning skill draft</span><span class="msgs">12 msgs</span><span class="age">1w</span></div>
+      <div class="mk-s more-link">61 more…</div>
+    </div>
+  </div></div>
+  <p class="verdict"><b>Fixed 1 screen, always.</b> Unlimited depth-per-project without scroll; the only vision where "scan beyond the most recent few" needs no interaction redesign. But zero cross-project glanceability — you see one project at a time.</p>
+</section>
+
+<!-- ════════════════════════ VISION 6 ════════════════════════ -->
+<section class="vision" data-vision="6" data-vname="Columns">
+  <div class="vision-head">
+    <span class="vnum">6</span><h3>Columns</h3>
+    <label class="shortlist"><input type="checkbox" data-shortlist="6"> Shortlist</label>
+  </div>
+  <p class="thesis">One vertical column per project, kanban-style, sessions stacked newest-first. Horizontal position = project, vertical position = time. Scan down to go back in time.</p>
+  <div class="mock"><div class="titlebar"><span class="tl"></span><span class="tl"></span><span class="tl"></span><span class="tname">Home</span></div>
+  <div class="canvas" style="overflow-x: auto;">
+    <div style="display:grid; grid-template-columns: repeat(6, minmax(105px, 1fr)); gap: 8px;">
+      <div>
+        <div class="mk-h" style="font-size:10px;"><span class="pdot pine"></span>duo</div>
+        <div class="card" style="padding:5px 7px; margin-bottom:4px;"><div class="t" style="overflow:hidden;">Terminal collapse fix <span class="open-pill">open</span></div><div class="age" style="color:var(--ink-ghost);font-size:8.5px;">12m</div></div>
+        <div class="card" style="padding:5px 7px; margin-bottom:4px;">Envelope migration<div class="age" style="color:var(--ink-ghost);font-size:8.5px;">2h</div></div>
+        <div class="card" style="padding:5px 7px; margin-bottom:4px;">Roadmap triage<div class="age" style="color:var(--ink-ghost);font-size:8.5px;">1d</div></div>
+        <div class="more-link">+139</div>
+      </div>
+      <div>
+        <div class="mk-h" style="font-size:10px;"><span class="pdot harbor"></span>home-brain</div>
+        <div class="card" style="padding:5px 7px; margin-bottom:4px;">Travel restructure <span class="open-pill">open</span><div class="age" style="color:var(--ink-ghost);font-size:8.5px;">2h</div></div>
+        <div class="card" style="padding:5px 7px; margin-bottom:4px;">Inbox triage<div class="age" style="color:var(--ink-ghost);font-size:8.5px;">2d</div></div>
+        <div class="card" style="padding:5px 7px; margin-bottom:4px;">KB reorg<div class="age" style="color:var(--ink-ghost);font-size:8.5px;">4d</div></div>
+        <div class="more-link">+64</div>
+      </div>
+      <div>
+        <div class="mk-h" style="font-size:10px;"><span class="pdot iris"></span>agents-for-ev…</div>
+        <div class="card" style="padding:5px 7px; margin-bottom:4px;">Docs site IA<div class="age" style="color:var(--ink-ghost);font-size:8.5px;">1d</div></div>
+        <div class="card" style="padding:5px 7px; margin-bottom:4px;">Chapter 4 draft<div class="age" style="color:var(--ink-ghost);font-size:8.5px;">2d</div></div>
+        <div class="card" style="padding:5px 7px; margin-bottom:4px;">Skill audit<div class="age" style="color:var(--ink-ghost);font-size:8.5px;">5d</div></div>
+        <div class="more-link">+35</div>
+      </div>
+      <div>
+        <div class="mk-h" style="font-size:10px;"><span class="pdot plum"></span>work-harness</div>
+        <div class="card" style="padding:5px 7px; margin-bottom:4px;">Spec template v2<div class="age" style="color:var(--ink-ghost);font-size:8.5px;">3d</div></div>
+        <div class="card" style="padding:5px 7px; margin-bottom:4px;">Meta-spec sweep<div class="age" style="color:var(--ink-ghost);font-size:8.5px;">6d</div></div>
+        <div class="more-link">+22</div>
+      </div>
+      <div>
+        <div class="mk-h" style="font-size:10px;"><span class="pdot rose"></span>travel</div>
+        <div class="card" style="padding:5px 7px; margin-bottom:4px;">Summer itinerary<div class="age" style="color:var(--ink-ghost);font-size:8.5px;">1w</div></div>
+        <div class="more-link">+10</div>
+      </div>
+      <div>
+        <div class="mk-h" style="font-size:10px;"><span class="pdot moss"></span>field-notes</div>
+        <div class="card" style="padding:5px 7px; margin-bottom:4px;">Q2 reading notes<div class="age" style="color:var(--ink-ghost);font-size:8.5px;">2w</div></div>
+        <div class="more-link">+8</div>
+      </div>
+    </div>
+  </div></div>
+  <p class="verdict"><b>1 screen tall, but horizontally fragile.</b> Beautiful at exactly 5–6 projects; at 8+ it needs horizontal scroll (which buries inactive projects — the feature's whole point), and session titles truncate hard at column widths.</p>
+</section>
+
+<!-- ════════════════════════ VISION 7 ════════════════════════ -->
+<section class="vision" data-vision="7" data-vname="The Table">
+  <div class="vision-head">
+    <span class="vnum">7</span><h3>The Table</h3>
+    <label class="shortlist"><input type="checkbox" data-shortlist="7"> Shortlist</label>
+  </div>
+  <p class="thesis">A flat, sortable data table of sessions. Project is just a column. Maximum information density, maximum control, zero narrative. The "power user" answer.</p>
+  <div class="mock"><div class="titlebar"><span class="tl"></span><span class="tl"></span><span class="tl"></span><span class="tname">Home</span></div>
+  <div class="canvas">
+    <table class="mk-table">
+      <tr><th>Session</th><th>Project ▾</th><th>Last active</th><th>Msgs</th><th>Files touched</th></tr>
+      <tr><td>Fix terminal pane collapse <span class="open-pill">open</span></td><td><span class="pdot pine"></span>duo</td><td class="age">12 min</td><td>81</td><td><span class="fchip">terminal-pane.tsx</span> +4</td></tr>
+      <tr><td>Travel domain restructure <span class="open-pill">open</span></td><td><span class="pdot harbor"></span>home-brain</td><td class="age">2 h</td><td>19</td><td><span class="fchip">plan.md</span> +2</td></tr>
+      <tr><td>Multi-window envelope migration</td><td><span class="pdot pine"></span>duo</td><td class="age">2 h</td><td>214</td><td><span class="fchip">session-state.ts</span> +11</td></tr>
+      <tr><td>Docs site information architecture</td><td><span class="pdot iris"></span>agents-for-ev…</td><td class="age">1 d</td><td>67</td><td><span class="fchip">outline.md</span> +6</td></tr>
+      <tr><td>Roadmap triage + sprint planning</td><td><span class="pdot pine"></span>duo</td><td class="age">1 d</td><td>42</td><td><span class="fchip">roadmap.html</span> +2</td></tr>
+      <tr><td>Inbox triage automation</td><td><span class="pdot harbor"></span>home-brain</td><td class="age">2 d</td><td>55</td><td><span class="fchip">inbox.md</span> +3</td></tr>
+      <tr><td>Chapter 4 draft — delegation patterns</td><td><span class="pdot iris"></span>agents-for-ev…</td><td class="age">2 d</td><td>90</td><td><span class="fchip">ch4.md</span> +1</td></tr>
+      <tr><td>Spec template v2 with eval hooks</td><td><span class="pdot plum"></span>work-harness</td><td class="age">3 d</td><td>48</td><td><span class="fchip">template.md</span> +5</td></tr>
+      <tr><td>Knowledge-base reorg pass 3</td><td><span class="pdot harbor"></span>home-brain</td><td class="age">4 d</td><td>120</td><td><span class="fchip">kb/</span> +34</td></tr>
+      <tr><td>Summer itinerary options</td><td><span class="pdot rose"></span>travel</td><td class="age">1 w</td><td>36</td><td><span class="fchip">itinerary.md</span> +1</td></tr>
+      <tr><td>Q2 reading notes consolidation</td><td><span class="pdot moss"></span>field-notes</td><td class="age">2 w</td><td>14</td><td><span class="fchip">q2-notes.md</span> +2</td></tr>
+    </table>
+    <div class="mk-s more-link">267 more sessions — filter by project, sort any column</div>
+  </div></div>
+  <p class="verdict"><b>Densest per row; whole history one sort away.</b> Sorting/filtering is native to the form. But flat rows mean a hot project floods the top — same failure as the Day Stream unless you sort by project, and then it's just a worse Ledger.</p>
+</section>
+
+<!-- ════════════════════════ VISION 8 ════════════════════════ -->
+<section class="vision" data-vision="8" data-vname="Accordion Index">
+  <div class="vision-head">
+    <span class="vnum">8</span><h3>Accordion Index</h3>
+    <label class="shortlist"><input type="checkbox" data-shortlist="8"> Shortlist</label>
+  </div>
+  <p class="thesis">Every project is a one-line row; the row you're hovering (or last expanded) opens to reveal sessions and files. Collapsed = index, expanded = detail. Progressive disclosure as the organizing idea.</p>
+  <div class="mock"><div class="titlebar"><span class="tl"></span><span class="tl"></span><span class="tl"></span><span class="tname">Home</span></div>
+  <div class="canvas">
+    <div class="mk-s" style="border-bottom: 1px solid var(--paper-deep);"><span style="color:var(--ink-ghost)">▸</span><span class="pdot pine"></span><span class="t"><b>duo</b></span><span class="msgs">142 sessions · 1 open</span><span class="age">12m</span></div>
+    <div style="border: 1px solid var(--paper-rule); border-radius: 6px; margin: 4px 0; background: color-mix(in srgb, var(--project-harbor) 5%, var(--paper));">
+      <div class="mk-s"><span style="color:var(--ink-soft)">▾</span><span class="pdot harbor"></span><span class="t"><b>home-brain</b></span><span class="msgs">67 sessions · 1 open</span><span class="age">2h</span></div>
+      <div style="padding: 2px 10px 8px 22px;">
+        <div class="mk-s"><span class="t">Travel domain restructure</span><span class="open-pill">open</span><span class="msgs">19 msgs</span><span class="age">2h</span></div>
+        <div class="mk-s"><span class="t">Inbox triage automation</span><span class="msgs">55 msgs</span><span class="age">2d</span></div>
+        <div class="mk-s"><span class="t">Knowledge-base reorg pass 3</span><span class="msgs">120 msgs</span><span class="age">4d</span></div>
+        <div class="mk-s"><span class="t">Calendar sync experiment</span><span class="msgs">23 msgs</span><span class="age">5d</span></div>
+        <div class="mk-s more-link">62 more…</div>
+        <div class="mk-files"><span class="fchip">domains/travel/plan.md</span><span class="fchip">inbox.md</span><span class="fchip">TASKS.md</span><span class="fchip">domains/travel/2026.md</span></div>
+      </div>
+    </div>
+    <div class="mk-s" style="border-bottom: 1px solid var(--paper-deep);"><span style="color:var(--ink-ghost)">▸</span><span class="pdot iris"></span><span class="t"><b>agents-for-everyone</b></span><span class="msgs">38 sessions</span><span class="age">1d</span></div>
+    <div class="mk-s" style="border-bottom: 1px solid var(--paper-deep);"><span style="color:var(--ink-ghost)">▸</span><span class="pdot plum"></span><span class="t"><b>work-harness</b></span><span class="msgs">24 sessions</span><span class="age">3d</span></div>
+    <div class="mk-s" style="border-bottom: 1px solid var(--paper-deep);"><span style="color:var(--ink-ghost)">▸</span><span class="pdot rose"></span><span class="t"><b>travel</b></span><span class="msgs">11 sessions</span><span class="age">1w</span></div>
+    <div class="mk-s"><span style="color:var(--ink-ghost)">▸</span><span class="pdot moss"></span><span class="t"><b>field-notes</b></span><span class="msgs">9 sessions</span><span class="age">2w</span></div>
+  </div></div>
+  <p class="verdict"><b>Half a screen collapsed; scales to 20+ projects.</b> The cleanest answer to "some projects matter today, most don't." Costs one click/hover before any session is visible — fails the pure glance test.</p>
+</section>
+
+<!-- ════════════════════════ VISION 9 ════════════════════════ -->
+<section class="vision" data-vision="9" data-vname="Bento">
+  <div class="vision-head">
+    <span class="vnum">9</span><h3>Bento</h3>
+    <label class="shortlist"><input type="checkbox" data-shortlist="9"> Shortlist</label>
+  </div>
+  <p class="thesis">Activity-weighted variable density: hot projects get big tiles (sessions + files), warm projects get medium tiles, cold projects shrink to one-line stubs. The layout itself tells you where the action is.</p>
+  <div class="mock"><div class="titlebar"><span class="tl"></span><span class="tl"></span><span class="tl"></span><span class="tname">Home</span></div>
+  <div class="canvas">
+    <div class="grid2" style="margin-bottom: 10px;">
+      <div class="card" style="border-left: 3px solid var(--project-pine);">
+        <div class="mk-h"><span class="pdot pine"></span>duo <span class="right">12 min</span></div>
+        <div class="mk-s"><span class="t">Fix terminal pane collapse</span><span class="open-pill">open</span><span class="age">12m</span></div>
+        <div class="mk-s"><span class="t">Multi-window envelope migration</span><span class="age">2h</span></div>
+        <div class="mk-s"><span class="t">Roadmap triage + sprint planning</span><span class="age">1d</span></div>
+        <div class="mk-s"><span class="t">Distro pack builder polish</span><span class="age">1d</span></div>
+        <div class="mk-files"><span class="fchip">terminal-pane.tsx</span><span class="fchip">session-state.ts</span><span class="fchip">tasks.md</span><span class="fchip">roadmap.html</span></div>
+        <div class="mk-s more-link">all 142 →</div>
+      </div>
+      <div class="card" style="border-left: 3px solid var(--project-harbor);">
+        <div class="mk-h"><span class="pdot harbor"></span>home-brain <span class="right">2 h</span></div>
+        <div class="mk-s"><span class="t">Travel domain restructure</span><span class="open-pill">open</span><span class="age">2h</span></div>
+        <div class="mk-s"><span class="t">Inbox triage automation</span><span class="age">2d</span></div>
+        <div class="mk-s"><span class="t">Knowledge-base reorg pass 3</span><span class="age">4d</span></div>
+        <div class="mk-files"><span class="fchip">domains/travel/plan.md</span><span class="fchip">inbox.md</span></div>
+        <div class="mk-s more-link">all 67 →</div>
+      </div>
+    </div>
+    <div class="grid2" style="margin-bottom: 10px;">
+      <div class="card">
+        <div class="mk-h"><span class="pdot iris"></span>agents-for-everyone <span class="right">1 d</span></div>
+        <div class="mk-s"><span class="t">Docs site IA</span><span class="age">1d</span></div>
+        <div class="mk-s"><span class="t">Chapter 4 draft</span><span class="age">2d</span></div>
+      </div>
+      <div class="card">
+        <div class="mk-h"><span class="pdot plum"></span>work-harness <span class="right">3 d</span></div>
+        <div class="mk-s"><span class="t">Spec template v2</span><span class="age">3d</span></div>
+        <div class="mk-s"><span class="t">Meta-spec sweep</span><span class="age">6d</span></div>
+      </div>
+    </div>
+    <div class="mk-s" style="border-top: 1px dashed var(--paper-rule); padding-top: 5px;"><span class="pdot rose"></span><span class="t">travel</span><span class="msgs">11 sessions</span><span class="age">1w</span><span style="margin:0 10px; color:var(--paper-rule)">|</span><span class="pdot moss"></span><span class="t">field-notes</span><span class="msgs">9 sessions</span><span class="age">2w</span></div>
+  </div></div>
+  <p class="verdict"><b>~1 screen; density tracks reality.</b> Spends pixels where re-entry value is highest, demotes stale projects without hiding them. Costs layout stability — tiles resize/move between visits as activity shifts.</p>
+</section>
+
+<!-- ════════════════════════ VISION 10 ════════════════════════ -->
+<section class="vision" data-vision="10" data-vname="Files First">
+  <div class="vision-head">
+    <span class="vnum">10</span><h3>Files First</h3>
+    <label class="shortlist"><input type="checkbox" data-shortlist="10"> Shortlist</label>
+  </div>
+  <p class="thesis">Invert the hierarchy: recently-edited files are the headline (grouped by project); sessions are the secondary row beneath them. Built on the bet that you remember artifacts, not conversations.</p>
+  <div class="mock"><div class="titlebar"><span class="tl"></span><span class="tl"></span><span class="tl"></span><span class="tname">Home</span></div>
+  <div class="canvas">
+    <div class="mk-h"><span class="pdot pine"></span>duo <span class="right">12 min ago</span></div>
+    <div style="display:flex; gap:6px; flex-wrap:wrap; margin: 3px 0 4px;">
+      <div class="card" style="padding: 4px 8px; font-family: ui-monospace, Menlo, monospace; font-size: 9px;">terminal-pane.tsx<div style="color:var(--ink-ghost); font-size:8px; font-family: -apple-system, system-ui, sans-serif;">12 min · 3 sessions touched</div></div>
+      <div class="card" style="padding: 4px 8px; font-family: ui-monospace, Menlo, monospace; font-size: 9px;">session-state-service.ts<div style="color:var(--ink-ghost); font-size:8px; font-family: -apple-system, system-ui, sans-serif;">2 h · 1 session</div></div>
+      <div class="card" style="padding: 4px 8px; font-family: ui-monospace, Menlo, monospace; font-size: 9px;">roadmap.html<div style="color:var(--ink-ghost); font-size:8px; font-family: -apple-system, system-ui, sans-serif;">1 d · 2 sessions</div></div>
+      <div class="card" style="padding: 4px 8px; font-family: ui-monospace, Menlo, monospace; font-size: 9px;">tasks.md<div style="color:var(--ink-ghost); font-size:8px; font-family: -apple-system, system-ui, sans-serif;">1 d · 5 sessions</div></div>
+    </div>
+    <div class="mk-s"><span class="t" style="color:var(--ink-ghost)">sessions:</span><span class="t">Terminal collapse fix</span><span class="open-pill">open</span><span class="t" style="color:var(--paper-rule)">·</span><span class="t">Envelope migration</span><span class="t" style="color:var(--paper-rule)">·</span><span class="t">Roadmap triage</span><span class="more-link">+139</span></div>
+    <div class="mk-h" style="margin-top:12px;"><span class="pdot harbor"></span>home-brain <span class="right">2 h ago</span></div>
+    <div style="display:flex; gap:6px; flex-wrap:wrap; margin: 3px 0 4px;">
+      <div class="card" style="padding: 4px 8px; font-family: ui-monospace, Menlo, monospace; font-size: 9px;">domains/travel/plan.md<div style="color:var(--ink-ghost); font-size:8px; font-family: -apple-system, system-ui, sans-serif;">2 h · 1 session</div></div>
+      <div class="card" style="padding: 4px 8px; font-family: ui-monospace, Menlo, monospace; font-size: 9px;">inbox.md<div style="color:var(--ink-ghost); font-size:8px; font-family: -apple-system, system-ui, sans-serif;">2 d · 4 sessions</div></div>
+    </div>
+    <div class="mk-s"><span class="t" style="color:var(--ink-ghost)">sessions:</span><span class="t">Travel restructure</span><span class="open-pill">open</span><span class="t" style="color:var(--paper-rule)">·</span><span class="t">Inbox triage</span><span class="more-link">+65</span></div>
+    <div class="mk-h" style="margin-top:12px;"><span class="pdot iris"></span>agents-for-everyone <span class="right">yesterday</span></div>
+    <div style="display:flex; gap:6px; flex-wrap:wrap; margin: 3px 0 4px;">
+      <div class="card" style="padding: 4px 8px; font-family: ui-monospace, Menlo, monospace; font-size: 9px;">docs/outline.md<div style="color:var(--ink-ghost); font-size:8px; font-family: -apple-system, system-ui, sans-serif;">1 d · 2 sessions</div></div>
+      <div class="card" style="padding: 4px 8px; font-family: ui-monospace, Menlo, monospace; font-size: 9px;">ch4.md<div style="color:var(--ink-ghost); font-size:8px; font-family: -apple-system, system-ui, sans-serif;">2 d · 1 session</div></div>
+    </div>
+    <div class="mk-s"><span class="t" style="color:var(--ink-ghost)">sessions:</span><span class="t">Docs site IA</span><span class="t" style="color:var(--paper-rule)">·</span><span class="t">Chapter 4 draft</span><span class="more-link">+36</span></div>
+    <div class="mk-s more-link" style="margin-top:8px;">3 older projects ▸</div>
+  </div></div>
+  <p class="verdict"><b>~1.5 screens.</b> Uniquely good for "where was that file?" re-entry, and file-mtimes are cheap truth. But sessions — the thing you actually click to resume — get demoted to an afterthought row, and big-codebase projects produce meaningless file soup (hundreds touched).</p>
+</section>
+
+<!-- ════════════════════════ VISION 11 ════════════════════════ -->
+<section class="vision" data-vision="11" data-vname="Jump-Back Strip + Index">
+  <div class="vision-head">
+    <span class="vnum">11</span><h3>Jump-Back Strip + Index</h3>
+    <label class="shortlist"><input type="checkbox" data-shortlist="11"> Shortlist</label>
+  </div>
+  <p class="thesis">Hybrid: a horizontal "jump back in" strip of the 4 most-recent sessions as rich cards (the streaming-app pattern), then a dense Ledger-style project index below for everything else.</p>
+  <div class="mock"><div class="titlebar"><span class="tl"></span><span class="tl"></span><span class="tl"></span><span class="tname">Home</span></div>
+  <div class="canvas">
+    <div style="font-size:8.5px; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-ghost); font-weight:700; margin-bottom:4px;">Jump back in</div>
+    <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px;">
+      <div class="card" style="border-top: 3px solid var(--project-pine);"><b>Terminal collapse fix</b> <span class="open-pill">open</span><div style="color:var(--ink-ghost); font-size:8.5px; margin-top:2px;"><span class="pdot pine"></span>duo · 12 min · 81 msgs</div><div class="mk-files" style="margin:3px 0 0 0;"><span class="fchip">terminal-pane.tsx</span></div></div>
+      <div class="card" style="border-top: 3px solid var(--project-harbor);"><b>Travel restructure</b> <span class="open-pill">open</span><div style="color:var(--ink-ghost); font-size:8.5px; margin-top:2px;"><span class="pdot harbor"></span>home-brain · 2 h · 19 msgs</div><div class="mk-files" style="margin:3px 0 0 0;"><span class="fchip">plan.md</span></div></div>
+      <div class="card" style="border-top: 3px solid var(--project-pine);"><b>Envelope migration</b><div style="color:var(--ink-ghost); font-size:8.5px; margin-top:2px;"><span class="pdot pine"></span>duo · 2 h · 214 msgs</div><div class="mk-files" style="margin:3px 0 0 0;"><span class="fchip">session-state.ts</span></div></div>
+      <div class="card" style="border-top: 3px solid var(--project-iris);"><b>Docs site IA</b><div style="color:var(--ink-ghost); font-size:8.5px; margin-top:2px;"><span class="pdot iris"></span>agents-for-ev… · 1 d · 67 msgs</div><div class="mk-files" style="margin:3px 0 0 0;"><span class="fchip">outline.md</span></div></div>
+    </div>
+    <div style="font-size:8.5px; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-ghost); font-weight:700; margin-bottom:4px;">All projects</div>
+    <div class="mk-h"><span class="pdot pine"></span>duo <span class="meta">142 sessions</span><span class="right">12m</span></div>
+    <div class="mk-s"><span class="t">Roadmap triage</span><span class="age">1d</span></div>
+    <div class="mk-s"><span class="t">Distro pack builder polish</span><span class="age">1d</span></div>
+    <div class="mk-h"><span class="pdot harbor"></span>home-brain <span class="meta">67</span><span class="right">2h</span></div>
+    <div class="mk-s"><span class="t">Inbox triage automation</span><span class="age">2d</span></div>
+    <div class="mk-h"><span class="pdot iris"></span>agents-for-everyone <span class="meta">38</span><span class="right">1d</span></div>
+    <div class="mk-s"><span class="t">Chapter 4 draft</span><span class="age">2d</span></div>
+    <div class="mk-h"><span class="pdot plum"></span>work-harness <span class="meta">24</span><span class="right">3d</span></div>
+    <div class="mk-s"><span class="t">Spec template v2</span><span class="age">3d</span></div>
+    <div class="mk-h"><span class="pdot rose"></span>travel <span class="meta">11</span><span class="right">1w</span> <span class="pdot moss" style="margin-left:14px;"></span><b style="font-size:11px;">field-notes</b> <span class="meta">9</span><span class="right">2w</span></div>
+  </div></div>
+  <p class="verdict"><b>~1.5 screens.</b> Serves both jobs: instant resume of what's hottest AND a calm index for cold projects (which the strip never crowds out, because the index is project-grouped). Two layout grammars on one page is the aesthetic risk.</p>
+</section>
+
+<!-- ════════════════════════ VISION 12 ════════════════════════ -->
+<section class="vision" data-vision="12" data-vname="The Journal">
+  <div class="vision-head">
+    <span class="vnum">12</span><h3>The Journal</h3>
+    <label class="shortlist"><input type="checkbox" data-shortlist="12"> Shortlist</label>
+  </div>
+  <p class="thesis">The most Atelier vision: a calm, serif, narrative desk page. Each project is a paragraph, not a panel — a sentence of context with sessions as flowing inline links. Low density, high warmth.</p>
+  <div class="mock"><div class="titlebar"><span class="tl"></span><span class="tl"></span><span class="tl"></span><span class="tname">Home</span></div>
+  <div class="canvas" style="font-family: 'New York', 'Iowan Old Style', Georgia, serif; font-size: 11.5px; max-width: 540px; margin: 0 auto; padding: 22px 18px;">
+    <div style="font-style: italic; font-size: 15px; margin-bottom: 14px; color: var(--ink);">Thursday, June 12</div>
+    <p style="margin: 0 0 10px; color: var(--ink-soft);"><span class="pdot pine"></span><b style="color:var(--project-pine)">duo</b> has been busy — you were <a style="color:var(--accent); text-decoration:underline; text-decoration-color: var(--accent-soft);">fixing the terminal pane collapse</a> twelve minutes ago <span class="open-pill">open</span>, after <a style="color:var(--accent); text-decoration:underline; text-decoration-color: var(--accent-soft);">migrating the session envelope</a> this morning. <span style="color:var(--ink-ghost); font-size:10px;">142 sessions · terminal-pane.tsx, session-state.ts</span></p>
+    <p style="margin: 0 0 10px; color: var(--ink-soft);"><span class="pdot harbor"></span><b style="color:var(--project-harbor)">home-brain</b> — <a style="color:var(--accent); text-decoration:underline; text-decoration-color: var(--accent-soft);">restructuring the travel domain</a> two hours ago <span class="open-pill">open</span>; the <a style="color:var(--accent); text-decoration:underline; text-decoration-color: var(--accent-soft);">inbox triage automation</a> waits from Tuesday. <span style="color:var(--ink-ghost); font-size:10px;">67 sessions</span></p>
+    <p style="margin: 0 0 10px; color: var(--ink-soft);"><span class="pdot iris"></span><b style="color:var(--project-iris)">agents-for-everyone</b> — yesterday you outlined the <a style="color:var(--accent); text-decoration:underline; text-decoration-color: var(--accent-soft);">docs site architecture</a>; <a style="color:var(--accent); text-decoration:underline; text-decoration-color: var(--accent-soft);">chapter 4</a> is still in draft. <span style="color:var(--ink-ghost); font-size:10px;">38 sessions</span></p>
+    <p style="margin: 0 0 10px; color: var(--ink-soft);"><span class="pdot plum"></span><b style="color:var(--project-plum)">work-harness</b> — quiet since the <a style="color:var(--accent); text-decoration:underline; text-decoration-color: var(--accent-soft);">spec template</a> work three days ago. <span style="color:var(--ink-ghost); font-size:10px;">24 sessions</span></p>
+    <p style="margin: 0 0 4px; color: var(--ink-mute); font-size: 10.5px;"><span class="pdot rose"></span><b>travel</b> (1w) and <span class="pdot moss"></span><b>field-notes</b> (2w) are resting. <a style="color:var(--accent);">Open the full index →</a></p>
+  </div></div>
+  <p class="verdict"><b>Under 1 screen, most distinctive.</b> Feels like Duo and nothing else; the "desk you return to." But narrative generation needs session-title quality to be high, density ceiling is low, and scanning is slower than any list.</p>
+</section>
+
+<h2>Decisions</h2>
+<p style="font-size:13px; color:var(--ink-mute);">Shortlist 2–4 visions above, then answer these. The shortlist + answers travel together in the Copy payload.</p>
+
+<section class="decision-card">
+  <div class="q-title">Decision 1 · Organizing axis</div>
+  <h3 class="q-prompt">What is the primary organizing axis of the home screen?</h3>
+  <p class="q-context">This is the load-bearing choice — it selects which visions are even candidates. The stated job is re-entry into <em>inactive projects</em>, which argues for project-grouped; but "what was I just doing" is temporal.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d1" value="project-grouped">
+      <div class="q-option-body"><div class="q-option-title">Project-grouped <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Projects are the stable shelves; sessions sort by recency within. Visions 1, 2, 5, 6, 8, 9, 10, 12. Directly serves the inactive-project re-entry job.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="time-stream">
+      <div class="q-option-body"><div class="q-option-title">Time-stream</div>
+      <div class="q-option-rationale">One reverse-chron feed (visions 4, 7). Matches temporal memory but hot projects drown cold ones — works against the stated goal.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="hybrid">
+      <div class="q-option-body"><div class="q-option-title">Hybrid — recency strip on top, project index below</div>
+      <div class="q-option-rationale">Visions 3, 11. Both jobs served, at the cost of two layout grammars on one page.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d1" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 2 · Density model</div>
+  <h3 class="q-prompt">Do all projects get equal space, or does activity earn space?</h3>
+  <p class="q-context">With 6–12 projects and a 1.5–2 screen budget, uniform treatment spends ~40% of pixels on projects you haven't touched in weeks. Variable density spends pixels where re-entry value is high — but the layout shifts between visits.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d2" value="activity-weighted">
+      <div class="q-option-body"><div class="q-option-title">Activity-weighted (Bento-style tiers) <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Hot projects show 3–4 sessions + files; warm show 2; cold collapse to one line. Tier thresholds by last-active age, so the page stays calm.</div></div></label>
+    <label class="q-option"><input type="radio" name="d2" value="uniform">
+      <div class="q-option-body"><div class="q-option-title">Uniform</div>
+      <div class="q-option-rationale">Every project gets the same treatment (Ledger / Cards / Table). Predictable spatial memory; wasteful at the margins.</div></div></label>
+    <label class="q-option"><input type="radio" name="d2" value="user-pinned">
+      <div class="q-option-body"><div class="q-option-title">User-controlled (pin/star projects)</div>
+      <div class="q-option-rationale">Owner decides which projects are big. Stable, but adds a curation chore the feature was meant to remove.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d2" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 3 · Recent files</div>
+  <h3 class="q-prompt">How do recently-edited files appear?</h3>
+  <p class="q-context">File-mtime scans of project roots are cheap and truthful. The open question is prominence — and what clicking a file chip does (presumably opens it in the editor/canvas, independent of any session).</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d3" value="chips-inline">
+      <div class="q-option-body"><div class="q-option-title">Inline chip strip per project (top 3–6) <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Glanceable artifact memory without owning the layout (visions 2, 3, 9, 11). For diffuse codebases, cap + dedupe by directory.</div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="on-expand">
+      <div class="q-option-body"><div class="q-option-title">Only on expand/hover</div>
+      <div class="q-option-rationale">Keeps the resting page session-pure (visions 5, 8); files appear when a project has your attention.</div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="files-first">
+      <div class="q-option-body"><div class="q-option-title">Files are the headline</div>
+      <div class="q-option-rationale">Vision 10. Bets that artifact memory beats conversation memory.</div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="defer">
+      <div class="q-option-body"><div class="q-option-title">Defer to v2</div>
+      <div class="q-option-rationale">Ship sessions-only first; add files once the core loop proves out.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d3" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 4 · Sorting & depth controls</div>
+  <h3 class="q-prompt">How much control chrome does v1 carry?</h3>
+  <p class="q-context">You mentioned "some sorting options are likely useful" and "an opportunity to scan beyond the most recent few." Each control adds chrome to a page whose virtue is calm.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d4" value="minimal">
+      <div class="q-option-body"><div class="q-option-title">Minimal: fixed recency sort + per-project "all N sessions →" expander <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">The expander answers depth; sort menus wait for evidence they're missed.</div></div></label>
+    <label class="q-option"><input type="radio" name="d4" value="sort-menu">
+      <div class="q-option-body"><div class="q-option-title">Sort menu in v1 (recency / name / session count)</div>
+      <div class="q-option-rationale">Cheap to build now; one small chip row (vision 2's sort bar).</div></div></label>
+    <label class="q-option"><input type="radio" name="d4" value="full">
+      <div class="q-option-body"><div class="q-option-title">Full controls: sort + text filter + per-column sorting</div>
+      <div class="q-option-rationale">The Table's grammar. Power without limit, calm be damned.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d4" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 5 · Project scope & nesting</div>
+  <h3 class="q-prompt">What counts as a "project" — and what happens to nested ones?</h3>
+  <p class="q-context">Claude's <code>~/.claude/projects/</code> has one directory per cwd, so worktrees, subdirectories you happened to launch from, and nested projects each appear separately. Your 6–12 "real" projects might be 30+ encoded dirs.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d5" value="rollup">
+      <div class="q-option-body"><div class="q-option-title">Roll up: nested cwds + worktrees fold into the outermost real project <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Detect containment (path prefix; worktrees fold into their repo). Sessions keep a subtle sub-path badge. Matches mental model of 6–12 projects.</div></div></label>
+    <label class="q-option"><input type="radio" name="d5" value="raw">
+      <div class="q-option-body"><div class="q-option-title">Raw: one row per encoded cwd</div>
+      <div class="q-option-rationale">Truthful to Claude's storage; no inference to get wrong. But the list is long and littered with one-session dirs.</div></div></label>
+    <label class="q-option"><input type="radio" name="d5" value="rollup-config">
+      <div class="q-option-body"><div class="q-option-title">Roll up + manual override</div>
+      <div class="q-option-rationale">Heuristic rollup with a per-project "split this out" control. More correct, more machinery.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d5" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 6 · Resume target window</div>
+  <h3 class="q-prompt">When a closed session is clicked, where does the resumed terminal open?</h3>
+  <p class="q-context">Open sessions focus their existing terminal (possibly raising another window) — that part is locked. The question is the reopen path, now that multi-window shipped (ENH-191).</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d6" value="current-window">
+      <div class="q-option-body"><div class="q-option-title">Current window, new terminal tab <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">You clicked here; the work appears here. Predictable, no window-bookkeeping.</div></div></label>
+    <label class="q-option"><input type="radio" name="d6" value="last-window">
+      <div class="q-option-body"><div class="q-option-title">The window that last hosted it (create if gone)</div>
+      <div class="q-option-rationale">Preserves per-window workspace arrangements, but requires tracking session→window history and can teleport focus.</div></div></label>
+    <label class="q-option"><input type="radio" name="d6" value="ask">
+      <div class="q-option-body"><div class="q-option-title">Modifier choice (click = here; ⌘-click = new window)</div>
+      <div class="q-option-rationale">Power escape hatch; needs discoverability.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d6" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 7 · Where Home lives</div>
+  <h3 class="q-prompt">How is the home screen reached?</h3>
+  <p class="q-context">The premise is "a pinned page persisted across windows" — note pins are currently per-window state in the v2 session envelope, so a shared Home pin is a new (small) concept either way.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d7" value="permanent-pin">
+      <div class="q-option-body"><div class="q-option-title">Permanent first pin in every window, non-closable <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Always one click away, like a browser's home button. Slot 0 in the pinned nav; ⌘0 to focus.</div></div></label>
+    <label class="q-option"><input type="radio" name="d7" value="default-tab">
+      <div class="q-option-body"><div class="q-option-title">Default start tab (closable)</div>
+      <div class="q-option-rationale">New windows open onto Home, but it can be dismissed; reachable later via menu/CLI.</div></div></label>
+    <label class="q-option"><input type="radio" name="d7" value="on-demand">
+      <div class="q-option-body"><div class="q-option-title">On-demand only (menu item / duo home / ⌘0)</div>
+      <div class="q-option-rationale">Zero pin-model changes; least discoverable.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d7" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<details class="deferred">
+  <summary>Implementation notes that don't need decisions yet</summary>
+  <div class="deferred-body">
+    <ul>
+      <li><b>Data source is live, never cached</b> (no-sidecar rule, ENH-183 § D9): project list from <code>~/.claude/projects/*</code> dir scan; session title / msg count / mtime via the existing <code>claude-session-tracker</code> read ladder; recent files via fs mtime scan of project roots; open-session detection by matching live terminal cwds + captured session IDs.</li>
+      <li><b>The page can't be a plain static HTML pin.</b> It needs live data in and actions out (focus terminal, spawn <code>claude --resume</code>). That means a privileged surface — likely a dedicated WorkingTab kind (like JsonView) rather than a user-editable page. Surfaced as a model question in chat.</li>
+      <li><b>Session titles</b> come from the JSONL first-message ladder — quality varies; truncation rules already exist (<code>cleanAndTruncate</code>).</li>
+      <li><b>Cost guard:</b> title reads only for the visible top-N sessions per project, lazily for "show more".</li>
+    </ul>
+  </div>
+</details>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 7 decisions · <span id="shortlist-count">0</span> shortlisted</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  var TOTAL = 7;
+  function refresh() {
+    var answered = 0;
+    for (var i = 1; i <= TOTAL; i++) {
+      if (document.querySelector('input[name="d' + i + '"]:checked')) answered++;
+    }
+    document.getElementById('answered-count').textContent = String(answered);
+    var sl = document.querySelectorAll('input[data-shortlist]:checked').length;
+    document.getElementById('shortlist-count').textContent = String(sl);
+  }
+  document.addEventListener('change', refresh);
+
+  document.getElementById('copy-btn').addEventListener('click', function () {
+    var lines = [];
+    lines.push('ENH-212 home-screen study decisions');
+    lines.push('');
+    var shortlisted = [];
+    document.querySelectorAll('input[data-shortlist]:checked').forEach(function (cb) {
+      var sec = cb.closest('.vision');
+      shortlisted.push('#' + sec.getAttribute('data-vision') + ' ' + sec.getAttribute('data-vname'));
+    });
+    lines.push('SHORTLIST: ' + (shortlisted.length ? shortlisted.join(', ') : '(none)'));
+    lines.push('');
+    var titles = {
+      d1: 'Organizing axis', d2: 'Density model', d3: 'Recent files',
+      d4: 'Sorting & depth controls', d5: 'Project scope & nesting',
+      d6: 'Resume target window', d7: 'Where Home lives'
+    };
+    for (var i = 1; i <= TOTAL; i++) {
+      var name = 'd' + i;
+      var sel = document.querySelector('input[name="' + name + '"]:checked');
+      lines.push('[' + (sel ? sel.value : 'UNANSWERED') + '] D' + i + ' ' + titles[name]);
+      var notes = document.querySelector('.q-notes[data-decision="' + name + '"]');
+      if (notes && notes.value.trim()) lines.push('    ' + notes.value.trim());
+    }
+    var payload = lines.join('\n');
+    var btn = this;
+    navigator.clipboard.writeText(payload).then(function () {
+      btn.classList.add('copied');
+      btn.textContent = 'Copied';
+      setTimeout(function () {
+        btn.classList.remove('copied');
+        btn.textContent = 'Copy decisions';
+      }, 2000);
+    });
+  });
+
+  refresh();
+})();
+</script>
+
+</body>
+</html>

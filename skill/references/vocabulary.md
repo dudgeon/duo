@@ -61,6 +61,7 @@ The same HTML source file flips between two surfaces depending on which verb ope
 | **the navigator** / **the tree** / **the file pane** | The left column with the dual-pane file tree. |
 | **the terminal** | The middle column with the Claude terminal sessions. |
 | **a terminal tab** | One of the Claude / shell sessions in the middle column. |
+| **Home** | The permanent re-entry surface — slot 0 in every window, non-closable. Answers "where was I?" across inactive Claude projects: a greeting line, two project hero panels (recent sessions, open-pills, recent-file chips), and a spine stack of the rest. Read live every time, never persisted. Reached via `duo home`; click a session to focus its live tab or resume it. |
 
 ## The page / playground distinction is verb-level
 

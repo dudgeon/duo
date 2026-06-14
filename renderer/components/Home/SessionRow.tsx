@@ -1,0 +1,53 @@
+// ENH-212 — one session row inside a hero panel (or the paged expander).
+// Renders title + a green "open" pill when an evidence-gated join attributed
+// the session to a live terminal (HomeSession.open present) + age + an
+// optional subPath badge (D8 worktree / nested-cwd fold).
+//
+// The click CONTRACT (§ 4.3) is owned by the parent (HomeView) — this row
+// just reports the click via onActivate. That keeps the confirm-before-
+// resume gate (live-but-idle, § 4.3) out of every leaf row.
+
+import type { HomeSession } from '@shared/types'
+import { ageShort, subPathLabel } from './homeModel'
+
+interface SessionRowProps {
+  session: HomeSession
+  onActivate: (session: HomeSession) => void
+  /** True when this row is the source of the snippet reply rendered directly
+   *  beneath it (round-2 #B) — squares its bottom corners so the row + reply
+   *  read as one connected unit. */
+  hasReplyBelow?: boolean
+}
+
+export function SessionRow({ session, onActivate, hasReplyBelow = false }: SessionRowProps) {
+  const sub = subPathLabel(session.subPath)
+  const open = session.open
+  const title =
+    open?.kind === 'duo'
+      ? 'Running in a Duo terminal — click to focus it'
+      : open?.kind === 'external'
+        ? 'Running outside Duo (another terminal / the desktop app) — click to fork a new session branched from it'
+        : 'Resume this session in a new terminal'
+  return (
+    <button
+      type="button"
+      className={`duo-home-session-row${hasReplyBelow ? ' has-reply-below' : ''}`}
+      onClick={() => onActivate(session)}
+      title={title}
+    >
+      <span className="duo-home-session-title">{session.title}</span>
+      {sub && <span className="duo-home-subpath-badge">{sub}</span>}
+      {open?.kind === 'duo' && (
+        <span className="duo-home-open-pill" aria-label="Running in a Duo terminal">
+          open
+        </span>
+      )}
+      {open?.kind === 'external' && (
+        <span className="duo-home-open-pill is-external" aria-label="Running outside Duo">
+          running
+        </span>
+      )}
+      <span className="duo-home-session-age">{ageShort(Date.now() - session.modifiedAt)}</span>
+    </button>
+  )
+}

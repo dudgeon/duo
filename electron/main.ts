@@ -89,8 +89,9 @@ import { WorkspaceFileService } from '../core/workspace-file-service'
 import { WorkspaceHistoryService } from '../core/workspace-history-service'
 import { ActiveWorkspaceService } from '../core/active-workspace-service'
 import { BROWSER_SESSION_PARTITION } from '../core/constants'
-import { ClaudePresenceProbe } from '../core/claude-presence'
-import { detectLatestClaudeSession } from './claude-session-tracker'
+import { ClaudePresenceProbe, mapLiveClaudeOwners } from '../core/claude-presence'
+import { buildResumeCommand, detectLatestClaudeSession, encodeProjectDir, listTopLevelSessions } from './claude-session-tracker'
+import { buildHomeSnapshot, listHomeSessions, attributeOpenSessions, type OpenByUuid, type LiveCwdGroup } from './home-snapshot'
 import { BrowserHistoryService } from '../core/browser-history-service'
 import { ExternalDomainsService } from '../core/external-domains-service'
 import { EventBus, type DuoEventSource } from '../core/event-bus'
@@ -135,7 +136,11 @@ import type {
   NewTabRequest,
   NewTabResult,
   ExternalRedirectedPush,
-  WorkingAuxSnapshot
+  WorkingAuxSnapshot,
+  HomeSnapshot,
+  HomeSession,
+  HomeSessionAction,
+  HomeSessionActionResult
 } from '../shared/types'
 
 // Last nav state snapshot the renderer pushed. Drives `duo nav state`.
@@ -1547,6 +1552,14 @@ app.whenReady().then(async () => {
     // ENH-183 pared 2026-05-25 (Option A): sessionRename + sessionHydrate
     // removed. Force-rename unnecessary (Haiku covers it); inline rename
     // surface dropped with S2. Users type `/rename` directly in Claude.
+    // ENH-212 (Home) — `duo session open <uuid>` full click contract.
+    sessionOpen: sessionOpenForCli,
+    // ENH-212 (Home) — `duo home` + `duo term tabs|tab` CLI parity.
+    showHome: showHomeForCli,
+    getHomeState: getHomeStateForCli,
+    listTerminalTabs: listTerminalTabsForCli,
+    activateTerminalTab: activateTerminalTabForCli,
+    closeTerminalTabById: closeTerminalTabForCli,
     htmlComment: dispatchHtmlComment,
     htmlCommentsList: dispatchHtmlCommentsList,
     newTab: dispatchNewTab,
@@ -2776,6 +2789,91 @@ function setupIPC(): void {
     const item = menu.getMenuItemById(cozyMenuItemId)
     if (item) item.checked = cozy
   })
+
+  // ── ENH-212 Home (PRD § 4.4) ────────────────────────────────────────────────
+  // Append-only handler block at the END of setupIPC (the pinned anchor [V]).
+  // All reads recompute live (D9 — no cache); the snapshot's only transient
+  // state is the in-flight coalescing promise (computeHomeSnapshot), NOT a cache.
+
+  // Full snapshot — greeting + rolled-up projects with their recent sessions.
+  // Concurrent invokes (N windows × 30s pollers) share one computation.
+  ipcMain.handle(IPC.HOME_SNAPSHOT, async (_event, args: { limitPerProject?: number }): Promise<HomeSnapshot> => {
+    return computeHomeSnapshot(args?.limitPerProject)
+  })
+
+  // Paged "all N sessions" expander for one project root — lazy head titles.
+  // The open-session join rides along so an expanded session still shows its
+  // green pill if a live terminal hosts it.
+  ipcMain.handle(IPC.HOME_LIST_SESSIONS, async (_event, args: { root: string; offset: number; limit: number }): Promise<HomeSession[]> => {
+    const join = await buildHomeOpenJoin()
+    return listHomeSessions(args.root, args.offset, args.limit, { openByUuid: join.openByUuid })
+  })
+
+  // Session click contract (§ 4.3). Focus: raise the hosting window + activate
+  // its terminal tab (openness re-checked first). Resume: spawn a new shell tab
+  // running `claude --resume <uuid>` in the SENDER's window (D6 — identity,
+  // never focus), uuid regex-validated (cf. sessionResume).
+  ipcMain.handle(IPC.HOME_SESSION_ACTION, async (event, action: HomeSessionAction): Promise<HomeSessionActionResult> => {
+    if (action.op === 'focus') {
+      const ctx = registry.get(action.windowId)
+      if (!ctx) return { ok: false, error: `window ${action.windowId} is no longer open` }
+      const win = ctx.window as BrowserWindow
+      if (win.isDestroyed()) return { ok: false, error: `window ${action.windowId} is no longer open` }
+      win.focus()
+      // Openness is re-checked at two layers: the window above (registry.get
+      // + isDestroyed), and the tab id below — a tab that closed between
+      // snapshot and click won't match any live tab, so the renderer's
+      // activate handler is a harmless no-op (never a duplicate spawn).
+      const activateSend = makeSafeSend(() => ctx.window)
+      activateSend(IPC.TERMINAL_ACTIVATE_TAB, { tabId: action.tabId })
+      // Expand the terminal pane if it's collapsed so the focused session shows.
+      void revealTerminalIfCollapsed(action.windowId)
+      return { ok: true }
+    }
+
+    // resume — validate the uuid before spawning anything (parity with the
+    // sessionResume CLI verb's guard).
+    if (!/^[0-9a-f-]{36}$/.test(action.uuid)) {
+      return { ok: false, error: `uuid must be a UUID, got: ${action.uuid}` }
+    }
+    // Liveness re-check at CLICK time (not just snapshot time). If it's now
+    // live in a Duo tab → focus it instead (focusing never forks). If it's
+    // live OUTSIDE Duo → refuse UNLESS the user forced it: forking is the
+    // user's call (owner directive 2026-06-13), but an *accidental* click on a
+    // session that went live in the snapshot gap must not silently fork — so
+    // we report externalLive and let the renderer warn-then-confirm.
+    const liveNow = (await buildHomeOpenJoin()).openByUuid.get(action.uuid)
+    if (liveNow?.kind === 'duo') {
+      const ctx = registry.get(liveNow.windowId)
+      const win = ctx?.window as BrowserWindow | undefined
+      if (win && !win.isDestroyed()) {
+        win.focus()
+        makeSafeSend(() => ctx!.window)(IPC.TERMINAL_ACTIVATE_TAB, { tabId: liveNow.tabId })
+        void revealTerminalIfCollapsed(liveNow.windowId)
+        return { ok: true }
+      }
+    } else if (liveNow?.kind === 'external' && !action.force) {
+      return {
+        ok: false,
+        externalLive: true,
+        error: 'That session is running outside Duo (another terminal / the desktop app). Forking it here branches a new session from its current state.',
+      }
+    }
+    const senderId = BrowserWindow.fromWebContents(event.sender)?.id
+    // Fork vs resume. A *forced* click on a session still live OUTSIDE Duo is a
+    // FORK — branch a NEW session id (--fork-session) so the original running
+    // copy's transcript isn't clobbered by a second writer on the same id. A
+    // plain resume of a genuinely-closed session continues it in place.
+    const isFork = liveNow?.kind === 'external' && action.force === true
+    const res = await dispatchNewTabToWindow(senderId, {
+      kind: 'shell',
+      cwd: action.cwd,
+      cmd: buildResumeCommand(action.uuid, { fork: isFork }),
+    })
+    // Expand the terminal pane if collapsed so the spawned session is visible.
+    if (res.ok) void revealTerminalIfCollapsed(senderId)
+    return res.ok ? { ok: true } : { ok: false, error: res.error }
+  })
 }
 
 // ── App menu ────────────────────────────────────────────────────────────────
@@ -3645,6 +3743,113 @@ async function getLiveCwdsForIds(
   return Object.fromEntries(entries)
 }
 
+// ───────────────────────────────────────────────────────────────────────
+// ENH-212 — Home open-session join (PRD § 4.3). Evidence-gated joins ONLY
+// (D13): a session is "open" iff a LIVE PTY's lsof cwd matches the cwd of a
+// persisted terminal carrying that session's lastClaudeSession.id pointer.
+// The newest-jsonl-mtime-≤2min heuristic is BANNED (D13). One ps + one lsof
+// batch per snapshot (never per row) [V].
+// ───────────────────────────────────────────────────────────────────────
+
+interface HomeOpenJoin {
+  openByUuid: OpenByUuid
+}
+
+/**
+ * Compute the open-session attribution — PROCESS-primary (ENH-212 round-2).
+ * One `ps` parse finds every live `claude` and the Duo PTY (if any) that owns
+ * it; we lsof each claude's cwd, group by cwd, and (per cwd) read the freshest
+ * session uuids. attributeOpenSessions then marks the N freshest uuids open —
+ * Duo-hosted ones focusable, the rest `external`. Covers Duo tabs, external
+ * terminals, and the desktop app alike — the "ALL running sessions, focus-not-
+ * fork" guarantee. A cwd with no project dir (e.g. the desktop app's internal
+ * agent-mode claude under Application Support) maps to no sessions and is
+ * dropped — so it never raises a false "could fork" warning.
+ */
+async function buildHomeOpenJoin(): Promise<HomeOpenJoin> {
+  const live = ptyManager.listAllLive()
+  const primaryId = registry.primary()?.id ?? -1
+  // Duo PTY shell pid -> {windowId, tabId} for owner lookup.
+  const ptyByPid = new Map<number, { windowId: number; tabId: string }>()
+  for (const s of live) {
+    if (s.pid != null) {
+      ptyByPid.set(s.pid, { windowId: s.ownerWindowId >= 0 ? s.ownerWindowId : primaryId, tabId: s.id })
+    }
+  }
+
+  // One `ps` parse: every live claude + the owning Duo PTY pid (or null).
+  const claudeProcs = await mapLiveClaudeOwners([...ptyByPid.keys()])
+  if (claudeProcs.length === 0) return { openByUuid: new Map() }
+
+  // Resolve each live claude's cwd (async lsof variant, never the blocking one).
+  const withCwd = await Promise.all(
+    claudeProcs.map(async (c) => ({ ...c, cwd: await getLiveCwdForPidAsync(c.pid) }))
+  )
+
+  // Group by cwd; a cwd with no ~/.claude/projects dir / no sessions is not a
+  // Home session (desktop-internal claude, a scratch dir) and is skipped.
+  const byCwd = new Map<string, typeof withCwd>()
+  for (const c of withCwd) {
+    if (!c.cwd) continue
+    const list = byCwd.get(c.cwd)
+    if (list) list.push(c)
+    else byCwd.set(c.cwd, [c])
+  }
+
+  const groups: LiveCwdGroup[] = []
+  for (const [cwd, members] of byCwd) {
+    const projectDir = join(homedir(), '.claude', 'projects', encodeProjectDir(cwd))
+    const sessions = await listTopLevelSessions(projectDir)
+    if (sessions.length === 0) continue
+    sessions.sort((a, b) => b.mtimeMs - a.mtimeMs)
+    const duoTabs: Array<{ windowId: number; tabId: string }> = []
+    let externalCount = 0
+    for (const m of members) {
+      const owner = m.ownerPtyPid != null ? ptyByPid.get(m.ownerPtyPid) : undefined
+      if (owner) duoTabs.push(owner)
+      else externalCount++
+    }
+    groups.push({ cwd, duoTabs, externalCount, uuidsByRecency: sessions.map((s) => s.id) })
+  }
+
+  return { openByUuid: attributeOpenSessions(groups) }
+}
+
+/** Resolve a set of pids to their lsof cwds (deduped, best-effort). Used
+ *  for the unattributed-live-claude guard. */
+// ENH-212 — in-flight coalescing for HOME_SNAPSHOT (N windows × 30s pollers
+// would otherwise fan out N concurrent recomputes). A TRANSIENT shared
+// promise, NOT a cache (D9 clean): set on the first concurrent call, cleared
+// the moment it settles, so each fresh invoke after settle recomputes live.
+//
+// Keyed by limitPerProject so concurrent invokes requesting DIFFERENT page
+// sizes compute independently — coalescing on nothing would silently hand a
+// second caller the first's snapshot built with the wrong limit (the renderer
+// always passes HERO_SESSION_LIMIT=3 today, but a CLI verb / second surface
+// could ask for a larger limit and must get it).
+const homeSnapshotInflight = new Map<number, Promise<HomeSnapshot>>()
+
+async function computeHomeSnapshot(limitPerProject?: number): Promise<HomeSnapshot> {
+  // `undefined` ⇒ the service default (DEFAULT_LIMIT_PER_PROJECT); -1 is its
+  // distinct coalescing key (no valid limit is negative).
+  const key = limitPerProject ?? -1
+  const existing = homeSnapshotInflight.get(key)
+  if (existing) return existing
+  const work = (async () => {
+    const join = await buildHomeOpenJoin()
+    return buildHomeSnapshot({
+      limitPerProject,
+      openByUuid: join.openByUuid,
+    })
+  })()
+  homeSnapshotInflight.set(key, work)
+  try {
+    return await work
+  } finally {
+    homeSnapshotInflight.delete(key)
+  }
+}
+
 // ENH-167 — apply a new SessionState to the running Duo without
 // app.relaunch(). Tears down current PTYs + browser WCVs, writes the
 // new state to disk, reloads the renderer (which re-runs the boot-
@@ -4210,6 +4415,147 @@ export async function getStatusSnapshot(): Promise<unknown> {
   )
 }
 
+// ── ENH-212 Home — CLI bridge helpers (PRD § 4.5) ───────────────────────────
+// `duo home` / `duo home show` / `duo home refresh`. Push HOME_SHOW to the
+// addressed window (cliTargetWindowId, else primary — identity, never focus,
+// like every other visibility-cluster read). The renderer's App activates
+// Home + HomeView refetches off this single push (PRD § 4.4 — the only Home
+// main→renderer channel). `refresh` shares it: when Home is already active,
+// activation is idempotent and the refetch is exactly the force-refetch.
+function showHomeForCli(): { ok: boolean; error?: string } {
+  const win = windowByIdOrPrimary(undefined) // addressable (cliTargetWindowId), else primary
+  if (!win || win.isDestroyed()) return { ok: false, error: 'Duo window not ready' }
+  // makeSafeSend tolerates a mid-teardown webContents (BUG-190 guard).
+  makeSafeSend(() => win)(IPC.HOME_SHOW, undefined)
+  return { ok: true }
+}
+
+// `duo home state [--json]` — pull the renderer's __duoGetHomeState() (the
+// HomeView's last-fetched snapshot, or null). Same always-fresh, no-cache
+// pull pattern as getStatusSnapshot / getLayoutSnapshot.
+async function getHomeStateForCli(): Promise<unknown> {
+  const win = windowByIdOrPrimary(undefined) // identity, never focus
+  if (!win || win.isDestroyed()) throw new Error('Duo window not ready')
+  return await win.webContents.executeJavaScript(
+    'typeof window.__duoGetHomeState === "function" ? window.__duoGetHomeState() : { error: "renderer not exposing __duoGetHomeState — likely renderer not yet mounted" }',
+    true
+  )
+}
+
+// `duo term tabs` — enumerate the addressed window's terminal tabs. Reads the
+// renderer's __duoGetLayout().terminal (the existing always-fresh layout pull,
+// which already carries the per-tab {id, kind, cwd, title} list + activeTabId)
+// and projects it to [{id, kind, cwd, title, active}] so `duo term tab <id>`
+// has a stable id space to target (NOT a bare index — `duo tab <n>` owns the
+// browser number space).
+async function listTerminalTabsForCli(): Promise<unknown> {
+  const layout = (await getLayoutSnapshot()) as {
+    terminal?: {
+      activeTabId?: string | null
+      tabs?: Array<{ id: string; kind: string; cwd: string; title: string }>
+    }
+  }
+  const term = layout?.terminal
+  const activeTabId = term?.activeTabId ?? null
+  const tabs = (term?.tabs ?? []).map((t) => ({
+    id: t.id,
+    kind: t.kind,
+    cwd: t.cwd,
+    title: t.title,
+    active: t.id === activeTabId,
+  }))
+  return { tabs, activeTabId }
+}
+
+// `duo term tab <id>` — activate the terminal tab with that id in the addressed
+// window by pushing TERMINAL_ACTIVATE_TAB (the same channel the Home focus leg
+// uses). The renderer's focusTerminalTab no-ops on an unknown id, so a stale id
+// is harmless; main returns ok regardless of the renderer-side match (parity
+// with the focus action's re-check posture).
+function activateTerminalTabForCli(tabId: string): { ok: boolean; error?: string } {
+  const win = windowByIdOrPrimary(undefined) // identity, never focus
+  if (!win || win.isDestroyed()) return { ok: false, error: 'Duo window not ready' }
+  makeSafeSend(() => win)(IPC.TERMINAL_ACTIVATE_TAB, { tabId })
+  return { ok: true }
+}
+
+// `duo term close <id> [--force]` — close a terminal tab by id. Closing kills
+// the tab's PTY (BUG-200 data-loss class), so a tab running a live `claude` is
+// REFUSED unless --force. The renderer routes the push through its existing
+// closeTab path (which enforces the floor-of-1 and the closed-tab ring).
+async function closeTerminalTabForCli(tabId: string, force = false): Promise<{ ok: boolean; error?: string }> {
+  const win = windowByIdOrPrimary(undefined) // identity, never focus
+  if (!win || win.isDestroyed()) return { ok: false, error: 'Duo window not ready' }
+  if (!force) {
+    const live = ptyManager.listAllLive().find((s) => s.id === tabId)
+    if (live?.pid != null) {
+      const procs = await mapLiveClaudeOwners([live.pid])
+      if (procs.some((c) => c.ownerPtyPid === live.pid)) {
+        return { ok: false, error: 'tab is running a live claude session — pass --force to close it anyway' }
+      }
+    }
+  }
+  makeSafeSend(() => win)(IPC.TERMINAL_CLOSE_TAB, { tabId })
+  return { ok: true }
+}
+
+// `duo session open <uuid> [--cwd <path>]` — the full Home click contract,
+// main-side (D15). Compute the live open-session join: if a live terminal tab
+// already hosts the session, raise its window + activate that tab (never a
+// duplicate spawn). Else spawn `claude --resume <uuid>` in a new tab in the
+// primary window (no DUO_WINDOW stamp → primary, identity never focus — the
+// `duo session open` invocation comes from outside any Duo terminal). The
+// focus leg needs no cwd; the resume leg requires one (`--cwd`), matching the
+// renderer's HomeView.doResume which always supplies the session cwd.
+async function sessionOpenForCli(
+  uuid: string,
+  cwd?: string,
+  force = false
+): Promise<{ ok: boolean; action?: 'focus' | 'resume' | 'fork'; error?: string }> {
+  if (!/^[0-9a-f-]{36}$/.test(uuid)) {
+    return { ok: false, error: `uuid must be a UUID, got: ${uuid}` }
+  }
+  const join = await buildHomeOpenJoin()
+  const hit = join.openByUuid.get(uuid)
+  if (hit?.kind === 'duo') {
+    // FOCUS leg — raise the hosting window + activate its terminal tab.
+    const ctx = registry.get(hit.windowId)
+    const win = ctx?.window as BrowserWindow | undefined
+    if (!win || win.isDestroyed()) {
+      return { ok: false, error: `window ${hit.windowId} hosting the session is no longer open` }
+    }
+    win.focus()
+    makeSafeSend(() => ctx!.window)(IPC.TERMINAL_ACTIVATE_TAB, { tabId: hit.tabId })
+    void revealTerminalIfCollapsed(hit.windowId)
+    return { ok: true, action: 'focus' }
+  }
+  if (hit?.kind === 'external' && !force) {
+    // Live outside Duo — Duo can't focus it. Refuse by default so a stray
+    // invocation doesn't fork a running session; `--force` overrides (the
+    // user's call — parity with the UI's Fork dialog).
+    return { ok: false, error: 'session is running outside Duo (another terminal / the desktop app) — pass --force to fork it (a new session branched from this one)' }
+  }
+  // RESUME leg — needs a cwd. D15 — addressed window (cliTargetWindowId, e.g.
+  // `--window 2`), else the primary window when unstamped — same identity
+  // resolution as every other verb. dispatchNewTabToWindow(undefined, …)
+  // resolves to the primary; pass the addressed id when stamped.
+  if (!cwd) {
+    return { ok: false, error: 'session is not open; pass --cwd <path> to resume it in a new tab' }
+  }
+  // Fork vs resume — parity with the HOME_SESSION_ACTION leg: a forced open of
+  // a session still live OUTSIDE Duo forks (--fork-session, a new session id);
+  // a genuinely-closed session resumes in place.
+  const isFork = hit?.kind === 'external' && force
+  const targetWindowId = windowByIdOrPrimary(undefined)?.id
+  const res = await dispatchNewTabToWindow(targetWindowId, {
+    kind: 'shell',
+    cwd,
+    cmd: buildResumeCommand(uuid, { fork: isFork }),
+  })
+  if (res.ok) void revealTerminalIfCollapsed(targetWindowId)
+  return res.ok ? { ok: true, action: isFork ? 'fork' : 'resume' } : { ok: false, error: res.error }
+}
+
 // ENH-130 — `duo edit --reveal` / `duo open --reveal` reveal flow.
 // Read layout via the same renderer-side getter ENH-124 uses; if the
 // working pane is collapsed (splitPct >= 75 — terminal-dominant), pull
@@ -4232,6 +4578,29 @@ export async function revealMainPaneIfCollapsed(): Promise<void> {
     win.webContents.send(IPC.PANE_FOCUS_JUMP, 'main')
   } catch (err) {
     console.warn('[main] revealMainPaneIfCollapsed failed:', (err as Error)?.message ?? err)
+  }
+}
+
+// ENH-212 — the terminal analog of revealMainPaneIfCollapsed. When a Home
+// session action opens/resumes/forks/focuses a session whose terminal lives in
+// a fully-collapsed terminal pane (splitPct === 0), the spawned/focused
+// terminal would be invisible. Expand the pane to a comfortable 50/50 so the
+// session is actually on screen. Idempotent: no-op unless the pane is fully
+// collapsed. Fire-and-forget at the call sites — a cosmetic reveal must never
+// fail or delay the focus/resume result.
+export async function revealTerminalIfCollapsed(windowId?: number): Promise<void> {
+  const win = windowByIdOrPrimary(windowId) // identity, never focus
+  if (!win || win.isDestroyed()) return
+  try {
+    const layout = (await win.webContents.executeJavaScript(
+      'typeof window.__duoGetLayout === "function" ? window.__duoGetLayout() : null',
+      true
+    )) as { splitPct?: number } | null
+    if (layout && layout.splitPct === 0) {
+      setSplit(50, win.id)
+    }
+  } catch (err) {
+    console.warn('[main] revealTerminalIfCollapsed failed:', (err as Error)?.message ?? err)
   }
 }
 
@@ -4688,7 +5057,20 @@ const NEW_TAB_TIMEOUT_MS = 5000
 export function dispatchNewTab(
   req: Omit<NewTabRequest, 'reqId'>
 ): Promise<NewTabResult> {
-  const win = windowByIdOrPrimary(undefined)
+  return dispatchNewTabToWindow(windowByIdOrPrimary(undefined)?.id, req)
+}
+
+// ENH-212 — window-targeted variant of dispatchNewTab. The Home resume action
+// (§ 4.3) spawns into the SENDER's window (resolveBySender — identity, never
+// focus), not always the primary. `windowId` undefined falls back to the
+// primary window (matches dispatchNewTab's resolution).
+export function dispatchNewTabToWindow(
+  windowId: number | undefined,
+  req: Omit<NewTabRequest, 'reqId'>
+): Promise<NewTabResult> {
+  const win = windowId != null
+    ? ((registry.get(windowId)?.window as BrowserWindow | undefined) ?? null)
+    : liveMainWindow()
   if (!win || win.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
   }

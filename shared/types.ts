@@ -268,6 +268,11 @@ export type DuoCommandName =
   //   resume <tabId> <uuid>    → claude --resume <uuid> in tab's PTY
   //   rename <tabId> "<title>" → /rename <title> in tab's PTY
   //   hydrate <tabId>          → force-attempt Duo-driven hydration
+  // ENH-212 (Home) extends it with the full Home click contract main-side:
+  //   open <uuid> [--cwd <p>]  → focus the session's live tab if open,
+  //                              else spawn `claude --resume <uuid>` in a
+  //                              new tab in the primary window (D15 — no
+  //                              DUO_WINDOW stamp resolves to primary).
   // Power-user opt-out + UI verbs (collapse/expand/dismiss-pills/
   // auto-hydrate) are deferred follow-ups.
   | 'session'
@@ -305,6 +310,23 @@ export type DuoCommandName =
   // in the JSON viewer; disk-direct (JSON.parse / js-yaml) when closed.
   // YAML round-trips lose comments — flagged in the reply reason.
   | 'json-op'
+  // ENH-212 (Home) — the re-entry surface CLI parity. Single 'home'
+  // command with a discriminated `op` arg:
+  //   show           → focus/synthesize Home in the target window (HOME_SHOW)
+  //   state [--json] → pull the renderer's __duoGetHomeState() snapshot
+  //   refresh        → force a snapshot refetch (HOME_SHOW; refetches when active)
+  // `--window N` / DUO_WINDOW honored (identity, never focus). No
+  // `home close` verb — Home is non-closable by design (PRD § 3 deliberate
+  // CLI parity asymmetry).
+  | 'home'
+  // ENH-212 — terminal-tab switching parity (closes the documented
+  // CLI-COVERAGE § Terminal P0 gap). Single 'term' command with a
+  // discriminated `op` arg:
+  //   tabs        → enumerate terminal tabs ([{id, kind, cwd, title, active}])
+  //   tab <id>    → activate the tab with that id (ships TERMINAL_ACTIVATE_TAB)
+  // Takes an <id> from `term tabs`, NOT a bare index — `duo tab <n>` owns
+  // the browser number space (CLI-COVERAGE note ~line 252).
+  | 'term'
 
 // ── Stage 18b — Distro skill packs ───────────────────────────────────────────
 // A pack is a directory under `~/.claude/duo/packs/<name>/` carrying a
@@ -491,6 +513,7 @@ export type WorkingTabType =
   | 'image'
   | 'pdf'
   | 'json'               // ENH-110 — JSON / YAML viewer-editor (Tier 3 tree + raw-text toggle). Format (json|yaml) is implicit from the path extension.
+  | 'home'               // ENH-212 — permanent re-entry surface; sentinel path 'duo://home', constant id 'f:home'. Never persisted, non-closable.
   | 'unknown'
 
 export interface WorkingTab {
@@ -1529,6 +1552,109 @@ export interface DialogConfirmResult {
   response: number
 }
 
+// ── Home (ENH-212) ───────────────────────────────────────────────────────────
+// Snapshot contract for the permanent re-entry surface (slot 0 in every
+// window). Main recomputes the whole snapshot live on every HOME_SNAPSHOT
+// invoke — zero persistence anywhere (D9 / ENH-183 § D9 invariant). Backed
+// by electron/home-snapshot.ts + claude-session-tracker primitives.
+
+/** Greeting-line data (D4). Degrades: 0 open → "all quiet since <age>";
+ *  no firstName (D12 os.userInfo() unavailable) → "Welcome back —". */
+export interface GreetingData {
+  firstName?: string
+  /** Count of sessions currently hosted by a live terminal (D13
+   *  evidence-gated joins only — never the mtime heuristic). */
+  openCount: number
+  /** The most recently active session across all projects. */
+  freshest?: { title: string; ageMs: number }
+}
+
+/** Liveness attribution for a session (D13, ENH-212 round-2 refit).
+ *  Detection is process-primary: a live `claude` process (confirmed via
+ *  `ps`) in a cwd whose freshest JSONL is this session.
+ *   - `duo`: the claude runs inside a Duo terminal tab → the pill FOCUSES
+ *     that tab (raising its window). Tab ids resolved live, never persisted.
+ *   - `external`: the claude runs OUTSIDE Duo (another terminal, the
+ *     desktop app) → Duo can't focus it, and a resume click must REFUSE
+ *     (never fork a running session). This is the "ALL running sessions,
+ *     focus-not-fork" guarantee.
+ *  This refines D13's "no mtime heuristic": liveness comes from the live
+ *  PROCESS (not bare cwd-recency); the JSONL mtime only disambiguates WHICH
+ *  uuid, on a live, recomputed-every-snapshot, non-persisted signal. */
+export type HomeSessionOpen =
+  | { kind: 'duo'; windowId: number; tabId: string }
+  | { kind: 'external' }
+
+/** One session row. `open` is present only when a live `claude` process is
+ *  attributed to this session (see HomeSessionOpen). */
+export interface HomeSession {
+  uuid: string
+  title: string
+  titleSource: import('./host-api').BannerTitleSource
+  modifiedAt: number
+  /** The session's actual recorded cwd (D6 — `claude --resume` must run
+   *  HERE, not at the rolled-up project root). For a sibling git worktree
+   *  the root is the MAIN repo while the session lived in the worktree, so
+   *  `subPath` is undefined yet `cwd` still pins the correct directory —
+   *  resume must use `cwd`, never reconstruct from root + subPath. */
+  cwd: string
+  /** D8 rollup — set when the session's cwd is nested below the rolled-up
+   *  project root (worktree / sub-directory); relative path for the badge. */
+  subPath?: string
+  open?: HomeSessionOpen
+}
+
+/** One rolled-up project (D8: worktrees fold into their main repo;
+ *  nested cwds fold into the shallowest real root). */
+export interface HomeProject {
+  rootPath: string
+  displayName: string
+  /** Index into the --project-* hue palette via hashColorIndex. */
+  colorIndex: number
+  lastActiveAt: number
+  /** Total sessions for the root — drives the "all N sessions" expander. */
+  sessionCount: number
+  /** Last-response snippet (hero panels only) — the most-recent session's
+   *  last assistant message. Carries `sessionUuid` so the renderer can link
+   *  it to that session's row + make it clickable (focus/resume), and the
+   *  full `text` for the hover-to-expand. Absent when the tail read timed out
+   *  (D14 iCloud-evicted) or found no assistant text. */
+  snippet?: { sessionUuid: string; text: string }
+  /** The most recent sessions, capped by HOME_SNAPSHOT's limitPerProject. */
+  sessions: HomeSession[]
+  /** Shallow mtime scan of the root (depth ≤2, top 5). */
+  recentFiles: { path: string; mtime: number }[]
+}
+
+export interface HomeSnapshot {
+  generatedAt: number
+  greeting: GreetingData
+  /** Sorted by lastActiveAt desc — first two are the hero panels, the
+   *  rest the spine stack. */
+  projects: HomeProject[]
+}
+
+/** `HOME_SESSION_ACTION` payload — the click contract (§ 4.3). Focus
+ *  raises the hosting window + activates its terminal tab; resume spawns
+ *  `claude --resume <uuid>` in a new shell tab in the sender's window
+ *  (D6 — identity, never focus). */
+export type HomeSessionAction =
+  | { op: 'focus'; windowId: number; tabId: string }
+  // `force` = the user acknowledged the fork warning for a session that is
+  // live OUTSIDE Duo (the "running" pill). Without it, resume refuses when the
+  // session is found live-external at click time (the never-fork backstop for
+  // an accidental click on a session that went live in the snapshot gap).
+  | { op: 'resume'; uuid: string; cwd: string; force?: boolean }
+
+/** Result of HOME_SESSION_ACTION. `externalLive` is set when a resume was
+ *  refused because the session is live OUTSIDE Duo and `force` wasn't given —
+ *  the renderer turns that into the warn-then-fork confirm. */
+export interface HomeSessionActionResult {
+  ok: boolean
+  error?: string
+  externalLive?: boolean
+}
+
 // ── IPC channel names (renderer ↔ main) ─────────────────────────────────────
 
 export const IPC = {
@@ -2100,9 +2226,28 @@ export const IPC = {
   SESSION_READ_MESSAGE_COUNT: 'session:read-message-count',
   // ENH-183 C6 — list prior `<uuid>.jsonl` sessions in a CWD for the
   // S1 resume-pills surface.
-  SESSION_LIST_PRIOR: 'session:list-prior'
+  SESSION_LIST_PRIOR: 'session:list-prior',
   // ENH-183 pared 2026-05-25 (Option A): SESSION_MAYBE_HYDRATE removed
   // with the T3 auto-hydration + S2 inline-rename code paths.
+
+  // ENH-212 — Home re-entry surface. Snapshot + paged expander +
+  // session click contract are renderer → main invokes; main recomputes
+  // live every call (D9 — no cache, no sidecar).
+  HOME_SNAPSHOT: 'home:snapshot',
+  HOME_LIST_SESSIONS: 'home:list-sessions',
+  HOME_SESSION_ACTION: 'home:session-action',
+  // main → renderer push: focus/synthesize the Home tab (`duo home`).
+  HOME_SHOW: 'home:show',
+  // ENH-212 — main → renderer push to activate a terminal tab by id.
+  // Dedicated channel (NOT the BrowserManager playground path); the
+  // renderer handler reuses the `terminal:focus` body. Also ships the
+  // `duo term tab <id>` CLI verb generally.
+  TERMINAL_ACTIVATE_TAB: 'terminal:activate-tab',
+  // ENH-212 — main → renderer push to CLOSE a terminal tab by id (the
+  // `duo term close <id>` verb). Renderer routes through the existing
+  // closeTab path (kills the PTY); main refuses a live-claude tab unless
+  // --force (BUG-200 data-loss caution).
+  TERMINAL_CLOSE_TAB: 'terminal:close-tab'
 } as const
 
 

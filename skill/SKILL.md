@@ -137,8 +137,9 @@ read this file directly.
 ## Most-used verbs
 
 The everyday dozen. For everything else — the browser-pane verbs, the
-canvas verbs, track-changes, workspaces, projects, sessions — see the full
-inventory in [references/cli-reference.md](references/cli-reference.md).
+canvas verbs, track-changes, workspaces, projects, sessions, the **Home**
+re-entry surface (`duo home` / `duo session open` / `duo term tab`) — see the
+full inventory in [references/cli-reference.md](references/cli-reference.md).
 
 | Verb | What it does |
 |---|---|

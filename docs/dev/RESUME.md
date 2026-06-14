@@ -1,4 +1,68 @@
-# Resume after compaction — ENH-208 Vault: Phase 2 capture UX BUILT, awaiting owner walk (v0.10.0 released)
+# Resume after compaction — ENH-212 "Home" in flight (this worktree); ENH-208 Vault parked
+
+**🛑 MOST RECENT — current initiative (2026-06-13): ENH-212 "Home" (the default
+re-entry screen).** Building on THIS worktree/branch (`claude/gifted-torvalds-b58b02`),
+NOT main. Spec locked + ~19 commits stacked on the branch; **PRD: `docs/prd/enh-212-home.md`**;
+decision trail = three UI studies (`docs/research/home-screen-study{,-v2,-13}.html`).
+A `kind:'home'` WorkingTab (slot 0, non-closable, synthesized every boot, never
+persisted) shows a serif greeting + two hero panels (the 2 most-recent projects:
+sessions, recent-file chips, and the last-response **snippet as an indented reply
+under its source row** — round-2 option B) + a spine stack (fold after 8). Data is
+read LIVE every snapshot (no sidecar / ENH-183 D9). Open-session detection is
+**process-primary** (`core/claude-presence.ts` `mapLiveClaudeOwners` — a live
+`claude` process is ground truth), giving `open.kind: 'duo'` (focusable here) vs
+`'external'` (running elsewhere → **fork**-with-warning, never silently). Click an
+open session → focus its terminal/window; closed → `claude --resume` in the current
+window. CLI parity: `duo home [show|state|refresh]`, `duo session open <uuid>
+[--cwd] [--force]`, `duo term tabs|tab <id>|close <id> [--force]`.
+
+**State:** all features built + live-verified (DOM/CLI probes — computer-use can't
+reach the worktree dev Electron; use `duo dom --js` for the renderer shell, `duo eval`
+for the browser pane; never `location.reload()` — it crashes the dev build). Full
+suite green (~1291). Dev build was last running on this worktree.
+
+**✅ The two pre-smoke-walk issues are RESOLVED (2026-06-13) — next step is `/smoke-walk` → cut.**
+TITLE-1: confirmed Home already reuses the session-resume title mechanism (ladder identical to
+`duo session list` / Claude's own picker; no concise summary exists beyond ai-title; first-prompts
+are genuinely un-auto-titled recent sessions) — no new mechanism; one real bug fixed (spine
+non-newest sessions showed bare uuids → now titled). RESP-1: two-hero columns were unequal
+(`1fr 1fr` blew one to 684/281) + breakpoint too low → fixed to `minmax(0,1fr)` 50/50 + 820px
+breakpoint, verified across pane widths. Detail: `tasks.md` ENH-212. Historical context of the two
+issues kept below for reference.
+
+<details><summary>(resolved) original two-issue writeup</summary>
+
+1. **Session identifier still shows the first prompt, not the Claude summary.** The
+   owner still perceives first-prompt titles dominating where they expect the
+   generated summary. Prior investigation concluded the `ai-title` (Haiku auto-summary)
+   IS the summary and IS used (ladder rung 2: customTitle → ai-title → first-prompt →
+   uuid; `sessions-index.json` is deprecated + ENH-183 C1-locked-out). BUT the owner is
+   still unsatisfied → **RE-INVESTIGATE, don't just restate that**. Angles: (a) the
+   ai-title read window — `readSessionHeadMeta` reads head 16KB + tail 16KB; ai-titles
+   cluster within ~12KB of EOF (34/35) but the FRESHEST sessions Home surfaces may be
+   the ones with no ai-title yet OR an ai-title beyond the tail window in a huge file;
+   (b) coverage of ai-title on recent sessions is low (freshest skew) → maybe Home
+   needs a better title for recent-but-unsummarized sessions; (c) confirm there's no
+   newer summary source. Title plumbing: `electron/claude-session-tracker.ts`
+   (`titleFromLines`, `readSessionHeadMeta`, `cleanAndTruncate`, `TAIL_META_BYTES`) +
+   `electron/home-snapshot.ts` (per-session title assembly).
+2. **Responsive breakpoints for the two hero panels need work.** The two-up
+   (side-by-side) → stacked (narrow) transition is a container-query at ~720px
+   (`renderer/components/Home/Home.css` `.duo-home-heroes` + container-type on
+   `.duo-home`). Needs tuning — heroes likely crush at intermediate pane widths / the
+   720px threshold is wrong for real split-pane widths. Verify live across pane widths
+   (`duo split <pct>` to vary the working-pane width).
+
+</details>
+
+**Next → `/smoke-walk` (via the Skill tool) → propose `cut-version`.** Per
+the owner's "build all 4, then cut" call, the prior open-items round (greeting RealName,
+first-prompt wrapper cleanup, fork wording, `duo term close`) is DONE + verified.
+Full ENH-212 detail + the resolved open-items round: `tasks.md` ENH-212 entry.
+
+---
+
+## (prior) ENH-208 Vault: Phase 1 SHIPPED + Phase 2 in flight (v0.10.0 released)
 
 **🛑 MOST RECENT — current state (2026-06-10): ENH-208 Phase 2 capture UX is
 BUILT** on branch `claude/thirsty-brahmagupta-125a0a` (worktree

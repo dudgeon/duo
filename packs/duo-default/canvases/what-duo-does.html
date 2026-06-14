@@ -671,6 +671,33 @@
   </div>
 </article>
 
+<article class="item" data-keys="home re-entry surface slot 0 permanent non-closable greeting hero project session pill open recent files spine stack resume where was i enh-212">
+  <div class="num">119</div>
+  <div>
+    <h3>Pick up where you left off from Home</h3>
+    <p class="why"><strong>Home</strong> is a permanent surface — slot 0 in every window, no close button — that answers "where was I?" across all your inactive Claude projects. A serif greeting line briefs you (sessions open, the freshest thread and its age), then two equal hero panels show your two most recently active project roots: name + hue, last-active age, session count, the last-line transcript snippet, the most-recent sessions (each with a green <code>open</code> pill if a live terminal already hosts it), recent-file chips, and an "all N sessions" expander. A compact spine stack below lists the rest, folding after ~8 behind an "N older projects" expander. Worktrees fold into their main repo with a sub-path badge. Everything is read live on every snapshot — no cache, no sidecar file.</p>
+    <p class="how"><strong>UI</strong>Home auto-activates in a window that has nothing else restored; otherwise it sits in slot 0 and the PinnedNav row above your pins. <strong>CLI</strong><code>duo home</code> (focus/synthesize it), <code>duo home refresh</code> (force a fresh snapshot), <code>duo home state --json</code> (print exactly what Home shows). Honors <code>--window N</code>.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="home session click open focus existing terminal tab raise window never duplicate closed resume claude --resume uuid current window project cwd evidence-gated lsof pointer enh-212">
+  <div class="num">120</div>
+  <div>
+    <h3>Click a session on Home to jump back into it</h3>
+    <p class="why">Click a session row on Home and Duo does the right thing. If a live terminal tab already hosts that session (proven by its PTY cwd + the persisted session pointer — never guessed from a recent-file timestamp), Duo <strong>focuses</strong> that existing tab, raising its window if it lives in another one — it never spawns a duplicate. If the session is closed, Duo opens a new terminal tab in the current window running <code>claude --resume &lt;uuid&gt;</code> at the project root, so you land back in the conversation.</p>
+    <p class="how"><strong>UI</strong>Click any session row (or its green <code>open</code> pill) on a Home hero. <strong>CLI</strong><code>duo session open &lt;uuid&gt; [--cwd &lt;path&gt;]</code> — same contract: focus-if-open, else resume in a new tab. Returns <code>{ ok, action: 'focus'|'resume' }</code>.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="terminal tab switch activate cli id enumerate term tabs term tab focus parity cmd 1-9 click strip not browser number space enh-212">
+  <div class="num">121</div>
+  <div>
+    <h3>Switch terminal tabs from the CLI</h3>
+    <p class="why">Agents can now change <em>which</em> terminal tab is focused — the last terminal-tab parity hole, closed. Enumerate the window's terminal tabs to get a stable id space, then activate one by id. This is the terminal number space, distinct from <code>duo tab &lt;n&gt;</code> which addresses <em>browser</em> tabs.</p>
+    <p class="how"><strong>CLI</strong><code>duo term tabs</code> lists <code>{id, kind, cwd, title, active}</code> per tab; <code>duo term tab &lt;id&gt;</code> activates the one with that id (a stale id is a harmless no-op). The CLI parity for ⌘1–9 / a click on the terminal strip. Honors <code>--window N</code>.</p>
+  </div>
+</article>
+
 <h2 class="cat">Capture & send</h2>
 <p class="cat-tagline">Get a quote, an excerpt, or a selection from any pane into the conversation with Claude.</p>
 

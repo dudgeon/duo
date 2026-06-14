@@ -16,6 +16,12 @@ import { CloneModal } from './components/CloneModal'
 import { LinkPromptModal } from './components/editor/LinkPromptModal'
 import { WorkspaceSwitcherDropdown } from './components/WorkspaceSwitcherDropdown'
 import type { FileTab, ActiveWorking } from './components/WorkingPane'
+import {
+  HOME_TAB_ID,
+  filterPersistableFileTabs,
+  seedHomeFirst,
+  isHomeTab
+} from './components/Home/homeTab'
 import { classifyFile } from './components/fileClassifier'
 import { FilesPane, type FilesPaneHandle } from './components/FilesPane'
 import { CollapsedPaneRail } from './components/CollapsedPaneRail'
@@ -38,7 +44,7 @@ import { useSelectionFormat } from './hooks/useSelectionFormat'
 import { htmlBoilerplate } from './components/Page/htmlBoilerplate'
 import { encodeUtf8 } from './components/editor/markdown-io'
 import { findVaultRoot, resolveWikilinkInVault } from './components/editor/wikilinkResolver'
-import type { TabSession, DirEntry, TerminalTabKind, NewTabResult, PinEntry, SessionState, BrowserTab, ActiveWorkspace } from '@shared/types'
+import type { TabSession, DirEntry, TerminalTabKind, NewTabResult, PinEntry, SessionState, BrowserTab, ActiveWorkspace, HomeSnapshot } from '@shared/types'
 import { reorderVisible } from '@shared/reorderTabs'
 import { pruneByTab } from './state/perTabPrune'
 import {
@@ -443,7 +449,15 @@ export function App() {
 
   // Stage 10 Phase 5 — working-pane file tabs live in App-level state so
   // the navigator can push into them from FilesPane.onOpenFile.
-  const [fileTabs, setFileTabs] = useState<FileTab[]>([])
+  //
+  // ENH-212 — slot 0 is the permanent Home tab, synthesized at mount in
+  // EVERY window (incl. blank ⌥⌘N — nothing cloned, Home is identical
+  // everywhere). Seeding it here (rather than after restore) means the
+  // constant-id `f:home` tab exists BEFORE the session-restore effect runs,
+  // so a persisted `activeWorking` whose path is 'duo://home' resolves
+  // against it. Restore re-seeds via `seedHomeFirst` to guarantee exactly
+  // one Home survives the fileTabs swap.
+  const [fileTabs, setFileTabs] = useState<FileTab[]>(() => seedHomeFirst([]))
   // BUG-101 (Sprint 13 v2 fix) — keep fileTabsRef in sync so openFile
   // can read the latest committed value synchronously without going
   // through a setFileTabs updater.
@@ -654,7 +668,9 @@ export function App() {
         console.warn(`[session-restore] dropped ${dropped.length} file tab(s) (no longer on disk):`, dropped)
       }
 
-      // File tabs — IDs are session-local; mint fresh, key off path.
+      // File tabs — IDs are session-local; mint fresh, key off path. The
+      // persisted envelope NEVER contains Home (filtered on persist — D9),
+      // so the exists-gate above never sees 'duo://home'.
       const restoredFileTabs: FileTab[] = existenceChecks
         .filter(c => c.exists)
         .map(c => ({
@@ -664,22 +680,41 @@ export function App() {
           title: c.entry.path.split('/').pop() || c.entry.path,
           mime: c.entry.mime
         }))
-      if (restoredFileTabs.length > 0) {
-        setFileTabs(restoredFileTabs)
-      }
+      // ENH-212 — re-seed the permanent Home tab onto the front of the
+      // restored list (the constructor's seed is replaced by this swap).
+      // `seedHomeFirst` guarantees exactly one Home with the constant id,
+      // sorted leftmost, even when restore produced no file tabs at all.
+      // We always setFileTabs now (the array is never empty — Home is in
+      // it), so a blank/empty restore still mounts Home.
+      const seededFileTabs = seedHomeFirst(restoredFileTabs)
+      setFileTabs(seededFileTabs)
 
-      // Active working selection.
+      // Active working selection. Resolution is PATH-keyed: persist writes
+      // {kind:'file', path}, restore mints fresh ids — so we match the
+      // persisted path against the freshly-seeded list. ENH-212: Home is
+      // never persisted as a path (it round-trips as `activeWorking: null`,
+      // see the persist guard), so 'duo://home' never reaches this matcher —
+      // a window that had Home active restores via the no-activeWorking
+      // branch (D11) below. Restored file/browser sessions keep their tab.
       if (state.activeWorking && state.activeWorking.kind === 'file') {
         const targetPath = state.activeWorking.path
-        const matching = restoredFileTabs.find(t => t.path === targetPath)
+        const matching = seededFileTabs.find(t => t.path === targetPath)
         if (matching) {
           setActiveWorking({ kind: 'file', id: matching.id })
         }
         // BUG-039 — if the active-working file was dropped, fall
         // through to the default 'browser' state. Don't try to land
         // the user on a tab that's no longer there.
+      } else if (!state.activeWorking) {
+        // ENH-212 D11 — auto-activate Home ONLY when the window has no
+        // restored active surface. A restored session (active file OR
+        // active browser) keeps its tab; only a fresh/blank window — where
+        // the envelope carried no `activeWorking` — lands on Home. The
+        // constant-id `f:home` tab is always present (seeded above).
+        setActiveWorking({ kind: 'file', id: HOME_TAB_ID })
       }
-      // 'browser' is the default initial state, no-op.
+      // A restored `{kind:'browser'}` is left untouched (it's the default
+      // initial state too, so the no-op is correct either way).
 
       // Sprint 3 Phase 3c — restore Split View aux state. Same
       // existence-check pattern as fileTabs (BUG-039 lineage): if the
@@ -710,6 +745,10 @@ export function App() {
       setSessionHydrated(true)
     }).catch(err => {
       console.warn('[session-state] load failed (using defaults):', err)
+      // ENH-212 D11 — a load failure means no restored active surface, so
+      // land on Home (the constructor already seeded the `f:home` tab into
+      // fileTabs; activate it here). Mirrors the no-activeWorking branch.
+      setActiveWorking({ kind: 'file', id: HOME_TAB_ID })
       setSessionHydrated(true)  // don't block the save loop on a load failure
     })
   }, [home])
@@ -810,10 +849,23 @@ export function App() {
       activeTerminalIndex: activeTerminalIndex >= 0 ? activeTerminalIndex : -1,
       browserTabs: browserTabs.map(b => ({ url: b.url, title: b.title })),
       activeBrowserIndex: activeBrowserIndex >= 0 ? activeBrowserIndex : -1,
-      fileTabs: fileTabs.map(f => ({ path: f.path, type: f.type, mime: f.mime })),
+      // ENH-212 — the synthesized Home tab (type 'home', sentinel
+      // path 'duo://home') is never persisted: it is re-minted at mount
+      // in every window (D9 / D11). Filter it out of the session envelope.
+      fileTabs: filterPersistableFileTabs(fileTabs)
+        .map(f => ({ path: f.path, type: f.type as Exclude<typeof f.type, 'home'>, mime: f.mime })),
+      // ENH-212 — when Home is the active surface, persist `activeWorking:
+      // null` rather than {kind:'file', path:'duo://home'}: the sentinel
+      // must never reach disk (it would round-trip through the restore
+      // exists-gate and resolve nowhere). On restore, the no-activeWorking
+      // branch (D11) re-activates Home — so "Home active" round-trips as
+      // "no restored active surface → land on Home". Mirrors the Pin /
+      // Move-to-split sentinel exclusion (§ 4.1 [V]).
       activeWorking: activeWorking.kind === 'browser'
         ? { kind: 'browser', index: activeBrowserIndex >= 0 ? activeBrowserIndex : 0 }
-        : (activeFileTab ? { kind: 'file', path: activeFileTab.path } : null),
+        : (activeFileTab && !isHomeTab(activeFileTab)
+            ? { kind: 'file', path: activeFileTab.path }
+            : null),
       navigatorPath: '',  // useNavigator owns this via localStorage (Stage 10 Phase 4)
       // Sprint 3 Phase 3c — Split View persistence. Mirrors the
       // additive aux field on SessionState. null when the split is
@@ -1973,6 +2025,11 @@ export function App() {
   }, [openFileSmart])
 
   const closeFileTab = useCallback((id: string) => {
+    // ENH-212 — Home is the single non-closable surface (slot 0). This is
+    // the ONE guard: ⌘W, the strip's close glyph (suppressed in
+    // WorkingTabStrip, but belt-and-braces), and `duo close` all route
+    // through closeFileTab, so refusing here covers every close path.
+    if (id === HOME_TAB_ID) return
     setFileTabs(prev => {
       const closedIdx = prev.findIndex(t => t.id === id)
       const closed = closedIdx >= 0 ? prev[closedIdx] : null
@@ -2007,6 +2064,46 @@ export function App() {
       return next
     })
   }, [activeWorking])
+
+  // ENH-212 — focus a terminal tab by id. This is the EXACT body of the
+  // `terminal:focus` playground-action case, extracted so the Home click
+  // contract's focus leg (HOME_SESSION_ACTION 'focus' → main sends
+  // TERMINAL_ACTIVATE_TAB) reuses it rather than duplicating. setActiveTabId
+  // fires the isActive-change effect that calls term.focus(); the
+  // CustomEvent is belt-and-braces (and the only path for the no-tabId
+  // bare-focus call). Returns whether a tabId, if given, matched a live tab.
+  const focusTerminalTab = useCallback((tabId?: string): boolean => {
+    if (tabId) {
+      const exists = tabs.some(t => t.id === tabId)
+      if (!exists) return false
+      setActiveTabId(tabId)
+    }
+    setFocusedColumn('terminal')
+    window.dispatchEvent(new CustomEvent('duo-terminal-focus'))
+    return true
+  }, [tabs, setFocusedColumn])
+
+  // ENH-212 — ensure the permanent Home tab is present + activated. Home is
+  // seeded at mount so it's normally already in fileTabs; the defensive
+  // re-seed covers a pathological state where it went missing. Backs the
+  // `duo home` (HOME_SHOW) push and the PinnedNav slot-0 click.
+  const ensureHomeActive = useCallback(() => {
+    setFileTabs(prev => prev.some(isHomeTab) ? prev : seedHomeFirst(prev))
+    setActiveWorking({ kind: 'file', id: HOME_TAB_ID })
+    setFocusedColumn('working')
+  }, [setFocusedColumn])
+
+  // ENH-212 — `window.__duoGetHomeState()` (read by main via
+  // executeJavaScript, same pull pattern as __duoGetStatus / __duoGetLayout).
+  // HomeView is the only component that holds the live snapshot, so it
+  // publishes its last-fetched snapshot UP via this callback into an
+  // App-owned ref; the registration effect below exposes a getter that reads
+  // the ref. Keeps snapshot ownership in App without HomeView reaching into
+  // `window` directly. Null until Home has fetched at least once.
+  const homeSnapshotRef = useRef<HomeSnapshot | null>(null)
+  const onHomeSnapshot = useCallback((snap: HomeSnapshot | null) => {
+    homeSnapshotRef.current = snap
+  }, [])
 
   // Stage 11 — editor tabs push their dirty state up so the strip can show
   // the unsaved dot. No-op if the tab is already at the requested state.
@@ -2199,29 +2296,17 @@ export function App() {
         }
         // Stage 27 — focus the active terminal (or a specific tab when
         // data-tab-id is set). Mirrors ⌘\` "go to terminal" behaviour.
+        // ENH-212 — body extracted into `focusTerminalTab` (reused by the
+        // Home click contract's TERMINAL_ACTIVATE_TAB subscription).
+        // BUG-054 lives in that helper: setFocusedColumn only flips the
+        // focus *indicator*; the dispatched 'duo-terminal-focus' CustomEvent
+        // (and, for tab-targeted calls, the isActive-change effect) is what
+        // actually calls term.focus() on the xterm instance.
         case 'terminal:focus': {
-          if (action.tabId) {
-            const exists = tabs.some(t => t.id === action.tabId)
-            if (!exists) {
-              return { ok: false, error: `no terminal tab with id "${action.tabId}"` }
-            }
-            setActiveTabId(action.tabId)
+          const ok = focusTerminalTab(action.tabId)
+          if (!ok) {
+            return { ok: false, error: `no terminal tab with id "${action.tabId}"` }
           }
-          setFocusedColumn('terminal')
-          // BUG-054 — `setFocusedColumn` only flips the React state
-          // that drives the focus *indicator* (orange glow on the
-          // terminal pane). It does NOT call `term.focus()` on the
-          // xterm instance, so keystrokes still go to whatever had
-          // OS focus before. Dispatch a CustomEvent that the active
-          // TerminalPane listens for and calls termRef.focus() —
-          // matches the find-open / find-next CustomEvent pattern
-          // used elsewhere. The setActiveTabId(action.tabId) above
-          // also fires the existing isActive-change effect that
-          // calls term.focus(), so for tab-targeted calls the
-          // CustomEvent is belt-and-braces; for the bare
-          // terminal:focus call (no tabId), the CustomEvent is the
-          // only path.
-          window.dispatchEvent(new CustomEvent('duo-terminal-focus'))
           return { ok: true }
         }
         // Stage 27 — emit a named event into the duo event bus. Main
@@ -2239,7 +2324,7 @@ export function App() {
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) }
     }
-  }, [activeTabId, pendingCwd, home, dispatchPostSpawnWrite, openFile, openFileSmart, nav.actions, theme, tabs])
+  }, [activeTabId, pendingCwd, home, dispatchPostSpawnWrite, openFile, openFileSmart, nav.actions, theme, focusTerminalTab])
 
   // ENH-094 (Sprint 5) — subscribe to playground actions emitted from
   // BROWSER-PANE pages (parallel to canvas-iframe pages, which dispatch
@@ -2258,6 +2343,54 @@ export function App() {
       void handlePlaygroundAction(action)
     })
   }, [handlePlaygroundAction])
+
+  // ENH-212 — Home click-contract subscriptions (§ 4.3). Main pushes
+  // TERMINAL_ACTIVATE_TAB (the focus leg of a click on an open session, and
+  // the `duo term tab <id>` verb) and HOME_SHOW (the `duo home` verb).
+  // Defensive guards mirror the onPlaygroundAction effect: preload doesn't
+  // HMR, so a renderer reload without an Electron restart can leave these
+  // bindings undefined.
+  useEffect(() => {
+    const activate = window.electron.home?.onTerminalActivateTab
+    if (typeof activate !== 'function') {
+      console.warn('[App] window.electron.home.onTerminalActivateTab missing — preload likely stale; restart Electron to enable Home session focus.')
+      return
+    }
+    // Reuses the EXACT terminal:focus body (focusTerminalTab) so the Home
+    // focus leg and the playground terminal:focus action stay in lockstep.
+    return activate((tabId) => { focusTerminalTab(tabId) })
+  }, [focusTerminalTab])
+
+  // ENH-212 — `duo term close <id>` push. Route through the existing closeTab
+  // (kills the PTY, enforces the floor-of-1 + closed-tab ring). Main already
+  // refused a live-claude tab unless --force, so here we just close.
+  useEffect(() => {
+    const onClose = window.electron.home?.onTerminalCloseTab
+    if (typeof onClose !== 'function') return
+    return onClose((tabId) => { closeTab(tabId) })
+  }, [closeTab])
+
+  useEffect(() => {
+    const onShow = window.electron.home?.onHomeShow
+    if (typeof onShow !== 'function') {
+      console.warn('[App] window.electron.home.onHomeShow missing — preload likely stale; restart Electron to enable `duo home`.')
+      return
+    }
+    return onShow(() => { ensureHomeActive() })
+  }, [ensureHomeActive])
+
+  // ENH-212 — recent-file chip click inside Home dispatches a
+  // `duo-home-open-file` CustomEvent (HomeView stays free of App props per
+  // the step boundary); App owns the open-file machinery. Route through
+  // openFileSmart — same path as the navigator click.
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const detail = (e as CustomEvent<{ path: string; name: string }>).detail
+      if (detail?.path) void openFileSmart(detail.path, detail.name)
+    }
+    window.addEventListener('duo-home-open-file', onOpen)
+    return () => window.removeEventListener('duo-home-open-file', onOpen)
+  }, [openFileSmart])
 
   // Stage 11 § D33a — \u2318N opens a new editor tab in the navigator's CWD.
   // Auto-pick `untitled.md`, fall back to `untitled-2.md`, etc., to dodge
@@ -3884,6 +4017,19 @@ export function App() {
     }
   })
 
+  // ENH-212 — `duo home state [--json]` reads this getter via main's
+  // executeJavaScript. Returns exactly what HomeView currently shows: its
+  // last-published HomeSnapshot (greeting + rolled-up projects with their
+  // sessions), or null if Home hasn't fetched yet. Registered once; the ref
+  // it reads is mutated by onHomeSnapshot, so no per-render rebind is needed.
+  useEffect(() => {
+    ;(window as unknown as { __duoGetHomeState?: () => unknown }).__duoGetHomeState =
+      () => homeSnapshotRef.current
+    return () => {
+      delete (window as unknown as { __duoGetHomeState?: () => unknown }).__duoGetHomeState
+    }
+  }, [])
+
   // ENH-041 / Sprint 3 — Split View IPC subscribers. CLI verbs `duo
   // split-view open|close|promote|resize` route through main →
   // preload → here. App.tsx is the source of truth for aux state;
@@ -4226,6 +4372,10 @@ export function App() {
             onOpenFile={onOpenFile}
             onOpenTerminalHere={openTerminalHere}
             onOpenClaudeIn={openClaudeIn}
+            // ENH-212 D7 — slot-0 Home row in PinnedNav: click ensures +
+            // activates the permanent Home tab; selected when Home is active.
+            onActivateHome={ensureHomeActive}
+            homeActive={activeWorking.kind === 'file' && activeWorking.id === HOME_TAB_ID}
             revealChip={revealChip}
             onDismissRevealChip={() => setRevealChip(null)}
             onToggleCollapsed={() => setFilesCollapsed(prev => !prev)}
@@ -4545,6 +4695,10 @@ export function App() {
               onTogglePin={togglePin}
               onPlaygroundAction={handlePlaygroundAction}
               homeDir={home}
+              // ENH-212 — Home publishes its last snapshot up so
+              // `window.__duoGetHomeState()` (`duo home state`) reflects
+              // exactly what the surface shows.
+              onHomeSnapshot={onHomeSnapshot}
               // ENH-026 — right-click on WorkingPane tab. Reveal
               // navigates the tree to the file's parent dir + selects
               // the file (the FileTree row scrolls into view, expands

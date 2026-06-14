@@ -81,6 +81,12 @@ interface FilesPaneProps {
    *  whitespace is right-clicked. App.tsx pops the context menu
    *  scoped to the given folder path. */
   onBreadcrumbContextMenu?: (folderPath: string, x: number, y: number) => void
+  /** ENH-212 D7 — activate the permanent Home tab. Threaded to PinnedNav's
+   *  synthesized slot-0 row. */
+  onActivateHome: () => void
+  /** ENH-212 — true when the Home tab is the active working surface (paints
+   *  the slot-0 row selected). */
+  homeActive?: boolean
 }
 
 export interface FilesPaneHandle {
@@ -109,7 +115,9 @@ export const FilesPane = forwardRef<FilesPaneHandle, FilesPaneProps>(function Fi
   activeFilePath = null,
   onRevealFile,
   onOpenInSplit,
-  onBreadcrumbContextMenu
+  onBreadcrumbContextMenu,
+  onActivateHome,
+  homeActive = false
 }: FilesPaneProps, ref) {
   const breadcrumbRef = useRef<BreadcrumbHandle | null>(null)
   useImperativeHandle(ref, () => ({
@@ -345,6 +353,9 @@ export const FilesPane = forwardRef<FilesPaneHandle, FilesPaneProps>(function Fi
             pins={navPins.pins}
             home={home}
             selectedPath={state.selected?.path ?? null}
+            // ENH-212 D7 — slot 0 Home row (above pins, visible at zero pins).
+            onActivateHome={onActivateHome}
+            homeActive={homeActive}
             onSelect={(entry) => actions.selectItem(entry.path, entry.kind)}
             onOpenFile={(entry) => {
               // Build a DirEntry-shaped record so onOpenFile (which

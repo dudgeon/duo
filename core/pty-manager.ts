@@ -209,6 +209,19 @@ export class PtyManager {
     return 'unknown'
   }
 
+  /** ENH-212 — enumerate every live PTY across ALL windows (id + child pid
+   *  + launch cwd + owning window). The Home open-session join (§ 4.3) walks
+   *  these to lsof each live shell's cwd and attribute a session uuid to a
+   *  live terminal tab. -1 owner means the sole-window fallback (mirrors the
+   *  Session field). */
+  listAllLive(): Array<{ id: string; pid: number | null; cwd: string; ownerWindowId: number }> {
+    const out: Array<{ id: string; pid: number | null; cwd: string; ownerWindowId: number }> = []
+    for (const [id, s] of this.sessions) {
+      out.push({ id, pid: s.pty.pid ?? null, cwd: s.cwd, ownerWindowId: s.ownerWindowId })
+    }
+    return out
+  }
+
   dispose(): void {
     for (const { pty: p } of this.sessions.values()) {
       p.kill()

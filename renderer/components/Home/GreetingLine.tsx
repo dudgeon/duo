@@ -1,0 +1,49 @@
+// ENH-212 — the greeting line (D4). Styled serif TEXT, not a boxed banner.
+// Round-2 feedback #3: the freshest-thread title renders as a clickable accent
+// span (focus/resume that session); the rest stays plain serif. All wording
+// lives in homeModel.greetingParts so the text never drifts from greetingLine.
+
+import type { GreetingData } from '@shared/types'
+import { greetingParts } from './homeModel'
+
+interface GreetingLineProps {
+  greeting: GreetingData
+  /** Activate the freshest session (focus when open, else resume). When
+   *  absent, or when there is no freshest thread, the title is plain text. */
+  onClickFreshest?: () => void
+}
+
+export function GreetingLine({ greeting, onClickFreshest }: GreetingLineProps) {
+  const { before, freshestTitle, after } = greetingParts(greeting)
+
+  return (
+    <p className="duo-home-greeting font-serif text-ink">
+      {before}
+      {freshestTitle && (
+        onClickFreshest ? (
+          // A true inline element (not a <button>, which Chromium forces to
+          // inline-block) so a long title soft-wraps within the sentence flow.
+          // role/tabindex/keydown keep it keyboard-operable.
+          <span
+            role="button"
+            tabIndex={0}
+            className="duo-home-greeting-thread"
+            onClick={onClickFreshest}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onClickFreshest()
+              }
+            }}
+            title="Pick up this session"
+          >
+            {freshestTitle}
+          </span>
+        ) : (
+          <span className="duo-home-greeting-thread is-static">{freshestTitle}</span>
+        )
+      )}
+      {after}
+    </p>
+  )
+}

@@ -40,6 +40,13 @@ interface PinnedNavProps {
    *  right-click menu for FILE pins. Folders excluded (split view
    *  hosts a single file tab in v1). */
   onOpenInSplit?: (path: string) => void
+  /** ENH-212 — D7 slot 0. Click the synthesized non-removable Home row to
+   *  ensure + activate the Home tab. Always rendered above the persisted
+   *  pins, visible even at zero pins. */
+  onActivateHome: () => void
+  /** ENH-212 — true when the Home tab is the active working surface, so
+   *  the slot-0 row paints selected. */
+  homeActive?: boolean
 }
 
 export function PinnedNav({
@@ -52,12 +59,18 @@ export function PinnedNav({
   onOpenTerminalHere,
   onRevealInFinder,
   onUnpin,
-  onOpenInSplit
+  onOpenInSplit,
+  onActivateHome,
+  homeActive = false
 }: PinnedNavProps) {
   const [collapsed, setCollapsed] = useState(false)
   // ENH-050 — context menu via window.electron.menu.popup. No state.
 
-  if (pins.length === 0) return null
+  // ENH-212 — the synthesized Home row (D7 slot 0) renders even when there
+  // are zero persisted pins, so we no longer early-return on an empty pin
+  // list. The "Pinned" collapsible header + groups still only render when
+  // there ARE pins (below). Home is non-removable: no right-click menu, no
+  // unpin affordance — it just activates the permanent Home tab.
 
   const handleMenuChoice = async (chosenId: string, target: NavPinEntry) => {
     switch (chosenId) {
@@ -113,42 +126,76 @@ export function PinnedNav({
 
   return (
     <div className="border-t border-border shrink-0 max-h-[40%] overflow-auto">
-      <button
-        type="button"
-        onClick={() => setCollapsed(c => !c)}
-        className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[10px] uppercase tracking-wider text-zinc-500 hover:text-zinc-300 hover:bg-surface-2 transition-colors"
-        title={collapsed ? 'Expand pinned' : 'Collapse pinned'}
-      >
-        <Caret open={!collapsed} />
-        <span>Pinned</span>
-        <span className="ml-auto text-zinc-600">{pins.length}</span>
-      </button>
+      {/* ENH-212 D7 — slot 0: the permanent Home row, above every pin and
+          visible even at zero pins. Single click activates the Home tab
+          (matches the rest of the navigator's single-click-to-act model for
+          this synthesized entry). Non-removable: no context menu. */}
+      <HomeNavRow active={homeActive} onClick={onActivateHome} />
 
-      {!collapsed && (
-        <div className="pb-1">
-          {groups.map(group => (
-            <div key={group.parent}>
-              <div className="px-2 pt-1.5 pb-0.5 text-[10px] text-zinc-600 truncate" title={group.parentLong}>
-                {group.parentShort}
-              </div>
-              {group.entries.map(entry => (
-                <PinnedRow
-                  key={entry.path}
-                  entry={entry}
-                  isSelected={selectedPath === entry.path}
-                  onSingleClick={() => onSelect(entry)}
-                  onDoubleClick={() => {
-                    if (entry.kind === 'folder') onOpenFolder(entry)
-                    else onOpenFile(entry)
-                  }}
-                  onContextMenu={(e) => { void popupMenu(e, entry) }}
-                />
+      {pins.length > 0 && (
+        <>
+          <button
+            type="button"
+            onClick={() => setCollapsed(c => !c)}
+            className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[10px] uppercase tracking-wider text-zinc-500 hover:text-zinc-300 hover:bg-surface-2 transition-colors"
+            title={collapsed ? 'Expand pinned' : 'Collapse pinned'}
+          >
+            <Caret open={!collapsed} />
+            <span>Pinned</span>
+            <span className="ml-auto text-zinc-600">{pins.length}</span>
+          </button>
+
+          {!collapsed && (
+            <div className="pb-1">
+              {groups.map(group => (
+                <div key={group.parent}>
+                  <div className="px-2 pt-1.5 pb-0.5 text-[10px] text-zinc-600 truncate" title={group.parentLong}>
+                    {group.parentShort}
+                  </div>
+                  {group.entries.map(entry => (
+                    <PinnedRow
+                      key={entry.path}
+                      entry={entry}
+                      isSelected={selectedPath === entry.path}
+                      onSingleClick={() => onSelect(entry)}
+                      onDoubleClick={() => {
+                        if (entry.kind === 'folder') onOpenFolder(entry)
+                        else onOpenFile(entry)
+                      }}
+                      onContextMenu={(e) => { void popupMenu(e, entry) }}
+                    />
+                  ))}
+                </div>
               ))}
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
     </div>
+  )
+}
+
+// ENH-212 D7 — slot 0. A synthesized, non-removable row that activates the
+// permanent Home tab. Styled like a PinnedRow so it reads as part of the
+// navigator, but with the home glyph + a fixed "Home" label and no context
+// menu / drag / unpin affordance.
+function HomeNavRow({ active, onClick }: { active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="Home — your projects and recent sessions"
+      className={[
+        'w-full flex items-center gap-1.5 px-2 py-1 text-[12px] text-left leading-tight rounded transition-colors',
+        active
+          ? 'bg-accent/15 text-zinc-100'
+          : 'text-zinc-400 hover:bg-surface-2 hover:text-zinc-200'
+      ].join(' ')}
+      style={{ paddingLeft: '8px' }}
+    >
+      <HomeIcon />
+      <span className="truncate">Home</span>
+    </button>
   )
 }
 
@@ -259,6 +306,29 @@ function PinIcon({ kind }: { kind: 'file' | 'folder' }) {
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true" className="shrink-0 text-zinc-500">
       <path d="M2 1.5h5l2 2v7h-7v-9Z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
       <path d="M7 1.5v2h2" stroke="currentColor" strokeWidth="1" />
+    </svg>
+  )
+}
+
+// ENH-212 — house glyph for the slot-0 Home row. Accent-tinted so the
+// permanent surface reads as distinct from file/folder pins.
+function HomeIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true" className="shrink-0 text-accent/80">
+      <path
+        d="M2 6.2 7 2l5 4.2"
+        stroke="currentColor"
+        strokeWidth="1.1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M3 5.5v6h8v-6"
+        stroke="currentColor"
+        strokeWidth="1.1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
