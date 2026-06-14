@@ -482,6 +482,41 @@ table.facts th, table.facts td {
   vertical-align: top;
 }
 table.facts th { background: var(--paper-deep); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); }
+
+/* — build-status tags (ENH-210 v1 implemented) — */
+.build-tag {
+  font-size: 10px;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 6px;
+  background: var(--pass);
+  color: #fff;
+}
+.build-tag.partial { background: var(--warn); }
+.build-note {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--pass);
+  background: color-mix(in srgb, var(--pass) 7%, var(--paper));
+  border-radius: 0 4px 4px 0;
+}
+.build-note.partial { border-left-color: var(--warn); background: color-mix(in srgb, var(--warn) 9%, var(--paper)); }
+.build-note strong { color: var(--ink); }
+.status-banner {
+  background: color-mix(in srgb, var(--pass) 9%, var(--paper-deep));
+  border: 1.5px solid color-mix(in srgb, var(--pass) 35%, var(--paper-rule));
+  border-radius: 6px;
+  padding: 14px 18px;
+  margin: 0 0 24px;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+}
+.status-banner strong { color: var(--ink); }
 </style>
 </head>
 <body>
@@ -489,11 +524,20 @@ table.facts th { background: var(--paper-deep); font-size: 11.5px; text-transfor
 <header class="page-head">
   <h1>Worktree-aware Duo — UX decisions</h1>
   <div class="meta">
-    <span class="pill">Decisions open</span>
+    <span class="pill">v1 implemented — confirm</span>
     <span class="pill">ENH-210</span>
-    2026-06-10 · authored from inside a worktree (<code>youthful-chebyshev-885712</code>), which is exactly the problem
+    2026-06-14 · the recommended picks are pre-selected + built; confirm or change each
   </div>
 </header>
+
+<div class="status-banner">
+  <strong>v1 is built per the picks pre-selected below</strong> (owner gave an explicit
+  "implement worktrees" directive, 2026-06-10). Each decision shows a build-status tag:
+  <span class="build-tag">Built</span> = shipped as-is · <span class="build-tag partial">Partial</span> =
+  direction taken, part deferred. <strong>Your job:</strong> leave a card as-is to <em>confirm</em>
+  the pick, or change the radio to <em>adjust</em> it (add a note saying what to change). Then hit
+  <strong>Copy decisions</strong> and paste back. Live-verified on this worktree's dev build.
+</div>
 
 <div class="intro">
   <strong>What this is.</strong> Git worktrees are how agents work in parallel — Claude Code
@@ -584,9 +628,9 @@ which suggests label support, not just better git-string plumbing.</p>
       </div>
     </label>
     <label class="q-option">
-      <input type="radio" name="d1" value="terminal-plus-navigator">
+      <input type="radio" name="d1" value="terminal-plus-navigator" checked>
       <div class="q-option-body">
-        <div class="q-option-title">B — Terminal + navigator <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-title">B — Terminal + navigator <span class="recommend-tag">Recommended</span> <span class="build-tag">Built</span></div>
         <div class="q-option-rationale">Covers the two real failures: "which agent is where" (tabs) and "let me see its files" (navigator). Browser/canvas provenance defers cleanly.</div>
       </div>
     </label>
@@ -598,6 +642,7 @@ which suggests label support, not just better git-string plumbing.</p>
       </div>
     </label>
   </div>
+  <p class="build-note"><strong>Built:</strong> both the terminal tab badge and the navigator Worktrees section shipped. Working-pane provenance badges (the "all surfaces" option C) stay deferred.</p>
   <textarea class="q-notes" data-decision="d1" placeholder="Notes (optional)..."></textarea>
 </section>
 
@@ -649,13 +694,14 @@ which suggests label support, not just better git-string plumbing.</p>
       </div>
     </label>
     <label class="q-option">
-      <input type="radio" name="d2" value="editable-label-over-b">
+      <input type="radio" name="d2" value="editable-label-over-b" checked>
       <div class="q-option-body">
-        <div class="q-option-title">D — Editable label, defaulting to B <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-title">D — Editable label, defaulting to B <span class="recommend-tag">Recommended</span> <span class="build-tag partial">Partial</span></div>
         <div class="q-option-rationale">The only option that fixes agent-codename worktrees. Agents can self-label via a CLI verb (UI/CLI parity for free); humans double-click.</div>
       </div>
     </label>
   </div>
+  <p class="build-note partial"><strong>Partial:</strong> v1 ships the <em>default</em> identity — the <code>⎇</code> marker + a "Worktree of <em>repo</em> · ⎇<em>branch</em>" tooltip (the B-string). The <em>editable rename</em> (double-click / agent self-label CLI) is DEFERRED. Tab text still shows the cwd basename; the badge carries the repo+branch. Change the radio to B if you want to drop the editable-label plan entirely, or note if the rename should be prioritized.</p>
   <textarea class="q-notes" data-decision="d2" placeholder="Notes (optional)..."></textarea>
 </section>
 
@@ -710,9 +756,9 @@ which suggests label support, not just better git-string plumbing.</p>
       </div>
     </label>
     <label class="q-option">
-      <input type="radio" name="d3" value="hue-per-checkout">
+      <input type="radio" name="d3" value="hue-per-checkout" checked>
       <div class="q-option-body">
-        <div class="q-option-title">B — Hue per checkout (project-palette dot + matching navigator tint) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-title">B — Hue per checkout (project-palette dot + matching navigator tint) <span class="recommend-tag">Recommended</span> <span class="build-tag">Built</span></div>
         <div class="q-option-rationale">Reuses the locked palette and the existing project-dot vocabulary; the hue thread connects tab ↔ navigator ↔ (later) working-pane badges.</div>
       </div>
     </label>
@@ -724,6 +770,7 @@ which suggests label support, not just better git-string plumbing.</p>
       </div>
     </label>
   </div>
+  <p class="build-note"><strong>Built + verified:</strong> hash-stable hue per checkout (the locked six-hue project palette) shows as a dot on the worktree's terminal tab AND on its navigator Worktrees row — the same checkout reads the same color in both places (verified: <code>enh-208-vault</code> = iris in both). Main checkout stays unmarked.</p>
   <textarea class="q-notes" data-decision="d3" placeholder="Notes (optional)..."></textarea>
 </section>
 
@@ -787,9 +834,9 @@ which suggests label support, not just better git-string plumbing.</p>
       </div>
     </label>
     <label class="q-option">
-      <input type="radio" name="d4" value="worktrees-section">
+      <input type="radio" name="d4" value="worktrees-section" checked>
       <div class="q-option-body">
-        <div class="q-option-title">C — Worktrees section in the tree (click to switch) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-title">C — Worktrees section in the tree (click to switch) <span class="recommend-tag">Recommended</span> <span class="build-tag">Built</span></div>
         <div class="q-option-rationale">Additive and predictable; makes worktrees <em>visible as a concept</em> (with dirty/ahead status) rather than a behavior. B can layer on later as an opt-in toggle.</div>
       </div>
     </label>
@@ -801,6 +848,7 @@ which suggests label support, not just better git-string plumbing.</p>
       </div>
     </label>
   </div>
+  <p class="build-note"><strong>Built + verified:</strong> a "Worktrees · N" section renders below the tree whenever the repo has &gt;1 worktree — main first (git-branch glyph), linked checkouts in their hue, current flagged + non-clickable; clicking a row re-roots the navigator. Follow-active-terminal auto-reroot (option B) stays deferred as a layerable toggle. Dirty/ahead chips per row also deferred.</p>
   <textarea class="q-notes" data-decision="d4" placeholder="Notes (optional)..."></textarea>
 </section>
 
@@ -820,9 +868,9 @@ which suggests label support, not just better git-string plumbing.</p>
       </div>
     </label>
     <label class="q-option">
-      <input type="radio" name="d5" value="read-verbs">
+      <input type="radio" name="d5" value="read-verbs" checked>
       <div class="q-option-body">
-        <div class="q-option-title">B — Read verbs: <code>duo worktree list</code> + checkout fields in <code>duo status</code> / <code>duo nav state</code> <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-title">B — Read verbs: <code>duo worktree list</code> + checkout fields in <code>duo status</code> / <code>duo nav state</code> <span class="recommend-tag">Recommended</span> <span class="build-tag partial">Partial</span></div>
         <div class="q-option-rationale">Cheap and high-leverage: agents become worktree-aware too (an agent can see it's in a worktree and say so). All reads live from git — no sidecar state (rule 12).</div>
       </div>
     </label>
@@ -834,6 +882,7 @@ which suggests label support, not just better git-string plumbing.</p>
       </div>
     </label>
   </div>
+  <p class="build-note partial"><strong>Partial:</strong> <code>duo worktree [list]</code> shipped + 4-surface-documented (client-side git read, sandbox-tolerant). <code>getGitStatus</code> now carries <code>isLinkedWorktree</code>/<code>mainWorktreeRoot</code>/<code>repoName</code>, but those fields are NOT yet surfaced in the <code>duo status</code> / <code>duo nav state</code> JSON output — small follow-on. Note here if you want that wired before cut.</p>
   <textarea class="q-notes" data-decision="d5" placeholder="Notes (optional)..."></textarea>
 </section>
 
@@ -878,9 +927,9 @@ which suggests label support, not just better git-string plumbing.</p>
 
   <div class="q-options">
     <label class="q-option">
-      <input type="radio" name="d6" value="no-mapping">
+      <input type="radio" name="d6" value="no-mapping" checked>
       <div class="q-option-body">
-        <div class="q-option-title">A — No mapping; tabs in one window <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-title">A — No mapping; tabs in one window <span class="recommend-tag">Recommended</span> <span class="build-tag">Built</span></div>
         <div class="q-option-rationale">For v1: D2–D4 already solve identity/differentiation/files. Nothing stops a user from manually opening a window at a worktree today.</div>
       </div>
     </label>
@@ -899,6 +948,7 @@ which suggests label support, not just better git-string plumbing.</p>
       </div>
     </label>
   </div>
+  <p class="build-note"><strong>Built (by omission):</strong> v1 keeps everything in one window — D2–D4 carry identity/differentiation/files, so no window mapping was needed. Note here if you'd like the "open worktree in new window" affordance (option B) as a fast-follow.</p>
   <textarea class="q-notes" data-decision="d6" placeholder="Notes (optional)..."></textarea>
 </section>
 
@@ -948,7 +998,7 @@ which suggests label support, not just better git-string plumbing.</p>
   });
 
   function buildPayload() {
-    var lines = ['Worktree-aware Duo — decisions (docs/research/worktree-ux.html)', ''];
+    var lines = ['Worktree-aware Duo — confirm/adjust of v1 picks (docs/research/worktree-ux.html)', '(unchanged radio = confirmed; changed radio + note = adjust)', ''];
     DECISIONS.forEach(function (d) {
       var sel = document.querySelector('input[name="' + d.id + '"]:checked');
       var notesEl = document.querySelector('.q-notes[data-decision="' + d.id + '"]');
