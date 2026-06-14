@@ -379,16 +379,26 @@ function Tab({
 
       <span className="truncate leading-none not-italic">{tab.title}</span>
 
-      {/* ENH-210 — worktree marker (⎇) in the checkout's hue. Reinforces
-          the dot so the signal survives color-blindness (color is never
-          the only carrier, per the palette rules). */}
+      {/* ENH-210 (D2) — visible repo · ⎇branch chip on worktree tabs.
+          The owner picked B (repo + branch chip) over the tooltip-only
+          default: a worktree tab's basename is a meaningless codename, so
+          the chip surfaces the repo (the genuinely-missing identity) + the
+          branch without a hover. The ⎇ + hue keep the color-blind-safe
+          redundancy (chip stays even when truncated; the dot above is the
+          independent carrier). Branch truncates first, repo holds. */}
       {worktree && (
         <span
-          aria-hidden="true"
-          className="shrink-0 not-italic text-[11px] leading-none font-sans"
-          style={{ color: projectColorToken(worktree.colorIndex) }}
+          className="shrink-0 inline-flex items-center gap-1 max-w-[120px] rounded px-1.5 py-px not-italic font-sans text-[10.5px] leading-none border"
+          style={{
+            backgroundColor: `color-mix(in srgb, ${projectColorToken(worktree.colorIndex)} 11%, transparent)`,
+            borderColor: `color-mix(in srgb, ${projectColorToken(worktree.colorIndex)} 32%, transparent)`
+          }}
         >
-          ⎇
+          <span className="font-semibold shrink-0" style={{ color: projectColorToken(worktree.colorIndex) }}>
+            {worktree.repoName || 'repo'}
+          </span>
+          <span aria-hidden="true" className="text-ink-mute opacity-70 shrink-0">⎇</span>
+          <span className="truncate font-mono text-ink-mute">{worktree.branch || 'detached'}</span>
         </span>
       )}
 
