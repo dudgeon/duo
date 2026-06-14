@@ -25,7 +25,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 // cli/duo.ts
 var net = __toESM(require("net"));
 var os3 = __toESM(require("os"));
-var path11 = __toESM(require("path"));
+var path12 = __toESM(require("path"));
 var fs11 = __toESM(require("fs"));
 var import_crypto = require("crypto");
 
@@ -33,7 +33,7 @@ var import_crypto = require("crypto");
 var import_node_fs = __toESM(require("node:fs"));
 var import_node_path = __toESM(require("node:path"));
 
-// node_modules/js-yaml/dist/js-yaml.mjs
+// ../../../node_modules/js-yaml/dist/js-yaml.mjs
 function isNothing(subject) {
   return typeof subject === "undefined" || subject === null;
 }
@@ -4102,6 +4102,128 @@ function lintVault(root, target) {
   return results;
 }
 
+// core/git/exec.ts
+var import_child_process = require("child_process");
+var import_util = require("util");
+var path11 = __toESM(require("path"));
+var execFileAsync = (0, import_util.promisify)(import_child_process.execFile);
+var DEFAULT_TIMEOUT_MS = 1e4;
+var WELL_KNOWN_BIN_DIRS = [
+  "/opt/homebrew/bin",
+  // Homebrew (Apple Silicon)
+  "/usr/local/bin",
+  // Homebrew (Intel) + manual installs
+  path11.join(process.env.HOME ?? "", ".local", "bin")
+  // pipx / manual installs
+];
+function augmentedEnv(base) {
+  const existing = (base.PATH || "").split(":").filter(Boolean);
+  const merged = [...WELL_KNOWN_BIN_DIRS, ...existing.filter((d) => !WELL_KNOWN_BIN_DIRS.includes(d))].join(":");
+  return { ...base, PATH: merged };
+}
+async function execGit(bin, args, opts = {}) {
+  const timeout = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const env = opts.env ?? augmentedEnv(process.env);
+  try {
+    const { stdout, stderr } = await execFileAsync(bin, args, {
+      cwd: opts.cwd,
+      timeout,
+      env,
+      maxBuffer: 10 * 1024 * 1024
+    });
+    return { ok: true, stdout, stderr, exitCode: 0, notFound: false };
+  } catch (err) {
+    const e = err;
+    if (e.code === "ENOENT") {
+      return {
+        ok: false,
+        stdout: "",
+        stderr: `${bin}: command not found`,
+        exitCode: null,
+        notFound: true
+      };
+    }
+    return {
+      ok: false,
+      stdout: e.stdout ?? "",
+      stderr: e.stderr ?? String(err),
+      exitCode: typeof e.code === "number" ? e.code : null,
+      notFound: false
+    };
+  }
+}
+
+// shared/projects.ts
+var NUM_PROJECT_COLORS = 6;
+function hashColorIndex(rootPath) {
+  let h = 5381;
+  for (let i = 0; i < rootPath.length; i++) {
+    h = (h << 5) + h + rootPath.charCodeAt(i) >>> 0;
+  }
+  return h % NUM_PROJECT_COLORS;
+}
+
+// core/git/worktree.ts
+function parseWorktreePorcelain(stdout, currentRoot) {
+  const blocks = stdout.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
+  const out2 = [];
+  blocks.forEach((block, blockIdx) => {
+    let wtPath = "";
+    let head = "";
+    let branch = "";
+    let detached = false;
+    let prunable = false;
+    for (const line of block.split("\n")) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("worktree ")) wtPath = trimmed.slice("worktree ".length).trim();
+      else if (trimmed.startsWith("HEAD ")) head = trimmed.slice("HEAD ".length).trim().slice(0, 7);
+      else if (trimmed.startsWith("branch ")) {
+        branch = trimmed.slice("branch ".length).trim().replace(/^refs\/heads\//, "");
+      } else if (trimmed === "detached") detached = true;
+      else if (trimmed === "prunable" || trimmed.startsWith("prunable ")) prunable = true;
+    }
+    if (!wtPath) return;
+    const normalized = wtPath.replace(/\/+$/, "");
+    out2.push({
+      path: normalized,
+      branch,
+      head,
+      isMain: blockIdx === 0,
+      isCurrent: normalized === currentRoot.replace(/\/+$/, ""),
+      detached: detached || void 0,
+      prunable: prunable || void 0,
+      colorIndex: hashColorIndex(normalized)
+    });
+  });
+  return out2;
+}
+async function worktreeStatus(wtPath) {
+  const statusRes = await execGit("git", ["status", "--porcelain"], { cwd: wtPath });
+  const lines = statusRes.ok ? statusRes.stdout.split("\n").filter((l) => l.length > 0) : [];
+  let ahead = 0;
+  let behind = 0;
+  const ab = await execGit("git", ["rev-list", "--left-right", "--count", "@{upstream}...HEAD"], { cwd: wtPath });
+  if (ab.ok) {
+    const parts = ab.stdout.trim().split(/\s+/);
+    if (parts.length === 2) {
+      behind = Number.parseInt(parts[0], 10) || 0;
+      ahead = Number.parseInt(parts[1], 10) || 0;
+    }
+  }
+  return { dirty: lines.length > 0, changedCount: lines.length, ahead, behind };
+}
+async function listWorktrees(cwd, opts = {}) {
+  const listRes = await execGit("git", ["worktree", "list", "--porcelain"], { cwd });
+  if (!listRes.ok) return [];
+  const topRes = await execGit("git", ["rev-parse", "--show-toplevel"], { cwd });
+  const currentRoot = topRes.ok ? topRes.stdout.trim() : "";
+  const worktrees = parseWorktreePorcelain(listRes.stdout, currentRoot);
+  if (!opts.withStatus) return worktrees;
+  return Promise.all(
+    worktrees.map(async (wt) => wt.prunable ? wt : { ...wt, ...await worktreeStatus(wt.path) })
+  );
+}
+
 // cli/duo.ts
 var VERSION = true ? "0.10.4" : "0.0.0-dev";
 var VERBS = [
@@ -4143,8 +4265,8 @@ var VERBS = [
   {
     name: "window",
     group: "Windows",
-    args: "new",
-    summary: 'Open a second app window \u2014 blank, with its own workspace, browser pane, and navigator. Same action as File \u2192 New Window (Opt+Cmd+N). Requires "Allow Multiple Windows" (Settings menu, default on); exits non-zero with a clean disabled-error when off. Subcommand: new.'
+    args: "new [--cwd <path>]",
+    summary: `Open a second app window \u2014 blank, with its own workspace, browser pane, and navigator. Same action as File \u2192 New Window (Opt+Cmd+N). --cwd roots the new window's navigator at a path (e.g. a git worktree) \u2014 the CLI twin of the navigator Worktrees dropdown's "open in new window". Requires "Allow Multiple Windows" (Settings menu, default on); exits non-zero with a clean disabled-error when off. Subcommand: new.`
   },
   {
     name: "windows",
@@ -4503,6 +4625,12 @@ var VERBS = [
     group: "Repo & git",
     summary: 'Probe "gh auth status". Prints JSON { ghInstalled, authenticated, host, user, ghNotFound } so agents can decide whether "duo clone" will work on private repos before trying.'
   },
+  {
+    name: "worktree",
+    group: "Repo & git",
+    args: "[list] [<path>]",
+    summary: "List the git worktrees of the repo at <path> (defaults to the cwd) as JSON: [{ path, branch, head, isMain, isCurrent, detached, prunable, colorIndex }], main checkout first, the cwd's worktree flagged isCurrent. Reads git directly (no running app needed). Lets an agent see whether it is in a linked worktree vs the main checkout, and enumerate its siblings \u2014 the CLI twin of the navigator Worktrees section."
+  },
   // ── Health & install ──
   {
     name: "install",
@@ -4544,8 +4672,8 @@ var VERBS = [
     summary: "Obsidian Bases rollups. lint <file|--all> [--vault p]: validate a .base file (or a note's embedded ```base blocks, or every base with --all) against the live corpus \u2014 bad types / unresolved [[entities]] / off-enum values / unknown functions, each with a \"did you mean\" (JSON; warn-and-render, never blocks). render <file|note> [--out p] [--open]: evaluate filters/formulas over live frontmatter and emit a stamped Duo-owned HTML artifact (generated-at \xB7 source-hash \xB7 as-of). Default writes to the vault's out/; --out writes elsewhere; --open also opens it as a tab in the running app."
   }
 ];
-var SOCKET_PATH = process.env.DUO_SOCKET ?? path11.join(os3.homedir(), "Library", "Application Support", "duo", "duo.sock");
-var PORT_FILE = process.env.DUO_PORT_FILE ?? path11.join(os3.homedir(), "Library", "Application Support", "duo", "duo.port");
+var SOCKET_PATH = process.env.DUO_SOCKET ?? path12.join(os3.homedir(), "Library", "Application Support", "duo", "duo.sock");
+var PORT_FILE = process.env.DUO_PORT_FILE ?? path12.join(os3.homedir(), "Library", "Application Support", "duo", "duo.port");
 var windowOverride;
 function resolveWindowId() {
   if (windowOverride != null) return windowOverride;
@@ -4964,7 +5092,7 @@ async function main() {
         const selector = selectorIdx !== -1 ? rest[selectorIdx + 1] : void 0;
         const b64 = await send("screenshot", { selector });
         if (outputPath) {
-          const abs = path11.resolve(outputPath);
+          const abs = path12.resolve(outputPath);
           fs11.writeFileSync(abs, Buffer.from(b64, "base64"));
           out(`Saved to ${abs}`);
         } else {
@@ -4989,8 +5117,10 @@ async function main() {
       }
       case "window": {
         const sub = rest[0];
-        if (sub !== "new") die("Usage: duo window new");
-        const r = await send("window", { action: "new" });
+        if (sub !== "new") die("Usage: duo window new [--cwd <path>]");
+        const cwdIdx = rest.indexOf("--cwd");
+        const cwd = cwdIdx >= 0 && rest[cwdIdx + 1] ? path12.resolve(process.cwd(), rest[cwdIdx + 1]) : void 0;
+        const r = await send("window", cwd ? { action: "new", cwd } : { action: "new" });
         if (r && r.ok === false) die(r.error ?? 'duo window new failed (is "Allow Multiple Windows" enabled?)');
         out(r);
         break;
@@ -5180,7 +5310,7 @@ To confirm, re-run:
         if (sub === "open") {
           const p = rest[1];
           if (!p) die("Usage: duo split-view open <path>");
-          const resolved = path11.isAbsolute(p) ? p : path11.resolve(process.cwd(), p);
+          const resolved = path12.isAbsolute(p) ? p : path12.resolve(process.cwd(), p);
           out(await send("split-view", { op: "open", path: resolved }));
           break;
         }
@@ -5320,7 +5450,7 @@ To confirm, re-run:
           if (caseSensitive) payload["case-sensitive"] = true;
           out(await send("doc-find", payload));
         } else if (sub === "conflict-log") {
-          const logPath = path11.join(os3.homedir(), ".claude", "duo", "logs", "last-conflict.log");
+          const logPath = path12.join(os3.homedir(), ".claude", "duo", "logs", "last-conflict.log");
           try {
             const raw = fs11.readFileSync(logPath, "utf8");
             process.stdout.write(raw);
@@ -5792,6 +5922,12 @@ To confirm, re-run:
         out(await send("gh-auth", {}));
         break;
       }
+      case "worktree": {
+        const args2 = rest[0] === "list" ? rest.slice(1) : rest;
+        const target = args2[0] ? path12.resolve(process.cwd(), args2[0]) : process.cwd();
+        out(await listWorktrees(target));
+        break;
+      }
       case "close-tab": {
         out(await send("close-tab", {}));
         break;
@@ -5812,18 +5948,18 @@ To confirm, re-run:
         }
         if (sub === "save") {
           const subRest = rest.slice(1);
-          const path12 = subRest.find((a) => !a.startsWith("-"));
+          const path13 = subRest.find((a) => !a.startsWith("-"));
           const name = flagValue(subRest, "--name");
           const saveAs = subRest.includes("--save-as");
           const payload = { op: "save" };
-          if (path12) payload.path = path12;
+          if (path13) payload.path = path13;
           if (name) payload.name = name;
           if (saveAs) payload["save-as"] = true;
           out(await send("workspace", payload));
         } else if (sub === "open") {
-          const path12 = rest[1];
-          if (!path12) die("Usage: duo workspace open <path>");
-          out(await send("workspace", { op: "open", path: path12 }));
+          const path13 = rest[1];
+          if (!path13) die("Usage: duo workspace open <path>");
+          out(await send("workspace", { op: "open", path: path13 }));
         } else if (sub === "list-recent") {
           out(await send("workspace", { op: "list-recent" }));
         } else if (sub === "current") {
@@ -5935,7 +6071,7 @@ To confirm, re-run:
         if (sub === "init") {
           const folder = positionalArgs(subRest, [])[0];
           if (!folder) die("Usage: duo vault init <folder> [--force]");
-          const result = initVault(path11.resolve(process.cwd(), folder), { force: subRest.includes("--force") });
+          const result = initVault(path12.resolve(process.cwd(), folder), { force: subRest.includes("--force") });
           rememberVault(result.root);
           for (const w of result.warnings) process.stderr.write(`duo: warning \u2014 ${w}
 `);
@@ -6034,12 +6170,12 @@ To confirm, re-run:
           const result = renderTarget(root, target);
           const outFlag = flagValue(subRest, "--out");
           const open = subRest.includes("--open");
-          const stem = path11.basename(target).replace(/\.(base|md)$/i, "") || "rollup";
+          const stem = path12.basename(target).replace(/\.(base|md)$/i, "") || "rollup";
           let outPath;
-          if (outFlag) outPath = path11.resolve(process.cwd(), outFlag);
-          else if (open) outPath = path11.join(os3.tmpdir(), `duo-rollup-${stem}-${Date.now()}.html`);
-          else outPath = path11.join(root, "out", `${stem}.html`);
-          fs11.mkdirSync(path11.dirname(outPath), { recursive: true });
+          if (outFlag) outPath = path12.resolve(process.cwd(), outFlag);
+          else if (open) outPath = path12.join(os3.tmpdir(), `duo-rollup-${stem}-${Date.now()}.html`);
+          else outPath = path12.join(root, "out", `${stem}.html`);
+          fs11.mkdirSync(path12.dirname(outPath), { recursive: true });
           fs11.writeFileSync(outPath, result.html);
           let opened = null;
           if (open) {
@@ -6091,18 +6227,18 @@ function readStdin() {
 }
 function resolveFilePath(input) {
   if (input.startsWith("~/") || input === "~") {
-    return path11.resolve(input.replace(/^~/, os3.homedir()));
+    return path12.resolve(input.replace(/^~/, os3.homedir()));
   }
-  if (path11.isAbsolute(input)) return input;
-  return path11.resolve(process.cwd(), input);
+  if (path12.isAbsolute(input)) return input;
+  return path12.resolve(process.cwd(), input);
 }
 function resolveOpenTarget(target) {
   if (/^[a-z][a-z0-9+.-]*:/i.test(target)) return target;
   let absolute;
   if (target.startsWith("~/") || target === "~") {
-    absolute = path11.resolve(target.replace(/^~/, os3.homedir()));
+    absolute = path12.resolve(target.replace(/^~/, os3.homedir()));
   } else {
-    absolute = path11.resolve(process.cwd(), target);
+    absolute = path12.resolve(process.cwd(), target);
   }
   const encoded = absolute.split("/").map((seg) => encodeURIComponent(seg).replace(/%2F/g, "/")).join("/");
   return "file://" + encoded;
@@ -6113,19 +6249,19 @@ function runInstall(opts = {}) {
   if (opts.system) {
     targets.push("/usr/local/bin/duo");
   } else {
-    targets.push(path11.join(os3.homedir(), ".claude", "duo", "bin", "duo"));
-    targets.push(path11.join(os3.homedir(), ".local", "bin", "duo"));
+    targets.push(path12.join(os3.homedir(), ".claude", "duo", "bin", "duo"));
+    targets.push(path12.join(os3.homedir(), ".local", "bin", "duo"));
   }
   for (const target of targets) {
     try {
-      fs11.mkdirSync(path11.dirname(target), { recursive: true });
+      fs11.mkdirSync(path12.dirname(target), { recursive: true });
       try {
         fs11.unlinkSync(target);
       } catch {
       }
       fs11.symlinkSync(self, target);
       out(`Installed: ${target} \u2192 ${self}`);
-      const dir = path11.dirname(target);
+      const dir = path12.dirname(target);
       const userPath = (process.env.PATH ?? "").split(":");
       if (!userPath.includes(dir)) {
         out("");
@@ -6224,12 +6360,12 @@ async function runDoctor() {
   lines.push(`  CLI invoked as: ${cliPath}${cliReal && cliReal !== cliPath ? ` \u2192 ${cliReal}` : ""}`);
   const knownInstallTargets = [
     // ENH-141 — SHIM_DIR (auto-prepended to PTY $PATH; primary target).
-    path11.join(os3.homedir(), ".claude", "duo", "bin", "duo"),
+    path12.join(os3.homedir(), ".claude", "duo", "bin", "duo"),
     // Pre-ENH-141 sandbox-writable target (still listed for diagnosing
     // stale installs — the dir was never on PATH so the symlink was
     // effectively dead).
-    path11.join(os3.homedir(), ".claude", "bin", "duo"),
-    path11.join(os3.homedir(), ".local", "bin", "duo"),
+    path12.join(os3.homedir(), ".claude", "bin", "duo"),
+    path12.join(os3.homedir(), ".local", "bin", "duo"),
     "/usr/local/bin/duo"
   ];
   for (const t of knownInstallTargets) {
@@ -6244,8 +6380,8 @@ async function runDoctor() {
   }
   lines.push("");
   lines.push("Skill");
-  const skillFile = path11.join(os3.homedir(), ".claude", "skills", "duo", "SKILL.md");
-  const agentFile = path11.join(os3.homedir(), ".claude", "agents", "duo.md");
+  const skillFile = path12.join(os3.homedir(), ".claude", "skills", "duo", "SKILL.md");
+  const agentFile = path12.join(os3.homedir(), ".claude", "agents", "duo.md");
   lines.push(`  ${fs11.existsSync(skillFile) ? "\u2713" : "\u2717"} ${skillFile}`);
   lines.push(`  ${fs11.existsSync(agentFile) ? "\u2713" : "\u2717"} ${agentFile}`);
   lines.push("");

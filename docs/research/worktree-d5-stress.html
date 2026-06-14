@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>Worktree lifecycle — does detect-only hold? (D5 stress-test)</title>
+<style>
+/* duo-atelier.css kernel */
+:root {
+  --paper: #fbf8f1; --paper-deep: #f3ede0; --paper-edge: #e8e0cb; --paper-rule: #d9cea8;
+  --ink: #2b2620; --ink-soft: #4a4238; --ink-mute: #6f6557; --ink-ghost: #9a9080;
+  --accent: #c46a1c; --accent-soft: #f4d9b6; --pass: #4a7d3e; --fail: #b13e3a; --warn: #b07527;
+  --code-bg: #2b2823; --code-ink: #e8e0cb;
+  --project-pine: #2E7D74; --project-harbor: #3C6E93; --project-iris: #5B57A6;
+  --project-plum: #87508F; --project-rose: #A4506A; --project-moss: #69763A;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif; font-size: 14px; line-height: 1.55; }
+body { padding: 32px 40px 96px; max-width: 920px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px; }
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 6px; }
+.intro { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 14px 18px; margin-bottom: 28px; font-size: 13.5px; color: var(--ink-soft); }
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 600; margin: 36px 0 12px; font-size: 19px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px; }
+h3 { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; } li { margin: 4px 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; }
+.decision-card { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 16px 18px; margin: 18px 0; }
+.decision-card .q-title { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px; }
+.decision-card .q-prompt { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 500; font-size: 17px; color: var(--ink); margin: 0 0 12px; line-height: 1.35; }
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option { display: block; background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 10px 12px; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes { width: 100%; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px; }
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+.copy-bar { position: sticky; bottom: 0; margin: 32px -40px -96px; padding: 16px 40px; background: color-mix(in srgb, var(--paper-deep) 96%, transparent); border-top: 1.5px solid var(--paper-rule); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); } .copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button { background: var(--accent); color: white; border: none; border-radius: 5px; padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background 0.12s; }
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); } .copy-bar button.copied { background: var(--pass); }
+
+/* per-playground */
+.known { background: color-mix(in srgb, var(--pass) 8%, var(--paper)); border: 1px solid color-mix(in srgb, var(--pass) 30%, var(--paper-rule)); border-radius: 6px; padding: 4px 18px 12px; margin: 0 0 20px; }
+.known h3 { color: var(--pass); }
+.known .fact { font-size: 13px; margin: 8px 0; padding-left: 22px; position: relative; }
+.known .fact::before { content: "✓"; position: absolute; left: 0; color: var(--pass); font-weight: 700; }
+.gate { display: flex; gap: 14px; margin: 14px 0 20px; flex-wrap: wrap; }
+.gate .lane { flex: 1 1 280px; border: 1.5px solid var(--paper-rule); border-radius: 8px; padding: 12px 16px; background: var(--paper); }
+.gate .lane.b { border-color: color-mix(in srgb, var(--pass) 45%, var(--paper-rule)); }
+.gate .lane.c { border-color: color-mix(in srgb, var(--warn) 45%, var(--paper-rule)); }
+.gate .lane h4 { margin: 0 0 6px; font-size: 13.5px; } .gate .lane .tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 1px 7px; border-radius: 8px; }
+.gate .lane.b .tag { background: color-mix(in srgb, var(--pass) 16%, var(--paper)); color: var(--pass); }
+.gate .lane.c .tag { background: color-mix(in srgb, var(--warn) 18%, var(--paper)); color: var(--warn); }
+.gate .lane p { font-size: 12.5px; color: var(--ink-soft); }
+table.matrix { border-collapse: collapse; width: 100%; font-size: 12.5px; margin: 12px 0 20px; }
+table.matrix th, table.matrix td { border: 1px solid var(--paper-rule); padding: 7px 10px; text-align: left; vertical-align: top; }
+table.matrix th { background: var(--paper-deep); font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-soft); }
+table.matrix td.s { white-space: nowrap; font-weight: 600; }
+.badge-likely { color: var(--pass); font-weight: 700; } .badge-unknown { color: var(--warn); font-weight: 700; }
+details.deferred { margin: 22px 0; padding: 12px 16px; background: var(--paper-deep); border: 1px dashed var(--paper-rule); border-radius: 6px; }
+details.deferred summary { cursor: pointer; font-weight: 600; color: var(--ink-soft); font-size: 13.5px; }
+details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(--ink-soft); }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Worktree lifecycle — does detect-only hold?</h1>
+  <div class="meta">
+    <span class="pill">D5 study</span>
+    <span class="pill">ENH-210</span>
+    2026-06-14 · gates detect-only (B) vs Duo-managed lifecycle (C)
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> You confirmed D5-B (read verbs) — Duo detects + reports worktrees,
+  but does NOT create or remove them — <em>"as long as claude knows how to make worktrees … you
+  should stress test."</em> This playground is that stress test: it states what we already know, lays
+  out the scenario matrix + pass/fail, and asks you to set the bar for "reliable" and the trigger
+  that would escalate to Duo-managed lifecycle (C: <code>duo worktree new/remove</code>). The live
+  run is gated on your greenlight (last decision).
+</div>
+
+<div class="known">
+  <h3>What we already know (measured on this machine, 2026-06-14)</h3>
+  <div class="fact"><strong>Agents demonstrably DO create worktrees.</strong> There are <strong>14 <code>claude/*</code> worktrees</strong> live under <code>.claude/worktrees/</code> right now — every one created by Claude Code's own harness, not by hand. The detect-only premise (agents make their own worktrees) is not hypothetical; it's the steady state.</div>
+  <div class="fact"><strong>An agent can already self-identify.</strong> <code>duo worktree</code> run from inside a worktree returns <code>isCurrent: true</code> + the branch — so an agent can answer "am I in a worktree, and which?" with one shipped verb today. The fields <code>isLinkedWorktree / mainWorktreeRoot / repoName</code> also ride on <code>getGitStatus</code>.</div>
+  <div class="fact"><strong>The verb is discoverable.</strong> <code>duo worktree</code> is documented in <code>agents/duo.md</code> + <code>docs/CLI-COVERAGE.md</code> + the skill's <code>cli-reference.md</code> (the Haiku-subagent cheat-sheet). Gap: it's not yet in <code>skill/SKILL.md</code> proper (soft nit; the currency check passes via cli-reference.md).</div>
+</div>
+
+<h2>The gate this test informs</h2>
+<div class="gate">
+  <div class="lane b">
+    <h4>B — detect-only <span class="tag">shipped</span></h4>
+    <p>Duo reads + displays worktrees (tab chip, working-pane badge, navigator section, <code>duo worktree</code>). Agents create/clean via plain <code>git worktree</code> / Claude Code's own mechanism. <strong>Holds if</strong> agents create + clean reliably on their own.</p>
+  </div>
+  <div class="lane c">
+    <h4>C — Duo-managed lifecycle <span class="tag">not built</span></h4>
+    <p>Add <code>duo worktree new &lt;branch&gt;</code> / <code>duo worktree remove</code> + a "new Claude session in worktree…" gesture + stale-worktree prune UX. <strong>Build only if</strong> the test shows agents stumble (don't create, collide, or leave a mess) often enough to matter.</p>
+  </div>
+</div>
+
+<h2>Scenario matrix</h2>
+<p>Each scenario gets run with a live <code>claude</code> session driven via <code>duo send</code> (detected through <code>claudePresence</code>). The "prior likelihood" column is my read from current evidence — the live run confirms or refutes it.</p>
+<table class="matrix">
+  <tr><th>#</th><th>Scenario</th><th>What "pass" looks like</th><th>Prior likelihood</th></tr>
+  <tr><td class="s">S1</td><td>Single agent creates a worktree for a new task and works in it</td><td>Agent runs <code>git worktree add</code> (or the harness does); Duo badges the new tab/files correctly</td><td class="badge-likely">HIGH (14 exist)</td></tr>
+  <tr><td class="s">S2</td><td>Two agents work in parallel in two worktrees of the same repo</td><td>Both tabs/sections show distinct hues; no cross-talk; <code>duo worktree</code> lists both with correct <code>isCurrent</code> per window</td><td class="badge-likely">HIGH</td></tr>
+  <tr><td class="s">S3</td><td>Agent self-identifies "am I in a worktree?" before acting</td><td>Agent reaches for <code>duo worktree</code> (or git) and branches behavior correctly</td><td class="badge-unknown">UNKNOWN (discovery)</td></tr>
+  <tr><td class="s">S4</td><td>Cleanup — agent finishes, worktree should be removed/pruned</td><td>Worktree removed without orphaning; stale entries pruned; Duo stops badging</td><td class="badge-unknown">UNKNOWN (no prune UX)</td></tr>
+  <tr><td class="s">S5</td><td>User makes a non-Claude worktree by hand (<code>git worktree add</code>)</td><td>Duo detects + badges it identically (branch ≠ codename)</td><td class="badge-likely">HIGH (detection is branch-agnostic)</td></tr>
+</table>
+<p style="font-size:12.5px;color:var(--ink-mute)">Likely-HIGH rows mostly validate the SHIPPED read layer. The two UNKNOWN rows — <strong>discovery (S3)</strong> and <strong>cleanup (S4)</strong> — are where detect-only is most likely to crack, and where C would earn its keep.</p>
+
+<h2>Decisions</h2>
+
+<section class="decision-card">
+  <div class="q-title">Decision D5.1 · Coverage bar</div>
+  <h3 class="q-prompt">What must "reliably create/use worktrees" actually cover for detect-only to count as sufficient?</h3>
+  <p class="q-context">Sets which scenarios are MUST-pass vs nice-to-have. The more you require, the more likely the test pushes toward C.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d51" value="minimal"><div class="q-option-body"><div class="q-option-title">A — Minimal: S1 + S5 (create + detect)</div><div class="q-option-rationale">Just "agents/users make worktrees and Duo shows them." Cleanup + discovery are the agent's problem, not Duo's.</div></div></label>
+    <label class="q-option"><input type="radio" name="d51" value="parallel"><div class="q-option-body"><div class="q-option-title">B — + parallel (S1, S2, S5) <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">The real Duo use case is parallel agents. Require create + parallel + detect to pass; treat discovery (S3) + cleanup (S4) as signals to watch, not v1 blockers.</div></div></label>
+    <label class="q-option"><input type="radio" name="d51" value="full"><div class="q-option-body"><div class="q-option-title">C — Full: all of S1–S5 incl. discovery + cleanup</div><div class="q-option-rationale">Hold detect-only to the whole lifecycle. Most likely to surface a gap that justifies building C.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d51" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision D5.2 · Escalation trigger</div>
+  <h3 class="q-prompt">What would flip us from detect-only (B) to building Duo-managed lifecycle (C)?</h3>
+  <p class="q-context">The concrete condition that authorizes <code>duo worktree new/remove</code> + the in-app gestures. Avoids building C speculatively.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d52" value="never"><div class="q-option-body"><div class="q-option-title">A — Never; git is enough</div><div class="q-option-rationale">Detect-only is permanent. Agents always use raw git / the harness; Duo never manages lifecycle.</div></div></label>
+    <label class="q-option"><input type="radio" name="d52" value="test-driven"><div class="q-option-body"><div class="q-option-title">B — Only if the test shows a real failure <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">Build C only if a MUST-scenario fails repeatably (e.g. agents leave orphaned worktrees, or can't discover they're in one). Evidence-gated.</div></div></label>
+    <label class="q-option"><input type="radio" name="d52" value="proactive"><div class="q-option-body"><div class="q-option-title">C — Build a thin slice now (cleanup/prune first)</div><div class="q-option-rationale">Cleanup (S4) is the weakest link regardless; ship <code>duo worktree remove/prune</code> + a stale-worktree nudge proactively, defer <code>new</code>.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d52" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision D5.3 · Run the live test now?</div>
+  <h3 class="q-prompt">Do we run the live stress test this round, or accept the current evidence for v1?</h3>
+  <p class="q-context">A live run means spawning real <code>claude</code> sessions (single + parallel) via <code>duo send</code> and observing. The 14 existing worktrees + shipped self-id are already strong evidence for the HIGH-likelihood rows.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d53" value="defer"><div class="q-option-body"><div class="q-option-title">A — Defer; current evidence is enough for v1 <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">14 worktrees + working self-id cover the HIGH rows. Lock detect-only for v1; revisit S3/S4 only if a real mess appears in normal use.</div></div></label>
+    <label class="q-option"><input type="radio" name="d53" value="targeted"><div class="q-option-body"><div class="q-option-title">B — Run just the UNKNOWN rows (S3 discovery + S4 cleanup)</div><div class="q-option-rationale">Spend the live run only where evidence is thin: does an agent discover <code>duo worktree</code>, and does cleanup orphan anything?</div></div></label>
+    <label class="q-option"><input type="radio" name="d53" value="full"><div class="q-option-body"><div class="q-option-title">C — Run the full matrix now</div><div class="q-option-rationale">Most thorough; most setup (parallel live sessions, a throwaway test-run worktree prefix + cleanup). Highest confidence before locking.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d53" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<details class="deferred">
+  <summary>Harness sketch (how a live run would work)</summary>
+  <div class="deferred-body">
+    <ul>
+      <li>Spawn a shell terminal via the new-terminal gesture in a throwaway clone; start <code>claude</code>; wait for <code>claudePresence</code> to detect it.</li>
+      <li><code>duo send</code> a task that implies a worktree ("work on X on a new branch without disturbing main"); observe whether it runs <code>git worktree add</code> / reaches for <code>duo worktree</code>.</li>
+      <li>For S2, repeat in a second window (<code>duo window new</code>); confirm distinct hues + per-window <code>isCurrent</code>.</li>
+      <li>Use a unique test-run worktree prefix + a <code>finally</code> cleanup so the test never collides with the 14 real worktrees.</li>
+      <li>Validate the single-agent path (S1/S3) before attempting parallel (S2) so a flaky harness isn't mistaken for an agent failure.</li>
+    </ul>
+  </div>
+</details>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 3 decisions answered</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  var DECISIONS = [
+    { id: 'd51', title: 'D5.1 Coverage bar — what must reliably work' },
+    { id: 'd52', title: 'D5.2 Escalation trigger — B→C condition' },
+    { id: 'd53', title: 'D5.3 Run the live test now?' }
+  ];
+  function answered() { return DECISIONS.filter(function (d) { return document.querySelector('input[name="' + d.id + '"]:checked'); }).length; }
+  function refresh() { document.getElementById('answered-count').textContent = String(answered()); }
+  document.addEventListener('change', function (e) { if (e.target && e.target.type === 'radio') refresh(); });
+  function payload() {
+    var lines = ['Worktree D5 stress-test — decisions (docs/research/worktree-d5-stress.html)', ''];
+    DECISIONS.forEach(function (d) {
+      var sel = document.querySelector('input[name="' + d.id + '"]:checked');
+      var n = document.querySelector('.q-notes[data-decision="' + d.id + '"]');
+      lines.push('[' + (sel ? sel.value.toUpperCase() : 'UNANSWERED') + '] ' + d.title);
+      if (n && n.value.trim()) lines.push('    ' + n.value.trim().replace(/\n/g, '\n    '));
+      lines.push('');
+    });
+    return lines.join('\n');
+  }
+  document.getElementById('copy-btn').addEventListener('click', function () {
+    var b = this;
+    navigator.clipboard.writeText(payload()).then(function () { b.classList.add('copied'); b.textContent = 'Copied ✓'; setTimeout(function () { b.classList.remove('copied'); b.textContent = 'Copy decisions'; }, 2000); });
+  });
+  refresh();
+})();
+</script>
+</body>
+</html>

@@ -1662,6 +1662,9 @@ export const IPC = {
   // preload time (sendSync), so per-window localStorage keys (cozy/fontBump/
   // nav) namespace by the SAME id the registry routes by (mainWindow.id).
   WINDOW_GET_ID: 'window:get-id',
+  // ENH-210 (D1-part2) — renderer → main: open a new window rooted at a
+  // cwd (the navigator Worktrees dropdown's "open in new window").
+  WINDOW_OPEN_AT: 'window:open-at',
   PTY_CREATE: 'pty:create',
   PTY_WRITE: 'pty:write',
   PTY_RESIZE: 'pty:resize',
@@ -2141,6 +2144,9 @@ export const IPC = {
   BROWSER_RELEASE_AUX_TAB: 'browser:release-aux-tab',
   // ENH-152a — git status probe for the Navigator root chip. renderer → main.
   GIT_STATUS: 'git:status',
+  // ENH-210 — list the worktrees of the repo at cwd. Powers the
+  // navigator Worktrees section. renderer → main.
+  GIT_WORKTREES: 'git:worktrees',
   // ENH-182 — D2 marker probe. Returns true if `dir` contains a
   // CLAUDE.md file or a .claude/ directory (a project marker per
   // the project-as-filter-layer model). Renderer → main; called by

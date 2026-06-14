@@ -14,6 +14,7 @@
 // also lives there.
 
 import { execGit } from './exec'
+import { resolveWorktreeIdentity } from './worktree'
 import type { GitStatusSnapshot } from '../../shared/host-api'
 
 export type { GitStatusSnapshot } from '../../shared/host-api'
@@ -85,6 +86,11 @@ export async function getGitStatus(cwd: string): Promise<GitStatusSnapshot> {
     }
   }
 
+  // ENH-210 — worktree identity. One extra rev-parse; classifies this
+  // checkout as the main worktree vs. a linked one and resolves the
+  // repo's main-worktree root + name (the terminal-tab chip identity).
+  const wt = await resolveWorktreeIdentity(cwd)
+
   return {
     isRepo: true,
     workTreeRoot,
@@ -93,7 +99,10 @@ export async function getGitStatus(cwd: string): Promise<GitStatusSnapshot> {
     dirty,
     changedCount,
     ahead,
-    behind
+    behind,
+    isLinkedWorktree: wt.isLinkedWorktree,
+    mainWorktreeRoot: wt.mainWorktreeRoot || workTreeRoot,
+    repoName: wt.repoName || undefined
   }
 }
 

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>Navigator worktree switcher — dropdown + active indicator (D4 study)</title>
+<style>
+/* duo-atelier.css kernel */
+:root {
+  --paper: #fbf8f1; --paper-deep: #f3ede0; --paper-edge: #e8e0cb; --paper-rule: #d9cea8;
+  --ink: #2b2620; --ink-soft: #4a4238; --ink-mute: #6f6557; --ink-ghost: #9a9080;
+  --accent: #c46a1c; --accent-soft: #f4d9b6; --pass: #4a7d3e; --fail: #b13e3a; --warn: #b07527;
+  --code-bg: #2b2823; --code-ink: #e8e0cb;
+  --project-pine: #2E7D74; --project-harbor: #3C6E93; --project-iris: #5B57A6;
+  --project-plum: #87508F; --project-rose: #A4506A; --project-moss: #69763A;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif; font-size: 14px; line-height: 1.55; }
+body { padding: 32px 40px 96px; max-width: 920px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px; }
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 6px; }
+.intro { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 14px 18px; margin-bottom: 28px; font-size: 13.5px; color: var(--ink-soft); }
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 600; margin: 36px 0 12px; font-size: 19px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px; }
+h3 { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+p { margin: 8px 0; } ul { margin: 8px 0; padding-left: 22px; } li { margin: 4px 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; }
+.decision-card { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 16px 18px; margin: 18px 0; }
+.decision-card .q-title { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px; }
+.decision-card .q-prompt { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 500; font-size: 17px; color: var(--ink); margin: 0 0 12px; line-height: 1.35; }
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option { display: block; background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 10px 12px; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes { width: 100%; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px; }
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+.copy-bar { position: sticky; bottom: 0; margin: 32px -40px -96px; padding: 16px 40px; background: color-mix(in srgb, var(--paper-deep) 96%, transparent); border-top: 1.5px solid var(--paper-rule); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); } .copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button { background: var(--accent); color: white; border: none; border-radius: 5px; padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background 0.12s; }
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); } .copy-bar button.copied { background: var(--pass); }
+
+/* nav-pane mockups */
+.mocks { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; margin: 12px 0 18px; align-items: start; }
+.mock { }
+.mock .cap { font-size: 11.5px; color: var(--ink-mute); margin: 8px 2px 0; }
+.mock .cap strong { color: var(--ink-soft); }
+.mock.rejected .mnav { opacity: .85; }
+.mock.rejected .cap strong { color: var(--fail); }
+.mnav { position: relative; width: 100%; background: var(--paper); border: 1px solid var(--paper-edge); border-radius: 6px; font-size: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(43,38,32,.07); }
+.ribbon { display: flex; align-items: center; gap: 6px; padding: 6px 10px; font-size: 10.5px; font-family: ui-monospace, "SF Mono", Menlo, monospace; background: var(--paper-deep); border-bottom: 1px solid var(--paper-edge); color: var(--ink-soft); }
+.ribbon .chev { margin-left: auto; color: var(--ink-ghost); font-size: 9px; }
+.ribbon.trigger { cursor: pointer; }
+.sw { width: 8px; height: 8px; border-radius: 2px; display: inline-block; flex: 0 0 auto; }
+.row { display: flex; align-items: center; gap: 6px; padding: 3.5px 10px; color: var(--ink-soft); }
+.row .tw { color: var(--ink-ghost); width: 10px; text-align: center; flex: 0 0 auto; }
+.row.depth1 { padding-left: 26px; }
+.sectionhdr { padding: 6px 10px 3px; font-size: 9.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-ghost); border-top: 1px solid var(--paper-edge); margin-top: 4px; }
+.scrollcue { text-align:center; color: var(--ink-ghost); font-size: 14px; padding: 2px; }
+/* header pill */
+.navhdr { display:flex; align-items:center; gap:6px; padding:6px 10px; border-bottom:1px solid var(--paper-edge); }
+.wt-pill { display:inline-flex; align-items:center; gap:5px; padding:2px 8px; border-radius:11px; font-size:10.5px; font-weight:600; cursor:pointer; }
+.wt-pill .chev { font-size:8px; opacity:.7; }
+/* dropdown overlay */
+.dropdown { position:absolute; left:8px; right:8px; top:30px; z-index:5; background: var(--paper); border:1.5px solid var(--paper-rule); border-radius:6px; box-shadow: 0 6px 20px rgba(43,38,32,.18); overflow:hidden; }
+.dropdown .ditem { display:flex; align-items:center; gap:7px; padding:5px 10px; font-size:11.5px; color:var(--ink-soft); }
+.dropdown .ditem.active { background: var(--accent-soft); color: var(--ink); }
+.dropdown .ditem .meta { margin-left:auto; font-family: ui-monospace, Menlo, monospace; font-size:9.5px; color:var(--ink-ghost); }
+.dropdown .dhdr { padding:5px 10px 3px; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-ghost); }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Navigator worktree switcher — dropdown + active indicator</h1>
+  <div class="meta">
+    <span class="pill">D4 study</span>
+    <span class="pill">ENH-210</span>
+    2026-06-14 · replaces the shipped bottom-of-tree list
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> You picked D4 = B+C but flagged the shipped v1 as not-final:
+  <em>"need more prominent indication of active; do a study where B is the display/indicator, but the
+  list is in a drop down, not a list at the bottom of the navigator (which forces lots of scrolling)."</em>
+  This study mocks the alternatives so you can lock: (1) where the <strong>active-checkout indicator</strong>
+  lives + how prominent, (2) what triggers the <strong>switch dropdown</strong>, (3) the keyboard model,
+  (4) what each dropdown row shows. The current bottom-of-tree section is shown first, as the rejected
+  baseline. The git data is already shipped (<code>git.worktrees</code> IPC) — this is purely the surface.
+</div>
+
+<h2>Baseline (shipped v1) — to be replaced</h2>
+<div class="mocks">
+  <div class="mock rejected">
+    <div class="mnav">
+      <div class="ribbon"><span class="sw" style="background:var(--project-plum)"></span> ⎇ youthful-chebyshev · ✱4</div>
+      <div class="row"><span class="tw">▸</span> cli</div>
+      <div class="row"><span class="tw">▸</span> docs</div>
+      <div class="row"><span class="tw">▸</span> electron</div>
+      <div class="row"><span class="tw">▸</span> renderer</div>
+      <div class="scrollcue">⋮</div>
+      <div class="sectionhdr">Worktrees · 16</div>
+      <div class="row"><span class="tw" style="font-size:9px">⎇</span> main</div>
+      <div class="row"><span class="sw" style="background:var(--project-iris)"></span> enh-208-vault</div>
+      <div class="row"><span class="sw" style="background:var(--project-pine)"></span> amazing-goodall</div>
+    </div>
+    <div class="cap"><strong>Rejected:</strong> the switch list lives at the BOTTOM of the tree, so with 16 worktrees + a deep tree you scroll up/down constantly, and the active checkout is only implied by the ribbon.</div>
+  </div>
+</div>
+
+<h2>The two questions, mocked</h2>
+<div class="mocks">
+  <div class="mock">
+    <div class="mnav">
+      <div class="ribbon trigger" style="background: color-mix(in srgb, var(--project-plum) 14%, var(--paper-deep))">
+        <span class="sw" style="background:var(--project-plum)"></span> ⎇ youthful-chebyshev <span class="chev">▼</span>
+      </div>
+      <div class="row"><span class="tw">▸</span> cli</div>
+      <div class="row"><span class="tw">▸</span> docs</div>
+      <div class="row"><span class="tw">▸</span> renderer</div>
+      <div class="row"><span class="tw">·</span> tasks.md</div>
+    </div>
+    <div class="cap"><strong>Option A — ribbon as indicator + trigger.</strong> The existing git ribbon takes the active checkout's hue tint and a ▼; clicking it opens the dropdown. One control does both jobs; zero extra chrome.</div>
+  </div>
+
+  <div class="mock">
+    <div class="mnav">
+      <div class="ribbon trigger" style="background: color-mix(in srgb, var(--project-plum) 14%, var(--paper-deep))">
+        <span class="sw" style="background:var(--project-plum)"></span> ⎇ youthful-chebyshev <span class="chev">▲</span>
+      </div>
+      <div class="dropdown">
+        <div class="dhdr">Switch worktree · 16</div>
+        <div class="ditem"><span class="tw" style="font-size:9px;color:var(--ink-ghost)">⎇</span> main <span class="meta">✱2</span></div>
+        <div class="ditem active"><span class="sw" style="background:var(--project-plum)"></span> youthful-chebyshev <span class="meta">✱4 ↑5</span></div>
+        <div class="ditem"><span class="sw" style="background:var(--project-iris)"></span> enh-208-vault <span class="meta">✱1</span></div>
+        <div class="ditem"><span class="sw" style="background:var(--project-pine)"></span> amazing-goodall <span class="meta">clean</span></div>
+      </div>
+      <div class="row" style="margin-top:1px"><span class="tw">▸</span> cli</div>
+      <div class="row"><span class="tw">▸</span> docs</div>
+    </div>
+    <div class="cap"><strong>Option A, open.</strong> Dropdown overlays the tree (no scrolling); active row is hue-filled + checked; main pinned top; each row shows dirty/ahead. Click a row → re-root + close.</div>
+  </div>
+
+  <div class="mock">
+    <div class="mnav">
+      <div class="navhdr">
+        <span class="wt-pill" style="background: var(--project-plum); color:#fff"><span class="sw" style="background:#fff"></span> youthful-chebyshev <span class="chev">▼</span></span>
+      </div>
+      <div class="ribbon"><span class="sw" style="background:var(--project-plum)"></span> ⎇ claude/youthful-chebyshev · ✱4</div>
+      <div class="row"><span class="tw">▸</span> cli</div>
+      <div class="row"><span class="tw">▸</span> docs</div>
+    </div>
+    <div class="cap"><strong>Option B — dedicated header pill (Finder-style solid).</strong> A standalone solid-hue pill above the ribbon is the always-visible active indicator + dropdown trigger; the ribbon keeps its current git-status job. More prominent, costs one row of height.</div>
+  </div>
+</div>
+
+<h2>Decisions</h2>
+
+<section class="decision-card">
+  <div class="q-title">Decision D4.1 · Active indicator + trigger</div>
+  <h3 class="q-prompt">Where does the active-checkout indicator live, and what opens the switcher?</h3>
+  <p class="q-context">Your note wants B (display/indicator) prominent. Trade-off: reuse the ribbon (no extra height, but mutates the locked git-ribbon design) vs a dedicated pill (more prominent, +1 row).</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d41" value="ribbon"><div class="q-option-body"><div class="q-option-title">A — Ribbon is the indicator + dropdown trigger <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">Hue-tint the existing ribbon + add a ▼; click opens the dropdown. No new chrome, but it changes the locked ribbon — needs your OK to evolve it.</div></div></label>
+    <label class="q-option"><input type="radio" name="d41" value="pill"><div class="q-option-body"><div class="q-option-title">B — Dedicated solid-hue header pill</div><div class="q-option-rationale">Most prominent active indicator (Finder-style solid), leaves the ribbon alone. Costs a row of vertical space above the tree.</div></div></label>
+    <label class="q-option"><input type="radio" name="d41" value="both"><div class="q-option-body"><div class="q-option-title">C — Pill indicator, but only when in a worktree</div><div class="q-option-rationale">Pill appears only for linked checkouts (main shows nothing); zero cost on the common main case, prominent when it matters.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d41" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision D4.2 · Dropdown row content</div>
+  <h3 class="q-prompt">What does each worktree row in the dropdown show?</h3>
+  <p class="q-context">The current section shows hue + branch + current flag. The dropdown can afford a bit more (dirty/ahead) since it's transient, not always-on.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d42" value="minimal"><div class="q-option-body"><div class="q-option-title">A — Hue + branch + current check (as shipped)</div><div class="q-option-rationale">Cheapest; no extra git calls. Matches what the bottom-of-tree list already computes.</div></div></label>
+    <label class="q-option"><input type="radio" name="d42" value="status"><div class="q-option-body"><div class="q-option-title">B — + dirty / ahead-behind chips per row <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">"✱4 ↑5" per row makes the dropdown a real at-a-glance status board. Costs one git status probe per worktree on open (acceptable for a transient menu).</div></div></label>
+    <label class="q-option"><input type="radio" name="d42" value="rich"><div class="q-option-body"><div class="q-option-title">C — + last-activity / claude-presence dot</div><div class="q-option-rationale">Also show which worktrees have a live Claude session. Most useful for parallel-agent work, most plumbing.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d42" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision D4.3 · Keyboard model</div>
+  <h3 class="q-prompt">How much keyboard support in v1?</h3>
+  <p class="q-context">Two existing patterns to mirror: WorkspaceSwitcher dropdown (click-only) or TabSearchPalette (↑↓/Enter/Esc/type-filter).</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d43" value="click"><div class="q-option-body"><div class="q-option-title">A — Click-only v1; keyboard as fast-follow <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">Ship the surface fast; matches WorkspaceSwitcher. Esc-to-close is the only key. Add ↑↓/type-filter later if it gets heavy use.</div></div></label>
+    <label class="q-option"><input type="radio" name="d43" value="full"><div class="q-option-body"><div class="q-option-title">B — Full keyboard from the start (↑↓/Enter/Esc + type-to-filter)</div><div class="q-option-rationale">Palette-grade. With 16 worktrees, type-to-filter is genuinely useful — but more to build + a CLI-parity story (a switch verb).</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d43" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision D4.4 · Keep the bottom-of-tree section too?</div>
+  <h3 class="q-prompt">Does the dropdown fully replace the bottom-of-tree list, or do both coexist?</h3>
+  <p class="q-context">You called the bottom list a scrolling problem. But some users like an always-visible list.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d44" value="replace"><div class="q-option-body"><div class="q-option-title">A — Dropdown replaces it entirely <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">One switch surface, no scrolling. Removes the shipped WorktreesSection. Cleanest; matches your note.</div></div></label>
+    <label class="q-option"><input type="radio" name="d44" value="coexist"><div class="q-option-body"><div class="q-option-title">B — Dropdown is primary; keep the list as a collapsible</div><div class="q-option-rationale">Section becomes a collapsed-by-default disclosure at the bottom for people who want it pinned open. More surface to maintain.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d44" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 4 decisions answered</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  var DECISIONS = [
+    { id: 'd41', title: 'D4.1 Active indicator + trigger' },
+    { id: 'd42', title: 'D4.2 Dropdown row content' },
+    { id: 'd43', title: 'D4.3 Keyboard model' },
+    { id: 'd44', title: 'D4.4 Replace bottom-of-tree section?' }
+  ];
+  function answered() { return DECISIONS.filter(function (d) { return document.querySelector('input[name="' + d.id + '"]:checked'); }).length; }
+  function refresh() { document.getElementById('answered-count').textContent = String(answered()); }
+  document.addEventListener('change', function (e) { if (e.target && e.target.type === 'radio') refresh(); });
+  function payload() {
+    var lines = ['Worktree D4 navigator study — decisions (docs/research/worktree-d4-study.html)', ''];
+    DECISIONS.forEach(function (d) {
+      var sel = document.querySelector('input[name="' + d.id + '"]:checked');
+      var n = document.querySelector('.q-notes[data-decision="' + d.id + '"]');
+      lines.push('[' + (sel ? sel.value.toUpperCase() : 'UNANSWERED') + '] ' + d.title);
+      if (n && n.value.trim()) lines.push('    ' + n.value.trim().replace(/\n/g, '\n    '));
+      lines.push('');
+    });
+    return lines.join('\n');
+  }
+  document.getElementById('copy-btn').addEventListener('click', function () {
+    var b = this;
+    navigator.clipboard.writeText(payload()).then(function () { b.classList.add('copied'); b.textContent = 'Copied ✓'; setTimeout(function () { b.classList.remove('copied'); b.textContent = 'Copy decisions'; }, 2000); });
+  });
+  refresh();
+})();
+</script>
+</body>
+</html>

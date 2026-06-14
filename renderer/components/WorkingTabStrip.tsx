@@ -17,6 +17,19 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MenuTemplateItem, WorkingTab, WorkingTabType } from '@shared/types'
 import { pathFromFileUrl } from './urlUtils'
+import { useWorktreeBadgesForDirs, type WorktreeBadge } from '../hooks/useWorktreeBadges'
+import { projectColorToken } from '../projectColors'
+
+/** ENH-210 (D1-part1) — the file directory a working tab belongs to, or
+ *  '' for tabs with no local path (http browser tabs). Reuses the same
+ *  `tab.path ?? pathFromFileUrl(tab.url)` resolution the strip already
+ *  uses for reveal/menu, so file:// browser tabs resolve too. */
+function dirOfWorkingTab(tab: WorkingTab): string {
+  const p = tab.path ?? pathFromFileUrl(tab.url)
+  if (!p) return ''
+  const i = p.lastIndexOf('/')
+  return i > 0 ? p.slice(0, i) : ''
+}
 
 interface WorkingTabStripProps {
   tabs: WorkingTab[]
@@ -117,6 +130,12 @@ export function WorkingTabStrip({
   // tab being hovered shows an accent-colored insertion cue. Cleared
   // on drop / dragend.
   const [dropTargetId, setDropTargetId] = useState<string | null>(null)
+
+  // ENH-210 (D1-part1) — per-checkout provenance: a file open from a
+  // linked worktree gets the same hue dot + ⎇ as its terminal tab, so
+  // the same file from two checkouts is no longer indistinguishable.
+  // Keyed by the tab's file dir; main-checkout / pathless tabs get none.
+  const worktreeBadges = useWorktreeBadgesForDirs(tabs.map(dirOfWorkingTab))
 
   // ENH-042 — zone-aware neighbor lookup for menu items + drag drop.
   const moveTabBy = (id: string, delta: -1 | 1) => {
@@ -342,6 +361,7 @@ export function WorkingTabStrip({
           <WorkingTabItem
             key={tab.id}
             tab={tab}
+            worktree={worktreeBadges.get(dirOfWorkingTab(tab))}
             onSelect={() => onSelect(tab.id)}
             onClose={(e) => {
               e.stopPropagation()
@@ -452,6 +472,8 @@ export function WorkingTabStrip({
 
 interface ItemProps {
   tab: WorkingTab
+  /** ENH-210 — present only when this tab's file is in a LINKED worktree. */
+  worktree?: WorktreeBadge
   onSelect: () => void
   onClose: (e: React.MouseEvent) => void
   onContextMenu: (e: React.MouseEvent) => void
@@ -471,6 +493,7 @@ interface ItemProps {
 
 function WorkingTabItem({
   tab,
+  worktree,
   onSelect,
   onClose,
   onContextMenu,
@@ -485,7 +508,10 @@ function WorkingTabItem({
   onDragEnd
 }: ItemProps) {
   const label = tabLabel(tab)
-  const tooltip = tab.path ?? tab.url ?? label
+  const baseTooltip = tab.path ?? tab.url ?? label
+  const tooltip = worktree
+    ? `Worktree of ${worktree.repoName || 'repo'} · ⎇ ${worktree.branch || 'detached'}\n${baseTooltip}`
+    : baseTooltip
   return (
     <button
       ref={buttonRef}
@@ -519,8 +545,31 @@ function WorkingTabItem({
           className="absolute left-0 right-0 top-0 h-0.5 bg-accent rounded-t-lg"
         />
       )}
+      {/* ENH-210 (D1-part1) — per-checkout hue dot: this file is open from
+          a linked worktree. Mirrors the terminal-tab treatment (D3-B hue
+          thread); main-checkout files have no badge. */}
+      {worktree && (
+        <span
+          aria-hidden="true"
+          className="shrink-0 w-[7px] h-[7px] rounded-sm"
+          style={{ backgroundColor: projectColorToken(worktree.colorIndex) }}
+        />
+      )}
       {tab.pinned ? <PinIcon active={tab.isActive} /> : <TypeIcon type={tab.type} active={tab.isActive} />}
       <span className="truncate leading-none not-italic">{label}</span>
+      {/* ENH-210 — ⎇ marker in the checkout's hue: the color-blind-safe
+          redundant carrier (color is never the only signal). Repo + branch
+          ride in the tooltip; the working strip stays lighter than the
+          terminal tab's full chip since file tabs are dense. */}
+      {worktree && (
+        <span
+          aria-hidden="true"
+          className="shrink-0 not-italic text-[11px] leading-none font-sans"
+          style={{ color: projectColorToken(worktree.colorIndex) }}
+        >
+          ⎇
+        </span>
+      )}
       {tab.dirty && (
         <span
           aria-label="Unsaved changes"

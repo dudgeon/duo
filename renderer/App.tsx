@@ -32,6 +32,8 @@ import { ThemeToggle } from './components/ThemeToggle'
 import { ClaudePresenceDot } from './components/ClaudePresenceDot'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useNavigator, computePendingCwd } from './hooks/useNavigator'
+import { useWorktreeBadgesForDirs } from './hooks/useWorktreeBadges'
+import { projectColorToken } from './projectColors'
 import { useUserClaudeNavigator } from './hooks/useUserClaudeNavigator'
 import { useFrontTerminalClaudeLive } from './hooks/useClaudePresence'
 import { useSendPillFlags } from './hooks/useSendPillFlags'
@@ -326,7 +328,12 @@ function findVisibleWorkingPaneCE(scope: 'main' | 'aux'): HTMLElement | null {
 
 export function App() {
   const home = window.electron.env.HOME || '~'
-  const nav = useNavigator(home)
+  // ENH-210 (D1-part2) — a window opened AT a worktree (`duo window new
+  // --cwd` / "open in new window") roots its navigator there. The explicit
+  // open-at (forceInitial) wins over any stale per-window localStorage cwd
+  // (window ids are reused across restarts); normal windows stay LS-first.
+  const openAtCwd = window.electron.env.initialCwd
+  const nav = useNavigator(openAtCwd || home, !!openAtCwd)
   // Stage 22 — separate navigator state for the top "Your Claude
   // settings" pane (rooted at ~/.claude/). Lives at App level so its
   // expanded set + show-all toggle persist across re-mounts.
@@ -336,6 +343,12 @@ export function App() {
   // renders the section when pins.length > 0.
   const navPins = useNavPins()
   const pendingCwd = computePendingCwd(nav.state)
+  // ENH-210 (D1-part2 Thread B) — titlebar worktree chip, driven by the
+  // navigator cwd (owner pick). Present only for LINKED worktrees; main /
+  // non-repo cwds get nothing (main stays uncolored, locked). Its glance
+  // value is cross-window: which window is which when several worktree
+  // windows are open. Reuses the same dir-keyed badge data as the tabs.
+  const navWorktree = useWorktreeBadgesForDirs([nav.state.cwd]).get(nav.state.cwd)
   const theme = useTheme()
   // Stage 15 G19 — sets up the localStorage round-trip for `duo
   // selection-format`. The hook's return value isn't consumed yet
@@ -4245,6 +4258,24 @@ export function App() {
             {activeWorkspace ? activeWorkspace.name : 'Workspaces'}
             {workspacePillMenuEnabled && <span className="ml-1 text-zinc-400">▾</span>}
           </button>
+          {/* ENH-210 (D1-part2 Thread B) — worktree chip, linked-only
+              (main blank, locked). Tracks the navigator cwd's checkout;
+              its job is telling worktree windows apart at a glance. */}
+          {navWorktree && (
+            <span
+              className="titlebar-nodrag ml-1 inline-flex items-center gap-1 shrink min-w-0 max-w-[180px] text-[11px] rounded-full px-2 py-0.5 border"
+              style={{
+                backgroundColor: `color-mix(in srgb, ${projectColorToken(navWorktree.colorIndex)} 12%, transparent)`,
+                borderColor: `color-mix(in srgb, ${projectColorToken(navWorktree.colorIndex)} 32%, transparent)`
+              }}
+              title={`Worktree of ${navWorktree.repoName || 'repo'} · ⎇ ${navWorktree.branch || 'detached'}`}
+            >
+              <span className="shrink-0 w-[7px] h-[7px] rounded-sm" style={{ backgroundColor: projectColorToken(navWorktree.colorIndex) }} aria-hidden="true" />
+              <span className="font-medium shrink-0" style={{ color: projectColorToken(navWorktree.colorIndex) }}>{navWorktree.repoName || 'repo'}</span>
+              <span className="text-zinc-500 shrink-0" aria-hidden="true">⎇</span>
+              <span className="truncate font-mono text-zinc-500">{navWorktree.branch || 'detached'}</span>
+            </span>
+          )}
         </div>
         {workspacePillMenuEnabled && (
           <WorkspaceSwitcherDropdown

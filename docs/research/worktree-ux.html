@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>Worktree-aware Duo — UX decisions</title>
+<style>
+/* duo-atelier.css — canonical Atelier kernel for Duo HTML playgrounds. */
+
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+
+  --project-pine:   #2E7D74;
+  --project-harbor: #3C6E93;
+  --project-iris:   #5B57A6;
+  --project-plum:   #87508F;
+  --project-rose:   #A4506A;
+  --project-moss:   #69763A;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+body {
+  padding: 32px 40px 96px;
+  max-width: 920px;
+  margin: 0 auto;
+}
+
+header.page-head {
+  border-bottom: 1px solid var(--paper-rule);
+  padding-bottom: 16px;
+  margin-bottom: 24px;
+}
+header.page-head h1 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-style: italic;
+  font-weight: 500;
+  margin: 0 0 4px;
+  font-size: 24px;
+}
+header.page-head .meta {
+  color: var(--ink-mute);
+  font-size: 13px;
+}
+header.page-head .meta .pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-right: 6px;
+}
+
+.intro {
+  background: var(--paper-deep);
+  border: 1px solid var(--paper-rule);
+  border-radius: 6px;
+  padding: 14px 18px;
+  margin-bottom: 28px;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+}
+.intro strong { color: var(--ink); font-weight: 600; }
+
+h2 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 600;
+  margin: 36px 0 12px;
+  font-size: 19px;
+  border-bottom: 1px solid var(--paper-rule);
+  padding-bottom: 6px;
+}
+h3 {
+  font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+  font-weight: 600;
+  margin: 22px 0 8px;
+  font-size: 15px;
+}
+h4 { margin: 16px 0 6px; font-size: 13.5px; }
+
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12.5px;
+  background: var(--paper-deep);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+pre {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  padding: 14px 16px;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+
+.decision-card {
+  background: var(--paper-deep);
+  border: 1.5px solid var(--paper-rule);
+  border-radius: 6px;
+  padding: 16px 18px;
+  margin: 18px 0;
+}
+.decision-card .q-title {
+  font-weight: 700;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  margin: 0 0 6px;
+}
+.decision-card .q-prompt {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 500;
+  font-size: 17px;
+  color: var(--ink);
+  margin: 0 0 12px;
+  line-height: 1.35;
+}
+.decision-card .q-context {
+  font-size: 13px;
+  color: var(--ink-mute);
+  margin: 0 0 14px;
+}
+
+.q-options {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+.q-option {
+  display: block;
+  background: var(--paper);
+  border: 1.5px solid var(--paper-rule);
+  border-radius: 5px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] {
+  margin-right: 8px;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+.q-option:has(input[type="radio"]:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--paper));
+}
+.q-option-body {
+  display: inline-block;
+  vertical-align: top;
+  width: calc(100% - 22px);
+}
+.q-option-title {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--ink);
+  margin: 0 0 3px;
+}
+.q-option-title .recommend-tag {
+  font-size: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 6px;
+}
+.q-option-rationale {
+  font-size: 12px;
+  color: var(--ink-soft);
+  line-height: 1.45;
+  margin: 3px 0 0;
+}
+
+.q-notes {
+  width: 100%;
+  background: var(--paper);
+  border: 1px solid var(--paper-rule);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--ink);
+  resize: vertical;
+  min-height: 50px;
+}
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+
+details.deferred {
+  margin: 22px 0;
+  padding: 12px 16px;
+  background: var(--paper-deep);
+  border: 1px dashed var(--paper-rule);
+  border-radius: 6px;
+}
+details.deferred summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--ink-soft);
+  font-size: 13.5px;
+}
+details.deferred[open] summary { color: var(--ink); }
+details.deferred .deferred-body {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.copy-bar {
+  position: sticky;
+  bottom: 0;
+  margin: 32px -40px -96px;
+  padding: 16px 40px;
+  background: color-mix(in srgb, var(--paper-deep) 96%, transparent);
+  border-top: 1.5px solid var(--paper-rule);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 9px 18px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* ============================================================
+   Per-playground styles — UI mockup components
+   ============================================================ */
+
+.mock {
+  background: var(--paper);
+  border: 1px solid var(--paper-edge);
+  border-radius: 6px;
+  padding: 12px 12px 8px;
+  margin: 10px 0 16px;
+  box-shadow: 0 1px 3px rgba(43,38,32,0.07);
+  overflow-x: auto;
+}
+.mock-caption {
+  font-size: 11.5px;
+  color: var(--ink-mute);
+  margin: 8px 2px 2px;
+}
+.mock-caption strong { color: var(--ink-soft); }
+.mock-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin: 10px 0 16px;
+}
+.mock-grid .mock { margin: 0; }
+@media (max-width: 760px) { .mock-grid { grid-template-columns: 1fr; } }
+
+/* — terminal tab strip mock — */
+.mts {
+  display: flex;
+  align-items: stretch;
+  height: 34px;
+  background: var(--paper-deep);
+  border: 1px solid var(--paper-edge);
+  border-radius: 5px 5px 0 0;
+  padding: 3px 4px 0;
+  gap: 2px;
+  min-width: 0;
+  white-space: nowrap;
+}
+.mtab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px 0 10px;
+  font-size: 12px;
+  color: var(--ink-mute);
+  border-radius: 4px 4px 0 0;
+  flex: 0 0 auto;
+}
+.mtab.active {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-style: italic;
+  box-shadow: inset 1px 0 0 var(--paper-rule), inset -1px 0 0 var(--paper-rule);
+}
+.mtab.active::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 2px 2px 0 0;
+}
+.mtab .glyph { font-style: normal; font-size: 11px; color: var(--ink-ghost); }
+.mtab.active .glyph { color: var(--accent); }
+.mtab .wt-dot {
+  width: 7px; height: 7px;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+.mtab .branch-chip {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-style: normal;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--paper-deep);
+  border: 1px solid var(--paper-rule);
+  color: var(--ink-mute);
+}
+.mtab .dirty-tick { font-style: normal; font-size: 10px; color: var(--warn); }
+.mts .group-rule {
+  width: 1px;
+  margin: 4px 5px 1px;
+  background: var(--paper-rule);
+  flex: 0 0 auto;
+}
+.mts .group-label {
+  display: flex;
+  align-items: center;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-ghost);
+  padding: 0 4px;
+  flex: 0 0 auto;
+}
+
+/* — navigator pane mock — */
+.mnav {
+  width: 250px;
+  background: var(--paper);
+  border: 1px solid var(--paper-edge);
+  border-radius: 5px;
+  font-size: 12px;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.mnav .nav-ribbon {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 10.5px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  background: var(--paper-deep);
+  border-bottom: 1px solid var(--paper-edge);
+  color: var(--ink-soft);
+}
+.mnav .nav-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3.5px 10px;
+  color: var(--ink-soft);
+}
+.mnav .nav-row .tw { color: var(--ink-ghost); width: 10px; text-align: center; flex: 0 0 auto; }
+.mnav .nav-row.sel { background: var(--accent-soft); color: var(--ink); }
+.mnav .nav-row.depth1 { padding-left: 26px; }
+.mnav .nav-section {
+  padding: 6px 10px 3px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-ghost);
+  border-top: 1px solid var(--paper-edge);
+  margin-top: 4px;
+}
+.mnav .nav-row .meta-right {
+  margin-left: auto;
+  font-size: 10px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  color: var(--ink-ghost);
+}
+.mnav-row-flex { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+
+/* — window diagram mock (D6) — */
+.mwin-row { display: flex; gap: 16px; flex-wrap: wrap; margin: 10px 0; }
+.mwin {
+  flex: 1 1 240px;
+  border: 1.5px solid var(--paper-rule);
+  border-radius: 8px;
+  background: var(--paper);
+  overflow: hidden;
+  min-width: 220px;
+}
+.mwin .titlebar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: var(--paper-deep);
+  border-bottom: 1px solid var(--paper-edge);
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+.mwin .titlebar .dots { display: flex; gap: 4px; }
+.mwin .titlebar .dots i {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--paper-rule); display: block;
+}
+.mwin .winbody {
+  display: flex;
+  height: 84px;
+}
+.mwin .winbody .col {
+  flex: 1;
+  border-right: 1px dashed var(--paper-edge);
+  padding: 6px 8px;
+  font-size: 10px;
+  color: var(--ink-ghost);
+}
+.mwin .winbody .col:last-child { border-right: none; }
+
+/* shared swatches */
+.sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
+
+table.facts {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12.5px;
+  margin: 10px 0 16px;
+}
+table.facts th, table.facts td {
+  border: 1px solid var(--paper-rule);
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+table.facts th { background: var(--paper-deep); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); }
+
+/* — build-status tags (ENH-210 v1 implemented) — */
+.build-tag {
+  font-size: 10px;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 6px;
+  background: var(--pass);
+  color: #fff;
+}
+.build-tag.partial { background: var(--warn); }
+.build-note {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--pass);
+  background: color-mix(in srgb, var(--pass) 7%, var(--paper));
+  border-radius: 0 4px 4px 0;
+}
+.build-note.partial { border-left-color: var(--warn); background: color-mix(in srgb, var(--warn) 9%, var(--paper)); }
+.build-note strong { color: var(--ink); }
+.status-banner {
+  background: color-mix(in srgb, var(--pass) 9%, var(--paper-deep));
+  border: 1.5px solid color-mix(in srgb, var(--pass) 35%, var(--paper-rule));
+  border-radius: 6px;
+  padding: 14px 18px;
+  margin: 0 0 24px;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+}
+.status-banner strong { color: var(--ink); }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Worktree-aware Duo — UX decisions</h1>
+  <div class="meta">
+    <span class="pill">v1 implemented — confirm</span>
+    <span class="pill">ENH-210</span>
+    2026-06-14 · the recommended picks are pre-selected + built; confirm or change each
+  </div>
+</header>
+
+<div class="status-banner">
+  <strong>v1 is built per the picks pre-selected below</strong> (owner gave an explicit
+  "implement worktrees" directive, 2026-06-10). Each decision shows a build-status tag:
+  <span class="build-tag">Built</span> = shipped as-is · <span class="build-tag partial">Partial</span> =
+  direction taken, part deferred. <strong>Your job:</strong> leave a card as-is to <em>confirm</em>
+  the pick, or change the radio to <em>adjust</em> it (add a note saying what to change). Then hit
+  <strong>Copy decisions</strong> and paste back. Live-verified on this worktree's dev build.
+</div>
+
+<div class="intro">
+  <strong>What this is.</strong> Git worktrees are how agents work in parallel — Claude Code
+  spawns them under <code>.claude/worktrees/&lt;codename&gt;</code>, and users make their own with
+  <code>git worktree add</code>. Duo currently has <em>zero</em> worktree awareness: an agent in a
+  worktree shows up as <code>claude · youthful-chebyshev-885712</code> and the navigator keeps
+  showing the main checkout. This playground decides which surfaces become worktree-aware and
+  mocks up the visual options. Pick a radio per decision, add notes, hit <strong>Copy decisions</strong>,
+  paste back to Claude.
+</div>
+
+<h2>The problem in one picture</h2>
+
+<p>Today, with two agents in flight (one on main, one in a worktree), the terminal strip and
+navigator look like this:</p>
+
+<div class="mock">
+  <div class="mts">
+    <div class="mtab"><span class="glyph">❯</span> duo</div>
+    <div class="mtab"><span class="glyph">✳</span> claude · duo</div>
+    <div class="mtab active"><span class="glyph">✳</span> claude · youthful-chebyshev-885712</div>
+  </div>
+  <div class="mock-caption"><strong>Current state.</strong> The worktree tab title is the random
+  codename folder. Nothing says "this is a worktree of duo", which branch it's on, or that the
+  other claude tab is the same repo's main checkout.</div>
+</div>
+
+<p>Three distinct failures hide in there:</p>
+<ul>
+  <li><strong>Identity</strong> — the codename basename carries no meaning. Which agent is doing what?</li>
+  <li><strong>Differentiation</strong> — main vs. worktree is invisible. Two <code>claude · duo</code> tabs could be different checkouts of the same repo.</li>
+  <li><strong>File access</strong> — the navigator stays rooted at the main checkout, so the files the worktree agent is actually editing are nowhere on screen.</li>
+</ul>
+
+<h2>What already exists (grounding)</h2>
+
+<table class="facts">
+  <tr><th>Surface</th><th>Current behavior</th><th>Relevant plumbing</th></tr>
+  <tr>
+    <td>Terminal tab</td>
+    <td>Title = <code>claude · {cwd basename}</code>, set at spawn (<code>TabBar.tsx</code>). No git info.</td>
+    <td>Live cwd already polled every 5s via lsof (<code>App.tsx</code>), so a tab's <em>real</em> cwd is known.</td>
+  </tr>
+  <tr>
+    <td>Navigator</td>
+    <td>Single root per window; git ribbon shows branch + dirty count <em>of the navigator root only</em>.</td>
+    <td><code>git.status(cwd)</code> already returns <code>{branch, dirty, ahead, behind, workTreeRoot}</code> — the exact fields a worktree UI needs.</td>
+  </tr>
+  <tr>
+    <td>Color system</td>
+    <td>Six-hue project palette (pine/harbor/iris/plum/rose/moss) locked for project-coded UI; hash-stable per root.</td>
+    <td>Reusable as-is for per-checkout hues.</td>
+  </tr>
+  <tr>
+    <td>Windows</td>
+    <td>Multi-window shipped (ENH-191); <code>duo --window N</code> addressing; per-window navigator + session state.</td>
+    <td>A worktree-per-window mapping is mechanically possible today.</td>
+  </tr>
+  <tr>
+    <td>CLI</td>
+    <td>No <code>worktree</code> verb; <code>duo status</code> / <code>duo nav state</code> don't report checkout identity.</td>
+    <td><code>git worktree list --porcelain</code> gives the full sibling map cheaply, read live (no sidecar — rule 12).</td>
+  </tr>
+</table>
+
+<p><strong>One nuance that shapes everything below:</strong> for Claude-managed worktrees, the
+<em>branch</em> is also a codename (<code>claude/youthful-chebyshev-885712</code>). Showing the branch
+instead of the folder fixes human-made worktrees (<code>fix-auth-flow</code>) but not agent-made ones.
+The only truly meaningful identity for an agent worktree is <em>what the agent is working on</em> —
+which suggests label support, not just better git-string plumbing.</p>
+
+<!-- ============================================================ -->
+<h2>Decisions</h2>
+
+<section class="decision-card">
+  <div class="q-title">Decision 1 · Scope</div>
+  <h3 class="q-prompt">Which surfaces become worktree-aware in v1?</h3>
+  <p class="q-context">This sets the sprint's blast radius. Terminal-only is a badge change;
+  adding the navigator changes root-switching behavior; "all surfaces" adds provenance badges to
+  working-pane tabs (the same file open from two checkouts looks identical today) and window
+  affordances. Later decisions detail each surface — this one decides what ships first.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d1" value="terminal-only">
+      <div class="q-option-body">
+        <div class="q-option-title">A — Terminal tabs only</div>
+        <div class="q-option-rationale">Smallest slice: identity + differentiation on the tab strip. The navigator stays blind, so "show me what the agent edited" stays manual.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d1" value="terminal-plus-navigator" checked>
+      <div class="q-option-body">
+        <div class="q-option-title">B — Terminal + navigator <span class="recommend-tag">Recommended</span> <span class="build-tag">Built</span></div>
+        <div class="q-option-rationale">Covers the two real failures: "which agent is where" (tabs) and "let me see its files" (navigator). Browser/canvas provenance defers cleanly.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d1" value="all-surfaces">
+      <div class="q-option-body">
+        <div class="q-option-title">C — All surfaces (terminal + navigator + working-pane badges + window affordances)</div>
+        <div class="q-option-rationale">Complete but a multi-sprint commitment; working-pane provenance and window mapping each carry their own design questions (D6).</div>
+      </div>
+    </label>
+  </div>
+  <p class="build-note"><strong>Built:</strong> both the terminal tab badge and the navigator Worktrees section shipped. Working-pane provenance badges (the "all surfaces" option C) stay deferred.</p>
+  <textarea class="q-notes" data-decision="d1" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 2 · Tab identity</div>
+  <h3 class="q-prompt">What should a worktree terminal tab's title say?</h3>
+  <p class="q-context">Today: cwd basename. The candidates below differ in what they treat as the
+  tab's "name". Remember the nuance above — for agent-made worktrees the branch is a codename too,
+  so option D adds a human-editable label on top of whichever git-string default you pick.</p>
+
+  <div class="mock">
+    <div class="mts">
+      <div class="mtab active"><span class="glyph">✳</span> claude · youthful-chebyshev-885712</div>
+    </div>
+    <div class="mock-caption"><strong>Current.</strong> Folder basename — meaningless codename.</div>
+  </div>
+  <div class="mock">
+    <div class="mts">
+      <div class="mtab active"><span class="glyph">✳</span> claude · ⎇ fix-auth-flow</div>
+    </div>
+    <div class="mock-caption"><strong>Option A — branch replaces basename.</strong> Great for human-made worktrees; for agent worktrees the branch is <code>claude/youthful-chebyshev-885712</code>, so it degrades to the same codename (Duo would strip the <code>claude/</code> prefix).</div>
+  </div>
+  <div class="mock">
+    <div class="mts">
+      <div class="mtab active"><span class="glyph">✳</span> claude · duo <span class="branch-chip">⎇ fix-auth-flow</span></div>
+    </div>
+    <div class="mock-caption"><strong>Option B — repo name + branch chip.</strong> Anchors identity to the repo ("this is duo"), branch rides along as a chip. Widest tab; chip truncates on overflow.</div>
+  </div>
+  <div class="mock">
+    <div class="mts">
+      <div class="mtab active"><span class="glyph">✳</span> claude · auth refactor <span class="branch-chip">⎇</span></div>
+    </div>
+    <div class="mock-caption"><strong>Option D — editable label.</strong> Double-click (or <code>duo tab label</code>) renames the tab; default is option B's string until renamed. The agent itself could set its label from its task ("auth refactor"). Glyph keeps the worktree marker.</div>
+  </div>
+
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d2" value="branch-replaces-basename">
+      <div class="q-option-body">
+        <div class="q-option-title">A — Branch name replaces folder basename</div>
+        <div class="q-option-rationale">Cheapest; right answer for human-made worktrees, no better than today for agent codenames.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d2" value="repo-plus-branch-chip">
+      <div class="q-option-body">
+        <div class="q-option-title">B — Repo name + branch chip</div>
+        <div class="q-option-rationale">Both facts visible; consistent with the navigator ribbon's existing chip language.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d2" value="editable-label-over-b" checked>
+      <div class="q-option-body">
+        <div class="q-option-title">D — Editable label, defaulting to B <span class="recommend-tag">Recommended</span> <span class="build-tag partial">Partial</span></div>
+        <div class="q-option-rationale">The only option that fixes agent-codename worktrees. Agents can self-label via a CLI verb (UI/CLI parity for free); humans double-click.</div>
+      </div>
+    </label>
+  </div>
+  <p class="build-note partial"><strong>Partial:</strong> v1 ships the <em>default</em> identity — the <code>⎇</code> marker + a "Worktree of <em>repo</em> · ⎇<em>branch</em>" tooltip (the B-string). The <em>editable rename</em> (double-click / agent self-label CLI) is DEFERRED. Tab text still shows the cwd basename; the badge carries the repo+branch. Change the radio to B if you want to drop the editable-label plan entirely, or note if the rename should be prioritized.</p>
+  <textarea class="q-notes" data-decision="d2" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 3 · Differentiation signal</div>
+  <h3 class="q-prompt">How does main vs. worktree read at a glance across the whole strip?</h3>
+  <p class="q-context">D2 is about one tab's text; this is the system-level signal when several
+  tabs are open. Per the locked palette rules, color is reinforcement, never the only signal —
+  every option keeps a glyph or label as the primary carrier.</p>
+
+  <div class="mock">
+    <div class="mts">
+      <div class="mtab"><span class="glyph">❯</span> duo</div>
+      <div class="mtab"><span class="glyph">✳</span> claude · duo</div>
+      <div class="mtab active"><span class="glyph">✳</span> ⎇ claude · auth refactor</div>
+      <div class="mtab"><span class="glyph">✳</span> ⎇ claude · nav redesign</div>
+    </div>
+    <div class="mock-caption"><strong>Option A — glyph only.</strong> Worktree tabs carry ⎇; main checkout tabs are unmarked. Quietest; two worktrees of the same repo are not distinguishable from each other without reading labels.</div>
+  </div>
+
+  <div class="mock">
+    <div class="mts">
+      <div class="mtab"><span class="glyph">❯</span> duo</div>
+      <div class="mtab"><span class="glyph">✳</span> claude · duo</div>
+      <div class="mtab active"><span class="wt-dot" style="background: var(--project-harbor)"></span><span class="glyph">✳</span> claude · auth refactor</div>
+      <div class="mtab"><span class="wt-dot" style="background: var(--project-plum)"></span><span class="glyph">✳</span> claude · nav redesign</div>
+    </div>
+    <div class="mock-caption"><strong>Option B — hue per checkout.</strong> Each non-main checkout gets a hash-stable hue from the project palette (<span class="sw" style="background: var(--project-harbor)"></span>harbor, <span class="sw" style="background: var(--project-plum)"></span>plum...) shown as the existing project-dot square. Main stays undotted. The same hue can tint that checkout's navigator ribbon (D4) — one color thread through the whole app.</div>
+  </div>
+
+  <div class="mock">
+    <div class="mts">
+      <div class="group-label">duo</div>
+      <div class="mtab"><span class="glyph">❯</span> shell</div>
+      <div class="mtab"><span class="glyph">✳</span> claude</div>
+      <div class="group-rule"></div>
+      <div class="group-label">⎇ auth</div>
+      <div class="mtab active"><span class="glyph">✳</span> claude</div>
+      <div class="group-rule"></div>
+      <div class="group-label">⎇ nav</div>
+      <div class="mtab"><span class="glyph">✳</span> claude</div>
+    </div>
+    <div class="mock-caption"><strong>Option C — grouped strip.</strong> Tabs cluster under checkout headers with rules between groups. Strongest structure, but eats horizontal space, fights drag-reorder, and imposes grouping even when the user thinks in tasks, not checkouts.</div>
+  </div>
+
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d3" value="glyph-only">
+      <div class="q-option-body">
+        <div class="q-option-title">A — Glyph only (⎇ on worktree tabs)</div>
+        <div class="q-option-rationale">Minimal, zero new color semantics. Weak when multiple worktrees are open.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d3" value="hue-per-checkout" checked>
+      <div class="q-option-body">
+        <div class="q-option-title">B — Hue per checkout (project-palette dot + matching navigator tint) <span class="recommend-tag">Recommended</span> <span class="build-tag">Built</span></div>
+        <div class="q-option-rationale">Reuses the locked palette and the existing project-dot vocabulary; the hue thread connects tab ↔ navigator ↔ (later) working-pane badges.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d3" value="grouped-strip">
+      <div class="q-option-body">
+        <div class="q-option-title">C — Grouped tab strip with checkout headers</div>
+        <div class="q-option-rationale">Most legible at 5+ tabs, most invasive to the existing strip (reorder, overflow, focus-wash all need rework).</div>
+      </div>
+    </label>
+  </div>
+  <p class="build-note"><strong>Built + verified:</strong> hash-stable hue per checkout (the locked six-hue project palette) shows as a dot on the worktree's terminal tab AND on its navigator Worktrees row — the same checkout reads the same color in both places (verified: <code>enh-208-vault</code> = iris in both). Main checkout stays unmarked.</p>
+  <textarea class="q-notes" data-decision="d3" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 4 · Navigator</div>
+  <h3 class="q-prompt">What does the navigator do when the active terminal is in a worktree?</h3>
+  <p class="q-context">This is the file-access failure. Today the user must right-click → "Reveal
+  in navigator" and the tree jumps wholesale. The pinned mode (ENH-010) already exists as a
+  "don't move my tree" override — any auto behavior must respect it.</p>
+
+  <div class="mnav-row-flex">
+    <div>
+      <div class="mnav">
+        <div class="nav-ribbon">⎇ main · ✱2</div>
+        <div class="nav-row"><span class="tw">▸</span> cli</div>
+        <div class="nav-row"><span class="tw">▸</span> docs</div>
+        <div class="nav-row"><span class="tw">▸</span> electron</div>
+        <div class="nav-row"><span class="tw">▸</span> renderer</div>
+        <div class="nav-row"><span class="tw">·</span> tasks.md</div>
+      </div>
+      <div class="mock-caption"><strong>A — status quo.</strong> Tree stays on main even while the active agent edits a worktree. Manual reveal only.</div>
+    </div>
+    <div>
+      <div class="mnav" style="border-top: 2px solid var(--project-harbor)">
+        <div class="nav-ribbon" style="background: color-mix(in srgb, var(--project-harbor) 14%, var(--paper-deep))"><span class="sw" style="background: var(--project-harbor); margin:0"></span> ⎇ fix-auth-flow · ✱3</div>
+        <div class="nav-row"><span class="tw">▸</span> cli</div>
+        <div class="nav-row sel"><span class="tw">▾</span> electron</div>
+        <div class="nav-row depth1"><span class="tw">·</span> auth-bridge.ts <span class="meta-right">M</span></div>
+        <div class="nav-row depth1"><span class="tw">·</span> socket-server.ts <span class="meta-right">M</span></div>
+        <div class="nav-row"><span class="tw">▸</span> renderer</div>
+      </div>
+      <div class="mock-caption"><strong>B — follow the active terminal.</strong> Selecting a worktree tab re-roots the tree to that checkout; the ribbon takes the checkout's hue (D3-B thread). Pin = opt out. The tree always shows what the agent sees.</div>
+    </div>
+    <div>
+      <div class="mnav">
+        <div class="nav-ribbon">⎇ main · ✱2</div>
+        <div class="nav-row"><span class="tw">▸</span> docs</div>
+        <div class="nav-row"><span class="tw">▸</span> renderer</div>
+        <div class="nav-row"><span class="tw">·</span> tasks.md</div>
+        <div class="nav-section">Worktrees · 2</div>
+        <div class="nav-row"><span class="sw" style="background: var(--project-harbor); margin:0"></span> auth refactor <span class="meta-right">✱3 ↑2</span></div>
+        <div class="nav-row"><span class="sw" style="background: var(--project-plum); margin:0"></span> nav redesign <span class="meta-right">✱1</span></div>
+      </div>
+      <div class="mock-caption"><strong>C — worktrees section.</strong> Tree stays put; a section below lists the repo's worktrees (live from <code>git worktree list</code>) with dirty/ahead chips. Click one → tree re-roots there. Explicit, no surprise jumps.</div>
+    </div>
+  </div>
+
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d4" value="status-quo">
+      <div class="q-option-body">
+        <div class="q-option-title">A — Status quo (manual reveal only)</div>
+        <div class="q-option-rationale">No work, but leaves the worst failure unfixed.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d4" value="follow-active-terminal">
+      <div class="q-option-body">
+        <div class="q-option-title">B — Follow the active terminal's checkout (pin to opt out)</div>
+        <div class="q-option-rationale">Directly answers "show me what the agent is doing", reusing the live-cwd poll. Risk: tree jumps on every tab switch can feel twitchy; pinned mode is the escape hatch.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d4" value="worktrees-section" checked>
+      <div class="q-option-body">
+        <div class="q-option-title">C — Worktrees section in the tree (click to switch) <span class="recommend-tag">Recommended</span> <span class="build-tag">Built</span></div>
+        <div class="q-option-rationale">Additive and predictable; makes worktrees <em>visible as a concept</em> (with dirty/ahead status) rather than a behavior. B can layer on later as an opt-in toggle.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d4" value="b-plus-c">
+      <div class="q-option-body">
+        <div class="q-option-title">B + C together</div>
+        <div class="q-option-rationale">Section for visibility, follow for flow. More to build and two behaviors to verify, but they don't conflict.</div>
+      </div>
+    </label>
+  </div>
+  <p class="build-note"><strong>Built + verified:</strong> a "Worktrees · N" section renders below the tree whenever the repo has &gt;1 worktree — main first (git-branch glyph), linked checkouts in their hue, current flagged + non-clickable; clicking a row re-roots the navigator. Follow-active-terminal auto-reroot (option B) stays deferred as a layerable toggle. Dirty/ahead chips per row also deferred.</p>
+  <textarea class="q-notes" data-decision="d4" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 5 · Lifecycle &amp; CLI</div>
+  <h3 class="q-prompt">Does Duo manage worktrees, or just display them?</h3>
+  <p class="q-context">Everything above is read-only awareness. The next rung is verbs: the agent
+  (and the user via UI — parity rule 4) creating, listing, and cleaning up worktrees through Duo.
+  Claude Code already creates its own worktrees, so creation may be redundant; cleanup and
+  "spawn me a parallel agent over there" are the genuinely new powers.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d5" value="detect-only">
+      <div class="q-option-body">
+        <div class="q-option-title">A — Detect-only</div>
+        <div class="q-option-rationale">All display, no verbs. Agents stay self-sufficient via raw git; Duo just shows the truth.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d5" value="read-verbs" checked>
+      <div class="q-option-body">
+        <div class="q-option-title">B — Read verbs: <code>duo worktree list</code> + checkout fields in <code>duo status</code> / <code>duo nav state</code> <span class="recommend-tag">Recommended</span> <span class="build-tag partial">Partial</span></div>
+        <div class="q-option-rationale">Cheap and high-leverage: agents become worktree-aware too (an agent can see it's in a worktree and say so). All reads live from git — no sidecar state (rule 12).</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d5" value="full-lifecycle">
+      <div class="q-option-body">
+        <div class="q-option-title">C — Full lifecycle: B + <code>duo worktree new/remove</code> + a "New Claude session in worktree…" split-button item</div>
+        <div class="q-option-rationale">The "dispatch a parallel agent" gesture in one click. Largest scope; remove needs a destructive-op guard, and new overlaps with what Claude Code already does itself.</div>
+      </div>
+    </label>
+  </div>
+  <p class="build-note partial"><strong>Partial:</strong> <code>duo worktree [list]</code> shipped + 4-surface-documented (client-side git read, sandbox-tolerant). <code>getGitStatus</code> now carries <code>isLinkedWorktree</code>/<code>mainWorktreeRoot</code>/<code>repoName</code>, but those fields are NOT yet surfaced in the <code>duo status</code> / <code>duo nav state</code> JSON output — small follow-on. Note here if you want that wired before cut.</p>
+  <textarea class="q-notes" data-decision="d5" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 6 · Windows</div>
+  <h3 class="q-prompt">Should worktrees map to windows (ENH-191), or stay as tabs in one window?</h3>
+  <p class="q-context">Multi-window shipped with a blank-second-window philosophy. A
+  worktree-per-window discipline gives total isolation (own navigator, own browser, own terminals
+  per checkout) at the cost of window sprawl and weaker cross-checkout glanceability.</p>
+
+  <div class="mwin-row">
+    <div class="mwin">
+      <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span> duo — main + 2 worktrees</div>
+      <div class="winbody">
+        <div class="col">navigator<br>(main + worktree section)</div>
+        <div class="col">canvas</div>
+        <div class="col">terminals<br><span class="sw" style="background: var(--project-harbor)"></span>auth · <span class="sw" style="background: var(--project-plum)"></span>nav · main</div>
+      </div>
+    </div>
+  </div>
+  <div class="mock-caption" style="margin-top:-4px"><strong>One window, many checkouts</strong> — D3/D4 carry the differentiation load.</div>
+
+  <div class="mwin-row">
+    <div class="mwin">
+      <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span> duo — main</div>
+      <div class="winbody">
+        <div class="col">navigator (main)</div>
+        <div class="col">canvas</div>
+        <div class="col">terminals (main)</div>
+      </div>
+    </div>
+    <div class="mwin" style="border-color: var(--project-harbor)">
+      <div class="titlebar" style="background: color-mix(in srgb, var(--project-harbor) 12%, var(--paper-deep))"><span class="dots"><i></i><i></i><i></i></span> duo ⎇ auth refactor</div>
+      <div class="winbody">
+        <div class="col">navigator (worktree)</div>
+        <div class="col">canvas</div>
+        <div class="col">terminals (worktree)</div>
+      </div>
+    </div>
+  </div>
+  <div class="mock-caption" style="margin-top:-4px"><strong>Window per worktree</strong> — each checkout is a full workspace; title bar carries the hue + branch.</div>
+
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d6" value="no-mapping" checked>
+      <div class="q-option-body">
+        <div class="q-option-title">A — No mapping; tabs in one window <span class="recommend-tag">Recommended</span> <span class="build-tag">Built</span></div>
+        <div class="q-option-rationale">For v1: D2–D4 already solve identity/differentiation/files. Nothing stops a user from manually opening a window at a worktree today.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d6" value="open-in-window-affordance">
+      <div class="q-option-body">
+        <div class="q-option-title">B — Add an "Open worktree in new window" affordance (context menu + <code>duo window new --cwd &lt;path&gt;</code>)</div>
+        <div class="q-option-rationale">Small bridge: keeps one-window default but makes promotion one gesture. Needs window-title + hue treatment so the second window self-identifies.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d6" value="window-per-worktree">
+      <div class="q-option-body">
+        <div class="q-option-title">C — Window-per-worktree as the encouraged discipline</div>
+        <div class="q-option-rationale">Cleanest isolation, but contradicts the shipped blank-window philosophy and multiplies screen real estate per agent.</div>
+      </div>
+    </label>
+  </div>
+  <p class="build-note"><strong>Built (by omission):</strong> v1 keeps everything in one window — D2–D4 carry identity/differentiation/files, so no window mapping was needed. Note here if you'd like the "open worktree in new window" affordance (option B) as a fast-follow.</p>
+  <textarea class="q-notes" data-decision="d6" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<details class="deferred">
+  <summary>Deferred — adjacent questions intentionally not decided here</summary>
+  <div class="deferred-body">
+    <ul>
+      <li><strong>Merge/cleanup UX.</strong> "This worktree is ↑3 ahead, dirty, branch merged on origin — prune?" A whole lifecycle surface (diff vs. main, merge gesture, stale-worktree detection). Needs its own PRD once awareness lands; D5-C is the gateway.</li>
+      <li><strong>Working-pane provenance.</strong> The same file open from two checkouts is indistinguishable in the canvas tab strip. The fix mirrors D3-B (hue dot on working tabs) — folded into D1-C if chosen, else deferred.</li>
+      <li><strong>Dirty/ahead-behind badges on terminal tabs.</strong> The git snapshot has the data; a ✱/↑ tick on the tab is cheap but risks tab-strip noise. Revisit after D2/D3 land and we see real density.</li>
+      <li><strong>DUO_WORKTREE awareness in hooks.</strong> The PreToolUse edit-through-Duo hook and skills could behave differently inside a worktree (e.g. don't warn about files open from a different checkout). Mechanical once D5-B fields exist.</li>
+      <li><strong>Discovery edge cases.</strong> Nested <code>.claude/worktrees/</code> vs. sibling-folder worktrees vs. bare-repo layouts; all read live from <code>git worktree list --porcelain</code> so the UI never caches a stale map (rule 12).</li>
+    </ul>
+  </div>
+</details>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 6 decisions answered</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  var DECISIONS = [
+    { id: 'd1', title: 'D1 Scope — which surfaces are worktree-aware in v1' },
+    { id: 'd2', title: 'D2 Tab identity — worktree tab title' },
+    { id: 'd3', title: 'D3 Differentiation — main vs worktree signal' },
+    { id: 'd4', title: 'D4 Navigator behavior' },
+    { id: 'd5', title: 'D5 Lifecycle and CLI verbs' },
+    { id: 'd6', title: 'D6 Window mapping' }
+  ];
+
+  function answeredCount() {
+    var n = 0;
+    DECISIONS.forEach(function (d) {
+      if (document.querySelector('input[name="' + d.id + '"]:checked')) n++;
+    });
+    return n;
+  }
+
+  function refresh() {
+    document.getElementById('answered-count').textContent = String(answeredCount());
+  }
+
+  document.addEventListener('change', function (e) {
+    if (e.target && e.target.type === 'radio') refresh();
+  });
+
+  function buildPayload() {
+    var lines = ['Worktree-aware Duo — confirm/adjust of v1 picks (docs/research/worktree-ux.html)', '(unchanged radio = confirmed; changed radio + note = adjust)', ''];
+    DECISIONS.forEach(function (d) {
+      var sel = document.querySelector('input[name="' + d.id + '"]:checked');
+      var notesEl = document.querySelector('.q-notes[data-decision="' + d.id + '"]');
+      var notes = notesEl && notesEl.value ? notesEl.value.trim() : '';
+      var val = sel ? sel.value.toUpperCase() : 'UNANSWERED';
+      lines.push('[' + val + '] ' + d.title);
+      if (notes) lines.push('    ' + notes.replace(/\n/g, '\n    '));
+      lines.push('');
+    });
+    return lines.join('\n');
+  }
+
+  document.getElementById('copy-btn').addEventListener('click', function () {
+    var btn = this;
+    navigator.clipboard.writeText(buildPayload()).then(function () {
+      btn.classList.add('copied');
+      btn.textContent = 'Copied ✓';
+      setTimeout(function () {
+        btn.classList.remove('copied');
+        btn.textContent = 'Copy decisions';
+      }, 2000);
+    });
+  });
+
+  refresh();
+})();
+</script>
+
+</body>
+</html>

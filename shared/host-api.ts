@@ -58,6 +58,12 @@ export interface ElectronEnv {
    *  pinned file tabs. False for the boot/restored windows. Injected
    *  synchronously via the --duo-blank additionalArgument (no IPC race). */
   blank: boolean
+  /** ENH-210 (D1-part2) — initial navigator cwd for a window opened AT a
+   *  path (`duo window new --cwd` / "open worktree in new window"). Empty
+   *  for normal boot/restored/blank windows. Injected synchronously via
+   *  the --duo-initial-cwd additionalArgument; useNavigator falls back to
+   *  it when this (blank) window has no per-window localStorage cwd. */
+  initialCwd: string
 }
 
 export interface ElectronPtyAPI {
@@ -343,6 +349,12 @@ export interface ElectronNavAPI {
    *  dispatches to its `newFolder` callback (same one the ⌘⇧N
    *  chord drives). Default location = navigator's current cwd. */
   onNewFolderRequest: (cb: () => void) => () => void
+  /** ENH-210 (D1-part2) — open a new window rooted at `cwd` (the
+   *  navigator Worktrees dropdown's "open in new window" affordance).
+   *  Routes to the same openNewWindow the menu + `duo window new --cwd`
+   *  use, with an initialCwd. No-ops with a console warn if multi-window
+   *  is disabled. */
+  openWindowAt: (cwd: string) => void
 }
 
 export interface ElectronEditorAPI {
@@ -1153,6 +1165,51 @@ export interface GitStatusSnapshot {
   ahead: number
   behind: number
   reason?: 'not-a-repo' | 'git-not-found' | 'git-error'
+  /** ENH-210 — worktree awareness. True when `workTreeRoot` is a
+   *  LINKED worktree (created via `git worktree add`) rather than the
+   *  repo's main/primary checkout. Detected by comparing this
+   *  worktree's gitdir against the shared common gitdir. */
+  isLinkedWorktree?: boolean
+  /** ENH-210 — absolute path of the repo's MAIN worktree (the dir
+   *  whose `.git` is the common gitdir). Equals `workTreeRoot` in the
+   *  main checkout; differs in a linked worktree. The repo's stable
+   *  identity anchor — `repoName` is its basename. */
+  mainWorktreeRoot?: string
+  /** ENH-210 — basename of `mainWorktreeRoot` (e.g. 'duo'). The
+   *  repo's display name for the terminal-tab chip + navigator. */
+  repoName?: string
+}
+
+/**
+ * ENH-210 — one entry per `git worktree list` row. The main worktree
+ * sorts first (`isMain: true`); `isCurrent` flags the worktree the
+ * query cwd resolves into. `colorIndex` is the hash-stable project
+ * hue for this checkout (shared/projects.ts palette) — main checkouts
+ * stay uncolored in the UI, but the index is always populated so the
+ * CLI/JSON consumers don't have to recompute it.
+ */
+export interface WorktreeInfo {
+  path: string
+  branch: string
+  head: string
+  isMain: boolean
+  isCurrent: boolean
+  /** True when the worktree dir no longer exists on disk (a stale
+   *  `git worktree` entry awaiting `prune`). */
+  prunable?: boolean
+  /** True when git reports the worktree's branch as checked-out-and-
+   *  locked-elsewhere or detached. Mirrors porcelain `detached`. */
+  detached?: boolean
+  colorIndex: number
+  /** ENH-210 (D4) — per-worktree dirty / ahead-behind, populated ONLY
+   *  when listWorktrees is called withStatus (the navigator dropdown).
+   *  Omitted for the cheap path (CLI `duo worktree`, which stays a single
+   *  porcelain read). `changedCount` = count of `git status --porcelain`
+   *  lines; ahead/behind are vs the worktree's upstream. */
+  dirty?: boolean
+  changedCount?: number
+  ahead?: number
+  behind?: number
 }
 
 /**
@@ -1251,6 +1308,10 @@ export interface ElectronGitAPI {
   /** ENH-152a — get a git status snapshot for a directory. Renderer
    *  uses this for the Navigator root chip. */
   status(cwd: string): Promise<GitStatusSnapshot>
+  /** ENH-210 — list the git worktrees of the repo at `cwd` (main
+   *  first, the cwd's worktree flagged `isCurrent`). Powers the
+   *  navigator Worktrees section. Returns [] for non-repos. */
+  worktrees(cwd: string): Promise<WorktreeInfo[]>
   /** ENH-151 — clone a GitHub repo via gh / git. Used by the
    *  File → Clone… modal. */
   clone(req: CloneRequest): Promise<CloneResult>

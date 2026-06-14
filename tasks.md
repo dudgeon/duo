@@ -3,6 +3,54 @@
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
 
+### BUG-206: Home rollup folds NESTED worktrees but not SIBLING worktrees (inconsistent) — should fold by git identity, not path containment
+
+**Status:** 🆕 Filed 2026-06-14 (owner-caught during the ENH-210 smoke walk). **Priority:** P2 (user-visible inconsistency in the Home view). **Effort:** M. **Parent:** ENH-212 (Home rollup); **fix substrate:** ENH-210 (`resolveWorktreeIdentity` → `mainWorktreeRoot`).
+
+**Symptom (owner, with screenshot).** In the Home view, the demo's **sibling** worktrees (`~/duo-wt-demo`, `~/duo-wt-demo--auth`) showed as **two discrete project cards**, while the `duo` repo's **nested** worktrees (`<duo>/.claude/worktrees/*`) were correctly **grouped under one "duo"** spine. Owner: *"why is this?"*
+
+**Root cause.** The rollup folds sessions by `deepestEnclosingRoot` (core/projects-service.ts) — pure **path containment**. duo's worktrees live *inside* `<duo>/` so they're enclosed → folded. The demo's worktrees are **siblings** (`git worktree add ../duo-wt-demo--auth`), not enclosed by `~/duo-wt-demo/` → each becomes its own root. The standard `git worktree add ../foo` pattern (siblings) is therefore never folded, contradicting ENH-212's intent ("worktrees fold into their main repo").
+
+**Fix direction.** Fold by **git worktree identity**, not path nesting: resolve each candidate root's `mainWorktreeRoot` (ENH-210's `resolveWorktreeIdentity`, already shipped) and group all worktrees of a repo under that main checkout regardless of where the worktree dir lives. This is the integration the ENH-210 planning workflow flagged ("ENH-212's folding could consume resolveWorktreeIdentity"). Cross-check the rail too (memory: project_home_rollup_must_match_rail — rail + Home must agree).
+
+**Cross-refs.** `core/projects-service.ts` (`deepestEnclosingRoot`), `renderer/hooks/useProjects.ts`, `renderer/components/Home/*`, ENH-212 (parent), `core/git/worktree.ts` (`resolveWorktreeIdentity` — the fix substrate).
+
+---
+
+### ENH-219: "Copy path" (+ shown path) should indicate when a file is inside a git worktree
+
+**Status:** 🆕 Filed 2026-06-14 (owner note during ENH-210 smoke walk, non-blocking). **Priority:** P3. **Effort:** S.
+
+**Ask (owner).** Right-click a file → "Copy path": the copied/shown path carries no signal that the file lives in a linked worktree (vs the main checkout). With ENH-210 making worktrees first-class, the path surfaces should hint provenance too — e.g. annotate the copied path, or add a "Copy path (worktree-relative)" / a provenance line. Revisit the exact treatment.
+
+**Cross-refs.** `renderer/components/FileTree.tsx` (copy-path menu item), ENH-210 (`resolveWorktreeIdentity` for the worktree check).
+
+---
+
+### BUG-205: New-terminal (+) button tooltip claims the navigator cwd but spawns in the active terminal's cwd
+
+**Status:** 🆕 Filed 2026-06-14 (discovered while building ENH-210 smoke-walk fixtures). **Priority:** P3 (pre-existing; tooltip/behavior mismatch, not a crash). **Effort:** S.
+
+**Symptom.** The terminal strip's `+` / `>` split-button tooltip reads "New shell tab (⌘⇧T) in `<navigator cwd>`", but clicking it opens the terminal in the **active terminal's live cwd**, not the navigator cwd. Reproduced during the ENH-210 walk: nav at `~/duo-wt-demo--ui`, tooltip said `…/duo-wt-demo--ui`, but the spawned tab landed in `stoop` (the active tab's cwd). Workaround used in the smoke walk: navigator folder right-click → "Open terminal here" (deterministically opens in that folder).
+
+**Likely cause.** `pendingCwd` (the tooltip source, `computePendingCwd`) and the actual new-terminal cwd resolution in `App.tsx` (`onNewClaude`/`onNewShell`) diverge — the tooltip reads nav-derived pendingCwd while the spawn falls back to the active tab's live cwd. Pick one source of truth (probably: honor pendingCwd so the tooltip is accurate, or fix the tooltip to show the active-tab cwd).
+
+**Cross-refs.** `renderer/App.tsx` (`onNewClaude`/`onNewShell`, pendingCwd), `renderer/components/TabBar.tsx` (split-button tooltip), `renderer/hooks/useNavigator.ts` (`computePendingCwd`).
+
+---
+
+### BUG-204: Navigator git ribbon (+ ENH-210 worktree dropdown) suppressed when the cwd path differs from git's resolved workTreeRoot (symlinked paths, e.g. /tmp → /private/tmp)
+
+**Status:** 🆕 Filed 2026-06-14 (discovered while building ENH-210 smoke-walk fixtures). **Priority:** P3 (edge case — symlinked repo roots; real `~/`-rooted repos unaffected). **Effort:** S.
+
+**Symptom.** A repo whose path is a symlink (macOS `/tmp` → `/private/tmp`) renders **no git ribbon** in the navigator — so the ENH-210 worktree switcher (which hangs off the ribbon) is also unreachable there. The titlebar worktree chip + `duo worktree` still work (they key off `git.status`, which resolves fine). Verified: a demo repo at `/tmp/wt-demo--auth` showed no ribbon; the identical repo at `~/duo-wt-demo--auth` showed it correctly.
+
+**Root cause (likely).** The BUG-135 ribbon-suppression heuristic (`ribbonSuppressed` / `isInRepo` in `FileTree.tsx`) compares the nav `state.cwd` string against `gitSnap.workTreeRoot`. git returns the *resolved* root (`/private/tmp/...`) while the nav cwd keeps the symlinked form (`/tmp/...`), so the "is the repo root at/above cwd" check fails and suppresses the ribbon. Fix: normalize both through `fs.realpath` (or compare resolved paths) before the strictness check.
+
+**Cross-refs.** `renderer/components/FileTree.tsx` (`ribbonSuppressed`/`isInRepo`, BUG-135), ENH-210 (the dropdown rides the ribbon).
+
+---
+
 ### ENH-217: Manual refresh button in the Home view
 
 **Status:** 📋 Backlog (non-blocking — logged 2026-06-13 during the ENH-212
@@ -167,6 +215,49 @@ The ENH-208 D22 re-pick retired the GLOBAL ⌘⇧F find-previous dispatch (the c
 **Tests owed.** T3 (watcher not stopped/recreated on toggle; `updateWatchPaths` called with delta only) + T4 (git-tick with unchanged data → referentially-equal Maps, row render-count unchanged) — sketched in the PRD § B.6.
 
 **Cross-refs.** [ENH-211 PRD](prd/enh-211-navigator-stability-prd.md) (§ B.4 D3/D4/D5, § B.6 tests, § C plan), ENH-211 (P0 parent), ENH-152c (git watcher = M3 substrate), `renderer/hooks/useNavigator.ts` watch effect, `electron/files-service.ts` (`updateWatchPaths`), `electron/preload.ts` (`files.watch`).
+### ENH-210: Worktree-aware Duo — surfaces, identity, navigator, lifecycle (decision playground)
+
+**Status:** 🚧 **v1 IMPLEMENTED + live-verified** per the playground's recommended picks (owner gave explicit "implement worktrees" directive 2026-06-10, overriding the decision-gate). Branch `claude/youthful-chebyshev-885712`. **Live-verified 2026-06-14** on this worktree's own dev build (DOM probes): navigator Worktrees section renders 16 rows (main with git-branch glyph, linked checkouts in correct palette hues, current flagged + non-clickable); terminal tab badge renders hue dot + ⎇ + "Worktree of <repo> · ⎇<branch>" tooltip, with the SAME hue as the nav section for the same checkout (iris for enh-208-vault) — the one-color-thread (D3-B) confirmed end-to-end. **Owed:** owner confirm/adjust of the rec'd picks before cut; a formal `/smoke-walk` if desired. Needs rebase onto main once `claude/hungry-yalow-55f5b7` lands (trivial — tasks.md + cli/duo binary only; see assessment in session log). The playground at [`docs/research/worktree-ux.html`](docs/research/worktree-ux.html) stays the decision record. **Priority:** Strategic — agents-in-worktrees is the parallel-agent workflow Duo exists to host. **Filed:** 2026-06-10.
+
+**Follow-on progress (2026-06-14, post owner-walk).** Plan built via an ultracode multi-agent workflow (5 survey → 5 design → synthesize → adversarial critique). **Quick wins SHIPPED + live-verified (commit ab08dad):** D2 visible repo·⎇branch tab chip; D1-part1 working-pane provenance badges (hue dot + ⎇ on editor/page/json + file:// browser tabs). Hue hook refactored to a dir-keyed core + thin tabs wrapper (shared across both consumers). Verified one-hue-per-checkout across all surfaces (enh-208-vault=iris, youthful-chebyshev=plum, quizzical-jepsen=pine). **Follow-on round COMPLETE (2026-06-14, owner accepted all recs).** All locked items shipped + live-verified on the restarted dev:
+- ~~D5 stress-test playground~~ ✅ + **decision locked: detect-only (B) for v1**, live run deferred, evidence-gated escalation to C. No code (read layer already shipped).
+- ~~D4 navigator study~~ ✅ + **implemented (commit f6fe51a):** git ribbon is now the active-checkout indicator + switch trigger (hue-tinted, ▼); click opens a dropdown overlaying the tree (replaced the bottom-of-tree list) with dirty/ahead chips + per-row "open in new window". `listWorktrees(cwd,{withStatus})` enriches dirty/ahead (opt-in).
+- ~~D1-part2 Thread A~~ ✅ **implemented (commit f6fe51a):** "open worktree in new window" via the dropdown button + `duo window new --cwd <path>` (initialCwd threaded CLI→main→preload→useNavigator with forceInitial over stale per-window LS). Verified: windows rooted at enh-208-vault (CLI) + distracted-kilby (button).
+- ~~D1-part2 Thread B~~ ✅ **implemented (commit 968cd8b):** owner greenlit; driver = **navigator cwd** (locked). Titlebar shows a hue+repo·⎇branch chip ONLY for linked worktrees; main/non-repo = no chip (main uncolored, locked). Glance value is cross-window. Verified: enh-208-vault → iris chip; main → none.
+
+**ENH-210 is feature-complete + SMOKE-WALKED (v0.10.4, 2026-06-14): 6 PASS / 1 SKIP** (SKIP = WT-CLI, agent-pre-walked). All UI surfaces validated by owner on the `~/duo-wt-demo` fixture: nav dropdown, titlebar chip, working-pane badge, terminal-tab chip, open-in-window, and the make-a-new-worktree procedure (git + live detection, no restart). Rebased onto main (v0.10.4) — clean. **Ready to cut.** Follow-ups filed from the walk: **BUG-206** (Home rollup doesn't fold sibling worktrees — fix via ENH-210's `mainWorktreeRoot`), **ENH-219** (copy-path worktree indicator), plus **BUG-204** (ribbon hidden on symlinked repo paths) + **BUG-205** (new-terminal tooltip vs cwd) found during fixture setup. Deferred follow-ons (tracked, not v1): D5-C lifecycle verbs (gated on evidence), D4 full keyboard nav, live-cwd-follow for badges, dirty/ahead on terminal tabs.
+
+**Original remaining line (superseded):** D1-part2 "open worktree in window" (Thread A only; titlebar chip Thread B split out + owner-gated).
+
+**Study playgrounds DELIVERED 2026-06-14 — pending owner walk (surface in every smoke walk until walked, per research-report-review-task rule):**
+- **D5** — [`docs/research/worktree-d5-stress.html`](docs/research/worktree-d5-stress.html): grounded in measured facts (14 live `claude/*` worktrees prove agents create them; `duo worktree` answers self-id today). 3 decisions: coverage bar (rec B parallel) · B→C escalation trigger (rec evidence-gated) · run live now? (rec defer — current evidence covers the HIGH-likelihood rows; UNKNOWN = discovery S3 + cleanup S4).
+- **D4** — [`docs/research/worktree-d4-study.html`](docs/research/worktree-d4-study.html): mocks the dropdown + prominent active-indicator replacing the bottom-of-tree list. 4 decisions: indicator+trigger (rec A ribbon-as-trigger) · dropdown row content (rec B +dirty/ahead chips) · keyboard model (rec A click-only v1) · replace bottom section (rec A replace). Both round-trip-verified in Duo. Plan corrections folded in: socket server is `core/socket-server.ts`; new tracked tasks allocate ENH-218+ (212–217 taken across sibling worktrees) or track as ENH-210 sub-items; `duo worktree` missing from `skill/SKILL.md` (soft doc nit, currency-check passes via cli-reference.md).
+
+**Owner decisions captured 2026-06-14** (walked the confirm/adjust playground; read from the live DOM after a Copy-button regression — my leftover writeText test-stub had swallowed the clipboard write; restored).
+- **D1 → C (all surfaces)** — *expanded* from the built B. Add working-pane provenance badges (same file open from two checkouts) + window affordances. New scope beyond v1.
+- **D2 → B (repo + branch chip)** — *changed* from D. **Drop the editable-label plan.** Show the repo + branch chip *visibly on the tab* (not just the tooltip v1 shipped). Adjustment to the built tab.
+- **D3 → B (hue per checkout)** — confirmed as built.
+- **D4 → B + C, with a STUDY** — owner note: "hybrid — worktree section to switch, but need more prominent indication of active; do a study where B is the display/indicator, but the list is in a **drop down, not a list at the bottom of the navigator** (which forces lots of scrolling)." → Do NOT ship the current bottom-of-nav section as final; run a design study: B (follow/active-indicator) as the prominent state + the switch list as a **dropdown**.
+- **D5 → B (read verbs)** — confirmed, with a stress-test ask: "b is fine as long as claude knows how to make worktrees … you should stress test." → Verify the agent worktree-creation story (does Claude reliably create/use worktrees) before relying on detect-only.
+- **D6 → A (no mapping)** — confirmed.
+
+**Shipped (3 commits).**
+- **Detection layer** — `core/git/worktree.ts`: `resolveWorktreeIdentity(cwd)` (linked-vs-main classification via `git rev-parse --git-dir`/`--git-common-dir`) + `listWorktrees(cwd)` (porcelain parse, main-first, `isCurrent` flagged, hash-stable `colorIndex` per checkout). `getGitStatus` now carries `isLinkedWorktree` / `mainWorktreeRoot` / `repoName`. 9 parser unit tests.
+- **CLI (D5-B)** — `duo worktree [list] [<path>]`: client-side git read (sandbox-tolerant, no running app), JSON `[{ path, branch, head, isMain, isCurrent, detached, prunable, colorIndex }]`. 4-surface docs synced (check:skill-currency green).
+- **Terminal tab (D2/D3-B)** — `useWorktreeBadges` hook + TabBar: hue dot (hash-stable per checkout, project palette) + `⎇` marker + "Worktree of <repo> · ⎇<branch>" tooltip on linked-worktree tabs; main checkout stays unmarked. Hue extracted to shared `renderer/projectColors.ts`.
+- **Navigator (D4-C)** — FileTree Worktrees section below the tree (only when repo has >1 worktree): hue dot per linked checkout matching its tab, current flagged + non-clickable, click re-roots via `navigateTo`. Backed by new `git.worktrees` IPC.
+
+**Deferred (tracked here; not in v1).** D2-D editable tab *labels* (rename gesture + agent self-label CLI) — v1 uses the repo+branch tooltip default. D4-B follow-active-terminal auto-reroot (the section is the explicit-switch alternative that shipped). D5-C worktree create/remove lifecycle. D6 window mapping. Live-cwd-follow for tab badges (v1 keys off spawn cwd). Dirty/ahead chips in the navigator section (listWorktrees omits them for cheapness). Per-playground deferrals (merge/cleanup UX, working-pane provenance) unchanged.
+
+**Ask (owner, 2026-06-10).** "Figure out the UX for Duo to work with git worktrees — which surfaces need to be worktree-aware (just the terminal? terminal + navigator?); a user should intuitively and visually know which agent is in a worktree vs in main."
+
+**The three failures today.** (1) **Identity** — a worktree agent's tab reads `claude · youthful-chebyshev-885712` (cwd basename = codename folder; and for Claude-managed worktrees the *branch* is a codename too, so branch-display alone doesn't fix it). (2) **Differentiation** — main vs worktree is invisible on the tab strip. (3) **File access** — the navigator stays rooted at the main checkout, so the worktree agent's edits are off-screen.
+
+**Existing plumbing (no new git machinery needed).** Live cwd already polled per-tab (lsof, 5s); `git.status(cwd)` already returns `{branch, dirty, ahead, behind, workTreeRoot}`; the six-hue project palette is locked + hash-stable per root; multi-window (ENH-191) shipped; `git worktree list --porcelain` reads the sibling map live (no sidecar — rule 12).
+
+**Deliverable.** Decision-bearing HTML playground at [`docs/research/worktree-ux.html`](docs/research/worktree-ux.html) (Atelier kernel, mock tab-strips + navigator panes + window diagrams, 6 decision cards + Copy-decisions footer, per rule 11). Decisions: D1 surface scope (rec: terminal + navigator) · D2 worktree tab identity (rec: editable label defaulting to repo + branch chip — the only fix for agent-codename worktrees; agents self-label via CLI for parity) · D3 differentiation signal (rec: hash-stable hue per checkout from the project palette, dot on tab + tinted navigator ribbon) · D4 navigator behavior (rec: worktrees section in the tree, click-to-switch; follow-active-terminal as a layerable option) · D5 lifecycle (rec: read verbs — `duo worktree list` + checkout fields in `duo status`/`duo nav state`) · D6 window mapping (rec: none in v1; "open worktree in window" affordance as the bridge option). Deferred (in-playground): merge/cleanup UX, working-pane provenance badges, dirty/ahead tab ticks, DUO_WORKTREE hook awareness.
+
+**Stays open until** the owner walks the playground (`duo open docs/research/worktree-ux.html`), copies decisions back, and implementation is scoped from the locked set.
 
 ---
 
