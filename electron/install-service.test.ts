@@ -51,6 +51,18 @@ describe('composeManagedClaudeMdBlock', () => {
     expect(block).toContain('enterprise-deployments.md')
   })
 
+  it('tells the agent to batch approval requests on managed installs (auto-approve off)', () => {
+    const block = composeManagedClaudeMdBlock('1.2.3')
+    expect(block).toMatch(/auto-approve/i)
+    expect(block).toMatch(/whole directory or repository/i)
+  })
+
+  it('tells the agent to stay scoped and not request unrelated apps\' data', () => {
+    const block = composeManagedClaudeMdBlock('1.2.3')
+    expect(block).toMatch(/unrelated applications' data/i)
+    expect(block).toMatch(/Music library/i)
+  })
+
   it('surfaces the version in the rendered body so a plain read post-install confirms which Duo wrote it', () => {
     const block = composeManagedClaudeMdBlock('1.2.3')
     // BUG-125 follow-up: the HTML-comment marker is invisible in
