@@ -976,14 +976,14 @@
 </article>
 
 <h2 class="cat">Working in a vault</h2>
-<p class="cat-tagline">Keep networked work-notes — people, initiatives, themes, meetings — as plain markdown in a strict Obsidian vault. Duo reads the graph; Claude does the filing, linking, and rollups. (ENH-208 — agent + CLI first; the Phase-2 capture UX is in: Settings → Default Vault, ⇧⌘N quick-capture, <code>@today</code> tokens in the <code>@</code> suggester, the ⌘⇧F search palette, the silent-stub type-picker.) <strong>The illustrated walkthrough is the Vault Guide</strong> — ask Claude to open it, or run <code>duo open docs/guide/vault-guide.html</code>.</p>
+<p class="cat-tagline">Keep networked work-notes — people, initiatives, themes, meetings — as plain markdown. Duo reads the graph; Claude does the filing, linking, and rollups. <strong>Two at-rest formats (ENH-216):</strong> <strong>OKF</strong> — GitHub-portable standard markdown relative links (<code>[Display](./note.md)</code>) + an <code>okf_version</code> index.md marker, the default for a new vault — or <strong>Obsidian</strong> — <code>[[wikilinks]]</code> + <code>.obsidian/</code>. One graph model, two serializers; <code>[[ ]]</code> stays the authoring gesture in both. (ENH-208 capture UX: Settings → Default Vault, ⇧⌘N quick-capture, <code>@today</code> tokens, the ⌘⇧F search palette, the silent-stub type-picker.) <strong>The illustrated walkthrough is the Vault Guide</strong> — ask Claude to open it, or run <code>duo open docs/guide/vault-guide.html</code>.</p>
 
 <article class="item" data-keys="vault init capture inbox scaffold templates filing rules obsidian setup new note timestamped quick-capture chord default vault settings enh-208">
   <div class="num">94</div>
   <div>
     <h3>Set up a vault and capture notes into it</h3>
     <p class="why">Spin up a ready-to-use vault in one command — Claude scaffolds <code>.obsidian/</code>, starter templates for the everyday types (person, initiative, milestone, meeting, theme — each with its filing rule baked in), an <code>inbox/</code>, a processing dashboard, and a README. Then capture is friction-free: a thought becomes a timestamped note in the inbox (untyped by default — a later processing pass files and links it), or a templated note when you name the type. The whole thing is just files: it opens in Obsidian, syncs over git, and survives Duo entirely.</p>
-    <p class="how"><strong>CLI / agent</strong><code>duo vault init ~/work/notes</code> scaffolds it; <code>duo vault capture --text "note from the pricing sync…"</code> drops an inbox note (add <code>--template meeting</code> to stamp a type, <code>--open</code> to open it in the editor). Narrate to Claude and it captures + links for you. <strong>UI</strong>Press <strong>⇧⌘N</strong> — quick-capture drops the same untyped inbox note into your default vault (pick it under Settings → Default Vault; falls back to the active file's vault) and opens it in the editor, focused.</p>
+    <p class="how"><strong>CLI / agent</strong><code>duo vault init ~/work/notes --format=okf</code> scaffolds it (<code>--format</code> is required on the CLI; the fresh vault becomes your default unless <code>--no-default</code>); <code>duo vault capture --text "note from the pricing sync…"</code> drops an inbox note (add <code>--template meeting</code> to stamp a type, <code>--open</code> to open it). For an OKF vault, <code>duo vault publish</code> (re)generates static <code>index.md</code>/<code>log.md</code> listings, and <code>duo vault promote</code> splits a <code>## section</code> into its own typed entity. <strong>UI</strong>File ▸ <strong>New Vault…</strong> (OKF default) scaffolds with a dialog; press <strong>⇧⌘N</strong> for quick-capture into your default vault (Settings → Default Vault; falls back to the active file's vault), opened + focused.</p>
   </div>
 </article>
 
@@ -991,7 +991,7 @@
   <div class="num">95</div>
   <div>
     <h3>Let Claude understand your vault as a graph</h3>
-    <p class="why">A <strong>vault</strong> is a folder with an <code>.obsidian/</code> directory — a strict Obsidian vault of markdown notes, <code>[[wikilinks]]</code>, and YAML frontmatter. Work topics form a messy graph (initiatives, people, themes, meetings) that rarely fits one hierarchy. Duo derives the <em>corpus</em> live from your notes' frontmatter — the types, entities, aliases, properties-per-type, and observed values — so "the vault IS the schema." Nothing is hand-declared or cached; it's recomputed every time, so it can never drift from your files. The same notes open correctly in Obsidian proper at all times.</p>
+    <p class="why">A <strong>vault</strong> is a folder marked by an <code>okf_version</code> <code>index.md</code> (OKF mode) or an <code>.obsidian/</code> directory (Obsidian mode) — markdown notes, links, and YAML frontmatter. Work topics form a messy graph (initiatives, people, themes, meetings) that rarely fits one hierarchy. Duo derives the <em>corpus</em> live from your notes' frontmatter — the types, entities, aliases, properties-per-type, and observed values — so "the vault IS the schema." Nothing is hand-declared or cached; it's recomputed every time, so it can never drift from your files. The same notes open correctly in Obsidian proper at all times.</p>
     <p class="how"><strong>CLI / agent</strong><code>duo vault schema</code> prints the corpus; <code>duo vault list</code> finds vaults under your working folder. These read the filesystem directly — no running app needed — so the agent can work the vault headless.</p>
   </div>
 </article>
@@ -1000,8 +1000,8 @@
   <div class="num">96</div>
   <div>
     <h3>Search and navigate the work-note graph</h3>
-    <p class="why">Find anything across the vault, and trace how notes connect. Backlinks are basename-resolved, so links keep working even after a note is filed into a different folder — and they include frontmatter relationships (a milestone's <code>initiative:</code>, an initiative's <code>owner:</code>), not just prose mentions. Orphans (notes with no links in or out) surface as a tidy-up list for a later processing pass.</p>
-    <p class="how"><strong>CLI / agent</strong><code>duo vault search "pricing"</code> (full-text), <code>duo graph backlinks "Alice Park"</code>, <code>duo graph orphans</code>. All emit JSON the agent can act on. <strong>UI</strong><strong>⌘⇧F</strong> opens the vault-search palette over your default vault (else the active file's vault) — results grouped by file with line + excerpt; Enter opens the file at that match.</p>
+    <p class="why">Find anything across the vault, and trace how notes connect. Backlinks count both <code>[[wikilinks]]</code> (basename-resolved) and OKF markdown rel-links, and include frontmatter relationships (a milestone's <code>initiative:</code>, an initiative's <code>owner:</code>), not just prose mentions. Orphans (notes with no links in or out) surface as a tidy-up list. Wikilinks survive a move by basename; OKF rel-links don't (a move changes the path), so <code>duo vault mv</code> moves a note <em>and</em> rewrites every inbound link, while <code>duo vault relink</code> repairs links broken by an out-of-band (Finder/git) move.</p>
+    <p class="how"><strong>CLI / agent</strong><code>duo vault search "pricing"</code> (full-text), <code>duo graph backlinks "Alice Park"</code>, <code>duo graph orphans</code>, <code>duo vault mv &lt;from&gt; &lt;to&gt;</code>, <code>duo vault relink</code>. All emit JSON the agent can act on. <strong>UI</strong><strong>⌘⇧F</strong> opens the vault-search palette over your default vault (else the active file's vault) — results grouped by file with line + excerpt (and a "Template" badge for <code>templates/</code> hits); Enter opens the file at that match.</p>
   </div>
 </article>
 
@@ -1269,7 +1269,7 @@
 </article>
 
 <footer>
-  <p>This is Duo v0.10.3. Last updated 2026-06-14. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
+  <p>This is Duo v0.11.0. Last updated 2026-06-15. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
   <p style="margin-top:6px; color: var(--ink-ghost); font-size: 11px;">Find an item that should be here? Tell Claude — the cut-version skill updates this file with each release.</p>
 </footer>
 

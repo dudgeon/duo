@@ -21,7 +21,20 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.10.3 cut 2026-06-14)*
+> *(empty — v0.11.0 cut 2026-06-15)*
+
+---
+
+## v0.11.0 — 2026-06-15 — OKF vaults (GitHub-portable) + worktree-aware Duo
+
+**Why this lands here.** Two coherent capabilities closed at once. **OKF vault mode (ENH-216)** makes a knowledge base **GitHub-portable**: wikilinks render as literal `[[text]]` on github.com, but standard markdown relative links (`[Display](./note.md)`) resolve everywhere — Duo, Obsidian, and GitHub. OKF is now the default format for a new vault, while existing Obsidian vaults stay **byte-identical** (the serializer is chosen per-vault, never imposed). **Worktree-aware Duo (ENH-210)** teaches the app about git worktrees — tab chips, working-pane badges, a navigator switcher, and open-in-new-window — so multi-worktree work stops looking like a pile of unrelated projects. Together they're a clear minor bump.
+
+**Key decisions baked in.**
+- **One graph model, two at-rest serializers.** The same `[[ ]]` authoring gesture works in both modes; only the on-disk spelling differs (Obsidian wikilinks vs OKF markdown rel-links). Frontmatter `[[ ]]` stays `[[ ]]` in both (a bare YAML rel-path is a graph orphan in Duo *and* Obsidian — FOLLOWUP-051 reversed the earlier D7).
+- **OKF moves aren't link-transparent**, the way basename-resolved wikilinks are — a move changes every inbound rel-path. So OKF ships a move engine: `duo vault mv` (clean path — moves + rewrites inbound links + re-bases the note's own outbound links) and `duo vault relink` (out-of-band repair). Auto-relink heals on boot; a mid-session vault switch only *reports* (it must not silently rewrite a vault you merely pointed at from another terminal — F5).
+- **Static, regenerable listings** (`duo vault publish` → `index.md`/`log.md`) instead of a live query engine at rest — plain markdown an editor, agent, or GitHub can read. Made idempotent so a no-op publish is truly no-op (F20).
+
+**What this is and isn't.** This cut also folds in a thorough round-2 interaction-review pass on the OKF work (10 findings fixed — the headline being F1, where the `.base` dataview engine silently returned an empty link graph for every multi-word note after the link-key change). What it deliberately is *not*: a fix for the **split-view aux pane** still occluding the New Vault / Clone modals (BUG-209), or the 11 **pre-existing** issues the same review surfaced in already-merged features (FOLLOWUP-054). Both are tracked for next sprint, not papered over.
 
 ---
 

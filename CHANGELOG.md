@@ -19,7 +19,35 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.10.3 cut 2026-06-14.
+> Empty — v0.11.0 cut 2026-06-15.
+
+## [0.11.0] — 2026-06-15 — OKF vaults (GitHub-portable) + worktree-aware Duo
+
+### Added
+- **OKF vault mode (ENH-216)** — a second at-rest serializer for the vault: GitHub-portable standard markdown relative links (`[Display](./note.md)`) + a root `okf_version` `index.md` marker, alongside the existing Obsidian (`[[wikilinks]]` + `.obsidian/`) format. One graph model, two serializers, chosen per-vault (OKF the default). File ▸ **New Vault** dialog + `duo vault init --format=okf|obsidian [--name] [--no-default]`. New vault verbs: `duo vault mv` (move + rewrite inbound links), `relink` (repair out-of-band moves), `publish` (regenerate static `index.md`/`log.md` listings), `promote` (split a `## section` into its own typed entity). Verb-driven modality.
+- **Worktree-aware Duo (ENH-210)** — git-worktree tab chips, working-pane worktree badges, a navigator worktree switcher, and open-worktree-in-new-window.
+- `⌘⇧F` vault search surfaces `templates/` with an inline "Template" badge (ENH-214).
+- Live `[[ ]]` autocomplete in the frontmatter raw-YAML editor (FOLLOWUP-050).
+- Install: managed-block guidance for batched-approval / scoped-permission (enterprise) Claude Code installs.
+
+### Changed
+- Frontmatter `[[ ]]` persists **as** `[[ ]]` in both vault modes — a bare YAML rel-path is a graph orphan in Duo and Obsidian (FOLLOWUP-051).
+- `duo vault init` requires `--format` on the CLI; the fresh vault becomes the default unless `--no-default`.
+- Navigator listings use stale-while-revalidate + request coalescing to kill render-flicker during agent file bursts (ENH-211 P0).
+- `duo --help` now lists the Vault verb family (vault / graph / base) (BUG-208).
+
+### Fixed
+- `.base` dataview engine resolved empty `backlinks`/`links`/`hasLink` for every multi-word note after the OKF link-key change — graph re-keyed on the folded `targetKey` (F1).
+- `⌘⇧N` capture / silent-stub / `promote` wrote Obsidian-shaped artifacts (verbatim filename, no id/title) in OKF vaults — the core filing functions now auto-detect vault mode (F4 + promote).
+- `duo vault publish` is now idempotent (deterministic stamp + byte-equality guard — no spurious watcher event / git churn) (F20).
+- `duo vault mv` carries the `.md.duo.json` sidecar (comments/properties) instead of orphaning it (F3).
+- A default-vault switch from another terminal no longer silently rewrites the target vault or banners an open dirty buffer — a live switch reports (dry-run); only boot writes (F5).
+- cmd-click on a pre-existing/imported `[[ ]]` literal resolves in OKF vaults (F2); New Vault / Clone modals are no longer occluded by the main browser pane (F6); a `vault mv` of an open note shows one affordance, not two stacked strips (F24); mode-aware "not a vault" messages (F15).
+- `.md.duo.json` editor sidecars no longer pollute vaults for fresh notes (BUG-207).
+
+### Known issues
+- **BUG-209** — the split-view aux pane (a separate WebContentsView) still occludes the New Vault / Clone modals; the F6 fix covers only the main browser pane. Tracked, next sprint.
+- **FOLLOWUP-054** — 11 pre-existing findings surfaced by the PR #98 interaction review (owned by #90/#93/#94/#95/#97); documented, not fixed in this cut.
 
 ## [0.10.3] — 2026-06-14 — Home: the default project/session re-entry screen
 
@@ -1950,7 +1978,8 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.10.3...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/dudgeon/duo/compare/v0.10.3...v0.11.0
 [0.10.3]: https://github.com/dudgeon/duo/compare/v0.10.2...v0.10.3
 [0.10.2]: https://github.com/dudgeon/duo/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/dudgeon/duo/compare/v0.10.0...v0.10.1
