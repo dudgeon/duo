@@ -1,3 +1,25 @@
+# ⚠ THIS WORKTREE (quizzical-jepsen) = ENH-216 OKF VAULT MODE — full state in `docs/dev/active-sprint.md` § ENH-216 (top section)
+
+> **Post-compaction orientation (2026-06-14).** ENH-216 (OKF vault mode — a second
+> at-rest serializer: OKF markdown-rel-links vs Obsidian wikilinks, per-vault, File ▸
+> New Vault picker + `duo vault init --format`) is **code-complete + rebased on `main`
+> 0.10.4 + committed** (`0e0c956`; 1542 tests green). **Pre-cut batch → v0.11.0:**
+> - DONE (committed this session): FOLLOWUP-050 frontmatter `[[ ]]` autocomplete; BUG-208
+>   `duo --help` Vault group; worksheet copy-button execCommand fallback.
+> - **PENDING OWNER GO** (gate the cut): **FOLLOWUP-051** — flip frontmatter edges from
+>   rel-path to `[[ ]]` (verified the rel-path drops the Duo/Obsidian graph edge);
+>   **BUG-207** — sidecar `.duo.json` vault pollution, fix = S1+S4 (relocate UI prefs +
+>   delete-empty); **ENH-214** — templates in ⌘⇧F search (option a, inline badge).
+> - **Owner still owes:** walk-2 of the frontmatter autocomplete (`docs/dev/smoke-walks/
+>   v0.10.4-rev2.html`, pinned in the aux). The owner's PATH `duo` is the stale installed
+>   release — use the worktree's `./cli/duo` for the new vault verbs.
+> - Full detail: `tasks.md` ENH-216 / FOLLOWUP-050 / FOLLOWUP-051 / BUG-207 / BUG-208 /
+>   ENH-214; PRD playground `docs/research/okf-vault-mode.html`.
+>
+> The ENH-212 "Home" content below is **main's** initiative, not this worktree's.
+>
+> ---
+
 # Resume after compaction — ENH-212 "Home" in flight (this worktree); ENH-208 Vault parked
 
 **🛑 MOST RECENT — current initiative (2026-06-13): ENH-212 "Home" (the default

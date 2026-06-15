@@ -15,7 +15,7 @@
 > `main`; code surfaces are disjoint, only `tasks.md` + this file are append-region
 > conflicts. Full writeup: `tasks.md` ENH-211.
 
-## ENH-216 — OKF vault mode (owner-initiated 2026-06-13, CODE-COMPLETE — awaiting live-UI smoke-walk)
+## ENH-216 — OKF vault mode (owner-initiated 2026-06-13; walk-1 done 3P/1F/4S; pre-cut batch in flight → v0.11.0)
 
 > **Owner thesis:** the important future use case for vaults is GitHub-renderable /
 > broadly-portable KBs → standard markdown links with relative paths (the proposed
@@ -32,10 +32,20 @@
 > on-disk shape. Found + fixed a live `vault:detect` IPC-handler gap (a missing
 > main-process handler that would have kept the editor out of OKF mode). **Rebased onto
 > `main` (0.10.4, post-ENH-210/211/212)** — conflicts were additive (preload nav-bridge,
-> this file) and re-verified green. **Next step:** the live-UI smoke-walk (manifest
-> `docs/dev/smoke-walks/v0.10.3.json`; walk vaults seeded at `/tmp/okf-smoke` +
-> `/tmp/obs-smoke`). Then `cut-version` — recommend **v0.11.0** (OKF is a new vault
-> format → minor bump). Tracked: `tasks.md` ENH-216; PRD `docs/research/okf-vault-mode.html`.
+> this file) and re-verified green; full suite **1542 tests** post-rebase.
+> **Walk-1 (v0.10.4, 2026-06-14): 3 PASS / 1 FAIL / 4 SKIP.** PASS: New Vault dialog ·
+> `[[ ]]`→md-link expand-on-resolve · cmd+click nav. FAIL: frontmatter `[[ ]]` → re-fixed
+> (FOLLOWUP-050 — live autocomplete + silent-stub create flow). SKIP: CLI-init (owner's
+> PATH `duo` is the stale installed release w/o `--format`; code correct via `./cli/duo`),
+> dialect-flip, Obsidian-compat. Walk-2 sheet trimmed to the 3 unresolved items
+> (`docs/dev/smoke-walks/v0.10.4-rev2.html`).
+> **Pre-cut batch → v0.11.0.** Done: BUG-208 (`--help` Vault group), worksheet copy-button
+> fix. PENDING OWNER GO: **FOLLOWUP-051** (flip frontmatter edges rel-path→`[[ ]]` — verified
+> the rel-path silently drops the Duo/Obsidian graph edge), **BUG-207** sidecar S1+S4
+> (relocate UI prefs + delete-empty), **ENH-214** templates-in-search (option a). Then
+> walk-2 + `cut-version` (v0.11.0 — OKF is a new vault format → minor bump).
+> Tracked: `tasks.md` ENH-216 / FOLLOWUP-050 / FOLLOWUP-051 / BUG-207 / BUG-208 / ENH-214;
+> PRD `docs/research/okf-vault-mode.html`.
 
 ## BUG-200 — terminal-collapse data-loss fix (in flight, this branch, 2026-06-10)
 
