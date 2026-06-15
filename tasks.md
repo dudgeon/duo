@@ -3,6 +3,31 @@
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
 
+### FOLLOWUP-054: PR#98 interaction-review — pre-existing findings carried over (NOT fixed in v0.11.0)
+
+**Status:** 🆕 Filed 2026-06-15 (documentation only — tracked, not worked). **Priority:** see per-item. **Effort:** see per-item. **Provenance.** Surfaced by the multi-agent retro/interaction review run while landing ENH-216 (PR#98), then adversarially verified against the actual code. These are all **pre-existing** (owned by the merged PRs below, NOT introduced by ENH-216) — documented here so they don't evaporate; **no solutions ship in v0.11.0**. Each can graduate to its own BUG/ENH when picked up. (PR#98-introduced findings were fixed in `99c96c7`; this entry is only the pre-existing remainder. Refuted: the `forceInitial` LS-persist finding — current behavior is correct.)
+
+**#94 / ENH-212 (Home):**
+- **[MED] Home open-session false-negative → fork-on-live-session.** `buildHomeOpenJoin` (electron/main.ts) attributes "open" by re-encoding a live claude's CURRENT cwd (`getLiveCwdForPidAsync` → `encodeProjectDir`), but a session's JSONL is keyed by its START cwd and never moves. When claude's process cwd changes mid-session, the encoded dir mismatches → the live session looks closed → clicking resumes/forks a duplicate writer (the §4.3 never-fork data-loss case). *Fix:* attribute by the session's recorded start-cwd dir (deepest-ancestor match), NOT the re-encoded live cwd; do NOT use a newest-jsonl-mtime heuristic (D13 bans it). Highest-impact of this set. (Trigger is claude's own `process.chdir`, not a wrapping shell `cd`.)
+- **[LOW] Greeting "freshest" title vs click-target diverge under clock skew** — two independent selectors (`buildGreeting` clamps `ageMs` to ≥0; `freshestSession` uses raw `modifiedAt`). Future-dated mtimes can make the named session ≠ the opened session. *Fix:* one shared pick-freshest; add a test asserting they agree.
+- **[LOW] Session-open UUID regex too loose** — three sites use `/^[0-9a-f-]{36}$/` before interpolating into `claude --resume <uuid>` (electron/main.ts). No injection risk (`[0-9a-f-]` has no shell metachars), but the gate is looser than the "uuid-validated" comment claims. *Fix:* tighten to canonical 8-4-4-4-12 via one shared `validateSessionUuid`.
+- **[LOW] Home expander paging TOCTOU** — `SessionList.loadMore` pages by a numeric offset across two independent live mtime-sorted reads; an active session bumping mtime between them can dup/skip a row. *Fix:* page by a stable cursor / dedupe shown uuids.
+
+**#95 / ENH-211 (navigator anti-flicker):**
+- **[MED] user-claude pane drops coalesced refetches on expand/collapse → permanently stale rows.** `useUserClaudeNavigator`'s watch-effect cleanup clears the 100ms debounce queue but its resubscribe (unlike `useNavigator`) never re-lists paths, so a refetch torn down mid-debounce is lost until the next event in that dir. Asymmetric with the self-healing project pane. *Fix:* mirror `useNavigator` — `for (const p of paths) ensureListing(p)` after the watcher re-attaches.
+- **[test-gap] Project-pane coalesce cleanup is self-healing but unverified** — add a regression test that re-renders the watch effect mid-debounce (the twin of the above).
+
+**#97 / ENH-210 (worktree):**
+- **[LOW/perf] FileTree runs the full `withStatus` worktree probe (N×2+1 git subprocesses) on every cwd-change + focus**, even when the dropdown is closed (result discarded unless >1 worktree). *Fix:* cheap `listWorktrees` (no status) to gate the ▼; fetch status lazily on dropdown open.
+- **[LOW/perf] Three `useWorktreeBadges*` instances probe `git.status` for overlapping dirs every focus with no shared cache.** *Fix:* hoist a module-level dir→status cache with a short TTL.
+
+**#90 (terminal):**
+- **[LOW] `TERMINAL_MIN_COLS=8` floor silently drops legit narrow resizes**, stranding the PTY at a stale wider winsize → TUI wrap corruption (reachable at large font + narrow split + widened navigator; the BUG-200 justification omits those). *Fix:* clamp sub-floor cols UP to 8 and still forward, rather than dropping; correct the constants/tasks comment.
+
+**#93 (you-are-here pill):**
+- **[test-gap] `activeSurfaceProject` pill derivation has zero test coverage** (the dedicated walk was waived). *Fix:* extract the pure focus→membership branch and unit-test it.
+- **[docs] ENH-210 ticket-number collision** — PR#93 (pill) and the worktree-aware feature BOTH shipped as "ENH-210", so cross-refs (BUG-204/205/206, ENH-219) are ambiguous. *Fix:* renumber the worktree feature (the larger/newer) to a free ENH; leave the pill's ENH-210; fix the cross-refs. Tracking-integrity, worth doing soon.
+
 ### BUG-209: New Vault / Clone modals are occluded by the SPLIT-VIEW AUX WebContentsView (the F6 park covers only the main browser pane)
 
 **Status:** 🆕 Filed 2026-06-15 (owner-caught during the PR#98 v0.10.4-rev4 smoke walk, F6). **Priority:** P2 (visual occlusion; non-blocking — owner deferred to the next sprint, after the v0.11.0 cut). **Effort:** S. **Parent/related:** PR#98 F6, FOLLOWUP-025, ENH-216, ENH-191 (split view).
