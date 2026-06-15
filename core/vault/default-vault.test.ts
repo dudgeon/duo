@@ -213,3 +213,34 @@ describe('resolveVaultForUi precedence (ENH-208 Phase 2 — D11/D22)', () => {
     expect(resolveVaultForUi(null, prefFile)).toBeNull()
   })
 })
+
+describe('PR#98 review — --no-default contract (C1) + mode-aware rejection (C2)', () => {
+  // C1 — `duo vault init --no-default` skips setDefaultVault while still
+  // calling rememberVault. At the core level that's exactly this combination:
+  // a vault registered in knownVaults WITHOUT becoming the global default.
+  it('rememberVault registers a vault without hijacking an established default', () => {
+    setDefaultVault(vaultA, prefFile) // a pre-existing default that must survive
+    rememberVault(vaultB, prefFile) // the --no-default path: remember only
+    expect(readDefaultVault(prefFile)).toBe(vaultA) // default untouched
+    expect(listKnownVaults(prefFile)).toContain(vaultB) // still offered by the picker
+  })
+
+  // C2 — proves the "not a vault (no .obsidian/)" path is COSMETIC: the guard
+  // (isVaultRoot → detectVaultMode) accepts a real OKF vault, so it's never
+  // rejected; only the message string was stale.
+  it('setDefaultVault accepts an OKF vault (root index.md w/ okf_version, no .obsidian/)', () => {
+    expect(fs.existsSync(path.join(vaultA, '.obsidian'))).toBe(false) // it IS an OKF vault
+    expect(detectVaultMode(vaultA)).toBe('okf')
+    expect(() => setDefaultVault(vaultA, prefFile)).not.toThrow()
+    expect(readDefaultVault(prefFile)).toBe(vaultA)
+  })
+
+  // C2 — the rejection message names BOTH markers (not just .obsidian/).
+  it('setDefaultVault rejection names both the OKF and Obsidian markers', () => {
+    const notAVault = path.join(dir, 'nope')
+    fs.mkdirSync(notAVault, { recursive: true })
+    expect(() => setDefaultVault(notAVault, prefFile)).toThrow(
+      /okf_version index\.md or \.obsidian\//,
+    )
+  })
+})

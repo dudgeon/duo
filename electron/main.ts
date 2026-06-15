@@ -2174,7 +2174,7 @@ function setupIPC(): void {
     (_event, { vaultRoot, type, name }: { vaultRoot: string; type: string; name: string }) => {
       try {
         if (!vaultCore.isVaultRoot(vaultRoot)) {
-          return { ok: false, error: `not a vault (no .obsidian/): ${vaultRoot}` }
+          return { ok: false, error: `not a vault (no okf_version index.md or .obsidian/): ${vaultRoot}` }
         }
         const result = vaultCore.createEntityStub(vaultRoot, type, name)
         return { ok: true, ...result }
@@ -2186,7 +2186,7 @@ function setupIPC(): void {
   ipcMain.handle(IPC.VAULT_TYPES, (_event, { vaultRoot }: { vaultRoot: string }) => {
     try {
       if (!vaultCore.isVaultRoot(vaultRoot)) {
-        return { ok: false, error: `not a vault (no .obsidian/): ${vaultRoot}` }
+        return { ok: false, error: `not a vault (no okf_version index.md or .obsidian/): ${vaultRoot}` }
       }
       const types = vaultCore
         .loadTemplates(vaultRoot)
@@ -2202,7 +2202,7 @@ function setupIPC(): void {
     (_event, { vaultRoot, type }: { vaultRoot: string; type: string }) => {
       try {
         if (!vaultCore.isVaultRoot(vaultRoot)) {
-          return { ok: false, error: `not a vault (no .obsidian/): ${vaultRoot}` }
+          return { ok: false, error: `not a vault (no okf_version index.md or .obsidian/): ${vaultRoot}` }
         }
         // createType returns the CANONICAL type name — the caller must stub
         // with `type` from this result, not its raw filter text:
@@ -3477,7 +3477,7 @@ async function chooseDefaultVaultViaDialog(): Promise<void> {
   if (!win || win.isDestroyed()) return
   const result = await dialog.showOpenDialog(win, {
     title: 'Choose Default Vault',
-    message: 'Pick a folder containing an .obsidian/ directory',
+    message: 'Pick a vault folder (an OKF root index.md or an .obsidian/ directory)',
     properties: ['openDirectory'],
   })
   if (result.canceled || result.filePaths.length === 0) return
@@ -3491,7 +3491,7 @@ async function chooseDefaultVaultViaDialog(): Promise<void> {
     await dialog.showMessageBox(win, {
       type: 'warning',
       message: 'Not a vault',
-      detail: `${picked} has no .obsidian/ directory. Ask Claude to run \`duo vault init\` there first, or pick an existing vault.`,
+      detail: `${picked} is not a vault (no OKF root index.md with okf_version, and no .obsidian/ directory). Ask Claude to run \`duo vault init\` there first, or pick an existing vault.`,
     })
   }
 }

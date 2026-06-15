@@ -99,7 +99,7 @@ export function readDefaultVault(filePath: string = DEFAULT_VAULT_FILE): string 
 export function setDefaultVault(target: string, filePath: string = DEFAULT_VAULT_FILE): string {
   const abs = path.resolve(target)
   if (!isVaultRoot(abs)) {
-    throw new Error(`not a vault (no .obsidian/): ${abs}. Run \`duo vault init ${target}\` first.`)
+    throw new Error(`not a vault (no okf_version index.md or .obsidian/): ${abs}. Run \`duo vault init ${target}\` first.`)
   }
   const prefs = readPrefs(filePath)
   prefs.defaultVault = abs
