@@ -312,7 +312,7 @@ write the same graph down.</p>
                     ▼                               ▼
         <span class="obs">OBSIDIAN serializer</span>             <span class="okf">OKF serializer</span>
         <span class="obs">[[Jordan Lee]]</span>                  <span class="okf">[Jordan Lee](./people/jordan-lee.md)</span>
-        <span class="obs">owner: "[[Alice]]"</span>              <span class="okf">owner: "people/alice.md"</span>
+        <span class="obs">owner: "[[Alice]]"</span>              <span class="okf">owner: "[[Alice]]"  (FOLLOWUP-051)</span>
         <span class="obs">.obsidian/ · *.base</span>             <span class="okf">index.md · log.md · okf_version</span>
         <span class="obs">basename-resolved</span>               <span class="okf">path-resolved (Duo rewrites on move)</span>
                     │                               │
@@ -332,7 +332,7 @@ write the same graph down.</p>
 
 <table class="locked">
   <tr><th>Aspect</th><th>Duo today (Obsidian mode)</th><th>OKF wants</th></tr>
-  <tr><td>Cross-links</td><td><code>[[wikilinks]]</code> in prose + YAML; basename-resolved</td><td>standard markdown links, path-resolved (<code>/abs</code> or <code>./rel</code>)</td></tr>
+  <tr><td>Cross-links</td><td><code>[[wikilinks]]</code> in prose + YAML; basename-resolved</td><td>markdown links in prose, path-resolved (<code>/abs</code> or <code>./rel</code>); <code>[[wikilinks]]</code> in frontmatter (FOLLOWUP-051 — a bare YAML path isn't a graph edge)</td></tr>
   <tr><td>Frontmatter</td><td><code>---</code> YAML, free-string <code>type</code> (often absent)</td><td>same YAML; <code>type</code> <strong>required</strong> non-empty</td></tr>
   <tr><td>Vault marker</td><td><code>.obsidian/</code> directory (detection gate)</td><td><code>okf_version</code> in a root <code>index.md</code></td></tr>
   <tr><td>Rollups</td><td><code>.base</code> files → stamped HTML in <code>out/</code></td><td>(none) — <code>index.md</code> bullet listings (§6)</td></tr>
@@ -629,16 +629,33 @@ clean stem on disk.</p>
 is plain key/value — a wikilink string there is opaque to any consumer, and the body is where
 OKF expects links. We need a convention OKF mode writes (Duo still resolves it; GitHub never
 renders frontmatter anyway, so this is about portability + Duo's own graph).</p>
+<p style="background:#fff7ed;border-left:3px solid #f59e0b;padding:8px 12px;font-size:12.5px">
+<strong>⤺ Reversed by FOLLOWUP-051 (2026-06-14).</strong> The original D7 pick (a bare
+rel-path string) rests on a false premise: a bare path in a YAML value is <em>not</em> a graph
+edge — Duo's extractor only matches <code>[[ ]]</code> and <code>[text](href)</code>, and
+Obsidian likewise treats a bare frontmatter path as plain text (only a <code>[[ ]]</code>
+property value is a link). So a rel-path <em>silently drops</em> the relationship in both tools.
+The locked form is now a <code>[[ ]]</code> wikilink in <strong>both</strong> vault modes —
+the body still uses markdown rel-links (D3), but frontmatter does not. github.com renders
+frontmatter as a non-clickable table either way, so D3's markdown-render rationale never
+transferred to frontmatter.</p>
 
 <section class="decision-card">
   <div class="q-title">Decision 7 · Frontmatter relationship fields</div>
   <h3 class="q-prompt">How are typed edges (e.g. <code>owner</code>, <code>initiative</code>) written in OKF mode?</h3>
   <div class="q-options">
     <label class="q-option">
+      <input type="radio" name="d7" value="wikilink">
+      <div class="q-option-body">
+        <div class="q-option-title"><code>[[ ]]</code> wikilink in BOTH modes (<code>owner: "[[Alice]]"</code>) <span class="recommend-tag">Locked — FOLLOWUP-051</span></div>
+        <div class="q-option-rationale">The only form that's actually a graph edge in <em>both</em> Duo and Obsidian. A bare rel-path is plain text to both extractors (verified — it shows up in <code>duo graph orphans</code>). Frontmatter is the same shape in both vault modes; the body keeps markdown rel-links (D3).</div>
+      </div>
+    </label>
+    <label class="q-option">
       <input type="radio" name="d7" value="relpath">
       <div class="q-option-body">
-        <div class="q-option-title">Relative-path string Duo resolves (<code>owner: "../people/alice.md"</code>) <span class="recommend-tag">Recommended</span></div>
-        <div class="q-option-rationale">Portable, unambiguous, and Duo's parser resolves it to a graph edge. A naive consumer sees a path string (harmless); the relationship survives for anything that follows paths.</div>
+        <div class="q-option-title">Relative-path string (<code>owner: "../people/alice.md"</code>) <span style="font-size:10px;color:#b45309">✗ reversed</span></div>
+        <div class="q-option-rationale">Originally recommended on the belief Duo's parser resolves a bare path to an edge — it does <strong>not</strong>; neither does Obsidian. The relationship is silently dropped. Reversed by FOLLOWUP-051.</div>
       </div>
     </label>
     <label class="q-option">

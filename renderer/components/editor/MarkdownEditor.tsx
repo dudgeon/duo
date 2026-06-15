@@ -60,10 +60,10 @@ import { useVaultIndex, rankVaultFiles } from './vaultIndex'
 // OKF at-rest link shape). The wikilink twin (cmd+click on `[[ ]]`) is
 // handled by the WikilinkDecorations plugin; this covers the `[ ](rel.md)`
 // link-mark case so both serializers' links are navigable.
-import { resolveMdLinkInVault, resolveWikilinkInVault } from './wikilinkResolver'
+import { resolveMdLinkInVault } from './wikilinkResolver'
 // ENH-216 (U7) — okfLinkInsert builds the markdown relative link the
-// stub-create placeholder rewrite (D3) splices in; the frontmatter [[Name]]
-// commit rewrite (D7) uses rewriteFrontmatterWikilinks.
+// stub-create placeholder rewrite (D3) splices into the BODY. (Frontmatter
+// `[[ ]]` persists AS `[[ ]]` per FOLLOWUP-051 — no rewrite.)
 import { okfLinkInsert } from './okfLinks'
 import { WriteWarningBanner } from './primitives/WriteWarningBanner'
 import { SendToDuoPill } from './primitives/SendToDuoPill'
@@ -1460,24 +1460,6 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ENH-216 (U7) D7 — resolve a frontmatter `[[Name]]` gesture to its
-  // target note's absolute path so the OKF commit rewrite can build the
-  // relative link. Reuses the same basename-walk the [[ ]] click-nav uses
-  // (resolveWikilinkInVault); returns null when the name matches no note
-  // (that gesture is left verbatim). Reads the vault root through the ref.
-  const resolveFrontmatterWikilink = useCallback(
-    async (name: string): Promise<string | null> => {
-      const root = vaultRootRef.current
-      if (!root) return null
-      try {
-        return await resolveWikilinkInVault(root, name)
-      } catch {
-        return null
-      }
-    },
-    []
-  )
-
   /** BUG-139 — flip the Properties panel's collapsed flag. */
   const toggleFrontmatterCollapsed = useCallback(() => {
     setFrontmatterCollapsed(prev => {
@@ -2447,14 +2429,11 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           onChange={handleFrontmatterChange}
           collapsed={frontmatterCollapsed}
           onToggleCollapsed={toggleFrontmatterCollapsed}
-          // ENH-216 (U7) D7 — OKF frontmatter [[Name]] → quoted rel-path on
-          // commit. mode/docPath gate it; the resolve fn maps a name to its
-          // note path. Obsidian mode is unchanged (the panel's default).
-          mode={vaultIndex.mode}
-          docPath={path}
-          resolveWikilink={resolveFrontmatterWikilink}
           // FOLLOWUP-050 — live `[[ ]]` autocomplete in the raw-YAML editor,
           // reusing the SAME vault index the body WikilinkSuggestion uses.
+          // FOLLOWUP-051 — a picked `[[ ]]` persists AS `[[ ]]` in both modes
+          // (a bare frontmatter rel-path isn't a graph edge), so the panel no
+          // longer needs mode/docPath/resolveWikilink.
           vaultFiles={vaultIndex.files}
           vaultLoading={vaultIndex.loading}
           vaultRoot={vaultIndex.vaultRoot}
