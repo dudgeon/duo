@@ -61,6 +61,10 @@ export interface VaultFileGroup {
   /** Flat index of the group's first hit — kbd-nav bookkeeping so the
    *  grouped render can map rows back to the flat active index. */
   startIdx: number
+  /** ENH-214 — true when the file lives under a `templates/` dir; the
+   *  header row paints an inline "Template" badge. Per-file constant, taken
+   *  from the group's first hit. */
+  isTemplate: boolean
 }
 
 /**
@@ -78,7 +82,7 @@ export function groupHitsByFile(hits: VaultSearchHitDto[]): VaultFileGroup[] {
     if (last && last.absPath === hit.absPath) {
       last.hits.push(hit)
     } else {
-      groups.push({ path: hit.path, absPath: hit.absPath, hits: [hit], startIdx: i })
+      groups.push({ path: hit.path, absPath: hit.absPath, hits: [hit], startIdx: i, isTemplate: hit.isTemplate })
     }
   }
   return groups
@@ -264,8 +268,13 @@ export function VaultSearchPalette({ open, activePath, onPick, onDismiss }: Vaul
     }
     return groups.map((group) => (
       <li key={group.absPath}>
-        <div className="px-4 pt-2 pb-1 text-xs font-medium text-ink-mute truncate" title={group.path}>
-          {group.path}
+        <div className="px-4 pt-2 pb-1 text-xs font-medium text-ink-mute flex items-center gap-2 min-w-0">
+          <span className="truncate" title={group.path}>{group.path}</span>
+          {group.isTemplate && (
+            <span className="shrink-0 text-[10px] uppercase tracking-wide px-1.5 py-px rounded border border-paper-rule text-ink-mute">
+              Template
+            </span>
+          )}
         </div>
         <ul>
           {group.hits.map((hit, j) => {

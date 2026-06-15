@@ -388,6 +388,20 @@ export class FilesService {
    */
   async rename(oldPath: string, newPath: string): Promise<void> {
     await fs.rename(oldPath, newPath)
+    // Carry a file's sidecar (`<file>.duo.json`) with it so comments /
+    // properties / recent-edits survive a rename or move (PR#98 F3). This is
+    // the shared chokepoint for the navigator inline-rename AND `duo file
+    // rename`. Best-effort: skip when renaming a sidecar itself or a folder
+    // (no sibling sidecar), and never fail the rename over it.
+    if (!oldPath.endsWith('.duo.json')) {
+      const oldSidecar = oldPath + '.duo.json'
+      try {
+        await fs.access(oldSidecar)
+        await fs.rename(oldSidecar, newPath + '.duo.json')
+      } catch {
+        /* no sidecar present, or best-effort failure */
+      }
+    }
   }
 
   /**

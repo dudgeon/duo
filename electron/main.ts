@@ -1,7 +1,7 @@
 import { app, BrowserWindow, Menu, dialog, ipcMain, nativeImage, nativeTheme, protocol, session, shell, webContents, clipboard } from 'electron'
 import type { MenuItemConstructorOptions, WebContents } from 'electron'
 import * as nodeFs from 'fs/promises'
-import { watch as fsWatchSync, mkdirSync as fsMkdirSync } from 'fs'
+import { watch as fsWatchSync, mkdirSync as fsMkdirSync, existsSync as fsExistsSync } from 'fs'
 import * as nodePath from 'path'
 import { execSync, execFile } from 'child_process'
 import { promisify } from 'util'
@@ -1684,6 +1684,11 @@ app.whenReady().then(async () => {
   // ENH-208 — reflect CLI `duo vault default` writes in the Settings menu.
   installDefaultVaultPrefWatcher()
   void rebuildAppMenu()
+  // ENH-216 (U-RELINK, D5) — auto-relink the current default vault on app
+  // start (OKF only; deferred + deduped, so it can't slow boot). PR#98 F5 —
+  // boot is the one path that WRITES (no dirty buffers yet, user is opening
+  // their own default vault); a live vault-switch only reports (dry-run).
+  maybeAutoRelinkVault(vaultCore.readDefaultVault(), { write: true })
 
   // ENH-191 P5a (Tier-1) — seed the per-window session map from disk BEFORE the
   // first window's renderer can save, so a single-window save can't overwrite a
@@ -2170,7 +2175,7 @@ function setupIPC(): void {
     (_event, { vaultRoot, type, name }: { vaultRoot: string; type: string; name: string }) => {
       try {
         if (!vaultCore.isVaultRoot(vaultRoot)) {
-          return { ok: false, error: `not a vault (no .obsidian/): ${vaultRoot}` }
+          return { ok: false, error: `not a vault (no okf_version index.md or .obsidian/): ${vaultRoot}` }
         }
         const result = vaultCore.createEntityStub(vaultRoot, type, name)
         return { ok: true, ...result }
@@ -2182,7 +2187,7 @@ function setupIPC(): void {
   ipcMain.handle(IPC.VAULT_TYPES, (_event, { vaultRoot }: { vaultRoot: string }) => {
     try {
       if (!vaultCore.isVaultRoot(vaultRoot)) {
-        return { ok: false, error: `not a vault (no .obsidian/): ${vaultRoot}` }
+        return { ok: false, error: `not a vault (no okf_version index.md or .obsidian/): ${vaultRoot}` }
       }
       const types = vaultCore
         .loadTemplates(vaultRoot)
@@ -2198,7 +2203,7 @@ function setupIPC(): void {
     (_event, { vaultRoot, type }: { vaultRoot: string; type: string }) => {
       try {
         if (!vaultCore.isVaultRoot(vaultRoot)) {
-          return { ok: false, error: `not a vault (no .obsidian/): ${vaultRoot}` }
+          return { ok: false, error: `not a vault (no okf_version index.md or .obsidian/): ${vaultRoot}` }
         }
         // createType returns the CANONICAL type name — the caller must stub
         // with `type` from this result, not its raw filter text:
@@ -2211,6 +2216,70 @@ function setupIPC(): void {
       }
     },
   )
+
+  // ENH-216 (VAULT MODE) — File → New Vault… dialog backend. The renderer
+  // (Stage 4) collects { folder, format, name? } and calls VAULT_CREATE; we
+  // scaffold via the SAME core/vault path the `duo vault init` CLI verb runs
+  // (initVault → rememberVault → setDefaultVault). `format` is required from
+  // the dialog (the dialog defaults to OKF per D2; initVault's own default is
+  // also OKF, so an omitted format is harmless). `openPath` is what Stage 4
+  // opens after a successful create: the OKF root index.md when present
+  // (D4/D8), else the legacy README.md (Obsidian mode), absolute either way.
+  ipcMain.handle(
+    IPC.VAULT_CREATE,
+    (_event, { folder, format, name }: { folder: string; format?: import('../core/vault').VaultMode; name?: string }) => {
+      try {
+        const result = vaultCore.initVault(folder, { format, name })
+        // Register in the picker, then make it the default (parity with the
+        // CLI verb). setDefaultVault validates the freshly-scaffolded root,
+        // which fires the pref-file watcher → single menu rebuild trigger.
+        vaultCore.rememberVault(result.root)
+        vaultCore.setDefaultVault(result.root)
+        const indexPath = nodePath.join(result.root, 'index.md')
+        const openPath = fsExistsSync(indexPath)
+          ? indexPath
+          : nodePath.join(result.root, 'README.md')
+        return {
+          ok: true,
+          root: result.root,
+          created: result.created,
+          warnings: result.warnings,
+          openPath,
+        }
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      }
+    },
+  )
+  // The dialog's "Choose folder…" button. Mirrors chooseDefaultVaultViaDialog's
+  // picker, but scoped to the sender's window and allowing folder creation in
+  // the panel (D1 — pick a not-yet-existing target). Returns the chosen dir or
+  // null on cancel.
+  ipcMain.handle(IPC.VAULT_CREATE_PICK_DIR, async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win || win.isDestroyed()) return null
+    const result = await dialog.showOpenDialog(win, {
+      title: 'New Vault Location',
+      message: 'Pick (or create) a folder for the new vault',
+      properties: ['openDirectory', 'createDirectory'],
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0]
+  })
+
+  // (ENH-216) The renderer editor's per-vault mode probe. wikilinkResolver's
+  // findVaultRootAndMode calls this to decide whether the [[ ]] gesture serializes
+  // as Obsidian wikilinks or OKF markdown rel links (D3/D4). Returns the live
+  // marker-derived mode ('okf' when a root index.md carries okf_version, else
+  // 'obsidian' for a .obsidian/ vault, else null); the renderer falls back to
+  // 'obsidian' on null/throw. Must exist or OKF mode never activates in the editor.
+  ipcMain.handle(IPC.VAULT_DETECT, (_event, { vaultRoot }: { vaultRoot: string }) => {
+    try {
+      return vaultCore.detectVaultMode(vaultRoot)
+    } catch {
+      return null
+    }
+  })
 
   // Stage 24 — pinned WorkingPane tabs.
   ipcMain.handle(IPC.PINS_LIST, () => {
@@ -2969,6 +3038,15 @@ function installAppMenu(): void {
           accelerator: 'Alt+Shift+CmdOrCtrl+N',
           click: () => safeSendFocused(IPC.NEW_FOLDER_REQUEST)
         },
+        {
+          label: 'New Vault…',
+          // ENH-216 (VAULT MODE, D1) — NO accelerator: the whole ⌘N family is
+          // already spoken for (⌘N New File, ⌘⇧N vault quick-capture, ⌥⌘N New
+          // Window, ⌥⇧⌘N New Folder). A new chord would collide; New Vault is
+          // an infrequent action, so menu-only is fine (CLI parity: `duo vault
+          // init <path> --format=okf|obsidian`).
+          click: () => { openNewVaultModal({ windowId: focusedWindowId() }) }
+        },
         // ENH-191 P5a (S3) — open a SECOND window (blank, its own workspace).
         // ⌥⌘N because ⌘N is New File and ⌘⇧N is vault quick-capture
         // (ENH-208 re-pick; New Folder sits at ⌥⇧⌘N). Gated on the
@@ -3400,7 +3478,7 @@ async function chooseDefaultVaultViaDialog(): Promise<void> {
   if (!win || win.isDestroyed()) return
   const result = await dialog.showOpenDialog(win, {
     title: 'Choose Default Vault',
-    message: 'Pick a folder containing an .obsidian/ directory',
+    message: 'Pick a vault folder (an OKF root index.md or an .obsidian/ directory)',
     properties: ['openDirectory'],
   })
   if (result.canceled || result.filePaths.length === 0) return
@@ -3414,9 +3492,71 @@ async function chooseDefaultVaultViaDialog(): Promise<void> {
     await dialog.showMessageBox(win, {
       type: 'warning',
       message: 'Not a vault',
-      detail: `${picked} has no .obsidian/ directory. Ask Claude to run \`duo vault init\` there first, or pick an existing vault.`,
+      detail: `${picked} is not a vault (no OKF root index.md with okf_version, and no .obsidian/ directory). Ask Claude to run \`duo vault init\` there first, or pick an existing vault.`,
     })
   }
+}
+
+// ENH-216 (U-RELINK, owner D5) — AUTO-RELINK for an OKF-mode default vault.
+// Repairs dangling [Display](./moved.md) hrefs left by an out-of-band
+// move/rename. Obsidian vaults skip entirely — their wikilinks survive a move
+// by basename, so there is nothing to repair.
+//
+// PR#98 F5 — WRITE only on BOOT; a default-vault SWITCH is DRY-RUN + report.
+// The pref-watcher fires for EVERY default-vault write, including a
+// `duo vault default <path>` typed in an UNRELATED terminal/window. Letting
+// that silently rewrite the target vault's notes is a cross-process surprise
+// (git churn) and can banner an open dirty buffer (the BUG-085 class). At boot
+// there are no dirty buffers and the user is opening their own default vault,
+// so a write is safe + wanted. On a live switch we only REPORT the repairable
+// count (the heal-write lands on the next boot or an explicit `duo vault
+// relink`).
+//
+// NON-BLOCKING: relinkVault is a synchronous vault walk, deferred a tick off
+// the critical path. DEDUPE: at most one run per root within a short window
+// (boot + the pref-watcher debounce can both point at the same root).
+const RELINK_DEDUPE_MS = 5000
+const recentlyRelinked = new Map<string, NodeJS.Timeout>()
+function maybeAutoRelinkVault(root: string | null, opts: { write?: boolean } = {}): void {
+  if (!root) return
+  if (recentlyRelinked.has(root)) return
+  // PR#98 F5 — default DRY-RUN; only the boot call opts into the write.
+  const write = opts.write ?? false
+  // detectVaultMode is cheap (one .obsidian/ + okf-marker stat); the heavy
+  // walk lives in relinkVault, which we only reach for OKF roots.
+  let mode: import('../core/vault').VaultMode | null = null
+  try {
+    mode = vaultCore.detectVaultMode(root)
+  } catch {
+    return // unreadable root — nothing to repair
+  }
+  if (mode !== 'okf') return
+  // Mark BEFORE scheduling so a second trigger in the same window is dropped;
+  // the entry self-clears after the dedupe window so a later genuine re-open
+  // (e.g. a note moved, then the vault re-picked) relinks again.
+  const timer = setTimeout(() => recentlyRelinked.delete(root), RELINK_DEDUPE_MS)
+  if (typeof timer.unref === 'function') timer.unref()
+  recentlyRelinked.set(root, timer)
+  // Defer off the critical path: a setTimeout(0) lets app-ready / the menu
+  // rebuild finish first, then the sync walk runs. Errors are swallowed to a
+  // warn — a relink failure must never crash boot or a vault switch.
+  setTimeout(() => {
+    try {
+      const r = vaultCore.relinkVault(root, { dryRun: !write })
+      if (write) {
+        console.log(
+          `[ENH-216] auto-relink ${root}: ${r.repaired.length} repaired, ${r.ambiguous.length} ambiguous, ${r.broken.length} broken`,
+        )
+      } else if (r.repaired.length > 0 || r.ambiguous.length > 0) {
+        // Switch path — report only; do NOT rewrite the target vault's notes.
+        console.log(
+          `[ENH-216] auto-relink (dry-run, vault switch) ${root}: ${r.repaired.length} link(s) repairable, ${r.ambiguous.length} ambiguous, ${r.broken.length} broken — run \`duo vault relink\` to apply`,
+        )
+      }
+    } catch (err) {
+      console.warn('[ENH-216] auto-relink failed:', err instanceof Error ? err.message : err)
+    }
+  }, 0)
 }
 
 // ENH-208 — `duo vault default <path>` can rewrite the pref from any
@@ -3426,6 +3566,9 @@ async function chooseDefaultVaultViaDialog(): Promise<void> {
 // the next focus-driven rebuild. This watcher is the SINGLE rebuild
 // trigger for ALL pref writers — the menu/dialog click handlers don't call
 // rebuildAppMenu() themselves (that doubled every rebuild ~150ms apart).
+// ENH-216 — it is ALSO the single trigger for auto-relink-on-vault-switch:
+// every default-vault write (CLI, menu radio, Choose Vault…, VAULT_CREATE's
+// setDefaultVault) lands here, so the relink hook rides the same chokepoint.
 function installDefaultVaultPrefWatcher(): void {
   try {
     const prefDir = nodePath.dirname(vaultCore.DEFAULT_VAULT_FILE)
@@ -3438,7 +3581,15 @@ function installDefaultVaultPrefWatcher(): void {
     fsWatchSync(prefDir, (_event, name) => {
       if (name !== prefName) return
       if (timer) clearTimeout(timer)
-      timer = setTimeout(() => void rebuildAppMenu(), 150)
+      timer = setTimeout(() => {
+        void rebuildAppMenu()
+        // ENH-216 — a default-vault write just landed; if the new default is an
+        // OKF vault, check for out-of-band-moved links. PR#98 F5 — DRY-RUN
+        // (report only): this fires for a `duo vault default` from ANY terminal,
+        // so it must not silently rewrite the target vault's notes / banner an
+        // open buffer. The heal-write happens on the next boot or `duo vault relink`.
+        maybeAutoRelinkVault(vaultCore.readDefaultVault())
+      }, 150)
     })
   } catch {
     // best-effort: without the watcher the menu still refreshes on focus
@@ -4731,6 +4882,19 @@ export function openCloneModal(opts?: { path?: string; windowId?: number }): { o
   }
   const payload = opts?.path ? { path: opts.path } : null
   win.webContents.send(IPC.NAV_OPEN_CLONE_MODAL, payload)
+  return { ok: true }
+}
+
+// ENH-216 (VAULT MODE) — twin of openCloneModal for the File → New Vault…
+// menu item. Tells the renderer (Stage 4) to open the New Vault dialog, which
+// then collects { folder, format, name? } and round-trips through VAULT_CREATE.
+// windowId targets a specific window (File menu → focused); omitted → primary.
+export function openNewVaultModal({ windowId }: { windowId?: number } = {}): { ok: boolean; error?: string } {
+  const win = windowByIdOrPrimary(windowId)
+  if (!win || win.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  win.webContents.send(IPC.NAV_OPEN_NEW_VAULT_MODAL, null)
   return { ok: true }
 }
 

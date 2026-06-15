@@ -333,7 +333,13 @@ const api: ElectronAPI = {
     search: (opts) => ipcRenderer.invoke(IPC.VAULT_SEARCH, opts),
     stub: (opts) => ipcRenderer.invoke(IPC.VAULT_STUB, opts),
     types: (opts) => ipcRenderer.invoke(IPC.VAULT_TYPES, opts),
-    createType: (opts) => ipcRenderer.invoke(IPC.VAULT_CREATE_TYPE, opts)
+    createType: (opts) => ipcRenderer.invoke(IPC.VAULT_CREATE_TYPE, opts),
+    // ENH-216 (VAULT MODE) — New Vault dialog scaffold + native dir
+    // picker + renderer mode probe. Same core/vault code paths as the
+    // `duo vault init` CLI verb.
+    create: (opts) => ipcRenderer.invoke(IPC.VAULT_CREATE, opts),
+    pickDir: () => ipcRenderer.invoke(IPC.VAULT_CREATE_PICK_DIR),
+    detect: (opts) => ipcRenderer.invoke(IPC.VAULT_DETECT, opts)
   },
 
   nav: {
@@ -416,6 +422,15 @@ const api: ElectronAPI = {
     // ENH-210 (D1-part2) — open a new window rooted at cwd.
     openWindowAt: (cwd: string) => {
       ipcRenderer.send(IPC.WINDOW_OPEN_AT, { cwd })
+    },
+
+    // ENH-216 (VAULT MODE) — File → New Vault… menu click. Renderer's
+    // App.tsx subscribes and opens the New Vault dialog (OKF default —
+    // D2). Mirrors onOpenCloneModal's menu-trigger pattern.
+    onOpenNewVaultModal: (cb: () => void) => {
+      const handler = () => cb()
+      ipcRenderer.on(IPC.NAV_OPEN_NEW_VAULT_MODAL, handler)
+      return () => ipcRenderer.removeListener(IPC.NAV_OPEN_NEW_VAULT_MODAL, handler)
     }
   },
 

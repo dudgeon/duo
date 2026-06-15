@@ -1,3 +1,29 @@
+# ⚠ THIS WORKTREE (quizzical-jepsen) = ENH-216 OKF VAULT MODE — full state in `docs/dev/active-sprint.md` § ENH-216 (top section)
+
+> **Post-compaction orientation (2026-06-14).** ENH-216 (OKF vault mode — a second
+> at-rest serializer: OKF markdown-rel-links vs Obsidian wikilinks, per-vault, File ▸
+> New Vault picker + `duo vault init --format`) is **code-complete + rebased on `main`
+> 0.10.4 + committed** (`0e0c956`; 1542 tests green). **Pre-cut batch → v0.11.0 — ALL THREE
+> PENDING ITEMS LANDED** (owner green-lit "do all of those things", 2026-06-14):
+> - DONE (committed): FOLLOWUP-050 autocomplete; BUG-208 `--help`; worksheet copy fix; plus
+>   **FOLLOWUP-051** `e105b85` (frontmatter `[[ ]]`→`[[name]]` both modes), **BUG-207**
+>   `c32ee48` (sidecar S1+S4, verified live — no `.md.duo.json` on note create), **ENH-214**
+>   `af9434a` (templates in ⌘⇧F + inline badge; data path verified CLI + live IPC). Suite
+>   **1555 green**, typecheck clean, `cli/duo` rebuilt (it bundles core in-process — see
+>   memory `feedback_cli_bundles_core_rebuild_on_core_change`).
+> - **Owner still owes:** **walk-3** (`docs/dev/smoke-walks/v0.10.4-rev3.html`, pinned in the
+>   aux) — 2 eyes-on items: FOLLOWUP-051 keystroke flow + ENH-214 badge VISUAL & the
+>   badge-vs-section call; 2 carry-forward SKIPs. BUG-207 + ENH-214 data path agent-verified.
+>   Fixture vault: `/tmp/duo-walk-v0104-rev3/`. Then **cut v0.11.0**. The running dev IS this
+>   worktree's build (swapped from main-repo this session); owner's PATH `duo` is still the
+>   stale release — use `./cli/duo` for vault verbs.
+> - Full detail: `tasks.md` ENH-216 / FOLLOWUP-050 / FOLLOWUP-051 / BUG-207 / BUG-208 /
+>   ENH-214; PRD playground `docs/research/okf-vault-mode.html`.
+>
+> The ENH-212 "Home" content below is **main's** initiative, not this worktree's.
+>
+> ---
+
 # Resume after compaction — ENH-212 "Home" in flight (this worktree); ENH-208 Vault parked
 
 **🛑 MOST RECENT — current initiative (2026-06-13): ENH-212 "Home" (the default

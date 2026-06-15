@@ -109,28 +109,32 @@ footer { margin-top:48px; border-top:1px solid var(--paper-rule); padding-top:14
 </header>
 
 <div class="intro">
-  A <strong>vault</strong> is a folder containing <code>.obsidian/</code> — a strict
-  <a href="https://obsidian.md">Obsidian</a> vault of markdown notes, <code>[[wikilinks]]</code>,
-  YAML frontmatter, and <code>.base</code> rollups. Your work topics — people, initiatives,
-  themes, meetings — form a <strong>graph</strong>, not a tidy hierarchy. The vault stores that
-  graph as plain files any human or agent can read; <strong>Duo</strong> adds capture and search,
-  and <strong>Claude</strong> does the filing, linking, and rollups. The escape hatch that keeps
-  it honest: the same folder opens correctly in Obsidian proper at all times.
+  A <strong>vault</strong> is a folder of markdown notes — YAML frontmatter, links between
+  notes, and rollups — stored in one of two at-rest dialects. The <strong>OKF</strong> dialect
+  (Duo's default) writes standard markdown relative links and slug filenames so the vault
+  renders natively on GitHub; the <strong>Obsidian</strong> dialect writes <code>[[wikilinks]]</code>
+  and a <code>.obsidian/</code> folder. <strong>Either way, your work topics — people, initiatives,
+  themes, meetings — form a <strong>graph</strong>, not a tidy hierarchy</strong>, and the gesture you
+  type to link is identical. The vault stores that graph as plain files any human or agent can
+  read; <strong>Duo</strong> adds capture and search, and <strong>Claude</strong> does the filing,
+  linking, and rollups. The escape hatch that keeps it honest: an OKF vault opens correctly on
+  GitHub <em>and</em> in Obsidian, and an Obsidian vault opens correctly in Obsidian — at all times.
 </div>
 
 <nav class="toc">
-  <strong>The ten primitives</strong>
+  <strong>The eleven primitives</strong>
   <ol>
     <li><a href="#ch1">What a vault is</a></li>
     <li><a href="#ch2">Establishing a vault</a></li>
-    <li><a href="#ch3">Types, templates &amp; filing</a></li>
-    <li><a href="#ch4">Creating entities as you type</a></li>
-    <li><a href="#ch5">Capturing a note</a></li>
-    <li><a href="#ch6">Finding things</a></li>
-    <li><a href="#ch7">Running docs &amp; promote</a></li>
-    <li><a href="#ch8">Generating a rollup</a></li>
-    <li><a href="#ch9">Refreshing a rollup</a></li>
-    <li><a href="#ch10">Processing</a></li>
+    <li><a href="#ch3">OKF vs Obsidian mode</a></li>
+    <li><a href="#ch4">Types, templates &amp; filing</a></li>
+    <li><a href="#ch5">Creating entities as you type</a></li>
+    <li><a href="#ch6">Capturing a note</a></li>
+    <li><a href="#ch7">Finding things</a></li>
+    <li><a href="#ch8">Running docs &amp; promote</a></li>
+    <li><a href="#ch9">Generating a rollup</a></li>
+    <li><a href="#ch10">Refreshing a rollup</a></li>
+    <li><a href="#ch11">Processing</a></li>
   </ol>
 </nav>
 
@@ -186,12 +190,68 @@ filing rules baked in, the standard folders, a processing dashboard, and a READM
   <div class="lstep"><span class="who files">FILES</span><div class="what">the full scaffold — config, five templates, the standard folders, <code>processing.base</code> and a README; the folder is now a real Obsidian vault you can open in Obsidian too</div></div>
   <div class="loopnote">Pick a <strong>default vault</strong> under Settings → Default Vault (None / detected vaults / Choose Vault… — CLI twin <code>duo vault default</code>, same pref file, so either side's change shows up in the other) and ⇧⌘N capture + ⌘⇧F search know which vault you mean without <code>--vault</code>.</div>
 </div>
-<div class="takeaway"><strong>The verb:</strong> <code>duo vault init &lt;folder&gt; [--force]</code> · find vaults with <code>duo vault list</code>.</div>
+<div class="takeaway"><strong>The verb:</strong> <code>duo vault init &lt;folder&gt; --format=okf|obsidian [--name "…"] [--force]</code> · find vaults with <code>duo vault list</code>. The next chapter unpacks the two formats.</div>
 </section>
 
 <!-- ── 3 ───────────────────────────────────────────── -->
 <section id="ch3">
-<h2><span class="chno">3</span>Types, templates &amp; filing</h2>
+<h2><span class="chno">3</span>OKF vs Obsidian mode</h2>
+<p>A vault stores its graph in one of two at-rest dialects. <strong>Both are the same graph
+model</strong> — same notes, same edges, same templates and filing rules — written by a different
+<em>serializer</em>. You pick the format <strong>once, when you create the vault</strong>; the active
+vault then tells Duo's editor which dialect to write. The gesture you type to link is identical;
+only what lands on disk differs.</p>
+<div class="option-cards">
+  <div class="option-card"><h4>OKF mode <span class="pill">default</span></h4>
+    <p>Standard markdown <strong>relative links</strong> + <strong>slug</strong> filenames + a
+    <code>title:</code> / <code>id:</code> frontmatter pair. Renders natively on
+    <a href="https://github.com">GitHub</a>, opens in any editor — <em>and</em> in Obsidian.
+    Best for shareable / published knowledge bases.</p>
+    <p class="verb">[Customer Orders](./people/customer-orders.md)</p></div>
+  <div class="option-card"><h4>Obsidian mode</h4>
+    <p><code>[[wikilinks]]</code> resolved by <strong>basename</strong> + a <code>.obsidian/</code>
+    config folder + <code>.base</code> rollups. The original ENH-208 behavior. Best when you live
+    inside Obsidian and never publish to GitHub (wikilinks render as literal text there).</p>
+    <p class="verb">[[Customer Orders]]</p></div>
+</div>
+<p><strong>What differs at rest</strong> — and only at rest:</p>
+<table class="locked">
+  <tr><th>Aspect</th><th>OKF (default)</th><th>Obsidian</th></tr>
+  <tr><td>Link</td><td><code>[Display](./rel.md)</code> — standard markdown, path-resolved</td><td><code>[[Display]]</code> — wikilink, basename-resolved</td></tr>
+  <tr><td>Filename</td><td>slug (<code>customer-orders.md</code>); human name lives in <code>title:</code></td><td>human name verbatim (<code>Customer Orders.md</code>)</td></tr>
+  <tr><td>Vault marker</td><td><code>okf_version</code> in a root <code>index.md</code></td><td>a <code>.obsidian/</code> directory</td></tr>
+  <tr><td>Listings / rollups</td><td>generated static <code>index.md</code> + <code>log.md</code> bullet listings</td><td><code>.base</code> files → stamped HTML in <code>out/</code></td></tr>
+  <tr><td>Renders on GitHub?</td><td><strong>yes</strong> — links + listings are native markdown</td><td>no — wikilinks &amp; bases show as literal text</td></tr>
+</table>
+<pre class="diagram">the SAME [[ ]] gesture · two serializers
+  you type   <span class="hot">[[Customer Orders]]</span>  in either mode
+
+  OKF on resolve →   <span class="hot">[Customer Orders](./people/customer-orders.md)</span>   <span class="note">standard markdown rel link</span>
+  Obsidian on save → <span class="hot">[[Customer Orders]]</span>                              <span class="note">wikilink, unchanged</span></pre>
+<p><strong>The gesture is identical; only storage differs</strong> (D3). In OKF mode the
+<code>[[ ]]</code> is <em>input only</em> — the moment the link resolves, the editor expands it to a
+standard markdown relative link, so <strong>no double-square-bracket link ever persists</strong> in an
+OKF vault. The same gesture inside a frontmatter value rewrites to a quoted relative-path string on
+commit (D7). In Obsidian mode the wikilink is written through unchanged.</p>
+<div class="lifecycle">
+  <div class="lstep"><span class="who you">YOU</span><div class="what">File ▸ New Vault → pick a location + name, leave the format on <strong>OKF</strong> (the default) → Create (CLI twin: <code>duo vault init &lt;path&gt; --format=okf</code>)</div></div>
+  <div class="larrow">↓</div>
+  <div class="lstep"><span class="who script">SCRIPT</span><div class="what">scaffolds an OKF vault — a root <code>index.md</code> stamped with <code>okf_version</code> (the detection marker), static listings, the standard folders — <strong>no <code>.obsidian/</code></strong>; the fresh vault becomes the default</div></div>
+  <div class="larrow">↓</div>
+  <div class="lstep"><span class="who files">FILES</span><div class="what">a vault that renders on GitHub <strong>and</strong> opens correctly in Obsidian — OKF mode does <em>not</em> break the "opens in Obsidian always" guarantee, because Obsidian renders standard markdown links natively</div></div>
+  <div class="loopnote"><strong>Marker-wins detection (D4).</strong> Duo decides a vault's mode by reading the in-vault marker live (an explicit <code>okf_version</code> ⇒ OKF; a <code>.obsidian/</code> ⇒ Obsidian) — never a cached registry flag, never link-style sniffing. The editor picks up the active vault's mode automatically and falls back to Obsidian if neither marker is present; <code>duo vault list</code> shows the vaults detected from the current folder.</div>
+</div>
+<div class="takeaway"><strong>Moves self-heal (D5).</strong> OKF relative links are path-bound, so a
+file move <em>could</em> dangle them — but Duo owns moves: <code>duo vault mv</code> rewrites every
+inbound link, and an <strong>auto-relink pass runs whenever an OKF vault opens</strong>, re-resolving
+any out-of-band moves (Finder, git) by stable <code>id:</code> then slug fallback. Repair the rest on
+demand with <code>duo vault relink</code> (which reports anything ambiguous or broken). The CLI
+requires <code>--format</code> on purpose; only the New Vault dialog defaults it to OKF.</div>
+</section>
+
+<!-- ── 4 ───────────────────────────────────────────── -->
+<section id="ch4">
+<h2><span class="chno">4</span>Types, templates &amp; filing</h2>
 <p>A <em>type</em> is a <code>templates/&lt;type&gt;.md</code> — a <strong>soft schema</strong>. Its meta keys say
 what an entity of that type expects and <strong>where it files</strong> (D19); the rest are the
 fields a new note inherits. Nothing is enforced — processing validates against it later.</p>
@@ -218,9 +278,9 @@ edges. Completed initiatives are <em>proposed</em> for <code>archive/YYYY/</code
 never moved automatically. Read the live rules with <code>duo vault schema</code>.</div>
 </section>
 
-<!-- ── 4 ───────────────────────────────────────────── -->
-<section id="ch4">
-<h2><span class="chno">4</span>Creating entities as you type</h2>
+<!-- ── 5 ───────────────────────────────────────────── -->
+<section id="ch5">
+<h2><span class="chno">5</span>Creating entities as you type</h2>
 <p>When a note mentions someone or something new, it becomes a real entity from the
 matching template — and your cursor never leaves the note you're writing.</p>
 <div class="flow-steps">
@@ -232,7 +292,7 @@ matching template — and your cursor never leaves the note you're writing.</p>
       <div class="tp-row">theme</div>
       <div class="tp-row" style="color:var(--ink-ghost)">+ new type…</div>
     </div></div></div>
-  <div class="flow-step"><div class="step-label">3 · keep typing</div><div class="step-body">…tracks&nbsp;<span class="wikilink">[[Onboarding]]</span>&nbsp;for Q3.<span class="caret"></span><br><br><span style="color:var(--ink-ghost)">the stub filed silently to <code>initiatives/Onboarding/Onboarding.md</code> — nothing interrupts you</span></div></div>
+  <div class="flow-step"><div class="step-label">3 · keep typing</div><div class="step-body">…tracks&nbsp;<span class="wikilink">[[Onboarding]]</span>&nbsp;for Q3.<span class="caret"></span><br><br><span style="color:var(--ink-ghost)">the stub filed silently in the background — nothing interrupts you</span></div></div>
 </div>
 <p><strong>In the editor:</strong> type <code>[[Onboarding</code> and the <code>[[</code> suggester offers a
 <strong>New:</strong> row. Picking it completes the link and pops the type picker — your template
@@ -242,12 +302,30 @@ for now — the <code>[[</code> suggester closes on a space, so multi-word entit
 narration path. <strong>By narration:</strong> "Jordan Lee owns pricing now" — Claude confirms
 it's new with <code>duo vault schema</code> (checking aliases), then runs
 <code>duo vault stub person "Jordan Lee"</code> — the same code path the picker uses.</p>
-<div class="takeaway"><strong>Shipped in Phase 2:</strong> <code>[[New Name]]</code> ⇥ on the <strong>New:</strong> row → the type-picker popover → stub created in the background; the caret stays put, ⎋ creates nothing.</div>
+<p><strong>The same gesture, two on-disk results (D3).</strong> What persists depends on the
+vault's mode — the gesture and the popover are identical (see <a href="#ch3">chapter 3</a>):</p>
+<div class="option-cards">
+  <div class="option-card"><h4>OKF vault — expands on resolve</h4>
+<pre class="diagram">…tracks <span class="hot">[Onboarding](./initiatives/onboarding/onboarding.md)</span> for Q3.
+     <span class="note">↑ standard markdown rel link; filed at</span>
+     <span class="note">  initiatives/onboarding/onboarding.md (slug)</span></pre>
+    <p>A fresh stub uses the <strong>human name you typed</strong> as the link text (D6); the slug
+    lands in the filename + path, the name in <code>title:</code>.</p></div>
+  <div class="option-card"><h4>Obsidian vault — wikilink unchanged</h4>
+<pre class="diagram">…tracks <span class="hot">[[Onboarding]]</span> for Q3.
+     <span class="note">↑ wikilink, basename-resolved; filed at</span>
+     <span class="note">  initiatives/Onboarding/Onboarding.md</span></pre>
+    <p>The <code>[[ ]]</code> persists as written; the filename keeps the human name verbatim.</p></div>
+</div>
+<p>Picking an <em>existing</em> note from the suggester (rather than the New: row) uses the on-disk
+<strong>slug</strong> as the link text in OKF mode in v1 (no title parsing yet); a stub keeps the human
+name. Obsidian mode is unchanged either way.</p>
+<div class="takeaway"><strong>Shipped in Phase 2:</strong> <code>[[New Name]]</code> ⇥ on the <strong>New:</strong> row → the type-picker popover → stub created in the background; the caret stays put, ⎋ creates nothing. In an OKF vault the link <strong>expands to <code>[Name](./..md)</code> on resolve</strong> (D3); in an Obsidian vault the wikilink is written through unchanged.</div>
 </section>
 
-<!-- ── 5 ───────────────────────────────────────────── -->
-<section id="ch5">
-<h2><span class="chno">5</span>Capturing a note</h2>
+<!-- ── 6 ───────────────────────────────────────────── -->
+<section id="ch6">
+<h2><span class="chno">6</span>Capturing a note</h2>
 <p>Capture is fast and lossy by design. A thought becomes an atomic note in <code>inbox/</code>,
 untyped — a later processing pass files and links it. Nothing to organize in the moment.</p>
 <div class="lifecycle">
@@ -268,9 +346,9 @@ untyped — a later processing pass files and links it. Nothing to organize in t
 <strong>The chord:</strong> <strong>⇧⌘N</strong> drops the same untyped inbox note into the default vault (else the active file's vault) and opens it focused; if neither resolves, the error points you at Settings → Default Vault. And <code>@today</code>-style smart date tokens (today / tomorrow / yesterday, ISO + long-form, plus now) rank in the <code>@</code> suggester — picking one inserts plain text.</div>
 </section>
 
-<!-- ── 6 ───────────────────────────────────────────── -->
-<section id="ch6">
-<h2><span class="chno">6</span>Finding things</h2>
+<!-- ── 7 ───────────────────────────────────────────── -->
+<section id="ch7">
+<h2><span class="chno">7</span>Finding things</h2>
 <p>Four ways to get around the graph — full-text, and three that follow edges. All emit
 JSON Claude can act on; all resolve wikilinks by <strong>basename</strong>, so they keep working
 after a note is filed somewhere new.</p>
@@ -294,9 +372,9 @@ after a note is filed somewhere new.</p>
 <code>Legal review.md</code> into its initiative's folder and every <code>[[Legal review]]</code> link still points at it.</div>
 </section>
 
-<!-- ── 7 ───────────────────────────────────────────── -->
-<section id="ch7">
-<h2><span class="chno">7</span>Running docs &amp; promote</h2>
+<!-- ── 8 ───────────────────────────────────────────── -->
+<section id="ch8">
+<h2><span class="chno">8</span>Running docs &amp; promote</h2>
 <p>Not everything deserves its own file on day one. Keep a low-ceremony series as one
 <strong>running doc</strong> — a section per entry — and <strong>promote</strong> a section to its own entity
 only when it earns properties or a place in a rollup. (A link can point <em>inside</em> a note:
@@ -326,9 +404,9 @@ it a <em>transclusion</em>) — reversible by inlining the embed. It's a skill c
 <div class="takeaway"><strong>Fast-follow:</strong> editable transclusion (inline-editable embeds) is the deferred Duo-native upgrade that makes discrete files read &amp; edit as one doc.</div>
 </section>
 
-<!-- ── 8 ───────────────────────────────────────────── -->
-<section id="ch8">
-<h2><span class="chno">8</span>Generating a rollup</h2>
+<!-- ── 9 ───────────────────────────────────────────── -->
+<section id="ch9">
+<h2><span class="chno">9</span>Generating a rollup</h2>
 <p>A <strong>rollup</strong> is a view computed from frontmatter — "open milestones for this
 initiative, grouped by owner, with a due chip." Duo uses plain Obsidian
 <a href="https://help.obsidian.md/bases">Bases</a> (<code>.base</code> files + embedded blocks), so the
@@ -360,9 +438,9 @@ link <code>== this</code>, date math, <code>html()</code>/<code>icon()</code>, <
 child→parent backlink rollups). Anything else renders as a ⚠ cell rather than breaking.</div>
 </section>
 
-<!-- ── 9 ───────────────────────────────────────────── -->
-<section id="ch9">
-<h2><span class="chno">9</span>Refreshing a rollup</h2>
+<!-- ── 10 ──────────────────────────────────────────── -->
+<section id="ch10">
+<h2><span class="chno">10</span>Refreshing a rollup</h2>
 <p>A render is a <strong>build artifact</strong>, not a live cache — and it says so. Every render
 carries a visible stamp at the top, so staleness is always <em>detectable</em>:</p>
 <pre class="diagram">BUILD ARTIFACT — regenerate: duo base render Q3 Launch ·
@@ -383,9 +461,9 @@ tab-focus is the fast-follow; a file-watcher + scheduled re-render are deferred 
 no silent staleness.</div>
 </section>
 
-<!-- ── 10 ──────────────────────────────────────────── -->
-<section id="ch10">
-<h2><span class="chno">10</span>Processing</h2>
+<!-- ── 11 ──────────────────────────────────────────── -->
+<section id="ch11">
+<h2><span class="chno">11</span>Processing</h2>
 <p>"Process my vault" is a single reviewable pass that does the housekeeping capture
 deliberately skipped — and <strong>every change is a proposal</strong>, never silent.</p>
 <div class="lifecycle">
@@ -406,10 +484,12 @@ the same property that lets it run unattended on a schedule later.</div>
 </section>
 
 <footer>
-  The Vault Guide · ENH-208 Phases 1–2. Built alongside the verbs and the
+  The Vault Guide · ENH-208 Phases 1–2 + ENH-216 OKF mode. Built alongside the verbs and the
   <code>references/vault.md</code> skill, from one source of truth. Open it any time with
   <code>duo open docs/guide/vault-guide.html</code>. Phase 2 shipped the capture UX (Settings →
   Default Vault, ⇧⌘N quick-capture, <code>@today</code> tokens, ⌘⇧F search, the type-picker);
+  ENH-216 added <strong>OKF mode</strong> (chapter 3) — a second at-rest serializer over the same
+  graph, writing GitHub-portable markdown links + slug filenames, with auto-relink on vault open.
   Phase 3 brings rollups rendered inside the app.
 </footer>
 

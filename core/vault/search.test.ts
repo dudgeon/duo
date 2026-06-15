@@ -98,14 +98,24 @@ describe('searchAsync parity with search', () => {
     expect(VAULT_SEARCH_DEFAULT_LIMIT).toBe(200)
   })
 
-  it('the async walk skips the same dirs as the sync one', async () => {
+  it('search surfaces templates/ (ENH-214) but still skips .obsidian/.trash/out', async () => {
     note('.obsidian/config.md', 'skipped needle\n')
+    note('out/rendered.md', 'skipped needle\n')
     note('templates/person.md', 'skipped needle\n')
     note('real.md', 'skipped needle\n')
     const sync = search(dir, 'skipped needle')
     const async_ = await searchAsync(dir, 'skipped needle')
-    expect(async_).toEqual(sync)
-    expect(async_.map((h) => h.path)).toEqual(['real.md'])
+    expect(async_).toEqual(sync) // sync/async parity preserved
+    // templates/ is now searchable; .obsidian + out stay excluded.
+    expect(sync.map((h) => h.path).sort()).toEqual(['real.md', 'templates/person.md'])
+  })
+
+  it('flags template-file hits with isTemplate, others false (ENH-214)', () => {
+    note('templates/person.md', 'find me\n')
+    note('people/alice.md', 'find me\n')
+    const byPath = Object.fromEntries(search(dir, 'find me').map((h) => [h.path, h.isTemplate]))
+    expect(byPath['templates/person.md']).toBe(true)
+    expect(byPath['people/alice.md']).toBe(false)
   })
 
   it('returns [] for an empty query', async () => {

@@ -507,6 +507,64 @@ With BOTH windows open:
 
 ---
 
+## 10. OKF vault mode (ENH-216 — renderer seam + New Vault dialog)
+
+> Run only when the change touches the New Vault modal, the editor's
+> vault-mode detection / link-serializer seam, the FrontmatterPanel
+> commit path, or anything in `core/markdown/vaultLinks.ts`'s consumers.
+> **Do NOT add rows for the pure link math** (`slugStem` / `relLink` /
+> `serializeOkfLink` / `linkSerializerFor` / `resolveMarkdownLinkHref`) —
+> those are CI-covered by the 334 unit tests; this section is the
+> NON-CI UI/integration surface only.
+>
+> One graph model, two at-rest serializers. The `[[ ]]` gesture is
+> identical in OKF and Obsidian mode; only the on-disk syntax + vault
+> marker differ (D3). Mode is per-vault, detected via
+> `window.electron.vault.detect` (fallback `obsidian`, D4).
+
+- [ ] **New Vault dialog defaults to OKF.** File ▸ New Vault opens a
+      modal with a location field, name field, and a two-option format
+      picker (OKF / Obsidian) with **OKF pre-selected** (D2). Escape
+      dismisses (no vault created); Enter / Create commits.
+- [ ] **`duo vault init --format=okf` makes an OKF vault.** No
+      `.obsidian/` directory; a root `index.md` carries the
+      `okf_version` marker; `window.electron.vault.detect({vaultRoot})`
+      returns `okf` (the editor's mode probe — there is no CLI `detect`
+      verb). The `--format` flag is REQUIRED on the CLI (only the dialog
+      defaults it).
+- [ ] **OKF gesture expands on resolve (D3).** In an OKF-vault note,
+      `[[Name]]`⇥ → type-picker → stub. On disk the persisted text is a
+      standard markdown rel link `[Name](./slug-path.md)` — NEVER a
+      `[[wikilink]]`. A fresh stub uses the human name you typed as link
+      text; picking an existing note uses the on-disk slug (D6). The
+      stub file lands at a slug path with `title:` + `id:` frontmatter.
+- [ ] **Cmd+click follows a relative markdown link.** Over an
+      `[Name](./rel.md)` link in an OKF note, Cmd+click opens the
+      resolved target (not a 404 / new-blank note).
+- [ ] **Frontmatter gesture expands on COMMIT (D7).** In a typed
+      frontmatter field, `owner: [[Alice]]` rewrites to a quoted
+      rel-path string (`owner: "people/alice.md"`) on commit — NOT
+      per-keystroke (FrontmatterPanel is a raw textarea). Mode-gated;
+      Obsidian-mode frontmatter wikilinks are left unchanged.
+- [ ] **Active-vault switch flips the dialect (D4).** Editing a note in
+      an OKF vault writes rel links; switching the active vault to an
+      Obsidian vault and editing there writes `[[wikilinks]]` — the
+      serializer follows the active vault's detected mode, no stale
+      dialect carried over.
+- [ ] **REGRESSION — Obsidian mode unchanged.** The `[[ ]]` gesture in
+      an Obsidian vault still persists wikilinks verbatim (no slug
+      rewrite); `duo graph backlinks` still resolves by basename.
+- [ ] **Auto-relink on vault open (D5).** Move an OKF note out-of-band
+      (Finder / git), then open the vault — the main process repairs
+      dangling rel links automatically (by `id:` then slug fallback).
+      `duo vault relink --dry-run` reports any remaining ambiguous /
+      broken links rather than rewriting them blindly.
+- [ ] **Obsidian-compat.** An OKF vault opened as a folder in Obsidian
+      proper renders + navigates its markdown rel links natively (the
+      ENH-208 "opens in Obsidian always" guarantee still holds).
+
+---
+
 ## Reporting template
 
 Paste this into the end-of-task summary, filling in each line:

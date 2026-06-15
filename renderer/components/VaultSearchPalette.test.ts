@@ -21,7 +21,8 @@ const hit = (path: string, line: number, excerpt: string): VaultSearchHitDto => 
   absPath: '/vault/' + path,
   line,
   excerpt,
-  docMatchIndex: 0
+  docMatchIndex: 0,
+  isTemplate: path.split('/').includes('templates')
 })
 
 describe('groupHitsByFile (ENH-208 per-file result grouping)', () => {
@@ -68,6 +69,15 @@ describe('groupHitsByFile (ENH-208 per-file result grouping)', () => {
     // so grouping shape can't corrupt it.
     const hits = [hit('a.md', 1, 'x'), hit('b.md', 1, 'x'), hit('a.md', 5, 'x')]
     expect(groupHitsByFile(hits)).toHaveLength(3)
+  })
+
+  it('flags a templates/ group as isTemplate (ENH-214)', () => {
+    const groups = groupHitsByFile([
+      hit('templates/person.md', 3, 'type: person'),
+      hit('people/alice.md', 1, 'type: person')
+    ])
+    expect(groups[0].isTemplate).toBe(true)
+    expect(groups[1].isTemplate).toBe(false)
   })
 })
 

@@ -7,8 +7,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { walk, readNotes } from './parse'
-
-const WIKILINK_LINE_RE = /\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]/g
+import { extractLinkRefs, targetKey } from '../markdown/vaultLinks'
 
 export interface Backlink {
   /** Linking note, relative to the vault root. */
@@ -21,18 +20,13 @@ export interface Backlink {
   excerpt: string
 }
 
-/** Strip a wikilink target to its basename (drops any `path/` prefix). */
-function targetBasename(target: string): string {
-  const t = target.trim()
-  const slash = t.lastIndexOf('/')
-  return slash >= 0 ? t.slice(slash + 1) : t
-}
-
-/** All occurrences across the vault that wikilink to `noteName` (matched by
- *  basename, case-sensitive — Obsidian is case-preserving). Scans the full
- *  raw file so frontmatter relationships count. */
+/** All occurrences across the vault that link to `noteName` (matched on the
+ *  move-proof {@link targetKey} — so a wikilink `[[Alice Park]]` and an mdlink
+ *  `./alice-park.md` both resolve). ENH-216: scans BOTH syntaxes via the
+ *  single node-free extractor, over the full raw file so frontmatter
+ *  relationships count. */
 export function backlinks(root: string, noteName: string): Backlink[] {
-  const target = targetBasename(noteName).replace(/\.md$/, '')
+  const target = targetKey(noteName, 'wikilink')
   const out: Backlink[] = []
   for (const abs of walk(root).filter((p) => p.endsWith('.md'))) {
     let raw: string
@@ -43,16 +37,14 @@ export function backlinks(root: string, noteName: string): Backlink[] {
     }
     const lines = raw.split('\n')
     for (let i = 0; i < lines.length; i++) {
-      for (const m of lines[i].matchAll(WIKILINK_LINE_RE)) {
-        if (targetBasename(m[1]) === target) {
-          out.push({
-            path: path.relative(root, abs).split(path.sep).join('/'),
-            absPath: abs,
-            line: i + 1,
-            excerpt: lines[i].trim(),
-          })
-          break // one hit per line is enough for navigation
-        }
+      if (extractLinkRefs(lines[i]).some((ref) => ref.key === target)) {
+        out.push({
+          path: path.relative(root, abs).split(path.sep).join('/'),
+          absPath: abs,
+          line: i + 1,
+          excerpt: lines[i].trim(),
+        })
+        // one hit per line is enough for navigation
       }
     }
   }
@@ -64,17 +56,20 @@ export function backlinks(root: string, noteName: string): Backlink[] {
  *  rel paths, sorted. Templates/out are already excluded by the walk. */
 export function orphans(root: string): string[] {
   const notes = readNotes(root)
-  const names = new Set(notes.map((n) => n.basename))
-  // inbound[name] = true once some note links to it (resolvable target).
+  // ENH-216: `n.links` are now syntax-plural, move-proof KEYS — so key the
+  // resolvable-target set by `targetKey(basename)` to match (was `basename`).
+  const keys = new Set(notes.map((n) => targetKey(n.basename, 'wikilink')))
+  // linkedTo[key] = true once some note links to it (resolvable target).
   const linkedTo = new Set<string>()
   for (const n of notes) {
     for (const l of n.links) {
-      const base = targetBasename(l)
-      if (names.has(base)) linkedTo.add(base)
+      if (keys.has(l)) linkedTo.add(l)
     }
   }
   return notes
-    .filter((n) => n.links.length === 0 && !linkedTo.has(n.basename))
+    .filter(
+      (n) => n.links.length === 0 && !linkedTo.has(targetKey(n.basename, 'wikilink')),
+    )
     .map((n) => n.relPath)
     .sort()
 }

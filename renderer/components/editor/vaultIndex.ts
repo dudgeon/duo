@@ -10,13 +10,19 @@
 // the returned `refresh` callback when the user adds/removes files.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { findVaultRoot, walkVaultFiles, type VaultFile } from './wikilinkResolver'
+import { findVaultRootAndMode, walkVaultFiles, type VaultFile } from './wikilinkResolver'
+import type { VaultMode } from '../../../core/markdown/vaultLinks'
 
 export interface VaultIndex {
-  /** The detected vault root (path of the directory containing
-   *  `.obsidian/`), or null if no vault was found from the active
-   *  file's location. */
+  /** The detected vault root (path of the directory containing the OKF
+   *  marker `index.md` or a `.obsidian/`), or null if no vault was found
+   *  from the active file's location. */
   vaultRoot: string | null
+  /** ENH-216 — the vault's at-rest link mode (D4). Resolved alongside the
+   *  root via `findVaultRootAndMode`; defaults to 'obsidian' (the existing
+   *  wikilink behaviour) when no vault is found. The [[ ]] gesture branches
+   *  on this to write the right serializer's output on resolve (D3). */
+  mode: VaultMode
   /** All visible text-y files inside the vault, BFS-walked. Empty
    *  while loading or when no vault was found. */
   files: VaultFile[]
@@ -44,6 +50,9 @@ export interface VaultIndex {
  */
 export function useVaultIndex(activePath: string | null): VaultIndex {
   const [vaultRoot, setVaultRoot] = useState<string | null>(null)
+  // ENH-216 — the resolved vault's at-rest link mode (D4). Defaults to
+  // 'obsidian' (the existing wikilink behaviour) until a vault resolves.
+  const [mode, setMode] = useState<VaultMode>('obsidian')
   const [files, setFiles] = useState<VaultFile[]>([])
   const [loading, setLoading] = useState(false)
   // Bumped by `refresh()` to force the rebuild effect to re-run even
@@ -51,15 +60,19 @@ export function useVaultIndex(activePath: string | null): VaultIndex {
   const [refreshTick, setRefreshTick] = useState(0)
   const cancelledRef = useRef(false)
 
-  // Effect 1: resolve the vault root for the active path.
+  // Effect 1: resolve the vault root + mode for the active path (D4).
   useEffect(() => {
     cancelledRef.current = false
     let cancelled = false
-    void findVaultRoot(activePath).then((root) => {
+    void findVaultRootAndMode(activePath).then((result) => {
       if (cancelled) return
+      const root = result?.root ?? null
       // Only update when the root actually changes — avoids triggering
       // the walk effect when the path moved within the same vault.
       setVaultRoot((prev) => (prev === root ? prev : root))
+      // Mode follows the resolved vault; falls back to 'obsidian' when no
+      // vault is found so the gesture's default stays wikilinks.
+      setMode(result?.mode ?? 'obsidian')
     })
     return () => { cancelled = true }
   }, [activePath])
@@ -89,7 +102,7 @@ export function useVaultIndex(activePath: string | null): VaultIndex {
     setRefreshTick((n) => n + 1)
   }, [])
 
-  return { vaultRoot, files, loading, refresh }
+  return { vaultRoot, mode, files, loading, refresh }
 }
 
 /**

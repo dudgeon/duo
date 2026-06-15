@@ -34,6 +34,94 @@ export function normalizeWikilinkName(name: string): string {
     .trim()
 }
 
+// ENH-216 OKF Vault Mode (U7) — mode-aware resolution.
+//
+// ONE graph model, TWO at-rest serializers. The editor needs to know
+// which serializer a given vault uses so the [[ ]] gesture writes the
+// right thing on resolve (D3) and so click-nav follows the right link
+// shape. Mode is a per-vault property detected from the in-vault marker
+// (D4): `okf_version` frontmatter on the root index.md → 'okf'; a
+// `.obsidian/` dir → 'obsidian'; okf_version WINS if both are present.
+
+import type { VaultMode } from '../../../core/markdown/vaultLinks'
+import { resolveMarkdownLinkHref } from '../../../core/markdown/vaultLinks'
+
+/**
+ * Detect a vault's at-rest link mode (D4). Delegates to the main process
+ * (`window.electron.vault.detect`), which reads the in-vault marker as
+ * the source of truth — never a Duo-owned sidecar (DECISIONS § D9 / the
+ * no-sidecar rule). Returns 'obsidian' as the fallback both when the path
+ * isn't a recognizable vault and when the probe fails, so callers can
+ * treat the result as a total function (the existing default has always
+ * been wikilinks).
+ */
+export async function detectVaultMode(vaultRoot: string): Promise<VaultMode> {
+  try {
+    const format = await window.electron.vault.detect({ vaultRoot })
+    return format === 'okf' ? 'okf' : 'obsidian'
+  } catch {
+    return 'obsidian'
+  }
+}
+
+/**
+ * Walk up from a starting file path to find the enclosing vault root AND
+ * its mode, recognizing BOTH vault markers (D4): a `.obsidian/` directory
+ * OR an `okf_version` root `index.md`. Returns `{ root, mode }` for the
+ * nearest enclosing vault, or null when none is found (cap 16 levels,
+ * matching {@link findVaultRoot}).
+ *
+ * The authoritative marker check is `window.electron.vault.detect`, which
+ * reads the in-vault marker live and applies the okf_version-wins
+ * tie-break — so this never caches mode anywhere. One IPC per ancestor
+ * level is the same shape as findVaultRoot's per-level `dirExists` probe;
+ * the walk stops at the first vault found.
+ */
+export async function findVaultRootAndMode(
+  startPath: string | null,
+): Promise<{ root: string; mode: VaultMode } | null> {
+  if (!startPath) return null
+  let dir = startPath.slice(0, startPath.lastIndexOf('/'))
+  if (!dir) return null
+  for (let depth = 0; depth < 16; depth++) {
+    try {
+      const format = await window.electron.vault.detect({ vaultRoot: dir })
+      if (format) {
+        return { root: dir, mode: format === 'okf' ? 'okf' : 'obsidian' }
+      }
+    } catch {
+      // IO failure → assume not a vault root, continue walking up.
+    }
+    const parent = dir.slice(0, dir.lastIndexOf('/'))
+    if (!parent || parent === dir) return null
+    dir = parent
+  }
+  return null
+}
+
+/**
+ * Resolve a standard markdown relative link `href` (the `(./rel.md)`
+ * portion of an OKF `[Display](./rel.md)`) to an ABSOLUTE on-disk path,
+ * for cmd+click navigation. `docPath` is the source note's absolute path.
+ * Pure path math via the node-free helper (no `window.electron` round
+ * trip): joins `href` to the doc's directory, resolves `.`/`..`, returns
+ * the absolute path. Returns null for external / anchor-only hrefs.
+ *
+ * The host (App.tsx's duo-wikilink-open handler) confirms existence /
+ * applies the create-on-missing behaviour; this just computes WHERE the
+ * link points, the OKF mdlink twin of resolveWikilinkInVault's
+ * basename-walk for the Obsidian case.
+ */
+export function resolveMdLinkInVault(href: string, docPath: string): string | null {
+  // resolveMarkdownLinkHref does POSIX join + normalize but drops the
+  // leading-slash (normalizePosix discards empty leading segments). docPath
+  // here is ABSOLUTE, so re-prepend `/` to the resolved path. External /
+  // anchor-only hrefs return null and are passed through untouched.
+  const resolved = resolveMarkdownLinkHref(href, docPath)
+  if (resolved == null) return null
+  return docPath.startsWith('/') && !resolved.startsWith('/') ? `/${resolved}` : resolved
+}
+
 /**
  * Walk up from a starting file path until we find an `.obsidian/`
  * directory (vault root) or run out of ancestors (cap 16 levels).

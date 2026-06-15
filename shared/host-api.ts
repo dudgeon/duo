@@ -335,6 +335,10 @@ export interface ElectronNavAPI {
    *  pre-populate the modal's parent-dir input (owner Q1 right-click
    *  context wins over Navigator cwd). */
   onOpenCloneModal: (cb: (payload?: { path?: string }) => void) => () => void
+  /** ENH-216 (VAULT MODE) — File → New Vault… menu trigger. Renderer
+   *  opens the New Vault dialog (OKF the default format — D2). Mirrors
+   *  onOpenCloneModal's menu-driven pattern. */
+  onOpenNewVaultModal: (cb: () => void) => () => void
   /** FOLLOWUP-025 v2 — renderer-initiated request to open the Clone
    *  modal (Navigator right-click → "Clone GitHub repo here…"). The
    *  main process echoes back via NAV_OPEN_CLONE_MODAL so all
@@ -1061,6 +1065,12 @@ export interface ElectronAPI {
   vault: ElectronVaultAPI
 }
 
+// ENH-216 (VAULT MODE) — at-rest serializer for a vault. ONE graph model,
+// TWO serializers: 'obsidian' (wikilinks, the existing default) and 'okf'
+// (standard markdown relative links). The New Vault dialog defaults to
+// 'okf' (D2); detect() probes an existing vault's in-vault marker (D4).
+export type VaultFormat = 'okf' | 'obsidian'
+
 // ENH-208 Phase 2 — vault UI host API. Result shapes mirror core/vault's
 // CaptureResult / SearchHit / StubResult, declared inline because
 // core/vault is not in the renderer tsconfig until Phase 3 shares the
@@ -1079,6 +1089,9 @@ export interface VaultSearchHitDto {
    *  The palette hands this to the editor's goto-match jump so producer
    *  and consumer count the same thing (D22). */
   docMatchIndex: number | null
+  /** ENH-214 — true when the hit's file is under a `templates/` dir; drives
+   *  the palette's inline "Template" badge. */
+  isTemplate: boolean
 }
 
 export interface ElectronVaultAPI {
@@ -1127,6 +1140,39 @@ export interface ElectronVaultAPI {
     vaultRoot: string
     type: string
   }) => Promise<{ ok: true; path: string; type: string } | { ok: false; error: string }>
+  /** ENH-216 (VAULT MODE) — File → New Vault… dialog submit. Scaffolds
+   *  an OKF or Obsidian vault under `folder` via the SAME core/vault
+   *  code the `duo vault init <path> --format=…` CLI verb runs (D1).
+   *  OKF is the dialog default (D2). `name` is the optional human vault
+   *  name (slugged for the on-disk dir when present, else `folder`'s
+   *  stem). On success: `root` is the new vault root, `created` lists
+   *  the scaffolded relative paths, `warnings` carries any non-fatal
+   *  notes, and `openPath` is the artifact to open after create (the
+   *  OKF index.md / Obsidian entry note). */
+  create: (opts: {
+    folder: string
+    name?: string
+    format: VaultFormat
+  }) => Promise<
+    | {
+        ok: true
+        root: string
+        created?: string[]
+        warnings?: string[]
+        openPath?: string
+      }
+    | { ok: false; error: string }
+  >
+  /** ENH-216 — the New Vault dialog's "Choose folder…" button. Opens a
+   *  native directory picker; resolves to the chosen absolute path, or
+   *  null when the user cancels. */
+  pickDir: () => Promise<string | null>
+  /** ENH-216 — renderer mode probe (U7). Reads the in-vault marker as
+   *  the source of truth (D4): okf_version frontmatter on the root
+   *  index.md → 'okf'; a `.obsidian/` dir → 'obsidian'; okf_version WINS
+   *  if both are present. Resolves to null when `vaultRoot` is not a
+   *  recognizable vault. */
+  detect: (opts: { vaultRoot: string }) => Promise<VaultFormat | null>
 }
 
 export interface ElectronProjectsAPI {

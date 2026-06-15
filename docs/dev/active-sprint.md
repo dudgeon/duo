@@ -15,6 +15,43 @@
 > `main`; code surfaces are disjoint, only `tasks.md` + this file are append-region
 > conflicts. Full writeup: `tasks.md` ENH-211.
 
+## ENH-216 — OKF vault mode (owner-initiated 2026-06-13; walk-1 done 3P/1F/4S; pre-cut batch in flight → v0.11.0)
+
+> **Owner thesis:** the important future use case for vaults is GitHub-renderable /
+> broadly-portable KBs → standard markdown links with relative paths (the proposed
+> **Open Knowledge Format**), not Obsidian `[[wikilinks]]` (which render as literal
+> text on github.com). **Proposal:** an **OKF vault mode** — a second serializer over
+> the same `core/vault/` graph model — keeping the `[[ ]]` gesture but writing
+> `[Text](./rel.md)` at rest; format chosen **per vault** via a new **File ▸ New Vault**
+> picker (+ `duo vault init --format` CLI twin), and the active vault toggles the mode.
+> **Status (2026-06-13):** all 11 decisions + 3 follow-ups LOCKED; **Stages 0–5
+> implemented** via two ultracode workflows (foundation/dialect-aware core/CLI/IPC/menu,
+> then the renderer seam + New Vault modal + auto-relink-on-open + guide/smoke-walk).
+> Verified at the code level: typecheck clean, **1425/1425 tests**, `cli/duo` rebuilt,
+> check:skill-currency 0 failures, `duo vault init --format=okf` produces the correct
+> on-disk shape. Found + fixed a live `vault:detect` IPC-handler gap (a missing
+> main-process handler that would have kept the editor out of OKF mode). **Rebased onto
+> `main` (0.10.4, post-ENH-210/211/212)** — conflicts were additive (preload nav-bridge,
+> this file) and re-verified green; full suite **1542 tests** post-rebase.
+> **Walk-1 (v0.10.4, 2026-06-14): 3 PASS / 1 FAIL / 4 SKIP.** PASS: New Vault dialog ·
+> `[[ ]]`→md-link expand-on-resolve · cmd+click nav. FAIL: frontmatter `[[ ]]` → re-fixed
+> (FOLLOWUP-050 — live autocomplete + silent-stub create flow). SKIP: CLI-init (owner's
+> PATH `duo` is the stale installed release w/o `--format`; code correct via `./cli/duo`),
+> dialect-flip, Obsidian-compat. Walk-2 sheet trimmed to the 3 unresolved items
+> (`docs/dev/smoke-walks/v0.10.4-rev2.html`).
+> **Pre-cut batch → v0.11.0 — ALL THREE PENDING ITEMS LANDED** (owner green-lit "do all of
+> those things", 2026-06-14). Committed: **FOLLOWUP-051** `e105b85` (frontmatter `[[ ]]`→
+> `[[name]]` both modes; a bare rel-path isn't a graph edge in Duo/Obsidian), **BUG-207**
+> `c32ee48` (sidecar S1+S4 — verified live, no `.md.duo.json` on note create), **ENH-214**
+> `af9434a` (templates in ⌘⇧F + inline badge; data path verified CLI + live IPC). Earlier:
+> BUG-208, worksheet copy fix, FOLLOWUP-050. Suite **1555 green**, `cli/duo` rebuilt.
+> **Walk-3 pinned** (`docs/dev/smoke-walks/v0.10.4-rev3.html`, aux): 2 owner-eyes items
+> (FOLLOWUP-051 keystroke + ENH-214 badge/section call) + 2 carry-forward SKIPs; BUG-207 +
+> ENH-214 data path agent-verified. Fixture vault `/tmp/duo-walk-v0104-rev3/`. Then
+> `cut-version` (v0.11.0 — OKF is a new vault format → minor bump). Tracked: `tasks.md`
+> ENH-216 / FOLLOWUP-050 / FOLLOWUP-051 / BUG-207 / BUG-208 / ENH-214; PRD
+> `docs/research/okf-vault-mode.html`.
+
 ## BUG-200 — terminal-collapse data-loss fix (in flight, this branch, 2026-06-10)
 
 > **Owner-initiated, parallel to ENH-208.** Collapsing the terminal pane was

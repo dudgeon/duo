@@ -509,16 +509,16 @@ const VERBS: VerbSpec[] = [
   {
     name: 'vault',
     group: 'Vault',
-    args: '<init|list|schema|capture|stub|search|default> [args]',
+    args: '<init|list|schema|capture|stub|search|default|mv|relink|publish|promote> [args]',
     summary:
-      'Work-notes vault (a strict Obsidian vault). init <folder> [--force]: scaffold .obsidian/ + starter templates (person/initiative/milestone/meeting/theme, with D19 filing rules) + inbox/ + bases/processing.base + README. list: vaults detected from the cwd (JSON). schema [--vault p]: the live corpus — types/entities/aliases/props-per-type/observed-enums, a pure function over frontmatter (the vault IS the schema; never cached). capture [--template t] [--text "…"] [--title "…"] [--open]: drop a timestamped inbox note (untyped by default; --template stamps a type). stub <type> <name> [--open]: create a typed entity stub from its template, filed by the D19 rule (the CLI twin of the silent-stub [[New Name]]⇥ gesture; idempotent — never clobbers). search <query> [--vault p]: full-text hits (file, line, excerpt) — the CLI twin of ⌘⇧F. default [<path>|--clear]: read or set the default vault (Phase-2 D11; the CLI twin of the Settings field). Verbs resolve --vault → the enclosing vault → the default → error, so a set default lets them run from outside any vault.'
+      'Work-notes vault. Two at-rest formats: OKF (standard markdown relative links, [Display](./rel.md)) and Obsidian (wikilinks, [[Display]]) — one graph model, two serializers. init <path> --format=okf|obsidian [--name "…"] [--no-default] [--force]: scaffold a vault; --format is REQUIRED on the CLI (the New Vault dialog defaults to OKF). OKF mode marks the root with an okf_version index.md + static listings; Obsidian writes the legacy .obsidian/ + bases/processing.base + README. The fresh vault becomes the default unless --no-default is passed (a throwaway scaffold can opt out of the global-default hijack; it still lands in the picker\'s known list). list: vaults detected from the cwd (JSON). schema [--vault p]: the live corpus — types/entities/aliases/props-per-type/observed-enums, a pure function over frontmatter (the vault IS the schema; never cached). capture [--template t] [--text "…"] [--title "…"] [--open]: drop a timestamped inbox note (untyped by default; --template stamps a type). stub <type> <name> [--open]: create a typed entity stub from its template, filed by the D19 rule (the CLI twin of the silent-stub [[New Name]]⇥ gesture; idempotent — never clobbers). search <query> [--vault p]: full-text hits (file, line, excerpt) — the CLI twin of ⌘⇧F. default [<path>|--clear]: read or set the default vault (Phase-2 D11; the CLI twin of the Settings field). mv <from> <to>: move a note (vault-relative) and rewrite every inbound markdown link to its new path, re-basing the moved note\'s own outbound links (D5 clean path). relink [--dry-run]: repair out-of-band moves (Finder/git) — re-resolve dangling markdown links by slug/basename first, using the stable frontmatter id: only to tiebreak when >1 note shares a slug, rewriting the unambiguous ones and reporting ambiguous + broken (D5; auto-runs on vault open). publish [--index-only|--log-only] [--dir] [--open]: (re)generate the OKF static listings from the corpus — root index.md (frontmatter byte-preserved) + log.md, --dir adds per-folder index.md (D8; OKF-mode only). --index-only / --log-only narrow the WRITE to just that file (the other is left byte-identical — no churn), not just the reported set. promote <note> --heading "<h>" --type <t>: split a ## section into its own typed entity, leaving a markdown link behind (a wikilink in Obsidian) — never an embed (D9). Verbs resolve --vault → the enclosing vault → the default → error, so a set default lets them run from outside any vault.'
   },
   {
     name: 'graph',
     group: 'Vault',
     args: '<backlinks <note>|orphans> [--vault p]',
     summary:
-      'Vault graph queries (wikilinks resolve by basename, so they survive file moves). backlinks <note>: every note linking to <note>, with file + line (JSON). orphans: notes with no inbound and no outbound links — a processing work-list (JSON).'
+      'Vault graph queries. Both wikilinks ([[Display]], basename-resolved) AND standard markdown relative links ([Display](./rel.md)) are edges. Wikilinks survive file moves by basename; OKF markdown rel links do NOT (a move changes the path) — use `duo vault mv` (rewrites inbound links) or `duo vault relink` (repairs out-of-band moves). backlinks <note>: every note linking to <note>, with file + line (JSON). orphans: notes with no inbound and no outbound links — a processing work-list (JSON).'
   },
   {
     name: 'base',
@@ -2438,15 +2438,41 @@ async function main(): Promise<void> {
         const subRest = rest.slice(1)
         const vaultFlag = flagValue(subRest, '--vault')
         if (sub === 'init') {
-          const folder = positionalArgs(subRest, [])[0]
-          if (!folder) die('Usage: duo vault init <folder> [--force]')
-          const result = vault.initVault(path.resolve(process.cwd(), folder), { force: subRest.includes('--force') })
+          const folder = positionalArgs(subRest, ['--format', '--name'])[0]
+          if (!folder) die('Usage: duo vault init <path> --format=okf|obsidian [--name "…"] [--no-default] [--force]')
+          // ENH-216 D2 — `--format` is REQUIRED on the CLI (deliberate
+          // asymmetry with the New Vault dialog, which defaults to OKF). Accept
+          // both `--format=okf` and `--format okf` spellings.
+          const formatRaw =
+            subRest.find((a) => a.startsWith('--format='))?.slice('--format='.length) ??
+            flagValue(subRest, '--format')
+          if (!formatRaw) {
+            die('Usage: duo vault init <path> --format=okf|obsidian [--name "…"] [--no-default] [--force]\n  --format is required (okf = standard markdown rel links; obsidian = wikilinks)')
+          }
+          if (formatRaw !== 'okf' && formatRaw !== 'obsidian') {
+            die(`unknown --format "${formatRaw}" (expected okf or obsidian)`)
+          }
+          const name =
+            subRest.find((a) => a.startsWith('--name='))?.slice('--name='.length) ??
+            flagValue(subRest, '--name')
+          const result = vault.initVault(path.resolve(process.cwd(), folder), {
+            force: subRest.includes('--force'),
+            format: formatRaw,
+            name,
+          })
           // ENH-208 — register the freshly-scaffolded vault so the Settings →
           // Default Vault picker offers it (window-independent known list)
-          // before it's ever been set as the default.
+          // before it's ever been set as the default. ENH-216 — a fresh vault
+          // becomes the default by default (CLI twin of the New Vault dialog
+          // flow); --no-default opts out (PR#98 review C1) so a throwaway
+          // scaffold doesn't silently hijack the global default — it still
+          // lands in `knownVaults` via rememberVault, so the picker offers it,
+          // it just isn't auto-activated.
+          const noDefault = subRest.includes('--no-default')
           vault.rememberVault(result.root)
+          if (!noDefault) vault.setDefaultVault(result.root)
           for (const w of result.warnings) process.stderr.write(`duo: warning — ${w}\n`)
-          out(result)
+          out({ ...result, madeDefault: !noDefault })
         } else if (sub === 'list') {
           // Vaults detected from the cwd (enclosing + nested).
           out(vault.listVaults(process.cwd()))
@@ -2512,16 +2538,79 @@ async function main(): Promise<void> {
           const query = positionalArgs(subRest, ['--vault'])[0]
           if (!query) die('Usage: duo vault search <query> [--vault <path>]')
           out(vault.search(vault.resolveVaultOrDefault(process.cwd(), vaultFlag), query))
+        } else if (sub === 'mv') {
+          // ENH-216 D5 (clean path) — move a note and rewrite every inbound
+          // markdown link to point at its new home, re-basing the moved note's
+          // own outbound links too. <from>/<to> are vault-relative.
+          const posn = positionalArgs(subRest, ['--vault'])
+          const from = posn[0]
+          const to = posn[1]
+          if (!from || !to) die('Usage: duo vault mv <from> <to> [--vault <path>]')
+          const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
+          out(vault.moveNote(root, from, to))
+        } else if (sub === 'relink') {
+          // ENH-216 D5 (out-of-band repair) — re-resolve dangling markdown
+          // links by slug/basename first; the stable `id:` only tiebreaks when
+          // >1 note shares a slug. Rewrite the ones that resolve unambiguously,
+          // REPORT ambiguous + broken (warn-don't-block). `--dry-run` reports
+          // without writing.
+          const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
+          out(vault.relinkVault(root, { dryRun: subRest.includes('--dry-run') }))
+        } else if (sub === 'publish') {
+          // ENH-216 D8 — (re)generate the OKF static listings from the corpus:
+          // root index.md (frontmatter byte-preserved) + log.md, and per-dir
+          // index.md with --dir. --index-only / --log-only restrict the write.
+          // --open surfaces index.md as a tab. OKF-mode-gated (throws in
+          // Obsidian mode — Obsidian stays byte-identical).
+          const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
+          // --index-only / --log-only narrow the WRITE, not just the echo:
+          // writeListings leaves the out-of-scope file byte-identical (no fresh
+          // stamp → no git churn). Mutually exclusive; --index-only wins if both
+          // are somehow passed. (PR#98 review cluster B.) `result.written` then
+          // reflects exactly what was written, so the echo is truthful for free.
+          const scope: 'index' | 'log' | 'both' = subRest.includes('--index-only')
+            ? 'index'
+            : subRest.includes('--log-only')
+              ? 'log'
+              : 'both'
+          const result = vault.writeListings(root, { perDir: subRest.includes('--dir'), scope })
+          let opened: unknown = null
+          if (subRest.includes('--open')) {
+            const indexAbs = path.join(root, 'index.md')
+            try {
+              opened = await send('open', { url: resolveOpenTarget(indexAbs), mode: 'browser', reveal: true })
+            } catch (e) {
+              opened = { error: e instanceof Error ? e.message : String(e) }
+              process.stderr.write(`duo: published listings but --open failed: ${(opened as { error: unknown }).error}\n`)
+            }
+          }
+          out({ ...result, ...(subRest.includes('--open') ? { opened } : {}) })
+        } else if (sub === 'promote') {
+          // ENH-216 D9 — split a `## heading` section of a note into its own
+          // typed entity, leaving a markdown LINK behind (a wikilink in
+          // Obsidian) — NEVER an embed-transclusion.
+          const note = positionalArgs(subRest, ['--vault', '--heading', '--type'])[0]
+          const heading = flagValue(subRest, '--heading')
+          const type = flagValue(subRest, '--type')
+          if (!note || !heading || !type) {
+            die('Usage: duo vault promote <note> --heading "<h>" --type <t> [--vault <path>]')
+          }
+          const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
+          out(vault.promoteSection(root, note, heading, type))
         } else {
           die(
-            'Usage: duo vault <init|list|schema|capture|stub|search|default> [args]\n' +
-              '  init <folder> [--force]   scaffold a new vault\n' +
+            'Usage: duo vault <init|list|schema|capture|stub|search|default|mv|relink|publish|promote> [args]\n' +
+              '  init <path> --format=okf|obsidian [--name "…"] [--no-default] [--force]   scaffold a new vault (becomes active unless --no-default)\n' +
               '  list                      vaults detected from the cwd (JSON)\n' +
               '  schema [--vault p]        the L0 corpus (JSON)\n' +
               '  capture [--template t] [--text "…"] [--title "…"] [--open]   new inbox note\n' +
               '  stub <type> <name> [--open]   create a typed entity stub (D19-filed)\n' +
               '  search <query>            full-text hits (JSON)\n' +
-              '  default [<path>|--clear]  read / set the default vault',
+              '  default [<path>|--clear]  read / set the default vault\n' +
+              '  mv <from> <to>            move a note + rewrite inbound md links (D5 clean path)\n' +
+              '  relink [--dry-run]        repair out-of-band moves (slug-first; id tiebreaks same-slug; D5)\n' +
+              '  publish [--index-only|--log-only] [--dir] [--open]   (re)generate OKF listings (D8)\n' +
+              '  promote <note> --heading "<h>" --type <t>   split a section into its own entity (D9)',
           )
         }
         break
@@ -2972,6 +3061,10 @@ function renderCommandsBlock(): string {
     'Terminal',
     'Workspace & projects',
     'Repo & git',
+    // ENH-208 vault / graph / base verbs (extended by ENH-216 OKF mode).
+    // Long absent from --help: GROUP_ORDER omitted 'Vault', so printHelp
+    // silently skipped the whole family despite their VERBS entries.
+    'Vault',
     'Health & install'
   ]
   const GUTTER = 34 // column where summaries begin

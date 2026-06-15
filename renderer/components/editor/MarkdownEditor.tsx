@@ -56,6 +56,24 @@ import { WikilinkSuggestion } from './extensions/WikilinkSuggestion'
 import { AtMention } from './extensions/AtMention'
 import { LineNumbers, lineNumbersPluginKey, LINE_NUMBERS_STORAGE_KEY } from './extensions/LineNumbers'
 import { useVaultIndex, rankVaultFiles } from './vaultIndex'
+// ENH-216 (U7) — cmd+click nav for standard markdown relative links (the
+// OKF at-rest link shape). The wikilink twin (cmd+click on `[[ ]]`) is
+// handled by the WikilinkDecorations plugin; this covers the `[ ](rel.md)`
+// link-mark case so both serializers' links are navigable.
+import { resolveMdLinkInVault } from './wikilinkResolver'
+// ENH-216 (U7) — okfLinkInsert builds the markdown relative link the
+// stub-create placeholder rewrite (D3) splices into the BODY. (Frontmatter
+// `[[ ]]` persists AS `[[ ]]` per FOLLOWUP-051 — no rewrite.)
+import { okfLinkInsert } from './okfLinks'
+// BUG-207 — the two pure-UI editor prefs (Suggesting mode + Properties-panel
+// collapse) persist in per-path localStorage, not the `.duo.json` sidecar, so
+// an otherwise-empty fresh note never spawns a sidecar file.
+import {
+  readSuggestingPref,
+  writeSuggestingPref,
+  readFrontmatterCollapsedPref,
+  writeFrontmatterCollapsedPref
+} from './docUiPrefs'
 import { WriteWarningBanner } from './primitives/WriteWarningBanner'
 import { SendToDuoPill } from './primitives/SendToDuoPill'
 import { NewCommentComposer } from './primitives/NewCommentComposer'
@@ -468,7 +486,20 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // popover anchors to; null = closed.
   const vaultRootRef = useRef(vaultIndex.vaultRoot)
   vaultRootRef.current = vaultIndex.vaultRoot
-  const [stubPicker, setStubPicker] = useState<{ name: string; rect: DOMRect | null } | null>(null)
+  // ENH-216 (U7) — the active vault's at-rest link mode (D4), threaded
+  // through a ref for the same static-extension-list reason as
+  // vaultRootRef. The [[ ]] gesture + cmd+click branch on this.
+  const vaultModeRef = useRef(vaultIndex.mode)
+  vaultModeRef.current = vaultIndex.mode
+  // ENH-216 (U7) — stub-picker state now also carries the inserted
+  // PLACEHOLDER range (OKF mode only). When the stub is created, the host
+  // rewrites that span to a markdown relative link via okfLinkInsert.
+  // `range` is null in Obsidian mode (the [[ ]] is already its final form).
+  const [stubPicker, setStubPicker] = useState<{
+    name: string
+    rect: DOMRect | null
+    range: { from: number; to: number } | null
+  } | null>(null)
 
   const extensions = useMemo(
     () => [
@@ -609,15 +640,21 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         // setter, safe to close over in this useMemo([]) list; the
         // root reads through the ref so it stays fresh.
         getVaultRoot: () => vaultRootRef.current,
+        // ENH-216 (U7) — mode + doc path gate the OKF expand-on-resolve
+        // (D3). Both read through refs so the static list stays stable.
+        getMode: () => vaultModeRef.current,
+        getDocPath: () => pathRef.current,
         onCreateStub: (payload) => setStubPicker(payload)
       }),
       // Sprint 11 ENH-105 — `@` filename autocomplete. Same vault
-      // index, parallel popover. Inserts the canonical `[[wikilink]]`
-      // form so vault round-trip is unified across triggers.
+      // index, parallel popover. Obsidian inserts `[[wikilink]]`; OKF
+      // (ENH-216 D3) inserts a standard markdown relative link.
       AtMention.configure({
         getItems: () => vaultFilesRef.current,
         isLoading: () => vaultLoadingRef.current,
-        rank: rankVaultFiles
+        rank: rankVaultFiles,
+        getMode: () => vaultModeRef.current,
+        getDocPath: () => pathRef.current
       }),
       // BUG-186 — source-line-number gutter. Computes the true markdown
       // source line for each top-level block (via the save serializer)
@@ -669,6 +706,34 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           return true
         }
         return false
+      },
+      // ENH-216 (U7) — cmd/ctrl+click on a standard markdown link mark
+      // (`[Display](./rel.md)`, the OKF at-rest link shape) follows the
+      // link. Resolves the relative href against the doc path to an
+      // ABSOLUTE target and dispatches the existing `duo-wikilink-open`
+      // event with a pre-resolved `resolvedPath` so App.tsx short-circuits
+      // its vault-walk. External / anchor-only hrefs return null (handled
+      // natively by the Link extension's openOnClick:false, i.e. inert).
+      // The `[[ ]]` wikilink cmd+click stays owned by WikilinkDecorations.
+      handleClickOn: (_view, _pos, _node, _nodePos, event, _direct) => {
+        const me = event as MouseEvent
+        if (!(me.metaKey || me.ctrlKey)) return false
+        // Walk up from the click target to the anchor carrying the href.
+        const targetEl = me.target instanceof Element
+          ? me.target
+          : (me.target as Node | null)?.parentElement ?? null
+        const anchor = targetEl?.closest?.('a[href]') as HTMLAnchorElement | null
+        const href = anchor?.getAttribute('href')
+        if (!href) return false
+        const resolved = resolveMdLinkInVault(href, pathRef.current)
+        if (!resolved) return false   // external / anchor-only — leave inert
+        window.dispatchEvent(
+          new CustomEvent('duo-wikilink-open', {
+            detail: { target: href, resolvedPath: resolved }
+          })
+        )
+        event.preventDefault()
+        return true
       },
       // ENH-108 (Sprint 12) — paste-image. ⌘V (or drag-drop, see
       // handleDrop below) with image data on the clipboard saves the
@@ -816,6 +881,11 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // ENH-195 B4 / D3 — "file removed on disk" + ">50%-of-doc reloaded" strips.
   const [fileRemoved, setFileRemoved] = useState(false)
   const [reloadedFlash, setReloadedFlash] = useState(false)
+  // ENH-216 (U7) — best-effort "a note may have moved" info toast (OKF
+  // mode only). Non-blocking + dismissible; surfaces when the shared
+  // reconciliation hook's debounced move-detection fires. Informational
+  // only — links repair on the next vault open or via `duo vault relink`.
+  const [likelyMoved, setLikelyMoved] = useState(false)
   // ENH-195 / v0.9.0 — the user's doc captured the instant BEFORE a destructive
   // external reload, so the reload banner's "Keep mine" / "View diff" can recover
   // or diff it. Set in applyReload; read by the banner handlers below.
@@ -868,6 +938,20 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     echoEqual: (a, b) => normalizeForEchoCompare(a) === normalizeForEchoCompare(b),
     onDirtyChange: (d) => setDirty(d),
     onFileRemoved: setFileRemoved,
+    // ENH-216 (U7) — best-effort move detection. Only surface the info
+    // toast in OKF mode (markdown rel links don't survive moves; Obsidian
+    // wikilinks resolve by basename so a move is harmless). Read the mode
+    // through the ref so this stable callback sees the live value.
+    onLikelyMove: () => {
+      // PR#98 F24 — a detected move SUPERSEDES the B4 "file removed" strip:
+      // clear it so the editor shows ONE affordance (the more-accurate move
+      // toast), not two stacked. B4's "Save to recreate it" would also
+      // mis-advise here — saving recreates a stale orphan at the old path.
+      if (vaultModeRef.current === 'okf') {
+        setFileRemoved(false)
+        setLikelyMoved(true)
+      }
+    },
     rebaselineAfterReload: true,
     triggerSave: () => { void saveRef.current() },
     appVersion: window.electron?.env?.appVersion ?? '?.?.?',
@@ -1004,14 +1088,28 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           console.warn(`[duo-md] ${migration.orphans} sidecar comment(s) could not be re-anchored; kept as orphans`)
         }
         sidecarRef.current = migration.sidecar
-        // BUG-138 Phase 4 — sync Suggesting state from sidecar on load.
-        setSuggestingMode(migration.sidecar.suggestingMode === true)
-        // BUG-139 v1.1 — sync the Properties panel state from sidecar +
-        // the just-loaded frontmatter string. Q4 (locked from walk-1
-        // playground): default to COLLAPSED when the sidecar field is
-        // undefined — only render expanded when the user has explicitly
-        // toggled it expanded (sidecar === false).
-        setFrontmatterCollapsed(migration.sidecar.frontmatterPanelCollapsed !== false)
+        // BUG-207 — Suggesting state now lives in per-path localStorage
+        // (docUiPrefs), not the sidecar. One-time migration fallback: if
+        // the per-path pref is unset but a legacy sidecar carried the flag,
+        // honor it (and forward it) so existing users don't lose the choice.
+        {
+          const stored = readSuggestingPref(path)
+          const legacy = migration.sidecar.suggestingMode === true
+          const effective = stored ?? legacy
+          setSuggestingMode(effective)
+          if (stored === null && legacy) writeSuggestingPref(path, true)
+        }
+        // BUG-139 v1.1 / BUG-207 — Properties-panel collapse now lives in
+        // per-path localStorage. Q4 default stays COLLAPSED when unset
+        // (true). A legacy sidecar `frontmatterPanelCollapsed === false`
+        // (user explicitly expanded) migrates forward.
+        {
+          const stored = readFrontmatterCollapsedPref(path)
+          const legacyExpanded = migration.sidecar.frontmatterPanelCollapsed === false
+          const effective = stored ?? !legacyExpanded
+          setFrontmatterCollapsed(effective)
+          if (stored === null && legacyExpanded) writeFrontmatterCollapsedPref(path, false)
+        }
         setFrontmatterState(split.frontmatter)
 
         // Second-arg `false` suppresses an update event so the initial load
@@ -1370,11 +1468,10 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   const toggleSuggestingMode = useCallback(() => {
     const next = !suggestingMode
     setSuggestingMode(next)
-    persistSidecarMutation({
-      ...sidecarRef.current,
-      suggestingMode: next
-    })
-  }, [suggestingMode, persistSidecarMutation])
+    // BUG-207 — persist to per-path localStorage, not the sidecar, so an
+    // otherwise-empty note never spawns a `<file>.duo.json` sidecar.
+    writeSuggestingPref(pathRef.current, next)
+  }, [suggestingMode])
 
   /** BUG-139 — commit a Properties-panel edit. Updates the
    *  frontmatter ref + state mirror, marks the editor dirty, and
@@ -1396,13 +1493,11 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   const toggleFrontmatterCollapsed = useCallback(() => {
     setFrontmatterCollapsed(prev => {
       const next = !prev
-      persistSidecarMutation({
-        ...sidecarRef.current,
-        frontmatterPanelCollapsed: next
-      })
+      // BUG-207 — per-path localStorage, not the sidecar (see toggleSuggestingMode).
+      writeFrontmatterCollapsedPref(pathRef.current, next)
       return next
     })
-  }, [persistSidecarMutation])
+  }, [])
 
   /** Update [data-duo-comment-active] on every comment span so the
    *  active thread reads stronger than its siblings. BUG-087 fix —
@@ -2361,6 +2456,15 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           onChange={handleFrontmatterChange}
           collapsed={frontmatterCollapsed}
           onToggleCollapsed={toggleFrontmatterCollapsed}
+          // FOLLOWUP-050 — live `[[ ]]` autocomplete in the raw-YAML editor,
+          // reusing the SAME vault index the body WikilinkSuggestion uses.
+          // FOLLOWUP-051 — a picked `[[ ]]` persists AS `[[ ]]` in both modes
+          // (a bare frontmatter rel-path isn't a graph edge), so the panel no
+          // longer needs mode/docPath/resolveWikilink.
+          vaultFiles={vaultIndex.files}
+          vaultLoading={vaultIndex.loading}
+          vaultRoot={vaultIndex.vaultRoot}
+          onVaultRefresh={vaultIndex.refresh}
         />
       )}
       {/* BUG-138 Phase 4d — bulk banner above the editor body when
@@ -2427,6 +2531,26 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       {fileRemoved && (
         <div className="shrink-0 px-10 py-1.5 text-[11px] border-b border-red-900/40 bg-red-950/20 text-red-300">
           This file was removed on disk. Save to recreate it.
+        </div>
+      )}
+      {/* ENH-216 (U7) — best-effort, non-blocking "a note may have moved"
+          info toast (OKF mode only). Dismissible; informational only —
+          OKF markdown rel links repair on the next vault open or via
+          `duo vault relink`. */}
+      {likelyMoved && (
+        <div className="shrink-0 px-10 py-1.5 text-[11px] border-b border-sky-900/40 bg-sky-950/20 text-sky-200 flex items-center gap-3">
+          <span className="flex-1">
+            A note may have moved — links repair on the next vault open or via{' '}
+            <code className="font-mono">duo vault relink</code>.
+          </span>
+          <button
+            type="button"
+            onClick={() => setLikelyMoved(false)}
+            className="px-2 py-0.5 rounded border border-sky-800/60 hover:border-sky-700 hover:bg-sky-900/30"
+            aria-label="Dismiss"
+          >
+            Dismiss
+          </button>
         </div>
       )}
       {recon.externalConflict && (
@@ -2587,7 +2711,22 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           vaultRoot={vaultIndex.vaultRoot}
           name={stubPicker.name}
           anchorRect={stubPicker.rect}
-          onCreated={() => {
+          onCreated={(stub) => {
+            // ENH-216 (U7) D3 — in OKF mode the create row inserted a
+            // PLAIN-TEXT placeholder (the human name); now that the stub's
+            // on-disk path is known, rewrite that span to a standard
+            // markdown relative link. Link text = the human name the user
+            // typed (D6). Obsidian mode left the [[ ]] in place — no range
+            // was recorded, so nothing to rewrite.
+            const range = stubPicker.range
+            if (range && editor) {
+              const link = okfLinkInsert(stubPicker.name, pathRef.current, stub.absPath)
+              editor
+                .chain()
+                .focus()
+                .insertContentAt({ from: range.from, to: range.to }, link)
+                .run()
+            }
             setStubPicker(null)
             // The new stub must show up in the suggesters' index (and
             // flip any unresolved-link styling) without a manual refresh.

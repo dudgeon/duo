@@ -30,8 +30,11 @@ export interface TypePickerPopoverProps {
   anchorRect: DOMRect | null
   /** Stub created (or already existed — idempotent is fine). Host
    *  closes the picker, refreshes the vault index, refocuses the
-   *  editor. */
-  onCreated: () => void
+   *  editor. ENH-216 (U7) — the stub result is passed through so the
+   *  host can compute the OKF markdown relative link (the placeholder
+   *  rewrite uses `stub.absPath`); `created:false` means the note was
+   *  already on disk (still a valid link target). */
+  onCreated: (stub: { path: string; absPath: string; type: string; created: boolean }) => void
   /** Esc / click-outside — close without creating. Host refocuses
    *  the editor. */
   onCancel: () => void
@@ -126,7 +129,9 @@ export function TypePickerPopover({ vaultRoot, name, anchorRect, onCreated, onCa
         setBusy(false)
         return
       }
-      onCreated()
+      // ENH-216 (U7) — pass the stub's on-disk paths through so the host
+      // can rewrite an OKF placeholder to a markdown relative link.
+      onCreated({ path: res.path, absPath: res.absPath, type: res.type, created: res.created })
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
       setBusy(false)

@@ -5,7 +5,16 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
-import { initVault, captureNote, isVaultRoot, buildCorpus, loadTemplates, lintVault, renderTarget } from './index'
+import {
+  initVault,
+  captureNote,
+  createEntityStub,
+  isVaultRoot,
+  buildCorpus,
+  loadTemplates,
+  lintVault,
+  renderTarget,
+} from './index'
 
 let root: string
 beforeEach(() => {
@@ -15,9 +24,13 @@ afterEach(() => {
   fs.rmSync(root, { recursive: true, force: true })
 })
 
-describe('vault init', () => {
+describe('vault init (Obsidian — the legacy scaffold, byte-identical regression guard)', () => {
+  // ENH-216 D2 flipped initVault's DEFAULT to okf, so these legacy
+  // assertions (`.obsidian/` marker, `bases/`, README, embedded `.base`
+  // rollups) explicitly pass `{ format: 'obsidian' }`. The parallel OKF
+  // describe below covers the new default.
   it('scaffolds a recognizable vault with the starter set', () => {
-    const r = initVault(path.join(root, 'v'))
+    const r = initVault(path.join(root, 'v'), { format: 'obsidian' })
     expect(isVaultRoot(r.root)).toBe(true)
     for (const f of [
       '.obsidian/app.json',
@@ -38,13 +51,13 @@ describe('vault init', () => {
 
   it('refuses to clobber an existing vault unless --force', () => {
     const v = path.join(root, 'v')
-    initVault(v)
-    expect(() => initVault(v)).toThrow(/already a vault/)
-    expect(() => initVault(v, { force: true })).not.toThrow()
+    initVault(v, { format: 'obsidian' })
+    expect(() => initVault(v, { format: 'obsidian' })).toThrow(/already a vault/)
+    expect(() => initVault(v, { format: 'obsidian', force: true })).not.toThrow()
   })
 
   it('templates carry D19 filing rules readable by the corpus', () => {
-    const v = initVault(path.join(root, 'v')).root
+    const v = initVault(path.join(root, 'v'), { format: 'obsidian' }).root
     const templates = loadTemplates(v)
     const initiative = templates.find((t) => t.type === 'initiative')!
     expect(initiative.folder).toBe('initiatives')
@@ -63,7 +76,7 @@ describe('vault init', () => {
   })
 
   it('the scaffolded vault lints clean and yields a 5-type corpus', () => {
-    const v = initVault(path.join(root, 'v')).root
+    const v = initVault(path.join(root, 'v'), { format: 'obsidian' }).root
     expect(buildCorpus(v).types).toEqual(['initiative', 'meeting', 'milestone', 'person', 'theme'])
     const errors = lintVault(v, '--all').flatMap((r) => r.findings.filter((f) => f.severity === 'error'))
     expect(errors).toEqual([])
@@ -72,14 +85,72 @@ describe('vault init', () => {
   it('warns when the vault lives under ~/Documents (iCloud-eviction trap)', () => {
     // Simulate by initting under a path we control vs. the real ~/Documents
     // — we just assert no spurious warning for a /tmp vault.
-    const r = initVault(path.join(root, 'v'))
+    const r = initVault(path.join(root, 'v'), { format: 'obsidian' })
     expect(r.warnings).toEqual([])
   })
 })
 
-describe('vault capture', () => {
-  it('drops an untyped, captured-stamped inbox note by default', () => {
+describe('vault init (OKF — the new default, ENH-216 D2)', () => {
+  it('initVault defaults to OKF (the dialog default; the CLI requires --format)', () => {
+    const r = initVault(path.join(root, 'v'))
+    expect(r.mode).toBe('okf')
+    expect(isVaultRoot(r.root)).toBe(true)
+  })
+
+  it('scaffolds an OKF marker (root index.md w/ okf_version + type:index), NO .obsidian/ / README / bases', () => {
     const v = initVault(path.join(root, 'v')).root
+    expect(fs.existsSync(path.join(v, '.obsidian'))).toBe(false)
+    expect(fs.existsSync(path.join(v, 'README.md'))).toBe(false)
+    expect(fs.existsSync(path.join(v, 'bases'))).toBe(false)
+    const idx = fs.readFileSync(path.join(v, 'index.md'), 'utf8')
+    expect(idx).toContain('okf_version:')
+    expect(idx).toContain('type: index')
+    // the co-owned listing fence seed (U2 writes it; U3 fills the body)
+    expect(idx).toContain('<!-- duo:listing -->')
+  })
+
+  it('templates are the SAME 5-type set as Obsidian (the initiative minus its embedded .base)', () => {
+    const okf = initVault(path.join(root, 'okf')).root
+    const obs = initVault(path.join(root, 'obs'), { format: 'obsidian' }).root
+    const types = (r: string) => loadTemplates(r).map((t) => t.type).sort()
+    const FIVE = ['initiative', 'meeting', 'milestone', 'person', 'theme']
+    expect(types(okf)).toEqual(FIVE)
+    expect(types(obs)).toEqual(FIVE)
+    // OKF's initiative template carries NO embedded `.base` rollup (D8 — OKF
+    // listings are static markdown), unlike Obsidian's.
+    expect(loadTemplates(okf).find((t) => t.type === 'initiative')!.embeddedBase).toBeNull()
+    expect(loadTemplates(obs).find((t) => t.type === 'initiative')!.embeddedBase).toContain(
+      'initiative == this',
+    )
+  })
+
+  it('buildCorpus surfaces the 5 template types + the root index entity (D10 type-stamp-everything)', () => {
+    const v = initVault(path.join(root, 'v')).root
+    // The root index.md is itself type:index (D10), so the entity-derived
+    // corpus carries `index` on top of the 5 template types.
+    expect(buildCorpus(v).types).toEqual([
+      'index',
+      'initiative',
+      'meeting',
+      'milestone',
+      'person',
+      'theme',
+    ])
+  })
+
+  it('the OKF scaffold lints clean', () => {
+    const v = initVault(path.join(root, 'v')).root
+    const errors = lintVault(v, '--all').flatMap((r) => r.findings.filter((f) => f.severity === 'error'))
+    expect(errors).toEqual([])
+  })
+})
+
+describe('vault capture', () => {
+  it('drops an untyped, captured-stamped inbox note by default (Obsidian)', () => {
+    // OBSIDIAN capture is untyped-by-default. (PR#98 F4: captureNote now
+    // auto-detects the vault mode, so an OKF vault would stamp `type: note` +
+    // mint an id — that OKF path is covered by the OKF capture test below.)
+    const v = initVault(path.join(root, 'v'), { format: 'obsidian' }).root
     const c = captureNote(v, { text: 'a quick thought', date: new Date('2026-06-09T14:32:05') })
     // YYYY-MM-DD-HHMMSS — date+time hyphen-joined so an untitled capture has
     // no space in its name (owner ask 2026-06-12).
@@ -123,7 +194,9 @@ describe('vault capture', () => {
   })
 
   it('end-to-end: a captured-then-filed note renders in its parent rollup', () => {
-    const v = initVault(path.join(root, 'v')).root
+    // The rollup render path is Obsidian-only (it reads the template's
+    // embedded `.base` block, which OKF omits, D8) — scaffold in obsidian.
+    const v = initVault(path.join(root, 'v'), { format: 'obsidian' }).root
     // Seed an initiative folder-note (with the embedded rollup) + a milestone.
     const initDir = path.join(v, 'initiatives', 'Q4 Roadmap')
     fs.mkdirSync(initDir, { recursive: true })
@@ -138,5 +211,50 @@ describe('vault capture', () => {
     )
     const r = renderTarget(v, 'Q4 Roadmap', { asOf: new Date('2026-06-09') })
     expect(r.bases[0].evaluated.views[0].rows).toHaveLength(1)
+  })
+})
+
+describe('vault capture (OKF mode — type-stamp-everything + id, ENH-216 D10)', () => {
+  it('an untemplated OKF capture stamps type:note (not untyped) + a minted id', () => {
+    const v = initVault(path.join(root, 'v')).root
+    const c = captureNote(v, { text: 'a quick thought', mode: 'okf', date: new Date('2026-06-09T14:32:05') })
+    expect(c.type).toBe('note')
+    const content = fs.readFileSync(c.absPath, 'utf8')
+    expect(content).toMatch(/^---\nid: [0-9a-z]{8}\n/) // id spliced after the fence
+    expect(content).toContain('type: note')
+    expect(content).toContain('a quick thought')
+  })
+
+  // PR#98 F4 — the regression guard: an OKF vault must shape the capture
+  // correctly even when the caller (the ⇧⌘N IPC handler / `duo vault capture`)
+  // passes NO mode. captureNote auto-detects the vault mode.
+  it('AUTO-DETECTS okf when no mode is passed (the IPC/CLI path) — type:note + id', () => {
+    const v = initVault(path.join(root, 'v')).root // default → OKF
+    const c = captureNote(v, { text: 'a quick thought', date: new Date('2026-06-09T14:32:05') })
+    expect(c.type).toBe('note')
+    const content = fs.readFileSync(c.absPath, 'utf8')
+    expect(content).toMatch(/^---\nid: [0-9a-z]{8}\n/)
+    expect(content).toContain('type: note')
+  })
+
+  it('a templated OKF capture stamps the type + its fields + an id', () => {
+    const v = initVault(path.join(root, 'v')).root
+    const c = captureNote(v, { template: 'meeting', mode: 'okf', date: new Date('2026-06-09T14:32:00') })
+    expect(c.type).toBe('meeting')
+    const content = fs.readFileSync(c.absPath, 'utf8')
+    expect(content).toMatch(/^---\nid: [0-9a-z]{8}\n/)
+    expect(content).toContain('type: meeting')
+    expect(content).toContain('attendees: []')
+  })
+
+  it('an OKF entity stub slugs the stem (D6) and stamps title + id (D6/D10)', () => {
+    const v = initVault(path.join(root, 'v')).root
+    const stub = createEntityStub(v, 'person', 'Customer Orders', { mode: 'okf' })
+    // D6: the on-disk stem is slugged; the human name lives in title:.
+    expect(stub.path).toBe('people/customer-orders.md')
+    const content = fs.readFileSync(stub.absPath, 'utf8')
+    expect(content).toMatch(/^---\nid: [0-9a-z]{8}\n/)
+    expect(content).toContain('type: person')
+    expect(content).toContain('title: Customer Orders')
   })
 })

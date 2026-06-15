@@ -13,9 +13,12 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
-import type { TypeTemplate } from './types'
+import type { TypeTemplate, VaultMode } from './types'
 import { loadTemplates } from './corpus'
 import { seedFrontmatterLines } from './scaffold'
+import { slugStem } from '../markdown/vaultLinks'
+import { ensureNoteId } from './move'
+import { detectVaultMode } from './detect'
 
 function pad(n: number): string {
   return String(n).padStart(2, '0')
@@ -28,9 +31,20 @@ export function safeName(name: string): string {
   return name.trim().replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').slice(0, 80)
 }
 
-/** The relative path a fresh stub of `template`'s type files at (D19). */
-export function stubPathFor(template: TypeTemplate, name: string, asOf: Date = new Date()): string {
-  const stem = safeName(name)
+/** The relative path a fresh stub of `template`'s type files at (D19).
+ *
+ *  ENH-216: `mode` (default `obsidian`) picks the on-disk stem rule. In
+ *  `obsidian` mode the stem is the human name verbatim (minus path-unsafe
+ *  chars) — Obsidian resolves wikilinks by that basename. In `okf` mode the
+ *  stem is SLUGGED (`Customer Orders` → `customer-orders`, D6), with a
+ *  lowercased-safeName fallback for the degenerate empty-slug case. */
+export function stubPathFor(
+  template: TypeTemplate,
+  name: string,
+  asOf: Date = new Date(),
+  mode: VaultMode = 'obsidian',
+): string {
+  const stem = mode === 'okf' ? slugStem(name) || safeName(name).toLowerCase() : safeName(name)
   if (template.folderNote) {
     const folder = template.folder ?? `${template.type}s`
     return `${folder}/${stem}/${stem}.md`
@@ -60,10 +74,23 @@ export interface CreateTypeResult {
  * strictly, so a raw "Decision Log" against the normalized "decision log"
  * template would dead-end on `unknown type` forever. Throws when the name
  * normalizes to nothing.
+ *
+ * ENH-216: `mode` picks the stem rule for the template filename AND its
+ * canonical `type:` value. Obsidian normalizes to a lowercased safeName
+ * (`Decision Log` → `decision log`); OKF slugs it (`decision-log`, D6). The
+ * empty-name guard keys on the obsidian normal form so both modes reject a
+ * name that normalizes to nothing. `mode` defaults to the vault's LIVE
+ * detected mode (PR#98 F4) so the UI/CLI callers that omit it don't silently
+ * write Obsidian-shaped templates into an OKF vault.
  */
-export function createType(root: string, type: string): CreateTypeResult {
-  const stem = safeName(type).toLowerCase()
-  if (!stem) throw new Error('empty type name')
+export function createType(
+  root: string,
+  type: string,
+  mode: VaultMode = detectVaultMode(root) ?? 'obsidian',
+): CreateTypeResult {
+  const normal = safeName(type).toLowerCase()
+  if (!normal) throw new Error('empty type name')
+  const stem = mode === 'okf' ? slugStem(type) || normal : normal
   const rel = `templates/${stem}.md`
   const abs = path.join(root, rel)
   if (!fs.existsSync(abs)) {
@@ -86,30 +113,71 @@ export interface StubResult {
 
 /**
  * Create an entity stub of `type` named `name` from its template, filed by
- * the D19 rule. Idempotent: if a note already exists at the target it is
- * left untouched (`created: false`) — the silent-stub flow only creates on
- * an unresolved link, so a re-trigger must never clobber. Throws on an
- * unknown type. `body` seeds optional initial prose.
+ * the D19 rule. Throws on an unknown type. `body` seeds optional initial
+ * prose.
+ *
+ * ENH-216: `mode` (default `obsidian`) shapes both the on-disk stem and the
+ * frontmatter:
+ *  - OBSIDIAN — unchanged. Idempotent: if a note already exists at the target
+ *    it's left untouched (`created: false`) — the silent-stub flow only
+ *    creates on an unresolved wikilink, so a re-trigger must never clobber.
+ *  - OKF — the stem is slugged (D6) so genuinely-different human names can
+ *    slug-collide; rather than clobber, a collision guard appends `-2`, `-3`,
+ *    … (like `captureNote`) and always creates. The human `name` is stamped
+ *    into `title:` (D6: link text is the slug, the human name lives in
+ *    frontmatter), and a stable `id:` is minted + stamped at create time
+ *    (`ensureNoteId`, D10 — the D5 primary relink key).
  */
 export function createEntityStub(
   root: string,
   type: string,
   name: string,
-  opts: { asOf?: Date; body?: string } = {},
+  opts: { asOf?: Date; body?: string; mode?: VaultMode } = {},
 ): StubResult {
+  // Default to the vault's LIVE detected mode (PR#98 F4): the ⇧⌘N capture /
+  // silent-stub IPC handlers + CLI verbs call this without a mode, and an
+  // Obsidian-shaped stub in an OKF vault gets a verbatim-cased filename with
+  // no id/title — defeating the D5 relink + D6 conventions.
+  const mode: VaultMode = opts.mode ?? detectVaultMode(root) ?? 'obsidian'
   const template = loadTemplates(root).find((t) => t.type === type)
   if (!template) {
     const known = loadTemplates(root).map((t) => t.type).join(', ')
     throw new Error(`unknown type "${type}" (known: ${known || 'none'})`)
   }
-  const rel = stubPathFor(template, name, opts.asOf)
-  const abs = path.join(root, rel)
-  if (fs.existsSync(abs)) {
-    return { path: rel, absPath: abs, type, created: false }
-  }
-  const fm = ['---', ...seedFrontmatterLines(template), '---', '']
+  const rel = stubPathFor(template, name, opts.asOf, mode)
   const body = opts.body ? opts.body + '\n' : ''
+
+  if (mode === 'obsidian') {
+    const abs = path.join(root, rel)
+    // Idempotent — a re-triggered same-name link must never clobber.
+    if (fs.existsSync(abs)) {
+      return { path: rel, absPath: abs, type, created: false }
+    }
+    const fm = ['---', ...seedFrontmatterLines(template), '---', '']
+    fs.mkdirSync(path.dirname(abs), { recursive: true })
+    fs.writeFileSync(abs, fm.join('\n') + '\n' + body)
+    return { path: rel, absPath: abs, type, created: true }
+  }
+
+  // OKF — slug-collision guard: a slugged stem can collide where the human
+  // names differ, so disambiguate with a `-2`/`-3` suffix rather than
+  // clobber (like `captureNote`). The stem is the final path segment.
+  let target = rel
+  if (fs.existsSync(path.join(root, target))) {
+    const dot = rel.lastIndexOf('.')
+    const stemPath = dot >= 0 ? rel.slice(0, dot) : rel
+    const ext = dot >= 0 ? rel.slice(dot) : ''
+    for (let n = 2; fs.existsSync(path.join(root, target)); n++) {
+      target = `${stemPath}-${n}${ext}`
+    }
+  }
+  const abs = path.join(root, target)
+  // type: + title: (the human name, D6) + seeded fields.
+  const fm = ['---', ...seedFrontmatterLines(template, { mode, title: name }), '---', '']
   fs.mkdirSync(path.dirname(abs), { recursive: true })
   fs.writeFileSync(abs, fm.join('\n') + '\n' + body)
-  return { path: rel, absPath: abs, type, created: true }
+  // D10: mint + stamp a stable id (the D5 primary relink key). `ensureNoteId`
+  // splices it into the just-written frontmatter byte-preservingly.
+  ensureNoteId(abs, root)
+  return { path: target, absPath: abs, type, created: true }
 }

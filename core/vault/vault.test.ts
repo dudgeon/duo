@@ -3,7 +3,9 @@
 // implementation. These lock the corpus shape, graph queries, detection,
 // and search so future engine work can't silently drift.
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import * as fs from 'fs'
+import * as os from 'os'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
 import {
@@ -13,6 +15,8 @@ import {
   isVaultRoot,
   listVaults,
   resolveVault,
+  detectVaultMode,
+  readOkfVersion,
   backlinks,
   orphans,
   search,
@@ -27,6 +31,13 @@ const VAULT = path.resolve(HERE, '../../docs/research/graphbook-prototype')
 describe('detection', () => {
   it('recognizes the prototype as a vault root', () => {
     expect(isVaultRoot(VAULT)).toBe(true)
+  })
+
+  it('detects the frozen prototype as an Obsidian-mode vault (it has .obsidian/)', () => {
+    // The frozen fixture is the legacy Obsidian shape — its mode must stay
+    // obsidian (the byte-identical regression invariant, ENH-216).
+    expect(detectVaultMode(VAULT)).toBe('obsidian')
+    expect(readOkfVersion(VAULT)).toBeNull()
   })
 
   it('walks up to the vault root from a nested note', () => {
@@ -157,5 +168,45 @@ describe('parse helpers', () => {
 
   it('extracts deduped basename-only wikilinks', () => {
     expect(extractWikilinks('see [[Foo|bar]] and [[Foo#h]] and [[Baz]]')).toEqual(['Foo', 'Baz'])
+  })
+})
+
+// ENH-216 OKF detection — throwaway tmpdir vaults (the frozen prototype is
+// Obsidian-mode and is NEVER mutated; OKF coverage lives here on its own
+// fixtures).
+describe('OKF detection (ENH-216 D4)', () => {
+  let tmp: string
+  beforeEach(() => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'duo-vault-okf-detect-'))
+  })
+  afterEach(() => {
+    fs.rmSync(tmp, { recursive: true, force: true })
+  })
+
+  it('a root index.md with okf_version detects as okf', () => {
+    fs.writeFileSync(path.join(tmp, 'index.md'), '---\nokf_version: "0.1"\ntype: index\n---\n')
+    expect(detectVaultMode(tmp)).toBe('okf')
+    expect(readOkfVersion(tmp)).toBe('0.1')
+    expect(isVaultRoot(tmp)).toBe(true)
+  })
+
+  it('okf_version wins over a co-present .obsidian/ (the D4 tie-break)', () => {
+    fs.mkdirSync(path.join(tmp, '.obsidian'), { recursive: true })
+    fs.writeFileSync(path.join(tmp, 'index.md'), '---\nokf_version: 2\ntype: index\n---\n')
+    expect(detectVaultMode(tmp)).toBe('okf')
+  })
+
+  it('an index.md without okf_version is not a marker (null when no .obsidian/)', () => {
+    fs.writeFileSync(path.join(tmp, 'index.md'), '---\ntitle: just notes\n---\nbody\n')
+    expect(detectVaultMode(tmp)).toBeNull()
+    expect(isVaultRoot(tmp)).toBe(false)
+  })
+
+  it('findVaultRoot walks up to an OKF root from a nested note', () => {
+    fs.writeFileSync(path.join(tmp, 'index.md'), '---\nokf_version: 1\ntype: index\n---\n')
+    const nested = path.join(tmp, 'people', 'alice.md')
+    fs.mkdirSync(path.dirname(nested), { recursive: true })
+    fs.writeFileSync(nested, '---\ntype: person\n---\n')
+    expect(findVaultRoot(nested)).toBe(path.resolve(tmp))
   })
 })

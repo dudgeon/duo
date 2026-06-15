@@ -1,13 +1,34 @@
 // ENH-208 Vault — full-text search (PR1). The CLI twin of the Phase 2
 // ⌘⇧F vault-search palette (D22): plain case-insensitive substring over
 // note text, returning file-at-line hits. Frontmatter lines are searched
-// too (you want to find `status: blocked`). Internal/template/out dirs are
-// excluded by the shared walk.
+// too (you want to find `status: blocked`).
+//
+// ENH-214 — search SEES templates. The graph/parse walk excludes
+// `templates/` (parse.ts SKIP_DIRS — templates are the schema registry, not
+// entities), but the palette must surface them so templates are reachable
+// from ⌘⇧F. This module uses a search-specific skip-set that omits
+// `templates` (still skipping Obsidian internals + rendered output).
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { walk, SKIP_DIRS } from './parse'
+import { walk } from './parse'
 import type { SearchHit } from './types'
+
+/** ENH-214 — the ⌘⇧F palette (and its `duo vault search` twin) must SEE
+ *  template files. The graph/parse walk excludes `templates/` (parse.ts
+ *  SKIP_DIRS, D5) — but search wants them. This search-only skip-set omits
+ *  `templates` while still skipping Obsidian internals and rendered output.
+ *  Do NOT broaden parse.ts's SKIP_DIRS to match — graph behavior must not
+ *  change. */
+export const SEARCH_SKIP_DIRS = new Set(['.obsidian', '.trash', 'out'])
+
+/** True when a vault-relative POSIX path lives under a `templates/` directory
+ *  — drives the palette's inline "Template" badge (ENH-214). Matches a
+ *  `templates` path segment anywhere, mirroring how the walk treats the name
+ *  as special at any depth. */
+function isTemplatePath(relPath: string): boolean {
+  return relPath.split('/').includes('templates')
+}
 
 /** One cap shared by the CLI verb, the main-process IPC handler, and the
  *  palette (CLI-parity rule: same code path, same arguments). */
@@ -61,6 +82,8 @@ function scanRaw(
   // `\r?\n`-tolerant splitter sees — and excerpts never carry a stray `\r`.
   const lines = raw.split('\n').map((l) => (l.endsWith('\r') ? l.slice(0, -1) : l))
   const fmEnd = frontmatterEndLine(lines)
+  // ENH-214 — per-file template flag (constant across the file's hits).
+  const isTemplate = isTemplatePath(relPath)
   // Running count of needle occurrences in BODY lines above the cursor —
   // the metric the editor's goto-match consumes (D22). Frontmatter hits
   // carry null (they have no doc twin) and don't advance the counter.
@@ -75,6 +98,7 @@ function scanRaw(
         line: i + 1,
         excerpt: lines[i].trim().slice(0, 200),
         docMatchIndex: inFrontmatter ? null : bodyOccurrences,
+        isTemplate,
       })
       if (hits.length >= limit) return false
     }
@@ -90,7 +114,7 @@ export function search(root: string, query: string, limit = VAULT_SEARCH_DEFAULT
   const needle = query.toLowerCase()
   if (!needle) return []
   const hits: SearchHit[] = []
-  for (const abs of walk(root).filter((p) => p.endsWith('.md')).sort()) {
+  for (const abs of walk(root, SEARCH_SKIP_DIRS).filter((p) => p.endsWith('.md')).sort()) {
     let raw: string
     try {
       raw = fs.readFileSync(abs, 'utf8')
@@ -103,11 +127,12 @@ export function search(root: string, query: string, limit = VAULT_SEARCH_DEFAULT
   return hits
 }
 
-/** Async twin of parse.ts's `walk` — same SKIP_DIRS, same not-following-
- *  symlinks semantics, but every directory read awaits (so the event loop
- *  breathes per directory rather than blocking for the whole traversal).
- *  Only the async search path uses it; the sync `walk` stays the CLI's. */
-async function walkAsync(dir: string, skip: Set<string> = SKIP_DIRS): Promise<string[]> {
+/** Async twin of parse.ts's `walk` — same SEARCH_SKIP_DIRS (ENH-214: omits
+ *  `templates` so the palette sees templates), same not-following-symlinks
+ *  semantics, but every directory read awaits (so the event loop breathes
+ *  per directory rather than blocking for the whole traversal). Only the
+ *  async search path uses it; the sync `walk` stays the CLI's. */
+async function walkAsync(dir: string, skip: Set<string> = SEARCH_SKIP_DIRS): Promise<string[]> {
   const acc: string[] = []
   let entries: fs.Dirent[]
   try {

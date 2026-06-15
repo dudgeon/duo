@@ -899,20 +899,47 @@ ${miscHtml}
         copyBtn.classList.remove('is-copied');
       }, 4000);
     } catch {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.position = 'fixed';
-      ta.style.left = '50%';
-      ta.style.top = '50%';
-      ta.style.transform = 'translate(-50%, -50%)';
-      ta.style.width = '600px';
-      ta.style.height = '300px';
-      ta.style.zIndex = '9999';
-      ta.style.padding = '12px';
-      document.body.appendChild(ta);
-      ta.focus();
-      ta.select();
-      copyBtn.textContent = "Couldn't auto-copy — ⌘C from textarea";
+      // navigator.clipboard rejected — common in the split-view aux pane,
+      // whose WebContentsView isn't the focused frame ("Document is not
+      // focused"), or on a file:// page. Fall back to the legacy synchronous
+      // copy, which works on a user gesture without the focus/secure-context
+      // requirements the async API enforces (mirrors the per-command handler).
+      let ok = false;
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'absolute';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch { ok = false; }
+      if (ok) {
+        copyBtn.textContent = 'Copied! Paste back to Claude →';
+        copyBtn.classList.add('is-copied');
+        setTimeout(() => {
+          copyBtn.textContent = 'Copy results';
+          copyBtn.classList.remove('is-copied');
+        }, 4000);
+      } else {
+        // Last resort — surface a textarea for a manual ⌘C.
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '50%';
+        ta.style.top = '50%';
+        ta.style.transform = 'translate(-50%, -50%)';
+        ta.style.width = '600px';
+        ta.style.height = '300px';
+        ta.style.zIndex = '9999';
+        ta.style.padding = '12px';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        copyBtn.textContent = "Couldn't auto-copy — ⌘C from textarea";
+      }
     }
   });
 
@@ -954,12 +981,28 @@ ${miscHtml}
     }
 
     // Fallback — clipboard. The user pastes manually into Claude.
+    let ok = false;
     try {
       await navigator.clipboard.writeText(text);
-      setBtn('No Duo binding — copied to clipboard. Paste into Claude →', 'is-copied');
+      ok = true;
     } catch {
-      setBtn("Send failed — use Copy results", null);
+      // Aux-pane / file:// rejection — same legacy-copy fallback as Copy results.
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'absolute';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch { ok = false; }
     }
+    setBtn(
+      ok ? 'No Duo binding — copied to clipboard. Paste into Claude →' : 'Send failed — use Copy results',
+      ok ? 'is-copied' : null
+    );
   });
 </script>
 
