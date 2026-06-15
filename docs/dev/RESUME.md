@@ -3,16 +3,20 @@
 > **Post-compaction orientation (2026-06-14).** ENH-216 (OKF vault mode — a second
 > at-rest serializer: OKF markdown-rel-links vs Obsidian wikilinks, per-vault, File ▸
 > New Vault picker + `duo vault init --format`) is **code-complete + rebased on `main`
-> 0.10.4 + committed** (`0e0c956`; 1542 tests green). **Pre-cut batch → v0.11.0:**
-> - DONE (committed this session): FOLLOWUP-050 frontmatter `[[ ]]` autocomplete; BUG-208
->   `duo --help` Vault group; worksheet copy-button execCommand fallback.
-> - **PENDING OWNER GO** (gate the cut): **FOLLOWUP-051** — flip frontmatter edges from
->   rel-path to `[[ ]]` (verified the rel-path drops the Duo/Obsidian graph edge);
->   **BUG-207** — sidecar `.duo.json` vault pollution, fix = S1+S4 (relocate UI prefs +
->   delete-empty); **ENH-214** — templates in ⌘⇧F search (option a, inline badge).
-> - **Owner still owes:** walk-2 of the frontmatter autocomplete (`docs/dev/smoke-walks/
->   v0.10.4-rev2.html`, pinned in the aux). The owner's PATH `duo` is the stale installed
->   release — use the worktree's `./cli/duo` for the new vault verbs.
+> 0.10.4 + committed** (`0e0c956`; 1542 tests green). **Pre-cut batch → v0.11.0 — ALL THREE
+> PENDING ITEMS LANDED** (owner green-lit "do all of those things", 2026-06-14):
+> - DONE (committed): FOLLOWUP-050 autocomplete; BUG-208 `--help`; worksheet copy fix; plus
+>   **FOLLOWUP-051** `e105b85` (frontmatter `[[ ]]`→`[[name]]` both modes), **BUG-207**
+>   `c32ee48` (sidecar S1+S4, verified live — no `.md.duo.json` on note create), **ENH-214**
+>   `af9434a` (templates in ⌘⇧F + inline badge; data path verified CLI + live IPC). Suite
+>   **1555 green**, typecheck clean, `cli/duo` rebuilt (it bundles core in-process — see
+>   memory `feedback_cli_bundles_core_rebuild_on_core_change`).
+> - **Owner still owes:** **walk-3** (`docs/dev/smoke-walks/v0.10.4-rev3.html`, pinned in the
+>   aux) — 2 eyes-on items: FOLLOWUP-051 keystroke flow + ENH-214 badge VISUAL & the
+>   badge-vs-section call; 2 carry-forward SKIPs. BUG-207 + ENH-214 data path agent-verified.
+>   Fixture vault: `/tmp/duo-walk-v0104-rev3/`. Then **cut v0.11.0**. The running dev IS this
+>   worktree's build (swapped from main-repo this session); owner's PATH `duo` is still the
+>   stale release — use `./cli/duo` for vault verbs.
 > - Full detail: `tasks.md` ENH-216 / FOLLOWUP-050 / FOLLOWUP-051 / BUG-207 / BUG-208 /
 >   ENH-214; PRD playground `docs/research/okf-vault-mode.html`.
 >

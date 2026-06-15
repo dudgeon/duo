@@ -39,13 +39,18 @@
 > PATH `duo` is the stale installed release w/o `--format`; code correct via `./cli/duo`),
 > dialect-flip, Obsidian-compat. Walk-2 sheet trimmed to the 3 unresolved items
 > (`docs/dev/smoke-walks/v0.10.4-rev2.html`).
-> **Pre-cut batch → v0.11.0.** Done: BUG-208 (`--help` Vault group), worksheet copy-button
-> fix. PENDING OWNER GO: **FOLLOWUP-051** (flip frontmatter edges rel-path→`[[ ]]` — verified
-> the rel-path silently drops the Duo/Obsidian graph edge), **BUG-207** sidecar S1+S4
-> (relocate UI prefs + delete-empty), **ENH-214** templates-in-search (option a). Then
-> walk-2 + `cut-version` (v0.11.0 — OKF is a new vault format → minor bump).
-> Tracked: `tasks.md` ENH-216 / FOLLOWUP-050 / FOLLOWUP-051 / BUG-207 / BUG-208 / ENH-214;
-> PRD `docs/research/okf-vault-mode.html`.
+> **Pre-cut batch → v0.11.0 — ALL THREE PENDING ITEMS LANDED** (owner green-lit "do all of
+> those things", 2026-06-14). Committed: **FOLLOWUP-051** `e105b85` (frontmatter `[[ ]]`→
+> `[[name]]` both modes; a bare rel-path isn't a graph edge in Duo/Obsidian), **BUG-207**
+> `c32ee48` (sidecar S1+S4 — verified live, no `.md.duo.json` on note create), **ENH-214**
+> `af9434a` (templates in ⌘⇧F + inline badge; data path verified CLI + live IPC). Earlier:
+> BUG-208, worksheet copy fix, FOLLOWUP-050. Suite **1555 green**, `cli/duo` rebuilt.
+> **Walk-3 pinned** (`docs/dev/smoke-walks/v0.10.4-rev3.html`, aux): 2 owner-eyes items
+> (FOLLOWUP-051 keystroke + ENH-214 badge/section call) + 2 carry-forward SKIPs; BUG-207 +
+> ENH-214 data path agent-verified. Fixture vault `/tmp/duo-walk-v0104-rev3/`. Then
+> `cut-version` (v0.11.0 — OKF is a new vault format → minor bump). Tracked: `tasks.md`
+> ENH-216 / FOLLOWUP-050 / FOLLOWUP-051 / BUG-207 / BUG-208 / ENH-214; PRD
+> `docs/research/okf-vault-mode.html`.
 
 ## BUG-200 — terminal-collapse data-loss fix (in flight, this branch, 2026-06-10)
 
