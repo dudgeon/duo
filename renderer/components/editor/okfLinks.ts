@@ -52,6 +52,19 @@ export function okfLinkInsert(
   return serializeOkfLink(docPath, targetPath, displayOrBasename)
 }
 
+/**
+ * FOLLOWUP-050 — the frontmatter VALUE form of a resolved OKF link, for the
+ * live `[[ ]]` autocomplete (parity with the body gesture). Unlike the body,
+ * a frontmatter value can't be a markdown link `[x](./y.md)` — a leading `[`
+ * starts a YAML flow-sequence and breaks the parse — so the at-rest form is a
+ * YAML double-quoted relative-path scalar, `"./rel.md"` (same shape the D7
+ * commit-rewrite emits). Expand-on-resolve: the picker inserts THIS directly
+ * on pick, so no `[[ ]]` persists in an OKF frontmatter value.
+ */
+export function okfFrontmatterValue(docPath: string, targetPath: string): string {
+  return yamlQuote(okfLinkRelTarget(docPath, targetPath))
+}
+
 // `[[Name]]` / `[[Name|Display]]` inside a frontmatter VALUE. Capture the
 // inner text up to the first `|` (alias) or the closing `]]`.
 const FM_WIKILINK_RE = /\[\[([^\]]+?)\]\]/g

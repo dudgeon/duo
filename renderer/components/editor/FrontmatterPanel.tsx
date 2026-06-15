@@ -24,6 +24,8 @@ import {
 } from '../../../core/markdown/frontmatterParser'
 import { rewriteFrontmatterWikilinks } from './okfLinks'
 import type { VaultMode } from '../../../core/markdown/vaultLinks'
+import { useFrontmatterWikilink } from './useFrontmatterWikilink'
+import type { VaultFile } from './wikilinkResolver'
 
 /**
  * BUG-139 v1.1 Q5 — expanded-row display formatter.
@@ -70,6 +72,14 @@ interface Props {
    *  the rel-link target). Returns null when the name resolves to no known
    *  note — that gesture is left verbatim. */
   resolveWikilink?: (name: string) => Promise<string | null> | string | null
+  /** FOLLOWUP-050 — live `[[ ]]` autocomplete in the raw-YAML editor, at
+   *  parity with the body gesture. These are the SAME vault-index sources
+   *  MarkdownEditor threads into the body WikilinkSuggestion. When absent,
+   *  the panel keeps the D7 commit-only rewrite (no live popover). */
+  vaultFiles?: VaultFile[]
+  vaultLoading?: boolean
+  vaultRoot?: string | null
+  onVaultRefresh?: () => void
 }
 
 export function FrontmatterPanel({
@@ -79,7 +89,11 @@ export function FrontmatterPanel({
   onToggleCollapsed,
   mode = 'obsidian',
   docPath,
-  resolveWikilink
+  resolveWikilink,
+  vaultFiles,
+  vaultLoading,
+  vaultRoot,
+  onVaultRefresh
 }: Props) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<string>('')
@@ -99,6 +113,29 @@ export function FrontmatterPanel({
       return next
     })
   }, [])
+
+  // FOLLOWUP-050 — programmatic draft update mirroring the textarea's
+  // onChange (set + live re-validate), used by the autocomplete inserts.
+  const setDraftValidated = useCallback((next: string) => {
+    setDraft(next)
+    const r = parseFrontmatter(next)
+    setParseError(r.valid ? '' : r.error)
+  }, [])
+
+  // FOLLOWUP-050 — live `[[ ]]` autocomplete in the raw-YAML textarea,
+  // reusing the body editor's popover / ranking / type-picker (parity with
+  // the body gesture). Inert (no popover) until the host threads the vault
+  // index in.
+  const fmWikilink = useFrontmatterWikilink({
+    textareaRef,
+    setValue: setDraftValidated,
+    vaultFiles: vaultFiles ?? [],
+    vaultLoading: vaultLoading ?? false,
+    vaultRoot: vaultRoot ?? null,
+    mode,
+    docPath,
+    onVaultRefresh
+  })
 
   // Sync draft from props whenever we enter edit mode or the
   // frontmatter changes externally (e.g. an agent writes the file).
@@ -123,6 +160,10 @@ export function FrontmatterPanel({
       const panel = panelRef.current
       if (!panel) return
       if (panel.contains(e.target as Node)) return
+      // FOLLOWUP-050 — the autocomplete popover / type picker portal to
+      // document.body (outside the panel); a click there must NOT commit.
+      const t = e.target as Element | null
+      if (t && typeof t.closest === 'function' && t.closest('.duo-suggestion-popover')) return
       commit()
     }
     // Defer the listener so the click that opened edit mode doesn't
@@ -286,13 +327,16 @@ export function FrontmatterPanel({
               // editing a small block, above 10 scrollbars take over.
               rows={Math.max(4, Math.min(10, draft.split('\n').length))}
               onChange={(e) => {
-                setDraft(e.target.value)
-                // Re-validate live so the error message clears as
-                // the user fixes the YAML.
-                const r = parseFrontmatter(e.target.value)
-                setParseError(r.valid ? '' : r.error)
+                // Re-validate live so the error message clears as the user
+                // fixes the YAML, then re-evaluate the `[[ ]]` trigger.
+                setDraftValidated(e.target.value)
+                fmWikilink.onInput()
               }}
               onKeyDown={(e) => {
+                // FOLLOWUP-050 — let the autocomplete consume nav/select/Esc
+                // first; only fall through to the panel's own keys when it
+                // didn't handle them.
+                if (fmWikilink.onKeyDown(e)) return
                 if (e.key === 'Escape') {
                   e.preventDefault()
                   cancel()
@@ -311,6 +355,7 @@ export function FrontmatterPanel({
                 {parseError}
               </div>
             )}
+            {fmWikilink.overlay}
           </div>
         ) : (
           <div className="flex flex-col px-3 pb-1.5 gap-0.5">

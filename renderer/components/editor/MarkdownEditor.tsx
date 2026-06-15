@@ -2453,6 +2453,12 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           mode={vaultIndex.mode}
           docPath={path}
           resolveWikilink={resolveFrontmatterWikilink}
+          // FOLLOWUP-050 — live `[[ ]]` autocomplete in the raw-YAML editor,
+          // reusing the SAME vault index the body WikilinkSuggestion uses.
+          vaultFiles={vaultIndex.files}
+          vaultLoading={vaultIndex.loading}
+          vaultRoot={vaultIndex.vaultRoot}
+          onVaultRefresh={vaultIndex.refresh}
         />
       )}
       {/* BUG-138 Phase 4d — bulk banner above the editor body when
