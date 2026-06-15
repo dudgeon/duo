@@ -241,10 +241,12 @@ Each pointer loads a complete file — open the one that matches your task.
   graph, two serializers): **OKF** (standard markdown relative links
   `[Display](./<note>.md)`, the New Vault dialog default) and **Obsidian**
   (wikilinks `[[Display]]`, the legacy default). `duo vault init <path>
-  --format=okf|obsidian` scaffolds either (`--format` required on the CLI).
+  --format=okf|obsidian` scaffolds either (`--format` required on the CLI;
+  add `--no-default` so a throwaway scaffold doesn't hijack the active vault).
   In OKF mode a move changes link paths, so use `duo vault mv` (clean move +
-  inbound-link rewrite) or `duo vault relink` (repairs out-of-band moves by
-  stable `id:` → slug); `duo vault publish` (re)generates the static
+  inbound-link rewrite) or `duo vault relink` (repairs out-of-band moves
+  slug-first, with `id:` as a same-slug tiebreak); `duo vault publish`
+  (re)generates the static
   `index.md` + `log.md` listings; `duo vault promote` splits a section into
   its own entity, leaving a markdown link. The end-user walkthrough with
   diagrams is `docs/guide/vault-guide.html` (`duo open` it).
