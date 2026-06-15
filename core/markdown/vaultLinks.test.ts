@@ -172,6 +172,23 @@ describe('targetKey equivalence', () => {
     expect(targetKey('Customer Orders#Heading', 'wikilink')).toBe('customer-orders')
     expect(targetKey('../people/customer-orders.md#h', 'mdlink')).toBe('customer-orders')
   })
+
+  // PR#98 review cluster D2 — the extension strip is guarded to a known set so
+  // a dotted stem keeps its last segment (the comment used to promise this; the
+  // code didn't).
+  it('strips a known extension', () => {
+    expect(targetKey('./customer-orders.md', 'mdlink')).toBe('customer-orders')
+    expect(targetKey('report.markdown', 'mdlink')).toBe('report')
+  })
+
+  it('keeps a dotted stem intact (last segment is not a known extension)', () => {
+    expect(targetKey('./2024.01.05.md', 'mdlink')).toBe('2024.01.05')
+    expect(targetKey('2024.01.05', 'mdlink')).toBe('2024.01.05')
+  })
+
+  it('a dotted-stem wikilink and its .md mdlink still share a key (equivalence holds)', () => {
+    expect(targetKey('2024.01.05', 'wikilink')).toBe(targetKey('./2024.01.05.md', 'mdlink'))
+  })
 })
 
 describe('normalizePosix', () => {

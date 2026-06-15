@@ -83,6 +83,16 @@ function foldKey(stem: string): string {
     .replace(/ /g, '-')
 }
 
+/** Extensions targetKey is willing to strip — note formats + common companions
+ *  a vault might link to. Anything else (e.g. a dotted date stem `2024.01.05`)
+ *  is left intact so it doesn't lose its last segment. Keeping the set tight is
+ *  also what preserves the wikilink↔mdlink key equivalence for dotted stems:
+ *  `[[2024.01.05]]` and `[x](./2024.01.05.md)` both key to `2024.01.05`. */
+const KNOWN_EXTS = new Set([
+  'md', 'markdown', 'mdx', 'txt', 'html', 'htm', 'json', 'yaml', 'yml',
+  'pdf', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'csv',
+])
+
 /** The move-proof resolution key for a raw link target. Strips any anchor
  *  (`#…`), reduces a path to its extension-less basename, then folds. A
  *  wikilink `Customer Orders#h` and an mdlink `../x/customer-orders.md#h`
@@ -93,9 +103,10 @@ export function targetKey(rawTarget: string, _syntax: LinkSyntax): string {
   // Reduce a path to its last segment.
   const slash = t.lastIndexOf('/')
   if (slash >= 0) t = t.slice(slash + 1)
-  // Strip a trailing extension (only a known/short one — keeps dotted stems).
+  // Strip a trailing extension ONLY when it's a known/short one, so a dotted
+  // stem like `2024.01.05` keys intact instead of losing its last segment.
   const dot = t.lastIndexOf('.')
-  if (dot > 0) t = t.slice(0, dot)
+  if (dot > 0 && KNOWN_EXTS.has(t.slice(dot + 1).toLowerCase())) t = t.slice(0, dot)
   return foldKey(t)
 }
 
@@ -105,6 +116,9 @@ export function targetKey(rawTarget: string, _syntax: LinkSyntax): string {
 const WIKILINK_RE = /\[\[([^\]]+?)\]\]/g
 // Markdown inline link `[text](href)`, NOT an image (negative-lookbehind on
 // `!`). `href` stops at the first whitespace (title) or closing paren.
+// NOTE: because `[^)\s]+` stops at whitespace, a space-bearing href like
+// `(./my file.md)` is NOT captured as an edge — fine for OKF, whose slugs are
+// always space-free (slugStem folds spaces to hyphens).
 const MDLINK_RE = /(?<!!)\[([^\]]*)\]\(\s*([^)\s]+)[^)]*\)/g
 
 /** True for an href we should NOT treat as an in-vault edge: external
