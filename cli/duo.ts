@@ -3051,6 +3051,10 @@ function renderCommandsBlock(): string {
     'Terminal',
     'Workspace & projects',
     'Repo & git',
+    // ENH-208 vault / graph / base verbs (extended by ENH-216 OKF mode).
+    // Long absent from --help: GROUP_ORDER omitted 'Vault', so printHelp
+    // silently skipped the whole family despite their VERBS entries.
+    'Vault',
     'Health & install'
   ]
   const GUTTER = 34 // column where summaries begin
