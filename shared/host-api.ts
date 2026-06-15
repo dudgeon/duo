@@ -1089,6 +1089,9 @@ export interface VaultSearchHitDto {
    *  The palette hands this to the editor's goto-match jump so producer
    *  and consumer count the same thing (D22). */
   docMatchIndex: number | null
+  /** ENH-214 — true when the hit's file is under a `templates/` dir; drives
+   *  the palette's inline "Template" badge. */
+  isTemplate: boolean
 }
 
 export interface ElectronVaultAPI {

@@ -33,7 +33,7 @@ var import_crypto = require("crypto");
 var import_node_fs = __toESM(require("node:fs"));
 var import_node_path = __toESM(require("node:path"));
 
-// ../../../node_modules/js-yaml/dist/js-yaml.mjs
+// node_modules/js-yaml/dist/js-yaml.mjs
 function isNothing(subject) {
   return typeof subject === "undefined" || subject === null;
 }
@@ -3147,6 +3147,10 @@ function orphans(root) {
 // core/vault/search.ts
 var import_node_fs6 = __toESM(require("node:fs"));
 var import_node_path6 = __toESM(require("node:path"));
+var SEARCH_SKIP_DIRS = /* @__PURE__ */ new Set([".obsidian", ".trash", "out"]);
+function isTemplatePath(relPath) {
+  return relPath.split("/").includes("templates");
+}
 var VAULT_SEARCH_DEFAULT_LIMIT = 200;
 var FENCE_RE = /^---\s*$/;
 function frontmatterEndLine(lines) {
@@ -3168,6 +3172,7 @@ function occurrencesIn(hay, needle) {
 function scanRaw(raw, needle, relPath, absPath, hits, limit) {
   const lines = raw.split("\n").map((l) => l.endsWith("\r") ? l.slice(0, -1) : l);
   const fmEnd = frontmatterEndLine(lines);
+  const isTemplate = isTemplatePath(relPath);
   let bodyOccurrences = 0;
   for (let i = 0; i < lines.length; i++) {
     const inFrontmatter = fmEnd !== null && i <= fmEnd;
@@ -3178,7 +3183,8 @@ function scanRaw(raw, needle, relPath, absPath, hits, limit) {
         absPath,
         line: i + 1,
         excerpt: lines[i].trim().slice(0, 200),
-        docMatchIndex: inFrontmatter ? null : bodyOccurrences
+        docMatchIndex: inFrontmatter ? null : bodyOccurrences,
+        isTemplate
       });
       if (hits.length >= limit) return false;
     }
@@ -3190,7 +3196,7 @@ function search(root, query, limit = VAULT_SEARCH_DEFAULT_LIMIT) {
   const needle = query.toLowerCase();
   if (!needle) return [];
   const hits = [];
-  for (const abs of walk(root).filter((p) => p.endsWith(".md")).sort()) {
+  for (const abs of walk(root, SEARCH_SKIP_DIRS).filter((p) => p.endsWith(".md")).sort()) {
     let raw;
     try {
       raw = import_node_fs6.default.readFileSync(abs, "utf8");

@@ -136,4 +136,9 @@ export interface SearchHit {
    *  hits. Lets the ⌘⇧F palette hand the editor the exact occurrence to
    *  jump to (D22) without the two sides counting different things. */
   docMatchIndex: number | null
+  /** ENH-214 — true when this hit's file lives under a `templates/` dir. The
+   *  ⌘⇧F palette renders an inline "Template" badge for these (search
+   *  surfaces templates even though the graph/parse walk excludes them).
+   *  Constant across a file's hits. */
+  isTemplate: boolean
 }
