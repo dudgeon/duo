@@ -175,6 +175,12 @@ export interface WriteListingsOptions {
   /** Also write a per-directory `index.md` for each subfolder that holds
    *  notes (default false — only the root index.md + root log.md). */
   perDir?: boolean
+  /** Which listing files to (re)write (default `'both'`). `'index'` writes
+   *  ONLY index.md (root + per-dir under `perDir`); `'log'` writes ONLY
+   *  log.md. The narrowing is honored in the WRITE — a file outside the scope
+   *  is left byte-identical (no fresh stamp → no git churn), and `written`
+   *  reflects only what was actually written (PR#98 review cluster B). */
+  scope?: 'index' | 'log' | 'both'
 }
 
 export interface WriteListingsResult {
@@ -214,23 +220,35 @@ export function writeListings(root: string, opts: WriteListingsOptions = {}): Wr
     )
   }
 
+  const scope = opts.scope ?? 'both'
+  const wantIndex = scope !== 'log'
+  const wantLog = scope !== 'index'
   const written: string[] = []
 
   // Root index.md — preserve its okf_version frontmatter byte-identically.
-  const rootIndexAbs = path.join(root, 'index.md')
-  const existing = fs.readFileSync(rootIndexAbs, 'utf8') // OKF root always has it
-  const indexBody = generateIndex(root, '')
-  const indexStamp = generatedStamp(root, 'index', 'corpus')
-  fs.writeFileSync(rootIndexAbs, spliceRootIndex(existing, indexStamp, indexBody))
-  written.push('index.md')
+  // Skipped entirely under `--log-only` so the file is left byte-identical
+  // (no fresh stamp → no git churn); we don't even read it.
+  if (wantIndex) {
+    const rootIndexAbs = path.join(root, 'index.md')
+    const existing = fs.readFileSync(rootIndexAbs, 'utf8') // OKF root always has it
+    const indexBody = generateIndex(root, '')
+    const indexStamp = generatedStamp(root, 'index', 'corpus')
+    fs.writeFileSync(rootIndexAbs, spliceRootIndex(existing, indexStamp, indexBody))
+    written.push('index.md')
+  }
 
   // Root log.md — a standalone generated file (no preserved frontmatter).
-  const logAbs = path.join(root, 'log.md')
-  const logStamp = generatedStamp(root, 'log', 'file mtimes')
-  fs.writeFileSync(logAbs, `${logStamp}\n\n# Log\n\n${generateLog(root)}\n`)
-  written.push('log.md')
+  // Skipped under `--index-only`.
+  if (wantLog) {
+    const logAbs = path.join(root, 'log.md')
+    const logStamp = generatedStamp(root, 'log', 'file mtimes')
+    fs.writeFileSync(logAbs, `${logStamp}\n\n# Log\n\n${generateLog(root)}\n`)
+    written.push('log.md')
+  }
 
-  if (opts.perDir) {
+  // Per-dir index.md files are INDEX listings, so they follow the index scope:
+  // written under `--index-only` (+ default), suppressed under `--log-only`.
+  if (opts.perDir && wantIndex) {
     // Each subfolder that contains notes gets its own index.md.
     const dirs = new Set<string>()
     for (const n of readNotes(root)) {
@@ -321,6 +339,22 @@ export function promoteSection(
   const entityRel = stubPathFor(template, name)
 
   const stub = createEntityStub(root, type, name, { body: section.content || undefined })
+  // Slug/path-collision guard (PR#98 review cluster A): when an entity already
+  // exists at the target, createEntityStub no-ops (created:false) and does NOT
+  // write the section body. Removing the section from the source below would
+  // silently drop the promoted content — it lands neither in the source nor the
+  // pre-existing target. REFUSE instead: leave the source note fully intact and
+  // tell the caller to rename the existing entity or pick a different name. The
+  // throw happens BEFORE any write to noteAbs, so the source is byte-identical
+  // on failure. (CLI surfaces this via die(); D9.)
+  if (!stub.created) {
+    throw new Error(
+      `cannot promote "## ${heading}": an entity already exists at ${stub.path}. ` +
+        `Refusing so the section is not lost — rename the existing entity ` +
+        `(duo vault mv) or promote under a different heading/name. ` +
+        `The source note ${noteRel} was left unchanged.`,
+    )
+  }
 
   // Compose the leave-behind link per mode.
   let leftLink: string

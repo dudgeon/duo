@@ -144,6 +144,54 @@ describe('writeListings — OKF-mode-gated (D8)', () => {
     expect(r.written).toContain('themes/index.md')
     expect(read('people/index.md')).toContain('* [Alice Park](./alice.md)')
   })
+
+  // PR#98 review cluster B — `--index-only` / `--log-only` narrow the WRITE,
+  // not just the reported set, so the out-of-scope file is left byte-identical
+  // (no fresh stamp → no git churn).
+  it('scope=log writes only log.md and leaves index.md byte-identical (--log-only)', () => {
+    makeOkfVault()
+    writeListings(root) // seed both so index.md has a generated body to compare
+    const indexBefore = read('index.md')
+    const r = writeListings(root, { scope: 'log' })
+    expect(r.written).toEqual(['log.md'])
+    expect(read('index.md')).toBe(indexBefore) // untouched → no churn
+    expect(read('log.md')).toContain('<!-- duo:generated log')
+  })
+
+  it('scope=index writes only index.md and leaves log.md byte-identical (--index-only)', () => {
+    makeOkfVault()
+    writeListings(root) // seed both
+    const logBefore = read('log.md')
+    const r = writeListings(root, { scope: 'index' })
+    expect(r.written).toEqual(['index.md'])
+    expect(read('log.md')).toBe(logBefore)
+    expect(read('index.md')).toContain('<!-- duo:generated index')
+  })
+
+  it('scope=log with perDir writes NO index files (per-dir index follows index scope)', () => {
+    makeOkfVault()
+    const r = writeListings(root, { perDir: true, scope: 'log' })
+    expect(r.written).toEqual(['log.md'])
+    expect(r.written.some((p) => p.endsWith('index.md'))).toBe(false)
+    expect(fs.existsSync(path.join(root, 'people/index.md'))).toBe(false)
+  })
+
+  it('scope=index with perDir writes root + per-dir index.md but not log.md', () => {
+    makeOkfVault()
+    const r = writeListings(root, { perDir: true, scope: 'index' })
+    expect(r.written).toContain('index.md')
+    expect(r.written).toContain('people/index.md')
+    expect(r.written).toContain('themes/index.md')
+    expect(r.written).not.toContain('log.md')
+    expect(fs.existsSync(path.join(root, 'log.md'))).toBe(false)
+  })
+
+  it('default scope (both) still writes index.md + log.md (regression)', () => {
+    makeOkfVault()
+    const r = writeListings(root)
+    expect(r.written).toContain('index.md')
+    expect(r.written).toContain('log.md')
+  })
 })
 
 describe('promoteSection (D9 — link, never an embed)', () => {
@@ -190,5 +238,30 @@ describe('promoteSection (D9 — link, never an embed)', () => {
   it('throws when the section heading is not found', () => {
     makePromotableOkf()
     expect(() => promoteSection(root, 'notes/braindump.md', 'Nope', 'person')).toThrow(/not found/)
+  })
+
+  // PR#98 review cluster A — a slug/path collision must NOT drop the section.
+  it('REFUSES (leaves the source intact) when an entity already exists at the target — no data loss', () => {
+    makePromotableOkf()
+    // Pre-create the target the section would promote into. promoteSection
+    // files the stub with the obsidian stem rule (verbatim name) even in an
+    // OKF vault, so the colliding path is people/Dana Wu.md.
+    write('people/Dana Wu.md', '---\ntype: person\ntitle: Dana Wu\n---\nPRE-EXISTING content.\n')
+    const srcBefore = read('notes/braindump.md')
+    const targetBefore = read('people/Dana Wu.md')
+
+    // It refuses by throwing, naming the colliding path — BEFORE any write.
+    expect(() => promoteSection(root, 'notes/braindump.md', 'Dana Wu', 'person')).toThrow(
+      /already exists at people\/Dana Wu\.md/,
+    )
+
+    // No data loss: the source note is byte-identical (prose still there, no
+    // "Moved to" stub spliced in) ...
+    const srcAfter = read('notes/braindump.md')
+    expect(srcAfter).toBe(srcBefore)
+    expect(srcAfter).toContain('Dana is a designer.')
+    expect(srcAfter).not.toContain('Moved to')
+    // ... and the pre-existing target was left untouched (not clobbered).
+    expect(read('people/Dana Wu.md')).toBe(targetBefore)
   })
 })
