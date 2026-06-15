@@ -8,7 +8,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
-import { isVaultRoot } from './detect'
+import { isVaultRoot, detectVaultMode } from './detect'
 import { loadTemplates } from './corpus'
 import { ensureNoteId } from './move'
 import type { TypeTemplate, VaultMode } from './types'
@@ -373,7 +373,10 @@ export function captureNote(
   root: string,
   opts: { template?: string; text?: string; title?: string; date?: Date; mode?: VaultMode } = {},
 ): CaptureResult {
-  const mode: VaultMode = opts.mode ?? 'obsidian'
+  // Default to the vault's LIVE detected mode (PR#98 F4): the ⇧⌘N capture IPC
+  // handler + `duo vault capture` call this without a mode, and an Obsidian
+  // capture in an OKF vault lands untyped with no stable id (no D5 relink key).
+  const mode: VaultMode = opts.mode ?? detectVaultMode(root) ?? 'obsidian'
   const now = opts.date ?? new Date()
   const stamp =
     `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-` +

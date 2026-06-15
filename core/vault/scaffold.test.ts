@@ -146,10 +146,11 @@ describe('vault init (OKF — the new default, ENH-216 D2)', () => {
 })
 
 describe('vault capture', () => {
-  it('drops an untyped, captured-stamped inbox note by default', () => {
-    // captureNote defaults to obsidian mode regardless of the vault's mode, so
-    // a no-mode capture stays untyped-by-default even in the OKF-default vault.
-    const v = initVault(path.join(root, 'v')).root
+  it('drops an untyped, captured-stamped inbox note by default (Obsidian)', () => {
+    // OBSIDIAN capture is untyped-by-default. (PR#98 F4: captureNote now
+    // auto-detects the vault mode, so an OKF vault would stamp `type: note` +
+    // mint an id — that OKF path is covered by the OKF capture test below.)
+    const v = initVault(path.join(root, 'v'), { format: 'obsidian' }).root
     const c = captureNote(v, { text: 'a quick thought', date: new Date('2026-06-09T14:32:05') })
     // YYYY-MM-DD-HHMMSS — date+time hyphen-joined so an untitled capture has
     // no space in its name (owner ask 2026-06-12).
@@ -222,6 +223,18 @@ describe('vault capture (OKF mode — type-stamp-everything + id, ENH-216 D10)',
     expect(content).toMatch(/^---\nid: [0-9a-z]{8}\n/) // id spliced after the fence
     expect(content).toContain('type: note')
     expect(content).toContain('a quick thought')
+  })
+
+  // PR#98 F4 — the regression guard: an OKF vault must shape the capture
+  // correctly even when the caller (the ⇧⌘N IPC handler / `duo vault capture`)
+  // passes NO mode. captureNote auto-detects the vault mode.
+  it('AUTO-DETECTS okf when no mode is passed (the IPC/CLI path) — type:note + id', () => {
+    const v = initVault(path.join(root, 'v')).root // default → OKF
+    const c = captureNote(v, { text: 'a quick thought', date: new Date('2026-06-09T14:32:05') })
+    expect(c.type).toBe('note')
+    const content = fs.readFileSync(c.absPath, 'utf8')
+    expect(content).toMatch(/^---\nid: [0-9a-z]{8}\n/)
+    expect(content).toContain('type: note')
   })
 
   it('a templated OKF capture stamps the type + its fields + an id', () => {

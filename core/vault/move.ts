@@ -259,6 +259,18 @@ export function moveNote(root: string, fromRel: string, toRel: string): MoveResu
   fs.mkdirSync(path.dirname(toAbs), { recursive: true })
   fs.renameSync(fromAbs, toAbs)
 
+  // Carry the note's sidecar (`<file>.md.duo.json`) so its comments /
+  // properties / recent-edits travel with the note (PR#98 F3 — otherwise a
+  // `vault mv` orphans them and the editor at the new path reads no metadata).
+  const fromSidecar = fromAbs + '.duo.json'
+  if (fs.existsSync(fromSidecar)) {
+    try {
+      fs.renameSync(fromSidecar, toAbs + '.duo.json')
+    } catch {
+      /* best-effort — never fail the move over the sidecar */
+    }
+  }
+
   // Rewrite each inbound link's href: recompute from the LINKER's path.
   const inboundRewritten: MoveResult['inboundRewritten'] = []
   // Group inbound occurrences by linking file so we write each file once.

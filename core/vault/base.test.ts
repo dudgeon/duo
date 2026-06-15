@@ -98,10 +98,17 @@ describe('engine — the locked expression subset evaluates without errors', () 
     const row = ev.views[0].rows.find((f) => f.basename === 'Q3 Launch')!
     const probeA = readCol('formula.probe_a', row, null, ev.formulas, AS_OF)
     const probeB = readCol('formula.probe_b', row, null, ev.formulas, AS_OF)
-    const mentions = readCol('formula.mentions', row, null, ev.formulas, AS_OF)
+    const mentions = readCol('formula.mentions', row, null, ev.formulas, AS_OF) as number
     expect(typeof probeA).toBe('number')
     expect(typeof probeB).toBe('number')
     expect(typeof mentions).toBe('number')
+    // ENH-216 regression guard (PR#98 F1): `mentions = file.backlinks.length`.
+    // Many notes link `[[Q3 Launch]]` (5 `initiative:` frontmatter edges + 3
+    // body mentions), so a healthy graph yields a non-zero count. The earlier
+    // `typeof === 'number'` alone let the empty-graph bug (byName keyed by the
+    // raw basename while `_rawLinks` are folded keys → every multi-word link
+    // missed → backlinks.length === 0) pass CI silently. Pin a hard floor.
+    expect(mentions).toBeGreaterThanOrEqual(5)
   })
 
   it('groupBy + summaries: people-load groups open milestones by owner', () => {

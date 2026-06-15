@@ -22,7 +22,8 @@
 //
 // `promoteSection` splits a `## section` of a note into its own entity, leaving
 // a markdown LINK in OKF mode (a wikilink in Obsidian) — NEVER an embed-
-// transclusion (D9). It reuses `createEntityStub` / `stubPathFor` from filing.
+// transclusion (D9). It reuses `createEntityStub` from filing (which files
+// mode-aware: OKF slugs the stem + mints an id, Obsidian keeps the basename).
 //
 // All rel-path / slug / serialize logic is IMPORTED from the single node-free
 // helper (`../markdown/vaultLinks`); this module never reimplements it.
@@ -31,8 +32,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { readNotes, parseFile, splitFrontmatter } from './parse'
 import { detectVaultMode } from './detect'
-import { loadTemplates } from './corpus'
-import { stubPathFor, createEntityStub, safeName } from './filing'
+import { createEntityStub, safeName } from './filing'
 import { sourceHash } from './render'
 import { relLink, serializeOkfLink, serializeWikilink } from '../markdown/vaultLinks'
 import type { VaultFile, VaultMode } from './types'
@@ -164,11 +164,31 @@ export const LISTING_FENCE = '<!-- duo:listing -->'
 
 /** The generated-stamp comment carrying the source hash (staleness key) +
  *  the date source, mirroring the rollup render artifact's BUILD ARTIFACT
- *  stamp. */
+ *  stamp. DETERMINISTIC (PR#98 F20): the staleness key is the corpus-derived
+ *  `source-hash` — NOT a wall-clock timestamp. A per-invocation `generated
+ *  <ISO>` field made every `publish` rewrite the file with new bytes even when
+ *  the corpus was unchanged, defeating the byte-equality guard below (and
+ *  churning git / bannering an open index.md). Same corpus → same stamp. */
 function generatedStamp(root: string, kind: string, dateSource: string): string {
   const hash = sourceHash(root)
-  const at = new Date().toISOString()
-  return `<!-- duo:generated ${kind} · generated ${at} · source-hash ${hash} · dates from ${dateSource} -->`
+  return `<!-- duo:generated ${kind} · source-hash ${hash} · dates from ${dateSource} -->`
+}
+
+/** Write `content` to `abs` ONLY when it differs from what's already on disk,
+ *  returning true when a write happened (PR#98 F20). An unchanged listing is
+ *  left byte-identical so `publish` is idempotent — no spurious filesystem
+ *  watcher event, no git churn, no reconcile banner over an open index.md. */
+function writeIfChanged(abs: string, content: string): boolean {
+  let existing: string | null = null
+  try {
+    existing = fs.readFileSync(abs, 'utf8')
+  } catch {
+    existing = null // not on disk yet → a genuine create
+  }
+  if (existing === content) return false
+  fs.mkdirSync(path.dirname(abs), { recursive: true })
+  fs.writeFileSync(abs, content)
+  return true
 }
 
 export interface WriteListingsOptions {
@@ -227,14 +247,17 @@ export function writeListings(root: string, opts: WriteListingsOptions = {}): Wr
 
   // Root index.md — preserve its okf_version frontmatter byte-identically.
   // Skipped entirely under `--log-only` so the file is left byte-identical
-  // (no fresh stamp → no git churn); we don't even read it.
+  // (no fresh stamp → no git churn); we don't even read it. The byte-guard
+  // (writeIfChanged) additionally skips the write when the regenerated listing
+  // is identical to what's on disk, so a no-op `publish` writes nothing.
   if (wantIndex) {
     const rootIndexAbs = path.join(root, 'index.md')
     const existing = fs.readFileSync(rootIndexAbs, 'utf8') // OKF root always has it
     const indexBody = generateIndex(root, '')
     const indexStamp = generatedStamp(root, 'index', 'corpus')
-    fs.writeFileSync(rootIndexAbs, spliceRootIndex(existing, indexStamp, indexBody))
-    written.push('index.md')
+    if (writeIfChanged(rootIndexAbs, spliceRootIndex(existing, indexStamp, indexBody))) {
+      written.push('index.md')
+    }
   }
 
   // Root log.md — a standalone generated file (no preserved frontmatter).
@@ -242,8 +265,9 @@ export function writeListings(root: string, opts: WriteListingsOptions = {}): Wr
   if (wantLog) {
     const logAbs = path.join(root, 'log.md')
     const logStamp = generatedStamp(root, 'log', 'file mtimes')
-    fs.writeFileSync(logAbs, `${logStamp}\n\n# Log\n\n${generateLog(root)}\n`)
-    written.push('log.md')
+    if (writeIfChanged(logAbs, `${logStamp}\n\n# Log\n\n${generateLog(root)}\n`)) {
+      written.push('log.md')
+    }
   }
 
   // Per-dir index.md files are INDEX listings, so they follow the index scope:
@@ -258,8 +282,9 @@ export function writeListings(root: string, opts: WriteListingsOptions = {}): Wr
     for (const dir of [...dirs].sort()) {
       const abs = path.join(root, dir, 'index.md')
       const stamp = generatedStamp(root, 'index', 'corpus')
-      fs.writeFileSync(abs, `${stamp}\n\n${generateIndex(root, dir)}\n`)
-      written.push(`${dir}/index.md`)
+      if (writeIfChanged(abs, `${stamp}\n\n${generateIndex(root, dir)}\n`)) {
+        written.push(`${dir}/index.md`)
+      }
     }
   }
 
@@ -329,24 +354,23 @@ export function promoteSection(
   if (!section) throw new Error(`section "## ${heading}" not found in ${noteRel}`)
 
   const name = heading.trim()
-  // Where the entity WILL file (so we can compute the leave-behind link even
-  // when createEntityStub no-ops on an existing entity).
-  const template = loadTemplates(root).find((t) => t.type === type)
-  if (!template) {
-    const known = loadTemplates(root).map((t) => t.type).join(', ')
-    throw new Error(`unknown type "${type}" (known: ${known || 'none'})`)
-  }
-  const entityRel = stubPathFor(template, name)
+  const fmode: VaultMode = mode ?? 'obsidian'
 
-  const stub = createEntityStub(root, type, name, { body: section.content || undefined })
-  // Slug/path-collision guard (PR#98 review cluster A): when an entity already
-  // exists at the target, createEntityStub no-ops (created:false) and does NOT
-  // write the section body. Removing the section from the source below would
-  // silently drop the promoted content — it lands neither in the source nor the
-  // pre-existing target. REFUSE instead: leave the source note fully intact and
-  // tell the caller to rename the existing entity or pick a different name. The
-  // throw happens BEFORE any write to noteAbs, so the source is byte-identical
-  // on failure. (CLI surfaces this via die(); D9.)
+  // Create the entity FIRST, mode-aware (PR#98 F4): OKF slugs the stem, mints a
+  // stable `id:`, and stamps `title:`; Obsidian keeps the verbatim basename.
+  // createEntityStub validates the type and throws BEFORE any write to the
+  // source note, so an unknown type leaves the source byte-identical.
+  const stub = createEntityStub(root, type, name, {
+    body: section.content || undefined,
+    mode: fmode,
+  })
+  // Collision guard (PR#98 review cluster A) — OBSIDIAN ONLY. In Obsidian mode a
+  // pre-existing entity makes createEntityStub no-op (created:false) WITHOUT
+  // writing the section body; removing the section below would then silently
+  // drop the promoted content. REFUSE so the source stays intact. (OKF mode
+  // auto-disambiguates with a `-2` stem and always creates, so the content is
+  // never lost there — no refuse needed.) The throw precedes any write to
+  // noteAbs, so the source is byte-identical on failure. (CLI surfaces via die().)
   if (!stub.created) {
     throw new Error(
       `cannot promote "## ${heading}": an entity already exists at ${stub.path}. ` +
@@ -356,13 +380,14 @@ export function promoteSection(
     )
   }
 
-  // Compose the leave-behind link per mode.
-  let leftLink: string
-  if (mode === 'okf') {
-    leftLink = serializeOkfLink(noteRel, entityRel, name)
-  } else {
-    leftLink = serializeWikilink(noteRel, entityRel, name)
-  }
+  // Compose the leave-behind link per mode, pointing at the ACTUAL created path
+  // (stub.path) — in OKF mode that is the slugged stem (and may be a `-2`
+  // disambiguation), NEVER a verbatim-cased name with a space the OKF link
+  // parser would truncate.
+  const leftLink =
+    fmode === 'okf'
+      ? serializeOkfLink(noteRel, stub.path, name)
+      : serializeWikilink(noteRel, stub.path, name)
 
   // Replace the section in the source body with a heading + the link (NEVER an
   // embed: no `![[…]]` / `![](…)`).

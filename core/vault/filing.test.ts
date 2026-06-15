@@ -9,7 +9,14 @@ import { initVault, loadTemplates, stubPathFor, createEntityStub, createType, sa
 
 let root: string
 beforeEach(() => {
-  root = initVault(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'duo-filing-')), 'v')).root
+  // These exercise the OBSIDIAN filing path (verbatim basename, idempotent
+  // never-clobber). initVault's DEFAULT flipped to OKF (ENH-216 D2) and
+  // createEntityStub/createType now auto-detect the vault mode (PR#98 F4), so
+  // pin obsidian explicitly. The OKF filing path is covered separately below
+  // (the `mode: 'okf'` tests).
+  root = initVault(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'duo-filing-')), 'v'), {
+    format: 'obsidian',
+  }).root
 })
 afterEach(() => {
   fs.rmSync(path.dirname(root), { recursive: true, force: true })
@@ -142,6 +149,21 @@ describe('OKF mode (ENH-216 D6/D10) — slugged stems, title + id stamped', () =
     expect(b.path).toBe('people/customer-orders-2.md') // -2 suffix, both created
     expect(a.created).toBe(true)
     expect(b.created).toBe(true)
+  })
+
+  // PR#98 F4 — the regression guard: in a real OKF vault, the silent-stub IPC
+  // handler / `duo vault stub` pass NO mode; createEntityStub must auto-detect
+  // okf and slug + stamp title/id rather than write an Obsidian-shaped stub.
+  it('AUTO-DETECTS okf when no mode is passed (the IPC/CLI path) — slug + title + id', () => {
+    const okfRoot = initVault(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'duo-filing-okf-')), 'v'), {
+      format: 'okf',
+    }).root
+    const r = createEntityStub(okfRoot, 'person', 'Customer Orders', { asOf: AS_OF })
+    expect(r.path).toBe('people/customer-orders.md')
+    const content = fs.readFileSync(r.absPath, 'utf8')
+    expect(content).toMatch(/^---\nid: [0-9a-z]{8}\n/)
+    expect(content).toContain('title: Customer Orders')
+    fs.rmSync(path.dirname(okfRoot), { recursive: true, force: true })
   })
 
   it('createType slugs the template stem + canonical type in OKF mode', () => {

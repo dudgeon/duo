@@ -120,6 +120,24 @@ describe('moveNote — the clean path (D5)', () => {
   it('throws when the source is missing', () => {
     expect(() => moveNote(root, 'nope.md', 'x.md')).toThrow(/source note not found/)
   })
+
+  // PR#98 F3 — the note's `<file>.md.duo.json` sidecar (comments / properties /
+  // recent-edits) must travel with it, not be orphaned at the old path.
+  it('carries the .duo.json sidecar with the note', () => {
+    write('people/alice.md', '---\ntype: person\n---\nAlice.\n')
+    write('people/alice.md.duo.json', '{"version":1,"comments":[{"id":"c1"}]}')
+    moveNote(root, 'people/alice.md', 'team/alice.md')
+    // Sidecar moved alongside; nothing left orphaned at the old path.
+    expect(fs.existsSync(path.join(root, 'team/alice.md.duo.json'))).toBe(true)
+    expect(fs.existsSync(path.join(root, 'people/alice.md.duo.json'))).toBe(false)
+    expect(read('team/alice.md.duo.json')).toContain('"c1"')
+  })
+
+  it('moves a note that has no sidecar without error', () => {
+    write('a.md', '---\ntype: note\n---\na\n')
+    expect(() => moveNote(root, 'a.md', 'b.md')).not.toThrow()
+    expect(fs.existsSync(path.join(root, 'b.md.duo.json'))).toBe(false)
+  })
 })
 
 describe('relinkVault — out-of-band repair (D5)', () => {

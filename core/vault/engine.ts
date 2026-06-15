@@ -15,6 +15,7 @@
 // bare import side-effect-free.)
 
 import type { VaultFile } from './types'
+import { targetKey } from '../markdown/vaultLinks'
 
 export const DAY_MS = 86400000
 
@@ -130,18 +131,19 @@ export function buildEngineFiles(notes: VaultFile[], asOf: Date): EngineFile[] {
       ext: n.ext,
       mtime: new DuoDate(new Date(n.mtimeMs), asOf),
       properties,
-      // ENH-216: `n.links` keys are now syntax-plural (wikilink + mdlink,
-      // folded via vaultLinks.targetKey). This site still wires the graph by
-      // matching against case-preserved basenames + parses wikilinks in
-      // frontmatter values; markdown-link frontmatter edges + key-based
-      // re-wiring are a Stage-4 concern (no logic change here).
+      // ENH-216: `n.links` keys are syntax-plural (wikilink + mdlink), FOLDED
+      // via vaultLinks.targetKey (`Q3 Launch`/`q3-launch` → `q3-launch`). The
+      // graph wiring below keys `byName` by the SAME folded targetKey so the
+      // lookup matches; frontmatter wikilink VALUES are still parsed as Link
+      // objects (parseLinkish) and folded at the `hasLink` probe.
       _rawLinks: n.links,
       links: [],
       backlinks: [],
       hasTag: () => false,
       hasLink(other: unknown) {
-        const t = other instanceof Link ? other.target : (other as any)?.name ?? other
-        return this._rawLinks.includes(t as string)
+        const raw = other instanceof Link ? other.target : (other as any)?.name ?? other
+        // _rawLinks are folded keys (ENH-216); fold the probe to match.
+        return this._rawLinks.includes(targetKey(String(raw), 'wikilink'))
       },
       inFolder(folder: string) {
         return this.folder === folder || this.folder.startsWith(folder + '/')
@@ -158,7 +160,11 @@ export function buildEngineFiles(notes: VaultFile[], asOf: Date): EngineFile[] {
     }
     return f
   })
-  const byName = new Map(files.map((f) => [f.name, f]))
+  // Key by the SAME folded targetKey the `_rawLinks` carry (ENH-216), so a
+  // body `[[Q3 Launch]]` (folded → `q3-launch`) resolves to the note whose
+  // basename is `Q3 Launch`. Before this, byName was keyed by the raw
+  // case-preserved basename and every multi-word link silently missed.
+  const byName = new Map(files.map((f) => [targetKey(f.name, 'wikilink'), f]))
   for (const f of files) {
     f.links = f._rawLinks.map((n) => byName.get(n)).filter(Boolean) as EngineFile[]
     for (const target of f.links) target.backlinks.push(f)

@@ -18,6 +18,7 @@ import { loadTemplates } from './corpus'
 import { seedFrontmatterLines } from './scaffold'
 import { slugStem } from '../markdown/vaultLinks'
 import { ensureNoteId } from './move'
+import { detectVaultMode } from './detect'
 
 function pad(n: number): string {
   return String(n).padStart(2, '0')
@@ -74,13 +75,19 @@ export interface CreateTypeResult {
  * template would dead-end on `unknown type` forever. Throws when the name
  * normalizes to nothing.
  *
- * ENH-216: `mode` (default `obsidian`) picks the stem rule for the template
- * filename AND its canonical `type:` value. Obsidian normalizes to a
- * lowercased safeName (`Decision Log` → `decision log`); OKF slugs it
- * (`decision-log`, D6). The empty-name guard keys on the obsidian normal form
- * so both modes reject a name that normalizes to nothing.
+ * ENH-216: `mode` picks the stem rule for the template filename AND its
+ * canonical `type:` value. Obsidian normalizes to a lowercased safeName
+ * (`Decision Log` → `decision log`); OKF slugs it (`decision-log`, D6). The
+ * empty-name guard keys on the obsidian normal form so both modes reject a
+ * name that normalizes to nothing. `mode` defaults to the vault's LIVE
+ * detected mode (PR#98 F4) so the UI/CLI callers that omit it don't silently
+ * write Obsidian-shaped templates into an OKF vault.
  */
-export function createType(root: string, type: string, mode: VaultMode = 'obsidian'): CreateTypeResult {
+export function createType(
+  root: string,
+  type: string,
+  mode: VaultMode = detectVaultMode(root) ?? 'obsidian',
+): CreateTypeResult {
   const normal = safeName(type).toLowerCase()
   if (!normal) throw new Error('empty type name')
   const stem = mode === 'okf' ? slugStem(type) || normal : normal
@@ -127,7 +134,11 @@ export function createEntityStub(
   name: string,
   opts: { asOf?: Date; body?: string; mode?: VaultMode } = {},
 ): StubResult {
-  const mode: VaultMode = opts.mode ?? 'obsidian'
+  // Default to the vault's LIVE detected mode (PR#98 F4): the ⇧⌘N capture /
+  // silent-stub IPC handlers + CLI verbs call this without a mode, and an
+  // Obsidian-shaped stub in an OKF vault gets a verbatim-cased filename with
+  // no id/title — defeating the D5 relink + D6 conventions.
+  const mode: VaultMode = opts.mode ?? detectVaultMode(root) ?? 'obsidian'
   const template = loadTemplates(root).find((t) => t.type === type)
   if (!template) {
     const known = loadTemplates(root).map((t) => t.type).join(', ')

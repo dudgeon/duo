@@ -3036,7 +3036,7 @@ function resolveVaultOrDefault(cwd, explicit, filePath = DEFAULT_VAULT_FILE) {
   const def = readDefaultVault(filePath);
   if (def) return def;
   throw new Error(
-    `no vault found from ${cwd} (walked up for .obsidian/) and no default vault is set. Pass --vault <path>, set a default with \`duo vault default <path>\`, or run \`duo vault init <folder>\`.`
+    `no vault found from ${cwd} (walked up for an okf_version index.md or .obsidian/) and no default vault is set. Pass --vault <path>, set a default with \`duo vault default <path>\`, or run \`duo vault init <folder>\`.`
   );
 }
 
@@ -3369,6 +3369,13 @@ function moveNote(root, fromRel, toRel) {
   const ownOutbound = extractLinkRefs(movedNote.body).filter((r) => r.syntax === "mdlink");
   import_node_fs7.default.mkdirSync(import_node_path7.default.dirname(toAbs), { recursive: true });
   import_node_fs7.default.renameSync(fromAbs, toAbs);
+  const fromSidecar = fromAbs + ".duo.json";
+  if (import_node_fs7.default.existsSync(fromSidecar)) {
+    try {
+      import_node_fs7.default.renameSync(fromSidecar, toAbs + ".duo.json");
+    } catch {
+    }
+  }
   const inboundRewritten = [];
   const byLinker = /* @__PURE__ */ new Map();
   for (const b of inbound) {
@@ -3731,7 +3738,7 @@ function seedFrontmatterLines(template, opts = {}) {
   return lines;
 }
 function captureNote(root, opts = {}) {
-  const mode = opts.mode ?? "obsidian";
+  const mode = opts.mode ?? detectVaultMode(root) ?? "obsidian";
   const now = opts.date ?? /* @__PURE__ */ new Date();
   const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
   const titlePart = opts.title ? " " + slugify(opts.title) : "";
@@ -3784,7 +3791,7 @@ function stubPathFor(template, name, asOf = /* @__PURE__ */ new Date(), mode = "
   return `notes/${asOf.getFullYear()}/${pad2(asOf.getMonth() + 1)}/${stem}.md`;
 }
 function createEntityStub(root, type2, name, opts = {}) {
-  const mode = opts.mode ?? "obsidian";
+  const mode = opts.mode ?? detectVaultMode(root) ?? "obsidian";
   const template = loadTemplates(root).find((t) => t.type === type2);
   if (!template) {
     const known = loadTemplates(root).map((t) => t.type).join(", ");
@@ -3916,18 +3923,18 @@ function buildEngineFiles(notes, asOf) {
       ext: n.ext,
       mtime: new DuoDate(new Date(n.mtimeMs), asOf),
       properties,
-      // ENH-216: `n.links` keys are now syntax-plural (wikilink + mdlink,
-      // folded via vaultLinks.targetKey). This site still wires the graph by
-      // matching against case-preserved basenames + parses wikilinks in
-      // frontmatter values; markdown-link frontmatter edges + key-based
-      // re-wiring are a Stage-4 concern (no logic change here).
+      // ENH-216: `n.links` keys are syntax-plural (wikilink + mdlink), FOLDED
+      // via vaultLinks.targetKey (`Q3 Launch`/`q3-launch` → `q3-launch`). The
+      // graph wiring below keys `byName` by the SAME folded targetKey so the
+      // lookup matches; frontmatter wikilink VALUES are still parsed as Link
+      // objects (parseLinkish) and folded at the `hasLink` probe.
       _rawLinks: n.links,
       links: [],
       backlinks: [],
       hasTag: () => false,
       hasLink(other) {
-        const t = other instanceof Link ? other.target : other?.name ?? other;
-        return this._rawLinks.includes(t);
+        const raw = other instanceof Link ? other.target : other?.name ?? other;
+        return this._rawLinks.includes(targetKey(String(raw), "wikilink"));
       },
       inFolder(folder) {
         return this.folder === folder || this.folder.startsWith(folder + "/");
@@ -3944,7 +3951,7 @@ function buildEngineFiles(notes, asOf) {
     };
     return f;
   });
-  const byName = new Map(files.map((f) => [f.name, f]));
+  const byName = new Map(files.map((f) => [targetKey(f.name, "wikilink"), f]));
   for (const f of files) {
     f.links = f._rawLinks.map((n) => byName.get(n)).filter(Boolean);
     for (const target of f.links) target.backlinks.push(f);
@@ -4682,8 +4689,19 @@ function generateLog(root) {
 var LISTING_FENCE = "<!-- duo:listing -->";
 function generatedStamp(root, kind, dateSource) {
   const hash = sourceHash(root);
-  const at = (/* @__PURE__ */ new Date()).toISOString();
-  return `<!-- duo:generated ${kind} \xB7 generated ${at} \xB7 source-hash ${hash} \xB7 dates from ${dateSource} -->`;
+  return `<!-- duo:generated ${kind} \xB7 source-hash ${hash} \xB7 dates from ${dateSource} -->`;
+}
+function writeIfChanged(abs, content) {
+  let existing = null;
+  try {
+    existing = import_node_fs12.default.readFileSync(abs, "utf8");
+  } catch {
+    existing = null;
+  }
+  if (existing === content) return false;
+  import_node_fs12.default.mkdirSync(import_node_path12.default.dirname(abs), { recursive: true });
+  import_node_fs12.default.writeFileSync(abs, content);
+  return true;
 }
 function spliceRootIndex(existingRaw, stamp, body) {
   const m = existingRaw.match(/^---\n[\s\S]*?\n---\n?/);
@@ -4718,19 +4736,21 @@ function writeListings(root, opts = {}) {
     const existing = import_node_fs12.default.readFileSync(rootIndexAbs, "utf8");
     const indexBody = generateIndex(root, "");
     const indexStamp = generatedStamp(root, "index", "corpus");
-    import_node_fs12.default.writeFileSync(rootIndexAbs, spliceRootIndex(existing, indexStamp, indexBody));
-    written.push("index.md");
+    if (writeIfChanged(rootIndexAbs, spliceRootIndex(existing, indexStamp, indexBody))) {
+      written.push("index.md");
+    }
   }
   if (wantLog) {
     const logAbs = import_node_path12.default.join(root, "log.md");
     const logStamp = generatedStamp(root, "log", "file mtimes");
-    import_node_fs12.default.writeFileSync(logAbs, `${logStamp}
+    if (writeIfChanged(logAbs, `${logStamp}
 
 # Log
 
 ${generateLog(root)}
-`);
-    written.push("log.md");
+`)) {
+      written.push("log.md");
+    }
   }
   if (opts.perDir && wantIndex) {
     const dirs = /* @__PURE__ */ new Set();
@@ -4741,11 +4761,12 @@ ${generateLog(root)}
     for (const dir of [...dirs].sort()) {
       const abs = import_node_path12.default.join(root, dir, "index.md");
       const stamp = generatedStamp(root, "index", "corpus");
-      import_node_fs12.default.writeFileSync(abs, `${stamp}
+      if (writeIfChanged(abs, `${stamp}
 
 ${generateIndex(root, dir)}
-`);
-      written.push(`${dir}/index.md`);
+`)) {
+        written.push(`${dir}/index.md`);
+      }
     }
   }
   return { mode, written };
@@ -4784,24 +4805,17 @@ function promoteSection(root, noteRel, heading, type2) {
   const section = findSection(note.body, heading);
   if (!section) throw new Error(`section "## ${heading}" not found in ${noteRel}`);
   const name = heading.trim();
-  const template = loadTemplates(root).find((t) => t.type === type2);
-  if (!template) {
-    const known = loadTemplates(root).map((t) => t.type).join(", ");
-    throw new Error(`unknown type "${type2}" (known: ${known || "none"})`);
-  }
-  const entityRel = stubPathFor(template, name);
-  const stub = createEntityStub(root, type2, name, { body: section.content || void 0 });
+  const fmode = mode ?? "obsidian";
+  const stub = createEntityStub(root, type2, name, {
+    body: section.content || void 0,
+    mode: fmode
+  });
   if (!stub.created) {
     throw new Error(
       `cannot promote "## ${heading}": an entity already exists at ${stub.path}. Refusing so the section is not lost \u2014 rename the existing entity (duo vault mv) or promote under a different heading/name. The source note ${noteRel} was left unchanged.`
     );
   }
-  let leftLink;
-  if (mode === "okf") {
-    leftLink = serializeOkfLink(noteRel, entityRel, name);
-  } else {
-    leftLink = serializeWikilink(noteRel, entityRel, name);
-  }
+  const leftLink = fmode === "okf" ? serializeOkfLink(noteRel, stub.path, name) : serializeWikilink(noteRel, stub.path, name);
   const headingLine = `## ${name}`;
   const replacement = `${headingLine}
 

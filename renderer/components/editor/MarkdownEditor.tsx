@@ -943,7 +943,14 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     // wikilinks resolve by basename so a move is harmless). Read the mode
     // through the ref so this stable callback sees the live value.
     onLikelyMove: () => {
-      if (vaultModeRef.current === 'okf') setLikelyMoved(true)
+      // PR#98 F24 — a detected move SUPERSEDES the B4 "file removed" strip:
+      // clear it so the editor shows ONE affordance (the more-accurate move
+      // toast), not two stacked. B4's "Save to recreate it" would also
+      // mis-advise here — saving recreates a stale orphan at the old path.
+      if (vaultModeRef.current === 'okf') {
+        setFileRemoved(false)
+        setLikelyMoved(true)
+      }
     },
     rebaselineAfterReload: true,
     triggerSave: () => { void saveRef.current() },

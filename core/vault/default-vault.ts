@@ -195,7 +195,7 @@ export function resolveVaultOrDefault(
   const def = readDefaultVault(filePath)
   if (def) return def
   throw new Error(
-    `no vault found from ${cwd} (walked up for .obsidian/) and no default vault is set. ` +
+    `no vault found from ${cwd} (walked up for an okf_version index.md or .obsidian/) and no default vault is set. ` +
       `Pass --vault <path>, set a default with \`duo vault default <path>\`, or run \`duo vault init <folder>\`.`,
   )
 }

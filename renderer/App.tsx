@@ -46,7 +46,7 @@ import { useAuthor } from './hooks/useAuthor'
 import { useSelectionFormat } from './hooks/useSelectionFormat'
 import { htmlBoilerplate } from './components/Page/htmlBoilerplate'
 import { encodeUtf8 } from './components/editor/markdown-io'
-import { findVaultRoot, resolveWikilinkInVault } from './components/editor/wikilinkResolver'
+import { findVaultRootAndMode, resolveWikilinkInVault } from './components/editor/wikilinkResolver'
 import type { TabSession, DirEntry, TerminalTabKind, NewTabResult, PinEntry, SessionState, BrowserTab, ActiveWorkspace, HomeSnapshot } from '@shared/types'
 import { reorderVisible } from '@shared/reorderTabs'
 import { pruneByTab } from './state/perTabPrune'
@@ -395,33 +395,28 @@ export function App() {
   // IPC push (window.electron.nav.onOpenCloneModal). Closed by the
   // modal's own Cancel/Esc/Done; opens are idempotent.
   const [cloneModalOpen, setCloneModalOpen] = useState(false)
-  // FOLLOWUP-025 v2 walk-rev3 — when the Clone modal opens, park the
-  // browser-pane WCV off-screen so it doesn't paint over the modal.
-  // WCVs are native OS overlays that beat the renderer's z-index
-  // stacking; without this hack the modal renders partially occluded
-  // (owner: "if I alt-tab away, and return, it is partially occluded
-  // on the left by the canvas, which should be under it"). Restore
-  // on close — BrowserRenderer's `duo-wcv-restore` listener re-runs
-  // its DOM-rect measurement to put the WCV back in its proper place.
-  useEffect(() => {
-    if (cloneModalOpen) {
-      window.dispatchEvent(new CustomEvent('duo-wcv-park'))
-    } else {
-      window.dispatchEvent(new CustomEvent('duo-wcv-restore'))
-    }
-  }, [cloneModalOpen])
-  // ENH-216 (U7) — File → New Vault… modal visibility. Opened by the
-  // native File menu entry's IPC push (window.electron.nav
-  // .onOpenNewVaultModal). Same WCV-park hack as the Clone modal so the
-  // browser-pane WebContentsView doesn't paint over the modal.
+  // ENH-216 (U7) — File → New Vault… modal visibility. Opened by the native
+  // File menu entry's IPC push (window.electron.nav.onOpenNewVaultModal).
   const [newVaultModalOpen, setNewVaultModalOpen] = useState(false)
+  // FOLLOWUP-025 v2 walk-rev3 — when EITHER the Clone modal or the New Vault
+  // modal opens, park the browser-pane WCV off-screen so it doesn't paint over
+  // the modal. WCVs are native OS overlays that beat the renderer's z-index
+  // stacking; without this hack the modal renders partially occluded (owner:
+  // "if I alt-tab away, and return, it is partially occluded on the left by the
+  // canvas, which should be under it").
+  //
+  // PR#98 F6 — ONE effect driven off the OR of both modal flags (mirrors the
+  // `setOverlayMuted(a || b)` pattern). Two independent level-based effects
+  // raced: closing the New Vault modal fired `duo-wcv-restore` while the Clone
+  // modal was still open, un-parking the WCV back on top of it. Restoring ONLY
+  // when no park-requiring modal remains open closes that gap.
   useEffect(() => {
-    if (newVaultModalOpen) {
+    if (cloneModalOpen || newVaultModalOpen) {
       window.dispatchEvent(new CustomEvent('duo-wcv-park'))
     } else {
       window.dispatchEvent(new CustomEvent('duo-wcv-restore'))
     }
-  }, [newVaultModalOpen])
+  }, [cloneModalOpen, newVaultModalOpen])
   const lastAutoCollapseState = useRef(false)
 
   // BUG-048 v3 — focusedColumn is mirrored into a ref alongside the
@@ -2949,11 +2944,16 @@ export function App() {
         ? fileTabs.find((t) => t.id === activeWorking.id)
         : null
       const startPath = activeFile?.path ?? null
-      const vaultRoot = await findVaultRoot(startPath)
-      if (!vaultRoot) {
+      // PR#98 F2 — use the MODE-AWARE walk (vault.detect: okf_version OR
+      // .obsidian/), not the legacy `.obsidian/`-only findVaultRoot. Otherwise
+      // cmd-clicking a pre-existing / imported `[[ ]]` literal in an OKF vault
+      // (which has no .obsidian/) dead-ends with "No vault root found".
+      const found = await findVaultRootAndMode(startPath)
+      if (!found) {
         console.warn('[ENH-096] No vault root found; cannot resolve wikilink:', wikilinkTarget)
         return
       }
+      const vaultRoot = found.root
       const resolved = await resolveWikilinkInVault(vaultRoot, cleanTarget)
       if (!resolved) {
         // Sprint 10 ENH-108 — Obsidian-parity create-on-cmd+click.

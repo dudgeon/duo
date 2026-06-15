@@ -1685,9 +1685,10 @@ app.whenReady().then(async () => {
   installDefaultVaultPrefWatcher()
   void rebuildAppMenu()
   // ENH-216 (U-RELINK, D5) — auto-relink the current default vault on app
-  // start (OKF only; deferred + deduped, so it can't slow boot). Vault-switch
-  // / VAULT_CREATE relinks ride the pref-watcher chokepoint above.
-  maybeAutoRelinkVault(vaultCore.readDefaultVault())
+  // start (OKF only; deferred + deduped, so it can't slow boot). PR#98 F5 —
+  // boot is the one path that WRITES (no dirty buffers yet, user is opening
+  // their own default vault); a live vault-switch only reports (dry-run).
+  maybeAutoRelinkVault(vaultCore.readDefaultVault(), { write: true })
 
   // ENH-191 P5a (Tier-1) — seed the per-window session map from disk BEFORE the
   // first window's renderer can save, so a single-window save can't overwrite a
@@ -3496,25 +3497,31 @@ async function chooseDefaultVaultViaDialog(): Promise<void> {
   }
 }
 
-// ENH-216 (U-RELINK, owner D5) — AUTO-RELINK ON VAULT OPEN. When an OKF-mode
-// vault becomes the active/default vault (app boot, a `duo vault default` write,
-// a menu/dialog re-pick, or right after VAULT_CREATE), repair links broken by an
-// out-of-band move/rename so dangling [Display](./moved.md) hrefs heal without
-// the user filing a manual `duo vault relink`. Obsidian vaults skip entirely —
-// their wikilinks survive a move by basename, so there is nothing to repair.
+// ENH-216 (U-RELINK, owner D5) — AUTO-RELINK for an OKF-mode default vault.
+// Repairs dangling [Display](./moved.md) hrefs left by an out-of-band
+// move/rename. Obsidian vaults skip entirely — their wikilinks survive a move
+// by basename, so there is nothing to repair.
 //
-// NON-BLOCKING (must not delay startup/UI): relinkVault is a synchronous vault
-// walk + per-file rewrite, so we defer it a tick off the critical path rather
-// than running it inline at boot / inside the watcher callback. DEDUPE: at most
-// one relink per root within a short window — boot + the pref-watcher debounce
-// can both point at the same root, and a single `duo vault default` write can
-// fire the dir-watch more than once. The interactive case (a note moved while
-// the app is open) is covered by U7's renderer watcher toast, not this hook.
+// PR#98 F5 — WRITE only on BOOT; a default-vault SWITCH is DRY-RUN + report.
+// The pref-watcher fires for EVERY default-vault write, including a
+// `duo vault default <path>` typed in an UNRELATED terminal/window. Letting
+// that silently rewrite the target vault's notes is a cross-process surprise
+// (git churn) and can banner an open dirty buffer (the BUG-085 class). At boot
+// there are no dirty buffers and the user is opening their own default vault,
+// so a write is safe + wanted. On a live switch we only REPORT the repairable
+// count (the heal-write lands on the next boot or an explicit `duo vault
+// relink`).
+//
+// NON-BLOCKING: relinkVault is a synchronous vault walk, deferred a tick off
+// the critical path. DEDUPE: at most one run per root within a short window
+// (boot + the pref-watcher debounce can both point at the same root).
 const RELINK_DEDUPE_MS = 5000
 const recentlyRelinked = new Map<string, NodeJS.Timeout>()
-function maybeAutoRelinkVault(root: string | null): void {
+function maybeAutoRelinkVault(root: string | null, opts: { write?: boolean } = {}): void {
   if (!root) return
   if (recentlyRelinked.has(root)) return
+  // PR#98 F5 — default DRY-RUN; only the boot call opts into the write.
+  const write = opts.write ?? false
   // detectVaultMode is cheap (one .obsidian/ + okf-marker stat); the heavy
   // walk lives in relinkVault, which we only reach for OKF roots.
   let mode: import('../core/vault').VaultMode | null = null
@@ -3535,10 +3542,17 @@ function maybeAutoRelinkVault(root: string | null): void {
   // warn — a relink failure must never crash boot or a vault switch.
   setTimeout(() => {
     try {
-      const r = vaultCore.relinkVault(root, { dryRun: false })
-      console.log(
-        `[ENH-216] auto-relink ${root}: ${r.repaired.length} repaired, ${r.ambiguous.length} ambiguous, ${r.broken.length} broken`,
-      )
+      const r = vaultCore.relinkVault(root, { dryRun: !write })
+      if (write) {
+        console.log(
+          `[ENH-216] auto-relink ${root}: ${r.repaired.length} repaired, ${r.ambiguous.length} ambiguous, ${r.broken.length} broken`,
+        )
+      } else if (r.repaired.length > 0 || r.ambiguous.length > 0) {
+        // Switch path — report only; do NOT rewrite the target vault's notes.
+        console.log(
+          `[ENH-216] auto-relink (dry-run, vault switch) ${root}: ${r.repaired.length} link(s) repairable, ${r.ambiguous.length} ambiguous, ${r.broken.length} broken — run \`duo vault relink\` to apply`,
+        )
+      }
     } catch (err) {
       console.warn('[ENH-216] auto-relink failed:', err instanceof Error ? err.message : err)
     }
@@ -3570,7 +3584,10 @@ function installDefaultVaultPrefWatcher(): void {
       timer = setTimeout(() => {
         void rebuildAppMenu()
         // ENH-216 — a default-vault write just landed; if the new default is an
-        // OKF vault, repair any out-of-band-moved links (deferred + deduped).
+        // OKF vault, check for out-of-band-moved links. PR#98 F5 — DRY-RUN
+        // (report only): this fires for a `duo vault default` from ANY terminal,
+        // so it must not silently rewrite the target vault's notes / banner an
+        // open buffer. The heal-write happens on the next boot or `duo vault relink`.
         maybeAutoRelinkVault(vaultCore.readDefaultVault())
       }, 150)
     })

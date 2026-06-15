@@ -13,6 +13,7 @@ import {
   promoteSection,
   LISTING_FENCE,
 } from './listings'
+import { extractLinkRefs } from '../markdown/vaultLinks'
 
 let root: string
 beforeEach(() => {
@@ -150,21 +151,18 @@ describe('writeListings — OKF-mode-gated (D8)', () => {
   // (no fresh stamp → no git churn).
   it('scope=log writes only log.md and leaves index.md byte-identical (--log-only)', () => {
     makeOkfVault()
-    writeListings(root) // seed both so index.md has a generated body to compare
-    const indexBefore = read('index.md')
+    const indexBefore = read('index.md') // the scaffolded marker (empty fence)
     const r = writeListings(root, { scope: 'log' })
     expect(r.written).toEqual(['log.md'])
-    expect(read('index.md')).toBe(indexBefore) // untouched → no churn
+    expect(read('index.md')).toBe(indexBefore) // never read/written → byte-identical
     expect(read('log.md')).toContain('<!-- duo:generated log')
   })
 
-  it('scope=index writes only index.md and leaves log.md byte-identical (--index-only)', () => {
+  it('scope=index writes only index.md and never creates log.md (--index-only)', () => {
     makeOkfVault()
-    writeListings(root) // seed both
-    const logBefore = read('log.md')
     const r = writeListings(root, { scope: 'index' })
     expect(r.written).toEqual(['index.md'])
-    expect(read('log.md')).toBe(logBefore)
+    expect(fs.existsSync(path.join(root, 'log.md'))).toBe(false)
     expect(read('index.md')).toContain('<!-- duo:generated index')
   })
 
@@ -192,6 +190,19 @@ describe('writeListings — OKF-mode-gated (D8)', () => {
     expect(r.written).toContain('index.md')
     expect(r.written).toContain('log.md')
   })
+
+  // PR#98 F20 — a deterministic stamp + byte-equality guard make `publish`
+  // idempotent: re-running on an unchanged corpus writes nothing (no spurious
+  // watcher event / git churn / reconcile banner over an open index.md).
+  it('is idempotent: re-publishing an unchanged corpus writes nothing', () => {
+    makeOkfVault()
+    expect(writeListings(root).written.sort()).toEqual(['index.md', 'log.md'])
+    const indexAfterFirst = read('index.md')
+    const logAfterFirst = read('log.md')
+    expect(writeListings(root).written).toEqual([]) // second pass → no change
+    expect(read('index.md')).toBe(indexAfterFirst)
+    expect(read('log.md')).toBe(logAfterFirst)
+  })
 })
 
 describe('promoteSection (D9 — link, never an embed)', () => {
@@ -206,31 +217,44 @@ describe('promoteSection (D9 — link, never an embed)', () => {
     )
   }
 
-  it('OKF mode leaves a markdown link (not a wikilink, never an embed)', () => {
+  it('OKF mode files the entity at a SLUGGED path and leaves a parseable md link (PR#98 F4)', () => {
     makePromotableOkf()
     const r = promoteSection(root, 'notes/braindump.md', 'Dana Wu', 'person')
     expect(r.created).toBe(true)
-    expect(r.entityRel).toBe('people/Dana Wu.md')
-    // OKF: a markdown link, NOT a wikilink, NOT an embed.
+    // OKF slugs the on-disk stem — NOT the verbatim "Dana Wu.md" (which would
+    // give a space-bearing href the OKF link parser truncates).
+    expect(r.entityRel).toBe('people/dana-wu.md')
+    // A markdown link, NOT a wikilink, NOT an embed.
     expect(r.leftLink).toMatch(/^\[Dana Wu\]\(/)
     expect(r.leftLink).not.toContain('[[')
     expect(r.leftLink).not.toContain('![')
+    // The href is space-free and round-trips through the SAME extractor the
+    // graph/backlinks/relink use — i.e. it is a real, resolvable edge.
+    const refs = extractLinkRefs(r.leftLink)
+    expect(refs).toHaveLength(1)
+    expect(refs[0].rawTarget).not.toMatch(/\s/)
+    expect(refs[0].key).toBe('dana-wu')
     const src = read('notes/braindump.md')
     expect(src).toContain('## Dana Wu')
     expect(src).toContain(r.leftLink)
-    // The original prose moved into the new entity.
+    // The original prose moved into the new (slugged) entity.
     expect(src).not.toContain('Dana is a designer.')
-    expect(read('people/Dana Wu.md')).toContain('Dana is a designer.')
+    expect(read('people/dana-wu.md')).toContain('Dana is a designer.')
+    // The new entity carries a title: (the human name) and a minted id:.
+    const entity = read('people/dana-wu.md')
+    expect(entity).toMatch(/title: Dana Wu/)
+    expect(entity).toMatch(/id: \w+/)
     // The following ## Next section is untouched.
     expect(src).toContain('## Next')
     expect(src).toContain('more')
   })
 
-  it('Obsidian mode leaves a wikilink', () => {
+  it('Obsidian mode files the verbatim basename and leaves a wikilink', () => {
     fs.mkdirSync(path.join(root, '.obsidian'), { recursive: true })
     write('templates/person.md', '---\ntype: person\nfolder: people\nrole:\n---\n')
     write('notes/braindump.md', '---\ntype: note\n---\n## Dana Wu\n\nDana is a designer.\n')
     const r = promoteSection(root, 'notes/braindump.md', 'Dana Wu', 'person')
+    expect(r.entityRel).toBe('people/Dana Wu.md')
     expect(r.leftLink).toBe('[[Dana Wu]]')
     expect(read('notes/braindump.md')).toContain('[[Dana Wu]]')
   })
@@ -241,27 +265,42 @@ describe('promoteSection (D9 — link, never an embed)', () => {
   })
 
   // PR#98 review cluster A — a slug/path collision must NOT drop the section.
-  it('REFUSES (leaves the source intact) when an entity already exists at the target — no data loss', () => {
+  // OKF mode auto-disambiguates (createEntityStub appends `-2`), so the content
+  // lands in a NEW entity rather than being lost or merged into the existing one.
+  it('OKF mode: a slug collision auto-disambiguates to `-2` — content preserved, no data loss', () => {
     makePromotableOkf()
-    // Pre-create the target the section would promote into. promoteSection
-    // files the stub with the obsidian stem rule (verbatim name) even in an
-    // OKF vault, so the colliding path is people/Dana Wu.md.
-    write('people/Dana Wu.md', '---\ntype: person\ntitle: Dana Wu\n---\nPRE-EXISTING content.\n')
+    // Pre-create the SLUGGED target a fresh promote would use.
+    write('people/dana-wu.md', '---\ntype: person\ntitle: Dana Wu\nid: preexisting\n---\nUNRELATED.\n')
+    const preexisting = read('people/dana-wu.md')
+
+    const r = promoteSection(root, 'notes/braindump.md', 'Dana Wu', 'person')
+    expect(r.created).toBe(true)
+    expect(r.entityRel).toBe('people/dana-wu-2.md')
+    // The promoted prose landed in the NEW entity; the pre-existing one is intact.
+    expect(read('people/dana-wu-2.md')).toContain('Dana is a designer.')
+    expect(read('people/dana-wu.md')).toBe(preexisting)
+    // The source note's leave-behind link points at the disambiguated entity.
+    expect(read('notes/braindump.md')).toContain(r.leftLink)
+    expect(r.leftLink).toContain('dana-wu-2.md')
+  })
+
+  // In OBSIDIAN mode createEntityStub no-ops on an existing basename (no `-2`),
+  // so promoting onto it would drop the section — REFUSE to avoid data loss.
+  it('Obsidian mode: REFUSES on an existing entity, leaving the source intact (no data loss)', () => {
+    fs.mkdirSync(path.join(root, '.obsidian'), { recursive: true })
+    write('templates/person.md', '---\ntype: person\nfolder: people\nrole:\n---\n')
+    write('notes/braindump.md', '---\ntype: note\n---\n## Dana Wu\n\nDana is a designer.\n')
+    write('people/Dana Wu.md', '---\ntype: person\n---\nPRE-EXISTING content.\n')
     const srcBefore = read('notes/braindump.md')
     const targetBefore = read('people/Dana Wu.md')
 
-    // It refuses by throwing, naming the colliding path — BEFORE any write.
     expect(() => promoteSection(root, 'notes/braindump.md', 'Dana Wu', 'person')).toThrow(
       /already exists at people\/Dana Wu\.md/,
     )
 
-    // No data loss: the source note is byte-identical (prose still there, no
-    // "Moved to" stub spliced in) ...
-    const srcAfter = read('notes/braindump.md')
-    expect(srcAfter).toBe(srcBefore)
-    expect(srcAfter).toContain('Dana is a designer.')
-    expect(srcAfter).not.toContain('Moved to')
-    // ... and the pre-existing target was left untouched (not clobbered).
+    // No data loss: source byte-identical, pre-existing target untouched.
+    expect(read('notes/braindump.md')).toBe(srcBefore)
+    expect(read('notes/braindump.md')).not.toContain('Moved to')
     expect(read('people/Dana Wu.md')).toBe(targetBefore)
   })
 })
