@@ -3,6 +3,16 @@
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
 
+### BUG-209: New Vault / Clone modals are occluded by the SPLIT-VIEW AUX WebContentsView (the F6 park covers only the main browser pane)
+
+**Status:** 🆕 Filed 2026-06-15 (owner-caught during the PR#98 v0.10.4-rev4 smoke walk, F6). **Priority:** P2 (visual occlusion; non-blocking — owner deferred to the next sprint, after the v0.11.0 cut). **Effort:** S. **Parent/related:** PR#98 F6, FOLLOWUP-025, ENH-216, ENH-191 (split view).
+
+**Symptom (owner).** With a browser tab pinned in the **split-view aux pane**, opening File ▸ New Vault… (or Clone from GitHub…) leaves the modal **occluded by the aux WebContentsView** — the aux WCV paints over the modal the same way the main browser pane used to. The PR#98 **F6** fix (merged the two `duo-wcv-park`/`restore` effects so the modals park the WCV) was **verified to fix the MAIN browser pane** (modal no longer occluded by the main canvas), but it only covers that one WCV.
+
+**Root cause.** `duo-wcv-park` / `duo-wcv-restore` (App.tsx modal effect → `BrowserRenderer.tsx` listeners, ~L60-66) park/restore the **main** browser-pane WebContentsView only. The split-view aux pane is a **separate** WebContentsView that does not listen for / is not parked on those events, so it stays on-screen over the modal. (Not introduced by F6 — F6 fixed the main-pane case and surfaced that the aux is a second, uncovered WCV.)
+
+**Fix direction (next sprint).** Park the aux WCV too when `cloneModalOpen || newVaultModalOpen`: either have the aux `BrowserRenderer` instance subscribe to the same `duo-wcv-park`/`restore` events (and restore to its aux-rect), or have the modal effect dispatch a park to both surfaces. Restore only when both modals are closed (same OR-guard as F6). Re-walk F6 with a browser tab pinned in the aux to confirm.
+
 ### BUG-208: `duo --help` omits the entire Vault verb family (vault/graph/base) — GROUP_ORDER allow-list gap
 
 **Status:** ✅ Fixed (2026-06-14; ships with ENH-216 → v0.11.0). **Priority:** P2. **Effort:** XS.
