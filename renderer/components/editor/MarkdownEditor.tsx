@@ -65,6 +65,15 @@ import { resolveMdLinkInVault } from './wikilinkResolver'
 // stub-create placeholder rewrite (D3) splices into the BODY. (Frontmatter
 // `[[ ]]` persists AS `[[ ]]` per FOLLOWUP-051 — no rewrite.)
 import { okfLinkInsert } from './okfLinks'
+// BUG-207 — the two pure-UI editor prefs (Suggesting mode + Properties-panel
+// collapse) persist in per-path localStorage, not the `.duo.json` sidecar, so
+// an otherwise-empty fresh note never spawns a sidecar file.
+import {
+  readSuggestingPref,
+  writeSuggestingPref,
+  readFrontmatterCollapsedPref,
+  writeFrontmatterCollapsedPref
+} from './docUiPrefs'
 import { WriteWarningBanner } from './primitives/WriteWarningBanner'
 import { SendToDuoPill } from './primitives/SendToDuoPill'
 import { NewCommentComposer } from './primitives/NewCommentComposer'
@@ -1072,14 +1081,28 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           console.warn(`[duo-md] ${migration.orphans} sidecar comment(s) could not be re-anchored; kept as orphans`)
         }
         sidecarRef.current = migration.sidecar
-        // BUG-138 Phase 4 — sync Suggesting state from sidecar on load.
-        setSuggestingMode(migration.sidecar.suggestingMode === true)
-        // BUG-139 v1.1 — sync the Properties panel state from sidecar +
-        // the just-loaded frontmatter string. Q4 (locked from walk-1
-        // playground): default to COLLAPSED when the sidecar field is
-        // undefined — only render expanded when the user has explicitly
-        // toggled it expanded (sidecar === false).
-        setFrontmatterCollapsed(migration.sidecar.frontmatterPanelCollapsed !== false)
+        // BUG-207 — Suggesting state now lives in per-path localStorage
+        // (docUiPrefs), not the sidecar. One-time migration fallback: if
+        // the per-path pref is unset but a legacy sidecar carried the flag,
+        // honor it (and forward it) so existing users don't lose the choice.
+        {
+          const stored = readSuggestingPref(path)
+          const legacy = migration.sidecar.suggestingMode === true
+          const effective = stored ?? legacy
+          setSuggestingMode(effective)
+          if (stored === null && legacy) writeSuggestingPref(path, true)
+        }
+        // BUG-139 v1.1 / BUG-207 — Properties-panel collapse now lives in
+        // per-path localStorage. Q4 default stays COLLAPSED when unset
+        // (true). A legacy sidecar `frontmatterPanelCollapsed === false`
+        // (user explicitly expanded) migrates forward.
+        {
+          const stored = readFrontmatterCollapsedPref(path)
+          const legacyExpanded = migration.sidecar.frontmatterPanelCollapsed === false
+          const effective = stored ?? !legacyExpanded
+          setFrontmatterCollapsed(effective)
+          if (stored === null && legacyExpanded) writeFrontmatterCollapsedPref(path, false)
+        }
         setFrontmatterState(split.frontmatter)
 
         // Second-arg `false` suppresses an update event so the initial load
@@ -1438,11 +1461,10 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   const toggleSuggestingMode = useCallback(() => {
     const next = !suggestingMode
     setSuggestingMode(next)
-    persistSidecarMutation({
-      ...sidecarRef.current,
-      suggestingMode: next
-    })
-  }, [suggestingMode, persistSidecarMutation])
+    // BUG-207 — persist to per-path localStorage, not the sidecar, so an
+    // otherwise-empty note never spawns a `<file>.duo.json` sidecar.
+    writeSuggestingPref(pathRef.current, next)
+  }, [suggestingMode])
 
   /** BUG-139 — commit a Properties-panel edit. Updates the
    *  frontmatter ref + state mirror, marks the editor dirty, and
@@ -1464,13 +1486,11 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   const toggleFrontmatterCollapsed = useCallback(() => {
     setFrontmatterCollapsed(prev => {
       const next = !prev
-      persistSidecarMutation({
-        ...sidecarRef.current,
-        frontmatterPanelCollapsed: next
-      })
+      // BUG-207 — per-path localStorage, not the sidecar (see toggleSuggestingMode).
+      writeFrontmatterCollapsedPref(pathRef.current, next)
       return next
     })
-  }, [persistSidecarMutation])
+  }, [])
 
   /** Update [data-duo-comment-active] on every comment span so the
    *  active thread reads stronger than its siblings. BUG-087 fix —

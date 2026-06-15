@@ -28,16 +28,14 @@ export interface SidecarV1 {
    *  v1 schema — readers without this field treat all threads as
    *  open. */
   resolvedThreads?: Record<string, ResolvedThreadRecord>
-  /** BUG-138 Phase 4 — Suggesting mode toggle. When `true`, typing
-   *  in the editor wraps new text as CriticMarkup insertions and
-   *  deletions wrap as deletions (instead of editing the doc
-   *  directly). Per-doc state; persists across reopens. Default
-   *  off; toggled via the editor toolbar's "Suggest" button or
-   *  the ⌘⌥T chord. Additive on the v1 schema. */
+  /** BUG-207 — DEPRECATED. `suggestingMode` and `frontmatterPanelCollapsed`
+   *  were pure-UI prefs that polluted otherwise-empty sidecars for fresh
+   *  notes. They now live in per-path localStorage (renderer/components/
+   *  editor/docUiPrefs.ts). Still TYPED here (optional) so the read path and
+   *  the one-time migration fallback in MarkdownEditor can consume an
+   *  existing legacy value; NEVER written back into the sidecar, and NOT
+   *  counted as load-bearing content. */
   suggestingMode?: boolean
-  /** BUG-139 — collapsed state of the Properties panel above the
-   *  editor body. Default false (expanded). Per-doc; persists
-   *  across reopens. Additive on the v1 schema. */
   frontmatterPanelCollapsed?: boolean
   properties?: Record<string, unknown>
 }
@@ -93,6 +91,21 @@ export function emptySidecar(): SidecarV1 {
   return { version: SIDECAR_VERSION }
 }
 
+/** BUG-207 — true when the sidecar carries any LOAD-BEARING metadata
+ *  (comment threads, thread-resolution state, per-file script choice,
+ *  recent-edit history, or free-form properties). The two pure-UI prefs
+ *  (suggestingMode / frontmatterPanelCollapsed) are intentionally NOT
+ *  counted — they live in per-path localStorage now (docUiPrefs.ts), so a
+ *  sidecar holding only them is "empty" and must not be written to disk. */
+export function sidecarHasLoadBearingContent(sidecar: SidecarV1): boolean {
+  if (sidecar.scripts) return true
+  if (sidecar.comments && sidecar.comments.length > 0) return true
+  if (sidecar.recentEdits && sidecar.recentEdits.length > 0) return true
+  if (sidecar.resolvedThreads && Object.keys(sidecar.resolvedThreads).length > 0) return true
+  if (sidecar.properties && Object.keys(sidecar.properties).length > 0) return true
+  return false
+}
+
 // ── IO ─────────────────────────────────────────────────────────────────────
 
 /** Read the sidecar for a canvas file. Returns `null` when the file
@@ -114,6 +127,21 @@ export async function readSidecar(canvasPath: string): Promise<SidecarV1 | null>
 /** Write the sidecar atomically (the underlying files-service does
  *  tmp + rename). Caller pre-builds the full SidecarV1 object. */
 export async function writeSidecar(canvasPath: string, sidecar: SidecarV1): Promise<void> {
+  // BUG-207 — never materialize a sidecar that holds no load-bearing
+  // content (the fresh-note pollution case, now that the two UI prefs live
+  // in localStorage). If a legacy/empty sidecar already exists on disk,
+  // trash it so we leave no orphan behind.
+  if (!sidecarHasLoadBearingContent(sidecar)) {
+    try {
+      const p = sidecarPath(canvasPath)
+      if (await window.electron.files.exists(p)) {
+        await window.electron.files.trash(p)
+      }
+    } catch {
+      /* best-effort cleanup — never throw out of a save */
+    }
+    return
+  }
   // Pretty-printed JSON (2-space) so a human reading the file or
   // diffing in git gets a readable layout. The sidecar is small (a
   // few KB even with 50 recent edits + a dozen comments).
