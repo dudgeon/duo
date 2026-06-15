@@ -2550,9 +2550,10 @@ async function main(): Promise<void> {
           out(vault.moveNote(root, from, to))
         } else if (sub === 'relink') {
           // ENH-216 D5 (out-of-band repair) — re-resolve dangling markdown
-          // links by stable `id:` then slug fallback; rewrite the ones that
-          // resolve unambiguously, REPORT ambiguous + broken (warn-don't-block).
-          // `--dry-run` reports without writing.
+          // links by slug/basename first; the stable `id:` only tiebreaks when
+          // >1 note shares a slug. Rewrite the ones that resolve unambiguously,
+          // REPORT ambiguous + broken (warn-don't-block). `--dry-run` reports
+          // without writing.
           const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
           out(vault.relinkVault(root, { dryRun: subRest.includes('--dry-run') }))
         } else if (sub === 'publish') {
