@@ -15,10 +15,17 @@ import Link from '@tiptap/extension-link'
 import { DuoImage, ImageBlobCache } from './extensions/DuoImage'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
-import Table from '@tiptap/extension-table'
 import TableRow from '@tiptap/extension-table-row'
 import TableHeader from '@tiptap/extension-table-header'
 import TableCell from '@tiptap/extension-table-cell'
+// BUG-210 — multi-line cells (bullet lists / hard breaks) round-trip as
+// single-line `<br>` instead of shattering the GFM table on save.
+import {
+  TableWithMarkdownCells,
+  HardBreakWithMarkdown,
+  TableCellBrParse,
+  tableRowsSurviveSerialize
+} from './extensions/TableMarkdownRoundtrip'
 import Placeholder from '@tiptap/extension-placeholder'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { createLowlight, common } from 'lowlight'
@@ -510,9 +517,15 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         // so the source marker character (`*`, `-`, `+`) round-trips
         // through save/reopen instead of getting normalized to `-`.
         bulletList: false,
+        // BUG-210 — HardBreakWithMarkdown replaces StarterKit's hardBreak so
+        // a break inside a table cell serializes as `<br>` (single-line GFM)
+        // instead of the `[hardBreak]` placeholder the stock extension emits
+        // under `html:false`.
+        hardBreak: false,
         // StarterKit's heading defaults to levels [1..6] — leave as-is.
         // Keep history plugin (undo/redo).
       }),
+      HardBreakWithMarkdown,
       BulletListWithMarker,
       Underline,
       Link.configure({
@@ -552,10 +565,15 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       }),
       TaskList,
       TaskItem.configure({ nested: true }),
-      Table.configure({ resizable: true }),
+      // BUG-210 — table serializer that keeps multi-line cells (bullet lists,
+      // stacked paragraphs, hard breaks) on a single GFM line via `<br>`.
+      TableWithMarkdownCells.configure({ resizable: true }),
       TableRow,
       TableHeader,
       TableCell,
+      // BUG-210 — parse-side companion: rehydrate `<br>` inside table cells
+      // into real breaks (scoped to cells; prose `<br>` untouched).
+      TableCellBrParse,
       TableShortcuts,
       // BUG-108 (Sprint 12) — intercept clipboard text serialization
       // for intra-table selections; without this, tiptap-markdown's
@@ -1197,6 +1215,16 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       // we bail; otherwise it registers the echo (so our own write isn't
       // misread), then we write and advance both baselines.
       if (bodyChanged) {
+        // BUG-210 — backstop: never persist a body where a table lost rows to
+        // a serialization shatter. The TableWithMarkdownCells serializer keeps
+        // rows single-line, so this should never trip; if it ever does (an
+        // unhandled block-in-cell case, a future regression) we surface an
+        // error and keep the on-disk file intact rather than corrupt it.
+        if (!tableRowsSurviveSerialize(editor, body)) {
+          setSaveError('Save blocked: a table would be corrupted by this change. Please report this file (BUG-210).')
+          return
+        }
+
         if ((await recon.beforeSave(body)) === 'conflict') return
 
         const full = joinFrontmatter(frontmatterRef.current, body, eolRef.current)
