@@ -43,7 +43,7 @@ my-distro-pack/                           ← the pack root (any name)
 ```
 
 **A reference template** ships at
-[`examples/distro-pack-template/`](examples/distro-pack-template/) in the
+[`examples/distro-pack-template/`](../../examples/distro-pack-template/) in the
 Duo source repo. Copy that folder; fill in the manifests; replace the
 example skills/agents with your content; ship the result as a folder
 the user (or IT) drops into `~/.claude/duo/extra-packs/<distro-name>/`.
