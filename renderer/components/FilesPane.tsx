@@ -9,7 +9,6 @@ import { Breadcrumb, type BreadcrumbHandle } from './Breadcrumb'
 import { FileTree } from './FileTree'
 import { PinnedNav } from './PinnedNav'
 import { UserClaudePane } from './UserClaudePane'
-import { ProjectClaudeContext } from './ProjectClaudeContext'
 import type { DirEntry, NavPinEntry } from '@shared/types'
 import type { NavigatorState, NavigatorActions } from '../hooks/useNavigator'
 import type { NavPinsApi } from '../hooks/useNavPins'
@@ -322,16 +321,11 @@ export const FilesPane = forwardRef<FilesPaneHandle, FilesPaneProps>(function Fi
             <RevealChip path={revealChip} onDismiss={onDismissRevealChip} />
           )}
 
-          {/* Stage 22 — project Claude context group: ./CLAUDE.md,
-              ./.claude/, ./tasks.md, ./AGENTS.md when they exist.
-              Hides when none exist so projects without Claude context
-              don't show an empty section header. */}
-          <ProjectClaudeContext
-            state={state}
-            actions={actions}
-            onOpenFile={onOpenFile}
-            onOpenTerminalHere={onOpenTerminalHere}
-          />
+          {/* Project Claude context (./CLAUDE.md + ./.claude/) is no
+              longer a collapsible group — it's surfaced inline in the tree
+              via the Claude-context fill (see claudeContextPath.ts and the
+              "Navigator: Claude-context surfacing & worktree indicator"
+              decision). */}
 
           {/* Project tree */}
           <FileTree
@@ -475,17 +469,14 @@ function PinButton({ pinned, onClick }: { pinned: boolean; onClick: () => void }
       title={pinned ? 'Unpin (navigator follows the active terminal tab)' : 'Pin (freeze navigator regardless of terminal tab)'}
       className={[
         'shrink-0 w-7 h-7 flex items-center justify-center rounded transition-colors',
-        pinned ? 'text-accent hover:bg-surface-3' : 'text-zinc-600 hover:text-zinc-300 hover:bg-surface-3'
+        // ENH — pinned state uses neutral ink, NOT text-accent: orange is
+        // reserved for the Claude-context fill (see the navigator decision).
+        pinned ? 'text-ink hover:bg-surface-3' : 'text-zinc-600 hover:text-zinc-300 hover:bg-surface-3'
       ].join(' ')}
     >
-      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-        <path
-          d="M6 8.5v2.2M4 2.5h4M6 2.5v5l-1.8 1.5h3.6L6 7.5v-5Z"
-          stroke="currentColor"
-          strokeWidth="1.1"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
+      {/* Filled diagonal pushpin (replaces the vertical outlined thumbtack). */}
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+        <path d="M9.6 1.8 14.2 6.4l-2 .6-2.5 4.2-1.7-1.7-2.8 3.6.7-3.6-2-2 4.2-2.5z" />
       </svg>
     </button>
   )

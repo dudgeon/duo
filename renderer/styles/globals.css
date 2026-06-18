@@ -18,6 +18,20 @@
     width: 0;
     height: 0;
   }
+
+  /* Navigator Claude-context fill (see docs/DECISIONS.md "Navigator:
+     Claude-context surfacing & worktree indicator"). A faint terracotta
+     wash on the `.claude/` subtree + top-level `CLAUDE.md`. Authored as a
+     named utility — NOT `bg-accent/14` — because this codebase's `accent`
+     resolves to a raw `var(--duo-accent)` with no <alpha-value> channel,
+     so Tailwind opacity modifiers synthesize invalid CSS (see FOLLOWUP-008
+     + the note in FileTree.tsx selection styling). `color-mix` is
+     theme-correct: `--duo-accent` flips per light/dark. Orange is reserved
+     for this meaning alone — the worktree hue palette deliberately skips
+     the orange/amber band (see the `--duo-project-*` note below). */
+  .bg-claude-context {
+    background-color: color-mix(in srgb, var(--duo-accent) 14%, transparent);
+  }
 }
 
 /* ENH-022 — `duo doc goto --anchor X` flash. Lives inside the canvas

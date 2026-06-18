@@ -23,6 +23,7 @@ import type { DirEntry, MenuTemplateItem, NavPinEntry, GitStatusSnapshot } from 
 import { formatGitStatusChip, formatGitStatusTooltip, repoBasenameFor } from '@shared/host-api'
 import type { WorktreeInfo } from '@shared/host-api'
 import { projectColorToken } from '../projectColors'
+import { isClaudeContextPath } from './claudeContextPath'
 import type { NavigatorState, NavigatorActions } from '../hooks/useNavigator'
 import type { NavPinsApi } from '../hooks/useNavPins'
 import { DUO_FS_PATH_MIME, formatPathsForTerminal } from './dragPathPayload'
@@ -862,18 +863,26 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
           surprises them by showing in a directory they didn't realize
           was a git repo). */}
       {gitChip && isInRepo && gitSnap?.workTreeRoot && (
-        <div ref={worktreeMenuRef} className="relative sticky top-0 z-20 mb-1">
-          {/* ENH-210 (D4) — git ribbon doubles as the active-checkout
-              indicator + worktree-switch trigger when the repo has
-              linked worktrees. Tints to the current checkout's hue
-              (linked only; main stays uncolored). Left-click toggles the
-              dropdown; right-click keeps the repo context menu. */}
+        <div ref={worktreeMenuRef} className="relative mx-2 mt-2 mb-1">
+          {/* ENH-210 (D4) → navigator pill ("Navigator: Claude-context
+              surfacing & worktree indicator" decision). The git ribbon is
+              now a rounded, inset pill beneath the breadcrumb — a property
+              of the repo, not a full-width header that reads as the file
+              tree's parent. Tints to the current checkout's hue (linked
+              only; main stays uncolored). Left-click drops the worktree
+              list down as a menu seamlessly attached to the pill that
+              OVERLAYS the tree (occludes it, like a standard dropdown — it
+              does NOT push the tree down); right-click keeps the repo
+              context menu. */}
           <div
             role={hasLinkedWorktrees ? 'button' : undefined}
             aria-expanded={hasLinkedWorktrees ? worktreesOpen : undefined}
             className={[
-              'px-3 py-1.5 text-[11px] font-mono text-ink-mute border-b border-paper-rule flex items-center gap-2 transition-colors hover:bg-paper-edge',
-              hasLinkedWorktrees ? 'cursor-pointer' : 'cursor-context-menu'
+              'px-3 py-1.5 text-[11px] font-mono text-ink-mute flex items-center gap-2 transition-colors hover:bg-paper-edge',
+              hasLinkedWorktrees ? 'cursor-pointer' : 'cursor-context-menu',
+              // Open: top-rounded with no bottom border so the overlay menu
+              // joins seamlessly below; closed: a fully-rounded inset pill.
+              worktreesOpen && hasLinkedWorktrees ? 'rounded-t-lg border border-b-0 border-paper-rule' : 'rounded-lg border border-paper-rule'
             ].join(' ')}
             style={{
               background: currentWorktreeHue
@@ -906,7 +915,7 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
                 aria-hidden="true"
               />
             ) : (
-              <span className="text-accent inline-flex items-center shrink-0" aria-hidden="true">
+              <span className="text-ink-mute inline-flex items-center shrink-0" aria-hidden="true">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="6" x2="6" y1="3" y2="15" />
                   <circle cx="18" cy="6" r="3" />
@@ -925,7 +934,7 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
             )}
           </div>
           {worktreesOpen && hasLinkedWorktrees && (
-            <WorktreeDropdown
+            <WorktreeDropdownBody
               worktrees={worktrees}
               onSwitch={(p) => { actions.navigateTo(p); setWorktreesOpen(false) }}
               onOpenInWindow={(p) => { void window.electron.nav.openWindowAt?.(p); setWorktreesOpen(false) }}
@@ -956,14 +965,16 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
   )
 }
 
-// ENH-210 (D4) — navigator worktree-switch DROPDOWN. Replaces the
-// bottom-of-tree list (rejected v1) per the locked study: opens from the
-// git ribbon, overlays the tree (no scrolling), rows show hue + branch +
-// dirty/ahead chips + a current check, click re-roots via navigateTo.
+// ENH-210 (D4) — navigator worktree-switch list. Per the "Navigator:
+// Claude-context surfacing & worktree indicator" decision this renders as
+// a dropdown menu SEAMLESSLY ATTACHED to the worktree pill (shared border,
+// no gap) that OVERLAYS the tree (absolute — occludes it like a standard
+// dropdown, rather than reflowing the tree down). Rows show hue + branch +
+// dirty/ahead chips + a current marker; click re-roots via navigateTo.
 // Each row also offers "open in a new window" (D1-part2 Thread A). Main
-// checkout: git-branch glyph, no hue (baseline). Click-only (D4.3-A);
-// the parent handles Esc / outside-click close.
-function WorktreeDropdown({
+// checkout: git-branch glyph, no hue (baseline). Click-only (D4.3-A); the
+// parent handles Esc / outside-click.
+function WorktreeDropdownBody({
   worktrees,
   onSwitch,
   onOpenInWindow
@@ -975,7 +986,7 @@ function WorktreeDropdown({
   return (
     <div
       role="menu"
-      className="absolute left-1 right-1 top-full mt-0.5 z-30 max-h-[60vh] overflow-y-auto scrollbar-none bg-surface-0 border border-paper-rule rounded-md shadow-[0_6px_20px_rgba(43,38,32,0.18)]"
+      className="absolute left-0 right-0 top-full z-30 rounded-b-lg border border-t-0 border-paper-rule bg-surface-0 shadow-[0_6px_20px_rgba(43,38,32,0.18)] max-h-[40vh] overflow-y-auto scrollbar-none"
     >
       <div className="px-3 pt-1.5 pb-1 text-[9px] font-semibold uppercase tracking-wider text-ink-ghost">
         Switch worktree · {worktrees.length}
@@ -992,7 +1003,7 @@ function WorktreeDropdown({
             key={wt.path}
             className={[
               'group/wt flex items-center gap-2 px-3 py-1 text-[12px] transition-colors',
-              wt.isCurrent ? 'bg-accent-soft text-ink' : 'text-ink-soft hover:bg-paper-edge',
+              wt.isCurrent ? 'bg-paper-edge text-ink' : 'text-ink-soft hover:bg-paper-edge',
               wt.prunable ? 'opacity-60' : ''
             ].join(' ')}
           >
@@ -1020,7 +1031,7 @@ function WorktreeDropdown({
               {status.length > 0 && (
                 <span className="shrink-0 font-mono text-[10px] text-ink-mute">{status.join(' ')}</span>
               )}
-              {wt.isCurrent && <span className="shrink-0 text-[9px] uppercase tracking-wide text-accent">current</span>}
+              {wt.isCurrent && <span className="shrink-0 text-[9px] uppercase tracking-wide text-ink-mute">current</span>}
             </button>
             {/* D1-part2 Thread A — open this worktree in a new window. */}
             <button
@@ -1274,6 +1285,10 @@ function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, onR
   const isOpenFile = !isFolder && openFilePaths !== undefined && openFilePaths.has(entry.path)
   const isActiveFile = !isFolder && activeFilePath !== null && entry.path === activeFilePath
 
+  // Claude-context wash — the `.claude/` subtree + top-level CLAUDE.md
+  // (decision: "Navigator: Claude-context surfacing & worktree indicator").
+  const isClaudeContext = isClaudeContextPath(entry.path, state.cwd)
+
   // Stage 26 item 1 — single-click selects, double-click opens.
   // Stage 26 item 1b (BUG-025) — chevron is a discrete hit target;
   // toggling expansion does NOT change selection or re-root the tree.
@@ -1364,7 +1379,11 @@ function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, onR
             // Layered on top: hover still tints, active gets a dot.
             : isOpenFile
               ? 'text-zinc-200 hover:bg-surface-2 hover:text-zinc-100'
-              : 'text-zinc-400 hover:bg-surface-2 hover:text-zinc-200'
+              : 'text-zinc-400 hover:bg-surface-2 hover:text-zinc-200',
+          // Claude-context wash on the `.claude/` subtree + top-level
+          // CLAUDE.md. Selection's solid bg-accent wins, so gate on
+          // !isSelected; hover still tints (hover variant out-specifies).
+          isClaudeContext && !isSelected ? 'bg-claude-context' : ''
         ].join(' ')}
         style={{ paddingLeft: `${indentLeft}px` }}
       >

@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Navigator — Claude-context fill & worktree pill · locked decisions</title>
+<style>
+  :root{
+    --page:#24211b;
+    --paper:#f3ead7;
+    --paper-deep:#ece0c7;
+    --paper-edge:#e6d9bd;
+    --paper-rule:#ddcdae;
+    --sel:#e9dcc2;
+    --sel-line:#dccbaa;
+    --surface-0:#f8f0e1;
+    --ink:#322d24;
+    --ink-soft:#4a4234;
+    --ink-mute:#7d735e;
+    --ink-ghost:#a89a80;
+    --accent:#bc6336;            /* RESERVED: Claude context only */
+    --accent-soft:rgba(188,99,54,.14);
+    --teal:#3f8a8c;
+    --violet:#7a64c4;
+    --row-h:26px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--page);color:#e8dec9;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;padding:34px 26px 72px;line-height:1.5}
+  .wrap{max-width:1040px;margin:0 auto}
+
+  header.doc{border-bottom:1px solid rgba(255,255,255,.1);padding-bottom:18px;margin-bottom:6px}
+  h1{font-size:23px;font-weight:660;margin:0 0 10px;letter-spacing:.2px}
+  .meta{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12px;color:#a99d84}
+  .meta b{color:#d7cbb1;font-weight:600}
+  .pill-status{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.08em;
+    text-transform:uppercase;color:#23201b;background:#7fae6b;padding:3px 9px;border-radius:999px}
+  .doc p.intro{margin:14px 0 0;max-width:840px;color:#c9bda4;font-size:14px}
+  code{background:rgba(255,255,255,.07);padding:1px 5px;border-radius:4px;font-size:.9em}
+
+  .decision{margin-top:40px;display:grid;grid-template-columns:360px 1fr;gap:30px;align-items:start}
+  @media(max-width:820px){.decision{grid-template-columns:1fr}}
+  .decision .visual{position:sticky;top:18px}
+  .dhead{display:flex;align-items:baseline;gap:10px;margin:0 0 8px}
+  .dnum{font-size:12px;font-weight:800;color:var(--accent);letter-spacing:.05em}
+  .dhead h2{font-size:17px;font-weight:640;margin:0;color:#efe6d2}
+  .decided{font-size:13px;line-height:1.6;color:#cabd9f}
+  .decided b{color:#ece1c8;font-weight:600}
+  .decided ul{margin:8px 0 0;padding-left:18px}
+  .decided li{margin:5px 0}
+  .why{margin-top:12px;font-size:12.5px;color:#a99d84}
+  .why b{color:#cabd9f}
+  .files{margin-top:12px;font-size:12px;color:#9f937c}
+  .files code{font-size:11.5px}
+
+  /* ---------- shared navigator visuals ---------- */
+  .panel{background:var(--paper);color:var(--ink);border-radius:12px;overflow:hidden;width:330px;
+    box-shadow:0 14px 30px rgba(0,0,0,.32),0 2px 0 rgba(255,255,255,.18) inset}
+  .vcap{font-size:11px;color:var(--ink-ghost);margin:9px 2px 0;text-align:center}
+  .vcap.dark{color:#9a8f78}
+
+  .crumb{display:flex;align-items:center;gap:6px;padding:0 11px;height:34px;font-size:11px;
+    color:var(--ink-mute);border-bottom:1px solid var(--paper-rule)}
+  .crumb .sep{color:var(--ink-ghost)}
+  .crumb .here{color:var(--ink);font-weight:700}
+  .crumb .sp{flex:1}
+  .crumb .ic{width:14px;height:14px;color:var(--ink-ghost)}
+
+  .sel{position:relative;margin:10px;border:1px solid var(--sel-line);border-radius:11px;background:var(--sel);
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;
+    color:var(--ink-soft);box-shadow:0 1px 0 rgba(255,255,255,.5) inset}
+  .sel.open{border-bottom:0;border-radius:11px 11px 0 0}
+  .sel .trigger{display:flex;align-items:center;gap:8px;padding:7px 12px}
+  .sel .bi{width:13px;height:13px;color:var(--ink-mute);flex:none}   /* neutral glyph */
+  .sel .rname{color:var(--ink-soft)}
+  .sel .mid{color:var(--ink-ghost)}
+  .sel .branch{color:var(--ink-mute);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sel .caret{color:var(--ink-ghost);font-size:8px;flex:none}
+  .sel .body{position:absolute;left:-1px;right:-1px;top:100%;z-index:5;border:1px solid var(--sel-line);
+    border-top:0;border-radius:0 0 11px 11px;background:var(--surface-0);box-shadow:0 8px 18px rgba(43,38,32,.16)}
+  .sel .bhead{padding:7px 12px 4px;font-size:9px;font-weight:700;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--ink-ghost)}
+  .sel .opts{padding:2px 6px 6px}
+  .opt{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;color:var(--ink-soft)}
+  .opt .sq{width:8px;height:8px;border-radius:2px;flex:none}
+  .opt .olabel{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .opt .ostat{font-family:ui-monospace,Menlo,monospace;font-size:10px;color:var(--ink-mute);flex:none}
+
+  .tree{padding:4px 8px 12px}
+  .run.fill{background:var(--accent-soft)}
+  .run{border-radius:7px}
+  .row{display:flex;align-items:center;gap:6px;height:var(--row-h);padding-right:8px;
+    border-radius:6px;font-size:13px;color:var(--ink)}
+  .row .chev{width:12px;text-align:center;color:var(--ink-ghost);font-size:9px;flex:none}
+  .row .icon{width:15px;height:15px;color:#a98e5e;flex:none}
+  .row.folder .icon{color:#b98a47}
+  .row .label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* removed-feature chip */
+  .removed{margin-top:12px;display:inline-flex;align-items:center;gap:9px;background:rgba(255,255,255,.05);
+    border:1px dashed rgba(255,255,255,.18);border-radius:8px;padding:7px 11px;font-size:12px;color:#b7ab92}
+  .removed .tag{font-size:9px;letter-spacing:.12em;font-weight:700;color:#d98b62;text-transform:uppercase}
+  .removed .old{text-decoration:line-through;text-decoration-color:rgba(217,139,98,.7);color:#988e78;font-weight:600}
+
+  /* swatches + palette */
+  .swrow{display:flex;align-items:center;gap:10px;margin:4px 0}
+  .sw{width:48px;height:30px;border-radius:7px;border:1px solid rgba(0,0,0,.18);flex:none}
+  .op{font-size:18px;color:#8f846d;font-weight:700;width:16px;text-align:center}
+  .swcap{font-size:11.5px;color:#b3a78e}
+  .chips{display:flex;gap:11px;flex-wrap:wrap;margin-top:14px}
+  .pchip{display:flex;flex-direction:column;align-items:center;gap:6px;width:62px}
+  .pchip .dot{width:30px;height:30px;border-radius:8px;border:1px solid rgba(0,0,0,.18);position:relative}
+  .pchip .nm{font-size:10px;color:#9a8f78}
+  .pchip.excl .nm{color:#e08a72;font-weight:600}
+  .pchip.excl .strike{position:absolute;top:13px;left:-2px;width:34px;height:2px;background:#e08a72;transform:rotate(-45deg);border-radius:2px}
+  .pchip.reserved .dot{box-shadow:0 0 0 2px rgba(188,99,54,.4)}
+  .pchip.reserved .nm{color:var(--accent);font-weight:600}
+
+  /* glyph comparison */
+  .glyphs{display:flex;gap:20px;align-items:stretch}
+  .gcard{flex:1;background:var(--paper);border-radius:12px;padding:16px;text-align:center;
+    box-shadow:0 10px 22px rgba(0,0,0,.28)}
+  .gcard .g{width:36px;height:36px;margin:0 auto 8px;color:var(--ink-soft)}
+  .gcard.bad .g{color:var(--ink-mute)}
+  .gcard .glab{font-size:11px;font-weight:700;letter-spacing:.04em}
+  .gcard.bad .glab{color:#9a8f78}
+  .gcard.good .glab{color:var(--accent)}
+  .gcard .gsub{font-size:10.5px;color:#9a8f78;margin-top:3px}
+  .glyphbar{display:inline-flex;gap:8px;align-items:center;margin-top:14px;background:var(--paper);
+    border-radius:9px;padding:7px 11px;box-shadow:0 6px 16px rgba(0,0,0,.22)}
+  .glyphbar .seg{font-size:11px;color:var(--ink-mute)}
+  .glyphbar .here{color:var(--ink);font-weight:700}
+  .glyphbar .sp{width:60px}
+  .glyphbar .ic{width:15px;height:15px;color:var(--ink-mute)}
+
+  .footsec{margin-top:48px;border-top:1px solid rgba(255,255,255,.1);padding-top:22px}
+  .footsec h2{font-size:16px;margin:0 0 12px;color:#efe6d2}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+  @media(max-width:820px){.grid2{grid-template-columns:1fr}}
+  .card{background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:14px 16px}
+  .card h3{margin:0 0 8px;font-size:13px;color:#e6dcc6}
+  .card ul{margin:0;padding-left:18px;font-size:12.5px;color:#b3a78e}
+  .card li{margin:5px 0}
+  .card code{font-size:11.5px}
+  .open li b{color:#e0b07a}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="folder" viewBox="0 0 16 16"><path fill="currentColor" d="M1.4 3.4A1.1 1.1 0 0 1 2.5 2.3h3.3c.36 0 .7.17.9.47l.66.93h6.2a1.1 1.1 0 0 1 1.1 1.1v7.4a1.1 1.1 0 0 1-1.1 1.1H2.5a1.1 1.1 0 0 1-1.1-1.1z"/></symbol>
+    <symbol id="file" viewBox="0 0 16 16"><path fill="currentColor" d="M3.4 1.6h5.3l3.9 3.9v8.4a.6.6 0 0 1-.6.6H3.4a.6.6 0 0 1-.6-.6V2.2a.6.6 0 0 1 .6-.6z"/><path fill="rgba(0,0,0,.16)" d="M8.6 1.7v3.4a.5.5 0 0 0 .5.5h3.3z"/></symbol>
+    <symbol id="branch" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.4"/><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="7" r="2.4"/><path d="M6 8.4v7.2"/><path d="M18 9.4c0 4.2-6 3-6 7.2"/></g></symbol>
+    <symbol id="cols" viewBox="0 0 14 14"><rect x="1.5" y="2.5" width="11" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="1.5" y="2.5" width="3.5" height="9" fill="currentColor" opacity="0.55"/></symbol>
+    <!-- current pin glyph, verbatim from FilesPane.tsx PinButton -->
+    <symbol id="pin-old" viewBox="0 0 12 12"><path d="M6 8.5v2.2M4 2.5h4M6 2.5v5l-1.8 1.5h3.6L6 7.5v-5Z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+    <!-- new pin glyph (diagonal pushpin) from the mockups -->
+    <symbol id="pin-new" viewBox="0 0 16 16"><path fill="currentColor" d="M9.6 1.8 14.2 6.4l-2 .6-2.5 4.2-1.7-1.7-2.8 3.6.7-3.6-2-2 4.2-2.5z"/></symbol>
+  </svg>
+
+  <header class="doc">
+    <h1>Navigator — Claude-context fill &amp; worktree pill</h1>
+    <div class="meta">
+      <span><b>Status:</b> <span class="pill-status">Accepted (design)</span></span>
+      <span><b>Date:</b> 2026-06-17</span>
+      <span><b>Scope:</b> navigator sidebar — <code>FilesPane.tsx</code>, <code>FileTree.tsx</code>, <code>ProjectClaudeContext.tsx</code>, worktree hue palette</span>
+      <span><b>ADR:</b> <code>docs/DECISIONS.md</code> → “Navigator: Claude-context surfacing &amp; worktree indicator”</span>
+    </div>
+    <p class="intro">This artifact locks four design decisions for the navigator. The interactive
+      mockups that led here were iterated separately; this is the consolidated, agreed end-state. Every
+      visual below is the decided treatment, not an option set.</p>
+  </header>
+
+  <!-- DECISION 1 -->
+  <section class="decision">
+    <div class="visual">
+      <div class="panel" id="d1"></div>
+      <div class="vcap">Always-on fill · no click to reveal</div>
+    </div>
+    <div>
+      <div class="dhead"><span class="dnum">DECISION 1</span><h2>Claude-context highlight = soft background fill</h2></div>
+      <div class="decided">
+        The <code>.claude/</code> subtree (folder + all descendants) and the top-level
+        <code>CLAUDE.md</code> carry a <b>faint orange background fill</b> (~14% terracotta) wherever
+        they appear in a tree. The fill is the whole signal — no icon badges, no dots.
+        <ul>
+          <li>The contiguous <code>.claude/</code> block reads as one region; <code>CLAUDE.md</code> gets its own fill.</li>
+          <li>This <b>replaces</b> the collapsible “Project Claude context” viewer entirely.</li>
+        </ul>
+        <div class="removed"><span class="tag">Removed</span><span class="old">Project Claude context</span><span>— the expand/collapse panel is deleted</span></div>
+      </div>
+      <div class="why"><b>Why:</b> the context files are always relevant, so a passive, always-visible
+        cue beats a panel users must expand. Lower chrome, zero interaction cost.</div>
+      <div class="files"><b>Touches:</b> <code>FilesPane.tsx</code> (tree row fill; remove
+        <code>ProjectClaudeContext</code> mount), delete <code>ProjectClaudeContext.tsx</code>.</div>
+    </div>
+  </section>
+
+  <!-- DECISION 2 -->
+  <section class="decision">
+    <div class="visual">
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px;width:330px">
+        <div class="swrow">
+          <span class="sw" style="background:color-mix(in srgb,#cf7a3a 13%,var(--paper-deep))"></span>
+          <span class="op">≈</span>
+          <span class="sw" style="background:color-mix(in srgb,#bc6336 14%,var(--paper))"></span>
+          <span class="swcap"><b style="color:#e08a72">Collision</b> — orange worktree tint vs Claude fill: indistinguishable</span>
+        </div>
+        <div class="swrow">
+          <span class="sw" style="background:color-mix(in srgb,#3f8a8c 13%,var(--paper-deep))"></span>
+          <span class="op">≠</span>
+          <span class="sw" style="background:color-mix(in srgb,#bc6336 14%,var(--paper))"></span>
+          <span class="swcap"><b style="color:#9ccb85">Reserved</b> — teal worktree vs orange Claude: distinct</span>
+        </div>
+        <div class="chips" id="palette"></div>
+      </div>
+      <div class="vcap">Worktree palette with orange excluded</div>
+    </div>
+    <div>
+      <div class="dhead"><span class="dnum">DECISION 2</span><h2>Orange is reserved for Claude context</h2></div>
+      <div class="decided">
+        Terracotta/orange means exactly one thing in the navigator: <b>Claude context</b>. Nothing else
+        may use it as a fill, tint, or active-state color.
+        <ul>
+          <li><b>Worktree hue palette excludes orange</b> (<code>projectColorToken</code>) — the git ribbon already tints its background ~13% with the worktree hue, which would otherwise be the same faint orange as the Claude fill.</li>
+          <li>The worktree <b>dropdown current-row</b> highlight is <b>neutral</b> (paper-edge), not accent-soft orange.</li>
+          <li>The branch glyph is rendered <b>neutral</b> (ink), not <code>text-accent</code>.</li>
+        </ul>
+      </div>
+      <div class="why"><b>Why:</b> proven collision — both tints are real, coexist in one sidebar, and
+        land at near-identical strength (swatches at left use the actual <code>color-mix … 13%</code> /
+        14% formulas). Reserving one hue per meaning is a one-line palette change, not a new mechanism.</div>
+      <div class="files"><b>Touches:</b> <code>projectColorToken</code> (palette), <code>FileTree.tsx</code> (ribbon tint, dropdown row, branch glyph).</div>
+    </div>
+  </section>
+
+  <!-- DECISION 3 -->
+  <section class="decision">
+    <div class="visual">
+      <div class="panel" id="d3-closed"></div>
+      <div class="vcap">Resting</div>
+      <div class="panel" id="d3-open" style="margin-top:18px"></div>
+      <div class="vcap">Expanded — attached to the pill, overlaying the tree</div>
+    </div>
+    <div>
+      <div class="dhead"><span class="dnum">DECISION 3</span><h2>Worktree indicator = a pill; its menu overlays the tree</h2></div>
+      <div class="decided">
+        The full-width git ribbon is replaced by a <b>rounded, inset pill</b> directly beneath the
+        breadcrumb. Opening it drops a worktree menu <b>seamlessly attached to the pill</b> (shared
+        border, no gap) that <b>overlays / occludes the tree</b> like a standard dropdown.
+        <ul>
+          <li><b>Not a full-width row</b> — a row reads as the <em>parent</em> of the file tree; the worktree is really a property of <code>loop-library</code>, which lives one line up in the breadcrumb.</li>
+          <li><b>Attached, not detached</b> — the pill and menu share a border (no gap), so it reads as the pill opening, not a separate floating "second pill".</li>
+          <li><b>Occludes, doesn't reflow</b> — the menu floats over the tree (<code>absolute</code>); the file rows below don't shift down.</li>
+        </ul>
+      </div>
+      <div class="why"><b>Why:</b> correct information architecture (context-of-repo, not parent-of-tree),
+        and a single coherent control whose menu stays attached to its trigger.</div>
+      <div class="files"><b>Touches:</b> <code>FileTree.tsx</code> (ribbon → inset pill; dropdown → attached <code>absolute</code> overlay).</div>
+    </div>
+  </section>
+
+  <!-- DECISION 4 -->
+  <section class="decision">
+    <div class="visual">
+      <div class="glyphs">
+        <div class="gcard bad"><div class="g"><svg viewBox="0 0 12 12" width="36" height="36"><use href="#pin-old"/></svg></div><div class="glab">CURRENT</div><div class="gsub">vertical thumbtack (outline)</div></div>
+        <div class="gcard good"><div class="g"><svg viewBox="0 0 16 16" width="36" height="36"><use href="#pin-new"/></svg></div><div class="glab">NEW · LOCKED</div><div class="gsub">diagonal pushpin (filled)</div></div>
+      </div>
+      <div style="text-align:center"><div class="glyphbar"><span class="seg">loop-library</span><span class="sp"></span><svg class="ic"><use href="#pin-new"/></svg><svg class="ic"><use href="#cols"/></svg></div></div>
+      <div class="vcap">In the breadcrumb header (right)</div>
+    </div>
+    <div>
+      <div class="dhead"><span class="dnum">DECISION 4</span><h2>Pin button uses the diagonal-pushpin glyph</h2></div>
+      <div class="decided">
+        Replace the <code>PinButton</code> glyph — currently a vertical, outlined thumbtack — with the
+        <b>filled diagonal pushpin</b> from the mockups. More recognizable as “pin / freeze,” reads
+        better at 12–14px.
+      </div>
+      <div class="why"><b>Heads-up (feeds Decision 2):</b> the pin button's <em>active/pinned</em> state
+        is currently <code>text-accent</code> (orange) — that trips the reservation. See Open items.</div>
+      <div class="files"><b>Touches:</b> <code>FilesPane.tsx</code> <code>PinButton</code> (glyph path; active-state color).</div>
+    </div>
+  </section>
+
+  <!-- IMPLEMENTATION + OPEN -->
+  <section class="footsec">
+    <h2>Implementation touchpoints &amp; open items</h2>
+    <div class="grid2">
+      <div class="card">
+        <h3>Files</h3>
+        <ul>
+          <li><code>FilesPane.tsx</code> — render <code>.claude/</code> + <code>CLAUDE.md</code> fill; remove <code>ProjectClaudeContext</code> mount; swap <code>PinButton</code> glyph.</li>
+          <li><code>FileTree.tsx</code> — ribbon → inset pill with an attached <code>absolute</code> overlay menu; neutralize branch glyph + dropdown current-row; keep hue tint but from non-orange palette.</li>
+          <li><code>ProjectClaudeContext.tsx</code> — delete.</li>
+          <li><code>projectColorToken</code> (worktree hue palette) — exclude the orange/terracotta band.</li>
+        </ul>
+      </div>
+      <div class="card open">
+        <h3>Open items (need a call)</h3>
+        <ul>
+          <li><b>Pin active-state color.</b> Pinned currently = orange (<code>text-accent</code>). Recommend neutralizing to a strong ink fill so it doesn't read as Claude context. <em>Confirm.</em></li>
+          <li><b>Expand behavior.</b> Locked as an attached overlay that occludes the tree (does not push it down); the menu caps at 40vh and scrolls internally.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+  const tree = [
+    {name:'loop-library',type:'folder',depth:0,open:true},
+    {name:'.claude',type:'folder',depth:1,open:true,tint:true},
+    {name:'skills',type:'folder',depth:2,open:true,tint:true},
+    {name:'ingest',type:'folder',depth:3,tint:true},
+    {name:'settings.json',type:'file',depth:2,tint:true},
+    {name:'dist',type:'folder',depth:1},
+    {name:'sources',type:'folder',depth:1},
+    {name:'wiki',type:'folder',depth:1},
+    {name:'CLAUDE.md',type:'file',depth:1,tint:true},
+    {name:'README.md',type:'file',depth:1},
+  ];
+  const svg=(id,cls)=>`<svg class="${cls||'icon'}"><use href="#${id}"/></svg>`;
+  function rowHTML(n){const pl=8+n.depth*15;const chev=n.type==='folder'?(n.open?'▾':'▸'):'';
+    return `<div class="row ${n.type}" style="padding-left:${pl}px"><span class="chev">${chev}</span>${svg(n.type)}<span class="label">${n.name}</span></div>`;}
+  function treeHTML(rows){let out='',i=0;while(i<rows.length){if(rows[i].tint){let r='';while(i<rows.length&&rows[i].tint){r+=rowHTML(rows[i]);i++;}out+=`<div class="run fill">${r}</div>`;}else{out+=rowHTML(rows[i]);i++;}}return out;}
+  const TREE=`<div class="tree">${treeHTML(tree)}</div>`;
+  const crumb=`<div class="crumb"><span class="sep">GitHub</span><span class="sep">/</span><span class="here">loop-library</span><span class="sp"></span>${svg('pin-new','ic')}${svg('cols','ic')}</div>`;
+  const trigger=(c)=>`<div class="trigger">${svg('branch','bi')}<span class="rname">loop-library</span><span class="mid">·</span><span class="branch">main</span><span class="caret">${c}</span></div>`;
+  const ALT=[{label:'claude/upbeat-taussig-da5543',hue:'#3f8a8c',status:'✱3'},{label:'claude/scaffold-loop-library',hue:'#7a64c4',status:'↑1'}];
+  const opts=ALT.map(w=>`<div class="opt"><span class="sq" style="background:${w.hue}"></span><span class="olabel">${w.label}</span><span class="ostat">${w.status}</span></div>`).join('');
+
+  document.getElementById('d1').innerHTML = crumb + `<div class="sel">${trigger('▾')}</div>` + TREE;
+  document.getElementById('d3-closed').innerHTML = crumb + `<div class="sel">${trigger('▾')}</div>` + TREE;
+  document.getElementById('d3-open').innerHTML = crumb +
+    `<div class="sel open">${trigger('▴')}<div class="body"><div class="bhead">Switch worktree</div><div class="opts">${opts}</div></div></div>` + TREE;
+
+  const palette=[{nm:'teal',c:'#3f8a8c'},{nm:'violet',c:'#7a64c4'},{nm:'blue',c:'#4f79c4'},{nm:'green',c:'#5a9e63'},{nm:'rose',c:'#c45c86'},{nm:'orange',c:'#cf7a3a',excl:true},{nm:'Claude',c:'#bc6336',reserved:true}];
+  document.getElementById('palette').innerHTML = palette.map(p=>{
+    const cls=p.excl?'excl':(p.reserved?'reserved':'');
+    const strike=p.excl?'<span class="strike"></span>':'';
+    return `<div class="pchip ${cls}"><div class="dot" style="background:${p.c}">${strike}</div><span class="nm">${p.nm}</span></div>`;
+  }).join('');
+</script>
+</body>
+</html>
