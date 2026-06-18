@@ -8,6 +8,12 @@
 // Worktrees section (ENH-210) all resolve hues through one place rather
 // than each re-declaring the array (the "one ref, two purposes" trap).
 
+// Load-bearing: this palette deliberately EXCLUDES the orange/amber band
+// (~15–55°; see the `--duo-project-*` note in globals.css). Orange is
+// reserved for the navigator's Claude-context fill — a worktree tinted
+// orange would be indistinguishable from "this is Claude context". Keep
+// new hues out of that band. (See the "Navigator: Claude-context surfacing
+// & worktree indicator" decision in docs/DECISIONS.md.)
 export const PROJECT_COLOR_TOKENS = [
   'var(--duo-project-pine)',
   'var(--duo-project-harbor)',

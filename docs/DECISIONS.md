@@ -1003,3 +1003,26 @@ clarifies and supersedes that framing.
 **Note (owner-confirmed 2026-06-06, Option A): app teardown at `before-quit` ONLY.** The shared singletons (`SocketServer`, `ExternalDomainsService`) are app-lifetime — torn down only on a real quit, never on a window close. On macOS a last-window-close is NOT a quit (the user dock-reopens via `app.activate → createWindow`), so teardown-on-last-window would leave the `duo` CLI bridge permanently dead across the reopen. P1 implements this: the `closed` handler does per-window teardown only; `teardownApp` runs only in `before-quit`. Dock-reopen regression test + detail in the PRD.
 
 **Decision owner:** Geoff.
+
+---
+
+### Navigator: Claude-context surfacing & worktree indicator
+
+**Status:** 🟢 Accepted (2026-06-17, owner — Geoff). Implemented on branch `claude/navigator-claude-context`.
+**Prototype / source of truth:** [`docs/research/navigator-claude-context-worktree-pill.html`](research/navigator-claude-context-worktree-pill.html) — the locked end-state with every visual (Claude-context fill, the orange-collision proof, the expanding worktree pill, the pin-glyph swap). This entry is the ADR-altitude summary.
+
+**Decision.** Four changes to the navigator sidebar:
+
+1. **Claude-context = a soft background fill, not a panel.** The `.claude/` subtree (folder + all descendants) and the top-level `CLAUDE.md` carry a faint orange fill (~14% `--duo-accent`) wherever they appear in the tree. This **replaces and removes** the collapsible "Project Claude context" viewer (`ProjectClaudeContext.tsx`) — the cue is always on, zero interaction cost. Predicate: `renderer/components/claudeContextPath.ts` (`isClaudeContextPath`), a pure path test (the listings are lazy, so a precomputed Set won't do). Utility: `.bg-claude-context` in `globals.css` via `color-mix` — **not** `bg-accent/14`, because `accent` resolves to a raw `var(--duo-accent)` with no `<alpha-value>` channel (FOLLOWUP-008), so opacity modifiers emit invalid CSS.
+
+2. **Orange/terracotta is reserved for Claude context.** No other navigator element may use it as a fill / tint / active-state color. The worktree hue palette (`renderer/projectColors.ts`) already **excludes the orange/amber band** (documented load-bearing there + in globals.css); the git ribbon's ~13% worktree-hue tint therefore can't collide with the Claude fill. Neutralized to non-orange tokens: the branch glyph (`text-accent` → `text-ink-mute`), the worktree current-row highlight (`bg-accent-soft` → `bg-paper-edge`), the "current" badge (`text-accent` → `text-ink-mute`), and the pin button's pinned state (`text-accent` → `text-ink`, see #4). Rationale: proven collision — the ribbon tint (`color-mix(… 13% …)`) and the Claude fill (~14%) are the same faint orange at near-identical strength.
+
+3. **Worktree indicator is a pill; its menu overlays the tree.** The full-width, `sticky` git ribbon — which read as a *parent* of the file tree — is now a **rounded, inset pill** beneath the breadcrumb (a property of the repo named in the breadcrumb, not a parent of the files). Opening it drops a worktree menu **seamlessly attached to the pill** (shared border, no gap — the pill goes `rounded-t-lg border-b-0`, the menu `rounded-b-lg border-t-0`; `WorktreeDropdownBody`) that **overlays/occludes the tree** — `absolute`-positioned, like a standard dropdown — rather than reflowing the tree down. (An earlier reflow build was tried and rejected: pushing content down felt wrong; a detached floating card was also rejected as a "second pill" — the locked answer is *attached + occluding*.) The list caps at `max-h-[40vh]` and scrolls internally so a long worktree set can't run off-screen.
+
+4. **Pin button glyph + color.** The `PinButton` (`FilesPane.tsx`) glyph is the filled diagonal pushpin (replacing the vertical outlined thumbtack); the pinned state is **neutral `text-ink`**, not orange — honoring the reservation in #2.
+
+**Why.** Lower chrome + always-visible context (1); one unambiguous meaning per hue (2); correct IA with no stray layers (3); a clearer affordance (4). Visual proof — including collision swatches computed with the real `color-mix`/fill formulas — is in the prototype.
+
+**Touchpoints (as implemented).** New `renderer/components/claudeContextPath.ts` (+ `.test.ts`); `renderer/styles/globals.css` (`.bg-claude-context`); `renderer/components/FileTree.tsx` (fill in `TreeNode`; ribbon→pill; `WorktreeDropdown`→in-flow `WorktreeDropdownBody`; neutralized glyph/current-row/badge); `renderer/components/FilesPane.tsx` (removed the `ProjectClaudeContext` mount; pin glyph + color); deleted `renderer/components/ProjectClaudeContext.tsx`; documented the reservation in `renderer/projectColors.ts`.
+
+**Decision owner:** Geoff.
