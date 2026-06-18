@@ -21,7 +21,29 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.11.0 cut 2026-06-15)*
+> *(empty — v0.11.1 cut 2026-06-18)*
+
+---
+
+## v0.11.1 — 2026-06-18 — Navigator polish + the table-shatter fix
+
+**Why this lands here.** A refinement-and-fix patch on top of v0.11.0's worktree-aware chapter, not a new one. Two user-visible navigator changes (the Claude-context fill replacing the old collapsible panel; the worktree ribbon becoming a pill with an attached overlay), one data-integrity fix (multi-line table cells no longer corrupt on save), and two docs items (the hook-availability probe; a pack-builder link fix that unblocks the strict release gate). Four PRs: #100 (navigator), #99 (table fix), #82 (hook probe), #77 (pack-builder links).
+
+**Key decisions baked in.**
+- **One hue, one meaning.** Terracotta is now reserved for Claude context alone; the worktree hue palette excludes the orange band, so a worktree tinted orange can never be mistaken for "this is Claude context." The branch glyph, worktree current-row, "current" badge, and pinned-pin state were all neutralized off `text-accent`.
+- **Root-anchored, not segment-matched.** The fill predicate (`isClaudeContextPath`) anchors to the project root rather than matching a bare `.claude` path segment — otherwise every file under a `…/.claude/worktrees/<name>` worktree would wash the whole tree (caught while verifying; regression-tested).
+- **Serializer + backstop.** The table fix flattens multi-line cells to a single `<br>`-joined GFM line (the serializer half) *and* refuses to persist any serialize that loses a table row (the guard half), so a future serializer regression can't silently corrupt a file. The round-trip is byte-faithful + idempotent.
+
+**Operating the hook probe (new in this cut).** The probe at `docs/research/duo-project-template/duo-hook-probe.sh` answers "do Claude Code hooks fire on this (possibly managed) machine?" — the open question that decides where a future duo-project auto-open runs (a SessionStart hook vs. a Duo-native trigger). Run it on the target machine:
+
+- `./duo-hook-probe.sh setup` — prints a read-only policy inspection (managed-settings `disableAllHooks` / `allowManagedHooksOnly`, `~/.claude` writability, `claude` version) and builds an isolated test project under `~/duo-hook-probe/`. It never touches your real `~/.claude` config.
+- Then in a **new** terminal: `cd ~/duo-hook-probe && claude` — accept the trust / hook-approval prompts (being unable to approve is itself a finding). `SessionStart` fires on launch; to exercise the other hooks, prompt Claude: `Run this bash command for me: echo probe-ok`. To check context-injection, ask Claude to echo the `DUO_HOOK_PROBE` sentinel.
+- Back in the first terminal: `./duo-hook-probe.sh check` — prints `[FIRED]` / `[silent]` per hook (`SessionStart` / `UserPromptSubmit` / `PreToolUse`) plus a plain-English verdict and what it implies for the feature.
+- `./duo-hook-probe.sh inspect` — read-only policy inspection alone (no files written); `./duo-hook-probe.sh clean` — removes `~/duo-hook-probe/`.
+
+A `SessionStart [FIRED]` verdict → ship the detect+auto-open as a low-complexity SessionStart hook; `[silent]` → don't depend on Claude Code hooks, use a Duo-native `PtyManager` trigger (immune to enterprise hook policy). Paste the `check` output back to proceed.
+
+**What this is and isn't.** It's polish + a corruption fix, deliberately *not* the live `/smoke-walk` those two UI changes still owe (validated headlessly / via DOM probes — flagged under Known issues), and *not* the held-back **#75** a+b sprint (ENH-113 + bug burn-down), which needs a rebase + its own BUG-100 live check before it lands.
 
 ---
 

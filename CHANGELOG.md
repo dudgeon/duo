@@ -19,7 +19,25 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.11.0 cut 2026-06-15.
+> Empty — v0.11.1 cut 2026-06-18.
+
+## [0.11.1] — 2026-06-18 — Navigator polish + the table-shatter fix
+
+### Added
+- Navigator Claude-context fill — the `.claude/` subtree + top-level `CLAUDE.md` now carry an always-on faint terracotta wash, replacing the collapsible "Project Claude context" panel. Pure root-anchored `isClaudeContextPath` predicate (so a `.claude/worktrees/<name>` worktree doesn't wash the whole tree) + unit test (#100).
+- Duo project-template hook probe — a self-contained diagnostic (`docs/research/duo-project-template/duo-hook-probe.sh`) that reports whether Claude Code hooks fire on a managed/enterprise machine, toward auto-opening a project's "start here" page. `setup` / `check` / `inspect` / `clean` subcommands; writes only under `~/duo-hook-probe/`, reads the managed-settings policy read-only (#82).
+
+### Changed
+- Worktree indicator is now an inset pill beneath the breadcrumb (was a full-width sticky ribbon); its switcher opens as an attached overlay that occludes the tree rather than reflowing it (#100).
+- Orange/terracotta reserved for Claude context across the navigator — branch glyph, worktree current-row, "current" badge, and the pinned-pin state neutralized to non-orange tokens; the worktree hue palette excludes the orange band (#100).
+- Pin glyph is now a filled diagonal pushpin (was a vertical outlined thumbtack) (#100).
+
+### Fixed
+- Markdown tables with multi-line cells no longer shatter on save (BUG-210) — bullet-list / hard-break / multi-paragraph cells serialize to one GFM line via `<br>`, byte-faithfully + idempotently, with a save-path backstop that refuses any row-losing serialize (#99).
+- pack-builder `SKILL.md` dangling cross-reference links fixed so `check-skill-currency --strict` (the release gate) passes (#77).
+
+### Known issues
+- The #99 table fix and #100 navigator UI were validated headlessly / via DOM probes; a live `/smoke-walk` of a multi-line-cell autosave round-trip and the worktree-pill overlay is still owed.
 
 ## [0.11.0] — 2026-06-15 — OKF vaults (GitHub-portable) + worktree-aware Duo
 
@@ -1978,7 +1996,8 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.11.1...HEAD
+[0.11.1]: https://github.com/dudgeon/duo/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/dudgeon/duo/compare/v0.10.3...v0.11.0
 [0.10.3]: https://github.com/dudgeon/duo/compare/v0.10.2...v0.10.3
 [0.10.2]: https://github.com/dudgeon/duo/compare/v0.10.1...v0.10.2

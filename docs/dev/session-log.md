@@ -18,6 +18,14 @@
 
 ---
 
+## 2026-06-18 (v0.11.1 cut — Navigator polish + the table-shatter fix)
+
+Cut **v0.11.1** (patch — navigator refinement + a data-integrity fix + docs). Merged four PRs since v0.11.0 and held back the fifth: **#77** (pack-builder `SKILL.md` dangling cross-ref link fix — unblocks `check-skill-currency --strict`), **#82** (docs/research — the Duo project-template hook-availability probe `duo-hook-probe.sh` + README; exploration only, no product code), **#100** (navigator Claude-context fill replacing the `ProjectClaudeContext` panel; worktree ribbon → inset pill with attached overlay; orange reserved for Claude context; filled-diagonal pin glyph; root-anchored `isClaudeContextPath` + test), and **#99** (BUG-210 — multi-line table cells serialize to a single `<br>`-joined GFM line, byte-faithful + idempotent, + a `tableRowsSurviveSerialize` save-path backstop; 13 tests). **#75** (the a+b sprint — ENH-113 + bug burn-down) was deliberately NOT merged: it's CONFLICTING against `main` and owes a BUG-100 live smoke-walk; it needs a rebase first.
+
+The owner chose cut-now (skip smoke-walk) + v0.11.1 (PATCH). Owed and flagged under Known issues: a live `/smoke-walk` of a real multi-line-cell autosave round-trip (#99) and the worktree-pill overlay (#100) — both were validated headlessly / via DOM probes, not in the running app.
+
+**Cut-process notes.** Local `main` started 458 commits behind origin/main with a 452-file staged working tree (origin content staged against a stale HEAD) + a stale `docs/DECISIONS.md` draft superseded by #100. Synced non-destructively: stashed everything (`stash@{0}`, recoverable), removed a 3-day-old stale `.git/refs/heads/main.lock`, then fast-forwarded. The typecheck gate then surfaced **155 untracked iCloud sync-conflict duplicates** (`* 2.ts` — the macOS Optimize-Storage trap) that dragged `core/vault/*` into the web tsconfig; moved them to `/tmp/duo-icloud-dupes/` (untracked-only, reversible) and typecheck went clean. The cli/duo binary was already at 0.11.1 (BUG-118 guard clean).
+
 ## 2026-06-15 (v0.11.0 cut — OKF vaults (GitHub-portable) + worktree-aware Duo)
 
 Cut **v0.11.0** (minor — two new user-visible capabilities). Bundles four PRs landed since v0.10.3: **#95** ENH-211 P0 (navigator anti-flicker — stale-while-revalidate + coalesce), **#96** install managed-block guidance (batched-approval / scoped-permission enterprise installs), **#97** ENH-210 worktree-aware Duo (tab chips, working-pane badges, navigator switcher, open-in-window), and **#98** ENH-216 OKF vault mode.

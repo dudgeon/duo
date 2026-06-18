@@ -3,6 +3,18 @@
 > Closed entries (✅ shipped / ❌ won't-do / 🟢 done) split out of [`tasks.md`](tasks.md) on 2026-05-31 (ENH-191 / D1) to keep the live backlog lean. **Open work lives in [tasks.md](tasks.md).** Section headers mirror the original; the cut-version skill appends newly-closed entries here.
 
 
+## v0.11.1 — Navigator polish + the table-shatter fix (shipped 2026-06-18)
+
+### BUG-210: Markdown tables with multi-line cells (bullet lists / hard breaks) SHATTER on save — the editor's tiptap-markdown serializer emits in-cell newlines that break the GFM row
+
+**Status:** ✅ Shipped v0.11.1 (2026-06-18, PR #99). **Live `/smoke-walk` of a real multi-line-cell autosave round-trip still owed** (root-caused + fixed in a cloud session that can't run Electron; validated headlessly against the exact `tiptap-markdown@0.8.10` stack). **Priority:** P1 (silent data loss on a core surface). **Effort:** M. **Surface:** markdown editor (`renderer/components/editor/`). **Parity:** (b) skipped — surface-specific; the HTML canvas stores tables as live DOM, not markdown source, so there is no round-trip to shatter.
+
+**Symptom (owner).** A table where some cells hold a bulleted list of several people (e.g. POC = `- Ashwin Katikapalli` + `- Navmeet Venkatesh` in ONE cell) renders fine, but after the agent runs *any* operation against the open file — in the report, an SSG generator that "should have had no effect" — the table breaks: the header + first rows survive, then everything from the first multi-line cell spills out below the table as broken plain-text rows. Each subsequent op degrades it further (seen three times).
+
+**Root cause.** A lossy markdown round-trip in Duo's editor, NOT anything the SSG did. TipTap's `TableCell` allows block content (`block+`), so a multi-person cell is stored as a real `bulletList` node. tiptap-markdown's stock table serializer renders a cell with `state.renderInline(cell.firstChild)`, which emits blank lines (`\n\n`) between list items / paragraphs. A GFM table row MUST be a single physical line, so those newlines terminate the table — the row shatters; on re-parse the spilled lines become stray paragraphs, and re-serializing compounds it. The trigger is the editor's autosave / disk-reconciliation write path.
+
+**Fix (PR #99).** New `renderer/components/editor/extensions/TableMarkdownRoundtrip.ts`, wired into `MarkdownEditor.tsx`: `TableWithMarkdownCells` (cell flattened to ONE `<br>`-joined line), `HardBreakWithMarkdown` (in-table break → raw `<br>`), `TableCellBrParse` (parse-side rehydration, scoped to `<td>`/`<th>`), and a `tableRowsSurviveSerialize` save-path backstop that refuses a row-losing write. Round-trip is byte-faithful + idempotent (`onDisk === serialize === serialize²`). 13 tests; full editor suite green; typecheck clean.
+
 ## v0.11.0 — OKF vaults (GitHub-portable) + worktree-aware Duo (shipped 2026-06-15)
 
 ### BUG-208: `duo --help` omits the entire Vault verb family (vault/graph/base) — GROUP_ORDER allow-list gap
