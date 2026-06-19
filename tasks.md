@@ -154,6 +154,24 @@
 
 ---
 
+### ENH-221: Unified Open & GitHub round-trip — "open a remote doc like it's local; Save → PR"
+
+**Status:** 🆕 Filed 2026-06-19 (owner-driven; two AUQ rounds walked). **Priority:** P1 (differentiating collaboration flow — turns Duo from "IDE I drive" into "easiest way to co-edit a doc"). **Effort:** L (multi-phase). **PRD:** [docs/prd/enh-221-file-open-flow.md](docs/prd/enh-221-file-open-flow.md).
+
+**Ask (owner).** Duo still feels like an IDE. Want a Google-Docs-style **Open** flow: ⌘O, paste a local path **or** a GitHub link, and Duo does the right thing. Local → focus folder + open viewer. GitHub file URL → opaque managed checkout → opens like a local file; **save local, and when the local copy diverges from the fetched baseline a "Submit PR" button appears** → one-tap (prefilled, editable) ships a PR back, **auto-forking** when the user has no push access (the cross-person/cross-namespace case). Open → edit → save ≈ propose changes.
+
+**Locked (AUQ 2026-06-19).** D1 unified ⌘O Open bar (path OR url; CLI twin = extended `duo open`) · D2 Save=local, explicit "Submit PR" on divergence-from-baseline · D3 auto-fork → cross-fork PR when no push access · D4 opaque managed checkout under `~/.claude/duo/checkouts/` · D5 depth-1 shallow whole-repo clone (assets/siblings/real diff) · D6 detect+offer-reuse of an existing local clone (else managed) · D7 prefilled one-tap editable PR confirm sheet · D8 markdown round-trip first, machinery extensible (json/yaml/html), binary view-only · D9 lean on `gh` auth.
+
+**Net-new plumbing.** `core/git/{branch,commit,push,fork,pr}.ts` (today's git support is read-only — clone/auth/status/worktree, NO write path), `core/open/{resolve,checkout}.ts`, Open-bar UI, Submit-PR affordance, `duo pr create|status|view` verb cluster.
+
+**Phasing.** P0 Open bar (local + url, no GitHub) · P1 GitHub URL → checkout → open-as-local (no PR) · P2 share-back core (divergence→Submit PR→branch/commit/push/PR+auto-fork) · P3 already-local detection · P4 format breadth.
+
+**Open.** OQ-1 Submit-PR UI treatment — owner wants to see options → recommend a short HTML decision playground before P2 (offered, not auto-built). OQ-2 push-rejection/staleness (v1: surface conflict). OQ-3 multi-file-per-checkout (v1: PR-per-checkout). OQ-4 private/SSO (relies on gh). OQ-5 fork hygiene/branch naming. OQ-6 checkout GC.
+
+**Cross-refs.** Reuse `core/git/clone.ts`·`auth.ts`·`remote-url.ts`, `cli/duo.ts resolveOpenTarget`, `fileClassifier.ts`, `useNavigator`. Related: ENH-154 (`gh-link`), ENH-155 (FileTree GitHub menu), ENH-152 (git-status overlay), FOLLOWUP-025 (Clone modal), `docs/research/github-integration-cluster-v2.html`.
+
+---
+
 ### ENH-219: "Copy path" (+ shown path) should indicate when a file is inside a git worktree
 
 **Status:** 🆕 Filed 2026-06-14 (owner note during ENH-210 smoke walk, non-blocking). **Priority:** P3. **Effort:** S.
