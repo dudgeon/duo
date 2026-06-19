@@ -92,6 +92,8 @@ code { font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:12.5px; bac
 /* dice / generate glyph */
 .dice { display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:5px; border:1px solid var(--pr); color:var(--dink-s); font-size:11px; cursor:pointer; flex:0 0 auto; }
 .dice:hover { color:var(--acc-ink); border-color:var(--acc); }
+.nameit { display:inline-flex; align-items:center; gap:4px; font-size:10px; color:var(--acc-ink); cursor:pointer; white-space:nowrap; flex:0 0 auto; }
+.nameit:hover { text-decoration:underline; }
 
 /* shared field bits */
 .fld { display:flex; align-items:center; gap:7px; background:var(--p); border:1px solid var(--pr); border-radius:7px; padding:6px 8px; font-size:12px; color:var(--dink); }
@@ -176,7 +178,8 @@ code { font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:12.5px; bac
   UI; make and show me more options."</em> Same end state every time: type (or auto-generate) a name → a worktree is
   created off main, the navigator re-roots, Claude boots. These four differ only in <strong>how the form sits inside the
   216-px dropdown</strong> — from a one-line field to a plain-language sentence. Every variant carries the
-  <strong>auto-generate-name</strong> affordance you asked for in D2 (a 🎲 / "Generate", or just leave it blank).
+  <strong>"Name it for me"</strong> option you asked for in D2 — click the <strong>⚄</strong> (or just leave the field
+  blank) and Duo picks a friendly name like <code>bright-canyon</code> so you never have to think one up.
 </div>
 
 <div class="locked">
@@ -209,7 +212,7 @@ dropdown. The differing part is the dropdown — the tree + terminal behind it a
             <div class="line">
               <div class="row1">
                 <div class="fld focus"><span class="txt">Q3 pricing page copy</span><span class="caret"></span></div>
-                <span class="dice" title="Generate a name">⚄</span>
+                <span class="nameit" title="Duo picks a name so you don't have to type one">⚄ Name it</span>
                 <span class="enter">⏎</span>
               </div>
               <div class="meta">→ <b>claude/q3-pricing-page-copy</b> · from main · Claude on <span class="opt">options ▾</span></div>
@@ -237,7 +240,7 @@ dropdown. The differing part is the dropdown — the tree + terminal behind it a
             <div class="dhdr">New worktree</div>
             <div class="pan">
               <div class="flabel" style="margin-bottom:5px">What are you working on?</div>
-              <div class="fld focus"><span class="txt">Q3 pricing page copy</span><span class="caret"></span><span class="genbtn">Generate</span></div>
+              <div class="fld focus"><span class="txt">Q3 pricing page copy</span><span class="caret"></span><span class="nameit">⚄ Name it for me</span></div>
               <div class="prevline">creates <b>claude/q3-pricing-page-copy</b></div>
               <div class="btn primary">Create worktree</div>
               <div class="more">▸ More options &nbsp;<span style="color:var(--dink-g)">base · open in · Claude</span></div>
@@ -248,7 +251,7 @@ dropdown. The differing part is the dropdown — the tree + terminal behind it a
         <div class="stage dim"><div class="stabs"><div class="stab act"><span class="d" style="background:#5A5142"></span> claude</div></div><div class="term"><span class="mut">~/duo</span> <span class="acc">❯</span> <span class="cur"></span></div></div>
       </div></div>
     </div>
-    <div class="cap"><b>Progressive disclosure.</b> Just a name field (with a <span class="k">Generate</span> button) and one big <b>Create</b>. Base / open-in / Claude live under a collapsed <b>More options</b> — most PMs never open it. Cleanest default; one extra click for the rare power case.</div>
+    <div class="cap"><b>Progressive disclosure.</b> Just a name field (with a <span class="k">Name it for me</span> link) and one big <b>Create</b>. Base / open-in / Claude live under a collapsed <b>More options</b> — most PMs never open it. Cleanest default; one extra click for the rare power case.</div>
   </div>
 
   <!-- Variant C — roomy widened -->
@@ -264,7 +267,7 @@ dropdown. The differing part is the dropdown — the tree + terminal behind it a
             <div class="dhdr">New worktree <span class="esc">esc</span></div>
             <div class="pan">
               <div class="flabel" style="margin-bottom:5px">What are you working on?</div>
-              <div class="fld focus"><span class="txt">Q3 pricing page copy</span><span class="caret"></span><span class="dice" title="Generate a name">⚄</span></div>
+              <div class="fld focus"><span class="txt">Q3 pricing page copy</span><span class="caret"></span><span class="nameit" title="Duo picks a name so you don't have to type one">⚄ Name it for me</span></div>
               <div class="prevline"><b>claude/q3-pricing-page-copy</b> · .claude/worktrees/q3-pricing-page-copy</div>
               <div class="two">
                 <div class="col"><span class="flabel">From</span><div class="sel">main <span class="car">▾</span></div></div>
@@ -294,7 +297,7 @@ dropdown. The differing part is the dropdown — the tree + terminal behind it a
           <div class="wdrop wide" style="width:300px">
             <div class="dhdr">New worktree</div>
             <div class="sent">
-              Start <span class="chip name">Q3 pricing page copy<span class="caret"></span> <span class="d" title="Generate a name">⚄</span></span>
+              Start <span class="chip name">Q3 pricing page copy<span class="caret"></span> <span class="d" title="Name it for me — Duo picks one">⚄</span></span>
               from <span class="chip sel">main <span class="car">▾</span></span>,
               open <span class="chip sel">here <span class="car">▾</span></span>,
               with <span class="chip tog">Claude ✓</span>.
