@@ -9,9 +9,12 @@
 > non-technical-PM persona). High-fidelity flow study with 6 owner decisions filed at
 > [`docs/research/worktree-lifecycle-ux.html`](../research/worktree-lifecycle-ux.html);
 > D1-form-UI follow-up at [`docs/research/worktree-create-ui.html`](../research/worktree-create-ui.html).
-> **Walk 1 (2026-06-18):** D2–D6 + D1-approach (inline) locked; D1 *form UI* open (4 treatments).
-> **Next:** owner picks the form UI, then build (new `duo worktree new/remove` verbs +
-> nav ErrorBoundary/revert spine). Full entry: `tasks.md` ENH-221.
+> **Walks 1–2 (2026-06-18): ALL decisions locked.** D1 form UI = **Variant A**
+> (one-line, type-and-go) **+ slug validation** (spaces→`-`, allow-list `[a-z0-9-]`,
+> fallback to auto-name); D2–D6 per recs. **Next: BUILD** — core slug + worktree
+> create/remove + tests → `duo worktree new/remove` CLI (4-surface sync) → FileTree
+> inline-create UI (pill always-on trigger) → nav ErrorBoundary/revert spine + regression
+> test. Full entry + validation spec: `tasks.md` ENH-221.
 > **NB (2026-06-18):** a broad worktree purge deleted this session's worktree mid-work
 > (uncommitted mockups lost + recreated from context, then committed). Lesson: commit
 > research artifacts immediately — and this incident is live evidence for enhancement (2).
