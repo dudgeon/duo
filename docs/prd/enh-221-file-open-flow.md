@@ -214,12 +214,12 @@ hatch works; smoke-walked.
 ## 7 · Open questions (build-time / owner)
 
 - **OQ-1 — "Submit PR" affordance treatment (owner wants options).** Owner
-  (r1 Q1): *"will need to see UI treatment options."* Candidates: a button in
-  the editor toolbar / a slide-in banner when divergence is first detected / a
-  status-chip that expands / a footer "Propose changes" bar. **Recommend a
-  short HTML decision playground** (`docs/research/file-open-submit-pr-ui.html`,
-  Atelier kernel + option-cards + decision-card, per CLAUDE.md §11) before
-  Phase 2. *Not auto-built — offered.*
+  (r1 Q1): *"will need to see UI treatment options."* **Decision playground
+  built:** [`docs/research/file-open-submit-pr-ui.html`](../research/file-open-submit-pr-ui.html)
+  — visual mockups of four treatments (toolbar button · slide-in banner ·
+  status-chip popover · footer "propose" bar), plus decision cards for the
+  button label, confirm-sheet depth, and post-PR state. Walk + decide before
+  Phase 2.
 - **OQ-2 — Baseline staleness / push rejection.** Upstream moves after checkout;
   push is rejected or the PR conflicts. **v1:** attempt the push; on rejection,
   surface the conflict plainly ("upstream changed — pull latest"). Richer
