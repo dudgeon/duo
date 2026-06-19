@@ -87,6 +87,10 @@ export type DuoCommandName =
   // read-only buffer search.
   | 'doc-goto'
   | 'doc-find'
+  // ENH-221 — durable local file version history. `duo history <sub> <path>`
+  // (sub ∈ list | show | restore) over the content-addressed store in
+  // ~/.claude/duo/file-history/. Single cmd; sub carried in args.sub.
+  | 'history'
   // Stage 11 § D33d — theme
   | 'theme'
   // Sprint 16 / v0.6.15 — Claude-tab Enter key preferences. Both

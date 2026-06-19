@@ -3,6 +3,25 @@
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
 
+### ENH-221: Durable file version history (undo/save-state safety net independent of autosave)
+
+**Status:** 🚧 In-progress 2026-06-19 — engine + CLI landed code-only this session (no live verify; another agent holds Electron). **Priority:** P1 (credible user feedback). **Effort:** M (engine done; UI + polish remain). **Decision:** locked ADR *Durable file version history* in [DECISIONS.md](docs/DECISIONS.md). **Ticket note:** allocated above committed max (sibling worktree held ENH-220); renumber if a concurrent agent collides.
+
+**Provenance.** User feedback: *"it is impossible to undo changes; this compounds with the speed at which autosave occurs."* Investigation (see ADR) found in-editor undo is mechanically intact (TipTap `history` on; `setContent(_, false)` only sets `preventUpdate`, verified vs `@tiptap/core@2.27.2`; autosave never clears history; BUG-046 keeps tabs mounted so undo survives tab switches). The real gap is architectural: 800ms autosave removes the unsaved-buffer safety net, leaving only a volatile in-memory undo stack (dies on tab close / reopen / restart) and **no version history**. Owner constraint: do **not** slow autosave (a slower debounce widens the agent-overwrite collision window).
+
+**Shipped this session (code-only — runtime verification owed to the Electron-holding agent):**
+- `core/file-history-service.ts` — content-addressed, append-only store at `~/.claude/duo/file-history/` (§D9-clean: Duo-owned log, never a sidecar, can't drift). Dedupe no-op saves · coalesce a 90s burst of autosaves into one moving checkpoint · cap 200/file + orphan-blob GC · corrupt-index-tolerant. **10 unit tests, all green.**
+- `electron/files-service.ts` — `write()` mirrors bytes into `historyService.capture()` **fire-and-forget after** the result is computed (zero added save latency) + optional `{historySource}` so `restore` tags itself. `historyService` field set in `electron/main.ts`.
+- `core/socket-server.ts` `case 'history'` + `cli/duo.ts` `case 'history'` → `duo history <list|show|restore> <path> [<id>]`. `restore` writes back through `FilesService.write` so an open editor reconciles via the ENH-195 watcher.
+- 4-surface sync (cli-reference.md · agents/duo.md · CLI-COVERAGE.md · `check:skill-currency` green) + `npm run build:cli` + `npm run sync:claude`. Full suite **1601/1601** green, typecheck clean.
+
+**Open / deferred (next phases):**
+- **[P1, UI] History-panel + per-version diff.** Surface shape is an OPEN owner UX choice (panel vs modal vs split vs inline timeline) — must be asked, not silently decided. Needs live Electron verify + a smoke-walk.
+- **[P2] Capture external / raw-`Edit` writes** that bypass `FilesService` (arrive via the chokidar watcher). Have main read content on watch-change and `capture({source:'external'})`. This is what fully covers "the agent overwrote my work".
+- **[P2] On-open baseline capture** (`source:'open'`) so "as it was when I opened it" always exists even before the first save.
+- **[P3] `duo history diff`** (CLI-side unified diff between two snapshots / snapshot-vs-disk).
+- **[verify] Live CLI round-trip** (`duo history list/show/restore` against a running app) — blocked on sandbox (Unix-socket gated) + no Electron this session.
+
 ### FOLLOWUP-054: PR#98 interaction-review — pre-existing findings carried over (NOT fixed in v0.11.0)
 
 **Status:** 🆕 Filed 2026-06-15 (documentation only — tracked, not worked). **Priority:** see per-item. **Effort:** see per-item. **Provenance.** Surfaced by the multi-agent retro/interaction review run while landing ENH-216 (PR#98), then adversarially verified against the actual code. These are all **pre-existing** (owned by the merged PRs below, NOT introduced by ENH-216) — documented here so they don't evaporate; **no solutions ship in v0.11.0**. Each can graduate to its own BUG/ENH when picked up. (PR#98-introduced findings were fixed in `99c96c7`; this entry is only the pre-existing remainder. Refuted: the `forceInitial` LS-persist finding — current behavior is correct.)

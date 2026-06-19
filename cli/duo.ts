@@ -331,6 +331,13 @@ const VERBS: VerbSpec[] = [
     args: '[a|b|c]',
     summary: 'Read or set the Send → Duo payload format: a = quote + provenance (default), b = literal text only, c = opaque token. No arg prints current; an arg sets + persists.'
   },
+  {
+    name: 'history',
+    group: 'Markdown editor (doc)',
+    args: '<list|show|restore> <path> [<id>]',
+    summary:
+      'Durable version history for a saved file (independent of the editor undo stack). list <path> prints snapshots (id, ts, size, source) oldest→newest. show <path> <id> prints that version to stdout. restore <path> <id> writes that version back (echo-safe when the file is open; the editor reconciles). Backed by the content-addressed store in ~/.claude/duo/file-history/.'
+  },
 
   // ── HTML canvas ──
   {
@@ -1830,6 +1837,46 @@ async function main(): Promise<void> {
       case 'external': {
         const url = rest[0] ?? die('Usage: duo external <url>')
         out(await send('external', { url }))
+        break
+      }
+      case 'history': {
+        // ENH-221 — `duo history <list|show|restore> <path> [<id>]`.
+        // Durable version history, independent of the editor's undo stack.
+        const sub = rest[0]
+        if (!sub || sub === '--help' || sub === '-h') {
+          die('Usage: duo history <list|show|restore> <path> [<id>]')
+        }
+        const target = rest[1]
+        if (!target) die(`Usage: duo history ${sub} <path>${sub === 'list' ? '' : ' <id>'}`)
+        const resolved = resolveFilePath(target)
+        if (sub === 'list') {
+          const res = (await send('history', { sub: 'list', path: resolved })) as {
+            ok: boolean; snapshots?: Array<Record<string, unknown>>; error?: string
+          }
+          if (!res.ok) die(res.error ?? 'history list failed')
+          const snaps = res.snapshots ?? []
+          if (snaps.length === 0) {
+            process.stderr.write(`# no version history for ${resolved}\n`)
+          } else {
+            // One JSON object per line — pipe-friendly for agents.
+            for (const s of snaps) process.stdout.write(JSON.stringify(s) + '\n')
+          }
+        } else if (sub === 'show') {
+          const id = rest[2]
+          if (!id) die('Usage: duo history show <path> <id>')
+          const res = (await send('history', { sub: 'show', path: resolved, id })) as {
+            ok: boolean; content?: string; error?: string
+          }
+          if (!res.ok) die(res.error ?? 'history show failed')
+          process.stdout.write(res.content ?? '')
+          if (res.content && !res.content.endsWith('\n')) process.stdout.write('\n')
+        } else if (sub === 'restore') {
+          const id = rest[2]
+          if (!id) die('Usage: duo history restore <path> <id>')
+          out(await send('history', { sub: 'restore', path: resolved, id }))
+        } else {
+          die(`Unknown history subcommand: ${sub} — try: list | show | restore`)
+        }
         break
       }
       case 'selection-format': {

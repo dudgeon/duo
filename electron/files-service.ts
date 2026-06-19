@@ -21,6 +21,7 @@ import { shell } from 'electron'
 import type { WebContents } from 'electron'
 import chokidar, { FSWatcher } from 'chokidar'
 import type { DirEntry, FileReadResult, FileWriteResult, FileChangeEvent, FileStatResult, HtmlFileMeta } from '../shared/types'
+import type { FileHistoryService, SnapshotSource } from '../core/file-history-service'
 import type { FileSaveImageBesideResult } from '../shared/host-api'
 
 const execFileAsync = promisify(execFile)
@@ -87,6 +88,12 @@ export class FilesService {
       resolvedToOriginal: Map<string, string>
     }
   >()
+
+  /** ENH-221 — durable version-history sink. Set by main.ts after construction
+   *  (left null in tests / headless contexts). Every write that lands on disk
+   *  is mirrored into it fire-and-forget, so a history failure can never break
+   *  a save and history capture never adds latency to the save critical path. */
+  historyService: FileHistoryService | null = null
 
   async list(absPath: string): Promise<DirEntry[]> {
     const entries = await fs.readdir(absPath, { withFileTypes: true })
@@ -207,7 +214,11 @@ export class FilesService {
    * dirs as needed. Callers already have the absolute path from either the
    * open-file identity or the `duo edit` CLI resolution.
    */
-  async write(absPath: string, bytes: Uint8Array): Promise<FileWriteResult> {
+  async write(
+    absPath: string,
+    bytes: Uint8Array,
+    opts: { historySource?: SnapshotSource } = {}
+  ): Promise<FileWriteResult> {
     if (bytes.byteLength > MAX_READ_BYTES) {
       throw new Error(
         `File too large to write in-app (${bytes.byteLength} bytes; limit ${MAX_READ_BYTES}).`
@@ -218,6 +229,11 @@ export class FilesService {
     await fs.writeFile(tmp, bytes)
     await fs.rename(tmp, absPath)
     const st = await fs.stat(absPath)
+    // ENH-221 — mirror the just-saved bytes into version history, OFF the
+    // critical path (fire-and-forget; capture() never throws). Keeping this
+    // after the result is computed means history adds zero latency to saves,
+    // which is what lets us keep the 800ms autosave debounce fast.
+    this.historyService?.capture(absPath, bytes, { source: opts.historySource ?? 'save' })
     return { ok: true, size: st.size, mtimeMs: st.mtimeMs }
   }
 

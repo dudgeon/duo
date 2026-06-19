@@ -85,6 +85,7 @@ import { UpdateChecker } from '../core/update-checker'
 import { initAutoUpdater } from './auto-updater'
 import { SessionStateService } from '../core/session-state-service'
 import { SettingsService } from '../core/settings-service'
+import { FileHistoryService } from '../core/file-history-service'
 import { WorkspaceFileService } from '../core/workspace-file-service'
 import { WorkspaceHistoryService } from '../core/workspace-history-service'
 import { ActiveWorkspaceService } from '../core/active-workspace-service'
@@ -419,6 +420,10 @@ app.on('open-file', (event, path) => {
 })
 const ptyManager = new PtyManager(app.getVersion())
 const filesService = new FilesService()
+// ENH-221 — durable version history. Every Duo-mediated write (editor autosave,
+// `duo doc` verbs, restores) is mirrored into ~/.claude/duo/file-history/.
+const fileHistoryService = new FileHistoryService()
+filesService.historyService = fileHistoryService
 const pinsService = new PinsService()
 const navPinsService = new NavPinsService()
 // ENH-182 Phase 3 — persisted projects.json (pins + color overrides).

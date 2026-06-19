@@ -1089,6 +1089,42 @@ export class SocketServer {
           result = await this.nav.getStatus()
           break
         }
+        case 'history': {
+          // ENH-221 — durable file version history. sub ∈ list | show | restore.
+          // Backed by FilesService.historyService (the content-addressed store
+          // at ~/.claude/duo/file-history/). Reads are disk-direct; restore
+          // routes through this.files.write so it is itself captured AND the
+          // open editor reconciles via the watcher.
+          const sub = args['sub'] as string | undefined
+          const histPath = args['path'] as string | undefined
+          const id = args['id'] as string | undefined
+          const history = this.files.historyService
+          if (!history) {
+            result = { ok: false, error: 'history store unavailable' }
+            break
+          }
+          if (!histPath) {
+            result = { ok: false, error: 'history requires a <path>' }
+            break
+          }
+          if (sub === 'list') {
+            result = { ok: true, path: histPath, snapshots: await history.list(histPath) }
+          } else if (sub === 'show') {
+            if (!id) { result = { ok: false, error: 'history show requires <id>' }; break }
+            const bytes = await history.read(histPath, id)
+            if (!bytes) { result = { ok: false, error: `no snapshot ${id} for ${histPath}` }; break }
+            result = { ok: true, path: histPath, id, content: new TextDecoder().decode(bytes) }
+          } else if (sub === 'restore') {
+            if (!id) { result = { ok: false, error: 'history restore requires <id>' }; break }
+            const bytes = await history.read(histPath, id)
+            if (!bytes) { result = { ok: false, error: `no snapshot ${id} for ${histPath}` }; break }
+            const w = await this.files.write(histPath, bytes, { historySource: 'restore' })
+            result = { ok: true, path: histPath, restored: id, size: w.size }
+          } else {
+            result = { ok: false, error: `unknown history subcommand: ${String(sub ?? '(none)')} — try: list | show | restore` }
+          }
+          break
+        }
         case 'window': {
           // ENH-191 P5a (S3c) — `duo window new`. Only `new` is supported.
           // ENH-210 (D1-part2) — optional `--cwd <path>` roots the new
