@@ -82,110 +82,97 @@ details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(
 .copy-bar button.copied { background: var(--pass); }
 
 /* ============================================================
-   Per-playground patterns — editor-chrome mockups
+   Per-playground patterns — FAITHFUL editor-chrome mockups
+   Reproduces renderer/components/WorkingTabStrip.tsx +
+   editor/EditorToolbar.tsx + SaveControl.tsx at real scale,
+   using Duo's real app tokens (light mode, globals.css).
    ============================================================ */
-.mock-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0 8px; }
-@media (max-width: 720px) { .mock-grid { grid-template-columns: 1fr; } }
+.ed {
+  /* real Duo light-mode tokens (globals.css) */
+  --s0:#FBF8EE; --s1:#F0E9D6; --s2:#E8DFC8; --s3:#DFD4B6;
+  --edge:#E5DCC1; --rule:#D4C8A6;
+  --ed-ink:#1A1410; --ed-ink-soft:#3D352A; --ed-ink-mute:#7B6F58; --ed-ink-ghost:#B8AB8E;
+  --acc:#C66A2E; --acc-soft:#F2D9B8;
+  border: 1px solid var(--edge); border-radius: 10px; overflow: hidden;
+  background: var(--s0); box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  margin: 10px 0 4px; position: relative;
+}
+.ed.narrow { max-width: 360px; }
+.ed-cap { font-size: 12px; font-weight: 700; color: var(--ink-soft); margin: 22px 0 2px; }
+.ed-cap .sub { font-weight: 500; color: var(--ink-mute); }
 
-.mock {
-  border: 1px solid var(--paper-edge);
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--paper);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-  font-size: 12px;
-  display: flex;
-  flex-direction: column;
-  min-height: 232px;
-  position: relative;
-}
-.mock .mock-label {
-  position: absolute; top: 8px; right: 8px;
-  font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
-  color: var(--ink-ghost); background: color-mix(in srgb, var(--paper) 80%, transparent);
-  padding: 1px 6px; border-radius: 6px; z-index: 5;
-}
-/* tab strip */
-.mock .tabstrip {
-  display: flex; align-items: stretch; gap: 0;
-  background: var(--paper-deep); border-bottom: 1px solid var(--paper-edge);
-  height: 30px; padding-left: 8px;
-}
-.mock .tab {
-  display: flex; align-items: center; gap: 6px;
-  padding: 0 12px; font-size: 11px; color: var(--ink-mute);
-  border-right: 1px solid var(--paper-edge);
-}
-.mock .tab.active { background: var(--paper); color: var(--ink); font-weight: 600; }
-.mock .tab .dot { width: 6px; height: 6px; border-radius: 2px; background: var(--project-harbor); }
-.mock .tab-chip {
-  margin-left: 6px; font-size: 9.5px; font-weight: 700; padding: 1px 5px; border-radius: 6px;
-  background: var(--accent-soft); color: var(--accent);
-}
-/* toolbar */
-.mock .toolbar {
-  display: flex; align-items: center; gap: 10px;
-  padding: 5px 10px; border-bottom: 1px solid var(--paper-edge);
-  background: var(--paper); color: var(--ink-ghost); font-size: 12px;
-}
-.mock .toolbar .sp { flex: 1; }
-.mock .tbtn { color: var(--ink-mute); font-weight: 600; }
-/* doc body */
-.mock .doc { padding: 14px 16px; flex: 1; }
-.mock .doc .h { height: 11px; width: 56%; background: var(--ink); opacity: 0.78; border-radius: 3px; margin: 0 0 10px; }
-.mock .doc .ln { height: 7px; background: var(--ink); opacity: 0.16; border-radius: 3px; margin: 6px 0; }
-.mock .doc .ln.w1 { width: 92%; } .mock .doc .ln.w2 { width: 84%; } .mock .doc .ln.w3 { width: 70%; }
-.mock .doc .ln.edited { background: var(--accent); opacity: 0.5; }
-/* the primary action button (shared) */
-.pr-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  background: var(--accent); color: #fff; border: none;
-  font-weight: 700; font-size: 11px; padding: 5px 11px; border-radius: 6px; white-space: nowrap;
-}
-.pr-btn.ghost { background: transparent; color: var(--accent); border: 1.5px solid var(--accent); }
-.pr-btn .glyph { font-size: 12px; line-height: 1; }
-.count-pill { font-size: 9.5px; font-weight: 700; background: rgba(255,255,255,0.25); padding: 0 5px; border-radius: 7px; }
+/* —— tab strip (h-9 / 36px) —— */
+.ed-tabs { display: flex; align-items: flex-end; height: 36px; padding: 0 8px; gap: 2px; background: var(--s1); border-bottom: 1px solid var(--rule); }
+.ed-tab { position: relative; display: flex; align-items: center; gap: 6px; padding: 0 10px; height: 28px; border-radius: 8px 8px 0 0; color: var(--ed-ink-mute); font-size: 12px; }
+.ed-tab.active { background: var(--s0); color: var(--ed-ink); font-family: "New York","Iowan Old Style",Georgia,serif; font-style: italic; font-weight: 500; font-size: 13px; box-shadow: inset 0 1px 0 var(--rule), inset 1px 0 var(--rule), inset -1px 0 var(--rule); }
+.ed-tab.active::before { content:""; position:absolute; left:0; right:0; top:0; height:2px; background: var(--acc); border-radius: 8px 8px 0 0; }
+.ed-tab .ticon { width:10px; height:10px; flex:none; }
+.ed-tab.active .ticon { color: var(--acc); }
+.ed-tab:not(.active) .ticon { color: var(--ed-ink-ghost); }
+.ed-tab .fname { font-style: normal; }
+.ed-tab.active .fname { font-style: italic; }
+.ed-tab .dirty { width:6px; height:6px; border-radius:50%; background: var(--acc); flex:none; }
+.ed-tab .xbtn { width:14px; height:14px; display:flex; align-items:center; justify-content:center; color: var(--ed-ink-mute); font-size:10px; opacity:.8; }
+.ed-tabs .grow { flex:1; }
+.ed-newcluster { display:flex; align-items:center; margin-bottom:4px; }
+.ed-newcluster .vsep { width:1px; height:20px; background: var(--rule); }
+.ed-icbtn { width:26px; height:24px; display:flex; align-items:center; justify-content:center; color: var(--ed-ink-mute); }
+.ed-icbtn svg { width:11px; height:11px; }
 
-/* A — toolbar button (top-right) */
-/* (uses .toolbar + .pr-btn) */
+/* —— main toolbar (h-10 / 40px, gap-1, px-2) —— */
+.ed-tb { display:flex; align-items:center; height:40px; padding:0 8px; gap:4px; background: var(--s1); border-bottom:1px solid var(--rule); color: var(--ed-ink-soft); }
+.ed-tb.clip { overflow:hidden; }
+.ed-tb.scroll { overflow-x:auto; scrollbar-width:thin; }
+.ed-sel { display:inline-flex; align-items:center; gap:4px; background: var(--s2); border:1px solid var(--rule); border-radius:5px; padding:3px 7px; font-size:11px; color: var(--ed-ink-soft); white-space:nowrap; flex:none; }
+.ed-vsep { width:1px; height:20px; background: var(--rule); margin:0 2px; flex:none; }
+.ed-btn { width:28px; height:28px; flex:none; display:flex; align-items:center; justify-content:center; border-radius:6px; color: var(--ed-ink-soft); font-size:13px; }
+.ed-btn:hover { background: var(--s3); }
+.ed-btn.mono { font-family: ui-monospace, Menlo, monospace; font-size:11px; }
+.ed-btn.bld{font-weight:700;} .ed-btn.itl{font-style:italic;} .ed-btn.und{text-decoration:underline;} .ed-btn.stk{text-decoration:line-through;}
+.ed-btn.sm { font-size:11px; }
+.ed-btn svg { width:14px; height:14px; }
+.ed-spring { margin-left:auto; flex:none; }
+.ed-right { display:flex; align-items:center; gap:6px; flex:none; }
 
-/* B — slide-in banner under the toolbar */
-.mock .banner {
-  display: flex; align-items: center; gap: 10px;
-  background: color-mix(in srgb, var(--accent) 12%, var(--paper));
-  border-bottom: 1px solid var(--accent-soft);
-  padding: 7px 12px; font-size: 11px; color: var(--ink-soft);
-}
-.mock .banner .b-text { flex: 1; }
-.mock .banner .b-text strong { color: var(--ink); }
-.mock .banner .x { color: var(--ink-ghost); font-weight: 700; }
+/* SaveControl pill (h-6, rounded-full, min-w ~64px) */
+.ed-save { height:24px; display:inline-flex; align-items:center; justify-content:center; padding:0 10px; border-radius:999px; font-size:12px; font-weight:500; min-width:64px; white-space:nowrap; }
+.ed-save.saved { background:transparent; color: var(--ed-ink-mute); }
+.ed-save.unsaved { background: var(--acc); color:#fff; }
 
-/* C — status chip near the title that expands */
-.mock .chip-row { display: flex; align-items: center; gap: 8px; padding: 8px 16px 0; }
-.mock .status-chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 10.5px; font-weight: 600; color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, var(--paper));
-  border: 1px solid var(--accent-soft); border-radius: 12px; padding: 2px 9px;
-}
-.mock .status-chip .caret { opacity: 0.7; }
-.mock .chip-pop {
-  margin: 6px 16px 0; padding: 9px 11px;
-  border: 1px solid var(--paper-edge); border-radius: 7px; background: var(--paper-deep);
-  box-shadow: 0 4px 10px rgba(0,0,0,0.08); font-size: 10.5px; color: var(--ink-mute);
-}
-.mock .chip-pop .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.mock .chip-pop .files { margin: 4px 0 8px; color: var(--ink-soft); }
+/* the PR control (the thing under study) */
+.ed-pr { height:24px; display:inline-flex; align-items:center; gap:5px; padding:0 11px; border-radius:999px; background: var(--acc); color:#fff; font-size:11.5px; font-weight:700; white-space:nowrap; flex:none; }
+.ed-pr.ghost { background:transparent; color: var(--acc); border:1.5px solid var(--acc); }
+.ed-pr .glyph { font-size:12px; line-height:1; }
+.ed-pr .ct { background:rgba(255,255,255,.28); border-radius:7px; padding:0 5px; font-size:9.5px; }
 
-/* D — footer "propose changes" bar (Google-Docs suggesting feel) */
-.mock .footer-bar {
-  display: flex; align-items: center; gap: 10px;
-  background: color-mix(in srgb, var(--accent) 10%, var(--paper));
-  border-top: 1px solid var(--accent-soft);
-  padding: 8px 12px; font-size: 11px; color: var(--ink-soft); margin-top: auto;
-}
-.mock .footer-bar .f-text { flex: 1; }
-.mock .footer-bar .f-text strong { color: var(--ink); }
+/* —— doc body —— */
+.ed-doc { padding:16px 18px; background: var(--s0); }
+.ed-doc .h { height:12px; width:54%; background: var(--ed-ink); opacity:.82; border-radius:3px; margin:0 0 11px; }
+.ed-doc .ln { height:7px; border-radius:3px; background: var(--ed-ink); opacity:.14; margin:7px 0; }
+.ed-doc .ln.w1{width:94%}.ed-doc .ln.w2{width:86%}.ed-doc .ln.w3{width:72%}
+.ed-doc .ln.ch { background: var(--acc); opacity:.5; }
+
+/* treatment B — banner under toolbar */
+.ed-banner { display:flex; align-items:center; gap:10px; padding:7px 12px; background: color-mix(in srgb, var(--acc) 12%, var(--s0)); border-bottom:1px solid var(--acc-soft); font-size:11.5px; color: var(--ed-ink-soft); }
+.ed-banner .grow { flex:1; } .ed-banner strong { color: var(--ed-ink); }
+.ed-banner .x { color: var(--ed-ink-ghost); font-weight:700; }
+
+/* treatment C — chip in the tab strip + popover */
+.ed-chip { display:inline-flex; align-items:center; gap:5px; height:20px; padding:0 9px; border-radius:11px; font-size:10.5px; font-weight:600; color: var(--acc); background: color-mix(in srgb, var(--acc) 10%, var(--s0)); border:1px solid var(--acc-soft); align-self:center; }
+.ed-pop { position:relative; }
+.ed-popbox { margin:0 8px; padding:9px 11px; border:1px solid var(--edge); border-radius:8px; background: var(--s1); box-shadow:0 5px 14px rgba(0,0,0,.12); font-size:10.5px; color: var(--ed-ink-mute); position:relative; z-index:4; }
+.ed-popbox .row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.ed-popbox .files { color: var(--ed-ink-soft); margin-bottom:7px; }
+
+/* treatment D — footer bar */
+.ed-footer { display:flex; align-items:center; gap:10px; padding:8px 12px; background: color-mix(in srgb, var(--acc) 10%, var(--s0)); border-top:1px solid var(--acc-soft); font-size:11.5px; color: var(--ed-ink-soft); }
+.ed-footer .grow { flex:1; } .ed-footer strong { color: var(--ed-ink); }
+
+/* occlusion read-out under each mock */
+.occ { font-size:11.5px; color: var(--ink-soft); margin:6px 0 0; padding-left:12px; border-left:2px solid var(--paper-rule); }
+.occ .bad { color: var(--fail); font-weight:600; }
+.occ .ok { color: var(--pass); font-weight:600; }
+.occ .warn { color: var(--warn); font-weight:600; }
 
 /* the confirm sheet mock (D7) */
 .sheet-wrap { display: flex; justify-content: center; margin: 16px 0; }
@@ -250,143 +237,255 @@ details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(
 </div>
 
 <h2>Decision 1 · Where the affordance lives</h2>
-<p class="legend">Each mockup shows the same moment: you've edited two lines
-(<span style="color:var(--accent)">orange</span> = changed text) so the doc now
-differs from what was fetched. The treatments differ in <em>where</em> the
-"ship it" control surfaces.</p>
+<p class="legend">These mockups reproduce the <strong>real</strong> editor chrome —
+the <code>WorkingTabStrip</code> (36px, serif-italic active tab + new-tab
+cluster) and the <code>EditorToolbar</code> (40px; heading select · B I U S
+<code>&lt;/&gt;</code> · link · • 1. ☐ ❝ <code>{}</code> — table · undo/redo),
+ending in the right-aligned <code>SaveControl</code> pill. <strong>That Save
+pill is the key context:</strong> the toolbar's right edge is already occupied,
+and the bar already horizontal-scrolls on a narrow canvas (owner directive,
+2026-05-18; it never wraps). Each treatment is shown dropped into that real
+layout with an occlusion read-out.</p>
 
-<div class="mock-grid">
-
-  <!-- A — toolbar button -->
-  <div class="mock">
-    <div class="mock-label">A · Toolbar button</div>
-    <div class="tabstrip">
-      <div class="tab active"><span class="dot"></span>roadmap.md</div>
-    </div>
-    <div class="toolbar">
-      <span class="tbtn">B</span><span class="tbtn"><em>i</em></span><span class="tbtn">H1</span>
-      <span class="sp"></span>
-      <button class="pr-btn"><span class="glyph">⇪</span>Submit PR <span class="count-pill">2</span></button>
-    </div>
-    <div class="doc">
-      <div class="h"></div>
-      <div class="ln w1"></div>
-      <div class="ln w1 edited"></div>
-      <div class="ln w2"></div>
-      <div class="ln w3 edited"></div>
-      <div class="ln w2"></div>
-    </div>
-  </div>
-
-  <!-- B — slide-in banner -->
-  <div class="mock">
-    <div class="mock-label">B · Slide-in banner</div>
-    <div class="tabstrip">
-      <div class="tab active"><span class="dot"></span>roadmap.md</div>
-    </div>
-    <div class="toolbar">
-      <span class="tbtn">B</span><span class="tbtn"><em>i</em></span><span class="tbtn">H1</span><span class="sp"></span>
-    </div>
-    <div class="banner">
-      <span class="b-text"><strong>You've changed this doc.</strong> Propose your edits to <code>dudgeon/duo</code>?</span>
-      <button class="pr-btn">Submit PR</button>
-      <span class="x">✕</span>
-    </div>
-    <div class="doc">
-      <div class="h"></div>
-      <div class="ln w1"></div>
-      <div class="ln w1 edited"></div>
-      <div class="ln w3 edited"></div>
-      <div class="ln w2"></div>
-    </div>
-  </div>
-
-  <!-- C — status chip that expands -->
-  <div class="mock">
-    <div class="mock-label">C · Status chip → popover</div>
-    <div class="tabstrip">
-      <div class="tab active"><span class="dot"></span>roadmap.md</div>
-    </div>
-    <div class="chip-row">
-      <span class="status-chip">● 2 changes vs upstream <span class="caret">▾</span></span>
-    </div>
-    <div class="chip-pop">
-      <div class="files">roadmap.md · +2 −1</div>
-      <div class="row">
-        <span>From <code>dudgeon/duo</code> @ main</span>
-        <button class="pr-btn">Submit PR</button>
-      </div>
-    </div>
-    <div class="doc" style="padding-top:8px;">
-      <div class="ln w1 edited"></div>
-      <div class="ln w2"></div>
-      <div class="ln w3 edited"></div>
-    </div>
-  </div>
-
-  <!-- D — footer bar -->
-  <div class="mock">
-    <div class="mock-label">D · Footer "propose" bar</div>
-    <div class="tabstrip">
-      <div class="tab active"><span class="dot"></span>roadmap.md</div>
-    </div>
-    <div class="toolbar">
-      <span class="tbtn">B</span><span class="tbtn"><em>i</em></span><span class="tbtn">H1</span><span class="sp"></span>
-    </div>
-    <div class="doc">
-      <div class="h"></div>
-      <div class="ln w1"></div>
-      <div class="ln w1 edited"></div>
-      <div class="ln w2"></div>
-      <div class="ln w3 edited"></div>
-    </div>
-    <div class="footer-bar">
-      <span class="f-text"><strong>2 changes</strong> not yet proposed · <code>dudgeon/duo</code></span>
-      <button class="pr-btn"><span class="glyph">⇪</span>Submit PR</button>
-    </div>
-  </div>
-
+<div class="intro" style="margin:14px 0 6px;">
+  <strong>Two distinct states, two distinct controls.</strong> "Save" = saved to
+  the local checkout (the existing pill — reads <em>Saved</em> once on disk).
+  "Submit PR" = the local file <em>differs from the fetched upstream baseline</em>.
+  They're orthogonal: below, the doc is <strong>saved locally</strong> (Save pill
+  = muted "Saved") <strong>and</strong> diverged from upstream (the new affordance
+  is showing). <span style="color:var(--accent)">Orange lines</span> = edited text.
 </div>
+
+<div class="ed-cap">Reference · <span class="sub">the editor today — in sync, no divergence, no new affordance</span></div>
+<div class="ed">
+  <div class="ed-tabs">
+    <div class="ed-tab active">
+      <svg class="ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
+      <span class="fname">roadmap.md</span>
+    </div>
+    <div class="grow"></div>
+    <div class="ed-newcluster">
+      <span class="vsep"></span>
+      <span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+      <span class="vsep"></span>
+      <span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 2.5 15 0 18M12 3c-2.5 2.5-2.5 15 0 18"/></svg></span>
+      <span class="vsep"></span>
+      <span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="1.5"/><line x1="14" y1="5" x2="14" y2="19"/></svg></span>
+    </div>
+  </div>
+  <div class="ed-tb clip">
+    <span class="ed-sel">Paragraph ▾</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn bld">B</span><span class="ed-btn itl">I</span><span class="ed-btn und">U</span><span class="ed-btn stk">S</span><span class="ed-btn mono">&lt;/&gt;</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn">•</span><span class="ed-btn sm">1.</span><span class="ed-btn sm">☐</span><span class="ed-btn sm">❝</span><span class="ed-btn mono">{}</span><span class="ed-btn sm">—</span>
+    <span class="ed-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg></span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn sm">↶</span><span class="ed-btn sm">↷</span>
+    <span class="ed-spring"></span>
+    <div class="ed-right"><span class="ed-save saved">Saved</span></div>
+  </div>
+  <div class="ed-doc">
+    <div class="h"></div>
+    <div class="ln w1"></div><div class="ln w2"></div><div class="ln w1"></div><div class="ln w3"></div>
+  </div>
+</div>
+<p class="occ"><span class="ok">Baseline.</span> Note how full the bar already is, and that the right edge ends in the Save pill. Every treatment has to coexist with both.</p>
+
+<div class="ed-cap">A · <span class="sub">toolbar button — added to the right cluster, beside the Save pill</span></div>
+<div class="ed">
+  <div class="ed-tabs">
+    <div class="ed-tab active">
+      <svg class="ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
+      <span class="fname">roadmap.md</span>
+    </div>
+    <div class="grow"></div>
+    <div class="ed-newcluster">
+      <span class="vsep"></span><span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+      <span class="vsep"></span><span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 2.5 15 0 18M12 3c-2.5 2.5-2.5 15 0 18"/></svg></span>
+      <span class="vsep"></span><span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="1.5"/><line x1="14" y1="5" x2="14" y2="19"/></svg></span>
+    </div>
+  </div>
+  <div class="ed-tb clip">
+    <span class="ed-sel">Paragraph ▾</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn bld">B</span><span class="ed-btn itl">I</span><span class="ed-btn und">U</span><span class="ed-btn stk">S</span><span class="ed-btn mono">&lt;/&gt;</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn">•</span><span class="ed-btn sm">1.</span><span class="ed-btn sm">☐</span><span class="ed-btn sm">❝</span><span class="ed-btn mono">{}</span><span class="ed-btn sm">—</span>
+    <span class="ed-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg></span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn sm">↶</span><span class="ed-btn sm">↷</span>
+    <span class="ed-spring"></span>
+    <div class="ed-right">
+      <span class="ed-pr"><span class="glyph">⇪</span>Submit PR <span class="ct">2</span></span>
+      <span class="ed-save saved">Saved</span>
+    </div>
+  </div>
+  <div class="ed-doc">
+    <div class="h"></div>
+    <div class="ln w1"></div><div class="ln w1 ch"></div><div class="ln w2"></div><div class="ln w3 ch"></div>
+  </div>
+</div>
+<p class="occ"><span class="warn">Two pills now share the right edge.</span> The accent "Submit PR" reads loud right next to the muted "Save" — fine at full width, but the two compete for the most valuable real estate. See the narrow case ↓.</p>
+
+<div class="ed-cap">A (narrow) · <span class="sub">~360px canvas — the toolbar already scrolls; the right pills get pushed off</span></div>
+<div class="ed narrow">
+  <div class="ed-tabs">
+    <div class="ed-tab active">
+      <svg class="ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
+      <span class="fname">roadmap.md</span>
+    </div>
+    <div class="grow"></div>
+    <div class="ed-newcluster"><span class="vsep"></span><span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span></div>
+  </div>
+  <div class="ed-tb clip">
+    <span class="ed-sel">Paragraph ▾</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn bld">B</span><span class="ed-btn itl">I</span><span class="ed-btn und">U</span><span class="ed-btn stk">S</span><span class="ed-btn mono">&lt;/&gt;</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn">•</span><span class="ed-btn sm">1.</span><span class="ed-btn sm">☐</span><span class="ed-btn sm">❝</span>
+    <span class="ed-pr" style="margin-left:6px;"><span class="glyph">⇪</span>Submit PR <span class="ct">2</span></span>
+    <span class="ed-save saved" style="margin-left:6px;">Saved</span>
+  </div>
+  <div class="ed-doc"><div class="h"></div><div class="ln w1 ch"></div><div class="ln w2"></div></div>
+</div>
+<p class="occ"><span class="bad">The occlusion.</span> On a narrow canvas the 20-button bar overflow-scrolls; the right edge is clipped, so "Submit PR" lives <em>past</em> the formatting buttons in the scroll tail — exactly where a non-developer won't look. The accent pill also competes with the table/undo glyphs for the visible strip.</p>
+
+<div class="ed-cap">B · <span class="sub">slide-in banner — a full-width strip between the toolbar and the doc</span></div>
+<div class="ed">
+  <div class="ed-tabs">
+    <div class="ed-tab active">
+      <svg class="ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
+      <span class="fname">roadmap.md</span>
+    </div>
+    <div class="grow"></div>
+    <div class="ed-newcluster"><span class="vsep"></span><span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span><span class="vsep"></span><span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 2.5 15 0 18M12 3c-2.5 2.5-2.5 15 0 18"/></svg></span></div>
+  </div>
+  <div class="ed-tb clip">
+    <span class="ed-sel">Paragraph ▾</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn bld">B</span><span class="ed-btn itl">I</span><span class="ed-btn und">U</span><span class="ed-btn stk">S</span><span class="ed-btn mono">&lt;/&gt;</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn">•</span><span class="ed-btn sm">1.</span><span class="ed-btn sm">☐</span><span class="ed-btn sm">❝</span><span class="ed-btn mono">{}</span><span class="ed-btn sm">—</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn sm">↶</span><span class="ed-btn sm">↷</span>
+    <span class="ed-spring"></span>
+    <div class="ed-right"><span class="ed-save saved">Saved</span></div>
+  </div>
+  <div class="ed-banner">
+    <span class="grow"><strong>You've changed this doc.</strong> Propose your edits to <code>dudgeon/duo</code>?</span>
+    <span class="ed-pr">Submit PR</span>
+    <span class="x">✕</span>
+  </div>
+  <div class="ed-doc"><div class="h"></div><div class="ln w1 ch"></div><div class="ln w2"></div><div class="ln w3 ch"></div></div>
+</div>
+<p class="occ"><span class="ok">Zero toolbar impact</span> — all 20 buttons + Save pill untouched. Cost: a full-width strip pushes the doc down, and top banners read like an alert/error; needs a dismiss, and once dismissed it needs a fallback home.</p>
+
+<div class="ed-cap">C · <span class="sub">status chip in the tab strip → popover (the chip rides next to the tab, not the toolbar)</span></div>
+<div class="ed ed-pop">
+  <div class="ed-tabs">
+    <div class="ed-tab active">
+      <svg class="ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
+      <span class="fname">roadmap.md</span>
+    </div>
+    <span class="ed-chip">● 2 vs upstream ▾</span>
+    <div class="grow"></div>
+    <div class="ed-newcluster"><span class="vsep"></span><span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span><span class="vsep"></span><span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="1.5"/><line x1="14" y1="5" x2="14" y2="19"/></svg></span></div>
+  </div>
+  <div class="ed-tb clip">
+    <span class="ed-sel">Paragraph ▾</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn bld">B</span><span class="ed-btn itl">I</span><span class="ed-btn und">U</span><span class="ed-btn stk">S</span><span class="ed-btn mono">&lt;/&gt;</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn">•</span><span class="ed-btn sm">1.</span><span class="ed-btn sm">☐</span><span class="ed-btn sm">❝</span><span class="ed-btn mono">{}</span><span class="ed-btn sm">—</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn sm">↶</span><span class="ed-btn sm">↷</span>
+    <span class="ed-spring"></span>
+    <div class="ed-right"><span class="ed-save saved">Saved</span></div>
+  </div>
+  <div class="ed-popbox">
+    <div class="files">roadmap.md · <span style="color:var(--pass);font-weight:600">+2</span> <span style="color:var(--fail);font-weight:600">−1</span> vs <code>dudgeon/duo</code> @ main</div>
+    <div class="row"><span>No push access — will fork &amp; open a PR</span><span class="ed-pr">Submit PR</span></div>
+  </div>
+  <div class="ed-doc" style="padding-top:8px;"><div class="ln w1 ch"></div><div class="ln w2"></div><div class="ln w3 ch"></div></div>
+</div>
+<p class="occ"><span class="ok">No toolbar-button impact</span> (the chip lives in the tab strip), and it mirrors the git-status overlay (ENH-152). But the popover overlays the top of the doc, the chip is easy to miss for a first-timer, and it's the most IDE-flavored option — the opposite of the "effortless, Google-Docs" goal.</p>
+
+<div class="ed-cap">D · <span class="sub">footer "propose" bar — a strip at the bottom of the editor, below the doc</span></div>
+<div class="ed">
+  <div class="ed-tabs">
+    <div class="ed-tab active">
+      <svg class="ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
+      <span class="fname">roadmap.md</span>
+    </div>
+    <div class="grow"></div>
+    <div class="ed-newcluster"><span class="vsep"></span><span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span><span class="vsep"></span><span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 2.5 15 0 18M12 3c-2.5 2.5-2.5 15 0 18"/></svg></span><span class="vsep"></span><span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="1.5"/><line x1="14" y1="5" x2="14" y2="19"/></svg></span></div>
+  </div>
+  <div class="ed-tb clip">
+    <span class="ed-sel">Paragraph ▾</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn bld">B</span><span class="ed-btn itl">I</span><span class="ed-btn und">U</span><span class="ed-btn stk">S</span><span class="ed-btn mono">&lt;/&gt;</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn">•</span><span class="ed-btn sm">1.</span><span class="ed-btn sm">☐</span><span class="ed-btn sm">❝</span><span class="ed-btn mono">{}</span><span class="ed-btn sm">—</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn sm">↶</span><span class="ed-btn sm">↷</span>
+    <span class="ed-spring"></span>
+    <div class="ed-right"><span class="ed-save saved">Saved</span></div>
+  </div>
+  <div class="ed-doc"><div class="h"></div><div class="ln w1"></div><div class="ln w1 ch"></div><div class="ln w2"></div><div class="ln w3 ch"></div></div>
+  <div class="ed-footer">
+    <span class="grow"><strong>2 changes</strong> not yet proposed · <code>dudgeon/duo</code></span>
+    <span class="ed-pr"><span class="glyph">⇪</span>Submit PR</span>
+  </div>
+</div>
+<p class="occ"><span class="ok">Zero impact on the toolbar's 20 buttons and the Save pill, and zero impact on the tab strip.</span> Appears only on divergence; unmissable; the natural home to morph into "View PR / Update PR." Cost: a little bottom vertical space (parallels Google Docs' bottom "Suggesting" strip).</p>
 
 <section class="decision-card">
   <div class="q-title">Decision 1</div>
   <h3 class="q-prompt">Where should the "Submit PR" affordance live?</h3>
   <p class="q-context">It should be invisible until the doc diverges from the
   fetched baseline (your "button appears when local differs" rule), discoverable
-  without hunting, and not fight the writing surface. Trade-off is
-  always-visible/discoverable (A) vs. appears-on-divergence/attention-grabbing
-  (B, D) vs. quiet-but-tucked-away (C).</p>
+  without hunting, and — per the mockups — not crowd the already-full toolbar
+  (which ends in the Save pill and horizontal-scrolls when narrow).</p>
   <div class="q-options">
     <label class="q-option">
       <input type="radio" name="d1" value="D-footer-bar">
       <div class="q-option-body">
         <div class="q-option-title">D · Footer "propose" bar <span class="recommend-tag">Recommended</span></div>
-        <div class="q-option-rationale">Slides up from the bottom only on divergence; reads like Google Docs' "Suggesting" strip — "N changes not yet proposed." Out of the writing surface, unmissable when present, gone when in sync. Maps cleanly to your "Save → propose" mental model and to the post-state morph ("View PR / Update PR").</div>
+        <div class="q-option-rationale">The only option with <em>zero</em> impact on the toolbar buttons, the Save pill, and the tab strip — it's a separate strip below the doc that appears only on divergence. Reads like Google Docs' bottom "Suggesting" bar, is unmissable, and is the natural place to morph into "View PR / Update PR" (Decision 4). Cost is a little bottom vertical space.</div>
       </div>
     </label>
     <label class="q-option">
       <input type="radio" name="d1" value="A-toolbar-button">
       <div class="q-option-body">
-        <div class="q-option-title">A · Toolbar button (top-right)</div>
-        <div class="q-option-rationale">Lives where Google Docs' Share button does. Most discoverable (a fixed home), but it's then always-present chrome — to honor "appears on divergence" it would sit disabled/greyed until there are changes, which is a weaker signal than something that animates in.</div>
+        <div class="q-option-title">A · Toolbar button (right cluster)</div>
+        <div class="q-option-rationale">Lives where a Share button would, but the mockup shows it must share the right edge with the existing Save pill, and on a narrow canvas the 20-button bar already overflow-scrolls — so "Submit PR" ends up in the scroll tail, past the formatting buttons, where a non-developer won't look. Highest crowding risk.</div>
       </div>
     </label>
     <label class="q-option">
       <input type="radio" name="d1" value="B-banner">
       <div class="q-option-body">
         <div class="q-option-title">B · Slide-in banner (under the toolbar)</div>
-        <div class="q-option-rationale">Strongest "hey, you changed something" nudge — a dismissible banner at the top of the doc. Risk: top banners read as alerts/errors and eat vertical space above the content; once dismissed it needs a fallback home (likely the toolbar button anyway).</div>
+        <div class="q-option-rationale">Strongest nudge and no toolbar crowding, but a full-width strip above the content reads like an alert/error, pushes the doc down, and needs a dismiss + a fallback home once dismissed.</div>
       </div>
     </label>
     <label class="q-option">
       <input type="radio" name="d1" value="C-status-chip">
       <div class="q-option-body">
-        <div class="q-option-title">C · Status chip → popover</div>
-        <div class="q-option-rationale">Quietest: a "2 changes vs upstream" chip near the title that expands into a small share popover. Most IDE-like (mirrors the git-status overlay, ENH-152), but the least Google-Docs-y and the easiest to miss for a first-timer — the opposite of the "effortless" goal.</div>
+        <div class="q-option-title">C · Status chip in the tab strip → popover</div>
+        <div class="q-option-rationale">No toolbar-button impact (it rides in the tab strip) and mirrors the git-status overlay (ENH-152), but the popover overlays the doc, the chip is easy to miss, and it's the most IDE-flavored option — against the "effortless" goal.</div>
       </div>
     </label>
   </div>
-  <textarea class="q-notes" data-decision="d1" placeholder="Notes / a hybrid (e.g. 'footer bar + a persistent toolbar button after first submit')…"></textarea>
+  <textarea class="q-notes" data-decision="d1" placeholder="Notes / a hybrid (e.g. 'footer bar on divergence + a persistent View-PR chip in the tab strip after first submit')…"></textarea>
 </section>
 
 <h2>Decision 2 · What the button says</h2>
