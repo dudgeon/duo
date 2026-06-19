@@ -1,5 +1,21 @@
 # Active sprint state — ENH-208 Vault: Phase 1 SHIPPED + Phase 2 in flight (v0.10.0 carry-forward below)
 
+## ENH-221 — worktree lifecycle UX (owner verbal directive 2026-06-18, design playground filed)
+
+> **Owner directive:** "keep advancing the worktree controller UI" → two enhancements:
+> (1) PM-friendly **Create a worktree** from the dropdown, (2) **graceful removal**
+> when an agent merges+deletes the viewed worktree (no render crash; revert to main).
+> This is the **ENH-210 D5 B→C escalation** (write/lifecycle verbs, unblocked by the
+> non-technical-PM persona). High-fidelity flow study with 6 owner decisions filed at
+> [`docs/research/worktree-lifecycle-ux.html`](../research/worktree-lifecycle-ux.html);
+> D1-form-UI follow-up at [`docs/research/worktree-create-ui.html`](../research/worktree-create-ui.html).
+> **Walk 1 (2026-06-18):** D2–D6 + D1-approach (inline) locked; D1 *form UI* open (4 treatments).
+> **Next:** owner picks the form UI, then build (new `duo worktree new/remove` verbs +
+> nav ErrorBoundary/revert spine). Full entry: `tasks.md` ENH-221.
+> **NB (2026-06-18):** a broad worktree purge deleted this session's worktree mid-work
+> (uncommitted mockups lost + recreated from context, then committed). Lesson: commit
+> research artifacts immediately — and this incident is live evidence for enhancement (2).
+
 ## ENH-211 — navigator render-flicker (PRD filed, not yet built, 2026-06-11)
 
 > **Owner report:** "a lot of flickering in the file navigator." Root-caused to
