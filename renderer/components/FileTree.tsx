@@ -892,18 +892,18 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
       {state.removedWorktree && (
         <div
           role="status"
-          className="mx-2 mt-2 flex items-start gap-2 rounded-lg border border-l-[3px] px-2.5 py-2 text-[11px] text-ink-soft"
-          style={{ background: '#2a201a', borderColor: '#6b3f2a', borderLeftColor: 'var(--duo-accent)' }}
+          className="mx-2 mt-2 flex items-start gap-2 rounded-lg border border-l-[3px] px-2.5 py-2 text-[11px] text-[#D8CDB4]"
+          style={{ background: '#2a201a', borderColor: '#6b3f2a', borderLeftColor: '#E08F4A' }}
         >
-          <span aria-hidden="true" className="shrink-0 text-accent" style={{ lineHeight: 1.3 }}>⎇</span>
+          <span aria-hidden="true" className="shrink-0 text-[#E08F4A]" style={{ lineHeight: 1.3 }}>⎇</span>
           <div className="flex-1 leading-snug">
-            <span className="font-medium text-ink">Worktree “{state.removedWorktree.label}” was removed</span> — you’re back on main.
+            <span className="font-medium text-[#F4ECD8]">Worktree “{state.removedWorktree.label}” was removed</span> — you’re back on main.
           </div>
           <button
             type="button"
             onClick={() => actions.dismissRemovedWorktree()}
             aria-label="Dismiss"
-            className="shrink-0 text-ink-ghost transition-colors hover:text-ink"
+            className="shrink-0 text-[#A89B80] transition-colors hover:text-[#F4ECD8]"
           >
             ✕
           </button>
