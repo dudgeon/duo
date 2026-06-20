@@ -5,7 +5,16 @@
 
 ### ENH-221: Worktree lifecycle UX — PM-friendly create + graceful removal recovery (ENH-210 D5-C escalation)
 
-**Status:** 🟡 Awaiting-decision (design playground filed; 6 owner decisions open — D2–D6 + the D1 *approach* now locked, D1 *form UI* in a follow-up study). **Priority:** Strategic — agents-in-worktrees is Duo's reason to exist; a non-technical PM can't drive `git worktree add`, so Duo needs first-class Create + teardown. **Effort:** M–L. **Filed:** 2026-06-18 (owner verbal directive: "keep advancing the worktree controller UI"). **Parent:** ENH-210 (worktree-aware Duo). **Ticket-number guard:** 221 is free across all committed sibling-worktree `tasks.md` (max was 220); if a concurrent agent holds 221 uncommitted, this one (unmerged) renumbers per the multi-agent-collision rule.
+**Status:** 🚧 In progress — **all 6 decisions locked; Enhancement 1 (create flow) BUILT + live-verified** (branch `claude/eloquent-albattani-7c44d4`); Enhancement 2 (removal recovery) next. **Priority:** Strategic — agents-in-worktrees is Duo's reason to exist; a non-technical PM can't drive `git worktree add`, so Duo needs first-class Create + teardown. **Effort:** M–L. **Filed:** 2026-06-18 (owner verbal directive: "keep advancing the worktree controller UI"). **Parent:** ENH-210 (worktree-aware Duo). **Ticket-number guard:** 221 is free across all committed sibling-worktree `tasks.md` (max was 220); if a concurrent agent holds 221 uncommitted, this one (unmerged) renumbers per the multi-agent-collision rule.
+
+**Build log — Enhancement 1 (create flow), phased per owner (2026-06-18):**
+- `fc9ea43` **core** — `slugifyWorktreeName` (allow-list `[a-z0-9-]`) + `nextAvailableSlug` + `createWorktree`/`removeWorktree` (git worktree add/remove off main, collision-suffixed). 22 tests incl. live-git integration.
+- `87e3a31` **CLI** — `duo worktree new "<desc>" [--from] [--window]` + `duo worktree remove <path> [--force]`; 4-surface docs synced; check:skill-currency green; binary rebuilt.
+- `ad88dd7` **IPC + shared** — pure slug logic extracted to `shared/worktree-slug.ts` (+ `generateWorktreeCodename` for "Name it for me"); `git:createWorktree` channel (preload + main handler).
+- `ea79456` **renderer** — pill is now an always-on dropdown trigger; the "+ New worktree" inline form (Variant A): live slug preview (same shared fn → no drift), Name-it auto-name, Claude toggle (default on), Enter/Create → IPC → re-root.
+- **Live-verified (DOM probes, dev build):** pill always-on, form renders + auto-focuses, `Q3 Pricing: Copy & v2!` → `claude/q3-pricing-copy-v2` preview, Create → worktree created + navigator re-rooted, switch still works, remove via CLI. No React errors.
+- **v1 deferrals (UI only; CLI has parity):** (1) no base-branch picker in the form — defaults to the main branch; agents pick via `--from`. (2) create opens in THIS window only (D4=A); new-window via the existing per-row button / `worktree new --window`. Both acceptable for the nontechnical-PM default; revisit if asked.
+- **NOT a /smoke-walk yet** — owner option (a) gates a verify/smoke before Enhancement 2.
 
 **The two enhancements (owner).**
 1. **Create a worktree from the dropdown** — click the worktree pill → a "+ New worktree…" affordance that mints a worktree without the PM ever typing git. This is the **D5 B→C escalation**: ENH-210's D5 shipped read-only ("Claude makes worktrees via git") *"as long as Claude knows how to make worktrees"*; the non-technical-PM persona is the gating evidence for write/lifecycle verbs.
