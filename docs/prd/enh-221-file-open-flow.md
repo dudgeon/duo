@@ -97,7 +97,11 @@ touched.
 
 ### P1 · The resolver (the Open brain)
 
-- **User:** ⌘O → pastes a local path **or** a URL → Enter.
+- **User:** ⌘O → pastes a local path **or** a URL → Enter. Paste is primary, but
+  a **Browse…** button opens the native macOS open dialog (file **or** folder
+  selection enabled) for the mouse path — a picked file opens in its viewer, a
+  picked folder roots the navigator (both feed the same resolver). Treatment:
+  OQ-7 / DM3.
 - **Duo:** classify the input:
   1. **Local path** (`~/…`, absolute, relative, `file://`) → P-local (focus
      folder + open in viewer; this is today's `resolveOpenTarget` + navigator
@@ -280,7 +284,8 @@ hatch works; smoke-walked.
   single Open+Clone surface + the clone-success-screen redesign — Open/Done hero
   replacing "Clone another"):
   [`docs/research/file-open-clone-merged-ui.html`](../research/file-open-clone-merged-ui.html)
-  (DM1 merge depth · DM2 success hero).
+  (DM1 merge depth · DM2 success hero · DM3 native file/folder picker — a Browse…
+  button alongside paste).
 
 ---
 

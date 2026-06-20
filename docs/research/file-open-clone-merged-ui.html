@@ -115,6 +115,8 @@ code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12.5px;backgro
 .obtn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
 .obtn.ghost{background:transparent;}
 .obtn.link{border:none;background:transparent;color:var(--ink-mute);text-decoration:underline;font-weight:500;font-size:11px;padding:0;height:auto;}
+.ofield .obtn{height:26px;padding:0 11px;font-size:12px;}
+.oinput .obtn{height:24px;padding:0 10px;font-size:11px;}
 kbd{font-family:ui-monospace,Menlo,monospace;background:var(--paper);border:1px solid var(--paper-rule);border-radius:4px;padding:0 5px;font-size:10px;}
 .chkbox{width:13px;height:13px;border:1.5px solid var(--ink-ghost);border-radius:3px;display:inline-block;}
 
@@ -148,22 +150,29 @@ kbd{font-family:ui-monospace,Menlo,monospace;background:var(--paper);border:1px 
   <strong>success screen</strong>: today the hero button is "Clone another"
   (optimizing the rare case) — replaced with a clear success message and an
   <strong>Open</strong> / <strong>Done</strong> hero, with "clone another" demoted
-  to a quiet link.
+  to a quiet link. And per your note, the paste field stays primary but gains a
+  <strong>Browse…</strong> button that opens the native OS picker so local files
+  <em>and</em> folders can be chosen with the mouse.
 </div>
 
 <h2>1 · One surface, progressive states</h2>
 <p>It's the same overlay throughout — only the body changes as Duo learns what you
 pasted. No modal hand-off.</p>
 
-<div class="statecap"><span class="n">1</span>Launcher <span class="sub">— ⌘O on an empty field shows Open Recent (D14)</span></div>
+<div class="statecap"><span class="n">1</span>Launcher <span class="sub">— paste primary; Browse… opens the native picker; Open Recent (D14) below</span></div>
 <div class="obar">
-  <div class="ofield"><span class="lead">Open</span><span class="ph">Paste a path or a GitHub link…</span><span class="caret"></span></div>
+  <div class="ofield"><span class="lead">Open</span><span class="ph">Paste a path or a GitHub link…</span><span class="caret"></span><span class="obtn ghost">📁 Browse…</span></div>
   <div class="osection">Recent</div>
   <div class="orow sel"><span class="ic">📄</span><span class="lbl">roadmap.md</span><span class="meta">~/duo/docs</span></div>
   <div class="orow"><span class="ic">🐙</span><span class="lbl">dudgeon/duo › README.md</span><span class="meta">github · doc</span></div>
   <div class="orow"><span class="ic">📦</span><span class="lbl">vercel/next.js</span><span class="meta">github · repo</span></div>
   <div class="ofoot"><span class="left"><kbd>↑↓</kbd> pick · <kbd>↵</kbd> open</span><span class="right"><span class="obtn link">Clear recent</span></span></div>
 </div>
+<p class="note"><b>Browse…</b> opens the standard macOS open dialog with both file
+<em>and</em> folder selection enabled. Pick a <b>file</b> → it opens in its viewer
+(routed through the same resolver as a typed path). Pick a <b>folder</b> → it
+becomes the navigator root (focus the folder, like opening a project). Same
+result as typing the path — just by mouse.</p>
 
 <div class="flowdown">▼ &nbsp;you paste a GitHub <b>file</b> URL&nbsp; ▼</div>
 
@@ -194,7 +203,7 @@ pasted. No modal hand-off.</p>
   <div class="oclone">
     <div class="ofieldset">
       <label>Clone into</label>
-      <div class="oinput"><span class="folder">📁</span> ~/Documents<span class="caret"></span></div>
+      <div class="oinput"><span class="folder">📁</span> ~/Documents<span class="caret"></span><span style="flex:1"></span><span class="obtn ghost">Browse…</span></div>
       <div class="oderived">→ <b>~/Documents/duo</b></div>
     </div>
     <div class="ocheck"><span style="color:var(--pass)">✓</span> Destination is free — no collision.</div>
@@ -318,8 +327,26 @@ so it shouldn't own the hero button.</p>
   <textarea class="q-notes" data-decision="dm2" placeholder="Notes…"></textarea>
 </section>
 
+<section class="decision-card">
+  <div class="q-title">Decision DM3</div>
+  <h3 class="q-prompt">The native picker — one button or two?</h3>
+  <p class="q-context">Paste stays primary; Browse… is the mouse path. On macOS a single open dialog can allow selecting either a file or a folder. Picking a file opens it in its viewer; picking a folder roots the navigator there.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="dm3" value="combined">
+      <div class="q-option-body"><div class="q-option-title">One "Browse…" → combined file-or-folder dialog <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Matches "either files or folders" literally and keeps the launcher clean — one button. macOS supports a dialog with both <code>openFile</code> + <code>openDirectory</code>, so the user just selects whatever they want and hits Open.</div></div></label>
+    <label class="q-option"><input type="radio" name="dm3" value="two-buttons">
+      <div class="q-option-body"><div class="q-option-title">Two buttons: "Open File…" and "Open Folder…"</div>
+      <div class="q-option-rationale">Unambiguous about what you'll get, and avoids the slightly unusual combined dialog. Costs more chrome in the launcher and forces the user to decide file-vs-folder before they see the filesystem.</div></div></label>
+    <label class="q-option"><input type="radio" name="dm3" value="file-only">
+      <div class="q-option-body"><div class="q-option-title">"Browse…" → files only (folders by typing/drag)</div>
+      <div class="q-option-rationale">Simplest dialog, but it drops the mouse path for folders — exactly half of what you asked for. Not recommended.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="dm3" placeholder="Notes…"></textarea>
+</section>
+
 <div class="copy-bar">
-  <div class="copy-meta"><span id="answered-count">0</span> / 2 decisions answered</div>
+  <div class="copy-meta"><span id="answered-count">0</span> / 3 decisions answered</div>
   <button id="copy-btn" type="button">Copy decisions</button>
 </div>
 
@@ -327,6 +354,7 @@ so it shouldn't own the hero button.</p>
   const DECISIONS=[
     {name:'dm1',title:'DM1 · Merge depth'},
     {name:'dm2',title:'DM2 · Success hero'},
+    {name:'dm3',title:'DM3 · Native picker (one vs two buttons)'},
   ];
   function answered(){return DECISIONS.filter(d=>document.querySelector('input[name="'+d.name+'"]:checked')).length;}
   function refresh(){document.getElementById('answered-count').textContent=answered();}
