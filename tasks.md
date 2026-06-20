@@ -16,7 +16,7 @@
 - 4-surface sync (cli-reference.md · agents/duo.md · CLI-COVERAGE.md · `check:skill-currency` green) + `npm run build:cli` + `npm run sync:claude`. Full suite **1601/1601** green, typecheck clean.
 
 **Open / deferred (next phases):**
-- **[P1, UI] History-panel + per-version diff.** Surface shape is an OPEN owner UX choice (panel vs modal vs split vs inline timeline) — must be asked, not silently decided. Needs live Electron verify + a smoke-walk.
+- **[P1, UI — AWAITING OWNER DECISION] History view surface + per-version diff.** Decision playground filed at [docs/research/enh-221-history-view.html](docs/research/enh-221-history-view.html) (4 mocked surfaces — right rail / modal / aux split / save-chip popover — + 4 decision cards: surface · restore behavior · row content · diff display). **Surface shape is an OPEN owner UX choice — must be decided from the playground, NOT assumed.** Surfaces in every smoke walk until the owner closes it. Once decided: build the chosen surface + live Electron verify + smoke-walk.
 - **[P2] Capture external / raw-`Edit` writes** that bypass `FilesService` (arrive via the chokidar watcher). Have main read content on watch-change and `capture({source:'external'})`. This is what fully covers "the agent overwrote my work".
 - **[P2] On-open baseline capture** (`source:'open'`) so "as it was when I opened it" always exists even before the first save.
 - **[P3] `duo history diff`** (CLI-side unified diff between two snapshots / snapshot-vs-disk).
