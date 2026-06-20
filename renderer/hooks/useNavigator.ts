@@ -15,7 +15,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DirEntry } from '@shared/types'
-import { findDeadExpandedPaths, nearestExistingAncestor } from './pruneDeadPaths'
+import { findDeadExpandedPaths, nearestExistingAncestor, pathIsWithin } from './pruneDeadPaths'
 
 // ENH-191 P4 (seam 3b) — cwd + expanded are per-window navigation STATE (each
 // window browses its own location/tree), so they namespace by THIS window's id
@@ -55,6 +55,20 @@ export interface NavigatorState {
   showDotfiles: boolean
   /** Children cache keyed by absolute path. `null` means loading. */
   listings: Map<string, DirEntry[] | null>
+  /** ENH-221 (D5) — set when the navigator auto-reverted to main because
+   *  the CURRENT worktree was removed under-foot (agent merged + `git
+   *  worktree remove`). Drives the dismissible "back on main" banner; null
+   *  when there's nothing to announce. */
+  removedWorktree: { label: string } | null
+}
+
+/** ENH-221 (D6) — the current linked worktree's identity, captured by the
+ *  consumer while the worktree is ALIVE so the self-heal can revert to its
+ *  main checkout (not a path ancestor) once the dir vanishes. */
+export interface WorktreeRevertTarget {
+  worktreeRoot: string
+  mainRoot: string
+  label: string
 }
 
 export interface NavigatorActions {
@@ -90,6 +104,13 @@ export interface NavigatorActions {
    *  any "reveal X" callsite (`nav:reveal` action verb, file-tab
    *  context-menu "Reveal in navigator"). */
   revealAndSelect: (filePath: string) => void
+  /** ENH-221 (D6) — feed the CURRENT linked worktree's identity here while
+   *  it's alive, so the self-heal can revert to MAIN (not the nearest path
+   *  ancestor) when the worktree dir vanishes. Pass null on main / a
+   *  non-worktree checkout. */
+  setWorktreeRevertTarget: (target: WorktreeRevertTarget | null) => void
+  /** ENH-221 (D5) — dismiss the "back on main" banner. */
+  dismissRemovedWorktree: () => void
 }
 
 export function useNavigator(initialCwd: string, forceInitial = false) {
@@ -124,6 +145,12 @@ export function useNavigator(initialCwd: string, forceInitial = false) {
     try { return localStorage.getItem(LS_KEY_SHOW_DOTFILES) === '1' } catch { return false }
   })
   const [listings, setListings] = useState<NavigatorState['listings']>(() => new Map())
+  // ENH-221 (D5/D6) — worktree-removal recovery. `removedWorktree` drives
+  // the "back on main" banner; `revertTargetRef` holds the current linked
+  // worktree's identity (fed by FileTree while alive) so the self-heal can
+  // revert to MAIN when the dir vanishes.
+  const [removedWorktree, setRemovedWorktree] = useState<{ label: string } | null>(null)
+  const revertTargetRef = useRef<WorktreeRevertTarget | null>(null)
   // Latest cwd, readable from the stable `ensureListing` callback (whose
   // deps are []). Lets the ENOENT self-heal decide whether the dead path
   // is the current cwd without re-creating the callback every navigation.
@@ -268,13 +295,30 @@ export function useNavigator(initialCwd: string, forceInitial = false) {
           })
           setPrimaryPath(prev => (prev === path ? null : prev))
           if (cwdRef.current === path) {
-            void nearestExistingAncestor(
-              path,
-              p => window.electron.files.dirExists(p),
-              '/'
-            ).then(fallback => {
-              setCwd(prev => (prev === path ? fallback : prev))
-            })
+            // ENH-221 (D5/D6) — if the dead cwd is the linked worktree the
+            // consumer flagged as current, revert to its MAIN checkout (not
+            // the nearest path ancestor — for a nested worktree that would
+            // strand the user in `.claude/worktrees/`) and raise the "back
+            // on main" banner. Otherwise fall back to the pre-ENH-221
+            // nearest-existing-ancestor heal.
+            const rt = revertTargetRef.current
+            const ancestorHeal = () =>
+              nearestExistingAncestor(path, p => window.electron.files.dirExists(p), '/').then(fallback => {
+                setCwd(prev => (prev === path ? fallback : prev))
+              })
+            if (rt && pathIsWithin(path, rt.worktreeRoot)) {
+              void window.electron.files.dirExists(rt.mainRoot).then(mainAlive => {
+                if (mainAlive) {
+                  setCwd(prev => (prev === path ? rt.mainRoot : prev))
+                  setRemovedWorktree({ label: rt.label })
+                  revertTargetRef.current = null
+                } else {
+                  void ancestorHeal()
+                }
+              }).catch(() => { void ancestorHeal() })
+            } else {
+              void ancestorHeal()
+            }
           }
         }).catch(() => { /* probe unreachable — leave nav state intact */ })
       }
@@ -367,6 +411,9 @@ export function useNavigator(initialCwd: string, forceInitial = false) {
     setCwd(path)
     setSelectedItems(new Map())
     setPrimaryPath(null)
+    // ENH-221 — an explicit navigation dismisses a stale "back on main"
+    // banner (e.g. the user picks another worktree right after a revert).
+    setRemovedWorktree(null)
   }, [])
 
   const selectItem = useCallback((path: string, kind: 'file' | 'folder') => {
@@ -477,6 +524,14 @@ export function useNavigator(initialCwd: string, forceInitial = false) {
     ensureListing(path)
   }, [ensureListing])
 
+  // ENH-221 (D6) — FileTree feeds the live worktree identity; the self-heal
+  // consumes it when the cwd dies. Setting a ref (not state) avoids a
+  // re-render on every gitSnap refresh.
+  const setWorktreeRevertTarget = useCallback((target: WorktreeRevertTarget | null) => {
+    revertTargetRef.current = target
+  }, [])
+  const dismissRemovedWorktree = useCallback(() => setRemovedWorktree(null), [])
+
   // ENH-147 — derive `selected` for back-compat. Points at the primary
   // entry of selectedItems when one exists, or any remaining entry if
   // primaryPath was removed but the map still has members. Null when
@@ -492,7 +547,7 @@ export function useNavigator(initialCwd: string, forceInitial = false) {
     return { path: firstPath, kind: firstKind }
   })()
 
-  const state: NavigatorState = { cwd, selectedItems, selected, expanded, pinned, showDotfiles, listings }
+  const state: NavigatorState = { cwd, selectedItems, selected, expanded, pinned, showDotfiles, listings, removedWorktree }
   const actions: NavigatorActions = {
     navigateTo,
     selectItem,
@@ -504,7 +559,9 @@ export function useNavigator(initialCwd: string, forceInitial = false) {
     toggleExpand,
     togglePinned,
     toggleShowDotfiles,
-    refresh
+    refresh,
+    setWorktreeRevertTarget,
+    dismissRemovedWorktree
   }
 
   return { state, actions, setCwd }

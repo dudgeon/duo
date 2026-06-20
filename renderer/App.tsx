@@ -4453,6 +4453,12 @@ export function App() {
           onMouseDown={() => setFocusedColumn('files')}
           aria-label="Files column"
         >
+          {/* ENH-221 (D5) — scoped boundary so an unforeseen navigator
+              render error (e.g. stale worktree state mid-removal) degrades
+              to an in-pane panel + Reload, never a blank window. The
+              useNavigator self-heal handles the expected vanished-cwd case;
+              this is defense-in-depth. */}
+          <ErrorBoundary inline label="Navigator">
           <FilesPane
             ref={filesPaneRef}
             collapsed={filesCollapsed}
@@ -4512,6 +4518,7 @@ export function App() {
             // Finder, Open terminal here.
             onBreadcrumbContextMenu={onBreadcrumbContextMenu}
           />
+          </ErrorBoundary>
         </div>
 
         <div

@@ -206,6 +206,26 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
   // gets an inline chip on its row. Independent of the ribbon: the
   // ribbon fires when CWD-itself is in a repo; the per-folder chips
   // fire on CHILD-FOLDERS that are repos.
+  // ENH-221 (D6) — feed the navigator the CURRENT linked worktree's
+  // identity while it's alive, so its self-heal can revert to MAIN (not a
+  // path ancestor) and raise the "back on main" banner if the agent removes
+  // this worktree under-foot.
+  useEffect(() => {
+    if (rootEntriesOverride !== undefined) return
+    if (gitSnap?.isLinkedWorktree && gitSnap.workTreeRoot && gitSnap.mainWorktreeRoot) {
+      const label = gitSnap.workTreeRoot.split('/').filter(Boolean).pop() || gitSnap.branch || 'worktree'
+      actions.setWorktreeRevertTarget({
+        worktreeRoot: gitSnap.workTreeRoot,
+        mainRoot: gitSnap.mainWorktreeRoot,
+        label
+      })
+    } else {
+      actions.setWorktreeRevertTarget(null)
+    }
+    // actions is stable (useNavigator callbacks); gitSnap fields are the signal.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gitSnap?.isLinkedWorktree, gitSnap?.workTreeRoot, gitSnap?.mainWorktreeRoot, gitSnap?.branch, rootEntriesOverride])
+
   const repoName = repoBasenameFor(gitSnap?.workTreeRoot ?? null)
   const chipTooltip = gitSnap ? formatGitStatusTooltip(gitSnap, repoName) : ''
 
@@ -862,6 +882,29 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
           user can see where the .git lives (helps when the ribbon
           surprises them by showing in a directory they didn't realize
           was a git repo). */}
+      {/* ENH-221 (D5) — worktree-removed recovery banner. Shown after the
+          navigator auto-reverts to main because the viewed worktree was
+          removed under-foot. Dismissible; also auto-clears on any navigate. */}
+      {state.removedWorktree && (
+        <div
+          role="status"
+          className="mx-2 mt-2 flex items-start gap-2 rounded-lg border border-l-[3px] px-2.5 py-2 text-[11px] text-ink-soft"
+          style={{ background: '#2a201a', borderColor: '#6b3f2a', borderLeftColor: 'var(--duo-accent)' }}
+        >
+          <span aria-hidden="true" className="shrink-0 text-accent" style={{ lineHeight: 1.3 }}>⎇</span>
+          <div className="flex-1 leading-snug">
+            <span className="font-medium text-ink">Worktree “{state.removedWorktree.label}” was removed</span> — you’re back on main.
+          </div>
+          <button
+            type="button"
+            onClick={() => actions.dismissRemovedWorktree()}
+            aria-label="Dismiss"
+            className="shrink-0 text-ink-ghost transition-colors hover:text-ink"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       {gitChip && isInRepo && gitSnap?.workTreeRoot && (
         <div ref={worktreeMenuRef} className="relative mx-2 mt-2 mb-1">
           {/* ENH-210 (D4) → navigator pill ("Navigator: Claude-context
