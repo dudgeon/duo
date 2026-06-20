@@ -327,6 +327,19 @@ export type DuoCommandName =
   // Takes an <id> from `term tabs`, NOT a bare index — `duo tab <n>` owns
   // the browser number space (CLI-COVERAGE note ~line 252).
   | 'term'
+  // ENH-221 — scheduled ("cron") Claude sessions. Single 'cron' command
+  // with a discriminated `op` arg:
+  //   list                    → all jobs as CronJobView[] (+ next-fire + label)
+  //   add  --name --cwd --say  → create a job (--every <preset> [--at] [--on]
+  //                              | --cron "<expr>"; --session same|fresh; --catch-up)
+  //   show <id>               → one job's CronJobView
+  //   run  <id>              → fire now (manual), same path as a scheduled fire
+  //   pause|resume <id>      → disable / enable without deleting
+  //   rm   <id>              → delete
+  // App-global (not window-scoped); the run's landing window is resolved
+  // from the job's cwd (D10), not --window. Runs are INTERACTIVE only —
+  // headless `-p` is gated by FEATURE_HEADLESS_CRON (default off, D4).
+  | 'cron'
 
 // ── Stage 18b — Distro skill packs ───────────────────────────────────────────
 // A pack is a directory under `~/.claude/duo/packs/<name>/` carrying a
@@ -670,6 +683,74 @@ export interface ProjectsStateSnapshot {
   /** Live member counts per project root, keyed by root path. Used
    *  by `duo project list --counts` and by the CLI close confirm. */
   counts: Record<string, { terminals: number; workingTabs: number; hasClaudeKindTerminal: boolean }>
+}
+
+// ── ENH-221 — scheduled ("cron") Claude sessions ──────────────────────────────
+// A job is a saved recipe (cwd + initial instruction + periodicity +
+// fresh/same-session) that Duo's in-app scheduler fires WHILE DUO IS OPEN by
+// opening an interactive Claude terminal tab. Duo only does session start +
+// initial instruction; all execution stays interactive (headless `-p` is gated
+// off by FEATURE_HEADLESS_CRON — D4). Persisted at ~/.claude/duo/cron-jobs.json.
+// PRD: docs/prd/enh-221-scheduled-sessions.md.
+
+/** Whether each run continues the previous run's session or starts fresh (D3). */
+export type CronSessionMode = 'fresh' | 'same'
+
+/** A job's periodicity — a friendly preset or a raw 5-field cron expression
+ *  (F3 "presets + advanced cron"). Times are LOCAL. Weekdays: 0=Sun..6=Sat. */
+export type CronSchedule =
+  | { kind: 'preset'; preset: 'hourly'; minute: number }
+  | { kind: 'preset'; preset: 'daily'; hour: number; minute: number }
+  | { kind: 'preset'; preset: 'weekdays'; hour: number; minute: number }
+  | { kind: 'preset'; preset: 'weekly'; weekday: number; hour: number; minute: number }
+  | { kind: 'cron'; expr: string }
+
+/** Outcome of the most recent run (F4 — last-run + status). `fresh-fallback`
+ *  = a "same" job whose prior session was gone, so it started fresh (D3). */
+export type CronRunState = 'ran' | 'fresh-fallback' | 'missed' | 'error'
+
+/** A scheduled job — the persisted shape inside cron-jobs.json `jobs[]`. */
+export interface CronJob {
+  /** Stable Duo-minted id (e.g. `job_<uuid>`). */
+  id: string
+  /** Human label shown on Home + in `duo cron list`. */
+  name: string
+  /** Absolute working directory the run launches in. */
+  cwd: string
+  /** The initial instruction — Claude's positional prompt (D2). */
+  instruction: string
+  /** fresh = new session each run; same = resume the last run's session (D3). */
+  session: CronSessionMode
+  schedule: CronSchedule
+  /** Per-job override of the global "run once on next launch" default (D5).
+   *  null = inherit the file-level `settings.defaultCatchUpOnLaunch`. */
+  catchUpOnLaunch: boolean | null
+  /** Paused jobs persist but never fire. */
+  enabled: boolean
+  /** Duo-minted pointer to the session the last run created (D3, ENH-183 D9).
+   *  null until the first run. */
+  lastSessionId: string | null
+  /** ISO timestamp of the last run, or null. */
+  lastRunAt: string | null
+  lastRunState: CronRunState | null
+  /** ISO timestamp the job was created (the catch-up baseline before first run). */
+  createdAt: string
+}
+
+/** The cron-jobs.json on-disk envelope (app-global, D1). */
+export interface CronJobsFile {
+  version: number
+  jobs: CronJob[]
+  settings: { defaultCatchUpOnLaunch: boolean }
+}
+
+/** Read-model row for `duo cron list` / `show` — a job plus the computed
+ *  next-fire time and a human-readable schedule label. */
+export interface CronJobView extends CronJob {
+  /** ISO timestamp of the next scheduled fire, or null (disabled / unschedulable). */
+  nextFireAt: string | null
+  /** Human label, e.g. "every day at 09:00" or "weekdays at 08:30". */
+  scheduleLabel: string
 }
 
 // Stage 21c — session state restored across Duo relaunches.

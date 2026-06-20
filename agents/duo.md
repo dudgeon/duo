@@ -259,6 +259,12 @@ empty.
 | `duo term tabs` | Enumerate the window's terminal tabs: `{tabs: [{id, kind, cwd, title, active}], activeTabId}`. Use it to discover the `id` for `duo term tab`. Honors `--window N`. |
 | `duo term tab <id>` | Switch the focused terminal tab to the one with that `id` (from `duo term tabs`). **Not** a bare index — `duo tab <n>` addresses *browser* tabs. Returns `{ ok }`. |
 | `duo term close <id> [--force]` | Close the terminal tab by `id` (from `duo term tabs`); kills its PTY. Refused when a live `claude` runs there unless `--force`. (By-index variant: `duo close-terminal-tab [<n>]`.) Returns `{ ok }`. |
+| `duo cron list` | ENH-221 — list scheduled ("cron") Claude jobs (`CronJobView[]`: job + `nextFireAt` + `scheduleLabel` + last-run status). Runs are interactive-only and fire only while Duo is open. |
+| `duo cron add --name <n> --cwd <path> --say "<instruction>" (--every hourly\|daily\|weekdays\|weekly [--at HH:MM] [--on <weekday>] \| --cron "<expr>") [--session fresh\|same] [--catch-up]` | Create a job. On fire, opens an interactive Claude tab (`claude --session-id <uuid> "<instruction>"`, or `--resume` for `--session same`). `--catch-up` = run once on next launch if missed while closed. Headless `-p` rejected (gated off). Returns `CronJobView`. |
+| `duo cron run <id>` | Fire a job now (manual), same path as a scheduled fire. Returns `CronJobView`. |
+| `duo cron pause <id>` / `duo cron resume <id>` | Disable / re-enable a job without deleting it. Returns `CronJobView`. |
+| `duo cron show <id>` | Inspect one job (`CronJobView`). |
+| `duo cron rm <id>` | Delete a job. Returns `{ ok, removed }`. |
 | `duo window new` | ENH-191 P5a — open a SECOND app window (blank; its own workspace/browser/navigator). Same as File → New Window (⌥⌘N). Gated on "Allow Multiple Windows" (Settings, default on); exits non-zero when off. CLI parity for the menu item. |
 | `duo window new [--cwd <path>]` | ENH-191 P5a — open a SECOND app window (blank; its own workspace/browser/navigator). Same as File → New Window (⌥⌘N). `--cwd` roots the new window's navigator at a path (e.g. a git worktree — ENH-210). Gated on "Allow Multiple Windows" (Settings, default on); exits non-zero when off. CLI parity for the menu item. |
 | `duo windows` | ENH-191 P5a (Tier-3) — list open windows `[{id, primary, focused, activeWorkspace}]`. Pair with the global `--window N` flag (or a terminal's auto-stamped `DUO_WINDOW`) to target one: `duo --window 2 dom body`. |

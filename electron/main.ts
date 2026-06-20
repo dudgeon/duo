@@ -1,7 +1,7 @@
 import { app, BrowserWindow, Menu, dialog, ipcMain, nativeImage, nativeTheme, protocol, session, shell, webContents, clipboard } from 'electron'
 import type { MenuItemConstructorOptions, WebContents } from 'electron'
 import * as nodeFs from 'fs/promises'
-import { watch as fsWatchSync, mkdirSync as fsMkdirSync, existsSync as fsExistsSync } from 'fs'
+import { watch as fsWatchSync, mkdirSync as fsMkdirSync, existsSync as fsExistsSync, realpathSync as fsRealpathSync } from 'fs'
 import * as nodePath from 'path'
 import { execSync, execFile } from 'child_process'
 import { promisify } from 'util'
@@ -91,6 +91,10 @@ import { ActiveWorkspaceService } from '../core/active-workspace-service'
 import { BROWSER_SESSION_PARTITION } from '../core/constants'
 import { ClaudePresenceProbe, mapLiveClaudeOwners } from '../core/claude-presence'
 import { buildResumeCommand, detectLatestClaudeSession, encodeProjectDir, listTopLevelSessions } from './claude-session-tracker'
+import { CronStore } from '../core/cron-store'
+import { CronService } from '../core/cron-service'
+import { deepestEnclosingRoot } from '../shared/projects'
+import { FEATURE_HEADLESS_CRON } from '../shared/feature-flags'
 import { buildHomeSnapshot, listHomeSessions, attributeOpenSessions, type OpenByUuid, type LiveCwdGroup } from './home-snapshot'
 import { BrowserHistoryService } from '../core/browser-history-service'
 import { ExternalDomainsService } from '../core/external-domains-service'
@@ -451,6 +455,32 @@ const projectsStateCache = new WindowKeyedCache<import('../shared/types').Projec
 export function getProjectsState(): import('../shared/types').ProjectsStateSnapshot {
   return projectsStateCache.getOrDefault(cliDefaultWindowId())
 }
+
+// ENH-221 (D10) — resolve which window a scheduled run lands in. Preference:
+// if EXACTLY ONE open window's focused project encloses the job's cwd, use it;
+// otherwise the primary window (lowest-id, identity — never focus). Returns
+// undefined when no window is open (the run is then a "missed" run — D5).
+// Realpaths both sides so a symlinked cwd (e.g. /tmp → /private/tmp) matches.
+function realpathTolerant(p: string): string {
+  try {
+    return fsRealpathSync(p)
+  } catch {
+    return p
+  }
+}
+function resolveCronLandingWindow(jobCwd: string): number | undefined {
+  const realCwd = realpathTolerant(jobCwd)
+  const matches: number[] = []
+  for (const ctx of registry.all()) {
+    const snap = projectsStateCache.get(ctx.id)
+    if (!snap?.focusedProject) continue
+    const roots = new Set(snap.projects.map((p) => realpathTolerant(p.root)))
+    const target = deepestEnclosingRoot(realCwd, roots)
+    if (target && target === realpathTolerant(snap.focusedProject)) matches.push(ctx.id)
+  }
+  if (matches.length === 1) return matches[0]
+  return registry.primary()?.id
+}
 export function setProjectFocus(
   root: string | null
 ): { ok: boolean; error?: string } {
@@ -531,6 +561,13 @@ const settingsService = new SettingsService()
 const workspaceFileService = new WorkspaceFileService()
 const workspaceHistoryService = new WorkspaceHistoryService()
 const activeWorkspaceService = new ActiveWorkspaceService()
+// ENH-221 — scheduled ("cron") Claude sessions. App-global store
+// (~/.claude/duo/cron-jobs.json); the CronService (the in-app tick scheduler)
+// is created in whenReady once the store is loaded + windows are restored, and
+// torn down in before-quit. Runs are interactive only (FEATURE_HEADLESS_CRON
+// gates headless, default off).
+const cronStore = new CronStore()
+let cronService: CronService | null = null
 
 // ENH-167 v1.2 — autosave mirror. Every flush of session-state.json
 // also writes the active .duo-workspace if one is loaded. The hook
@@ -1561,6 +1598,13 @@ app.whenReady().then(async () => {
     // surface dropped with S2. Users type `/rename` directly in Claude.
     // ENH-212 (Home) — `duo session open <uuid>` full click contract.
     sessionOpen: sessionOpenForCli,
+    // ENH-221 — `duo cron <op>` scheduled-session management. Delegates to the
+    // main-process CronService (created in whenReady). App-global state, so it
+    // ignores --window; a run's landing window is resolved from the job's cwd.
+    cron: (op, args) => {
+      if (!cronService) throw new Error('cron service is not ready yet')
+      return cronService.handleCli(op, args)
+    },
     // ENH-212 (Home) — `duo home` + `duo term tabs|tab` CLI parity.
     showHome: showHomeForCli,
     getHomeState: getHomeStateForCli,
@@ -1770,6 +1814,35 @@ app.whenReady().then(async () => {
   // replace with a banner-integrated experience.
   initAutoUpdater()
 
+  // ENH-221 — load the cron store + start the in-app scheduler now that
+  // services exist and windows are restored (so run-landing resolution sees
+  // live windows + their focused projects). The runner spawns an INTERACTIVE
+  // run via the existing shell-tab path (kind:'shell' + a full `claude …\n`
+  // command); D4 headless gate lives in CronService (FEATURE_HEADLESS_CRON).
+  try {
+    await cronStore.load()
+    cronService = new CronService({
+      store: cronStore,
+      headlessAllowed: FEATURE_HEADLESS_CRON,
+      // D3 — does a prior session's JSONL still exist for (cwd, sessionId)?
+      sessionExists: async (cwd, sessionId) => {
+        const p = nodePath.join(homedir(), '.claude', 'projects', encodeProjectDir(cwd), `${sessionId}.jsonl`)
+        return fsExistsSync(p)
+      },
+      runner: {
+        spawn: async ({ cwd, command }) => {
+          const windowId = resolveCronLandingWindow(cwd) // D10
+          const r = await dispatchNewTabToWindow(windowId, { kind: 'shell', cwd, cmd: command })
+          return { ok: r.ok, error: r.error }
+        }
+      },
+      log: (msg) => console.log(msg)
+    })
+    cronService.start()
+  } catch (err) {
+    console.warn('[main] cron scheduler failed to start:', err)
+  }
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) void createWindow()
   })
@@ -1790,6 +1863,11 @@ app.on('before-quit', async () => {
     const probe = c.presence as ClaudePresenceProbe | undefined
     probe?.stop()
   }
+  // ENH-221 — stop the cron tick loop (jobs stay persisted in cron-jobs.json;
+  // each mutation already persisted synchronously through the store's queue, so
+  // no flush is owed here).
+  cronService?.stop()
+  cronService = null
   ptyManager.dispose()
   // ENH-191 P1c — app-scoped teardown on the ONLY quit path. On darwin
   // window-all-closed does NOT fire on Cmd+Q (BUG-119 above), and the closed

@@ -412,6 +412,13 @@ const VERBS: VerbSpec[] = [
     summary: 'Manage terminal tabs. term tabs enumerates the window\'s terminal tabs ([{id, kind, cwd, title, active}]); term tab <id> activates the tab with that id; term close <id> [--force] closes it (kills its PTY — refused if a live claude is running there unless --force). Take ids from "term tabs" — NOT a bare index; "duo tab <n>" owns the browser number space. Honors --window N.'
   },
   {
+    name: 'cron',
+    group: 'Scheduling',
+    args: '<list|add|run|pause|resume|rm|show> [args]',
+    summary:
+      'Scheduled ("cron") Claude sessions — fire a Claude command in a project on a schedule, INTERACTIVELY (Duo does session start + initial instruction, then hands control to you; runs only fire while Duo is open). list shows jobs (+ next-fire + status); add --name <n> --cwd <path> --say "<instruction>" (--every hourly|daily|weekdays|weekly [--at HH:MM] [--on <weekday>] | --cron "<expr>") [--session fresh|same] [--catch-up]; run <id> fires now; pause / resume / rm / show <id> manage one job (ids from "cron list").'
+  },
+  {
     name: 'claude-return',
     group: 'Terminal',
     args: '[submit|newline]',
@@ -2383,6 +2390,58 @@ async function main(): Promise<void> {
         break
       }
 
+      case 'cron': {
+        // ENH-221 — scheduled ("cron") Claude sessions. Single 'cron' socket
+        // command with a discriminated op. Runs are INTERACTIVE only (Duo does
+        // session start + initial instruction); headless `-p` is gated off.
+        //   cron list
+        //   cron add --name <n> --cwd <path> --say "<instruction>"
+        //            (--every hourly|daily|weekdays|weekly [--at HH:MM] [--on <weekday>]
+        //             | --cron "<expr>")  [--session fresh|same] [--catch-up]
+        //   cron show|run|pause|resume|rm <id>
+        const sub = rest[0]
+        if (!sub) {
+          die('Usage: duo cron <list|add|run|pause|resume|rm|show> [args]')
+        }
+        if (sub === 'list') {
+          out(await send('cron', { op: 'list' }))
+        } else if (sub === 'add') {
+          const name = flagValue(rest, '--name')
+          const cwd = flagValue(rest, '--cwd')
+          const say = flagValue(rest, '--say')
+          if (!name) {
+            die('Usage: duo cron add --name <name> --cwd <path> --say "<instruction>" (--every <preset> [--at HH:MM] [--on <weekday>] | --cron "<expr>") [--session fresh|same] [--catch-up]')
+          }
+          if (!cwd) die('duo cron add: --cwd <path> is required')
+          if (!say) die('duo cron add: --say "<instruction>" is required')
+          const payload: Record<string, unknown> = {
+            op: 'add',
+            name,
+            cwd: resolveFilePath(cwd),
+            instruction: say
+          }
+          const cron = flagValue(rest, '--cron')
+          const every = flagValue(rest, '--every')
+          const at = flagValue(rest, '--at')
+          const on = flagValue(rest, '--on')
+          const sessionMode = flagValue(rest, '--session')
+          if (cron) payload.cron = cron
+          if (every) payload.every = every
+          if (at) payload.at = at
+          if (on) payload.on = on
+          if (sessionMode) payload.session = sessionMode
+          if (rest.includes('--catch-up')) payload.catchUp = true
+          out(await send('cron', payload))
+        } else if (sub === 'show' || sub === 'run' || sub === 'pause' || sub === 'resume' || sub === 'rm') {
+          const id = rest[1]
+          if (!id) die(`Usage: duo cron ${sub} <id>   (id from "duo cron list")`)
+          out(await send('cron', { op: sub, id }))
+        } else {
+          die(`Unknown cron sub-op: ${sub}. Expected list|add|run|pause|resume|rm|show.`)
+        }
+        break
+      }
+
       case 'workspace-pill-menu': {
         // ENH-184 (Sprint 23 / v0.8.0) — toggle the workspace-pill
         // click-to-open-menu localStorage flag (default OFF). Bare
@@ -3059,6 +3118,7 @@ function renderCommandsBlock(): string {
     'HTML canvas',
     'Working pane & layout',
     'Terminal',
+    'Scheduling',
     'Workspace & projects',
     'Repo & git',
     // ENH-208 vault / graph / base verbs (extended by ENH-216 OKF mode).

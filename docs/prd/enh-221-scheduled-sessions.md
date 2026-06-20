@@ -180,4 +180,53 @@ stores):
 
 Final verbs sync across `cli/duo.ts`, `skill/SKILL.md`, `agents/duo.md`,
 `docs/CLI-COVERAGE.md` (CLAUDE.md #3).
-</content>
+
+---
+
+## 9. Implementation notes — Tier 1 (engine + CLI), 2026-06-20
+
+Tier 1 shipped: the store, scheduler, run path, `-p` gate, window resolution,
+and the full `duo cron` cluster. Module map:
+
+- `core/cron-schedule.ts` — pure schedule math (preset/cron → next-fire +
+  describe + arg parsing).
+- `core/cron-command.ts` — pure `claude` command building + shell-quoting +
+  the D4 headless gate (`assertInteractiveCommand`).
+- `core/cron-store.ts` — `cron-jobs.json` persistence (injectable `baseDir`,
+  atomic write, write-queue serialized).
+- `core/cron-service.ts` — Electron-free orchestrator (tick scheduler,
+  catch-up, fresh/same decision, CLI dispatch). Deps (runner, `sessionExists`)
+  injected so it unit-tests with fake timers + a mock runner.
+- `electron/main.ts` — constructs `CronService` in `whenReady` (runner =
+  `dispatchNewTabToWindow({ kind:'shell', cwd, cmd })` + `resolveCronLandingWindow`
+  for D10; `sessionExists` via `encodeProjectDir`), starts/stops it across the
+  app lifecycle, and exposes `NavBridge.cron`.
+- `core/socket-server.ts` — `case 'cron'` → `nav.cron(op, args)`.
+- `cli/duo.ts` — `case 'cron'` cluster + a `Scheduling` help group.
+- `shared/types.ts` (`CronJob`/`CronJobsFile`/`CronSchedule`/`CronJobView`) +
+  `shared/feature-flags.ts` (`FEATURE_HEADLESS_CRON = false`).
+
+**Deviation from D8 (tracked, not hidden).** D8 locked "add a small cron-parser
+dependency." Tier 1 ships a **self-contained, dependency-free engine** in
+`core/cron-schedule.ts` instead — it builds and tests offline (the cloud
+build environment is network-gated and has no cron lib) with a clean
+esbuild/electron-vite bundle, and supports the full preset set + standard
+5-field cron (lists/ranges/steps, dom/dow either-match, DST-correct local-time
+next-fire by minute-stepping). The whole surface is isolated behind
+`nextFireAfterSchedule` / `describeSchedule` / `parseScheduleArgs`, so swapping
+in `cron-parser` (+ a describer) later — if richer expressions or a fancier
+human-readable preview are wanted — is a one-file change. Satisfies D8's intent
+(don't re-derive next-fire ad hoc per call) without the dependency risk.
+
+**Verified:** 55 cron unit tests + the full suite (1626) green; typecheck clean
+(node + web); CLI builds, `--help` renders the `Scheduling` group, arg-validation
+correct; `check:skill-currency` passes (4-surface sync). **Not yet exercised
+live:** the socket round-trip + actual tab spawn against a running Electron app
+(needs a Mac dev session; the cloud container has no Electron binary). The run
+decision/scheduling logic is fully unit-tested behind a mock runner; the live
+seam is the thin `main.ts` runner wiring.
+
+**Still owed (out of Tier 1):** Tier 2 (Home surface + create dialog + row
+actions), ENH-223 (the "waiting on you" tab badge), and the logged future ENHs
+(ENH-222 launchd launch; headless `-p` mode; full run-history view).
+
