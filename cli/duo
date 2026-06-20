@@ -4894,6 +4894,20 @@ function hashColorIndex(rootPath) {
   return h % NUM_PROJECT_COLORS;
 }
 
+// shared/worktree-slug.ts
+var MAX_SLUG_LEN = 50;
+function slugifyWorktreeName(input) {
+  return input.toLowerCase().replace(/[\s_]+/g, "-").replace(/[^a-z0-9-]/g, "").replace(/-{2,}/g, "-").replace(/^-+/, "").slice(0, MAX_SLUG_LEN).replace(/-+$/, "");
+}
+function nextAvailableSlug(base, taken) {
+  if (!taken(base)) return base;
+  for (let i = 2; i < 1e3; i++) {
+    const cand = `${base}-${i}`;
+    if (!taken(cand)) return cand;
+  }
+  return `${base}-${Date.now()}`;
+}
+
 // core/git/worktree.ts
 var EMPTY_IDENTITY = {
   isLinkedWorktree: false,
@@ -4989,18 +5003,6 @@ async function listWorktrees(cwd, opts = {}) {
 }
 var WORKTREES_SUBDIR = ".claude/worktrees";
 var BRANCH_PREFIX = "claude/";
-var MAX_SLUG_LEN = 50;
-function slugifyWorktreeName(input) {
-  return input.toLowerCase().replace(/[\s_]+/g, "-").replace(/[^a-z0-9-]/g, "").replace(/-{2,}/g, "-").replace(/^-+/, "").slice(0, MAX_SLUG_LEN).replace(/-+$/, "");
-}
-function nextAvailableSlug(base, taken) {
-  if (!taken(base)) return base;
-  for (let i = 2; i < 1e3; i++) {
-    const cand = `${base}-${i}`;
-    if (!taken(cand)) return cand;
-  }
-  return `${base}-${Date.now()}`;
-}
 function dirExistsSafe(p) {
   try {
     return fs13.existsSync(p);

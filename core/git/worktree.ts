@@ -20,9 +20,13 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { execGit } from './exec'
 import { hashColorIndex } from '../../shared/projects'
-import type { WorktreeInfo } from '../../shared/host-api'
+import { slugifyWorktreeName, nextAvailableSlug } from '../../shared/worktree-slug'
+import type { WorktreeInfo, CreateWorktreeResult } from '../../shared/host-api'
 
-export type { WorktreeInfo } from '../../shared/host-api'
+export type { WorktreeInfo, CreateWorktreeResult } from '../../shared/host-api'
+// Re-export the pure slug helpers so existing importers (the CLI, the
+// worktree.test.ts unit tests) keep resolving them from this module.
+export { slugifyWorktreeName, nextAvailableSlug } from '../../shared/worktree-slug'
 
 export interface WorktreeIdentity {
   /** True when `cwd` resolves into a linked (non-main) worktree. */
@@ -193,44 +197,6 @@ export async function listWorktrees(
 
 const WORKTREES_SUBDIR = '.claude/worktrees'
 const BRANCH_PREFIX = 'claude/'
-const MAX_SLUG_LEN = 50
-
-/**
- * Sanitize free-typed text into a slug safe as BOTH a directory name and
- * a git branch ref: lowercase · spaces/underscores → `-` · allow-list
- * `[a-z0-9-]` (strip everything else) · collapse + trim hyphens · cap
- * length. The allow-list is deliberately stricter than either constraint
- * alone — git refs also forbid ` ~ ^ : ? * [ \ ..`, all excluded here —
- * so the result can never break a path or a ref. Returns `''` for input
- * that sanitizes to nothing (caller falls back to an auto-name).
- *
- *   "Q3 Pricing: Copy & v2!" → "q3-pricing-copy-v2"
- */
-export function slugifyWorktreeName(input: string): string {
-  return input
-    .toLowerCase()
-    .replace(/[\s_]+/g, '-')      // whitespace + underscores → hyphen
-    .replace(/[^a-z0-9-]/g, '')   // allow-list: strip everything else
-    .replace(/-{2,}/g, '-')       // collapse repeated hyphens
-    .replace(/^-+/, '')           // trim leading hyphens
-    .slice(0, MAX_SLUG_LEN)       // cap length
-    .replace(/-+$/, '')           // trim trailing (incl. a slice mid-hyphen)
-}
-
-/**
- * First slug in the series `base`, `base-2`, `base-3`, … for which
- * `taken(slug)` is false. Pure — the impurity (fs + branch existence)
- * lives in the `taken` predicate the caller supplies — so it's unit-
- * testable. Bounded; falls back to a timestamped suffix.
- */
-export function nextAvailableSlug(base: string, taken: (slug: string) => boolean): string {
-  if (!taken(base)) return base
-  for (let i = 2; i < 1000; i++) {
-    const cand = `${base}-${i}`
-    if (!taken(cand)) return cand
-  }
-  return `${base}-${Date.now()}`
-}
 
 function dirExistsSafe(p: string): boolean {
   try {
@@ -246,18 +212,6 @@ export interface CreateWorktreeOptions {
   /** Base commit-ish for the new branch. Defaults to the repo's main
    *  worktree branch (i.e. "from main"). */
   fromRef?: string
-}
-
-export interface CreateWorktreeResult {
-  ok: boolean
-  /** Absolute path of the new worktree (also set on a failed `add` so the
-   *  caller can report what it tried). */
-  path?: string
-  /** Full branch name created, e.g. `claude/q3-pricing-copy-v2`. */
-  branch?: string
-  /** The resolved slug (after sanitize + collision suffix). */
-  slug?: string
-  error?: string
 }
 
 /**
