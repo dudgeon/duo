@@ -1,6 +1,6 @@
 # ENH-221 PRD — Unified Open & GitHub round-trip ("open a remote doc like it's local; Save → PR")
 
-**Status:** Draft for owner sign-off · 2026-06-19 (UI decisions + Open Recent walked 2026-06-20) · **Owner:** Geoff · **Tracker:** `tasks.md` § ENH-221 · **Decisions captured via:** two AskUserQuestion rounds (2026-06-19) + the OQ-1 UI-study walk (2026-06-20), folded into § 3. · **Preview:** (renders as source on GitHub — read the markdown.)
+**Status:** Draft for owner sign-off · 2026-06-19 (UI decisions + Open Recent walked 2026-06-20) · **Build started 2026-06-20** (Phase-0 verifiable core landed — see § 6a) · **Owner:** Geoff · **Tracker:** `tasks.md` § ENH-221 · **Decisions captured via:** two AskUserQuestion rounds (2026-06-19) + the OQ-1 UI-study walk + the merged-UI walk (2026-06-20), folded into § 3. · **Preview:** (renders as source on GitHub — read the markdown.)
 
 ---
 
@@ -82,6 +82,9 @@ intelligible to humans and agents that have no concept of this feature.
 | **D12** | Confirm-sheet depth | **Full: title + branch + fork-note + inline diff.** The sheet shows exactly what's about to be proposed (the diff is the reviewable artifact) and makes the auto-fork (D3) honest with a visible fork-note. Still one tap if you don't read it. (UI-study walk 2026-06-20) |
 | **D13** | Post-PR state | **Morph in place.** After a PR opens, the same footer affordance becomes "Proposed · View PR ↗"; on the next edit it shows "Update PR" (push to the same branch). One surface, full lifecycle — no new chrome. (UI-study walk 2026-06-20) |
 | **D14** | Open Recent | **Persist the last ~10 Open-bar targets** (local paths + GitHub URLs), **machine-global**, surfaced in **File ▸ Open Recent** and inside the empty Open bar. Stored as **pointers** (target string + label + kind + last-opened) resolved live; missing targets self-heal (greyed/pruned) — no mirrored state (§12). CLI twin: `duo recent`. (owner 2026-06-20) |
+| **D15** | Merged surface depth | **Full inline merge (DM1).** One ⌘O surface handles open-a-doc *and* clone-a-repo as one progressive flow (paste → resolve → for a repo: inline clone confirm → cloning → success) — no hand-off to a separate modal. The standalone `CloneModal` is folded into the Open surface over time; the success-screen redesign (D16) lands first against the existing modal so the win ships immediately. (merged-UI walk 2026-06-20) |
+| **D16** | Clone success hero | **Context-aware Open / Done (DM2).** Replace the "Clone another" hero: from a file URL → hero **"Open &lt;file&gt;"**; from a bare repo URL → hero **"Done"** (navigator already focused). "Clone another" demoted to a quiet text link. Success body is one clean line, not a wall of next-steps text. **Independently shippable** against today's `CloneModal`. (merged-UI walk 2026-06-20) |
+| **D17** | Native picker | **Single combined "Browse…" (DM3).** Paste stays primary; a **Browse…** button opens the native macOS open dialog with **both** `openFile` + `openDirectory` enabled. Picked file → opens in its viewer; picked folder → roots the navigator. Same resolver as a typed path. (Two-button File…/Folder… is the cross-platform fallback if Duo ever leaves macOS.) (merged-UI walk 2026-06-20) |
 
 **Owner directive (carried from ENH-208 r2 walk).** Every shipped verb lands the
 full **4-surface sync** (`cli/duo.ts` · `skill/SKILL.md` · `agents/duo.md` ·
@@ -247,6 +250,27 @@ binary view-only confirmation.
 hatch works; smoke-walked.
 
 ---
+
+## 6a · Build status (live — updated 2026-06-20)
+
+Built incrementally on `claude/duo-file-open-flow-g3rpdx`. Because the build
+runs in a **remote cloud session that can't launch the Electron GUI**, the
+split below is deliberate: pure/logic modules are **unit-tested + type-clean**;
+UI changes are **type-clean only** and owe a smoke-walk on the owner's machine.
+
+| Piece | Decision | State | Verification |
+| --- | --- | --- | --- |
+| `core/open-resolve.ts` — the resolver (classify local-path / github-file / github-repo / url) | D1, D5/DR6 | ✅ landed | 26 unit tests pass |
+| `core/open-recents-service.ts` — Open Recent store (`~/.claude/duo/open-recents.json`, pointers, self-healing, cap 10) | D14 | ✅ landed | 10 unit tests pass |
+| `CloneModal` success-screen redesign — clean message + Done hero, "Clone another" demoted to a link | D16 | ✅ landed (code) | type-clean; **owes smoke-walk** (cloud session) |
+| Open bar surface (⌘O command palette) + Browse… picker + Open Recent UI + record-on-open wiring | D15, D17, D14 | ⏳ next increment | needs the live app to build + smoke-walk |
+| GitHub round-trip (file-vs-repo fork, sparse checkout, share-back/PR, auto-fork) + clone convergence | DR1–DR6, D2–D9 | ⛔ blocked | DR1–DR6 unwalked |
+
+**Sequencing note.** D16 ships against today's standalone `CloneModal` so the
+owner-requested success fix lands immediately; the *full-inline merge* (D15)
+folds that modal into the Open surface later. The resolver + recents store are
+the foundation the Open bar consumes — landed + tested ahead of the UI so the
+surface build is lower-risk.
 
 ## 7 · Open questions (build-time / owner)
 

@@ -209,6 +209,19 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
     }
   }
 
+  // D16 — reset the form for another clone WITHOUT closing the modal (the
+  // demoted "Clone another" link). The prior code re-ran handleClone() on
+  // the same URL, which just collided; this clears url/result/collision so
+  // the user genuinely starts a fresh clone, and re-focuses the URL field.
+  const resetForAnother = () => {
+    setUrl('')
+    setRepoName('')
+    setResult(null)
+    setCollisionState(null)
+    setCollisionAbsPath('')
+    setTimeout(() => urlInputRef.current?.focus(), 0)
+  }
+
   // Auth-missing banner: shown when gh isn't authenticated AND we
   // know it (auth probe completed). Doesn't block submitting (git
   // clone may still work for public repos), just sets expectations.
@@ -342,39 +355,26 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
           </div>
         )}
         {result && result.ok && (
-          // FOLLOWUP-025 v2 walk-rev3 — owner: "cloning a repo can seem
-          // mysterious, so I think the clone process deserves some more
-          // feedback to the user and a message, post success, about
-          // what they should/can do next; not too heavy, but also not
-          // completely opaque." Replaced the 1-liner with a clearer
-          // confirmation + next-step suggestions. Navigator is already
-          // navigated to the new folder by App.tsx's onCloned handler.
+          // ENH-221 D16 — success-screen redesign. The prior panel led with
+          // a wall of next-step prose; the owner's note: "cloning >1 repo at
+          // a time is an edge case — show a success message and make the hero
+          // either Done or Open." So: one clean confirmation line; the action
+          // moves to the footer (Open / Done hero, "Clone another" demoted).
+          // (Rebase 2026-06-21: adopts main's duo-banner-ok/duo-text-ok theme.)
           <div className="mb-3 px-4 py-3 rounded border duo-banner-ok">
             <div className="flex items-start gap-2">
               <span className="duo-text-ok text-base leading-none" aria-hidden="true">✓</span>
               <div className="flex-1 min-w-0">
                 <div className="duo-text-ok font-semibold text-sm">
-                  Cloned via {result.via}
+                  Cloned {repoName || 'repository'}
                 </div>
                 <div className="duo-text-ok text-xs mt-1 font-mono break-all">
                   {result.clonedTo}
                 </div>
+                <div className="text-emerald-200/80 text-xs mt-1">
+                  It’s now in your navigator.
+                </div>
               </div>
-            </div>
-            <div className="duo-text-ok text-xs mt-3 leading-relaxed">
-              <strong className="duo-text-ok">Navigator is now showing the new folder.</strong>{' '}
-              You can:
-              <ul className="mt-1 ml-4 list-disc duo-text-ok space-y-0.5">
-                <li>Click any file in the navigator to open it.</li>
-                <li>
-                  Right-click the repo folder → <em>Open terminal here</em>{' '}
-                  for a shell at the repo root.
-                </li>
-                <li>
-                  Press <kbd className="font-mono duo-banner-ok px-1 rounded">⌘O</kbd>{' '}
-                  to jump to any file by name.
-                </li>
-              </ul>
             </div>
           </div>
         )}
@@ -414,24 +414,49 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
           </div>
         )}
 
-        <div className="flex gap-2 justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={busy}
-            className="px-3 py-1 text-sm border border-border rounded text-ink hover:bg-accent/10 disabled:opacity-50"
-          >
-            {result?.ok ? 'Done' : 'Cancel'}
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleClone()}
-            disabled={!canClone}
-            className="px-3 py-1 text-sm bg-accent text-white rounded hover:bg-accent/90 disabled:opacity-50"
-          >
-            {busy ? 'Cloning…' : result?.ok ? 'Clone another' : 'Clone'}
-          </button>
-        </div>
+        {result?.ok ? (
+          // D16 — success footer. Hero = Done (the bare-repo clone is the
+          // only origin today: File ▸ Clone… / FileTree / duo clone). When
+          // the merged Open flow routes a *file* URL into clone (DR-gated),
+          // the hero becomes "Open <file>" via an openAfter prop — the
+          // documented seam. "Clone another" is the demoted quiet link
+          // (multi-clone is the edge case, per owner).
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={resetForAnother}
+              className="text-xs text-ink-mute hover:text-ink underline"
+            >
+              Clone another
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-1 text-sm bg-accent text-white rounded hover:bg-accent/90"
+            >
+              Done
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-2 justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={busy}
+              className="px-3 py-1 text-sm border border-border rounded text-ink hover:bg-accent/10 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleClone()}
+              disabled={!canClone}
+              className="px-3 py-1 text-sm bg-accent text-white rounded hover:bg-accent/90 disabled:opacity-50"
+            >
+              {busy ? 'Cloning…' : 'Clone'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

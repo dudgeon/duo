@@ -168,7 +168,11 @@
 
 **Phasing.** P0 Open bar + Open Recent (local + url, no GitHub) · P1 GitHub URL → checkout → open-as-local (no PR) · P2 share-back core (divergence→Propose changes→confirm sheet→branch/commit/push/PR+auto-fork) · P3 already-local detection · P4 format breadth.
 
-**Open.** ~~OQ-1 affordance UI treatment~~ **RESOLVED 2026-06-20** (D10–D13 via the UI study). OQ-2 push-rejection/staleness (v1: surface conflict). OQ-3 multi-file-per-checkout (v1: PR-per-checkout). OQ-4 private/SSO (relies on gh). OQ-5 fork hygiene/branch naming. OQ-6 checkout GC.
+**Open.** ~~OQ-1 affordance UI treatment~~ **RESOLVED 2026-06-20** (D10–D13 via the UI study). OQ-2 push-rejection/staleness (v1: surface conflict). OQ-3 multi-file-per-checkout (v1: PR-per-checkout). OQ-4 private/SSO (relies on gh). OQ-5 fork hygiene/branch naming. OQ-6 checkout GC. OQ-7 file-vs-repo choice + clone convergence (DR1–DR6 — **awaiting walk**).
+
+**Merged-surface decisions (walk 2026-06-20).** D15 full-inline merge (one ⌘O surface, fold CloneModal over time) · D16 clone success hero = context-aware Open/Done, "Clone another" demoted (independently shippable) · D17 single combined Browse… native file/folder picker. Studies: [flow map](docs/research/file-open-flow-map.html), [merged UI](docs/research/file-open-clone-merged-ui.html).
+
+**Build status (2026-06-20 — branch `claude/duo-file-open-flow-g3rpdx`).** Cloud session can't run the Electron GUI, so: ✅ `core/open-resolve.ts` (resolver, 26 tests) · ✅ `core/open-recents-service.ts` (D14 store, 10 tests) · ✅ `CloneModal` D16 success redesign (type-clean; **owes smoke-walk**). ⏳ Next: Open bar surface + Browse picker + Open Recent UI (D15/D17/D14 — needs live app). ⛔ Blocked: GitHub round-trip (DR1–DR6 unwalked). See PRD § 6a.
 
 **Cross-refs.** Reuse `core/git/clone.ts`·`auth.ts`·`remote-url.ts`, `cli/duo.ts resolveOpenTarget`, `fileClassifier.ts`, `useNavigator`. Related: ENH-154 (`gh-link`), ENH-155 (FileTree GitHub menu), ENH-152 (git-status overlay), FOLLOWUP-025 (Clone modal), `docs/research/github-integration-cluster-v2.html`.
 
