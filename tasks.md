@@ -28,6 +28,24 @@
 - **[test-gap] `activeSurfaceProject` pill derivation has zero test coverage** (the dedicated walk was waived). *Fix:* extract the pure focus→membership branch and unit-test it.
 - **[docs] ENH-210 ticket-number collision** — PR#93 (pill) and the worktree-aware feature BOTH shipped as "ENH-210", so cross-refs (BUG-204/205/206, ENH-219) are ambiguous. *Fix:* renumber the worktree feature (the larger/newer) to a free ENH; leave the pill's ENH-210; fix the cross-refs. Tracking-integrity, worth doing soon.
 
+### ENH-221: Scheduled ("cron") Claude Code sessions — create / view / manage from Home
+
+**Status:** ⬜ Draft 2026-06-20 (decision playground out for owner sign-off). **Priority:** owner-TBD (feature sprint). **Effort:** L (new scheduler subsystem + Home surface + CLI cluster).
+
+**Ask (owner).** Let Duo create, view, and manage scheduled jobs that launch a Claude Code command in a given project. **v1 is interactive-only:** Duo performs *session start + initial instruction*, then hands control to the user — all execution stays interactive. Headless `-p`/`--print` is gated behind a feature flag that **defaults OFF and is not exposed in the UI**. The user composes a recipe (working dir · Claude command/instruction · periodicity · same-session-vs-fresh). Home is the see/manage surface (jobs inline under their parent project; aggregated when the project isn't surfaced).
+
+**The hard constraint that shapes the design.** Interactive runs require a real Claude TUI session inside a Duo tab, so jobs can **only fire while Duo is open**. The scheduler is an in-app next-fire timer, not a system daemon. While-closed misses are governed by a preference (global default + per-job override: default skip, opt-in "run once on next launch," collapsing multiple missed occurrences into one).
+
+**Locked (owner, 2026-06-20 intent round):** run landing = **new tab, no focus steal** (paired with a future "tab is waiting on user action" badge); schedule UX = **presets + advanced cron**; observability = **last run + status only** for v1; missed-runs = **preference (global + per-job)**.
+
+**Confirmed Claude Code primitives (claude-code-guide).** Fresh: `claude "<instruction>"` (seeds first message, stays interactive). Same: pre-allocate uuid via `claude --session-id <uuid> "…"`, resume via `claude --resume <uuid> "…"` (from the same cwd). `--fork-session` branches without mutating. Headless triggers to gate: `-p`/`--print`, `--output-format`, `--bare`, piped stdin. Attention signal: a Duo-managed `Stop` (+ permission) hook posting `{session_id, state}` to Duo's existing Unix socket.
+
+**Decision playground:** `docs/research/enh-221-scheduled-sessions.html` (10 open decisions: storage shape/scope · instruction delivery · same-vs-fresh semantics · `-p` enforcement · missed-run default · Home layout · entry points · scheduler engine · attention badge · run-landing window). Proposed CLI: `duo cron list|add|run|pause|resume|rm|show`.
+
+**Logged sibling/future ENHs (not in scope):** **ENH-222** — system-scheduler (`launchd`) that *launches Duo* at a job's time (the path to unattended-ish without going headless). **ENH-223** — "waiting on user action" tab indicator (Stop/permission hook → socket; benefits all sessions). Headless `-p` runs and a full run-history view are explicitly deferred (the feature flag exists for the former).
+
+**Cross-refs.** `core/pty-manager.ts` (spawn + env stamps), `core/socket-server.ts` + `cli/duo.ts` (`new-tab`/`send`/`session resume`), `electron/claude-session-tracker.ts` (`buildResumeCommand`, session detection), `core/session-state-service.ts` / `core/settings-service.ts` (storage patterns), `renderer/components/Home/*` (surface), `renderer/components/ProjectRail/*` (entry point), `shared/types.ts` (IPC + `Project`).
+
 ### BUG-209: New Vault / Clone modals are occluded by the SPLIT-VIEW AUX WebContentsView (the F6 park covers only the main browser pane)
 
 **Status:** 🆕 Filed 2026-06-15 (owner-caught during the PR#98 v0.10.4-rev4 smoke walk, F6). **Priority:** P2 (visual occlusion; non-blocking — owner deferred to the next sprint, after the v0.11.0 cut). **Effort:** S. **Parent/related:** PR#98 F6, FOLLOWUP-025, ENH-216, ENH-191 (split view).

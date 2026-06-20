@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>Scheduled Claude sessions (cron) — plan &amp; decisions</title>
+<style>
+/* duo-atelier.css — canonical Atelier kernel for Duo HTML playgrounds. */
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+  --project-pine:   #2E7D74;
+  --project-harbor: #3C6E93;
+  --project-iris:   #5B57A6;
+  --project-plum:   #87508F;
+  --project-rose:   #A4506A;
+  --project-moss:   #69763A;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+body { padding: 32px 40px 96px; max-width: 920px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px;
+}
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill {
+  display: inline-block; padding: 2px 8px; border-radius: 10px;
+  background: var(--accent-soft); color: var(--accent);
+  font-weight: 600; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.04em; margin-right: 6px;
+}
+.intro {
+  background: var(--paper-deep); border: 1px solid var(--paper-rule);
+  border-radius: 6px; padding: 14px 18px; margin-bottom: 28px;
+  font-size: 13.5px; color: var(--ink-soft);
+}
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 600; margin: 36px 0 12px; font-size: 19px;
+  border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px;
+}
+h2 .sec-num { color: var(--accent); font-style: normal; font-size: 15px; margin-right: 8px; }
+h3 { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+h4 { margin: 16px 0 6px; font-size: 13.5px; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px;
+  background: var(--paper-deep); padding: 1px 5px; border-radius: 3px;
+}
+pre {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px; line-height: 1.5;
+  background: var(--code-bg); color: var(--code-ink);
+  padding: 14px 16px; border-radius: 6px; overflow-x: auto;
+}
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+.decision-card {
+  background: var(--paper-deep); border: 1.5px solid var(--paper-rule);
+  border-radius: 6px; padding: 16px 18px; margin: 18px 0 28px;
+  box-shadow: 0 1px 0 var(--paper-edge);
+}
+.decision-card .q-title {
+  font-weight: 700; font-size: 13px; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px;
+}
+.decision-card .q-prompt {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 500; font-size: 17px; color: var(--ink);
+  margin: 0 0 12px; line-height: 1.35;
+}
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option {
+  display: block; background: var(--paper);
+  border: 1.5px solid var(--paper-rule); border-radius: 5px;
+  padding: 10px 12px; cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--paper));
+}
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag {
+  font-size: 10px; background: var(--accent-soft); color: var(--accent);
+  text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em;
+  padding: 1px 6px; border-radius: 8px; margin-left: 6px;
+}
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes {
+  width: 100%; background: var(--paper); border: 1px solid var(--paper-rule);
+  border-radius: 4px; padding: 8px 10px; font-family: inherit;
+  font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px;
+}
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+details.deferred {
+  margin: 22px 0; padding: 12px 16px; background: var(--paper-deep);
+  border: 1px dashed var(--paper-rule); border-radius: 6px;
+}
+details.deferred summary { cursor: pointer; font-weight: 600; color: var(--ink-soft); font-size: 13.5px; }
+details.deferred[open] summary { color: var(--ink); }
+details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(--ink-soft); }
+.copy-bar {
+  position: sticky; bottom: 0; margin: 32px -40px -96px;
+  padding: 16px 40px;
+  background: color-mix(in srgb, var(--paper-deep) 96%, transparent);
+  border-top: 1.5px solid var(--paper-rule);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+}
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button {
+  background: var(--accent); color: white; border: none; border-radius: 5px;
+  padding: 9px 18px; font-family: inherit; font-size: 13.5px;
+  font-weight: 600; cursor: pointer; transition: background 0.12s;
+}
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* — Per-playground styles — */
+table.locked { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13px; }
+table.locked th, table.locked td {
+  border: 1px solid var(--paper-rule); padding: 7px 10px;
+  text-align: left; vertical-align: top;
+}
+table.locked th { background: var(--paper-deep); font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-mute); }
+table.locked td:first-child { font-weight: 600; white-space: nowrap; }
+
+pre.diagram { line-height: 1.5; }
+pre.diagram .note { color: #9a8f6e; font-style: italic; }
+pre.diagram .hot { color: #f4b96a; }
+pre.diagram .obs { color: #8fb3d9; }
+pre.diagram .okf { color: #9bd29a; }
+
+.option-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 14px 0; }
+.option-cards.two { grid-template-columns: repeat(2, 1fr); }
+.option-card {
+  background: var(--paper); border: 1.5px solid var(--paper-rule);
+  border-radius: 6px; padding: 12px 14px; font-size: 12.5px;
+}
+.option-card.recommended { border-color: var(--accent); }
+.option-card h4 { margin: 0 0 6px; font-size: 13px; }
+.option-card .badge {
+  font-size: 9.5px; background: var(--accent-soft); color: var(--accent);
+  text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em;
+  padding: 1px 6px; border-radius: 8px; margin-left: 4px; vertical-align: middle;
+}
+.option-card p { margin: 5px 0; color: var(--ink-soft); font-size: 12px; }
+.option-card .pro { color: var(--pass); }
+.option-card .con { color: var(--fail); }
+
+.callout { background: color-mix(in srgb, var(--pass) 8%, var(--paper)); border: 1px solid color-mix(in srgb, var(--pass) 30%, var(--paper-rule)); border-left: 3px solid var(--pass); border-radius: 5px; padding: 11px 14px; margin: 14px 0; font-size: 13px; color: var(--ink-soft); }
+.callout strong { color: var(--ink); }
+.callout.warn { background: color-mix(in srgb, var(--warn) 9%, var(--paper)); border-color: color-mix(in srgb, var(--warn) 35%, var(--paper-rule)); border-left-color: var(--warn); }
+.callout.stop { background: color-mix(in srgb, var(--fail) 8%, var(--paper)); border-color: color-mix(in srgb, var(--fail) 30%, var(--paper-rule)); border-left-color: var(--fail); }
+
+/* dialog mock */
+.dialog-mock {
+  max-width: 480px; margin: 16px auto; background: #f4f1ea;
+  border: 1px solid var(--paper-edge); border-radius: 12px;
+  box-shadow: 0 18px 50px rgba(43,38,32,0.22); overflow: hidden;
+  font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+}
+.dialog-mock .dlg-titlebar { height: 30px; background: linear-gradient(#e9e4d8,#ded7c6); border-bottom: 1px solid var(--paper-edge); display: flex; align-items: center; padding: 0 10px; gap: 6px; }
+.dialog-mock .traffic { width: 11px; height: 11px; border-radius: 50%; }
+.dialog-mock .traffic.r { background: #ec6a5e; } .dialog-mock .traffic.y { background: #f3bf4f; } .dialog-mock .traffic.g { background: #61c554; }
+.dialog-mock .dlg-title { margin-left: 8px; font-size: 12px; font-weight: 600; color: var(--ink-mute); }
+.dialog-mock .dlg-body { padding: 18px 20px 20px; }
+.dialog-mock .field { margin-bottom: 13px; }
+.dialog-mock .field label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-mute); margin-bottom: 4px; }
+.dialog-mock .field .input { background: white; border: 1px solid var(--paper-rule); border-radius: 5px; padding: 6px 9px; font-size: 12.5px; color: var(--ink); display: flex; justify-content: space-between; align-items: center; }
+.dialog-mock .field .input.mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+.dialog-mock .field .input .muted { color: var(--ink-ghost); }
+.dialog-mock .seg { display: flex; gap: 0; border: 1px solid var(--paper-rule); border-radius: 6px; overflow: hidden; }
+.dialog-mock .seg .seg-opt { flex: 1; text-align: center; padding: 6px 4px; font-size: 12px; color: var(--ink-soft); background: white; border-right: 1px solid var(--paper-rule); }
+.dialog-mock .seg .seg-opt:last-child { border-right: none; }
+.dialog-mock .seg .seg-opt.sel { background: var(--accent); color: white; font-weight: 600; }
+.dialog-mock .hint { font-size: 11px; color: var(--ink-mute); margin-top: 4px; }
+.dialog-mock .reminder { background: color-mix(in srgb, var(--warn) 10%, white); border: 1px solid color-mix(in srgb, var(--warn) 30%, var(--paper-rule)); border-left: 3px solid var(--warn); border-radius: 5px; padding: 8px 11px; font-size: 11.5px; color: var(--ink-soft); margin: 6px 0 13px; }
+.dialog-mock .reminder strong { color: var(--ink); }
+.dialog-mock .dlg-foot { display: flex; justify-content: flex-end; gap: 9px; margin-top: 6px; }
+.dialog-mock .btn { font-size: 12.5px; font-weight: 600; padding: 6px 16px; border-radius: 6px; border: 1px solid var(--paper-rule); background: white; color: var(--ink-soft); }
+.dialog-mock .btn.primary { background: var(--accent); border-color: var(--accent); color: white; }
+
+/* home card mock */
+.home-mock { background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 8px; padding: 14px 16px; margin: 14px 0; max-width: 560px; }
+.home-mock .hm-proj { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; color: var(--ink); margin-bottom: 8px; }
+.home-mock .hm-dot { width: 9px; height: 9px; border-radius: 2px; background: var(--project-harbor); }
+.home-mock .hm-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-soft); padding: 4px 0; }
+.home-mock .hm-row .clock { color: var(--accent); }
+.home-mock .hm-sched { background: color-mix(in srgb, var(--accent) 5%, var(--paper-deep)); border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--paper-rule)); border-radius: 6px; padding: 8px 11px; margin-top: 8px; }
+.home-mock .hm-sched-head { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--accent); margin-bottom: 5px; display: flex; align-items: center; gap: 5px; }
+.home-mock .hm-job { display: flex; justify-content: space-between; align-items: center; font-size: 12px; padding: 3px 0; }
+.home-mock .hm-job .job-name { font-weight: 600; color: var(--ink); }
+.home-mock .hm-job .job-meta { color: var(--ink-mute); font-size: 11px; }
+.status-chip { display: inline-block; padding: 1px 8px; border-radius: 9px; font-size: 10.5px; font-weight: 700; }
+.status-chip.ok { background: color-mix(in srgb, var(--pass) 16%, var(--paper)); color: var(--pass); }
+.status-chip.never { background: var(--paper-deep); color: var(--ink-mute); border: 1px solid var(--paper-rule); }
+.status-chip.missed { background: color-mix(in srgb, var(--warn) 16%, var(--paper)); color: var(--warn); }
+.status-chip.wait { background: color-mix(in srgb, var(--accent) 16%, var(--paper)); color: var(--accent); }
+
+/* tab strip mock */
+.tabstrip { display: flex; gap: 2px; margin: 14px 0; font-family: -apple-system, system-ui, sans-serif; }
+.tabstrip .tab { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-bottom: none; border-radius: 6px 6px 0 0; padding: 6px 12px; font-size: 12px; color: var(--ink-soft); display: flex; align-items: center; gap: 6px; }
+.tabstrip .tab.active { background: var(--paper); color: var(--ink); font-weight: 600; }
+.tabstrip .tab .badge-dot { width: 7px; height: 7px; border-radius: 50%; }
+.tabstrip .tab .badge-dot.attn { background: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
+.tabstrip .tab .badge-dot.run { background: var(--pass); }
+
+.chip-yes, .chip-no { display: inline-block; padding: 1px 9px; border-radius: 9px; font-size: 11px; font-weight: 700; color: white; }
+.chip-yes { background: var(--pass); }
+.chip-no { background: var(--fail); }
+
+@media (max-width: 760px) {
+  .option-cards, .option-cards.two { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Scheduled Claude sessions (cron) — plan &amp; decisions</h1>
+  <div class="meta">
+    <span class="pill">Decision round</span>
+    <span class="pill">ENH-221</span>
+    <span class="pill">draft for sign-off</span>
+    2026-06-20 · run a Claude Code command on a schedule, inside Duo, interactively
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> A plan to let Duo <strong>create, view, and manage scheduled
+  ("cron") jobs that launch Claude Code in a project</strong> — starting with
+  <strong>interactive (non-headless) sessions only</strong>. A job is a saved recipe: a working
+  directory, a Claude command you compose, a periodicity, and whether each run continues the
+  <em>same</em> session or starts a <em>fresh</em> one. Duo's scheduler fires the job <em>while
+  Duo is running</em>, opens a real terminal tab seeded with your initial instruction, and then
+  <strong>hands control to you</strong> — Duo only ever does <em>session start + initial
+  instruction</em>; all actual execution stays interactive.
+  <br><br>
+  <strong>How to use this page.</strong> §0–§3 establish the shape (the hard constraint, the
+  locked answers you already gave, the create flow, the Home surface). §4 holds the
+  <strong>open decisions</strong> — pick a radio per card, add notes, hit <em>Copy decisions</em>
+  at the bottom, paste back to Claude. Recommendations are tagged.
+</div>
+
+<h2><span class="sec-num">0</span>The one hard reality that shapes everything</h2>
+
+<p><strong>Interactive runs require Duo to be open.</strong> Because every run is a real
+interactive Claude Code TUI session inside a Duo terminal tab (no headless <code>-p</code>),
+there is <em>nothing to run into</em> when the app is closed or the Mac is asleep. This is the
+opposite of a system <code>crontab</code>, which runs headless daemons regardless. So Duo's
+scheduler is an <strong>in-app timer that only fires while a window is open</strong>, and the
+honest framing for v1 is: <em>"these run when Duo is running."</em></p>
+
+<pre class="diagram">  ┌─────────────────────────── Electron main process ──────────────────────────┐
+  │                                                                              │
+  │   <span class="okf">cron-store</span>  ──load──▶  <span class="hot">CronScheduler</span>  ──(time arrives, app open)──▶  spawn       │
+  │   ~/.claude/duo/                  │                                  terminal     │
+  │   cron-jobs.json                  │                                  tab + seed   │
+  │      <span class="note">jobs[] (the recipe)</span>           │ next-fire timers                 instruction  │
+  │      <span class="note">lastRun pointers</span>             │ (in memory)                          │       │
+  │                                   ▼                                      ▼       │
+  │                          missed-while-closed?                    <span class="obs">claude "&lt;instruction&gt;"</span>   │
+  │                          ├─ default: skip                        <span class="obs">claude --resume &lt;id&gt; …</span>   │
+  │                          └─ opt-in: run once on launch           <span class="note">(Claude Code primitives)</span>  │
+  │                                                                         │        │
+  └─────────────────────────────────────────────────────────────────────── │ ──────┘
+                                                                            ▼
+                       new tab in primary window (no focus steal) ──▶  YOU drive it
+                       tab shows a "waiting on you" badge when Claude idles for input</pre>
+
+<div class="callout warn">
+  <strong>Two future paths to true unattended runs are logged, not built (see §6):</strong>
+  <strong>(a)</strong> a system scheduler (<code>launchd</code>) that <em>launches Duo</em> at the
+  scheduled time, and <strong>(b)</strong> the eventual headless <code>-p</code> path — which is
+  exactly what the feature flag below gates off until it's deliberately enabled. v1 is interactive,
+  app-open-only, on purpose.
+</div>
+
+<h2><span class="sec-num">1</span>Locked context — what you've already decided</h2>
+
+<p>These four are settled (from the intent-refinement round) plus the original hard constraints.
+They frame the open decisions in §4; they are not up for re-litigation here.</p>
+
+<table class="locked">
+  <tr><th>Locked</th><th>Decision</th></tr>
+  <tr><td>Interactive only</td><td>Runs are interactive Claude TUI sessions. Duo performs <strong>session start + initial instruction</strong> only; the rest is the user. <em>Headless <code>-p</code> / <code>--print</code> is disabled by a feature flag that defaults OFF and is not exposed in the UI.</em></td></tr>
+  <tr><td>Run landing</td><td><strong>New tab, no focus steal</strong> — a run opens a background terminal tab in the (primary) window; it does not interrupt current work. Paired with a new <strong>"tab is waiting on user action" indicator</strong> (cron <em>and</em> normal sessions), built on Claude Code primitives where possible.</td></tr>
+  <tr><td>Schedule UX</td><td><strong>Presets + advanced cron</strong> — friendly presets (hourly · daily at HH:MM · weekdays · weekly on day) plus an advanced raw cron-expression field with a live human-readable preview.</td></tr>
+  <tr><td>Observability</td><td><strong>Last run + status only</strong> for v1 — each job shows last-run time and a simple state (ran / never / missed / waiting). No full run-log surface yet.</td></tr>
+  <tr><td>Missed runs</td><td>While-closed misses are governed by a <strong>preference</strong> (global default + per-job override): default skip, opt-in "run once on next launch." Collapse multiple missed occurrences into a single catch-up run. <em>System-scheduler launch is a logged future ENH.</em></td></tr>
+  <tr><td>The recipe</td><td>User composes: <strong>working directory · Claude command · periodicity · same-session-vs-fresh.</strong></td></tr>
+  <tr><td>Surface</td><td>The <strong>Home view</strong> is where jobs are seen + managed — shown inline under their parent project's card; aggregated when the project isn't currently surfaced.</td></tr>
+</table>
+
+<h2><span class="sec-num">2</span>Creating a job — the recipe + the reminder</h2>
+
+<p>Composing a job is a small dialog. The Claude command is constructed from safe parts (the
+user never has to hand-type the binary), the periodicity uses the preset+advanced control, and a
+<strong>persistent reminder</strong> states the interactive-only constraint up front so the user
+isn't surprised that Duo won't "just go do it."</p>
+
+<div class="dialog-mock">
+  <div class="dlg-titlebar"><span class="traffic r"></span><span class="traffic y"></span><span class="traffic g"></span><span class="dlg-title">New scheduled session</span></div>
+  <div class="dlg-body">
+    <div class="reminder">
+      <strong>Interactive only.</strong> Duo will start the session and type your initial
+      instruction, then hand it to you. It can't run unattended — keep Duo open near the
+      scheduled time. (Want it to act on its own? That's a future capability.)
+    </div>
+    <div class="field">
+      <label>Name</label>
+      <div class="input"><span>Morning triage</span><span class="muted">|</span></div>
+    </div>
+    <div class="field">
+      <label>Project / working directory</label>
+      <div class="input"><span>~/Documents/GitHub/duo</span><span class="muted">Choose…</span></div>
+    </div>
+    <div class="field">
+      <label>Initial instruction</label>
+      <div class="input mono"><span>review open PRs and summarize what needs my attention</span></div>
+      <div class="hint">Becomes <code>claude "&lt;instruction&gt;"</code> — seeds the first message, stays interactive.</div>
+    </div>
+    <div class="field">
+      <label>Session</label>
+      <div class="seg"><span class="seg-opt sel">Fresh session each run</span><span class="seg-opt">Continue same session</span></div>
+    </div>
+    <div class="field">
+      <label>When</label>
+      <div class="seg"><span class="seg-opt">Hourly</span><span class="seg-opt sel">Daily</span><span class="seg-opt">Weekly</span><span class="seg-opt">Advanced…</span></div>
+      <div class="input" style="margin-top:6px"><span>at 09:00</span><span class="muted">runs every day at 9:00 AM</span></div>
+    </div>
+    <div class="field">
+      <label>If missed while Duo was closed</label>
+      <div class="seg"><span class="seg-opt sel">Skip</span><span class="seg-opt">Run once on next launch</span></div>
+    </div>
+    <div class="dlg-foot">
+      <span class="btn">Cancel</span><span class="btn primary">Create job</span>
+    </div>
+  </div>
+</div>
+
+<h2><span class="sec-num">3</span>Seeing &amp; managing jobs on Home</h2>
+
+<p>Jobs live under their project on the Home view. When the project is one of the surfaced
+hero/spine cards, its jobs nest inside it; when it isn't currently surfaced, its jobs roll up into
+an aggregated "Scheduled" affordance so nothing goes invisible. Each row carries the last-run
+status chip and the next-fire time.</p>
+
+<div class="home-mock">
+  <div class="hm-proj"><span class="hm-dot"></span>duo</div>
+  <div class="hm-row">3 sessions · last response 12m ago</div>
+  <div class="hm-sched">
+    <div class="hm-sched-head"><span>⏱</span> Scheduled</div>
+    <div class="hm-job"><span class="job-name">Morning triage</span><span class="job-meta"><span class="status-chip ok">ran 09:00</span> · next 9:00 AM</span></div>
+    <div class="hm-job"><span class="job-name">Nightly dep audit</span><span class="job-meta"><span class="status-chip wait">waiting on you</span> · resumes session</span></div>
+    <div class="hm-job"><span class="job-name">Weekly cleanup</span><span class="job-meta"><span class="status-chip never">never run</span> · Mon 8:00 AM</span></div>
+  </div>
+</div>
+
+<p>And the <strong>"waiting on you"</strong> signal also lives on the terminal tab itself — a dot
+on any tab (cron-spawned or normal) whose Claude session has gone idle awaiting input or a
+permission decision:</p>
+
+<div class="tabstrip">
+  <div class="tab active">duo — claude</div>
+  <div class="tab"><span class="badge-dot run"></span>Morning triage</div>
+  <div class="tab"><span class="badge-dot attn"></span>Nightly dep audit</div>
+  <div class="tab">zsh</div>
+</div>
+
+<h2><span class="sec-num">4</span>Open decisions</h2>
+
+<p>Ten calls. Each shapes the build; recommendations are tagged. The four locked items in §1 are
+not repeated here.</p>
+
+<section class="decision-card">
+  <div class="q-title">Decision 1 · Storage shape &amp; scope</div>
+  <h3 class="q-prompt">Where do job definitions live, and are they app-global or per-window?</h3>
+  <p class="q-context">CLAUDE.md #12 (no-sidecar) allows Duo-owned concepts the external system
+  doesn't track — a schedule is exactly that. The question is which file, and whether a job
+  belongs to a window or to the app.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d1" value="global-file">
+      <div class="q-option-body"><div class="q-option-title">App-global <code>~/.claude/duo/cron-jobs.json</code> <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">A standalone file, sibling to <code>projects.json</code>/<code>settings.json</code>. Jobs are app-wide; runs land in the primary window (matches CLI identity-resolution). Clean to back up, easy for the CLI to read, doesn't bloat the session envelope.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="settings">
+      <div class="q-option-body"><div class="q-option-title">A field inside <code>settings.json</code></div>
+      <div class="q-option-rationale">Fewer files. But settings is a small flat object today; a growing array of job recipes (with run pointers) doesn't belong there.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="per-window">
+      <div class="q-option-body"><div class="q-option-title">Per-window, inside the session-state v2 envelope</div>
+      <div class="q-option-rationale">Jobs would be scoped to (and restored with) a specific window. More faithful to multi-window, but a job tied to a window that doesn't restore is confusing, and the CLI loses a single source of truth.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d1" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 2 · Initial-instruction delivery</div>
+  <h3 class="q-prompt">How is the user's instruction handed to Claude at run time?</h3>
+  <p class="q-context">"Use Claude Code primitives where possible." Claude Code accepts a positional
+  prompt in interactive mode (<code>claude "do the thing"</code>) — it seeds the first message and
+  stays interactive. The alternative is to spawn a bare shell and synthesize keystrokes.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d2" value="positional">
+      <div class="q-option-body"><div class="q-option-title">Pass the instruction as Claude's positional prompt <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale"><code>claude "&lt;instruction&gt;"</code> (fresh) / <code>claude --resume &lt;id&gt; "&lt;instruction&gt;"</code> (continue). One primitive, no fragile keystroke timing, Claude owns the prompt. The whole command string is what we validate against <code>-p</code> (D4).</div></div></label>
+    <label class="q-option"><input type="radio" name="d2" value="send-keys">
+      <div class="q-option-body"><div class="q-option-title">Spawn <code>claude</code>, then synthesize the instruction via <code>duo send</code></div>
+      <div class="q-option-rationale">Spawn the TUI, wait for ready, type the text + Enter. More moving parts (readiness race), but lets the instruction post-date a slow startup. Reuses existing <code>send</code> plumbing.</div></div></label>
+    <label class="q-option"><input type="radio" name="d2" value="cmd-flag">
+      <div class="q-option-body"><div class="q-option-title">Pre-type via <code>new-tab --cmd</code> (no Enter), user submits</div>
+      <div class="q-option-rationale">Existing <code>--cmd</code> pre-types the command without submitting, so the user reviews before pressing Enter. Safest (human-in-loop on every run) but adds a manual step to every fire.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d2" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 3 · Same-session-vs-fresh semantics</div>
+  <h3 class="q-prompt">What does "continue same session" actually resume — and what if it's gone?</h3>
+  <p class="q-context">"Fresh" is easy: a new session per run (<code>claude "…"</code>). "Same" needs
+  a session id to resume. Per ENH-183 D9, Duo may store a <em>pointer</em> captured on real
+  evidence — so a job records the uuid of the session its <em>last</em> run created, then resumes
+  that. The edge is when that session no longer exists.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d3" value="pointer-fallback">
+      <div class="q-option-body"><div class="q-option-title">Pre-allocate the uuid; resume it; fall back to fresh if missing <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Each run Duo <em>pre-allocates</em> the session id and starts with <code>claude --session-id &lt;uuid&gt; "…"</code>, storing that uuid on the job (a Duo-minted pointer — no post-hoc filesystem sniffing). Next run does <code>claude --resume &lt;uuid&gt; "…"</code>; if the jsonl is gone, start fresh and note it. Honors no-sidecar; degrades gracefully. (Resume must run from the same cwd — Claude scopes id lookup to the project dir.)</div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="latest-in-cwd">
+      <div class="q-option-body"><div class="q-option-title">Resume the most-recent session in the cwd (<code>claude --continue</code>)</div>
+      <div class="q-option-rationale">No per-job pointer — just continue whatever the latest session in that directory is. Simpler state, but "same session" then means "whatever you last touched here," which may not be this job's thread.</div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="fork">
+      <div class="q-option-body"><div class="q-option-title">Resume with <code>--fork-session</code> (branch, never append)</div>
+      <div class="q-option-rationale">Each run forks the tracked session into a new branch so the original thread is never mutated by automation. Safer history, but "same session" arguably means appending, and it multiplies session files.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d3" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 4 · Headless (<code>-p</code>) enforcement</div>
+  <h3 class="q-prompt">How strictly does Duo prevent a job from running headless?</h3>
+  <p class="q-context">The constraint is firm: <code>-p</code>/<code>--print</code> is gated behind a
+  feature flag that defaults OFF and isn't in the UI. The question is how the gate is enforced on
+  the command string (and which other non-interactive triggers count).</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d4" value="validate-strip">
+      <div class="q-option-body"><div class="q-option-title">Validate &amp; reject headless flags unless the flag is on <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Before spawning, parse the assembled command; if it contains <code>-p</code>/<code>--print</code> (or <code>--output-format</code>, stdin-pipe) and <code>features.headlessCron</code> is false, refuse with a clear message. Belt-and-suspenders: the UI never offers it <em>and</em> the runtime blocks it.</div></div></label>
+    <label class="q-option"><input type="radio" name="d4" value="ui-only">
+      <div class="q-option-body"><div class="q-option-title">UI-only omission (no runtime check)</div>
+      <div class="q-option-rationale">Just don't surface <code>-p</code> in the composer. Lighter, but if the instruction field ever accepts raw flags a user could smuggle it in — weaker guarantee.</div></div></label>
+    <label class="q-option"><input type="radio" name="d4" value="structured">
+      <div class="q-option-body"><div class="q-option-title">No raw command at all — fully structured recipe</div>
+      <div class="q-option-rationale">The user never types a command string; Duo assembles <code>claude</code> from typed fields only, so <code>-p</code> is unreachable by construction. Most airtight, least flexible (no extra flags ever).</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d4" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 5 · Missed-run default</div>
+  <h3 class="q-prompt">Out of the box, what happens to a run missed while Duo was closed?</h3>
+  <p class="q-context">You chose "preference (global + per-job)." This sets the <em>default</em> the
+  preference starts at. Catch-up collapses multiple missed occurrences into one run.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d5" value="skip-default">
+      <div class="q-option-body"><div class="q-option-title">Default skip; opt-in "run once on next launch" <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">No surprise tabs popping open when you launch Duo after a weekend. Power users flip the per-job (or global) toggle for jobs where a late run still has value. Least-astonishment default.</div></div></label>
+    <label class="q-option"><input type="radio" name="d5" value="catchup-default">
+      <div class="q-option-body"><div class="q-option-title">Default catch-up-once; opt-out per job</div>
+      <div class="q-option-rationale">Launching Duo "makes good" on what you missed. More useful for daily-habit jobs, but a cold launch could open several tabs at once — mitigated by the no-focus-steal landing.</div></div></label>
+    <label class="q-option"><input type="radio" name="d5" value="notify-default">
+      <div class="q-option-body"><div class="q-option-title">Default skip-but-notify (badge on the Home card)</div>
+      <div class="q-option-rationale">Never auto-runs, but the job shows a "missed while away" chip so you can trigger it manually. Middle ground; needs the missed-state plumbing regardless.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d5" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 6 · Home surfacing layout</div>
+  <h3 class="q-prompt">How do jobs render on Home — and where do orphan-project jobs go?</h3>
+  <p class="q-context">You said inline under the parent project, aggregated when the project isn't
+  visible. This pins the exact treatment. Home today shows ~2 hero projects + a spine; not every
+  project with a job is on screen.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d6" value="nested-plus-rollup">
+      <div class="q-option-body"><div class="q-option-title">Nested under surfaced projects + one aggregated "Scheduled" block for the rest <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">A job's home is its project card (the §3 mock). Jobs whose project isn't a hero/spine card collect in a single "Scheduled" section so nothing is hidden. Matches your phrasing exactly.</div></div></label>
+    <label class="q-option"><input type="radio" name="d6" value="dedicated-section">
+      <div class="q-option-body"><div class="q-option-title">One dedicated "Scheduled" section for all jobs</div>
+      <div class="q-option-rationale">All jobs in one place, grouped by project. Simpler to build/scan, but loses the "lives with its project" intimacy you asked for.</div></div></label>
+    <label class="q-option"><input type="radio" name="d6" value="always-pin">
+      <div class="q-option-body"><div class="q-option-title">A project with a job is always surfaced on Home</div>
+      <div class="q-option-rationale">Having a job promotes its project onto Home so its jobs are always inline. Keeps everything nested, but lets schedules reorder/crowd the Home hierarchy.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d6" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 7 · Create / manage entry points</div>
+  <h3 class="q-prompt">Where can a human (and the agent) create and manage jobs?</h3>
+  <p class="q-context">CLI parity is a hard rule (CLAUDE.md #4): whatever the human can do, the
+  agent must do from the CLI. The question is the UI surface set for v1.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d7" value="home-rail-cli">
+      <div class="q-option-body"><div class="q-option-title">Home "+ Schedule" on a project card · project-rail right-click · full <code>duo cron</code> verbs <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Create from where you already see jobs (Home) and from the project tile; manage (pause/run-now/edit/delete) via row actions. CLI twin: <code>duo cron add|list|run|pause|rm</code>. Discoverable + full parity.</div></div></label>
+    <label class="q-option"><input type="radio" name="d7" value="cli-first">
+      <div class="q-option-body"><div class="q-option-title">CLI-first (<code>duo cron …</code>); minimal Home read-only view</div>
+      <div class="q-option-rationale">Ship the verbs + a view-only Home surface now; add the create dialog later. Cheapest first cut, but no human create path day one (breaks parity-from-the-human-side).</div></div></label>
+    <label class="q-option"><input type="radio" name="d7" value="settings-panel">
+      <div class="q-option-body"><div class="q-option-title">A Settings ▸ Scheduled-jobs panel (manage hub) + CLI</div>
+      <div class="q-option-rationale">A dedicated management table in Settings, plus Home read-only chips. Heavier; centralizes management away from the project context you wanted jobs to live in.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d7" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 8 · Scheduler engine</div>
+  <h3 class="q-prompt">How does Duo compute next-fire times — dependency or hand-rolled?</h3>
+  <p class="q-context">The app is currently pure <code>setTimeout</code> with no cron library. Presets
+  are trivial; the advanced cron-expression field needs a parser + human-readable preview.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d8" value="small-dep">
+      <div class="q-option-body"><div class="q-option-title">Add a small, well-tested cron-parser dep (e.g. <code>cron-parser</code> + a describer) <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Next-fire math and DST/timezone edges are notoriously fiddly; a focused parser library is a few KB and battle-tested. Duo schedules off "next occurrence" timers, not a tick loop.</div></div></label>
+    <label class="q-option"><input type="radio" name="d8" value="hand-rolled">
+      <div class="q-option-body"><div class="q-option-title">Hand-roll preset math; support only a constrained cron subset</div>
+      <div class="q-option-rationale">No new dependency; implement the presets directly and accept a limited advanced syntax. Less surface to audit, but you'll re-derive the gnarly edge cases the libraries already solved.</div></div></label>
+    <label class="q-option"><input type="radio" name="d8" value="presets-only-v1">
+      <div class="q-option-body"><div class="q-option-title">Presets only in v1; advanced cron field is a fast-follow</div>
+      <div class="q-option-rationale">Ship hourly/daily/weekly with hand-rolled math now; defer raw cron (and any parser choice) to v2. Smallest first cut — but you locked "presets + advanced," so this trims agreed scope.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d8" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 9 · "Waiting on user action" tab indicator</div>
+  <h3 class="q-prompt">Do we build the attention badge now, and how does it detect "waiting"?</h3>
+  <p class="q-context">You flagged this as a good opportunity — a tab badge when a session (cron or
+  normal) is waiting on you. The clean primitive: a Duo-managed <strong>Stop hook</strong> (fires
+  when Claude finishes a turn and waits for input) — plus a permission-request signal — that writes
+  to <strong>Duo's existing Unix socket</strong> (the same channel the CLI uses), correlated back
+  to the tab by session id. Terminal-bell capture is a cruder fallback.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d9" value="sibling-enh-hooks">
+      <div class="q-option-body"><div class="q-option-title">Build it as a sibling ENH using a Duo-managed Stop hook → socket; land alongside cron <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">A focused ENH-223: Duo installs a <code>Stop</code> (+ permission) hook that posts <code>{session_id, state}</code> to Duo's Unix socket; main flips a per-tab "needs attention" flag. Benefits all sessions, not just cron — and cron is its best demo. Decoupled so cron isn't blocked if it slips.</div></div></label>
+    <label class="q-option"><input type="radio" name="d9" value="bell-only-now">
+      <div class="q-option-body"><div class="q-option-title">Ship a lightweight bell-only badge inside cron v1</div>
+      <div class="q-option-rationale">Watch the PTY for the terminal bell (<code>\\a</code>) and badge the tab. No hook install needed; cruder (bell ≠ always "waiting"), but in-scope and immediate.</div></div></label>
+    <label class="q-option"><input type="radio" name="d9" value="defer">
+      <div class="q-option-body"><div class="q-option-title">Defer the indicator entirely; cron just opens the tab</div>
+      <div class="q-option-rationale">Smallest cron v1. You find the run by switching tabs. Loses the "no focus steal but still discoverable" nicety you specifically called out.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d9" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 10 · Run landing window (multi-window)</div>
+  <h3 class="q-prompt">Which window receives a run, and what if no window is open?</h3>
+  <p class="q-context">Jobs are app-global (D1), but runs need a window to land in. Duo's default
+  resolution is the lowest-id "primary" window, by identity.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d10" value="primary">
+      <div class="q-option-body"><div class="q-option-title">Always the primary window; if none open, the scheduler is idle <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Runs land in the lowest-id primary window (same rule as <code>duo</code> default targeting). No window open = nothing fires = it's a "missed" run (governed by D5). Predictable, matches existing identity-resolution.</div></div></label>
+    <label class="q-option"><input type="radio" name="d10" value="per-job-window">
+      <div class="q-option-body"><div class="q-option-title">Per-job target window (pin a job to window N)</div>
+      <div class="q-option-rationale">A job can target a specific window for workflow separation. More control, but a pinned window that doesn't restore strands the job, and it complicates the global-jobs model.</div></div></label>
+    <label class="q-option"><input type="radio" name="d10" value="spawn-window">
+      <div class="q-option-body"><div class="q-option-title">Open a window if none exists, then run</div>
+      <div class="q-option-rationale">Guarantees the run happens whenever Duo's <em>process</em> is alive even with all windows closed. But spawning a window unprompted is intrusive, and on macOS the process often outlives its windows.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d10" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<h2><span class="sec-num">5</span>Proposed CLI surface (parity)</h2>
+
+<p>Sketch for sign-off (CLI is the spec). Final verbs sync across <code>cli/duo.ts</code>,
+<code>skill/SKILL.md</code>, <code>agents/duo.md</code>, <code>docs/CLI-COVERAGE.md</code>.</p>
+
+<table class="locked">
+  <tr><th>Verb</th><th>Does</th></tr>
+  <tr><td><code>duo cron list</code></td><td>List jobs with next-fire + last-run status (JSON-able).</td></tr>
+  <tr><td><code>duo cron add</code></td><td>Create a job: <code>--cwd --say "&lt;instruction&gt;" --every &lt;preset|cron&gt; --session fresh|same [--catch-up]</code>.</td></tr>
+  <tr><td><code>duo cron run &lt;id&gt;</code></td><td>Fire a job now (manual trigger), same path as a scheduled fire.</td></tr>
+  <tr><td><code>duo cron pause / resume &lt;id&gt;</code></td><td>Disable/enable a job without deleting it.</td></tr>
+  <tr><td><code>duo cron rm &lt;id&gt;</code></td><td>Delete a job.</td></tr>
+  <tr><td><code>duo cron show &lt;id&gt;</code></td><td>Inspect one job's full recipe + last-run pointer.</td></tr>
+</table>
+
+<h2><span class="sec-num">6</span>Build sequencing &amp; logged future ENHs</h2>
+
+<table class="locked">
+  <tr><th>Tier</th><th>Ships</th></tr>
+  <tr><td>1 · Engine + CLI</td><td>cron-store, scheduler (next-fire timers), spawn-into-tab via Claude primitive, fresh/same session, <code>-p</code> gate, full <code>duo cron</code> verbs. Headless even with a basic Home read.</td></tr>
+  <tr><td>2 · Home surface</td><td>Inline-under-project cards + aggregated "Scheduled" block, status chips, create dialog, row actions (run-now / pause / edit / delete).</td></tr>
+  <tr><td>3 · Attention</td><td>The "waiting on you" tab badge (D9) — sibling ENH benefiting all sessions.</td></tr>
+</table>
+
+<div class="callout">
+  <strong>Logged future ENHs (not in this scope):</strong>
+  <ul style="margin:6px 0 0">
+    <li><strong>ENH-222 — System-scheduler launch.</strong> A <code>launchd</code> agent that
+      <em>launches Duo</em> at a job's time so runs fire even when the app was closed. The honest
+      path to "unattended-ish" without going headless.</li>
+    <li><strong>ENH-223 — "Waiting on user action" tab indicator</strong> (Decision 9) — built on
+      Claude Code's Notification/Stop hooks; applies to all sessions.</li>
+    <li><strong>Headless (<code>-p</code>) runs.</strong> The whole point of the default-off feature
+      flag: a future, deliberately-enabled mode where a job can run autonomously start-to-finish.
+      Off until designed (permissions, safety, output capture).</li>
+    <li><strong>Full run history / log view</strong> — beyond v1's last-run-+-status.</li>
+  </ul>
+</div>
+
+<details class="deferred">
+  <summary>Open questions tracked, not forgotten</summary>
+  <div class="deferred-body">
+    <ul>
+      <li><strong>Permission prompts during a run.</strong> An interactive run will hit tool-permission prompts — that's expected (it's interactive), and the D9 badge is how you find it. No auto-approve in v1.</li>
+      <li><strong>Overlapping fires.</strong> If a job's previous run tab is still open/active when the next fire arrives — skip, queue, or open a second tab? (Proposal: skip with a "still running" note.)</li>
+      <li><strong>Timezone / DST</strong> — presets are local-time; the parser choice (D8) determines DST handling for advanced expressions.</li>
+      <li><strong>Sleep/wake.</strong> A fire whose time passed during system sleep is treated like a while-closed miss (D5) once the app wakes.</li>
+      <li><strong>Env / shell.</strong> Runs inherit the same PTY env stamps as any Duo terminal (<code>DUO_SESSION</code>, <code>DUO_WINDOW</code>, etc.).</li>
+    </ul>
+  </div>
+</details>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 10 decisions answered</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  var DECISIONS = [
+    { id: 'd1',  title: 'Storage shape & scope' },
+    { id: 'd2',  title: 'Initial-instruction delivery' },
+    { id: 'd3',  title: 'Same-session-vs-fresh semantics' },
+    { id: 'd4',  title: 'Headless (-p) enforcement' },
+    { id: 'd5',  title: 'Missed-run default' },
+    { id: 'd6',  title: 'Home surfacing layout' },
+    { id: 'd7',  title: 'Create / manage entry points' },
+    { id: 'd8',  title: 'Scheduler engine' },
+    { id: 'd9',  title: 'Waiting-on-user tab indicator' },
+    { id: 'd10', title: 'Run landing window' }
+  ];
+  var STORE_KEY = 'enh-221-cron-r1';
+
+  function state() {
+    var s = {};
+    DECISIONS.forEach(function (d) {
+      var checked = document.querySelector('input[name="' + d.id + '"]:checked');
+      var notes = document.querySelector('.q-notes[data-decision="' + d.id + '"]');
+      s[d.id] = { value: checked ? checked.value : null, notes: notes ? notes.value : '' };
+    });
+    return s;
+  }
+
+  function save() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state())); } catch (e) {}
+    updateCount();
+  }
+
+  function restore() {
+    var raw = null;
+    try { raw = localStorage.getItem(STORE_KEY); } catch (e) {}
+    if (!raw) return;
+    var s;
+    try { s = JSON.parse(raw); } catch (e) { return; }
+    DECISIONS.forEach(function (d) {
+      var saved = s[d.id];
+      if (!saved) return;
+      if (saved.value) {
+        var input = document.querySelector('input[name="' + d.id + '"][value="' + saved.value + '"]');
+        if (input) input.checked = true;
+      }
+      var notes = document.querySelector('.q-notes[data-decision="' + d.id + '"]');
+      if (notes && saved.notes) notes.value = saved.notes;
+    });
+  }
+
+  function updateCount() {
+    var s = state(), n = 0;
+    DECISIONS.forEach(function (d) { if (s[d.id].value) n++; });
+    document.getElementById('answered-count').textContent = String(n);
+  }
+
+  function payload() {
+    var s = state();
+    var lines = ['SCHEDULED CLAUDE SESSIONS — ENH-221 DECISIONS', ''];
+    DECISIONS.forEach(function (d) {
+      var v = s[d.id].value ? s[d.id].value.toUpperCase() : 'UNANSWERED';
+      lines.push('[' + v + '] ' + d.title);
+      if (s[d.id].notes && s[d.id].notes.trim()) {
+        lines.push('    notes: ' + s[d.id].notes.trim());
+      }
+      lines.push('');
+    });
+    return lines.join('\n');
+  }
+
+  document.querySelectorAll('input[type="radio"]').forEach(function (el) {
+    el.addEventListener('change', save);
+  });
+  document.querySelectorAll('.q-notes').forEach(function (el) {
+    el.addEventListener('input', save);
+  });
+
+  document.getElementById('copy-btn').addEventListener('click', function () {
+    var btn = this;
+    navigator.clipboard.writeText(payload()).then(function () {
+      btn.classList.add('copied');
+      btn.textContent = 'Copied — paste to Claude';
+      setTimeout(function () {
+        btn.classList.remove('copied');
+        btn.textContent = 'Copy decisions';
+      }, 2000);
+    });
+  });
+
+  restore();
+  updateCount();
+})();
+</script>
+
+</body>
+</html>
