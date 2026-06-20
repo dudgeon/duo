@@ -276,7 +276,11 @@ hatch works; smoke-walked.
   · DR5 refactor-now-light · DR6 refines D5 to sparse-folder). Recommendation:
   converge **now, light** (parameterize `runClone({depth,openAfter})` + route the
   ⌘O "clone" choice through the prefilled CloneModal — routing, not a rewrite).
-  Walk to lock; this slightly **reopens D5** (DR6).
+  Walk to lock; this slightly **reopens D5** (DR6). **Merged-UI study** (the
+  single Open+Clone surface + the clone-success-screen redesign — Open/Done hero
+  replacing "Clone another"):
+  [`docs/research/file-open-clone-merged-ui.html`](../research/file-open-clone-merged-ui.html)
+  (DM1 merge depth · DM2 success hero).
 
 ---
 
