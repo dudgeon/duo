@@ -34,6 +34,7 @@ import { Markdown } from 'tiptap-markdown'
 import type { Editor } from '@tiptap/react'
 
 import { EditorToolbar } from './EditorToolbar'
+import { HistoryModal } from './HistoryModal'
 import { SuggestingBanner } from './SuggestingBanner'
 import { UnifiedAnnotationRail } from './UnifiedAnnotationRail'
 import { collectTrackedChanges, countTrackedChanges, type TrackedRange } from './trackedChanges'
@@ -379,6 +380,8 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // but lives in component state so the toolbar re-renders on toggle.
   // Synced on file load + every toggle.
   const [suggestingMode, setSuggestingMode] = useState(false)
+  // ENH-221 — file version-history modal ("the richer rewind").
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [newCommentAt, setNewCommentAt] = useState<{
     commentId: string
     range: { from: number; to: number }
@@ -2473,6 +2476,14 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         saveError={saveError}
         autosaveOn={autosaveOn}
         onToggleAutosave={toggleAutosave}
+        onShowHistory={isNew ? undefined : () => setHistoryOpen(true)}
+      />
+      {/* ENH-221 — version-history modal (additional rewind atop native Cmd+Z). */}
+      <HistoryModal
+        open={historyOpen}
+        path={pathRef.current}
+        onClose={() => setHistoryOpen(false)}
+        onRestored={() => editor?.commands.focus()}
       />
       {/* BUG-139 — Properties panel for YAML frontmatter. Always
           visible (collapsed or expanded) when the file has a
