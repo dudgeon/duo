@@ -263,6 +263,13 @@ const api: ElectronAPI = {
     }
   },
 
+  // ENH-221 — durable file version history (the History view).
+  history: {
+    list: (p) => ipcRenderer.invoke(IPC.HISTORY_LIST, { path: p }),
+    show: (p, id) => ipcRenderer.invoke(IPC.HISTORY_SHOW, { path: p, id }),
+    restore: (p, id) => ipcRenderer.invoke(IPC.HISTORY_RESTORE, { path: p, id })
+  },
+
   files: {
     list: (p) => ipcRenderer.invoke(IPC.FILES_LIST, { path: p }),
 

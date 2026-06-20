@@ -2066,6 +2066,23 @@ function setupIPC(): void {
     return filesService.write(p, bytes)
   })
 
+  // ── File version history (ENH-221) ────────────────────────────────────────
+  ipcMain.handle(IPC.HISTORY_LIST, (_event, { path: p }: { path: string }) => {
+    return fileHistoryService.list(p)
+  })
+  ipcMain.handle(IPC.HISTORY_SHOW, async (_event, { path: p, id }: { path: string; id: string }) => {
+    const bytes = await fileHistoryService.read(p, id)
+    return bytes ? new TextDecoder().decode(bytes) : null
+  })
+  ipcMain.handle(IPC.HISTORY_RESTORE, async (_event, { path: p, id }: { path: string; id: string }) => {
+    const bytes = await fileHistoryService.read(p, id)
+    if (!bytes) return null
+    // Route through the normal save path so the restore is itself captured
+    // (source 'restore') and any open editor reconciles via the watcher.
+    const r = await filesService.write(p, bytes, { historySource: 'restore' })
+    return { ok: true, size: r.size }
+  })
+
   ipcMain.handle(IPC.FILES_OPEN_PATH, (_event, { path: p }: { path: string }) => {
     return filesService.openPath(p)
   })
