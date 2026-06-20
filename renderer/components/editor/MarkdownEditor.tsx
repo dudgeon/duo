@@ -725,7 +725,14 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           return true
         }
 
-        const match = matchGlobalShortcut(e, { inEditableSurface: true })
+        // ENH-221 / v0.11.2 fix — pass inAnyTextInput:true. The editor IS a
+        // text-input surface, so chords gated on it (notably ENH-179's ⌘Z
+        // reopen-last-closed-tab) must DEFER to the editor's own handling.
+        // Omitting it made ⌘Z match reopen here → `return true` → ProseMirror's
+        // undo keymap never ran (the live "can't undo" the owner hit: undo
+        // button + ⌘⇧Z worked, ⌘Z dead). The document capture-phase listener
+        // already computes inAnyTextInput correctly; this mirrors it.
+        const match = matchGlobalShortcut(e, { inEditableSurface: true, inAnyTextInput: true })
         if (match) {
           // Don't let ProseMirror also act on it. The document
           // capture-phase listener has already fired and dispatched
