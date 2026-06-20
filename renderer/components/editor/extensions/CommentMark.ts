@@ -29,11 +29,15 @@ declare module '@tiptap/core' {
     commentMark: {
       /** Apply a comment mark with full metadata + body. If `from`/`to`
        *  are omitted, uses current selection. No-op when collapsed.
-       *  Returns true on success. */
+       *  Returns true on success. ENH-221 — pass `addToHistory:false` for
+       *  programmatic re-anchoring (sidecar load/reload) so the mark pass
+       *  stays OFF the undo stack; omit it (default true) for user-created
+       *  comments, which SHOULD be undoable. */
       applyCommentMark: (
         attrs: { commentId: string; author: string; ts: string; body: string; replyTo?: string },
         from?: number,
-        to?: number
+        to?: number,
+        addToHistory?: boolean
       ) => ReturnType
       /** Remove every commentMark with the given id. */
       removeCommentMark: (commentId: string) => ReturnType
@@ -98,7 +102,7 @@ export const CommentMark = Mark.create<{}, {}>({
 
   addCommands() {
     return {
-      applyCommentMark: (attrs, from, to) => ({ tr, dispatch, state }) => {
+      applyCommentMark: (attrs, from, to, addToHistory = true) => ({ tr, dispatch, state }) => {
         if (!attrs.commentId) return false
         const range = (typeof from === 'number' && typeof to === 'number')
           ? { from, to }
@@ -114,6 +118,9 @@ export const CommentMark = Mark.create<{}, {}>({
             body: attrs.body,
             replyTo: attrs.replyTo ?? null
           }))
+          // ENH-221 — programmatic re-anchoring keeps the mark pass off the
+          // undo stack so Cmd+Z never lands on an invisible mark application.
+          if (!addToHistory) tr.setMeta('addToHistory', false)
           dispatch(tr)
         }
         return true
