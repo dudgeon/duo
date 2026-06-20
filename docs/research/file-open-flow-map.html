@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ENH-221 · Open-flow map + clone convergence</title>
+<style>
+/* ===== Atelier kernel (inlined from skill/references/duo-atelier.css) ===== */
+:root{
+  --paper:#fbf8f1;--paper-deep:#f3ede0;--paper-edge:#e8e0cb;--paper-rule:#d9cea8;
+  --ink:#2b2620;--ink-soft:#4a4238;--ink-mute:#6f6557;--ink-ghost:#9a9080;
+  --accent:#c46a1c;--accent-soft:#f4d9b6;--pass:#4a7d3e;--fail:#b13e3a;--warn:#b07527;
+  --code-bg:#2b2823;--code-ink:#e8e0cb;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:-apple-system,"SF Pro Text","Segoe UI",system-ui,sans-serif;font-size:14px;line-height:1.55;}
+body{padding:32px 40px 96px;max-width:980px;margin:0 auto;}
+header.page-head{border-bottom:1px solid var(--paper-rule);padding-bottom:16px;margin-bottom:24px;}
+header.page-head h1{font-family:"New York","Iowan Old Style",Georgia,serif;font-style:italic;font-weight:500;margin:0 0 4px;font-size:24px;}
+header.page-head .meta{color:var(--ink-mute);font-size:13px;}
+header.page-head .meta .pill{display:inline-block;padding:2px 8px;border-radius:10px;background:var(--accent-soft);color:var(--accent);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;margin-right:6px;}
+.intro{background:var(--paper-deep);border:1px solid var(--paper-rule);border-radius:6px;padding:14px 18px;margin-bottom:28px;font-size:13.5px;color:var(--ink-soft);}
+.intro strong{color:var(--ink);font-weight:600;}
+h2{font-family:"New York","Iowan Old Style",Georgia,serif;font-weight:600;margin:36px 0 12px;font-size:19px;border-bottom:1px solid var(--paper-rule);padding-bottom:6px;}
+h3{font-weight:600;margin:22px 0 8px;font-size:15px;}
+h4{margin:16px 0 6px;font-size:13.5px;}
+p{margin:8px 0;}ul,ol{margin:8px 0;padding-left:24px;}li{margin:4px 0;}
+code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12.5px;background:var(--paper-deep);padding:1px 5px;border-radius:3px;}
+.decision-card{background:var(--paper-deep);border:1.5px solid var(--paper-rule);border-radius:6px;padding:16px 18px;margin:18px 0;}
+.decision-card .q-title{font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:0.05em;color:var(--accent);margin:0 0 6px;}
+.decision-card .q-prompt{font-family:"New York","Iowan Old Style",Georgia,serif;font-weight:500;font-size:17px;color:var(--ink);margin:0 0 12px;line-height:1.35;}
+.decision-card .q-context{font-size:13px;color:var(--ink-mute);margin:0 0 14px;}
+.q-options{display:grid;grid-template-columns:1fr;gap:10px;margin:0 0 12px;}
+.q-option{display:block;background:var(--paper);border:1.5px solid var(--paper-rule);border-radius:5px;padding:10px 12px;cursor:pointer;transition:border-color .12s,background .12s;}
+.q-option:hover{border-color:var(--ink-ghost);}
+.q-option input[type=radio]{margin-right:8px;cursor:pointer;accent-color:var(--accent);}
+.q-option:has(input[type=radio]:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 6%,var(--paper));}
+.q-option-body{display:inline-block;vertical-align:top;width:calc(100% - 22px);}
+.q-option-title{font-weight:600;font-size:13.5px;color:var(--ink);margin:0 0 3px;}
+.q-option-title .recommend-tag{font-size:10px;background:var(--accent-soft);color:var(--accent);text-transform:uppercase;font-weight:700;letter-spacing:0.04em;padding:1px 6px;border-radius:8px;margin-left:6px;}
+.q-option-rationale{font-size:12px;color:var(--ink-soft);line-height:1.45;margin:3px 0 0;}
+.q-notes{width:100%;background:var(--paper);border:1px solid var(--paper-rule);border-radius:4px;padding:8px 10px;font-family:inherit;font-size:12.5px;color:var(--ink);resize:vertical;min-height:50px;}
+.q-notes:focus{outline:1.5px solid var(--accent);}
+details.deferred{margin:22px 0;padding:12px 16px;background:var(--paper-deep);border:1px dashed var(--paper-rule);border-radius:6px;}
+details.deferred summary{cursor:pointer;font-weight:600;color:var(--ink-soft);font-size:13.5px;}
+details.deferred[open] summary{color:var(--ink);}
+details.deferred .deferred-body{margin-top:12px;font-size:13px;color:var(--ink-soft);}
+.copy-bar{position:sticky;bottom:0;margin:32px -40px -96px;padding:16px 40px;background:color-mix(in srgb,var(--paper-deep) 96%,transparent);border-top:1.5px solid var(--paper-rule);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;justify-content:space-between;align-items:center;gap:16px;}
+.copy-bar .copy-meta{font-size:12.5px;color:var(--ink-soft);}
+.copy-bar #answered-count{color:var(--accent);font-weight:700;}
+.copy-bar button{background:var(--accent);color:#fff;border:none;border-radius:5px;padding:9px 18px;font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;transition:background .12s;}
+.copy-bar button:hover{background:color-mix(in srgb,black 8%,var(--accent));}
+.copy-bar button.copied{background:var(--pass);}
+
+/* ===== flow-map patterns ===== */
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:11.5px;color:var(--ink-mute);margin:8px 0 4px;}
+.legend .k{display:inline-flex;align-items:center;gap:6px;}
+.swatch{width:12px;height:12px;border-radius:4px;border:1px solid var(--paper-rule);}
+.sw-exist{background:color-mix(in srgb,var(--pass) 18%,var(--paper));border-color:color-mix(in srgb,var(--pass) 40%,var(--paper-rule));}
+.sw-new{background:var(--accent-soft);border-color:var(--accent);}
+.sw-choice{background:var(--accent);border-color:var(--accent);}
+
+.spine{display:flex;flex-direction:column;align-items:center;gap:4px;margin:10px 0 6px;}
+.spine .snode{border:1.5px solid var(--ink-soft);border-radius:8px;padding:8px 16px;font-weight:600;font-size:13px;background:var(--paper);text-align:center;}
+.spine .snode .sub{display:block;font-weight:500;font-size:11px;color:var(--ink-mute);font-family:ui-monospace,Menlo,monospace;margin-top:2px;}
+.spine .down{color:var(--ink-ghost);font-size:16px;line-height:1;}
+
+.bmap{display:flex;flex-direction:column;gap:10px;margin:12px 0;}
+.brow{display:grid;grid-template-columns:172px 1fr;gap:12px;align-items:start;padding:11px 13px;border:1px solid var(--paper-edge);border-radius:9px;background:var(--paper);}
+.brow.hot{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 10%,transparent);}
+.bkey{font-size:12.5px;font-weight:700;color:var(--ink);}
+.bkey .ex{display:block;font-weight:500;font-size:10px;color:var(--ink-mute);font-family:ui-monospace,Menlo,monospace;margin-top:3px;word-break:break-all;}
+.bpath{display:flex;flex-wrap:wrap;align-items:center;gap:5px;}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:13px;border:1px solid var(--paper-rule);background:var(--paper-deep);color:var(--ink-soft);white-space:nowrap;}
+.chip.exist{background:color-mix(in srgb,var(--pass) 12%,var(--paper));border-color:color-mix(in srgb,var(--pass) 38%,var(--paper-rule));color:#34602b;}
+.chip.new{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);}
+.chip.choice{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700;}
+.chip.term{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+.arr{color:var(--ink-ghost);font-weight:700;font-size:12px;}
+.fork{display:flex;flex-direction:column;gap:7px;border-left:2px dashed var(--accent);padding-left:11px;margin:2px 0 0 2px;width:100%;}
+.lane{display:flex;flex-wrap:wrap;align-items:center;gap:5px;}
+.lane .lane-tag{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--accent);background:var(--accent-soft);border-radius:6px;padding:1px 6px;margin-right:2px;}
+
+/* Open-bar choice mock */
+.obar{max-width:580px;margin:16px auto;border:1px solid var(--paper-edge);border-radius:12px;background:var(--paper);box-shadow:0 12px 34px rgba(0,0,0,.15);overflow:hidden;}
+.obar .ofield{display:flex;align-items:center;gap:8px;padding:13px 15px;border-bottom:1px solid var(--paper-edge);}
+.obar .ofield .lead{color:var(--ink-ghost);font-size:13px;}
+.obar .ofield .url{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:var(--ink);}
+.obar .odetect{padding:7px 15px;font-size:11.5px;color:#34602b;background:color-mix(in srgb,var(--pass) 9%,var(--paper));border-bottom:1px solid var(--paper-edge);}
+.obar .ochoices{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:13px 15px;}
+@media(max-width:560px){.obar .ochoices{grid-template-columns:1fr;}}
+.ochoice{border:1.5px solid var(--paper-rule);border-radius:10px;padding:12px 13px;background:var(--paper);}
+.ochoice .ct{font-weight:700;font-size:13px;color:var(--ink);display:flex;align-items:center;gap:7px;}
+.ochoice .cd{font-size:11px;color:var(--ink-soft);margin-top:5px;line-height:1.45;}
+.ochoice .sub{font-size:10px;color:var(--ink-mute);margin-top:6px;font-family:ui-monospace,Menlo,monospace;}
+.ochoice .badge{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:1px 6px;border-radius:7px;}
+.ochoice .badge.new{background:var(--accent-soft);color:var(--accent);}
+.ochoice .badge.exist{background:color-mix(in srgb,var(--pass) 16%,var(--paper));color:#34602b;}
+.obar .ofoot{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 15px;border-top:1px solid var(--paper-edge);background:var(--paper-deep);font-size:11px;color:var(--ink-mute);}
+.obar .ofoot .rem{display:flex;align-items:center;gap:6px;}
+.obar .ofoot kbd{font-family:ui-monospace,Menlo,monospace;background:var(--paper);border:1px solid var(--paper-rule);border-radius:4px;padding:0 5px;font-size:10px;}
+
+/* convergence diagram */
+.conv{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:14px 0;}
+@media(max-width:680px){.conv{grid-template-columns:1fr;}}
+.conv .col{border:1px solid var(--paper-edge);border-radius:9px;padding:13px;background:var(--paper);}
+.conv .col h4{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-mute);}
+.conv.proposed .col{border-color:var(--accent);}
+.entryrow{display:flex;align-items:center;gap:6px;margin:6px 0;font-size:11.5px;}
+.entryrow .ep{flex:1;border:1px solid var(--paper-rule);border-radius:7px;padding:6px 9px;background:var(--paper-deep);font-weight:600;color:var(--ink-soft);}
+.entryrow .to{color:var(--ink-ghost);}
+.substrate{margin-top:10px;border:1.5px solid var(--ink-soft);border-radius:8px;padding:9px 11px;background:color-mix(in srgb,var(--accent) 5%,var(--paper));text-align:center;font-size:11.5px;font-weight:600;}
+.substrate code{background:transparent;}
+.dup{color:var(--fail);font-weight:600;}
+
+.callout{border-left:3px solid var(--accent);background:color-mix(in srgb,var(--accent) 6%,var(--paper));padding:11px 14px;border-radius:0 7px 7px 0;margin:14px 0;font-size:13px;}
+.callout b{color:var(--ink);}
+.rec{border-left:3px solid var(--pass);background:color-mix(in srgb,var(--pass) 8%,var(--paper));padding:11px 14px;border-radius:0 7px 7px 0;margin:14px 0;font-size:13px;}
+.rec b{color:#34602b;}
+table.cmp{border-collapse:collapse;width:100%;font-size:12px;margin:12px 0;}
+table.cmp th,table.cmp td{border:1px solid var(--paper-rule);padding:7px 10px;text-align:left;vertical-align:top;}
+table.cmp th{background:var(--paper-deep);font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-mute);}
+table.cmp td b{color:var(--ink);}
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Open-flow map + clone convergence</h1>
+  <div class="meta">
+    <span class="pill">ENH-221</span>
+    <span class="pill">flow + refactor</span>
+    2026-06-20 · pairs with <code>docs/prd/enh-221-file-open-flow.md</code>
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> You raised that a GitHub file link is ambiguous:
+  sometimes you want <em>just that doc</em>, sometimes you actually want to
+  <em>clone the whole repo and work in it</em>. So the Open flow should
+  <strong>present that fork in the road</strong>. This page (1) maps the
+  <strong>entire</strong> Open flow with every branch by user intent, (2) mocks
+  the new file-vs-repo choice in context, and (3) proposes how to
+  <strong>converge</strong> the "clone the repo" branch with Duo's
+  <em>already-shipped</em> clone flow — with a do-it-now-vs-defer call. Decisions
+  at the bottom round-trip to clipboard.
+</div>
+
+<div class="legend">
+  <span class="k"><span class="swatch sw-exist"></span> reuses a shipped Duo surface</span>
+  <span class="k"><span class="swatch sw-new"></span> net-new for ENH-221</span>
+  <span class="k"><span class="swatch sw-choice"></span> the new choice you asked for</span>
+</div>
+
+<h2>1 · The full Open-flow map</h2>
+
+<div class="spine">
+  <div class="snode">Entry<span class="sub">⌘O · File ▸ Open… · duo open &lt;target&gt;</span></div>
+  <div class="down">▼</div>
+  <div class="snode">Resolver classifies the target<span class="sub">core/open/resolve.ts (shared UI + CLI)</span></div>
+  <div class="down">▼ branches by what the target is ▼</div>
+</div>
+
+<div class="bmap">
+
+  <div class="brow">
+    <div class="bkey">Local path<span class="ex">~/notes/x.md · /abs/x.md · ./x.md</span></div>
+    <div class="bpath">
+      <span class="chip exist">focus folder · navigator</span><span class="arr">→</span>
+      <span class="chip exist">open in viewer</span><span class="arr">→</span>
+      <span class="chip term">edit locally</span>
+    </div>
+  </div>
+
+  <div class="brow">
+    <div class="bkey">URL matches a local clone<span class="ex">github.com/o/r/… &amp; you already have o/r cloned</span></div>
+    <div class="bpath">
+      <span class="chip new">offer: "Open from your local clone?"</span><span class="arr">→</span>
+      <span class="chip exist">open from real clone · focus folder</span><span class="arr">→</span>
+      <span class="chip term">work in your clone (D6)</span>
+    </div>
+  </div>
+
+  <div class="brow hot">
+    <div class="bkey">GitHub <u>file</u> URL<span class="ex">github.com/o/r/blob/main/doc.md</span></div>
+    <div class="bpath">
+      <span class="chip choice">❖ Just this doc &nbsp;OR&nbsp; Clone the repo?</span>
+      <div class="fork">
+        <div class="lane">
+          <span class="lane-tag">Just this doc</span>
+          <span class="chip new">sparse checkout · managed/opaque</span><span class="arr">→</span>
+          <span class="chip exist">open in viewer</span><span class="arr">→</span>
+          <span class="chip new">edit → diverges</span><span class="arr">→</span>
+          <span class="chip new">Propose changes</span><span class="arr">→</span>
+          <span class="chip term">PR</span>
+        </div>
+        <div class="lane">
+          <span class="lane-tag">Clone the repo</span>
+          <span class="chip exist">Clone flow · CloneModal (prefilled)</span><span class="arr">→</span>
+          <span class="chip exist">full clone → chosen dir</span><span class="arr">→</span>
+          <span class="chip exist">navigator root = project</span><span class="arr">→</span>
+          <span class="chip new">also open the file</span><span class="arr">→</span>
+          <span class="chip term">normal git work</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="brow">
+    <div class="bkey">GitHub <u>repo / tree</u> URL<span class="ex">github.com/o/r · …/tree/main/dir (no single file)</span></div>
+    <div class="bpath">
+      <span class="chip exist">Clone flow · CloneModal (prefilled)</span><span class="arr">→</span>
+      <span class="chip exist">full clone → chosen dir</span><span class="arr">→</span>
+      <span class="chip term">navigator root = project</span>
+    </div>
+  </div>
+
+  <div class="brow">
+    <div class="bkey">Other http(s) URL<span class="ex">example.com · a non-GitHub page</span></div>
+    <div class="bpath">
+      <span class="chip exist">Browser pane · duo navigate</span><span class="arr">→</span>
+      <span class="chip term">interactive page</span>
+    </div>
+  </div>
+
+</div>
+
+<p style="font-size:12px;color:var(--ink-mute);"><strong>Auth:</strong> any path
+that clones or opens a PR (both GitHub-file lanes when private, the repo-clone
+rows) bounces to "Run <code>gh auth login</code>" exactly as the Clone modal does
+today (D9). Public repos clone via plain <code>git</code> regardless.</p>
+
+<div class="callout">
+  <b>The one genuinely new decision point</b> is the orange <b>❖ choice</b> on the
+  GitHub-file row. Everything to its right already exists or is already specced —
+  the "Clone the repo" lane is <em>entirely green</em> (Duo's shipped clone flow),
+  and the "Just this doc" lane is ENH-221's round-trip. The choice is the seam
+  that lets one paste serve both intents.
+</div>
+
+<h2>2 · The choice, in context</h2>
+<p>After you paste a GitHub <em>file</em> URL into the Open bar, the resolver
+detects it and the bar offers the fork before doing anything irreversible:</p>
+
+<div class="obar">
+  <div class="ofield"><span class="lead">Open</span><span class="url">github.com/dudgeon/duo/blob/main/docs/roadmap.md</span></div>
+  <div class="odetect">✓ Recognized — a markdown file in <code>dudgeon/duo</code> @ main. How do you want to work with it?</div>
+  <div class="ochoices">
+    <div class="ochoice">
+      <div class="ct">📄 Open just this document <span class="badge new">fast</span></div>
+      <div class="cd">Pulls only what's needed into a hidden working copy and opens it like a local file. Edit, then "Propose changes" ships a PR back.</div>
+      <div class="sub">no repo added to your navigator</div>
+    </div>
+    <div class="ochoice">
+      <div class="ct">📦 Clone the whole repo <span class="badge exist">project</span></div>
+      <div class="cd">Clones <code>dudgeon/duo</code> to a folder you pick, adds it to the navigator, and opens this file — full git, branches, terminals.</div>
+      <div class="sub">uses Duo's existing Clone flow</div>
+    </div>
+  </div>
+  <div class="ofoot">
+    <span class="rem"><input type="checkbox" disabled> Remember my choice for <code>dudgeon/duo</code></span>
+    <span><kbd>Esc</kbd> cancel</span>
+  </div>
+</div>
+
+<p style="font-size:12px;color:var(--ink-mute);">Presented as two equal-weight
+choices (no pre-selected default) so the flow genuinely <em>asks</em>, per your
+note. The "remember for this repo" checkbox is the escape valve so a power user
+isn't re-asked forever — see DR2.</p>
+
+<h2>3 · Clone convergence — today vs proposed</h2>
+
+<p>Duo <strong>already ships</strong> a clone flow: <code>duo clone &lt;url&gt; [dir]</code>
+(ENH-151, v0.7.0) → <code>core/git/clone.ts runClone()</code> (gh-preferred, git
+fallback), plus <code>CloneModal.tsx</code> (URL + parent-dir picker + collision
+detection + auth banner) reached from File ▸ Clone… and the FileTree right-click.
+On success it sets the navigator root. The question is whether ENH-221's new
+"clone the repo" branch re-uses that, or grows a parallel one.</p>
+
+<div class="conv">
+  <div class="col">
+    <h4>Today — two doors, no shared seam</h4>
+    <div class="entryrow"><span class="ep">File ▸ Clone…</span><span class="to">→</span><span class="ep">CloneModal</span></div>
+    <div class="entryrow"><span class="ep">FileTree ▸ Clone here</span><span class="to">→</span><span class="ep">CloneModal</span></div>
+    <div class="entryrow"><span class="ep">duo clone</span><span class="to">→</span><span class="ep">runClone</span></div>
+    <div class="entryrow"><span class="ep" style="border-style:dashed;color:var(--ink-mute)">⌘O (ENH-221, file URL)</span><span class="to">→</span><span class="ep dup">??? new path?</span></div>
+    <div class="substrate"><code>core/git/clone.ts · runClone()</code> — full clone, user dir</div>
+  </div>
+  <div class="col">
+    <h4>Proposed — one substrate, many doors</h4>
+    <div class="entryrow"><span class="ep">File ▸ Clone…</span><span class="to">→</span><span class="ep">CloneModal</span></div>
+    <div class="entryrow"><span class="ep">FileTree ▸ Clone here</span><span class="to">→</span><span class="ep">CloneModal</span></div>
+    <div class="entryrow"><span class="ep">duo clone</span><span class="to">→</span><span class="ep">runClone</span></div>
+    <div class="entryrow"><span class="ep">⌘O → "Clone the repo"</span><span class="to">→</span><span class="ep">CloneModal (prefilled)</span></div>
+    <div class="substrate"><code>runClone({ url, targetDir, depth, openAfter })</code><br>one substrate · CloneModal landing</div>
+  </div>
+</div>
+
+<table class="cmp">
+  <tr><th>Dimension</th><th>"Just this doc" lane</th><th>"Clone the repo" lane</th></tr>
+  <tr><td><b>Destination</b></td><td>opaque managed checkout (<code>~/.claude/duo/checkouts/…</code>)</td><td>a folder the user picks (CloneModal)</td></tr>
+  <tr><td><b>Depth / shape</b></td><td>sparse (file's folder), shallow</td><td>full clone, full history</td></tr>
+  <tr><td><b>Navigator</b></td><td>not added as a root (opaque)</td><td>becomes the navigator root / project</td></tr>
+  <tr><td><b>Afterlife</b></td><td>edit → diverge → Propose changes → PR</td><td>normal git work (branches, terminals, status chip)</td></tr>
+  <tr><td><b>Substrate</b></td><td colspan="2" style="text-align:center"><b>same <code>core/git/clone.ts</code></b> — parameterized by destination + depth + <code>openAfter</code></td></tr>
+</table>
+
+<div class="rec">
+  <b>Recommendation — yes, converge now, but light.</b> The clone internals are
+  already a clean substrate and the modal is shipped + fixed, so this is
+  <b>routing + parameterizing, not a rewrite</b>: (1) give <code>runClone</code> an
+  optional <code>depth</code> + <code>openAfter</code> (it already takes
+  <code>targetDir</code>/<code>cwd</code>); (2) have the ⌘O "Clone the repo" choice
+  open the existing CloneModal <em>prefilled</em> with the URL + an "open
+  <code>doc.md</code> after cloning" toggle; (3) keep the managed-sparse path for
+  "Just this doc." Doing it now (while the Open flow is being specced) avoids a
+  second, divergent clone entry point later — the expensive outcome. A full
+  rewrite of the modal into the Open bar is <em>not</em> warranted.
+</div>
+
+<h2>4 · Decisions</h2>
+
+<section class="decision-card">
+  <div class="q-title">Decision DR1</div>
+  <h3 class="q-prompt">How is the file-vs-repo choice presented?</h3>
+  <p class="q-context">You've decided the flow should ask. This is the treatment.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="dr1" value="inline-openbar">
+      <div class="q-option-body"><div class="q-option-title">Inline in the Open bar — two equal choices <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">As mocked (§2): the bar detects the file URL and expands to "Open just this document" / "Clone the whole repo" before doing anything. Stays in one surface, one keystroke-flow, no extra modal.</div></div></label>
+    <label class="q-option"><input type="radio" name="dr1" value="followup-modal">
+      <div class="q-option-body"><div class="q-option-title">A small follow-up dialog after submit</div>
+      <div class="q-option-rationale">Paste + Enter, then a dialog asks. Clearer separation, but an extra step / window for the common case.</div></div></label>
+    <label class="q-option"><input type="radio" name="dr1" value="segmented-toggle">
+      <div class="q-option-body"><div class="q-option-title">A segmented toggle in the bar (Doc | Repo)</div>
+      <div class="q-option-rationale">Compact — a two-way switch the user flips before Enter. Smaller, but the difference between the two modes is easy to skim past without the descriptions.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="dr1" placeholder="Notes…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision DR2</div>
+  <h3 class="q-prompt">Default + memory — does Duo ever stop asking?</h3>
+  <p class="q-context">"Present the choice" is the baseline. But re-asking forever for a repo you always clone is friction.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="dr2" value="ask-remember-repo">
+      <div class="q-option-body"><div class="q-option-title">Always ask, but offer "remember for this repo" <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">No pre-selected default (honors your intent); the checkbox lets a user opt a given <code>owner/repo</code> into skip-the-ask next time. Best of both — and the remembered choice is a pointer, clearable.</div></div></label>
+    <label class="q-option"><input type="radio" name="dr2" value="always-ask">
+      <div class="q-option-body"><div class="q-option-title">Always ask, never remember</div>
+      <div class="q-option-rationale">Simplest + most predictable; the choice is cheap. But repetitive for someone who always wants the same thing for a repo they live in.</div></div></label>
+    <label class="q-option"><input type="radio" name="dr2" value="default-doc">
+      <div class="q-option-body"><div class="q-option-title">Default to "just this doc," repo as secondary</div>
+      <div class="q-option-rationale">Optimizes the casual-collaborator case (the driving use case); Enter ships the light path. But it's no longer truly "asking" — it nudges.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="dr2" placeholder="Notes…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision DR3</div>
+  <h3 class="q-prompt">Where does "Clone the whole repo" land?</h3>
+  <p class="q-context">The convergence call — reuse the shipped CloneModal, or build a lighter inline clone.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="dr3" value="reuse-clonemodal">
+      <div class="q-option-body"><div class="q-option-title">Hand off to the existing CloneModal, prefilled <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Reuses the shipped surface (URL + destination picker + collision detection + auth banner) with the URL filled in. Zero new clone UI; the user just confirms the destination. One substrate, many doors.</div></div></label>
+    <label class="q-option"><input type="radio" name="dr3" value="one-tap-default">
+      <div class="q-option-body"><div class="q-option-title">One-tap clone to a default location (no modal)</div>
+      <div class="q-option-rationale">Fastest — clone to e.g. <code>~/Documents/&lt;repo&gt;</code> and open. But it hides the destination choice the CloneModal exists to give, and risks collisions the modal already handles.</div></div></label>
+    <label class="q-option"><input type="radio" name="dr3" value="inline-dest">
+      <div class="q-option-body"><div class="q-option-title">Ask destination inline in the Open bar</div>
+      <div class="q-option-rationale">Keeps everything in the bar (no modal), but re-implements the destination picker + collision detection the CloneModal already does — duplication.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="dr3" placeholder="Notes…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision DR4</div>
+  <h3 class="q-prompt">After cloning the repo, open the file you started from?</h3>
+  <p class="q-context">You pasted a link to <code>doc.md</code> but chose "clone the repo." Do we still open <code>doc.md</code>?</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="dr4" value="auto-open">
+      <div class="q-option-body"><div class="q-option-title">Yes — auto-open the file after the clone <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">You asked for that file; cloning was just how you wanted to get it. Open it in the viewer and focus its folder — fewest surprises.</div></div></label>
+    <label class="q-option"><input type="radio" name="dr4" value="focus-folder">
+      <div class="q-option-body"><div class="q-option-title">No — just focus the repo, let the user navigate</div>
+      <div class="q-option-rationale">Matches today's clone behavior exactly (navigator root, nothing opened). Consistent, but drops the file context you started from.</div></div></label>
+    <label class="q-option"><input type="radio" name="dr4" value="ask">
+      <div class="q-option-body"><div class="q-option-title">Offer it on the success panel ("Open doc.md")</div>
+      <div class="q-option-rationale">A button on the CloneModal success state. Keeps it explicit, but adds a click to the common case.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="dr4" placeholder="Notes…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision DR5</div>
+  <h3 class="q-prompt">Refactor timing — converge the clone flow now, or defer?</h3>
+  <p class="q-context">Your explicit question. The substrate is shipped; the work is routing + parameterizing.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="dr5" value="now-light">
+      <div class="q-option-body"><div class="q-option-title">Converge now, light <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Parameterize <code>runClone({depth,openAfter})</code> + route the ⌘O "Clone the repo" choice through the existing CloneModal. Small, low-risk, and prevents a second divergent clone door from being born in ENH-221. Lands with Phase 1/2.</div></div></label>
+    <label class="q-option"><input type="radio" name="dr5" value="defer">
+      <div class="q-option-body"><div class="q-option-title">Defer — ship the managed-doc path first, wire clone later</div>
+      <div class="q-option-rationale">Keep ENH-221 v1 to "just this doc"; add the "clone the repo" branch in a fast-follow. Less now, but the choice prompt (§2) ships incomplete or absent at first.</div></div></label>
+    <label class="q-option"><input type="radio" name="dr5" value="full-rewrite">
+      <div class="q-option-body"><div class="q-option-title">Bigger — fold the CloneModal into the Open bar entirely</div>
+      <div class="q-option-rationale">One unified Open/Clone surface; retire the standalone modal. Cleanest end-state, but a real rewrite of a shipped, working surface — not justified by this need alone.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="dr5" placeholder="Notes…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision DR6 · refines D5</div>
+  <h3 class="q-prompt">What does "Just this doc" actually pull?</h3>
+  <p class="q-context">You called the no-clone path the "sparse checkout flow." D5 had locked "depth-1 whole-repo shallow clone." Reconciling.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="dr6" value="sparse-folder">
+      <div class="q-option-body"><div class="q-option-title">Sparse-checkout the file's folder (shallow) <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Matches your "sparse" framing, stays opaque + light, and still resolves same-folder images/links + gives a real git context for the PR. Refines D5 from "whole-repo shallow" to "sparse, folder-favored."</div></div></label>
+    <label class="q-option"><input type="radio" name="dr6" value="d5-shallow-whole">
+      <div class="q-option-body"><div class="q-option-title">Keep D5 — depth-1 whole-repo shallow clone</div>
+      <div class="q-option-rationale">Maximum fidelity (cross-folder links resolve too), at the cost of pulling the whole tree for one doc. Heavier but simplest to reason about.</div></div></label>
+    <label class="q-option"><input type="radio" name="dr6" value="raw-only">
+      <div class="q-option-body"><div class="q-option-title">Just the one file (raw), reconstruct git lazily</div>
+      <div class="q-option-rationale">Lightest possible. But relative assets break and committing back needs more reconstruction — the trade ENH-221 already rejected once.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="dr6" placeholder="Notes…"></textarea>
+</section>
+
+<details class="deferred">
+  <summary>Scenarios deliberately left as-is (no new branch)</summary>
+  <div class="deferred-body">
+    <ul>
+      <li><b>Non-GitHub git hosts</b> (GitLab/Bitbucket): out of scope for v1 — the file lane is GitHub-shaped (gh + PRs). A repo URL still clones via the git fallback.</li>
+      <li><b>Gist URLs:</b> treat as "just this doc" if single-file; defer multi-file gists.</li>
+      <li><b>ENH-154 gh-link / ENH-155 FileTree GitHub menu:</b> filed-but-unshipped; this refactor does not depend on or block them.</li>
+      <li><b>"Clone the repo" when you already have it cloned:</b> handled upstream by the "matches a local clone" row (D6) — offer the existing clone instead of re-cloning.</li>
+    </ul>
+  </div>
+</details>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 6 decisions answered</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+  const DECISIONS=[
+    {name:'dr1',title:'DR1 · Choice presentation'},
+    {name:'dr2',title:'DR2 · Default + memory'},
+    {name:'dr3',title:'DR3 · Clone-repo landing'},
+    {name:'dr4',title:'DR4 · Open file after clone'},
+    {name:'dr5',title:'DR5 · Refactor timing'},
+    {name:'dr6',title:'DR6 · "Just this doc" pull (refines D5)'},
+  ];
+  function answered(){return DECISIONS.filter(d=>document.querySelector('input[name="'+d.name+'"]:checked')).length;}
+  function refresh(){document.getElementById('answered-count').textContent=answered();}
+  document.addEventListener('change',refresh);
+  function payload(){
+    const out=['ENH-221 · Open-flow map + clone convergence — decisions',''];
+    for(const d of DECISIONS){
+      const c=document.querySelector('input[name="'+d.name+'"]:checked');
+      const n=document.querySelector('textarea[data-decision="'+d.name+'"]');
+      out.push('['+(c?c.value:'(unanswered)')+'] '+d.title);
+      if(n&&n.value.trim())n.value.trim().split('\n').forEach(l=>out.push('    '+l));
+      out.push('');
+    }
+    return out.join('\n').trim()+'\n';
+  }
+  document.getElementById('copy-btn').addEventListener('click',async e=>{
+    const b=e.currentTarget;
+    try{await navigator.clipboard.writeText(payload());}
+    catch(_){const t=document.createElement('textarea');t.value=payload();document.body.appendChild(t);t.select();try{document.execCommand('copy');}catch(_){}document.body.removeChild(t);}
+    b.textContent='Copied ✓';b.classList.add('copied');
+    setTimeout(()=>{b.textContent='Copy decisions';b.classList.remove('copied');},1800);
+  });
+  refresh();
+</script>
+
+</body>
+</html>

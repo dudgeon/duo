@@ -265,6 +265,18 @@ hatch works; smoke-walked.
   Duo's job (leave the fork).
 - **OQ-6 — Checkout GC.** Managed checkouts accumulate under
   `~/.claude/duo/checkouts/`. **v1:** leave them; add a prune later (size/age).
+- **OQ-7 — File-vs-repo choice + clone convergence (owner-raised 2026-06-20).** A
+  GitHub *file* URL is ambiguous: open just the doc (managed sparse checkout) or
+  clone the whole repo (work in it). The Open flow should **present that choice**,
+  and the "clone the repo" branch should **converge with Duo's already-shipped
+  clone flow** (`duo clone` / `core/git/clone.ts runClone` / `CloneModal`) rather
+  than grow a parallel one. **Flow map + refactor proposal:**
+  [`docs/research/file-open-flow-map.html`](../research/file-open-flow-map.html)
+  (DR1 presentation · DR2 default/memory · DR3 reuse CloneModal · DR4 open-file-after-clone
+  · DR5 refactor-now-light · DR6 refines D5 to sparse-folder). Recommendation:
+  converge **now, light** (parameterize `runClone({depth,openAfter})` + route the
+  ⌘O "clone" choice through the prefilled CloneModal — routing, not a rewrite).
+  Walk to lock; this slightly **reopens D5** (DR6).
 
 ---
 
