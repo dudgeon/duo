@@ -275,7 +275,8 @@ const api: ElectronAPI = {
 
     read: (p) => ipcRenderer.invoke(IPC.FILES_READ, { path: p }),
 
-    write: (p, bytes) => ipcRenderer.invoke(IPC.FILES_WRITE, { path: p, bytes }),
+    write: (p, bytes, opts) =>
+      ipcRenderer.invoke(IPC.FILES_WRITE, { path: p, bytes, historySource: opts?.historySource }),
 
     openPath: (p) => ipcRenderer.invoke(IPC.FILES_OPEN_PATH, { path: p }),
 

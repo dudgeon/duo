@@ -85,7 +85,7 @@ import { UpdateChecker } from '../core/update-checker'
 import { initAutoUpdater } from './auto-updater'
 import { SessionStateService } from '../core/session-state-service'
 import { SettingsService } from '../core/settings-service'
-import { FileHistoryService } from '../core/file-history-service'
+import { FileHistoryService, type SnapshotSource } from '../core/file-history-service'
 import { WorkspaceFileService } from '../core/workspace-file-service'
 import { WorkspaceHistoryService } from '../core/workspace-history-service'
 import { ActiveWorkspaceService } from '../core/active-workspace-service'
@@ -2062,8 +2062,8 @@ function setupIPC(): void {
     return filesService.read(p)
   })
 
-  ipcMain.handle(IPC.FILES_WRITE, (_event, { path: p, bytes }: { path: string; bytes: Uint8Array }) => {
-    return filesService.write(p, bytes)
+  ipcMain.handle(IPC.FILES_WRITE, (_event, { path: p, bytes, historySource }: { path: string; bytes: Uint8Array; historySource?: SnapshotSource }) => {
+    return filesService.write(p, bytes, historySource ? { historySource } : {})
   })
 
   // ── File version history (ENH-221) ────────────────────────────────────────

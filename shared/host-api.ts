@@ -228,7 +228,14 @@ export interface ElectronFilesAPI {
   read: (path: string) => Promise<FileReadResult>
   /** Stage 11 — write a file atomically (tmp + rename). Creates parent dirs
    *  if needed. Caller sends raw bytes. */
-  write: (path: string, bytes: Uint8Array) => Promise<FileWriteResult>
+  write: (
+    path: string,
+    bytes: Uint8Array,
+    // ENH-221 — tag the version-history capture. Omit (default 'save') for
+    // user edits; 'agent' for Duo-mediated agent writes; 'restore' for a
+    // history restore. Drives the History timeline's "who" column.
+    opts?: { historySource?: FileHistorySnapshot['source'] }
+  ) => Promise<FileWriteResult>
   /** FOLLOWUP-026 — renamed from openExternal: opens a local file
    *  path via shell.openPath (the OS picks the default app for that
    *  extension). Distinct from openExternalUrl which is for URLs. */

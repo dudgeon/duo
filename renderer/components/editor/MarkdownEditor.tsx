@@ -464,6 +464,12 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   const pathRef = useRef(path)
   pathRef.current = path
 
+  // ENH-221 — set when the next save's content originated from a Duo-mediated
+  // agent op (duo doc write/edit on the open buffer). The save reads it to tag
+  // the version-history capture 'agent' instead of 'save' (the "who" column),
+  // then clears it. User keystrokes leave it false → 'save'.
+  const agentWritePendingRef = useRef(false)
+
   // Track previous isNew so we can detect the new-file commit transition
   // (true \u2192 false) and hand keyboard focus to the prose, per D33f.
   const wasNewRef = useRef<boolean>(!!isNew)
@@ -1232,7 +1238,11 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
 
         const full = joinFrontmatter(frontmatterRef.current, body, eolRef.current)
         const bytes = encodeUtf8(full)
-        await window.electron.files.write(path, bytes)
+        // ENH-221 — tag the history capture 'agent' when this save carries
+        // agent-applied content; consume the flag so the next user edit is 'save'.
+        const historySource = agentWritePendingRef.current ? 'agent' : 'save'
+        agentWritePendingRef.current = false
+        await window.electron.files.write(path, bytes, { historySource })
         recon.noteSaved(body)
       }
 
@@ -2211,6 +2221,8 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
    *  (clean buffer) and the post-accept path (dirty buffer + accepted). */
   const applyDocWrite = useCallback((req: DocWriteRequest) => {
     if (!editor) return
+    // ENH-221 — this content is agent-authored; the ensuing autosave tags it 'agent'.
+    agentWritePendingRef.current = true
     try {
       if (req.mode === 'replace-all') {
         // Markdown text — tiptap-markdown reparses it into PM doc.
@@ -2379,6 +2391,8 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           })
           return
         }
+        // ENH-221 — agent-authored content; tag the ensuing save 'agent'.
+        agentWritePendingRef.current = true
         editor.commands.setContent(preprocessSubstitutions(res.body), true)
         editor.commands.markJustAdded(0, editor.state.doc.content.size)
         // Echo-safe save (routes through the recon hook). Fire-and-

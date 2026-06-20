@@ -680,7 +680,7 @@ export class SocketServer {
 
     const fullText = frontmatter.joinFrontmatter(split.frontmatter, editResult.body, split.eol)
     const bytes = new TextEncoder().encode(fullText)
-    await this.files.write(path, bytes)
+    await this.files.write(path, bytes, { historySource: 'agent' })
     return { ok: true, changed: true, reason: '', op, path }
   }
 
@@ -755,7 +755,7 @@ export class SocketServer {
       return { reqId: '', ok: true, changed: false, replacements: 0, reason: res.reason, path }
     }
     const fullText = frontmatter.joinFrontmatter(split.frontmatter, res.body, split.eol)
-    await this.files.write(path, new TextEncoder().encode(fullText))
+    await this.files.write(path, new TextEncoder().encode(fullText), { historySource: 'agent' })
     return { reqId: '', ok: true, changed: true, replacements: res.replacements, reason: '', path }
   }
 
@@ -830,7 +830,7 @@ export class SocketServer {
     } else {
       serialized = JSON.stringify(root, null, 2) + '\n'
     }
-    await this.files.write(path, new TextEncoder().encode(serialized))
+    await this.files.write(path, new TextEncoder().encode(serialized), { historySource: 'agent' })
     const reason = isYaml ? 'YAML serialized — comments and anchor names are not preserved' : ''
     return { reqId: '', ok: true, changed: true, reason, path }
   }
