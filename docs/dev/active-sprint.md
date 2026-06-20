@@ -1,6 +1,6 @@
-# Active sprint state — ENH-208 Vault: Phase 1 SHIPPED + Phase 2 in flight (v0.10.0 carry-forward below)
+# Active sprint state — ENH-221 worktree lifecycle BUILT + pre-walked (owner review paused 2026-06-19); ENH-208 Vault Phase 2 in flight (v0.10.0 carry-forward below)
 
-## ENH-221 — worktree lifecycle UX (owner verbal directive 2026-06-18, design playground filed)
+## ENH-221 — worktree lifecycle UX (BUILT + pre-walked; owner `/smoke-walk` pending, review paused 2026-06-19)
 
 > **Owner directive:** "keep advancing the worktree controller UI" → two enhancements:
 > (1) PM-friendly **Create a worktree** from the dropdown, (2) **graceful removal**
@@ -9,12 +9,20 @@
 > non-technical-PM persona). High-fidelity flow study with 6 owner decisions filed at
 > [`docs/research/worktree-lifecycle-ux.html`](../research/worktree-lifecycle-ux.html);
 > D1-form-UI follow-up at [`docs/research/worktree-create-ui.html`](../research/worktree-create-ui.html).
-> **Walks 1–2 (2026-06-18): ALL decisions locked.** D1 form UI = **Variant A**
-> (one-line, type-and-go) **+ slug validation** (spaces→`-`, allow-list `[a-z0-9-]`,
-> fallback to auto-name); D2–D6 per recs. **Next: BUILD** — core slug + worktree
-> create/remove + tests → `duo worktree new/remove` CLI (4-surface sync) → FileTree
-> inline-create UI (pill always-on trigger) → nav ErrorBoundary/revert spine + regression
-> test. Full entry + validation spec: `tasks.md` ENH-221.
+> **Decisions locked (walks 1–2, 2026-06-18):** D1 form UI = **Variant A**
+> (one-line, type-and-go) **+ slug validation** (allow-list `[a-z0-9-]`, auto-name
+> fallback); D2–D6 per recs.
+> **BUILT + pre-walked (2026-06-19), phased per owner option (a):** core slug +
+> `createWorktree`/`removeWorktree` (+ live-git tests) → `duo worktree new/remove`
+> CLI (4-surface synced) → FileTree inline-create form (always-on pill) → nav
+> worktree-aware revert + banner + `ErrorBoundary` (+ `pathIsWithin` test) →
+> `35f7c3a` two pre-walk fixes (lone-repo dropdown, focus backstop). Full suite green
+> (1607), typecheck clean. **PRD:** [`docs/prd/enh-221-worktree-lifecycle.md`](../prd/enh-221-worktree-lifecycle.md).
+> **PAUSED 2026-06-19:** owner can't review now → all Electron ops paused; smoke-walk
+> page is ready (`docs/dev/smoke-walks/v0.11.2.html`, pinned in window 1 aux). **Next:**
+> owner walks + Copy-results, then `cut-version` v0.11.2. **Open follow-ups (don't gate
+> the cut):** in-terminal removal notice (C-3), dropdown refetch-on-open (C-5),
+> base-branch picker (C-4) — see PRD § C/E + `tasks.md` ENH-221.
 > **NB (2026-06-18):** a broad worktree purge deleted this session's worktree mid-work
 > (uncommitted mockups lost + recreated from context, then committed). Lesson: commit
 > research artifacts immediately — and this incident is live evidence for enhancement (2).
