@@ -17,7 +17,14 @@
 // browser WebContentsView while open (duo-wcv-park) so it can't occlude.
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { Editor } from '@tiptap/core'
+import StarterKit from '@tiptap/starter-kit'
+import { Markdown } from 'tiptap-markdown'
 import type { FileHistorySnapshot } from '@shared/host-api'
+import { InsertionMark } from './extensions/InsertionMark'
+import { DeletionMark } from './extensions/DeletionMark'
+import { HighlightMark } from './extensions/HighlightMark'
+import { applyTrackedDiff } from './trackedDiff'
 
 interface HistoryModalProps {
   open: boolean
@@ -67,6 +74,15 @@ export function HistoryModal({ open, path, onClose, onRestored }: HistoryModalPr
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  // Content of the newest snapshot — the baseline the selected version is
+  // diffed against ("what changed since this version").
+  const [currentContent, setCurrentContent] = useState<string | null>(null)
+  // Read-only TipTap instance that renders the preview as real prose with the
+  // inline tracked-changes diff (reuses ENH-197 applyTrackedDiff). Created when
+  // the modal opens, torn down on close.
+  const previewHostRef = useRef<HTMLDivElement>(null)
+  const previewEditorRef = useRef<Editor | null>(null)
+  const [editorReady, setEditorReady] = useState(false)
 
   // Park the browser WCV while open (it paints above DOM; BUG-153/209).
   useEffect(() => {
@@ -84,14 +100,19 @@ export function HistoryModal({ open, path, onClose, onRestored }: HistoryModalPr
     setLoading(true)
     setError(null)
     setConfirming(false)
+    setCurrentContent(null)
     window.electron.history
       .list(path)
-      .then((list) => {
+      .then(async (list) => {
         if (cancelled) return
         const newestFirst = [...list].reverse()
         setSnaps(newestFirst)
         setSelectedId(newestFirst[0]?.id ?? null)
         setLoading(false)
+        // Baseline for the diff = newest snapshot's content.
+        const newestId = newestFirst[0]?.id
+        const cur = newestId ? await window.electron.history.show(path, newestId) : ''
+        if (!cancelled) setCurrentContent(cur ?? '')
       })
       .catch((e) => {
         if (cancelled) return
@@ -118,6 +139,54 @@ export function HistoryModal({ open, path, onClose, onRestored }: HistoryModalPr
       cancelled = true
     }
   }, [open, path, selectedId])
+
+  // Read-only preview editor lifecycle (created on open, destroyed on close).
+  useEffect(() => {
+    if (!open) return
+    const host = previewHostRef.current
+    if (!host) return
+    const ed = new Editor({
+      element: host,
+      editable: false,
+      extensions: [
+        StarterKit.configure({ codeBlock: false }),
+        Markdown.configure({ html: false }),
+        InsertionMark,
+        DeletionMark,
+        HighlightMark
+      ],
+      content: ''
+    })
+    previewEditorRef.current = ed
+    setEditorReady(true)
+    return () => {
+      ed.destroy()
+      previewEditorRef.current = null
+      setEditorReady(false)
+    }
+  }, [open])
+
+  // Render the preview: the selected version's content with an inline
+  // tracked-changes diff vs. the current (newest) version. When the newest is
+  // selected, there's nothing to diff — show it plain.
+  useEffect(() => {
+    const ed = previewEditorRef.current
+    if (!open || !editorReady || !ed || currentContent == null) return
+    try {
+      if (selectedId === snaps[0]?.id) {
+        ed.commands.setContent(currentContent, false)
+        return
+      }
+      // selected (old) → capture as oldDoc, then load current (new) and mark
+      // the old→new diff in place (insertions green, deletions struck red).
+      ed.commands.setContent(preview, false)
+      const oldDoc = ed.state.doc
+      ed.commands.setContent(currentContent, false)
+      applyTrackedDiff(ed, oldDoc, { author: null, ts: null })
+    } catch {
+      ed.commands.setContent(preview, false)
+    }
+  }, [open, editorReady, preview, currentContent, selectedId, snaps])
 
   // Escape closes (when not mid-restore).
   useEffect(() => {
@@ -223,15 +292,17 @@ export function HistoryModal({ open, path, onClose, onRestored }: HistoryModalPr
             )}
           </div>
 
-          {/* Preview */}
-          <div className="flex-1 min-w-0 overflow-auto bg-paper-deep/40">
-            {selectedId ? (
-              <pre className="m-0 p-4 text-[12.5px] leading-relaxed font-mono text-ink whitespace-pre-wrap break-words">
-                {preview}
-              </pre>
-            ) : (
-              <div className="p-4 text-sm text-ink-mute">Select a version to preview.</div>
+          {/* Preview — rendered prose with an inline tracked-changes diff vs
+              the current version (plain when the newest is selected). */}
+          <div className="flex-1 min-w-0 overflow-auto bg-surface-0">
+            {selectedId && snaps.length > 0 && selectedId !== snaps[0]?.id && (
+              <div className="px-4 pt-3 pb-2 text-[11px] text-ink-mute border-b border-border/50">
+                Changes since this version —{' '}
+                <span className="text-[#2c5524]">added</span> ·{' '}
+                <span className="line-through text-[#7d2622]">removed</span>
+              </div>
             )}
+            <div ref={previewHostRef} className="history-preview px-4 py-3 text-[13px] leading-relaxed text-ink" />
           </div>
         </div>
 
