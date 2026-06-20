@@ -57,6 +57,31 @@
       tab and renders content.
 - [ ] `⌘B` toggles the files column between expanded and collapsed rail.
 
+## 3a. Worktree lifecycle (ENH-221 — create + removal recovery, v0.11.2)
+
+- [ ] **Worktree pill opens on ANY repo.** In a git repo (even a lone
+      single-checkout one), click the worktree pill under the breadcrumb:
+      the dropdown opens and shows the current checkout row + a
+      **"+ New worktree"** row. (Regression: a lone repo used to show an
+      empty "Switch worktree · 0".)
+- [ ] **Create a worktree.** Click "+ New worktree", type a name with
+      spaces/punctuation (e.g. `Q3 Pricing: Copy & v2!`) → the
+      `creates claude/…` preview sanitizes live to a safe slug
+      (`q3-pricing-copy-v2`). Press Enter (or Create): the navigator
+      re-roots into the new worktree, and — Claude toggle on (default) — a
+      `claude` terminal opens at it. The ⚄ "Name it for me" fills an auto
+      codename; leaving the field blank also auto-names.
+- [ ] **Removal under-foot recovers.** With the nav rooted in a worktree,
+      remove it from outside (`git worktree remove --force <path>` in a
+      terminal, or have the agent merge+remove). Within ~1–2s the nav
+      reverts to the **main** checkout (NOT the `.claude/worktrees/`
+      parent), a dismissible **"Worktree X was removed — you're back on
+      main"** banner shows, and the app does NOT blank / show a red error
+      screen. The ✕ dismisses; any navigate also clears it.
+- [ ] **CLI parity.** `duo worktree new "<desc>"` creates + prints
+      `{ path, branch, slug }`; `duo worktree remove <path>` removes — both
+      run git directly with no running app (sandbox-tolerant).
+
 ## 4. Working pane (catches: browser bounds, tab strip, type routing)
 
 - [ ] About:blank browser tab is visible with working address bar.
