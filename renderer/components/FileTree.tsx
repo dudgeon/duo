@@ -163,7 +163,11 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
     const refresh = async () => {
       try {
         const list = await window.electron.git.worktrees(state.cwd)
-        if (!cancelled) setWorktrees(list.length > 1 ? list : [])
+        // ENH-221 — store the full list (was: only when >1, since the
+        // dropdown used to be gated on linked worktrees). The pill is now an
+        // always-on trigger, so a lone main checkout must still show its
+        // current row in the dropdown (not an empty "Switch worktree · 0").
+        if (!cancelled) setWorktrees(list)
       } catch {
         if (!cancelled) setWorktrees([])
       }

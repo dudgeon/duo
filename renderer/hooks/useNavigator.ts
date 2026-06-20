@@ -238,6 +238,37 @@ export function useNavigator(initialCwd: string, forceInitial = false) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // ENH-221 (D5/D6) — recover the navigator when the current cwd has
+  // vanished (most commonly: the agent removed the worktree it was rooted
+  // in). If the dead cwd is the linked worktree the consumer flagged,
+  // revert to its MAIN checkout (not the nearest path ancestor — for a
+  // nested worktree that would strand the user in `.claude/worktrees/`)
+  // and raise the "back on main" banner. Otherwise fall back to the
+  // nearest surviving ancestor. Called from BOTH the ensureListing ENOENT
+  // self-heal AND the window-focus re-probe (the fs-watcher can miss a
+  // busy dir or a whole-repo rm).
+  const recoverDeadCwd = useCallback((deadPath: string) => {
+    if (cwdRef.current !== deadPath) return
+    const rt = revertTargetRef.current
+    const ancestorHeal = () =>
+      nearestExistingAncestor(deadPath, p => window.electron.files.dirExists(p), '/').then(fallback => {
+        setCwd(prev => (prev === deadPath ? fallback : prev))
+      })
+    if (rt && pathIsWithin(deadPath, rt.worktreeRoot)) {
+      void window.electron.files.dirExists(rt.mainRoot).then(mainAlive => {
+        if (mainAlive) {
+          setCwd(prev => (prev === deadPath ? rt.mainRoot : prev))
+          setRemovedWorktree({ label: rt.label })
+          revertTargetRef.current = null
+        } else {
+          void ancestorHeal()
+        }
+      }).catch(() => { void ancestorHeal() })
+    } else {
+      void ancestorHeal()
+    }
+  }, [])
+
   // Shared helper that (lazily) fetches a directory listing and caches it.
   // ENH-211 D1 — stale-while-revalidate: only seed the `null` loading
   // sentinel on the FIRST-EVER load of a path (nothing to show yet). When
@@ -294,42 +325,35 @@ export function useNavigator(initialCwd: string, forceInitial = false) {
             return next
           })
           setPrimaryPath(prev => (prev === path ? null : prev))
-          if (cwdRef.current === path) {
-            // ENH-221 (D5/D6) — if the dead cwd is the linked worktree the
-            // consumer flagged as current, revert to its MAIN checkout (not
-            // the nearest path ancestor — for a nested worktree that would
-            // strand the user in `.claude/worktrees/`) and raise the "back
-            // on main" banner. Otherwise fall back to the pre-ENH-221
-            // nearest-existing-ancestor heal.
-            const rt = revertTargetRef.current
-            const ancestorHeal = () =>
-              nearestExistingAncestor(path, p => window.electron.files.dirExists(p), '/').then(fallback => {
-                setCwd(prev => (prev === path ? fallback : prev))
-              })
-            if (rt && pathIsWithin(path, rt.worktreeRoot)) {
-              void window.electron.files.dirExists(rt.mainRoot).then(mainAlive => {
-                if (mainAlive) {
-                  setCwd(prev => (prev === path ? rt.mainRoot : prev))
-                  setRemovedWorktree({ label: rt.label })
-                  revertTargetRef.current = null
-                } else {
-                  void ancestorHeal()
-                }
-              }).catch(() => { void ancestorHeal() })
-            } else {
-              void ancestorHeal()
-            }
-          }
+          // ENH-221 (D5/D6) — the dead dir is the current cwd; run the
+          // shared recovery (revert to the removed worktree's main, else
+          // the nearest surviving ancestor; banner on a worktree removal).
+          if (cwdRef.current === path) recoverDeadCwd(path)
         }).catch(() => { /* probe unreachable — leave nav state intact */ })
       }
     )
-  }, [])
+  }, [recoverDeadCwd])
 
   // Auto-load the current cwd + any expanded children.
   useEffect(() => { ensureListing(cwd) }, [cwd, ensureListing])
   useEffect(() => {
     for (const p of expanded) ensureListing(p)
   }, [expanded, ensureListing])
+
+  // ENH-221 (D6) — window-focus backstop for under-foot cwd removal. The
+  // fs-watcher catches a clean `git worktree remove`, but can miss a busy
+  // dir or a whole-repo rm; on focus we re-probe the cwd and run the same
+  // recovery if it's gone, so the nav never stays stranded on a dead path.
+  useEffect(() => {
+    const onFocus = () => {
+      const cur = cwdRef.current
+      const probe = window.electron?.files?.dirExists
+      if (!probe) return
+      void probe(cur).then(exists => { if (!exists) recoverDeadCwd(cur) }).catch(() => { /* leave as-is */ })
+    }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [recoverDeadCwd])
 
   // BUG-007 — subscribe to filesystem events so the navigator reflects
   // external mutations (file deletes, agent writes, terminal `mv`/`rm`,
