@@ -365,6 +365,57 @@ export interface EnsureCliShimResult {
   error?: string
 }
 
+/** One Duo-managed hook to upsert: a Claude Code event name + the exact
+ *  command string to register for it. */
+export interface ManagedHookSpec {
+  event: string
+  command: string
+}
+
+/**
+ * ENH-225 — PURE merge of Duo-managed hook entries into a Claude `settings`
+ * object's `hooks` map (extracted from the install methods so the merge logic
+ * is unit-testable, mirroring `planClaudeMdMerge`/`planCliShim`). For each spec
+ * it drops our PRIOR entry from `hooks[event]` — identified by EITHER the `_duo`
+ * marker OR an exact command match (a pre-marker / hand-mirrored orphan) — then
+ * appends ONE freshly-marked entry. Foreign entries (no marker, not our command)
+ * pass through untouched. Idempotent: same (settings, version) in → same out.
+ * Returns a NEW settings object (the input is not mutated).
+ */
+export function planManagedHooksMerge(
+  settings: Record<string, unknown>,
+  version: string,
+  specs: ManagedHookSpec[]
+): Record<string, unknown> {
+  const base = settings && typeof settings === 'object' && !Array.isArray(settings) ? settings : {}
+  const hooks: Record<string, unknown> = (base.hooks && typeof base.hooks === 'object' && !Array.isArray(base.hooks)
+    ? { ...(base.hooks as Record<string, unknown>) }
+    : {})
+
+  for (const { event, command } of specs) {
+    const existing = Array.isArray(hooks[event]) ? hooks[event] as unknown[] : []
+    const filtered = existing.filter(entry => {
+      if (!entry || typeof entry !== 'object') return true
+      const e = entry as Record<string, unknown>
+      const marker = e[HOOK_MARKER_KEY]
+      const isMarkedDuo = typeof marker === 'string' && marker.startsWith(HOOK_MARKER_PREFIX)
+      const inner = e.hooks
+      const isOrphanDuoCommand = !isMarkedDuo && Array.isArray(inner) && inner.some(h =>
+        h && typeof h === 'object' &&
+        (h as Record<string, unknown>).command === command
+      )
+      return !(isMarkedDuo || isOrphanDuoCommand)
+    })
+    const duoEntry = {
+      [HOOK_MARKER_KEY]: `${HOOK_MARKER_PREFIX}${version}`,
+      hooks: [{ type: 'command', command }]
+    }
+    hooks[event] = [...filtered, duoEntry]
+  }
+
+  return { ...base, hooks }
+}
+
 export class InstallService {
   async status(): Promise<InstallStatus> {
     const cli = await this.cliStatus()
@@ -1221,47 +1272,17 @@ exec "$REAL_CLAUDE" --append-system-prompt "$(cat "$PRIMING_FILE")" "$@"
       settings = {}
     }
 
-    const hooks = (settings.hooks && typeof settings.hooks === 'object'
-      ? settings.hooks as Record<string, unknown>
-      : {}) as Record<string, unknown>
-
-    // Our command for an event is `<script> <arg>` — the arg distinguishes the
-    // set vs clear registration. The command-equivalence orphan check matches
-    // the script path prefix so a pre-marker / hand-mirrored entry is caught.
-    const isDuoAttentionCommand = (entry: unknown): boolean => {
-      if (!entry || typeof entry !== 'object') return false
-      const inner = (entry as Record<string, unknown>).hooks
-      if (!Array.isArray(inner)) return false
-      return inner.some(h =>
-        h && typeof h === 'object' &&
-        typeof (h as Record<string, unknown>).command === 'string' &&
-        ((h as Record<string, unknown>).command as string).startsWith(ATTENTION_HOOK_COMMAND)
-      )
-    }
-
-    for (const { event, arg } of ATTENTION_HOOK_EVENTS) {
-      const existing = Array.isArray(hooks[event]) ? hooks[event] as unknown[] : []
-      const filtered = existing.filter(entry => {
-        if (!entry || typeof entry !== 'object') return true
-        const e = entry as Record<string, unknown>
-        const marker = e[HOOK_MARKER_KEY]
-        const isMarkedDuo = typeof marker === 'string' && marker.startsWith(HOOK_MARKER_PREFIX)
-        const isOrphanDuoCommand = !isMarkedDuo && isDuoAttentionCommand(entry)
-        return !(isMarkedDuo || isOrphanDuoCommand)
-      })
-      const duoEntry = {
-        [HOOK_MARKER_KEY]: `${HOOK_MARKER_PREFIX}${app.getVersion()}`,
-        hooks: [
-          { type: 'command', command: `${ATTENTION_HOOK_COMMAND} ${arg}` }
-        ]
-      }
-      hooks[event] = [...filtered, duoEntry]
-    }
-    settings.hooks = hooks
+    // Pure merge (unit-tested in install-service.test.ts). Each event's command
+    // is `<script> <arg>`; the arg distinguishes the set vs clear registration.
+    const specs = ATTENTION_HOOK_EVENTS.map(({ event, arg }) => ({
+      event,
+      command: `${ATTENTION_HOOK_COMMAND} ${arg}`,
+    }))
+    const merged = planManagedHooksMerge(settings, app.getVersion(), specs)
 
     await fs.mkdir(path.dirname(SETTINGS_PATH), { recursive: true })
     const tmpPath = `${SETTINGS_PATH}.tmp-${process.pid}`
-    await fs.writeFile(tmpPath, JSON.stringify(settings, null, 2) + '\n')
+    await fs.writeFile(tmpPath, JSON.stringify(merged, null, 2) + '\n')
     await fs.rename(tmpPath, SETTINGS_PATH)
   }
 

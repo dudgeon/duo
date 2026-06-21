@@ -60,6 +60,7 @@ import type {
   WorkingAuxSnapshot
 } from '../shared/types'
 import { SOCKET_PATH, PORT_FILE } from './constants'
+import { attentionForEvent } from './attention'
 
 export interface NavBridge {
   /** Returns the most recent snapshot pushed by the renderer. */
@@ -2086,11 +2087,9 @@ export class SocketServer {
           // tabId comes from the hook's $DUO_TAB stamp (or an agent's --tab).
           const tabId = (args['tabId'] ?? args['tab']) as string | undefined
           if (!tabId) throw new Error('attention requires --tab <id> (the DUO_TAB env stamp)')
-          const event = String(args['event'] ?? '').trim()
-          // Default: anything that isn't an explicit clear/active SETS attention.
-          const clears = event === 'UserPromptSubmit' || event === 'clear' || event === 'active'
-          this.nav.setTabAttention(tabId, !clears)
-          result = { ok: true, tabId, needsAttention: !clears }
+          const needsAttention = attentionForEvent(String(args['event'] ?? ''))
+          this.nav.setTabAttention(tabId, needsAttention)
+          result = { ok: true, tabId, needsAttention }
           break
         }
 
