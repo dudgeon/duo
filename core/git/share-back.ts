@@ -23,7 +23,13 @@ import { probePushAccess, runFork } from './fork'
 import { runCreatePr, findOpenPr } from './pr'
 import { deriveProposalMeta } from './proposal-meta'
 import { isLikelySha } from '../open-checkout'
-import type { CheckoutContext, ShareBackResult, ShareBackStatus } from '../../shared/types'
+import type {
+  CheckoutContext,
+  DiffStat,
+  ShareBackDiff,
+  ShareBackResult,
+  ShareBackStatus,
+} from '../../shared/types'
 
 /** The managed-checkout home (D4). Matches open-checkout's default. */
 const CHECKOUTS_BASE = path.join(os.homedir(), '.claude', 'duo', 'checkouts')
@@ -48,6 +54,11 @@ export async function resolveCheckoutDirForPath(p: string): Promise<string | nul
   } catch {
     startDir = path.dirname(p)
   }
+  // Fast reject (perf): the share-back STATUS poll fires on every active-doc
+  // save, so skip the `git rev-parse` subprocess for any path that can't be a
+  // managed checkout — i.e. anything not under ~/.claude/duo/checkouts/. Only
+  // a path inside the home pays for the git resolution below.
+  if (!isManagedCheckout(startDir)) return null
   const top = await execGit('git', ['rev-parse', '--show-toplevel'], { cwd: startDir })
   if (!top.ok || !top.stdout.trim()) return null
   const root = top.stdout.trim()
@@ -224,4 +235,49 @@ export async function probeShareBackStatus(checkoutDir: string): Promise<ShareBa
 async function revParseShort(cwd: string): Promise<string> {
   const res = await execGit('git', ['rev-parse', '--short=7', 'HEAD'], { cwd })
   return res.ok && res.stdout.trim() ? res.stdout.trim() : 'duo'
+}
+
+/** Parse `git diff --numstat` → totals. Pure. Each line is
+ *  `<added>\t<deleted>\t<path>`; a binary file reports `-` for both, counted as
+ *  a changed file with zero line stats. */
+export function parseNumstat(stdout: string): DiffStat {
+  let filesChanged = 0
+  let additions = 0
+  let deletions = 0
+  for (const line of stdout.split(/\r?\n/)) {
+    if (!line.trim()) continue
+    const m = /^(\S+)\t(\S+)\t(.+)$/.exec(line)
+    if (!m) continue
+    filesChanged++
+    if (m[1] !== '-') additions += parseInt(m[1], 10) || 0
+    if (m[2] !== '-') deletions += parseInt(m[2], 10) || 0
+  }
+  return { filesChanged, additions, deletions }
+}
+
+/**
+ * The working-tree diff vs the baseline (`git diff HEAD`) for the confirm
+ * sheet's inline view (D12). `filePath` (repo-relative) scopes it to one doc;
+ * omitted → the whole checkout. Thin; any git error returns ok:false.
+ */
+export async function probeDiff(checkoutDir: string, filePath?: string): Promise<ShareBackDiff> {
+  const scope = filePath ? ['--', filePath] : []
+  const empty: DiffStat = { filesChanged: 0, additions: 0, deletions: 0 }
+  const diff = await execGit('git', ['diff', 'HEAD', ...scope], { cwd: checkoutDir })
+  if (!diff.ok) return { ok: false, diff: '', stat: empty, error: diff.stderr.trim() || 'git diff failed' }
+  const numstat = await execGit('git', ['diff', '--numstat', 'HEAD', ...scope], { cwd: checkoutDir })
+  const stat = numstat.ok ? parseNumstat(numstat.stdout) : empty
+  // D7 prefill for the confirm sheet — only when scoped to a single doc.
+  let proposalMeta
+  if (filePath) {
+    let docText = ''
+    try {
+      docText = await fs.readFile(path.join(checkoutDir, filePath), 'utf8')
+    } catch {
+      /* binary / gone — fall back to the filename */
+    }
+    const short = await revParseShort(checkoutDir)
+    proposalMeta = deriveProposalMeta({ docText, fileName: filePath.split('/').pop() ?? filePath, short })
+  }
+  return { ok: true, diff: diff.stdout, stat, proposalMeta }
 }

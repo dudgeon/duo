@@ -37,6 +37,8 @@ import { EditorToolbar } from './EditorToolbar'
 import { HistoryModal } from './HistoryModal'
 import { SuggestingBanner } from './SuggestingBanner'
 import { UnifiedAnnotationRail } from './UnifiedAnnotationRail'
+// ENH-224 Phase 2 — the "Propose changes" footer affordance (D10–D13).
+import { ProposeBar } from '../ProposeBar'
 import { collectTrackedChanges, countTrackedChanges, type TrackedRange } from './trackedChanges'
 import { FrontmatterPanel } from './FrontmatterPanel'
 import { useAutosavePreference } from './autosavePreference'
@@ -382,6 +384,9 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   const [suggestingMode, setSuggestingMode] = useState(false)
   // ENH-221 — file version-history modal ("the richer rewind").
   const [historyOpen, setHistoryOpen] = useState(false)
+  // ENH-224 Phase 2 — bumped on each successful save so the ProposeBar re-polls
+  // share-back divergence (the D2 "save → maybe propose" signal).
+  const [shareBackTick, setShareBackTick] = useState(0)
   const [newCommentAt, setNewCommentAt] = useState<{
     commentId: string
     range: { from: number; to: number }
@@ -1271,6 +1276,8 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
 
       setDirty(false)
       onDirtyChange?.(false)
+      // ENH-224 Phase 2 — re-poll share-back divergence after a save (D2).
+      setShareBackTick(t => t + 1)
       // Sprint 10 ENH-103 — successful save clears the pill's
       // "Failed — retry" state.
       setSaveError(null)
@@ -2744,6 +2751,12 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         </>
       )}
       </div>
+      {/* ENH-224 Phase 2 — "Propose changes" footer (D10–D13). Self-gating:
+          renders nothing unless this doc is a diverged managed checkout (or has
+          an open PR). Zero footprint for ordinary files. */}
+      {!isNew && (
+        <ProposeBar path={path} active={isActive ?? false} refreshKey={shareBackTick} />
+      )}
       {/* Stage 15.1 — floating Send → Duo pill, portaled to body.
           ENH-176 — label flips between "Send → agent" / "Send →
           Terminal" depending on which feature-flag path armed the

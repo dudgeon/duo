@@ -293,10 +293,16 @@ the PR (D13; `findOpenPr` → update vs `gh pr create`). All PR/divergence state
 read live via `gh`/git — no sidecar (§12). The path→checkout resolver refuses
 any path outside `~/.claude/duo/checkouts/` (D4 — never the user's own tree).
 42 pure unit tests (arg-builders, parsers, prefill, the D4 guard); the spawning
-`run*` orchestrators are verified live (owed). **Owed:** (a) a real
-`duo pr create` against a test repo (needs gh + Electron/a checkout); (b) the
-**UI footer affordance** (D10–D13 — "Propose changes" bar + confirm sheet +
-morph-in-place) — the deferred renderer half.
+`run*` orchestrators are verified live (owed). **The UI footer affordance is now
+also built (blind — no Electron):** `renderer/components/ProposeBar.tsx` mounts
+under the markdown editor, polls `window.electron.pr.status` on save (INERT for
+ordinary files — appears only on a diverged managed checkout), opens a prefilled
+confirm sheet (D7/D12), and morphs to "Proposed · View PR" after `pr.create`
+(D13); new SHARE_BACK_STATUS/DIFF/CREATE IPC → the same `core/git/share-back`
+engine. typecheck clean · prod bundle compiles · 1741 tests. **Owed (needs
+Electron):** a real `duo pr create` end-to-end against a test repo, AND a smoke
+walk of the footer affordance (divergence → bar → sheet → PR → morph) — neither
+is visually/behaviorally verified yet.
 *Acceptance:* edit a remote `.md`, Propose changes, a real PR appears upstream
 (cross-fork when no push access); unauthenticated bounces to `gh auth login`;
 re-save updates the same PR; full 5-surface sync; smoke-walked.
@@ -341,7 +347,7 @@ for UI — `CLAUDE.md` § 7.)
 | **Phase 1 — "open just this doc"** (managed checkout `core/open-checkout.ts` + `OPEN_GITHUB_FILE` IPC + the live OpenBar tile w/ progress) | DR6, D5 | ✅ UI done · **live-verified** | typecheck clean · tests (managedCheckoutDir / isLikelySha / cloneExtraArgs). **Live:** Spoon-Knife/README.md → depth-1 checkout (1 commit) → opened + folder focused + recent recorded; dev log clean. |
 | **Phase 1 CLI twin** — `duo open <github-file-url>` → same managed checkout (socket `open` branch + `NavBridge.runManagedCheckout` + bare-host CLI resolve) | DR6, D5, **rule #4** | ✅ code-complete + tested 2026-06-21 · **live-verify owed** (Electron) | typecheck clean · **1696 tests** (+4 socket: routing · auth-missing bounce · bare-repo fallthrough · optional-dep fallthrough) · currency 75/75 · 5-surface doc sync. Shares the checkout engine with the UI IPC. **Owed:** a real `duo open <github-url>` against the running app. |
 | **Phase 2 — share-back CORE plumbing** (`core/git/{divergence,proposal-meta,branch,commit,push,fork,pr,share-back}.ts` + `duo pr create\|status\|view` + socket `case 'pr'`) | D2, D3, D7–D13, OQ-3, §12 | 🚧 built + unit-tested 2026-06-21 · **CLI live-verify owed** (gh + a checkout) | typecheck clean · **1738 tests** (+38 pure: arg-builders, parsers, D7 prefill, the D4 `isManagedCheckout` guard) · currency 76/76 · 5-surface doc sync. `runShareBack` orchestrates context→divergence→branch→commit→push-access→**auto-fork (D3)**→push→create-or-update PR (D13), all live via gh/git (§12). The spawning `run*` paths verified live (owed). |
-| **Phase 2 — share-back UI affordance** (footer "Propose changes" bar + confirm sheet + morph-in-place) | D10–D13 | ⛔ not built (deferred — needs Electron) | The renderer half: divergence watcher → footer bar → confirm sheet (title/branch/fork-note/inline diff) → View/Update PR morph. Reuses the built `core/git/share-back` engine via a new IPC. |
+| **Phase 2 — share-back UI affordance** (`renderer/components/ProposeBar.tsx` — footer bar + confirm sheet + morph-in-place) | D10–D13 | 🚧 BUILT (blind — no Electron) · **live-verify owed** | `ProposeBar` mounts at the bottom of the markdown editor; polls `window.electron.pr.status` on save (D2 signal) — INERT for ordinary files, appears only on a diverged managed checkout. Click → confirm sheet (D7/D12: title/branch/body + fork-note + inline diff via `pr.diff`) → `pr.create` → morphs to "Proposed · View PR" (D13). New IPC SHARE_BACK_STATUS/DIFF/CREATE → `core/git/share-back` (one engine, shared with `duo pr`). typecheck clean · prod bundle compiles · git-subprocess fast-reject for non-checkout paths. **NOT visually/behaviorally verified — owes an Electron smoke-walk.** |
 
 **Sequencing note.** D16 landed against the standalone `CloneModal` so the
 owner-requested success fix shipped immediately; the Open bar now *routes* a

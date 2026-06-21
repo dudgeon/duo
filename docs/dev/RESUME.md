@@ -45,12 +45,20 @@
 >   `case 'pr'` → dynamic-imports share-back, like `clone`) + 5-surface sync. All
 >   state read LIVE from the checkout's git/gh (§12); D4-guarded to
 >   `~/.claude/duo/checkouts/`. 42 pure unit tests (spawning `run*` = live-owed).
+> - **Phase 2 — UI footer affordance 🚧 BUILT (blind, no Electron):**
+>   `renderer/components/ProposeBar.tsx` (footer bar + confirm sheet + morph,
+>   D10–D13) mounts under the markdown editor (MarkdownEditor.tsx, gated `!isNew`
+>   + `isActive`; a `shareBackTick` bumps on save → re-poll). INERT for ordinary
+>   files. New IPC SHARE_BACK_STATUS/DIFF/CREATE (preload `window.electron.pr` +
+>   main handlers) → the same `core/git/share-back` engine. probeDiff returns the
+>   D7 proposalMeta for the sheet prefill. typecheck clean · prod bundle compiles
+>   · 1741 tests. **NOT visually/behaviorally verified.**
 >
-> **OWED / NEXT:**
-> - **Phase 2 — finish:** (a) a live `duo pr create` against a test repo (gh +
->   a real checkout — needs Electron/a running app); (b) the **UI footer
->   affordance** (D10–D13 — "Propose changes" bar + confirm sheet + morph) — the
->   deferred renderer half, reuses the built `core/git/share-back` via a new IPC.
+> **OWED / NEXT (both need Electron — owner is gating it):**
+> - **Live-verify Phase 2 end-to-end:** a real `duo pr create` against a test
+>   repo (gh + a checkout) AND a footer smoke-walk (open a github doc → edit →
+>   save → bar appears → confirm sheet → real PR → "Proposed · View PR" morph).
+>   This is the ONLY remaining Phase-2 work — all code is built.
 > - **Deferred:** sparse-folder checkout (DR6 optimization) · full-inline modal
 >   merge (D15/DM1) · NewVaultModal geometry audit · **UI/CLI symmetry follow-up**:
 >   `duo open <github-url>` now opens just-this-doc via the checkout, but the UI
@@ -68,10 +76,10 @@
 >   `pkill -f 'electron-vite dev'` + relaunch. SIGTERM-ing the app direct causes a
 >   benign `fse_instance_destroy` crash report (memory
 >   `feedback_pkill_dev_triggers_benign_fsevents_sigabrt`).
-> - Latest: Phase-2 core share-back plumbing (`core/git/*` + `duo pr` + socket
->   `case 'pr'` + 5-surface docs) · typecheck clean · **1738 tests** · currency
->   76/76 · binary rebuilt. Prior: `4419c5e` (Phase-1 CLI twin) · `49635ee`
->   (Phase-1 docs) · `7370416` (Phase-1 wiring) · `738ae7f` (Phase-1 foundation).
+> - Latest: Phase-2 UI footer affordance (`ProposeBar.tsx` + SHARE_BACK_* IPC +
+>   main handlers + MarkdownEditor mount) · typecheck clean · prod bundle compiles
+>   · **1741 tests** · currency 76/76. Prior: `65cc392` (Phase-2 core plumbing) ·
+>   `4419c5e` (Phase-1 CLI twin) · `49635ee` · `7370416` · `738ae7f`.
 > - Leftover state: a real test checkout at `~/.claude/duo/checkouts/octocat-Spoon-Knife@main/`;
 >   iCloud `* 2.*` sync-conflict dupes moved to `/tmp/icloud-dupes-backup-d76de1e/`
 >   (await owner OK to delete — `rm` of untracked files is auto-denied).

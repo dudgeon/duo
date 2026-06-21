@@ -91,6 +91,13 @@ import { OpenRecentsService } from '../core/open-recents-service'
 import { resolveOpenTarget as classifyOpenTarget } from '../core/open-resolve'
 // ENH-224 Phase 1 — the opaque managed checkout ("open just this doc").
 import { runManagedCheckout } from '../core/open-checkout'
+// ENH-224 Phase 2 — share-back engine behind the "Propose changes" footer (D10–D13).
+import {
+  resolveCheckoutDirForPath,
+  probeShareBackStatus,
+  probeDiff,
+  runShareBack,
+} from '../core/git/share-back'
 import { WorkspaceFileService } from '../core/workspace-file-service'
 import { WorkspaceHistoryService } from '../core/workspace-history-service'
 import { ActiveWorkspaceService } from '../core/active-workspace-service'
@@ -2512,6 +2519,39 @@ function setupIPC(): void {
     cachedOpenRecents = []
     installAppMenu()
   })
+
+  // ENH-224 Phase 2 — share-back IPC behind the "Propose changes" footer
+  // affordance (D10–D13). Each resolves the doc path → its managed checkout
+  // (refusing paths outside ~/.claude/duo/checkouts/, D4) and reuses
+  // core/git/share-back — the SAME engine as the `duo pr` CLI. Network/git
+  // work lives in main (off the sandboxed CLI). A non-checkout path returns an
+  // inert snapshot so the affordance simply never appears for ordinary files.
+  ipcMain.handle(IPC.SHARE_BACK_STATUS, async (_event, docPath: string) => {
+    const checkoutDir = await resolveCheckoutDirForPath(docPath)
+    if (!checkoutDir) {
+      return { context: null, divergence: { diverged: false, changedFiles: [] }, pr: null }
+    }
+    return probeShareBackStatus(checkoutDir)
+  })
+  ipcMain.handle(IPC.SHARE_BACK_DIFF, async (_event, docPath: string) => {
+    const checkoutDir = await resolveCheckoutDirForPath(docPath)
+    if (!checkoutDir) {
+      return { ok: false, diff: '', stat: { filesChanged: 0, additions: 0, deletions: 0 } }
+    }
+    const rel = nodePath.relative(checkoutDir, docPath)
+    return probeDiff(checkoutDir, rel || undefined)
+  })
+  ipcMain.handle(
+    IPC.SHARE_BACK_CREATE,
+    async (_event, docPath: string, opts?: import('../shared/types').ShareBackCreateOpts) => {
+      const checkoutDir = await resolveCheckoutDirForPath(docPath)
+      if (!checkoutDir) {
+        return { ok: false, errorKind: 'not-a-checkout', error: 'Not inside a Duo-managed checkout.' }
+      }
+      const rel = nodePath.relative(checkoutDir, docPath)
+      return runShareBack(checkoutDir, { ...opts, filePath: opts?.filePath ?? (rel || undefined) })
+    }
+  )
 
   // Stage 24 — pinned WorkingPane tabs.
   ipcMain.handle(IPC.PINS_LIST, () => {

@@ -15,7 +15,7 @@ import { parsePorcelain } from './divergence'
 import { pushArgs } from './push'
 import { permissionAllowsPush } from './fork'
 import { prCreateArgs, prNumberFromUrl, prUrlFromStdout, parsePrList, selectPr } from './pr'
-import { refFromCheckoutDir, isManagedCheckout } from './share-back'
+import { refFromCheckoutDir, isManagedCheckout, parseNumstat } from './share-back'
 import { looksLikeAuthFailure } from './failure-sniff'
 
 describe('proposal-meta — stripLeadingFrontmatter', () => {
@@ -211,6 +211,22 @@ describe('share-back — isManagedCheckout', () => {
   it('false for the base itself + for traversal escapes', () => {
     expect(isManagedCheckout(base, base)).toBe(false)
     expect(isManagedCheckout(`${base}/../../evil`, base)).toBe(false)
+  })
+})
+
+describe('share-back — parseNumstat (D12 diff totals)', () => {
+  it('sums additions + deletions across files', () => {
+    expect(parseNumstat('3\t1\tdocs/a.md\n10\t0\tdocs/b.md\n')).toEqual({
+      filesChanged: 2, additions: 13, deletions: 1,
+    })
+  })
+  it('counts a binary file (- -) as changed with zero line stats', () => {
+    expect(parseNumstat('-\t-\timg/logo.png\n2\t2\tx.md')).toEqual({
+      filesChanged: 2, additions: 2, deletions: 2,
+    })
+  })
+  it('returns zeros for an empty diff', () => {
+    expect(parseNumstat('')).toEqual({ filesChanged: 0, additions: 0, deletions: 0 })
   })
 })
 

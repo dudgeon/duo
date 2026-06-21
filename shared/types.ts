@@ -1901,6 +1901,37 @@ export interface ShareBackStatus {
   pr: PrInfo | null
 }
 
+/** Totals for the confirm-sheet header / fork-note (D12). Pure-derived from
+ *  `git diff --numstat`. */
+export interface DiffStat {
+  filesChanged: number
+  additions: number
+  deletions: number
+}
+
+/** The working-tree diff for the D12 confirm-sheet inline diff. */
+export interface ShareBackDiff {
+  ok: boolean
+  /** Raw unified `git diff HEAD` text (rendered monospace in the sheet). */
+  diff: string
+  stat: DiffStat
+  /** D7 prefill for the sheet's editable title/branch/body fields — derived
+   *  server-side (heading title + branch incl. the baseline short) when the
+   *  diff was scoped to a single doc. */
+  proposalMeta?: ProposalMeta
+  error?: string
+}
+
+/** Overrides the confirm sheet / `duo pr create` may pass on top of the D7
+ *  prefill. */
+export interface ShareBackCreateOpts {
+  filePath?: string
+  title?: string
+  body?: string
+  branch?: string
+  draft?: boolean
+}
+
 // ── IPC channel names (renderer ↔ main) ─────────────────────────────────────
 
 export const IPC = {
@@ -2525,6 +2556,17 @@ export const IPC = {
   RECENTS_LIST: 'recents:list',
   RECENTS_RECORD: 'recents:record',
   RECENTS_CLEAR: 'recents:clear',
+  // ENH-224 Phase 2 — share-back (the "Propose changes" footer affordance,
+  // D10–D13). renderer → main, given a doc PATH inside a managed checkout:
+  //   STATUS → divergence + open-PR snapshot (drives the affordance + morph).
+  //   DIFF   → the working-tree diff for the confirm-sheet inline view (D12).
+  //   CREATE → run the full share-back (branch/commit/push/PR, auto-fork).
+  // Each resolves the path → its checkout (refuses outside ~/.claude/duo/
+  // checkouts/, D4); the git/gh work reuses core/git/share-back (same engine
+  // as `duo pr`). A non-checkout path returns an inert no-divergence snapshot.
+  SHARE_BACK_STATUS: 'share-back:status',
+  SHARE_BACK_DIFF: 'share-back:diff',
+  SHARE_BACK_CREATE: 'share-back:create',
 
   // ENH-183 C5 — read banner title + user-message-count from the
   // Claude JSONL store. Renderer → main; main consults JSONL only

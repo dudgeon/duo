@@ -32,6 +32,7 @@ import type {
   TabAttentionPush,
   RecentEntry, BrowseResult,
   CheckoutTarget, CheckoutResult,
+  ShareBackStatus, ShareBackDiff, ShareBackResult, ShareBackCreateOpts,
 } from './types'
 
 // ── Electron preload API surface ─────────────────────────────────────────────
@@ -1135,6 +1136,9 @@ export interface ElectronAPI {
   // ENH-224 D14 — Open Recent store (list/record/clear), shared with the
   // `duo recent` CLI + `duo open` record-on-open.
   recents: ElectronRecentsAPI
+  // ENH-224 Phase 2 — share-back: the "Propose changes" footer affordance
+  // (D10–D13) drives status/diff/create over IPC against core/git/share-back.
+  pr: ElectronPrAPI
 }
 
 // ENH-224 D17 — native file/folder picker. ONE dialog with both openFile +
@@ -1161,6 +1165,19 @@ export interface ElectronRecentsAPI {
   /** Record an open; returns the new (deduped, capped) list. */
   record(entry: Omit<RecentEntry, 'lastOpenedAt'>): Promise<RecentEntry[]>
   clear(): Promise<void>
+}
+
+// ENH-224 Phase 2 — the "Propose changes" footer affordance (D10–D13) talks to
+// main over these. `docPath` is the open doc; main resolves it → its managed
+// checkout (inert no-divergence snapshot when the path isn't in a checkout) and
+// reuses core/git/share-back — the SAME engine as the `duo pr` CLI.
+export interface ElectronPrAPI {
+  /** Divergence + open-PR snapshot — gates the affordance + its morph (D13). */
+  status(docPath: string): Promise<ShareBackStatus>
+  /** The working-tree diff for the confirm-sheet inline view (D12). */
+  diff(docPath: string): Promise<ShareBackDiff>
+  /** Run the full share-back: branch/commit/push/PR, auto-fork as needed (D3). */
+  create(docPath: string, opts?: ShareBackCreateOpts): Promise<ShareBackResult>
 }
 
 // ENH-216 (VAULT MODE) — at-rest serializer for a vault. ONE graph model,

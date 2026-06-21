@@ -472,6 +472,14 @@ const api: ElectronAPI = {
     clear: () => ipcRenderer.invoke(IPC.RECENTS_CLEAR),
   },
 
+  // ENH-224 Phase 2 — share-back ("Propose changes" footer, D10–D13). Same
+  // engine as `duo pr` (core/git/share-back), reached over IPC.
+  pr: {
+    status: (docPath) => ipcRenderer.invoke(IPC.SHARE_BACK_STATUS, docPath),
+    diff: (docPath) => ipcRenderer.invoke(IPC.SHARE_BACK_DIFF, docPath),
+    create: (docPath, opts) => ipcRenderer.invoke(IPC.SHARE_BACK_CREATE, docPath, opts),
+  },
+
   editor: {
     pushSelection: (snapshot: EditorSelectionSnapshot | null) => {
       ipcRenderer.send(IPC.EDITOR_SELECTION_PUSH, snapshot)
