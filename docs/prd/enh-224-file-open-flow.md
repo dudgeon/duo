@@ -235,18 +235,21 @@ Electron busy)**. Verified: typecheck clean · 1676 tests (resolver +
 `deriveRecentEntry`, recents store, socket `recent`/record-on-open, the
 search-vs-path heuristic) · currency 75/75.
 
-**Phase 1 — GitHub *file* URL → open-as-local *without cloning the whole repo*
-(read/edit, no PR). 🔨 decided + building (DR2/DR6 locked 2026-06-21).** The
-"clone the whole repo and open the file" path already shipped in Phase 0 (D19).
-What remains here is the *opaque managed checkout* — P2 + P3 + P4: recognize a
-GitHub file URL (the resolver already does — P2 ✅), checkout it into the managed
-home (`~/.claude/duo/checkouts/<owner>-<repo>@<ref>/`), open the `.md`, focus the
-checkout folder, write locally. The "just this doc" tile (currently disabled
-"Soon") becomes live. **Build mechanism (DR6):** `core/open/checkout.ts`
-orchestrates a **depth-1 clone at the URL's ref** (reusing `core/git/clone.ts`'s
-gh-preferred `runClone`, extended with `depth`/`ref`) → `rev-parse HEAD` for the
-baseline → returns the pointer. Sparse-folder narrowing is the deferred
-optimization on top; whole-repo depth-1 is the correct, asset-complete v1.
+**Phase 1 — GitHub *file* URL → open-as-local. ✅ UI done + live-verified
+(2026-06-21); CLI twin owed.** The "just this doc" tile is live: a github-file
+URL → opaque managed checkout (`core/open-checkout.ts`: depth-1 clone at the ref
+into `~/.claude/duo/checkouts/<owner>-<repo>@<ref>/` via the extended `runClone`,
+`rev-parse HEAD` baseline, idempotent reuse) → the doc opens like a local file +
+the navigator focuses the checkout folder + the github-file recent is recorded.
+The OpenBar shows a "Pulling ‹file›…" progress panel with an inline gh-auth
+bounce on failure. **Live-verified:** `octocat/Spoon-Knife/blob/main/README.md`
+→ depth-1 checkout (1 commit, baseline `d0dd1f6`) → README opened in the editor +
+folder focused + `duo recent` shows `🐙 octocat/Spoon-Knife › README.md`; dev log
+clean. **Remaining (CLI parity — rule #4):** extend the `duo open` socket handler
+to recognize github-file URLs → run the same checkout (the CLI twin) + 4-surface
+sync. **Deferred optimization (DR6):** sparse-folder narrowing (whole-repo depth-1
+is the asset-complete v1). The "save local" path is inherited — the doc is now an
+ordinary local file in the checkout.
 *Acceptance:* a `github.com/.../blob/.../*.md` URL's "just this doc" action opens
 like a local file from `~/.claude/duo/checkouts/`; relative assets resolve;
 checkout is opaque; 4-surface sync for the extended `duo open`; smoke-walked.
@@ -296,7 +299,8 @@ for UI — `CLAUDE.md` § 7.)
 | `core/open-recents-service.ts` — Open Recent store (`~/.claude/duo/open-recents.json`, pointers, self-healing, cap 10) | D14 | ✅ landed | **10 unit tests** |
 | `CloneModal` — D16 success redesign (clean line + Done hero, "Clone another" demoted) **+ prefill URL + `openAfter` "Open `<file>`" hero** | D16, D15 | ✅ landed (code) | type-clean · **owes smoke-walk** |
 | **Merged ⌘O Open bar** (`OpenBar.tsx`, subsumes VaultQuickSwitcher) + Browse… picker + Open Recent UI + File menu + record-on-open + `duo recent` | D14, D15, D17, **D18, D19** | ✅ code-complete · **agent-walked live 2026-06-21** · 3 follow-ups (§ 6c) | typecheck clean · **1676 tests** (incl. socket `recent`/record-on-open integration + the search-vs-path heuristic) · currency **75/75**. **Live (computer-use):** every core flow passed (see § 6a header); record-on-open round-trips UI↔`duo recent`↔disk; dev log clean. Owner formal smoke-walk still recommended. |
-| GitHub **file** "just this doc" sparse checkout + the share-back round-trip (divergence → Propose changes → branch/commit/push/PR, auto-fork) | DR1–DR6, D2–D9 | ⛔ blocked | DR1–DR6 unwalked. *Note:* the github-file **"clone the whole repo, then open the file"** path is NOT blocked — it shipped in Phase 0 (D19). Only the *sparse* "just this doc" path + share-back remain. |
+| **Phase 1 — "open just this doc"** (managed checkout `core/open-checkout.ts` + `OPEN_GITHUB_FILE` IPC + the live OpenBar tile w/ progress) | DR6, D5 | ✅ UI done · **live-verified** · CLI twin owed | typecheck clean · 1689 tests (managedCheckoutDir / isLikelySha / cloneExtraArgs). **Live:** Spoon-Knife/README.md → depth-1 checkout (1 commit) → opened + folder focused + recent recorded; dev log clean. CLI parity (`duo open <github-url>`) owed. |
+| **Phase 2 — share-back round-trip** (divergence → "Propose changes" → branch/commit/push/PR, auto-fork) | D2, D3, D7–D13 | ⛔ not built (decisions locked) | Net-new git-WRITE plumbing (`core/git/{branch,commit,push,fork,pr}.ts` + `duo pr …`). Decisions are locked in § 3; this is a build, not a walk. |
 
 **Sequencing note.** D16 landed against the standalone `CloneModal` so the
 owner-requested success fix shipped immediately; the Open bar now *routes* a
