@@ -1556,6 +1556,16 @@ html.dark {
   background: rgba(224, 143, 74, 0.28);
 }
 
+/* History modal — diff legend swatches. The legend sits OUTSIDE .ProseMirror,
+   so it can't inherit the [data-duo-insertion]/[data-duo-deletion] colors above;
+   mirror those exact light + dark values so the legend matches the inline diff
+   in both themes (was hardcoded text-[#2c5524]/[#7d2622] → dark-on-dark, illegible
+   in dark mode). */
+.history-legend-add { color: #2c5524; }
+.history-legend-del { color: #7d2622; text-decoration: line-through; }
+[data-theme="dark"] .history-legend-add { color: #b9e0a4; }
+[data-theme="dark"] .history-legend-del { color: #e9b1ae; }
+
 /* Sprint 11 — SuggestionPopover (`[[` wikilink, `@` mention).
    Mounted via React Portal to <body>; absolute-positioned via
    inline style above the trigger DOMRect. */

@@ -298,8 +298,8 @@ export function HistoryModal({ open, path, onClose, onRestored }: HistoryModalPr
             {selectedId && snaps.length > 0 && selectedId !== snaps[0]?.id && (
               <div className="px-4 pt-3 pb-2 text-[11px] text-ink-mute border-b border-border/50">
                 Changes since this version —{' '}
-                <span className="text-[#2c5524]">added</span> ·{' '}
-                <span className="line-through text-[#7d2622]">removed</span>
+                <span className="history-legend-add">added</span> ·{' '}
+                <span className="history-legend-del">removed</span>
               </div>
             )}
             <div ref={previewHostRef} className="history-preview px-4 py-3 text-[13px] leading-relaxed text-ink" />
