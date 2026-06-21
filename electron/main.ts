@@ -1832,6 +1832,12 @@ app.whenReady().then(async () => {
       runner: {
         spawn: async ({ cwd, command }) => {
           const windowId = resolveCronLandingWindow(cwd) // D10
+          // D10(3) — no window open at all (registry empty → primary() is
+          // undefined). The run is "missed", governed by D5 catch-up, NOT a
+          // spawn error; CronService records it accordingly.
+          if (windowId == null) {
+            return { ok: false, reason: 'no-window' as const, error: 'no Duo window open — run deferred to next launch (D5)' }
+          }
           const r = await dispatchNewTabToWindow(windowId, { kind: 'shell', cwd, cmd: command })
           return { ok: r.ok, error: r.error }
         }

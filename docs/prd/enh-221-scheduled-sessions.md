@@ -218,13 +218,33 @@ in `cron-parser` (+ a describer) later — if richer expressions or a fancier
 human-readable preview are wanted — is a one-file change. Satisfies D8's intent
 (don't re-derive next-fire ad hoc per call) without the dependency risk.
 
-**Verified:** 55 cron unit tests + the full suite (1626) green; typecheck clean
+**Deviation status — owner-sanctioned (2026-06-20, local session).** Re-raised
+with the owner now that we're local with network. Owner delegated the call
+("make a pragmatic choice"); decision is to **keep the dependency-free engine**
+for Tier 1 rather than destabilize a tested, working foundation immediately
+before live verification. **Revisit trigger:** Tier 2's advanced-cron field
+(F3) needs a *live human-readable preview* — `describeSchedule` currently only
+echoes the raw expression for `kind: 'cron'`. When that surface is built, either
+hand-roll a describer for the common grammar or swap in `cron-parser` +
+`cronstrue` (the locked-D8 path). The isolation behind the three functions keeps
+that a one-file change.
+
+**No-window fire → `"missed"` (2026-06-20, local session).** D10(3) says a fire
+with all windows closed is a "missed" run governed by D5; Tier 1 originally
+recorded it as `"error"`. Owner confirmed `"missed"`. Implemented: the `main.ts`
+runner returns `{ ok: false, reason: 'no-window' }` when `resolveCronLandingWindow`
+finds no open window, and `CronService.fireJob` maps that reason to
+`lastRunState: 'missed'` **without advancing `lastRunAt`** (so D5 catch-up still
+anchors on the last *real* run and the missed occurrence stays recoverable on
+relaunch). Locked by a cron-service unit test.
+
+**Verified:** 56 cron unit tests + the full suite (1647) green; typecheck clean
 (node + web); CLI builds, `--help` renders the `Scheduling` group, arg-validation
 correct; `check:skill-currency` passes (4-surface sync). **Not yet exercised
-live:** the socket round-trip + actual tab spawn against a running Electron app
-(needs a Mac dev session; the cloud container has no Electron binary). The run
-decision/scheduling logic is fully unit-tested behind a mock runner; the live
-seam is the thin `main.ts` runner wiring.
+live (blocked, owner's dev in use):** the socket round-trip + actual tab spawn
+against a running Electron app. The run decision/scheduling logic is fully
+unit-tested behind a mock runner; the live seam is the thin `main.ts` runner
+wiring — queued for the next free dev session.
 
 **Still owed (out of Tier 1):** Tier 2 (Home surface + create dialog + row
 actions), ENH-223 (the "waiting on you" tab badge), and the logged future ENHs

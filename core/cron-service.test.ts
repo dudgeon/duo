@@ -13,7 +13,7 @@ interface SpawnCall {
   jobId: string
 }
 
-function makeRunner(result: { ok: boolean; error?: string } = { ok: true }) {
+function makeRunner(result: { ok: boolean; error?: string; reason?: 'no-window' } = { ok: true }) {
   const calls: SpawnCall[] = []
   const runner: CronRunner = {
     async spawn(input) {
@@ -113,6 +113,19 @@ describe('CronService', () => {
     const r = await svc.fireJob(view.id, { reason: 'manual' })
     expect(r.ok).toBe(false)
     expect(store.getJob(view.id)!.lastRunState).toBe('error')
+  })
+
+  it('records "missed" (not error) when the run comes due with no window open (D10/D5)', async () => {
+    const { runner } = makeRunner({ ok: false, reason: 'no-window', error: 'no Duo window open' })
+    const svc = new CronService({ store, runner, sessionExists: async () => false, headlessAllowed: false })
+    const view = (await addJob(svc)) as { id: string }
+    const r = await svc.fireJob(view.id, { reason: 'scheduled' })
+    expect(r.ok).toBe(false)
+    const job = store.getJob(view.id)!
+    expect(job.lastRunState).toBe('missed')
+    // A missed fire must NOT advance lastRunAt — D5 catch-up anchors on the
+    // last *real* run, so the occurrence stays recoverable on relaunch.
+    expect(job.lastRunAt).toBeNull()
   })
 
   it('pause stops scheduling; resume restores it; rm deletes', async () => {

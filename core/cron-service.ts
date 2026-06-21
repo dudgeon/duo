@@ -23,7 +23,13 @@ import {
  *  electron/main.ts (resolves the D10 landing window, then
  *  dispatchNewTabToWindow({ kind:'shell', cwd, cmd })). */
 export interface CronRunner {
-  spawn(input: { cwd: string; command: string; jobId: string; jobName: string }): Promise<{ ok: boolean; error?: string }>
+  spawn(input: { cwd: string; command: string; jobId: string; jobName: string }): Promise<{
+    ok: boolean
+    error?: string
+    /** D10(3) — the occurrence came due with NO Duo window open. Not a spawn
+     *  failure: it's a "missed" run governed by D5 catch-up. */
+    reason?: 'no-window'
+  }>
 }
 
 export interface CronServiceDeps {
@@ -187,6 +193,14 @@ export class CronService {
 
       if (result.ok) {
         await this.store.updateJob(jobId, { lastSessionId: sessionId, lastRunAt: at, lastRunState: runState })
+      } else if (result.reason === 'no-window') {
+        // D10(3) — the occurrence came due with no Duo window open. That's a
+        // "missed" run governed by D5 (catch-up on next launch), NOT a spawn
+        // failure. Record the state but DON'T advance lastRunAt: catch-up
+        // anchors on the last *real* run, so the missed occurrence stays
+        // recoverable on relaunch instead of being silently consumed.
+        this.log(`[cron] "${job.name}" came due with no window open — recorded missed (D5 catch-up applies)`)
+        await this.store.updateJob(jobId, { lastRunState: 'missed' })
       } else {
         this.log(`[cron] run for "${job.name}" failed to spawn: ${result.error ?? 'unknown'}`)
         await this.store.updateJob(jobId, { lastRunAt: at, lastRunState: 'error' })
