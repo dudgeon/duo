@@ -156,7 +156,14 @@ cloud-only (the `dataless` flag) under disk pressure. Symptoms: `git status` →
 input`; `git rev-parse HEAD` → `fatal: ambiguous argument 'HEAD'`. The
 `predev`/`pretest` hooks warn once via `scripts/check-materialization.sh`;
 recovery is `npm run materialize`. (Fired once Sprint 22 with 13k+ dataless
-files including `.git/refs/heads/main`.)
+files including `.git/refs/heads/main`.) **Second variant — sync-conflict
+duplicates:** iCloud can also drop a *copy* named `<file> 2.ts` (space +
+digit) next to the real file. These are **untracked**, but `tsconfig`'s
+`core/**`/`renderer/**` globs pick them up → spurious `TS6307` typecheck
+errors on files you never touched (155 of them blocked the v0.11.1 cut). `npm
+run materialize` does NOT clean these — the same `predev`/`pretest` check now
+warns about them, and `bash scripts/materialize.sh --dedup` (or
+`check-materialization.sh --fix`) moves them to `$TMPDIR`.
 
 ---
 
