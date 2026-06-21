@@ -174,7 +174,7 @@ empty.
 |---|---|
 | `duo url` / `duo title` | Current URL / title (orient) |
 | `duo navigate <url>` | Open URL in NEW browser tab, OR focus existing tab whose URL matches (does NOT clobber the active tab). **URLs only** — for path-shaped intent ("navigate to ~/Documents") use **`duo reveal <path>`** instead. |
-| `duo open <path-or-url> [--canvas] [--reveal]` | HTML lands in browser pane (interactive, scripts run). Non-HTML routes to natural surface. `--canvas` forces canvas-mode override for HTML (inspect source without firing scripts). Web URLs always → browser tab. Successful opens are recorded in Open Recent (`duo recent`). |
+| `duo open <path-or-url> [--canvas] [--reveal]` | HTML lands in browser pane (interactive, scripts run). Non-HTML routes to natural surface. `--canvas` forces canvas-mode override for HTML (inspect source without firing scripts). A **GitHub file URL** (`…/blob/<ref>/<path>`, `/raw/`, `raw.githubusercontent.com`) is pulled into an opaque managed checkout (`~/.claude/duo/checkouts/`) and opened like a local file; other web URLs (incl. bare repos) → browser tab. Successful opens are recorded in Open Recent (`duo recent`). |
 | `duo recent [--json]` | List the last ~10 targets opened via the Open bar (⌘O) / `duo open` — local paths + GitHub URLs. Reopen one by re-passing its `target` to `duo open`. `--json` for the raw `RecentEntry[]` array. |
 | `duo reload` | Reload the active browser tab in place (no URL needed; pair for `navigate`) |
 | `duo external <url>` | Open in macOS default browser (listed hostnames only) |

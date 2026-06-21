@@ -143,7 +143,7 @@ full inventory in [references/cli-reference.md](references/cli-reference.md).
 
 | Verb | What it does |
 |---|---|
-| `duo open <path-or-url> [--reveal]` | Open a file or URL. HTML → browser pane (interactive); `.md` → editor; image/pdf → viewer; URL → browser tab. The default for "show me X". Successful opens land in Open Recent (`duo recent`). |
+| `duo open <path-or-url> [--reveal]` | Open a file or URL. HTML → browser pane (interactive); `.md` → editor; image/pdf → viewer; URL → browser tab. A **GitHub file URL** (`…/blob/<ref>/<path>`, `/raw/`, `raw.githubusercontent.com`) → pulled into an opaque managed checkout under `~/.claude/duo/checkouts/` and opened like a local file ("open just this doc"); a bare repo URL still → browser tab. The default for "show me X". Successful opens land in Open Recent (`duo recent`). |
 | `duo recent [--json]` | List the last ~10 Open-bar targets (local paths + GitHub URLs) — the CLI twin of File ▸ Open Recent + the empty ⌘O bar. Reopen by re-passing a target to `duo open`. |
 | `duo edit <path> [--reveal]` | Open a file to modify its source. HTML → canvas mode (editable, scripts blocked); `.md` → rich editor. The default for "let's change this". |
 | `duo view <path>` | Open a local file in the working pane (legacy — prefer `open`/`edit`). `.md`→editor, image/pdf→viewer, JSON/YAML→tree view. |

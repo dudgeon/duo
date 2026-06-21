@@ -59,7 +59,7 @@ const VERBS: VerbSpec[] = [
     group: 'Browser & tabs',
     args: '<path-or-url> [--canvas] [--reveal]',
     summary:
-      'Open a local file or URL. HTML defaults to the browser pane (scripts run, interactive) — use this to show the user a generated explainer / playground. Non-HTML routes to its natural surface (.md → editor, image → viewer). --canvas forces canvas mode (source-editable, scripts blocked); --reveal expands the working pane. Successful opens are recorded in Open Recent (see "recent").'
+      'Open a local file or URL. HTML defaults to the browser pane (scripts run, interactive) — use this to show the user a generated explainer / playground. Non-HTML routes to its natural surface (.md → editor, image → viewer). A GitHub *file* URL (github.com/<o>/<r>/blob/<ref>/<path>, /raw/, or raw.githubusercontent.com) is pulled into an opaque managed checkout under ~/.claude/duo/checkouts/ and opened like a local file (the Open bar\'s "open just this doc"); a bare repo or other GitHub URL still opens in the browser pane. --canvas forces canvas mode (source-editable, scripts blocked); --reveal expands the working pane. Successful opens are recorded in Open Recent (see "recent").'
   },
   {
     name: 'recent',
@@ -2964,6 +2964,14 @@ function resolveFilePath(input: string): string {
 //     file paths, then become `file://` URLs with proper encoding.
 function resolveOpenTarget(target: string): string {
   if (/^[a-z][a-z0-9+.-]*:/i.test(target)) return target   // already a URL
+  // ENH-224 — a scheme-less GitHub host pasted from the address bar
+  // (github.com/o/r/blob/…, raw.githubusercontent.com/…) is a web URL, not a
+  // local path: prefix https:// so the socket handler's resolver classifies it
+  // as github-file/-repo instead of file://-ifying it against cwd. Mirrors core
+  // open-resolve's BARE_GITHUB_RE.
+  if (/^(www\.)?(github\.com|raw\.githubusercontent\.com)\//i.test(target)) {
+    return 'https://' + target
+  }
   let absolute: string
   if (target.startsWith('~/') || target === '~') {
     absolute = path.resolve(target.replace(/^~/, os.homedir()))

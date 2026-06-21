@@ -1580,6 +1580,10 @@ app.whenReady().then(async () => {
     // main-process OpenRecentsService singleton the UI Open bar writes to.
     recordOpenRecent: async (entry) => { await recordOpenRecentAndRefresh(entry) },
     listOpenRecents: () => openRecents.list(),
+    // ENH-224 Phase 1 (CLI twin) — `duo open <github-url>` runs the SAME managed
+    // checkout as the UI's OPEN_GITHUB_FILE IPC handler (line ~2374), so the
+    // socket twin and the Open bar share one checkout engine + opaque home.
+    runManagedCheckout: (target) => runManagedCheckout(target),
     // ENH-178 (Sprint 20) — browser-mode push (CLI → renderer echo).
     pushBrowserMode: pushBrowserMode,
     setSplit: setSplit,

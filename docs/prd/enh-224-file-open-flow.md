@@ -235,19 +235,41 @@ Electron busy)**. Verified: typecheck clean · 1676 tests (resolver +
 `deriveRecentEntry`, recents store, socket `recent`/record-on-open, the
 search-vs-path heuristic) · currency 75/75.
 
-**Phase 1 — GitHub *file* URL → open-as-local. ✅ UI done + live-verified
-(2026-06-21); CLI twin owed.** The "just this doc" tile is live: a github-file
-URL → opaque managed checkout (`core/open-checkout.ts`: depth-1 clone at the ref
-into `~/.claude/duo/checkouts/<owner>-<repo>@<ref>/` via the extended `runClone`,
+**Phase 1 — GitHub *file* URL → open-as-local. ✅ DONE — UI live-verified
+(2026-06-21); CLI twin code-complete + tested (2026-06-21), live-verify owed.**
+The "just this doc" tile is live: a github-file URL → opaque managed checkout
+(`core/open-checkout.ts`: depth-1 clone at the ref into
+`~/.claude/duo/checkouts/<owner>-<repo>@<ref>/` via the extended `runClone`,
 `rev-parse HEAD` baseline, idempotent reuse) → the doc opens like a local file +
 the navigator focuses the checkout folder + the github-file recent is recorded.
 The OpenBar shows a "Pulling ‹file›…" progress panel with an inline gh-auth
-bounce on failure. **Live-verified:** `octocat/Spoon-Knife/blob/main/README.md`
+bounce on failure. **Live-verified (UI):** `octocat/Spoon-Knife/blob/main/README.md`
 → depth-1 checkout (1 commit, baseline `d0dd1f6`) → README opened in the editor +
 folder focused + `duo recent` shows `🐙 octocat/Spoon-Knife › README.md`; dev log
-clean. **Remaining (CLI parity — rule #4):** extend the `duo open` socket handler
-to recognize github-file URLs → run the same checkout (the CLI twin) + 4-surface
-sync. **Deferred optimization (DR6):** sparse-folder narrowing (whole-repo depth-1
+clean. **CLI twin (rule #4) — DONE (2026-06-21):** the `duo open` socket handler
+(`core/socket-server.ts` case `open`) now classifies its target and, on a
+github-file URL, runs the SAME managed checkout via a new optional
+`NavBridge.runManagedCheckout` (wired in `electron/main.ts` to
+`core/open-checkout.runManagedCheckout` — one engine, shared with the
+`OPEN_GITHUB_FILE` IPC) → `nav.edit(fileAbsPath)` + `nav.reveal(checkoutDir)` →
+records the github-file recent (reusing the existing record-on-open path); auth-
+missing bounces to `gh auth login`; a bare-repo / non-file GitHub URL still opens
+in the browser pane. `cli/duo.ts resolveOpenTarget` now https-prefixes a scheme-
+less github host so `duo open github.com/o/r/blob/…` classifies correctly. Verified:
+typecheck clean · **1696 tests** (+4 socket: routing · auth-missing bounce · bare-
+repo fallthrough · optional-dep fallthrough) · currency 75/75 · 5-surface doc sync
+(SKILL.md · agents/duo.md · CLI-COVERAGE.md · cli-reference.md · the verb summary).
+**Owed:** a real `duo open <github-url>` against the running app (needs Electron).
+**Deliberate asymmetry (rule #4):** `duo open <github-file-url>` opens *just this
+doc* via the managed checkout (PRD § 5) — matching the Open bar's explicit "just
+this doc" card. The UI *recents-list / menu* reopen of a github-file instead
+routes to the clone flow (`App.tsx openResolvedTarget` — the deliberate "clone
+the whole repo" default for an ambiguous reopen). So the same github-file recent
+lands in a checkout via `duo open` but offers a clone via the UI recents click.
+Defensible (CLI `open` is an explicit single-target verb; the UI recents row is
+an ambiguous reopen), but a future UI follow-up could route github-file recents
+through `onOpenGithubDoc` for full UI/CLI symmetry.
+**Deferred optimization (DR6):** sparse-folder narrowing (whole-repo depth-1
 is the asset-complete v1). The "save local" path is inherited — the doc is now an
 ordinary local file in the checkout.
 *Acceptance:* a `github.com/.../blob/.../*.md` URL's "just this doc" action opens
@@ -299,7 +321,8 @@ for UI — `CLAUDE.md` § 7.)
 | `core/open-recents-service.ts` — Open Recent store (`~/.claude/duo/open-recents.json`, pointers, self-healing, cap 10) | D14 | ✅ landed | **10 unit tests** |
 | `CloneModal` — D16 success redesign (clean line + Done hero, "Clone another" demoted) **+ prefill URL + `openAfter` "Open `<file>`" hero** | D16, D15 | ✅ landed (code) | type-clean · **owes smoke-walk** |
 | **Merged ⌘O Open bar** (`OpenBar.tsx`, subsumes VaultQuickSwitcher) + Browse… picker + Open Recent UI + File menu + record-on-open + `duo recent` | D14, D15, D17, **D18, D19** | ✅ code-complete · **agent-walked live 2026-06-21** · 3 follow-ups (§ 6c) | typecheck clean · **1676 tests** (incl. socket `recent`/record-on-open integration + the search-vs-path heuristic) · currency **75/75**. **Live (computer-use):** every core flow passed (see § 6a header); record-on-open round-trips UI↔`duo recent`↔disk; dev log clean. Owner formal smoke-walk still recommended. |
-| **Phase 1 — "open just this doc"** (managed checkout `core/open-checkout.ts` + `OPEN_GITHUB_FILE` IPC + the live OpenBar tile w/ progress) | DR6, D5 | ✅ UI done · **live-verified** · CLI twin owed | typecheck clean · 1689 tests (managedCheckoutDir / isLikelySha / cloneExtraArgs). **Live:** Spoon-Knife/README.md → depth-1 checkout (1 commit) → opened + folder focused + recent recorded; dev log clean. CLI parity (`duo open <github-url>`) owed. |
+| **Phase 1 — "open just this doc"** (managed checkout `core/open-checkout.ts` + `OPEN_GITHUB_FILE` IPC + the live OpenBar tile w/ progress) | DR6, D5 | ✅ UI done · **live-verified** | typecheck clean · tests (managedCheckoutDir / isLikelySha / cloneExtraArgs). **Live:** Spoon-Knife/README.md → depth-1 checkout (1 commit) → opened + folder focused + recent recorded; dev log clean. |
+| **Phase 1 CLI twin** — `duo open <github-file-url>` → same managed checkout (socket `open` branch + `NavBridge.runManagedCheckout` + bare-host CLI resolve) | DR6, D5, **rule #4** | ✅ code-complete + tested 2026-06-21 · **live-verify owed** (Electron) | typecheck clean · **1696 tests** (+4 socket: routing · auth-missing bounce · bare-repo fallthrough · optional-dep fallthrough) · currency 75/75 · 5-surface doc sync. Shares the checkout engine with the UI IPC. **Owed:** a real `duo open <github-url>` against the running app. |
 | **Phase 2 — share-back round-trip** (divergence → "Propose changes" → branch/commit/push/PR, auto-fork) | D2, D3, D7–D13 | ⛔ not built (decisions locked) | Net-new git-WRITE plumbing (`core/git/{branch,commit,push,fork,pr}.ts` + `duo pr …`). Decisions are locked in § 3; this is a build, not a walk. |
 
 **Sequencing note.** D16 landed against the standalone `CloneModal` so the
@@ -314,6 +337,34 @@ lower-risk.
 Newest first. Captures decisions + scope changes that diverge from the original
 spec so the history is legible.
 
+- **2026-06-21 — Phase 1 CLI twin landed (rule #4 parity).** `duo open
+  <github-file-url>` now does what the Open bar's "open just this doc" does: the
+  socket `open` handler (`core/socket-server.ts`) classifies its target via the
+  shared resolver and, for a github-file, runs the SAME managed checkout through
+  a new optional `NavBridge.runManagedCheckout` (wired in `electron/main.ts` to
+  `core/open-checkout.runManagedCheckout` — one engine, shared with the
+  `OPEN_GITHUB_FILE` IPC the UI uses), then opens the checked-out file
+  (`nav.edit`) + focuses the checkout folder (`nav.reveal`) + records the
+  github-file recent. Auth-missing bounces to `gh auth login`; a bare-repo /
+  non-file GitHub URL still opens in the browser pane (unchanged). The CLI's own
+  `resolveOpenTarget` now https-prefixes a scheme-less github host (so
+  `duo open github.com/o/r/blob/…` resolves correctly instead of file://-ifying).
+  No new verb / IPC channel — the existing `open` verb already forwarded
+  `url` + `origin`, so this is a behavior extension. +4 socket tests; 5-surface
+  doc sync. **Live-verify owed** (a real `duo open <github-url>` against the
+  running app needs Electron, which is currently unavailable to the agent).
+  *An adversarial code-review pass (3 lenses → per-finding verification)
+  hardened four points before commit:* (1) gate `result.ok` on `nav.edit()`
+  actually mounting the doc (a failed edit no longer reports success); (2)
+  record the recent under the **canonical** `github.com/blob` URL so a raw /
+  permalink variant stores the SAME pointer the UI does; (3) reveal the **file**
+  (not the dir) so the navigator lands *inside* the checkout folder (D5),
+  matching the UI's `navigateTo(checkoutDir)` rather than its parent; (4) accept
+  `www.raw.githubusercontent.com` in the core resolver (symmetric with the
+  already-handled `www.github.com`). Left as-is by design: `--canvas`/`mode` is
+  ignored for a github-file (matches the UI's `openFileSmart`-without-mode); the
+  slashed-branch ref limitation stays a documented v1 resolver edge (both
+  surfaces, unchanged).
 - **2026-06-21 — DR1–DR6 resolved → Phase 1 unblocked.** DR1/DR3/DR4/DR5 were
   settled by the Phase-0 build (inline file-vs-repo choice · prefilled-CloneModal
   hand-off · open-file-after-clone hero · light convergence) and validated in the

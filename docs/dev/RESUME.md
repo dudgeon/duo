@@ -28,17 +28,28 @@
 >   focuses the folder + records the recent. **DR6 = depth-1 whole-repo** (sparse
 >   deferred); **DR2 = always-ask**. Walked live: `octocat/Spoon-Knife/blob/main/README.md`.
 >
+> - **Phase 1 CLI twin ✅ DONE + tested (2026-06-21):** the `duo open` socket
+>   handler (`core/socket-server.ts` case `open`) classifies its target → on a
+>   github-file URL runs the SAME managed checkout via a new optional
+>   `NavBridge.runManagedCheckout` (wired in `electron/main.ts` to
+>   `runManagedCheckout` — one engine, shared with the `OPEN_GITHUB_FILE` IPC) →
+>   `nav.edit` + `nav.reveal` + records the recent; auth-missing bounces to
+>   `gh auth login`; bare-repo URL still → browser pane. `cli/duo.ts
+>   resolveOpenTarget` https-prefixes a scheme-less github host. +4 socket tests ·
+>   5-surface doc sync. *Live-verify owed* (a real `duo open <github-url>` — Electron).
+>
 > **OWED / NEXT:**
-> - **Phase 1 CLI twin** (small): extend the `duo open` socket handler to
->   recognize github-file URLs → run `runManagedCheckout` (CLI parity, rule #4) +
->   4-surface sync.
 > - **Phase 2 — share-back** (the big build, decisions LOCKED in § 3 D2–D13): edit →
 >   "Propose changes" footer (D10/D11) → confirm sheet → branch/commit/push/PR +
 >   **auto-fork** (D3) + post-PR morph (D13). Net-new git-WRITE plumbing
 >   `core/git/{branch,commit,push,fork,pr}.ts` + `duo pr create|status|view`.
 > - **Deferred:** sparse-folder checkout (DR6 optimization) · full-inline modal
->   merge (D15/DM1) · NewVaultModal geometry audit · a github-file *recent*
->   reopens to clone, not the doc checkout (v1 wart).
+>   merge (D15/DM1) · NewVaultModal geometry audit · **UI/CLI symmetry follow-up**:
+>   `duo open <github-url>` now opens just-this-doc via the checkout, but the UI
+>   *recents-list* reopen of a github-file still routes to the clone modal
+>   (`App.tsx openResolvedTarget` — deliberate "clone the whole repo" default).
+>   Could route github-file recents through `onOpenGithubDoc` for full symmetry
+>   (UI change → needs Electron). Documented as a rule-#4 asymmetry in PRD § 6.
 >
 > **VERIFICATION + ENV NOTES:**
 > - **Computer-use Electron access is REVOKED — ASK the owner before using it**
@@ -49,8 +60,10 @@
 >   `pkill -f 'electron-vite dev'` + relaunch. SIGTERM-ing the app direct causes a
 >   benign `fse_instance_destroy` crash report (memory
 >   `feedback_pkill_dev_triggers_benign_fsevents_sigabrt`).
-> - Latest commits: `49635ee` (Phase-1 docs) · `7370416` (Phase-1 wiring) ·
->   `738ae7f` (Phase-1 foundation) · typecheck clean · **1689 tests** · currency 75/75.
+> - Latest: Phase-1 CLI twin (socket `open` github-file branch + bare-host CLI
+>   resolve + 5-surface docs) · typecheck clean · **1696 tests** · currency 75/75 ·
+>   binary rebuilt. Prior: `49635ee` (Phase-1 docs) · `7370416` (Phase-1 wiring) ·
+>   `738ae7f` (Phase-1 foundation).
 > - Leftover state: a real test checkout at `~/.claude/duo/checkouts/octocat-Spoon-Knife@main/`;
 >   iCloud `* 2.*` sync-conflict dupes moved to `/tmp/icloud-dupes-backup-d76de1e/`
 >   (await owner OK to delete — `rm` of untracked files is auto-denied).

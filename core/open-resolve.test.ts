@@ -97,6 +97,14 @@ describe('resolveOpenTarget — GitHub file URLs', () => {
     expect(resolveOpenTarget('https://www.github.com/o/r/blob/dev/a.md').kind).toBe('github-file')
   })
 
+  it('www.raw.githubusercontent.com host (symmetric with www.github.com)', () => {
+    const t = resolveOpenTarget('https://www.raw.githubusercontent.com/o/r/main/a.md')
+    expect(t).toMatchObject({
+      kind: 'github-file', owner: 'o', repo: 'r', ref: 'main', filePath: 'a.md',
+      canonical: 'https://github.com/o/r/blob/main/a.md',
+    })
+  })
+
   it('slashed branch — documented v1 limitation (ref=first segment)', () => {
     const t = resolveOpenTarget('https://github.com/o/r/blob/feature/x/docs/a.md')
     expect(t).toMatchObject({ kind: 'github-file', ref: 'feature', filePath: 'x/docs/a.md' })

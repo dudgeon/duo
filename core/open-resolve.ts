@@ -61,7 +61,11 @@ export interface UrlTarget {
 export type OpenTarget = LocalPathTarget | GithubFileTarget | GithubRepoTarget | UrlTarget
 
 const GITHUB_HOSTS = new Set(['github.com', 'www.github.com'])
-const RAW_HOST = 'raw.githubusercontent.com'
+// Both bare (BARE_GITHUB_RE) and scheme'd inputs may carry a `www.` prefix on
+// either host; keep the raw-host set symmetric with GITHUB_HOSTS so a
+// www.raw.githubusercontent.com URL classifies as github-file, not a generic
+// `url` that would open read-only in the browser (CLI/UI parity).
+const RAW_HOSTS = new Set(['raw.githubusercontent.com', 'www.raw.githubusercontent.com'])
 
 /** A leading `scheme:` per RFC 3986 (http, https, file, mailto, …). */
 const SCHEME_RE = /^([a-zA-Z][a-zA-Z0-9+.\-]*):/
@@ -201,7 +205,7 @@ export function resolveOpenTarget(input: string): OpenTarget {
 
   const host = url.hostname.toLowerCase()
   if (GITHUB_HOSTS.has(host)) return parseGithubWeb(url)
-  if (host === RAW_HOST) return parseRawGithubusercontent(url)
+  if (RAW_HOSTS.has(host)) return parseRawGithubusercontent(url)
   return { kind: 'url', url: url.href }
 }
 
