@@ -236,13 +236,17 @@ Electron busy)**. Verified: typecheck clean · 1676 tests (resolver +
 search-vs-path heuristic) · currency 75/75.
 
 **Phase 1 — GitHub *file* URL → open-as-local *without cloning the whole repo*
-(read/edit, no PR). ⛔ blocked (DR1–DR6).** The "clone the whole repo and open
-the file" path already shipped in Phase 0 (D19). What remains here is the
-*opaque managed **sparse** checkout* — P2 + P3 + P4: recognize a GitHub file URL,
-shallow/sparse-checkout just the doc + its assets into the managed home, open
-the `.md`, focus the checkout folder, write locally. This is the "just this doc"
-choice that's currently the disabled "Soon" tile. Gated on the DR1–DR6 walk
-(checkout-home / reuse / refactor decisions — see § 7 OQ-7).
+(read/edit, no PR). 🔨 decided + building (DR2/DR6 locked 2026-06-21).** The
+"clone the whole repo and open the file" path already shipped in Phase 0 (D19).
+What remains here is the *opaque managed checkout* — P2 + P3 + P4: recognize a
+GitHub file URL (the resolver already does — P2 ✅), checkout it into the managed
+home (`~/.claude/duo/checkouts/<owner>-<repo>@<ref>/`), open the `.md`, focus the
+checkout folder, write locally. The "just this doc" tile (currently disabled
+"Soon") becomes live. **Build mechanism (DR6):** `core/open/checkout.ts`
+orchestrates a **depth-1 clone at the URL's ref** (reusing `core/git/clone.ts`'s
+gh-preferred `runClone`, extended with `depth`/`ref`) → `rev-parse HEAD` for the
+baseline → returns the pointer. Sparse-folder narrowing is the deferred
+optimization on top; whole-repo depth-1 is the correct, asset-complete v1.
 *Acceptance:* a `github.com/.../blob/.../*.md` URL's "just this doc" action opens
 like a local file from `~/.claude/duo/checkouts/`; relative assets resolve;
 checkout is opaque; 4-surface sync for the extended `duo open`; smoke-walked.
@@ -306,6 +310,19 @@ lower-risk.
 Newest first. Captures decisions + scope changes that diverge from the original
 spec so the history is legible.
 
+- **2026-06-21 — DR1–DR6 resolved → Phase 1 unblocked.** DR1/DR3/DR4/DR5 were
+  settled by the Phase-0 build (inline file-vs-repo choice · prefilled-CloneModal
+  hand-off · open-file-after-clone hero · light convergence) and validated in the
+  live walk — no re-walk needed. **DR2 = "always ask, never remember"** (owner):
+  no per-repo memory; the file-vs-repo choice shows every time (drop the mock's
+  "Remember for ‹repo›" checkbox). **DR6 = sparse-checkout the file's folder
+  (shallow)** (agent rec, owner-delegated): the opaque managed checkout pulls
+  just the doc's folder at depth-1, so "just this doc" stays light/instant — the
+  real differentiator from Phase-0's visible whole-repo clone — while keeping
+  real git for the PR diff. *v1 edge:* cross-folder relative assets (`../assets/`)
+  may not resolve; documented, and **whole-repo depth-1 is the swappable fallback**
+  if the sparse plumbing proves fragile. Phase 1 (P2+P3+P4: github-file → managed
+  sparse checkout → open-as-local) is now decided + buildable.
 - **2026-06-21 — Renumbered ENH-221 → ENH-224.** The *other* agent's ENH-221
   (durable file version history, `claude/enh-221-file-history`) merged to `main`
   first (#104), so per the multi-agent ticket-collision rule this (unmerged) work
