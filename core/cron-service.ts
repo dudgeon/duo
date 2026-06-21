@@ -319,9 +319,64 @@ export class CronService {
         return { ok: true, removed: id }
       }
 
+      case 'edit': {
+        const id = str(args.id)
+        if (!id) throw new Error('cron edit requires <id>')
+        const patch = this.buildPatchFromArgs(args)
+        if (Object.keys(patch).length === 0) {
+          throw new Error('cron edit: nothing to change (pass --name/--cwd/--say/--every|--cron/--at/--on/--session/--catch-up|--no-catch-up)')
+        }
+        const updated = await this.store.updateJob(id, patch)
+        if (!updated) throw new Error(`no such job: ${id}`)
+        this.rescheduleJob(updated, new Date(this.now()))
+        this.emitChange()
+        return this.toView(updated)
+      }
+
+      // UI helper (not a documented CLI verb) — validate a draft schedule and
+      // return its human label + next-fire, for the create dialog's live
+      // preview (F3). Throws a readable error on a bad cron expression.
+      case 'preview': {
+        const schedule = parseScheduleArgs({
+          cron: str(args.cron),
+          every: str(args.every),
+          at: str(args.at),
+          on: str(args.on),
+        })
+        const next = nextFireAfterSchedule(schedule, new Date(this.now()))
+        return { scheduleLabel: describeSchedule(schedule), nextFireAt: next ? next.toISOString() : null }
+      }
+
       default:
-        throw new Error(`Unknown cron op: ${op}. Expected list|add|run|pause|resume|rm|show.`)
+        throw new Error(`Unknown cron op: ${op}. Expected list|add|run|pause|resume|rm|show|edit.`)
     }
+  }
+
+  /** Build a partial-update patch from loose `cron edit` args — only the fields
+   *  present are touched. Schedule is replaced wholesale if ANY schedule arg is
+   *  given (parseScheduleArgs builds a complete schedule). */
+  private buildPatchFromArgs(args: Record<string, unknown>): Partial<Omit<CronJob, 'id'>> {
+    const patch: Partial<Omit<CronJob, 'id'>> = {}
+    const name = str(args.name)
+    if (name) patch.name = name
+    const cwd = str(args.cwd)
+    if (cwd) patch.cwd = cwd
+    const instruction = str(args.instruction)
+    if (instruction) patch.instruction = instruction
+    const sessionRaw = str(args.session)
+    if (sessionRaw === 'same' || sessionRaw === 'fresh') patch.session = sessionRaw
+    if (str(args.cron) || str(args.every) || str(args.at) || str(args.on)) {
+      patch.schedule = parseScheduleArgs({
+        cron: str(args.cron),
+        every: str(args.every),
+        at: str(args.at),
+        on: str(args.on),
+      })
+    }
+    // catch-up: true → on; false → inherit the global default (null); absent → unchanged.
+    if (args.catchUp === true || args.catchUp === 'true') patch.catchUpOnLaunch = true
+    else if (args.catchUp === false || args.catchUp === 'false') patch.catchUpOnLaunch = null
+    return patch
   }
 
   /** Create a job from `duo cron add` args. */

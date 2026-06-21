@@ -2030,11 +2030,11 @@ export class SocketServer {
 
         case 'cron': {
           // ENH-221 — scheduled ("cron") Claude sessions. Discriminated op
-          // (list|add|run|pause|resume|rm|show), delegated to the CronService.
-          // App-global: ignores --window (the run's landing window is resolved
-          // from the job's cwd, D10). The bridge throws on bad input.
+          // (list|add|edit|run|pause|resume|rm|show), delegated to the
+          // CronService. App-global: ignores --window (the run's landing window
+          // is resolved from the job's cwd, D10). The bridge throws on bad input.
           const op = args['op'] as string | undefined
-          if (!op) throw new Error('cron requires an op (list|add|run|pause|resume|rm|show)')
+          if (!op) throw new Error('cron requires an op (list|add|edit|run|pause|resume|rm|show)')
           result = await this.nav.cron(op, args)
           break
         }

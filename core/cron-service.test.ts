@@ -147,6 +147,44 @@ describe('CronService', () => {
     expect(counts).toEqual([1, 1, 1, 0])
   })
 
+  it('edit patches fields + reparses the schedule, leaving others intact (Tier 2)', async () => {
+    const { runner } = makeRunner()
+    const svc = new CronService({ store, runner, sessionExists: async () => false, headlessAllowed: false })
+    const view = (await addJob(svc)) as { id: string }
+    const edited = (await svc.handleCli('edit', {
+      id: view.id,
+      name: 'Renamed',
+      every: 'weekly',
+      on: 'fri',
+      at: '18:00',
+      session: 'same',
+    })) as { name: string; session: string; scheduleLabel: string }
+    expect(edited.name).toBe('Renamed')
+    expect(edited.session).toBe('same')
+    expect(edited.scheduleLabel).toBe('every Friday at 18:00')
+    expect(store.getJob(view.id)!.cwd).toBe('/tmp/proj') // untouched
+  })
+
+  it('edit rejects an empty patch and a bad id (Tier 2)', async () => {
+    const { runner } = makeRunner()
+    const svc = new CronService({ store, runner, sessionExists: async () => false, headlessAllowed: false })
+    const view = (await addJob(svc)) as { id: string }
+    await expect(svc.handleCli('edit', { id: view.id })).rejects.toThrow(/nothing to change/)
+    await expect(svc.handleCli('edit', { id: 'nope', name: 'x' })).rejects.toThrow(/no such job/)
+  })
+
+  it('preview returns a label + next-fire and rejects a bad cron (Tier 2)', async () => {
+    const { runner } = makeRunner()
+    const svc = new CronService({ store, runner, sessionExists: async () => false, headlessAllowed: false })
+    const p = (await svc.handleCli('preview', { every: 'daily', at: '07:15' })) as {
+      scheduleLabel: string
+      nextFireAt: string | null
+    }
+    expect(p.scheduleLabel).toBe('every day at 07:15')
+    expect(p.nextFireAt).toBeTruthy()
+    await expect(svc.handleCli('preview', { cron: 'not a valid cron' })).rejects.toThrow()
+  })
+
   it('pause stops scheduling; resume restores it; rm deletes', async () => {
     const { runner } = makeRunner()
     const svc = new CronService({ store, runner, sessionExists: async () => false, headlessAllowed: false })

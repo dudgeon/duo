@@ -995,6 +995,11 @@ const api: ElectronAPI = {
       const handler = (_: IpcRendererEvent, jobs: Parameters<typeof cb>[0]) => cb(jobs)
       ipcRenderer.on(IPC.CRON_JOBS_CHANGED, handler)
       return () => ipcRenderer.removeListener(IPC.CRON_JOBS_CHANGED, handler)
+    },
+    onOpenNewModal: (cb) => {
+      const handler = () => cb()
+      ipcRenderer.on(IPC.CRON_OPEN_NEW_MODAL, handler)
+      return () => ipcRenderer.removeListener(IPC.CRON_OPEN_NEW_MODAL, handler)
     }
   }
 }

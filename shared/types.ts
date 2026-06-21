@@ -2352,6 +2352,8 @@ export const IPC = {
   // broadcasts the fresh CronJobView[] on every job mutation so Home re-renders.
   CRON_INVOKE: 'cron:invoke',          // renderer → main (invoke {op, args})
   CRON_JOBS_CHANGED: 'cron:jobs-changed', // main → renderer (CronJobView[])
+  // main → renderer push: open the New Scheduled Job dialog (File ▸ menu, D7).
+  CRON_OPEN_NEW_MODAL: 'cron:open-new-modal',
   // main → renderer push: focus/synthesize the Home tab (`duo home`).
   HOME_SHOW: 'home:show',
   // ENH-212 — main → renderer push to activate a terminal tab by id.

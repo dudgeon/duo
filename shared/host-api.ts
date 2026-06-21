@@ -1000,6 +1000,9 @@ export interface ElectronSessionStateAPI {
 export interface ElectronCronAPI {
   invoke: (op: string, args?: Record<string, unknown>) => Promise<unknown>
   onJobsChanged: (cb: (jobs: CronJobView[]) => void) => () => void
+  /** File ▸ New Scheduled Job… — main asks the focused window to open the
+   *  create dialog (D7). */
+  onOpenNewModal: (cb: () => void) => () => void
 }
 
 // ENH-167 — workspace-as-file. Mirrors the File menu surface: Save /

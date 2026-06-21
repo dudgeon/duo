@@ -414,9 +414,9 @@ const VERBS: VerbSpec[] = [
   {
     name: 'cron',
     group: 'Scheduling',
-    args: '<list|add|run|pause|resume|rm|show> [args]',
+    args: '<list|add|edit|run|pause|resume|rm|show> [args]',
     summary:
-      'Scheduled ("cron") Claude sessions — fire a Claude command in a project on a schedule, INTERACTIVELY (Duo does session start + initial instruction, then hands control to you; runs only fire while Duo is open). list shows jobs (+ next-fire + status); add --name <n> --cwd <path> --say "<instruction>" (--every hourly|daily|weekdays|weekly [--at HH:MM] [--on <weekday>] | --cron "<expr>") [--session fresh|same] [--catch-up]; run <id> fires now; pause / resume / rm / show <id> manage one job (ids from "cron list").'
+      'Scheduled ("cron") Claude sessions — fire a Claude command in a project on a schedule, INTERACTIVELY (Duo does session start + initial instruction, then hands control to you; runs only fire while Duo is open). list shows jobs (+ next-fire + status); add --name <n> --cwd <path> --say "<instruction>" (--every hourly|daily|weekdays|weekly [--at HH:MM] [--on <weekday>] | --cron "<expr>") [--session fresh|same] [--catch-up]; edit <id> [same flags] changes a job (schedule flags replace the whole schedule; --no-catch-up turns catch-up off); run <id> fires now; pause / resume / rm / show <id> manage one job (ids from "cron list").'
   },
   {
     name: 'claude-return',
@@ -2432,12 +2432,40 @@ async function main(): Promise<void> {
           if (sessionMode) payload.session = sessionMode
           if (rest.includes('--catch-up')) payload.catchUp = true
           out(await send('cron', payload))
+        } else if (sub === 'edit') {
+          // ENH-221 Tier 2 — edit an existing job (UI/CLI parity with the Home
+          // edit action). Only the flags you pass change; any schedule flag
+          // (--every/--cron + --at/--on) replaces the WHOLE schedule.
+          const id = rest[1]
+          if (!id) {
+            die('Usage: duo cron edit <id> [--name <n>] [--cwd <path>] [--say "<instruction>"] (--every <preset> [--at HH:MM] [--on <weekday>] | --cron "<expr>") [--session fresh|same] [--catch-up | --no-catch-up]')
+          }
+          const payload: Record<string, unknown> = { op: 'edit', id }
+          const name = flagValue(rest, '--name')
+          const cwd = flagValue(rest, '--cwd')
+          const say = flagValue(rest, '--say')
+          const cron = flagValue(rest, '--cron')
+          const every = flagValue(rest, '--every')
+          const at = flagValue(rest, '--at')
+          const on = flagValue(rest, '--on')
+          const sessionMode = flagValue(rest, '--session')
+          if (name) payload.name = name
+          if (cwd) payload.cwd = resolveFilePath(cwd)
+          if (say) payload.instruction = say
+          if (cron) payload.cron = cron
+          if (every) payload.every = every
+          if (at) payload.at = at
+          if (on) payload.on = on
+          if (sessionMode) payload.session = sessionMode
+          if (rest.includes('--catch-up')) payload.catchUp = true
+          else if (rest.includes('--no-catch-up')) payload.catchUp = false
+          out(await send('cron', payload))
         } else if (sub === 'show' || sub === 'run' || sub === 'pause' || sub === 'resume' || sub === 'rm') {
           const id = rest[1]
           if (!id) die(`Usage: duo cron ${sub} <id>   (id from "duo cron list")`)
           out(await send('cron', { op: sub, id }))
         } else {
-          die(`Unknown cron sub-op: ${sub}. Expected list|add|run|pause|resume|rm|show.`)
+          die(`Unknown cron sub-op: ${sub}. Expected list|add|edit|run|pause|resume|rm|show.`)
         }
         break
       }

@@ -3166,6 +3166,14 @@ function installAppMenu(): void {
           // init <path> --format=okf|obsidian`).
           click: () => { openNewVaultModal({ windowId: focusedWindowId() }) }
         },
+        {
+          // ENH-221 Tier 2 (D7) — File ▸ New Scheduled Job…. No accelerator
+          // (the ⌘N family is fully booked, like New Vault). CLI parity:
+          // `duo cron add …`. Pushes to the focused window; App opens the
+          // create dialog seeded with the navigator's current folder.
+          label: 'New Scheduled Job…',
+          click: () => safeSendFocused(IPC.CRON_OPEN_NEW_MODAL)
+        },
         // ENH-191 P5a (S3) — open a SECOND window (blank, its own workspace).
         // ⌥⌘N because ⌘N is New File and ⌘⇧N is vault quick-capture
         // (ENH-208 re-pick; New Folder sits at ⌥⇧⌘N). Gated on the

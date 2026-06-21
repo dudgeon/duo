@@ -112,11 +112,23 @@ export function CronSection() {
     if (confirmTimer.current) clearTimeout(confirmTimer.current)
   }, [])
 
+  const openCreate = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('duo-open-cron-modal', { detail: {} }))
+  }, [])
+  const openEdit = useCallback((job: CronJobView) => {
+    window.dispatchEvent(new CustomEvent('duo-open-cron-modal', { detail: { editJob: job } }))
+  }, [])
+
   if (jobs.length === 0) return null
 
   return (
     <div className="duo-home-scheduled">
-      <h3 className="duo-home-scheduled-title font-serif">Scheduled</h3>
+      <div className="duo-home-scheduled-head">
+        <h3 className="duo-home-scheduled-title font-serif">Scheduled</h3>
+        <button type="button" className="duo-home-cron-btn" onClick={openCreate} title="Create a scheduled job">
+          + New job
+        </button>
+      </div>
       <div className="duo-home-cron-list">
         {jobs.map((job) => {
           const st = statusOf(job)
@@ -167,6 +179,15 @@ export function CronSection() {
                     Resume
                   </button>
                 )}
+                <button
+                  type="button"
+                  className="duo-home-cron-btn"
+                  disabled={busy}
+                  onClick={() => openEdit(job)}
+                  title="Edit this job"
+                >
+                  Edit
+                </button>
                 <button
                   type="button"
                   className={`duo-home-cron-btn is-delete${armed ? ' is-armed' : ''}`}

@@ -499,10 +499,18 @@
   gap: 6px;
 }
 
+.duo-home-scheduled-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
 .duo-home-scheduled-title {
   font-size: 15px;
   color: var(--duo-ink-soft);
-  margin: 0 0 2px;
+  margin: 0;
 }
 
 .duo-home-cron-list {

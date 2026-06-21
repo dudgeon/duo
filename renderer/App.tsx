@@ -14,6 +14,8 @@ import { UpdateAvailableBanner } from './components/UpdateAvailableBanner'
 import { ExternalRedirectedBanner } from './components/ExternalRedirectedBanner'
 import { CloneModal } from './components/CloneModal'
 import { NewVaultModal } from './components/NewVaultModal'
+import { NewCronJobModal } from './components/Home/NewCronJobModal'
+import type { CronJobView } from '@shared/types'
 import { LinkPromptModal } from './components/editor/LinkPromptModal'
 import { WorkspaceSwitcherDropdown } from './components/WorkspaceSwitcherDropdown'
 import type { FileTab, ActiveWorking } from './components/WorkingPane'
@@ -398,6 +400,15 @@ export function App() {
   // ENH-216 (U7) — File → New Vault… modal visibility. Opened by the native
   // File menu entry's IPC push (window.electron.nav.onOpenNewVaultModal).
   const [newVaultModalOpen, setNewVaultModalOpen] = useState(false)
+  // ENH-221 Tier 2 (D7) — New/Edit Scheduled Job dialog. Opened by File ▸ New
+  // Scheduled Job… (IPC push), the Home "+ New" / Edit actions, and the
+  // project-rail right-click (a `duo-open-cron-modal` window CustomEvent),
+  // seeded with a working-dir (create) or the job to edit.
+  const [cronModal, setCronModal] = useState<{ open: boolean; editJob: CronJobView | null; defaultCwd: string }>({
+    open: false,
+    editJob: null,
+    defaultCwd: '',
+  })
   // FOLLOWUP-025 v2 walk-rev3 — when EITHER the Clone modal or the New Vault
   // modal opens, park the browser-pane WCV off-screen so it doesn't paint over
   // the modal. WCVs are native OS overlays that beat the renderer's z-index
@@ -411,12 +422,12 @@ export function App() {
   // modal was still open, un-parking the WCV back on top of it. Restoring ONLY
   // when no park-requiring modal remains open closes that gap.
   useEffect(() => {
-    if (cloneModalOpen || newVaultModalOpen) {
+    if (cloneModalOpen || newVaultModalOpen || cronModal.open) {
       window.dispatchEvent(new CustomEvent('duo-wcv-park'))
     } else {
       window.dispatchEvent(new CustomEvent('duo-wcv-restore'))
     }
-  }, [cloneModalOpen, newVaultModalOpen])
+  }, [cloneModalOpen, newVaultModalOpen, cronModal.open])
   const lastAutoCollapseState = useRef(false)
 
   // BUG-048 v3 — focusedColumn is mirrored into a ref alongside the
@@ -2749,6 +2760,32 @@ export function App() {
     })
   }, [])
 
+  // ENH-221 Tier 2 (D7) — open the New/Edit Scheduled Job dialog. Two triggers,
+  // one open path: File ▸ New Scheduled Job… (main push, seeds the navigator's
+  // current folder), and a `duo-open-cron-modal` window CustomEvent from the
+  // Home "+ New" / Edit actions + the project-rail right-click (carries an
+  // editJob or a defaultCwd). The cwd seed tracks the focused project / nav cwd
+  // via a ref so the once-subscribed handler reads it fresh.
+  const cronDefaultCwdRef = useRef('')
+  useEffect(() => {
+    cronDefaultCwdRef.current = focusedProject ?? pendingCwd ?? ''
+  }, [focusedProject, pendingCwd])
+  useEffect(() => {
+    const openCreate = (cwd?: string) =>
+      setCronModal({ open: true, editJob: null, defaultCwd: cwd ?? cronDefaultCwdRef.current })
+    const unsub = window.electron.cron.onOpenNewModal(() => openCreate())
+    const onEvt = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { editJob?: CronJobView | null; defaultCwd?: string } | undefined
+      if (detail?.editJob) setCronModal({ open: true, editJob: detail.editJob, defaultCwd: '' })
+      else openCreate(detail?.defaultCwd)
+    }
+    window.addEventListener('duo-open-cron-modal', onEvt)
+    return () => {
+      unsub()
+      window.removeEventListener('duo-open-cron-modal', onEvt)
+    }
+  }, [])
+
   // FOLLOWUP-020 — `duo close-terminal-tab [<n>]` from the CLI.
   // n omitted → close the focused terminal tab; n supplied (1-indexed)
   // → close that specific tab. Mirrors the ⌘W chord when focusedColumn
@@ -4439,6 +4476,14 @@ export function App() {
             void openFileSmart(openPath, name)
           }
         }}
+      />
+      {/* ENH-221 Tier 2 (D7) — New/Edit Scheduled Job dialog. The Home list
+          re-renders off the CRON_JOBS_CHANGED push, so onSaved just closes. */}
+      <NewCronJobModal
+        open={cronModal.open}
+        editJob={cronModal.editJob}
+        defaultCwd={cronModal.defaultCwd}
+        onClose={() => setCronModal((m) => ({ ...m, open: false }))}
       />
       {/* BUG-137 walk-3 follow-up — replacement for window.prompt
           (Electron renderers throw on the native prompt API). Self-
