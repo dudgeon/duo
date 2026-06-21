@@ -339,24 +339,31 @@ spec so the history is legible.
 ## 6c · Phase-0 follow-ups — live-walk punch list (2026-06-21)
 
 Surfaced during the agent computer-use walk of the merged Open bar (every core
-flow passed — § 6a). Polish/consistency items to land **before Phase 0 is called
-done**. **Captured, NOT executed** (owner directive 2026-06-21: *"add these
-requirements to the plan, don't just execute now"*).
+flow passed — § 6a). Polish/consistency items. **All three ✅ DONE + live-verified
+(computer-use, 2026-06-21)** — owner greenlit execution after the plan-capture
+(`bbe29cd`). typecheck clean · 1676 tests · currency 75/75 · dev log clean.
 
-- **FU1 — CloneModal: a "Choose…" button for the destination folder
-  (owner-raised, 2026-06-21).** The clone-confirm's "Parent directory" field is
+- **FU1 ✅ DONE — CloneModal: a "Choose…" button for the destination folder
+  (owner-raised, 2026-06-21).** *Shipped:* new `OPEN_PICK_DIR` IPC
+  (`window.electron.open.pickDirectory()`, openDirectory + createDirectory) +
+  the "Choose…" button. Live-verified: folder-only picker (files greyed, "New
+  Folder" enabled), message "Pick (or create) a folder to clone into". The clone-confirm's "Parent directory" field is
   type-only today. Add a button that opens the native folder picker
   (`dialog.showOpenDialog` with `properties: ['openDirectory','createDirectory']`)
   and writes the pick back to the field — the same native-picker pattern as the
   Open bar's Browse… (D17), and exactly what the merged-UI mock **state 3** shows
   ("Clone into … [Browse…]"). Reuse: model on the existing `VAULT_CREATE_PICK_DIR`
   folder-picker IPC, or add a folder-only mode to the new `OPEN_BROWSE` handler.
-- **FU2 — Modal width/placement consistency (owner-raised, 2026-06-21; refines
-  D15/DM1).** The open flow shows **≥2 distinct Duo modals with mismatched
-  geometry**: the **Open bar** (`.duo-qs-shell` — `min(640px, 92vw)`,
-  **top-anchored** ~96px from the top) and the **CloneModal**
-  (`w-[480px] max-w-[90vw]`, **vertically centered**). So the OpenBar→CloneModal
-  hand-off jumps in *both* width and vertical position.
+- **FU2 ✅ DONE (consistency pass; full merge deferred) — Modal width/placement
+  consistency (owner-raised, 2026-06-21; refines D15/DM1).** *Shipped:* the
+  CloneModal now matches the Open bar — `w-[640px]` + top-anchored `pt-24` (was
+  `w-[480px]` + centered) — so the OpenBar→CloneModal hand-off reads as one
+  surface morphing (live-verified: same width + top position). *Still deferred:*
+  the full-inline merge (D15/DM1) + a `NewVaultModal` geometry audit. Original
+  analysis kept below for the deferred work. The open flow showed **≥2 distinct
+  Duo modals with mismatched geometry**: the **Open bar** (`.duo-qs-shell` —
+  `min(640px, 92vw)`, **top-anchored** ~96px) and the **CloneModal** (was
+  `w-[480px]`, **centered**) — the hand-off jumped in *both* width and position.
   - *Pragmatic recommendation — do now:* unify geometry. Give the CloneModal the
     Open bar's width (~640px) + top-anchor (~96px) so the hand-off reads as one
     surface morphing, no jump. Cheap; captures most of the win.
@@ -367,17 +374,14 @@ requirements to the plan, don't just execute now"*).
     merge as optional.
   - *While here:* audit `NewVaultModal` (+ any other DOM modal in this flow) for
     the same geometry so all of Duo's modals read consistently.
-- **FU3 — ⌘O from terminal focus (agent live-walk finding, 2026-06-21).** ⌘O
-  opens the bar from **editor/browser** focus + the File ▸ Open… menu, but **NOT
-  when the terminal column is focused** (xterm swallows the key — *pre-existing*;
-  the old ⌘O quick-switcher had the identical gap, so not a regression). Since
-  D1/D18 make ⌘O *the* open affordance everywhere, fix by letting the File ▸
-  Open… menu item **register** the ⌘O accelerator (drop `registerAccelerator:
-  false` in `electron/main.ts`) — a native menu accelerator fires regardless of
-  which pane/WebContents has focus. One-line change; re-verify ⌘O from terminal
-  focus after. (The display-only-accelerator comment in `main.ts` is wrong — it
-  claims the renderer shortcut "fires from every focus context"; the walk
-  disproved that. Fix the comment with the change.)
+- **FU3 ✅ DONE — ⌘O from terminal focus (agent live-walk finding, 2026-06-21).**
+  ⌘O opened the bar from editor/browser focus + the menu, but **not from the
+  terminal column** (xterm swallowed the key — pre-existing; the old quick-
+  switcher had the identical gap). *Shipped:* the File ▸ Open… menu item now
+  **registers** the ⌘O accelerator (dropped `registerAccelerator: false`) — a
+  native menu accelerator fires regardless of which pane/WebContents has focus,
+  making ⌘O *the* open affordance everywhere (D1/D18). Live-verified: focused
+  the terminal, ⌘O opened the bar.
 
 ## 7 · Open questions (build-time / owner)
 
