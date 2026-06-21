@@ -19,36 +19,11 @@ import * as path from 'path'
 import * as os from 'os'
 import { runClone } from './git/clone'
 import { execGit } from './git/exec'
+import type { CheckoutPointer, CheckoutResult, CheckoutTarget } from '../shared/types'
 
-/** A live-resolved pointer to a managed checkout (no mirrored GitHub state). */
-export interface CheckoutPointer {
-  owner: string
-  repo: string
-  /** branch | tag | sha the URL pinned. */
-  ref: string
-  /** File path within the repo (no leading slash). */
-  filePath: string
-  /** Absolute opaque checkout dir. */
-  checkoutDir: string
-  /** Absolute path to the checked-out file (open this). */
-  fileAbsPath: string
-  /** Fetched baseline commit SHA — the divergence anchor for Phase 2. */
-  baselineSha: string
-  /** How the working tree got here. */
-  via: 'gh' | 'git' | 'reused'
-}
-
-export type CheckoutResult =
-  | { ok: true; pointer: CheckoutPointer }
-  | { ok: false; errorKind: 'auth-missing' | 'checkout-failed' | 'file-missing'; error: string }
-
-/** The target a github-file URL resolves to (structural — no import coupling). */
-export interface CheckoutTarget {
-  owner: string
-  repo: string
-  ref: string
-  filePath: string
-}
+// Canonical type home is shared/types.ts (so the renderer + preload share the
+// IPC contract). Re-exported here for core importers (e.g. the main handler).
+export type { CheckoutPointer, CheckoutResult, CheckoutTarget }
 
 export interface ManagedCheckoutOpts {
   /** Injectable for tests; defaults to ~/.claude/duo/checkouts. */

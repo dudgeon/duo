@@ -460,6 +460,8 @@ const api: ElectronAPI = {
     browse: () => ipcRenderer.invoke(IPC.OPEN_BROWSE),
     // ENH-224 FU1 — folder-only picker for the CloneModal destination.
     pickDirectory: () => ipcRenderer.invoke(IPC.OPEN_PICK_DIR),
+    // ENH-224 Phase 1 — "open just this doc" → managed checkout.
+    githubFile: (target) => ipcRenderer.invoke(IPC.OPEN_GITHUB_FILE, target),
   },
 
   // ENH-224 D14 — Open Recent store (pointers; resolved live). Backed by a

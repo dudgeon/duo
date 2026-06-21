@@ -1884,6 +1884,54 @@ html.dark {
 [data-theme="dark"] .duo-ob-clear { color: #9a9080; }
 [data-theme="dark"] .duo-ob-clear:hover { color: #e8e0cb; }
 
+/* ENH-224 Phase 1 — the "open just this doc" checkout progress / error panel. */
+.duo-ob-checkout {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 16px;
+  font-size: 13px;
+  color: var(--ink, #2b2620);
+}
+.duo-ob-checkout code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  background: var(--paper-deep, #f3ede0);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.duo-ob-checkout.is-error {
+  display: block;
+  border-left: 3px solid var(--fail, #b13e3a);
+  background: color-mix(in srgb, var(--fail, #b13e3a) 7%, transparent);
+  margin: 8px 12px;
+  border-radius: 0 6px 6px 0;
+  padding: 12px 14px;
+}
+.duo-ob-checkout-title { font-weight: 600; color: var(--fail, #b13e3a); }
+.duo-ob-checkout-msg {
+  font-size: 12px;
+  color: var(--ink-soft, #4a4238);
+  margin-top: 4px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  word-break: break-word;
+}
+.duo-ob-checkout-hint { font-size: 12px; color: var(--ink-mute, #6f6557); margin-top: 6px; }
+.duo-ob-spinner {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 2px solid var(--paper-rule, #d9cea8);
+  border-top-color: var(--accent, #c46a1c);
+  display: inline-block;
+  flex-shrink: 0;
+  animation: duo-ob-spin 0.8s linear infinite;
+}
+@keyframes duo-ob-spin { to { transform: rotate(360deg); } }
+[data-theme="dark"] .duo-ob-checkout { color: #e8e0cb; }
+[data-theme="dark"] .duo-ob-checkout code { background: #1f1c18; }
+[data-theme="dark"] .duo-ob-checkout-msg { color: #b8ae9c; }
+
 /* ─────────────────────────────────────────────────────────────────────
    ENH-210 — faint "you-are-here" pill on the active surface's project
    tile (All mode). The 14% mix is the same idiom family as the

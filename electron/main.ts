@@ -89,6 +89,8 @@ import { FileHistoryService, type SnapshotSource } from '../core/file-history-se
 // ENH-224 — Open Recent store + the Open-bar resolver (shared with the CLI).
 import { OpenRecentsService } from '../core/open-recents-service'
 import { resolveOpenTarget as classifyOpenTarget } from '../core/open-resolve'
+// ENH-224 Phase 1 — the opaque managed checkout ("open just this doc").
+import { runManagedCheckout } from '../core/open-checkout'
 import { WorkspaceFileService } from '../core/workspace-file-service'
 import { WorkspaceHistoryService } from '../core/workspace-history-service'
 import { ActiveWorkspaceService } from '../core/active-workspace-service'
@@ -150,7 +152,8 @@ import type {
   HomeSessionAction,
   HomeSessionActionResult,
   RecentEntry,
-  BrowseResult
+  BrowseResult,
+  CheckoutTarget
 } from '../shared/types'
 
 // Last nav state snapshot the renderer pushed. Drives `duo nav state`.
@@ -2484,6 +2487,13 @@ function setupIPC(): void {
     if (result.canceled || result.filePaths.length === 0) return null
     return result.filePaths[0]
   })
+
+  // ENH-224 Phase 1 — "open just this doc": run the opaque managed checkout
+  // (depth-1 clone at the ref into ~/.claude/duo/checkouts/) and return the
+  // pointer. The renderer opens pointer.fileAbsPath + focuses checkoutDir on
+  // success; on auth-missing it shows the gh-auth bounce. Network/git work —
+  // lives in main, off the (sandboxed) CLI.
+  ipcMain.handle(IPC.OPEN_GITHUB_FILE, (_event, target: CheckoutTarget) => runManagedCheckout(target))
 
   // ENH-224 D14 — Open Recent store IPC. Backed by the `openRecents` singleton
   // (shared with `duo open` record-on-open). record/clear refresh the

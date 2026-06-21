@@ -50,7 +50,7 @@ import { useSelectionFormat } from './hooks/useSelectionFormat'
 import { htmlBoilerplate } from './components/Page/htmlBoilerplate'
 import { encodeUtf8 } from './components/editor/markdown-io'
 import { findVaultRootAndMode, resolveWikilinkInVault } from './components/editor/wikilinkResolver'
-import type { TabSession, DirEntry, TerminalTabKind, NewTabResult, PinEntry, SessionState, BrowserTab, ActiveWorkspace, HomeSnapshot } from '@shared/types'
+import type { TabSession, DirEntry, TerminalTabKind, NewTabResult, PinEntry, SessionState, BrowserTab, ActiveWorkspace, HomeSnapshot, CheckoutTarget, CheckoutResult } from '@shared/types'
 import { reorderVisible } from '@shared/reorderTabs'
 import { pruneByTab } from './state/perTabPrune'
 import {
@@ -2132,12 +2132,31 @@ export function App() {
       recordRecent(rawTarget)
       return
     }
-    // github-file — clone the repo, open the file after (D19 live path; the
-    // sparse "just this doc" round-trip is DR-blocked). GithubFileTarget has
-    // no cloneUrl (it's a file, not a repo target) — build it from owner/repo.
+    // github-file — the DEFAULT (recents reopen / menu) routes to the clone
+    // flow (the "clone the whole repo" intent). The Open bar's "just this doc"
+    // card uses onOpenGithubDoc below (the opaque managed checkout). v1 note:
+    // a github-file recent reopens to clone, not the doc checkout.
     openCloneModalPrefilled(`https://github.com/${t.owner}/${t.repo}`, t.filePath)
     recordRecent(rawTarget)
   }, [home, nav.actions, nav.state.cwd, openFileSmart, openCloneModalPrefilled])
+
+  // ENH-224 Phase 1 — "open just this doc": run the managed checkout in main
+  // (depth-1 clone at the ref into the opaque home), then open the checked-out
+  // file like a local doc + focus its folder + record the recent. Returns the
+  // CheckoutResult so the Open bar shows progress + the gh-auth bounce inline.
+  const onOpenGithubDoc = useCallback(async (t: CheckoutTarget): Promise<CheckoutResult> => {
+    const res = await window.electron.open.githubFile(t)
+    if (res.ok) {
+      const { fileAbsPath, checkoutDir } = res.pointer
+      const name = fileAbsPath.replace(/\/+$/, '').split('/').pop() || fileAbsPath
+      await openFileSmart(fileAbsPath, name)
+      nav.actions.navigateTo(checkoutDir)
+      const canonical = `https://github.com/${t.owner}/${t.repo}/blob/${t.ref}/${t.filePath}`
+      void window.electron.recents?.record?.(deriveRecentEntry(canonical))?.catch(() => {})
+      window.electron.keyboard?.reclaimFocus?.()
+    }
+    return res
+  }, [openFileSmart, nav.actions])
 
   const closeFileTab = useCallback((id: string) => {
     // ENH-212 — Home is the single non-closable surface (slot 0). This is
@@ -5124,6 +5143,7 @@ export function App() {
         loading={vaultIndexForSwitcher.loading}
         vaultRoot={vaultIndexForSwitcher.vaultRoot}
         onOpenTarget={(rawTarget) => { void openResolvedTarget(rawTarget) }}
+        onOpenGithubDoc={onOpenGithubDoc}
         onDismiss={() => setOpenBarOpen(false)}
       />
       {/* ENH-208 Phase 2 (D22) — VaultSearchPalette overlay (⌘⇧F).

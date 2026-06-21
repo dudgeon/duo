@@ -1784,6 +1784,39 @@ export interface BrowseResult {
   kind: 'file' | 'directory'
 }
 
+// ── ENH-224 Phase 1 — opaque managed checkout ("open just this doc") ─────────
+
+/** The pieces of a github-file URL the managed checkout needs (the resolver's
+ *  GithubFileTarget, flattened to what crosses the IPC boundary). */
+export interface CheckoutTarget {
+  owner: string
+  repo: string
+  /** branch | tag | sha. */
+  ref: string
+  /** File path within the repo (no leading slash). */
+  filePath: string
+}
+
+/** A live-resolved pointer to a managed checkout (no mirrored GitHub state —
+ *  CLAUDE.md §12). The renderer opens `fileAbsPath` + focuses `checkoutDir`. */
+export interface CheckoutPointer {
+  owner: string
+  repo: string
+  ref: string
+  filePath: string
+  /** Absolute opaque checkout dir (~/.claude/duo/checkouts/…). */
+  checkoutDir: string
+  /** Absolute path to the checked-out file. */
+  fileAbsPath: string
+  /** Fetched baseline commit SHA — the divergence anchor for Phase 2. */
+  baselineSha: string
+  via: 'gh' | 'git' | 'reused'
+}
+
+export type CheckoutResult =
+  | { ok: true; pointer: CheckoutPointer }
+  | { ok: false; errorKind: 'auth-missing' | 'checkout-failed' | 'file-missing'; error: string }
+
 // ── IPC channel names (renderer ↔ main) ─────────────────────────────────────
 
 export const IPC = {
@@ -2398,6 +2431,10 @@ export const IPC = {
   // createDirectory). Returns the picked dir path (string) | null. Used by
   // the CloneModal's "Choose…" destination button.
   OPEN_PICK_DIR: 'open:pick-dir',
+  // ENH-224 Phase 1 — renderer → main "open just this doc": runManagedCheckout
+  // (depth-1 clone at the ref into the opaque managed home). Returns a
+  // CheckoutResult; the renderer opens pointer.fileAbsPath + focuses checkoutDir.
+  OPEN_GITHUB_FILE: 'open:github-file',
   // ENH-224 D14 — Open Recent store (machine-global pointers). list /
   // record / clear, backed by a main-process OpenRecentsService singleton
   // shared with the `duo open` socket handler (one writer, no races).

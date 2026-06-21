@@ -31,6 +31,7 @@ import type {
   CronJobView,
   TabAttentionPush,
   RecentEntry, BrowseResult,
+  CheckoutTarget, CheckoutResult,
 } from './types'
 
 // ── Electron preload API surface ─────────────────────────────────────────────
@@ -1145,6 +1146,11 @@ export interface ElectronOpenAPI {
    *  createDirectory). Returns the picked directory path, or null on cancel.
    *  Backs the CloneModal's "Choose…" destination button. */
   pickDirectory(): Promise<string | null>
+  /** ENH-224 Phase 1 — "open just this doc": main runs the managed checkout
+   *  (depth-1 clone at the ref into the opaque home) and returns the pointer.
+   *  The renderer opens pointer.fileAbsPath + focuses checkoutDir on success;
+   *  on auth-missing it shows the gh-auth bounce. */
+  githubFile(target: CheckoutTarget): Promise<CheckoutResult>
 }
 
 // ENH-224 D14 — Open Recent store. Pointers only (§12); resolved live on
