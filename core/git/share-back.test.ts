@@ -15,7 +15,7 @@ import { parsePorcelain } from './divergence'
 import { pushArgs } from './push'
 import { permissionAllowsPush } from './fork'
 import { prCreateArgs, prNumberFromUrl, prUrlFromStdout, parsePrList, selectPr } from './pr'
-import { refFromCheckoutDir, isManagedCheckout, parseNumstat } from './share-back'
+import { refFromCheckoutDir, isManagedCheckout, parseNumstat, isShareBackBranch } from './share-back'
 import { looksLikeAuthFailure } from './failure-sniff'
 
 describe('proposal-meta — stripLeadingFrontmatter', () => {
@@ -211,6 +211,22 @@ describe('share-back — isManagedCheckout', () => {
   it('false for the base itself + for traversal escapes', () => {
     expect(isManagedCheckout(base, base)).toBe(false)
     expect(isManagedCheckout(`${base}/../../evil`, base)).toBe(false)
+  })
+})
+
+describe('share-back — isShareBackBranch (PR-match gate, live-found bug)', () => {
+  it('true only for the duo/ namespace', () => {
+    expect(isShareBackBranch('duo/my-doc-abc1234')).toBe(true)
+  })
+  it('false for a baseline branch (would match a stranger’s head:main PR)', () => {
+    expect(isShareBackBranch('main')).toBe(false)
+    expect(isShareBackBranch('master')).toBe(false)
+    expect(isShareBackBranch('release/1.x')).toBe(false)
+  })
+  it('false for empty / undefined', () => {
+    expect(isShareBackBranch('')).toBe(false)
+    expect(isShareBackBranch(undefined)).toBe(false)
+    expect(isShareBackBranch(null)).toBe(false)
   })
 })
 

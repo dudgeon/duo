@@ -220,14 +220,26 @@ export async function runShareBack(checkoutDir: string, opts: ShareBackOpts = {}
   return { ok: true, pr: created.pr, pushedTo, forked, action: 'created' }
 }
 
+/** A share-back working branch — the `duo/…` namespace runShareBack creates.
+ *  Pure. ONLY such a branch can own a PR for this checkout: a doc still on its
+ *  baseline branch (e.g. `main`) has none, and `gh pr list --head main` in a
+ *  popular repo would otherwise match an unrelated fork's PR. */
+export function isShareBackBranch(branch: string | undefined | null): boolean {
+  return !!branch && branch.startsWith('duo/')
+}
+
 /** `duo pr status` — divergence + any open PR for the checkout's current
  *  branch. All live (§12). */
 export async function probeShareBackStatus(checkoutDir: string): Promise<ShareBackStatus> {
   const context = await resolveCheckoutContext(checkoutDir)
   const divergence = await probeDivergence(checkoutDir)
+  // Only match a PR when we're on a `duo/…` share-back branch — on the baseline
+  // branch the doc has no PR of ours, and `--head <baseline>` would surface a
+  // stranger's same-named PR. (Caught live against octocat/Spoon-Knife, which
+  // has many open `head:main` PRs from forks.)
   let pr = null
-  if (context?.currentBranch) {
-    pr = await findOpenPr(checkoutDir, context.currentBranch)
+  if (isShareBackBranch(context?.currentBranch)) {
+    pr = await findOpenPr(checkoutDir, context!.currentBranch)
   }
   return { context, divergence, pr }
 }
