@@ -297,6 +297,7 @@ run's landing window is resolved from the job's cwd (D10), not `--window`.
 | ✅ `duo cron run <id>` | "Run now" row action (Tier 2) | **Shipped (ENH-223 Tier 1).** Fires a job now (manual), same path as a scheduled fire. Returns `CronJobView`. |
 | ✅ `duo cron pause <id>` / `duo cron resume <id>` | Pause/resume toggle (Tier 2) | **Shipped (ENH-223 Tier 1).** Disable / re-enable without deleting (paused jobs persist but never fire). Returns `CronJobView`. |
 | ✅ `duo cron rm <id>` | Delete row action (Tier 2) | **Shipped (ENH-223 Tier 1).** Deletes a job. Returns `{ ok, removed }`. |
+| ✅ `duo attention --state set\|clear [--tab <id>]` | The "waiting on you" tab badge (ENH-225) | **Shipped (ENH-225).** Set/clear a terminal tab's attention badge. Primarily driven by Duo's managed Stop/Notification (set) + UserPromptSubmit (clear) hooks (keyed on `$DUO_TAB`); exposed for parity so an agent can flag a tab needing the user. `--tab` defaults to `$DUO_TAB`; the badge also clears on tab focus. Returns `{ ok, tabId, needsAttention }`. |
 
 **Tier 2 (Home surface) + ENH-225 (the "waiting on you" tab badge) are tracked
 separately** — see `docs/prd/enh-223-scheduled-sessions.md`.

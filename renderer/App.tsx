@@ -375,6 +375,9 @@ export function App() {
   const [tabs, setTabs] = useState<TabSession[]>(() => [makeTab(home, 'shell', home)])
   const [activeTabId, setActiveTabId] = useState<string>(() => tabs[0].id)
   const [lastTabKind, setLastTabKind] = useState<TerminalTabKind>(loadLastTabKind)
+  // ENH-225 (F2/D9) — transient "waiting on you" flags keyed by tab id, set by
+  // the attention hook (main → onTerminalTabAttention push). Never persisted.
+  const [attentionByTabId, setAttentionByTabId] = useState<Record<string, boolean>>({})
 
   const [splitPct, setSplitPct] = useState(55)
   // ENH-040 — prevSplitPct caches the last "real" split (clamped
@@ -2420,6 +2423,26 @@ export function App() {
     }
     return onShow(() => { ensureHomeActive() })
   }, [ensureHomeActive])
+
+  // ENH-225 (F2/D9) — the attention hook flips a tab's "waiting on you" flag.
+  // Track it keyed by tab id; the TabBar shows a badge. (Cron's background-tab
+  // launch is paired with this so an idle-awaiting tab is still discoverable.)
+  useEffect(() => {
+    const onAttention = window.electron.home?.onTerminalTabAttention
+    if (typeof onAttention !== 'function') return
+    return onAttention(({ tabId, needsAttention }) => {
+      setAttentionByTabId((prev) =>
+        prev[tabId] === needsAttention ? prev : { ...prev, [tabId]: needsAttention }
+      )
+    })
+  }, [])
+
+  // ENH-225 — focus fallback: when a flagged tab becomes active, the user has
+  // seen it, so clear its badge locally (no round-trip). The activity-clear leg
+  // comes from the UserPromptSubmit hook → onTerminalTabAttention(false).
+  useEffect(() => {
+    setAttentionByTabId((prev) => (prev[activeTabId] ? { ...prev, [activeTabId]: false } : prev))
+  }, [activeTabId])
 
   // ENH-212 — recent-file chip click inside Home dispatches a
   // `duo-home-open-file` CustomEvent (HomeView stays free of App props per
@@ -4681,6 +4704,7 @@ export function App() {
                   // for hidden tabs aren't unmounted.
                   tabs={visibleTerminals}
                   activeTabId={activeTabId}
+                  attention={attentionByTabId}
                   onSelect={setActiveTabId}
                   // Stage 19c D17 — split button. `+` = claude (primary,
                   // opinionated); `>` = shell. Both update the persisted

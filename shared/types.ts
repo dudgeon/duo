@@ -19,6 +19,13 @@ export interface TabSession {
   lastClaudeSession?: { id: string; capturedAt: number } | null
 }
 
+/** ENH-225 (F2/D9) — main → renderer push when a terminal tab's "waiting on
+ *  you" attention flag changes. Transient (never persisted on TabSession). */
+export interface TabAttentionPush {
+  tabId: string
+  needsAttention: boolean
+}
+
 // ── Duo socket protocol ──────────────────────────────────────────────────────
 
 export interface DuoRequest {
@@ -344,6 +351,12 @@ export type DuoCommandName =
   // from the job's cwd (D10), not --window. Runs are INTERACTIVE only —
   // headless `-p` is gated by FEATURE_HEADLESS_CRON (default off, D4).
   | 'cron'
+  // ENH-225 (F2/D9) — the "waiting on you" tab attention badge. A Duo-managed
+  // Claude Code hook (Stop/Notification → set, UserPromptSubmit → clear) posts
+  // {tabId, event} here via the duo CLI; main flips a transient per-tab flag and
+  // broadcasts it to the renderer's tab strip. Tab identity = the DUO_TAB env
+  // stamp the hook reads (works for any Duo PTY, incl. cron's kind:'shell' tabs).
+  | 'attention'
 
 // ── Stage 18b — Distro skill packs ───────────────────────────────────────────
 // A pack is a directory under `~/.claude/duo/packs/<name>/` carrying a
@@ -2376,7 +2389,12 @@ export const IPC = {
   // `duo term close <id>` verb). Renderer routes through the existing
   // closeTab path (kills the PTY); main refuses a live-claude tab unless
   // --force (BUG-200 data-loss caution).
-  TERMINAL_CLOSE_TAB: 'terminal:close-tab'
+  TERMINAL_CLOSE_TAB: 'terminal:close-tab',
+  // ENH-225 (F2/D9) — main → renderer push: a terminal tab's "needs attention"
+  // flag changed (a `TabAttentionPush`). Set by the Stop/Notification hook,
+  // cleared by the UserPromptSubmit hook or on tab focus. Transient (not
+  // persisted); the renderer holds it keyed by tabId and shows a badge.
+  TERMINAL_TAB_ATTENTION: 'terminal:tab-attention'
 } as const
 
 

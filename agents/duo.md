@@ -267,6 +267,7 @@ empty.
 | `duo cron pause <id>` / `duo cron resume <id>` | Disable / re-enable a job without deleting it. Returns `CronJobView`. |
 | `duo cron show <id>` | Inspect one job (`CronJobView`). |
 | `duo cron rm <id>` | Delete a job. Returns `{ ok, removed }`. |
+| `duo attention --state set\|clear [--tab <id>]` | ENH-225 — set/clear a terminal tab's "waiting on you" badge. Mostly driven by Duo's managed Stop/permission/UserPromptSubmit hooks (with `$DUO_TAB`); call it directly to flag a tab that needs the user. `--tab` defaults to `$DUO_TAB`. Also clears on tab focus. |
 | `duo window new` | ENH-191 P5a — open a SECOND app window (blank; its own workspace/browser/navigator). Same as File → New Window (⌥⌘N). Gated on "Allow Multiple Windows" (Settings, default on); exits non-zero when off. CLI parity for the menu item. |
 | `duo window new [--cwd <path>]` | ENH-191 P5a — open a SECOND app window (blank; its own workspace/browser/navigator). Same as File → New Window (⌥⌘N). `--cwd` roots the new window's navigator at a path (e.g. a git worktree — ENH-210). Gated on "Allow Multiple Windows" (Settings, default on); exits non-zero when off. CLI parity for the menu item. |
 | `duo windows` | ENH-191 P5a (Tier-3) — list open windows `[{id, primary, focused, activeWorkspace}]`. Pair with the global `--window N` flag (or a terminal's auto-stamped `DUO_WINDOW`) to target one: `duo --window 2 dom body`. |

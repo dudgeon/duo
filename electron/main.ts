@@ -1610,6 +1610,12 @@ app.whenReady().then(async () => {
       if (!cronService) throw new Error('cron service is not ready yet')
       return cronService.handleCli(op, args)
     },
+    // ENH-225 (F2/D9) — the attention hook (or an agent) flips a tab's "waiting
+    // on you" flag; broadcast it to every window's tab strip (each renderer
+    // filters to its own tabs). Transient pass-through — no main-side store.
+    setTabAttention: (tabId, needsAttention) => {
+      broadcastAll(registry, IPC.TERMINAL_TAB_ATTENTION, { tabId, needsAttention })
+    },
     // ENH-212 (Home) — `duo home` + `duo term tabs|tab` CLI parity.
     showHome: showHomeForCli,
     getHomeState: getHomeStateForCli,

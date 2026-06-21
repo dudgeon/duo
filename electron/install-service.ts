@@ -117,6 +117,19 @@ const HOOKS_DEST_DIR = path.join(DUO_DIR, 'hooks')
 const PRETOOL_GUARD_DEST = path.join(HOOKS_DEST_DIR, 'duo-open-file-guard.sh')
 const PRETOOL_GUARD_COMMAND = '$HOME/.claude/duo/hooks/duo-open-file-guard.sh'
 
+// ENH-225 (F2/D9) — the "waiting on you" attention hook. Ships to
+// ~/.claude/duo/hooks/duo-attention.sh and is registered on three events:
+// Stop + Notification (→ `set`, the session went idle / is prompting) and
+// UserPromptSubmit (→ `clear`, the user acted). The script reads $DUO_TAB and
+// posts to Duo's socket via the CLI; a no-op outside Duo (never fails a hook).
+const ATTENTION_HOOK_DEST = path.join(HOOKS_DEST_DIR, 'duo-attention.sh')
+const ATTENTION_HOOK_COMMAND = '$HOME/.claude/duo/hooks/duo-attention.sh'
+const ATTENTION_HOOK_EVENTS: { event: string; arg: 'set' | 'clear' }[] = [
+  { event: 'Stop', arg: 'set' },
+  { event: 'Notification', arg: 'set' },
+  { event: 'UserPromptSubmit', arg: 'clear' },
+]
+
 // Stage 19b — duo-managed SessionStart hook marker. The `_duo` field
 // is sibling to `hooks` inside the array entry so Claude Code's hook
 // runtime ignores it (it only reads recognized fields), and our
@@ -509,6 +522,15 @@ export class InstallService {
       ))
       await fs.chmod(PRETOOL_GUARD_DEST, 0o755).catch(() => {})
 
+      // ENH-225 — skill/scripts/duo-attention.sh → ~/.claude/duo/hooks/. Same
+      // provenance-aware copy + chmod 755 as the guard (a hook must be exec).
+      fileResults.push(await this.safeOverwriteFile(
+        path.join(sourceRoot, 'skill', 'scripts', 'duo-attention.sh'),
+        ATTENTION_HOOK_DEST,
+        prevShas
+      ))
+      await fs.chmod(ATTENTION_HOOK_DEST, 0o755).catch(() => {})
+
       // help/*.html → ~/.claude/duo/help/*.html. User can customize the
       // installed copies; the bundle copies remain as a fallback.
       // Stage 21e-iii: customizations are now PRESERVED across
@@ -668,6 +690,20 @@ export class InstallService {
         console.warn(
           '[install] PreToolUse open-file-guard hook merge failed (likely enterprise-locked settings.json) — skipping. ' +
           'The guard is an advisory nudge, never load-bearing; the install proceeds without it. ' +
+          'Error:',
+          (err as Error)?.message ?? err
+        )
+      }
+
+      // ENH-225 (F2/D9) — register the attention hooks (Stop/Notification → set,
+      // UserPromptSubmit → clear). Same graceful-failure tolerance: the badge is
+      // an advisory signal (the renderer also clears on focus), never load-bearing.
+      try {
+        await this.installAttentionHooks()
+      } catch (err) {
+        console.warn(
+          '[install] attention hook merge failed (likely enterprise-locked settings.json) — skipping. ' +
+          'The "waiting on you" badge is advisory, never load-bearing; the install proceeds without it. ' +
           'Error:',
           (err as Error)?.message ?? err
         )
@@ -1159,6 +1195,70 @@ exec "$REAL_CLAUDE" --append-system-prompt "$(cat "$PRIMING_FILE")" "$@"
 
     // Atomic write via tmp + rename so a partial write doesn't corrupt
     // the user's settings file.
+    await fs.mkdir(path.dirname(SETTINGS_PATH), { recursive: true })
+    const tmpPath = `${SETTINGS_PATH}.tmp-${process.pid}`
+    await fs.writeFile(tmpPath, JSON.stringify(settings, null, 2) + '\n')
+    await fs.rename(tmpPath, SETTINGS_PATH)
+  }
+
+  /**
+   * ENH-225 (F2/D9) — register the "waiting on you" attention hooks. Upserts a
+   * duo-tagged entry into hooks.Stop, hooks.Notification (both → the script with
+   * `set`) and hooks.UserPromptSubmit (→ `clear`), reusing the SAME
+   * `_duo: "managed-v<N>"` marker convention as the SessionStart/PreToolUse
+   * merges so re-runs refresh our entries without disturbing user-authored
+   * hooks. Reads + writes ~/.claude/settings.json ONCE (all three events in a
+   * single atomic write). A foreign entry — no marker and not our command — is
+   * untouched. Non-load-bearing (the renderer also clears on focus).
+   */
+  private async installAttentionHooks(): Promise<void> {
+    let settings: Record<string, unknown> = {}
+    try {
+      const raw = await fs.readFile(SETTINGS_PATH, 'utf8')
+      settings = JSON.parse(raw) as Record<string, unknown>
+      if (!settings || typeof settings !== 'object' || Array.isArray(settings)) settings = {}
+    } catch {
+      settings = {}
+    }
+
+    const hooks = (settings.hooks && typeof settings.hooks === 'object'
+      ? settings.hooks as Record<string, unknown>
+      : {}) as Record<string, unknown>
+
+    // Our command for an event is `<script> <arg>` — the arg distinguishes the
+    // set vs clear registration. The command-equivalence orphan check matches
+    // the script path prefix so a pre-marker / hand-mirrored entry is caught.
+    const isDuoAttentionCommand = (entry: unknown): boolean => {
+      if (!entry || typeof entry !== 'object') return false
+      const inner = (entry as Record<string, unknown>).hooks
+      if (!Array.isArray(inner)) return false
+      return inner.some(h =>
+        h && typeof h === 'object' &&
+        typeof (h as Record<string, unknown>).command === 'string' &&
+        ((h as Record<string, unknown>).command as string).startsWith(ATTENTION_HOOK_COMMAND)
+      )
+    }
+
+    for (const { event, arg } of ATTENTION_HOOK_EVENTS) {
+      const existing = Array.isArray(hooks[event]) ? hooks[event] as unknown[] : []
+      const filtered = existing.filter(entry => {
+        if (!entry || typeof entry !== 'object') return true
+        const e = entry as Record<string, unknown>
+        const marker = e[HOOK_MARKER_KEY]
+        const isMarkedDuo = typeof marker === 'string' && marker.startsWith(HOOK_MARKER_PREFIX)
+        const isOrphanDuoCommand = !isMarkedDuo && isDuoAttentionCommand(entry)
+        return !(isMarkedDuo || isOrphanDuoCommand)
+      })
+      const duoEntry = {
+        [HOOK_MARKER_KEY]: `${HOOK_MARKER_PREFIX}${app.getVersion()}`,
+        hooks: [
+          { type: 'command', command: `${ATTENTION_HOOK_COMMAND} ${arg}` }
+        ]
+      }
+      hooks[event] = [...filtered, duoEntry]
+    }
+    settings.hooks = hooks
+
     await fs.mkdir(path.dirname(SETTINGS_PATH), { recursive: true })
     const tmpPath = `${SETTINGS_PATH}.tmp-${process.pid}`
     await fs.writeFile(tmpPath, JSON.stringify(settings, null, 2) + '\n')

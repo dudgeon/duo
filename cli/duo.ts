@@ -426,6 +426,13 @@ const VERBS: VerbSpec[] = [
       'Scheduled ("cron") Claude sessions — fire a Claude command in a project on a schedule, INTERACTIVELY (Duo does session start + initial instruction, then hands control to you; runs only fire while Duo is open). list shows jobs (+ next-fire + status); add --name <n> --cwd <path> --say "<instruction>" (--every hourly|daily|weekdays|weekly [--at HH:MM] [--on <weekday>] | --cron "<expr>") [--session fresh|same] [--catch-up]; edit <id> [same flags] changes a job (schedule flags replace the whole schedule; --no-catch-up turns catch-up off); run <id> fires now; pause / resume / rm / show <id> manage one job (ids from "cron list").'
   },
   {
+    name: 'attention',
+    group: 'Terminal',
+    args: '--state set|clear [--tab <id>]',
+    summary:
+      'Set/clear a terminal tab\'s "waiting on you" attention badge (ENH-225). Primarily driven by the Duo-managed Stop/permission/UserPromptSubmit hooks (which call it with the tab\'s $DUO_TAB stamp); exposed as a verb for parity so an agent can flag a tab that needs the user, or clear one. --tab defaults to $DUO_TAB (the env stamp on every Duo PTY). The badge also clears when the user focuses the tab.'
+  },
+  {
     name: 'claude-return',
     group: 'Terminal',
     args: '[submit|newline]',
@@ -2550,6 +2557,22 @@ async function main(): Promise<void> {
         } else {
           die(`Unknown cron sub-op: ${sub}. Expected list|add|edit|run|pause|resume|rm|show.`)
         }
+        break
+      }
+
+      case 'attention': {
+        // ENH-225 (F2/D9) — set/clear a terminal tab's "waiting on you" badge.
+        // Primarily invoked by the Duo-managed attention hook (duo-attention.sh
+        // reads $DUO_TAB + a set|clear arg); exposed as a verb for CLI parity so
+        // an agent can flag/clear a tab too. --tab defaults to $DUO_TAB so the
+        // hook can call `duo attention --state set` with no explicit id.
+        const tab = flagValue(rest, '--tab') ?? process.env.DUO_TAB
+        const state = flagValue(rest, '--state') ?? flagValue(rest, '--event')
+        if (!tab) die('Usage: duo attention --tab <id> --state set|clear   (--tab defaults to $DUO_TAB)')
+        if (state !== 'set' && state !== 'clear') {
+          die('duo attention: --state must be set | clear')
+        }
+        out(await send('attention', { tabId: tab, event: state }))
         break
       }
 

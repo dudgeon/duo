@@ -29,6 +29,7 @@ import type {
   PinEntry, NavPinEntry,
   SessionState,
   CronJobView,
+  TabAttentionPush,
 } from './types'
 
 // ── Electron preload API surface ─────────────────────────────────────────────
@@ -1498,6 +1499,10 @@ export interface ElectronHomeAPI {
   /** main → renderer push to CLOSE a terminal tab by id (`duo term close
    *  <id>`). The handler routes through the existing closeTab path. */
   onTerminalCloseTab(cb: (tabId: string) => void): () => void
+  /** ENH-225 (F2/D9) — main → renderer push when a terminal tab's "waiting on
+   *  you" attention flag flips (set by the Stop/permission hook, cleared by the
+   *  UserPromptSubmit hook). The renderer holds it keyed by tabId for the badge. */
+  onTerminalTabAttention(cb: (p: TabAttentionPush) => void): () => void
 }
 
 declare global {

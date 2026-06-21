@@ -85,6 +85,11 @@ export class PtyManager {
       PATH: `${SHIM_DIR}:${userPath}`,
       DUO_SESSION: '1',
       DUO_SOCKET: SOCKET_PATH,
+      // ENH-225 (F2/D9) — the owning tab's id. CONSUMED by the Duo-managed
+      // attention hook (duo-attention.sh reads $DUO_TAB) so a Stop/permission
+      // event posted via `duo attention` maps straight to this tab — no
+      // session-id scanning. Works for any Duo PTY, incl. cron's kind:'shell'.
+      DUO_TAB: id,
       // ENH-191 P5a (Tier-3) — window stamp: the owning window's id. CONSUMED by
       // the CLI (resolveWindowId in cli/duo.ts) → stamped into each request →
       // SocketServer routes get(windowId) (primary fallback). A reverted CLI

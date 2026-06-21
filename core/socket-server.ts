@@ -322,6 +322,11 @@ export interface NavBridge {
    *  App-global (not window-scoped) — a run's landing window is resolved from
    *  the job's cwd (D10), not the request's --window. Throws on bad input. */
   cron: (op: string, args: Record<string, unknown>) => Promise<unknown>
+  /** ENH-225 (F2/D9) — set/clear a terminal tab's "waiting on you" attention
+   *  flag and broadcast it to the renderer's tab strip. Called by the Duo-
+   *  managed attention hook via `duo attention` (tabId = the DUO_TAB env stamp),
+   *  or directly by an agent for parity. Transient; no-op on an unknown tab. */
+  setTabAttention: (tabId: string, needsAttention: boolean) => void
 }
 
 /** ENH-195 (review) — canonicalize a path for open-vs-closed routing:
@@ -2072,6 +2077,20 @@ export class SocketServer {
           const op = args['op'] as string | undefined
           if (!op) throw new Error('cron requires an op (list|add|edit|run|pause|resume|rm|show)')
           result = await this.nav.cron(op, args)
+          break
+        }
+
+        case 'attention': {
+          // ENH-225 (F2/D9) — the attention hook posts {tabId, event} here.
+          // Stop/Notification → needs attention; UserPromptSubmit/clear → clear.
+          // tabId comes from the hook's $DUO_TAB stamp (or an agent's --tab).
+          const tabId = (args['tabId'] ?? args['tab']) as string | undefined
+          if (!tabId) throw new Error('attention requires --tab <id> (the DUO_TAB env stamp)')
+          const event = String(args['event'] ?? '').trim()
+          // Default: anything that isn't an explicit clear/active SETS attention.
+          const clears = event === 'UserPromptSubmit' || event === 'clear' || event === 'active'
+          this.nav.setTabAttention(tabId, !clears)
+          result = { ok: true, tabId, needsAttention: !clears }
           break
         }
 

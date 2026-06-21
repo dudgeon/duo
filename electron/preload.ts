@@ -993,6 +993,12 @@ const api: ElectronAPI = {
       const handler = (_e: unknown, payload: { tabId: string }) => cb(payload.tabId)
       ipcRenderer.on(IPC.TERMINAL_CLOSE_TAB, handler)
       return () => ipcRenderer.removeListener(IPC.TERMINAL_CLOSE_TAB, handler)
+    },
+    // ENH-225 (F2/D9) — main → renderer push when a tab's attention flag flips.
+    onTerminalTabAttention: (cb: (p: import('../shared/types').TabAttentionPush) => void) => {
+      const handler = (_e: unknown, payload: import('../shared/types').TabAttentionPush) => cb(payload)
+      ipcRenderer.on(IPC.TERMINAL_TAB_ATTENTION, handler)
+      return () => ipcRenderer.removeListener(IPC.TERMINAL_TAB_ATTENTION, handler)
     }
   },
 
