@@ -19,8 +19,17 @@ the advanced-cron describer, an owner dep decision). typecheck clean · full sui
 
 ## Resume plan (do in order)
 
-1. **Rebase onto `origin/main` FIRST** (best with fresh context). `origin/main`
-   is **6 commits ahead** of the `df26ddf` fork point; we're 11 ahead. **~13
+0. **Merge ORDER (owner, 2026-06-21):** this branch merges **after**
+   `claude/duo-file-open-flow-g3rpdx` (which was rebasing concurrently). So
+   **wait for that branch to land on `main`, then rebase onto the updated
+   `main`** (it touches overlapping plumbing too — rebasing onto a main that
+   already includes it avoids a double conflict resolution). Coordinate the
+   shared Electron dev: **ask the owner before launching `npm run dev` / using
+   Electron** (other agents share the app-global socket — I released it to the
+   duo-file-open-flow agent at handoff time).
+1. **Rebase onto the updated `origin/main`** (best with fresh context).
+   As of 2026-06-21 `origin/main` was **6 commits ahead** of the `df26ddf` fork
+   point (will be more once duo-file-open-flow lands); we're 11 ahead. **~13
    overlapping files**, all shared plumbing: `shared/types.ts`, `host-api.ts`,
    `electron/main.ts`, `electron/preload.ts`, `renderer/App.tsx`,
    `core/socket-server.ts`, `cli/duo.ts`, `agents/duo.md`, `docs/CLI-COVERAGE.md`,

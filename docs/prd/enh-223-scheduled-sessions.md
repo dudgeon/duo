@@ -330,9 +330,12 @@ dep add).
 clean; `check:skill-currency` (74 verbs) passes. PR #103.
 
 **Still owed (the resume plan — see `docs/dev/enh-223-handoff.md`):**
-1. **Rebase onto `origin/main`** (6 commits ahead; ~13 overlapping plumbing
-   files — `shared/types.ts`, `host-api.ts`, `main.ts`, `preload.ts`, `App.tsx`,
-   `socket-server.ts`, `cli/duo.ts` + docs; mostly *additive* conflicts).
+1. **Merge order + rebase.** This branch merges **after**
+   `claude/duo-file-open-flow-g3rpdx` (owner, 2026-06-21) — wait for it to land,
+   then **rebase onto the updated `main`** (6+ commits ahead; ~13 overlapping
+   plumbing files — `shared/types.ts`, `host-api.ts`, `main.ts`, `preload.ts`,
+   `App.tsx`, `socket-server.ts`, `cli/duo.ts` + docs; mostly *additive*
+   conflicts). Ask the owner before launching the shared Electron dev.
 2. **`/smoke-walk`** (exercises the native File-menu + rail triggers that
    couldn't be driven headlessly), then **cut** Tier 1 + Tier 2 inc 1+2 as the
    cron v1.
