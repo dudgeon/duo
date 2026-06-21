@@ -59,10 +59,15 @@
 >   (status-gate — a fresh checkout no longer shows a stranger's head:main PR).
 >
 > **OWED / NEXT:**
-> - **The whole ENH-224 driving use case (Phases 0–2) is now BUILT + LIVE-VERIFIED.**
->   Remaining = LATER phases (3 already-local detection D6, 4 format breadth) +
->   the deferred-polish list below. Test PR #40238 + the fork `dudgeon/Spoon-Knife`
->   are leftover verification artifacts (close/delete if unwanted).
+> - **ALL 5 PHASES (0–4) BUILT.** Phases 0–2 LIVE-VERIFIED (PR #40238). **Phase 3
+>   (already-local detection D6)** + **Phase 4 (format breadth D8 + escape hatch
+>   D4)** built + tested (`976bd64`, `9ac158d`) — **owe a live walk** (re-request
+>   Electron): P3 = open a github-file whose repo IS a navigator project → the
+>   Open bar's 3rd "Open from your local clone" choice / `duo open` prefers-local;
+>   P4 = the "Propose changes" footer in a JSON/YAML + HTML-canvas checkout doc +
+>   `duo pr export <path> <dest>`. UI "Save a copy…" affordance deferred (owner UX
+>   choice). Test PR #40238 + the fork `dudgeon/Spoon-Knife` are leftover
+>   verification artifacts (close/delete if unwanted).
 > - **Deferred:** sparse-folder checkout (DR6 optimization) · full-inline modal
 >   merge (D15/DM1) · NewVaultModal geometry audit · **UI/CLI symmetry follow-up**:
 >   `duo open <github-url>` now opens just-this-doc via the checkout, but the UI
@@ -82,10 +87,10 @@
 >   `pkill -f 'electron-vite dev'` + relaunch. SIGTERM-ing the app direct causes a
 >   benign `fse_instance_destroy` crash report (memory
 >   `feedback_pkill_dev_triggers_benign_fsevents_sigabrt`).
-> - Latest: `16a23b7` (live-found status-gate fix) after the full Phase 1–2
->   live walk · typecheck clean · **1744 tests** · currency 76/76. Prior:
->   `e1e33b0` (Phase-2 UI footer) · `65cc392` (Phase-2 core plumbing) · `4419c5e`
->   (Phase-1 CLI twin) · `49635ee` · `7370416` · `738ae7f`.
+> - Latest: `9ac158d` (Phase 4) · `976bd64` (Phase 3) · `59dc65b` (P1–2
+>   live-verified docs) · `16a23b7` (status-gate fix) · `e1e33b0` (P2 UI footer) ·
+>   `65cc392` (P2 core) · `4419c5e` (P1 CLI twin). typecheck clean · **1750 tests**
+>   · currency 76/76 · prod bundle compiles.
 > - Leftover state: a real test checkout at `~/.claude/duo/checkouts/octocat-Spoon-Knife@main/`;
 >   iCloud `* 2.*` sync-conflict dupes moved to `/tmp/icloud-dupes-backup-d76de1e/`
 >   (await owner OK to delete — `rm` of untracked files is auto-denied).

@@ -1,6 +1,6 @@
 # ENH-224 PRD — Unified Open & GitHub round-trip ("open a remote doc like it's local; Save → PR")
 
-**Status:** **Phases 0–2 (the full driving use case: open a remote doc → edit → Propose changes PR) BUILT + LIVE-VERIFIED end-to-end** (2026-06-21) — walked against octocat/Spoon-Knife → real auto-fork cross-fork PR [#40238](https://github.com/octocat/Spoon-Knife/pull/40238). Phases 3–4 (already-local detection, format breadth) remain. · **Owner:** Geoff · **Tracker:** `tasks.md` § ENH-224 · **PR:** [#102](https://github.com/dudgeon/duo/pull/102) (rebased on `main`, MERGEABLE). · **Renumbered ENH-221 → ENH-224 (2026-06-21)** to avoid a collision with the *other* agent's ENH-221 (durable file version history) that landed on `main` first; see § 6b. · **Decisions captured via:** two AskUserQuestion rounds (2026-06-19) + the OQ-1 UI-study walk + the merged-UI walk (2026-06-20) + an owner chord/scope walk (2026-06-21, D18/D19), folded into § 3. · **Shipping constraint (owner, 2026-06-21):** *"we will not ship until the full plan is built"* — Phase-0 interim states (e.g. the D19 "Soon" tile) are scaffolding, not a shippable surface. · **Preview:** (renders as source on GitHub — read the markdown.)
+**Status:** **ALL 5 PHASES (0–4) BUILT** (2026-06-21). Phases 0–2 (the driving use case: open a remote doc → edit → Propose changes PR) are **LIVE-VERIFIED end-to-end** — walked against octocat/Spoon-Knife → real auto-fork cross-fork PR [#40238](https://github.com/octocat/Spoon-Knife/pull/40238). Phases 3 (already-local detection D6) + 4 (format breadth D8 + escape hatch D4) are **built + tested + bundle-compiling; owe a live walk**. · **Owner:** Geoff · **Tracker:** `tasks.md` § ENH-224 · **PR:** [#102](https://github.com/dudgeon/duo/pull/102) (rebased on `main`, MERGEABLE). · **Renumbered ENH-221 → ENH-224 (2026-06-21)** to avoid a collision with the *other* agent's ENH-221 (durable file version history) that landed on `main` first; see § 6b. · **Decisions captured via:** two AskUserQuestion rounds (2026-06-19) + the OQ-1 UI-study walk + the merged-UI walk (2026-06-20) + an owner chord/scope walk (2026-06-21, D18/D19), folded into § 3. · **Shipping constraint (owner, 2026-06-21):** *"we will not ship until the full plan is built"* — Phase-0 interim states (e.g. the D19 "Soon" tile) are scaffolding, not a shippable surface. · **Preview:** (renders as source on GitHub — read the markdown.)
 
 ---
 
@@ -307,16 +307,35 @@ is visually/behaviorally verified yet.
 (cross-fork when no push access); unauthenticated bounces to `gh auth login`;
 re-save updates the same PR; full 5-surface sync; smoke-walked.
 
-**Phase 3 — Already-local detection (D6).** Match pasted URL → known local
-clones by remote URL; offer to open from the real clone (focus the folder) with
-the managed-checkout fallback.
-*Acceptance:* pasting a URL for a repo already in a navigator root / recents
-offers the real clone; declining falls back to managed checkout; no silent edits
-to the user's tree.
+**Phase 3 — Already-local detection (D6). 🚧 BUILT + tested (2026-06-21); live
+walk owed.** Before a managed checkout, `matchLocalClone` (`core/git/local-clone-
+match.ts`) checks whether the github-file's repo is already cloned in a navigator
+git-root project (reads each root's `origin` remote + a file-exists check). If so,
+open from THEIR clone (modality 1 — focus the folder); else managed checkout. We
+only OPEN (never edit) their tree, and the share-back footer is gated to managed
+checkouts, so no surprise PR. **UI** (D6 "offer"): the Open bar shows a third
+choice "📁 Open from your local clone …" (`OPEN_MATCH_LOCAL_CLONE` IPC). **CLI**
+(prefer-local + report, with a `--checkout` override): the socket `open`
+github-file branch tries the clone first, opens from it + reports
+`via:'local-clone'` + the path. Deliberate UI/CLI split (offer vs prefer-and-
+report). 6 pure tests (`remoteMatchesRepo`).
+*Acceptance:* pasting a URL for a repo already in a navigator root offers the
+real clone; declining falls back to managed checkout; no silent edits to the
+user's tree.
 
-**Phase 4 — Format breadth + polish (D8).** Extend the round-trip machinery to
-json / yaml / html canvas; "save a real local copy here…" escape hatch (D4);
-binary view-only confirmation.
+**Phase 4 — Format breadth + polish (D8 / D4). 🚧 BUILT + tested (2026-06-21);
+live walk owed.** The share-back core was already format-agnostic; this extends
+the UI + adds the escape hatch. **D8 breadth:** the "Propose changes" footer
+(`ProposeBar`) now mounts in the JSON/YAML viewer (`JsonView`) and the HTML
+canvas (`PageTab`) — each bumps a `shareBackTick` on save → re-poll — so a remote
+`.json`/`.yaml`/`.html` round-trips via the same path as `.md` (the heading-title
+prefill degrades to the filename for non-markdown). **D4 escape hatch:** `duo pr
+export <path> <dest>` (`core/git/share-back.exportCheckoutFile`, guarded to the
+managed home) copies the checkout doc to a real local path; the UI "Save a copy…"
+affordance is **deferred** — its surface (menu vs button) is an owner UX choice.
+**D8 binary view-only:** already the behavior — the footer mounts only in the
+three text editors, never the image/pdf viewers, so a remote binary opens
+view-only.
 *Acceptance:* a remote `.json`/`.yaml` round-trips via the same path; escape
 hatch works; smoke-walked.
 
@@ -348,6 +367,8 @@ for UI — `CLAUDE.md` § 7.)
 | **Phase 1 CLI twin** — `duo open <github-file-url>` → same managed checkout (socket `open` branch + `NavBridge.runManagedCheckout` + bare-host CLI resolve) | DR6, D5, **rule #4** | ✅ DONE + **live-verified 2026-06-21** | typecheck clean · **1696 tests** (+4 socket: routing · auth-missing bounce · bare-repo fallthrough · optional-dep fallthrough) · currency 75/75 · 5-surface doc sync. Shares the checkout engine with the UI IPC. **Live:** `duo open` Spoon-Knife/README → checkout reused, README opened as the active editor tab, navigator cwd = the checkout folder, recent under the canonical URL. |
 | **Phase 2 — share-back CORE plumbing** (`core/git/{divergence,proposal-meta,branch,commit,push,fork,pr,share-back}.ts` + `duo pr create\|status\|view` + socket `case 'pr'`) | D2, D3, D7–D13, OQ-3, §12 | ✅ built + **live-verified 2026-06-21** | typecheck clean · **1744 tests** (pure: arg-builders, parsers, D7 prefill, the D4 + `isShareBackBranch` guards) · currency 76/76 · 5-surface doc sync. `runShareBack` orchestrates context→divergence→branch→commit→push-access→**auto-fork (D3)**→push→create-or-update PR (D13), all live via gh/git (§12). **Live:** `duo pr create` Spoon-Knife → auto-fork + cross-fork PR [#40238](https://github.com/octocat/Spoon-Knife/pull/40238); `pr status`/`view` find it (status-gate fix `16a23b7`). |
 | **Phase 2 — share-back UI affordance** (`renderer/components/ProposeBar.tsx` — footer bar + confirm sheet + morph-in-place) | D10–D13 | ✅ BUILT + **live-verified 2026-06-21** | `ProposeBar` mounts at the bottom of the markdown editor; polls `window.electron.pr.status` on save (D2 signal) — INERT for ordinary files, appears only on a diverged managed checkout. Click → confirm sheet (D7/D12: title/branch/body + fork-note + inline diff via `pr.diff`) → `pr.create` → morphs to "Proposed · View PR" (D13). New IPC SHARE_BACK_STATUS/DIFF/CREATE → `core/git/share-back` (one engine, shared with `duo pr`). typecheck clean · prod bundle compiles · git-subprocess fast-reject for non-checkout paths. **Live-walked (DOM-probed):** footer appears on divergence ("differs from octocat/Spoon-Knife") → confirm sheet (heading title + `duo/…-d0dd1f6` branch + real diff) → morphs to "Proposed · View PR ↗" after PR #40238. |
+| **Phase 3 — already-local detection** (`core/git/local-clone-match.ts` + socket `open` branch + `OPEN_MATCH_LOCAL_CLONE` IPC + OpenBar third choice + `duo open --checkout`) | D6 | 🚧 BUILT + tested 2026-06-21 · **live walk owed** | typecheck clean · 6 pure tests (`remoteMatchesRepo`) · currency 76/76 · prod bundle compiles. Before a checkout, matches the repo against navigator git-root projects (by `origin` remote + file-exists); opens from the user's clone (modality 1) — UI offers it, CLI prefers-and-reports (`--checkout` overrides). Never edits the user's tree; footer gated to managed checkouts. The spawning `matchLocalClone` verified live (owed). |
+| **Phase 4 — format breadth + escape hatch** (`ProposeBar` in `JsonView` + `PageTab`; `core/git/share-back.exportCheckoutFile` + `duo pr export`) | D8, D4 | 🚧 BUILT + tested 2026-06-21 · **live walk owed** | typecheck clean · 1750 tests · currency 76/76 · prod bundle compiles. The "Propose changes" footer now mounts in the JSON/YAML viewer + the HTML canvas (format-agnostic round-trip — D8); `duo pr export <path> <dest>` is the D4 "save a local copy" escape hatch; binary stays view-only (footer is text-editor-only). UI "Save a copy…" affordance deferred (surface = owner UX choice). |
 
 **Sequencing note.** D16 landed against the standalone `CloneModal` so the
 owner-requested success fix shipped immediately; the Open bar now *routes* a
@@ -361,6 +382,22 @@ lower-risk.
 Newest first. Captures decisions + scope changes that diverge from the original
 spec so the history is legible.
 
+- **2026-06-21 — Phases 3 + 4 built (owner: "build all phases").** Phase 3 (D6
+  already-local detection): `matchLocalClone` over the navigator's git-root
+  projects, routed into both the socket `open` github-file branch (CLI
+  prefers-local + reports the path; `--checkout` forces the opaque checkout) and
+  the Open bar (a third "Open from your local clone" choice via
+  `OPEN_MATCH_LOCAL_CLONE`). Deliberate UI/CLI split — the UI OFFERS (D6 "offer,
+  not silent reuse"), the CLI prefers-and-reports (transparent, overridable). We
+  only OPEN (never edit) the user's tree, and the footer is gated to managed
+  checkouts, so no surprise PR. Phase 4 (D8 format breadth + D4 escape hatch):
+  the `ProposeBar` footer now also mounts in the JSON/YAML viewer + the HTML
+  canvas (the share-back core was already format-agnostic), so `.json`/`.yaml`/
+  `.html` round-trip via the same path; `duo pr export <path> <dest>` saves a
+  real local copy (the D4 escape hatch); binary stays view-only (footer is
+  text-only). The UI "Save a copy…" affordance is deferred (surface = an owner UX
+  choice). typecheck clean · 1750 tests (+6 `remoteMatchesRepo`) · currency 76/76
+  · prod bundle compiles. **Owed:** a live walk of Phases 3–4 (re-request Electron).
 - **2026-06-21 — Phases 1–2 LIVE-VERIFIED end-to-end (owner granted Electron).**
   Walked the full driving use case against `octocat/Spoon-Knife` on this
   worktree's dev build: (1) `duo open <github-file>` → checkout reused, README
