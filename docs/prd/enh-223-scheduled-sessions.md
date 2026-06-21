@@ -361,19 +361,34 @@ Per owner (2026-06-21), **#103 may merge BEFORE #102** (`duo-file-open-flow`) if
 it wraps first — so it integrates onto the *current* main (no #102), and #102
 rebases onto a main that already includes cron.
 
-**Verified:** 19 cron-service + 31 cron-schedule + (homeModel) 6 assignCronJobs
-unit tests + full suite (**1702**) green; typecheck clean; `check:skill-currency`
-(75 verbs) passes. PR #103 `MERGEABLE`.
+**Tier 3 — ENH-225 "waiting on you" attention badge (DONE, commit `7af4fcd`,
+on #103 per owner).** The F2 half of the F1 pairing (background-tab launch +
+this badge for discoverability). A Duo-managed Claude Code hook posts
+`{tabId, event}` to the socket via `duo attention`; main flips a transient
+per-tab flag and broadcasts `TERMINAL_TAB_ATTENTION` to the tab strip; the
+renderer shows an amber pulse dot (never on the active tab). Tab identity = a new
+`DUO_TAB` env stamp the hook reads (unambiguous for any Duo PTY, incl. cron's
+`kind:'shell'`). `install-service` registers Stop+Notification (set) +
+UserPromptSubmit (clear) via the proven `_duo`-marker merge. Badge clears on
+**activity OR tab focus** (owner-chosen). New `duo attention` verb (4-surface
+synced). **Live-verified (`duo dom`):** the production `duo-attention.sh set` on a
+non-active tab → dot on that tab; `clear` → gone; focus a flagged tab → clears;
+the `$DUO_SESSION` gate no-ops. *Not yet exercised live:* a real Claude `Stop`
+firing the registered hook — Claude Code's own contract (same hook format as the
+shipped PreToolUse guard), blocked from headless testing by Claude's interactive
+first-run (folder-trust) prompts → confirm in the owner-walked `/smoke-walk`.
+
+**Verified:** 19 cron-service + 31 cron-schedule + 6 assignCronJobs unit tests +
+full suite (**1702**) green; typecheck clean; `check:skill-currency` (76 verbs)
+passes. PR #103 `MERGEABLE`.
 
 **Still owed:**
-1. **`/smoke-walk`** — the only unexercised leg is the **native** File ▸ New
-   Scheduled Job… menu + the project-rail right-click (both native Electron
-   menus DOM can't drive; both dispatch the already-verified modal-open path).
-   Fold into the pre-cut walk.
-2. **Cut** Tier 1 + Tier 2 (inc 1+2+3) as the cron **v1** (after #102 also lands,
-   per the cut-after-both plan).
-3. **ENH-225** — the "waiting on you" attention badge (must surface on cron's
-   `kind:'shell'` claude tabs). *(Separate sibling.)*
-5. Logged future: ENH-222 (`launchd` launch), headless `-p` mode, full
+1. **`/smoke-walk`** — exercise the two **native** Electron menus (File ▸ New
+   Scheduled Job…, project-rail right-click; both dispatch the already-verified
+   modal-open path) AND confirm a real Claude `Stop` lights the attention badge
+   (install the hooks via the banner first).
+2. **Cut** Tier 1 + Tier 2 (inc 1+2+3) + ENH-225 as the cron **v1** (after #102
+   also lands, per the cut-after-both plan).
+3. Logged future: ENH-222 (`launchd` launch), headless `-p` mode, full
    run-history view.
 
