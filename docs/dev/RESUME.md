@@ -1,251 +1,66 @@
-# ⚠ THIS WORKTREE (quizzical-jepsen) = ENH-216 OKF VAULT MODE — full state in `docs/dev/active-sprint.md` § ENH-216 (top section)
+# Resume after compaction — current state (2026-06-21)
 
-> **Post-compaction orientation (2026-06-14).** ENH-216 (OKF vault mode — a second
-> at-rest serializer: OKF markdown-rel-links vs Obsidian wikilinks, per-vault, File ▸
-> New Vault picker + `duo vault init --format`) is **code-complete + rebased on `main`
-> 0.10.4 + committed** (`0e0c956`; 1542 tests green). **Pre-cut batch → v0.11.0 — ALL THREE
-> PENDING ITEMS LANDED** (owner green-lit "do all of those things", 2026-06-14):
-> - DONE (committed): FOLLOWUP-050 autocomplete; BUG-208 `--help`; worksheet copy fix; plus
->   **FOLLOWUP-051** `e105b85` (frontmatter `[[ ]]`→`[[name]]` both modes), **BUG-207**
->   `c32ee48` (sidecar S1+S4, verified live — no `.md.duo.json` on note create), **ENH-214**
->   `af9434a` (templates in ⌘⇧F + inline badge; data path verified CLI + live IPC). Suite
->   **1555 green**, typecheck clean, `cli/duo` rebuilt (it bundles core in-process — see
->   memory `feedback_cli_bundles_core_rebuild_on_core_change`).
-> - **Owner still owes:** **walk-3** (`docs/dev/smoke-walks/v0.10.4-rev3.html`, pinned in the
->   aux) — 2 eyes-on items: FOLLOWUP-051 keystroke flow + ENH-214 badge VISUAL & the
->   badge-vs-section call; 2 carry-forward SKIPs. BUG-207 + ENH-214 data path agent-verified.
->   Fixture vault: `/tmp/duo-walk-v0104-rev3/`. Then **cut v0.11.0**. The running dev IS this
->   worktree's build (swapped from main-repo this session); owner's PATH `duo` is still the
->   stale release — use `./cli/duo` for vault verbs.
-> - Full detail: `tasks.md` ENH-216 / FOLLOWUP-050 / FOLLOWUP-051 / BUG-207 / BUG-208 /
->   ENH-214; PRD playground `docs/research/okf-vault-mode.html`.
->
-> The ENH-212 "Home" content below is **main's** initiative, not this worktree's.
->
-> ---
+> **Read this first.** This file is the cold-start orientation: where the project
+> is *right now*, not its history. For per-version shipped detail read the top of
+> [`session-log.md`](session-log.md); for the running queue + open owner
+> questions, [`active-sprint.md`](active-sprint.md); for the full backlog,
+> [`tasks.md`](../../tasks.md). The always-on working rules live in
+> [`CLAUDE.md`](../../CLAUDE.md) § "Working style" (1–13) + the path-scoped rules
+> under `.claude/rules/`.
 
-# Resume after compaction — ENH-212 "Home" in flight (this worktree); ENH-208 Vault parked
+## Version state
+- **Latest released:** **v0.11.1**.
+- **`package.json`:** bumped to **v0.11.2** but **NOT yet cut** — four features are
+  merged to `main` and queued for the next cut.
+- **The next cut is GATED on PR #102** (`duo-file-open-flow-g3rpdx` — the ENH-224
+  unified Open + Clone flow, still a DRAFT). **Do not cut until #102 lands.**
 
-**🛑 MOST RECENT — current initiative (2026-06-13): ENH-212 "Home" (the default
-re-entry screen).** Building on THIS worktree/branch (`claude/gifted-torvalds-b58b02`),
-NOT main. Spec locked + ~19 commits stacked on the branch; **PRD: `docs/prd/enh-212-home.md`**;
-decision trail = three UI studies (`docs/research/home-screen-study{,-v2,-13}.html`).
-A `kind:'home'` WorkingTab (slot 0, non-closable, synthesized every boot, never
-persisted) shows a serif greeting + two hero panels (the 2 most-recent projects:
-sessions, recent-file chips, and the last-response **snippet as an indented reply
-under its source row** — round-2 option B) + a spine stack (fold after 8). Data is
-read LIVE every snapshot (no sidecar / ENH-183 D9). Open-session detection is
-**process-primary** (`core/claude-presence.ts` `mapLiveClaudeOwners` — a live
-`claude` process is ground truth), giving `open.kind: 'duo'` (focusable here) vs
-`'external'` (running elsewhere → **fork**-with-warning, never silently). Click an
-open session → focus its terminal/window; closed → `claude --resume` in the current
-window. CLI parity: `duo home [show|state|refresh]`, `duo session open <uuid>
-[--cwd] [--force]`, `duo term tabs|tab <id>|close <id> [--force]`.
+## Merged since v0.11.1 (on `main`, awaiting the v0.11.2 cut)
+- **ENH-221 — durable file version history + a real ⌘Z undo fix** (#104). History
+  modal: timeline · inline diff · restore-with-confirm. `duo history list|show|restore`.
+  Store at `~/.claude/duo/file-history/` (§D9-clean). ADR in `docs/DECISIONS.md`.
+- **ENH-222 — worktree lifecycle UX** (#105). Create a worktree from the navigator
+  dropdown (slug-validated, no git typing) + graceful removal-recovery (revert to
+  main, dismissible banner, never a crash). `duo worktree new|remove`. PRD:
+  `docs/prd/enh-222-worktree-lifecycle.md`.
+- **ENH-223 — scheduled (cron) Claude sessions** (#103). Create/manage from Home
+  (presets + custom cron, live preview, per-project nesting).
+  `duo cron list|add|edit|run|pause|resume|rm|show`. PRD:
+  `docs/prd/enh-223-scheduled-sessions.md`.
+- **ENH-225 — "waiting on you" tab attention badge** (#103). Amber dot when a
+  background Claude session stops; clears on focus/activity. `duo attention`.
+- **#101 — iCloud sync-conflict duplicate detection** in the materialization check
+  (dev tooling only; documented in `CLAUDE.md` § iCloud Drive trap).
 
-**State:** all features built + live-verified (DOM/CLI probes — computer-use can't
-reach the worktree dev Electron; use `duo dom --js` for the renderer shell, `duo eval`
-for the browser pane; never `location.reload()` — it crashes the dev build). Full
-suite green (~1291). Dev build was last running on this worktree.
+## In flight / next move
+- **PR #102 (ENH-224 open + clone flow)** is the next to land; the cut waits on it.
+- **When #102 merges:** do the doc cleanup held back to avoid colliding with its
+  plumbing edits — flip the `tasks.md` Status lines for ENH-221/222/223 to ✅ and
+  add a first-class **ENH-225** entry; touch up the CLI docs (`CLI-COVERAGE.md`
+  "last updated" + the `duo history` follow-up note, `agents/duo.md` attention-hook
+  wording, `skill/SKILL.md` verb map). Then run `/smoke-walk` (via the Skill tool)
+  and propose the **v0.11.2 cut** via the `cut-version` skill.
 
-**✅ The two pre-smoke-walk issues are RESOLVED (2026-06-13) — next step is `/smoke-walk` → cut.**
-TITLE-1: confirmed Home already reuses the session-resume title mechanism (ladder identical to
-`duo session list` / Claude's own picker; no concise summary exists beyond ai-title; first-prompts
-are genuinely un-auto-titled recent sessions) — no new mechanism; one real bug fixed (spine
-non-newest sessions showed bare uuids → now titled). RESP-1: two-hero columns were unequal
-(`1fr 1fr` blew one to 684/281) + breakpoint too low → fixed to `minmax(0,1fr)` 50/50 + 820px
-breakpoint, verified across pane widths. Detail: `tasks.md` ENH-212. Historical context of the two
-issues kept below for reference.
+## Locked designs — don't re-derive these (full ADRs in `docs/DECISIONS.md`)
+- **File history** is an append-only, content-addressed store captured
+  fire-and-forget OFF the save path (§D9-clean — never a sidecar).
+- **Cron is interactive-only** — a real Claude TUI in a Duo tab, an in-app
+  next-fire timer (NOT a system daemon; fires only while Duo is open). Headless
+  `-p` is behind a default-off flag; the scheduler starts only after
+  `SESSION_STATE_RESTORE_SETTLED` (the boot catch-up gate).
+- **Attention badge** keys off a `DUO_TAB` env stamp + a Duo-managed Claude Stop
+  hook posting to the Unix socket.
 
-<details><summary>(resolved) original two-issue writeup</summary>
-
-1. **Session identifier still shows the first prompt, not the Claude summary.** The
-   owner still perceives first-prompt titles dominating where they expect the
-   generated summary. Prior investigation concluded the `ai-title` (Haiku auto-summary)
-   IS the summary and IS used (ladder rung 2: customTitle → ai-title → first-prompt →
-   uuid; `sessions-index.json` is deprecated + ENH-183 C1-locked-out). BUT the owner is
-   still unsatisfied → **RE-INVESTIGATE, don't just restate that**. Angles: (a) the
-   ai-title read window — `readSessionHeadMeta` reads head 16KB + tail 16KB; ai-titles
-   cluster within ~12KB of EOF (34/35) but the FRESHEST sessions Home surfaces may be
-   the ones with no ai-title yet OR an ai-title beyond the tail window in a huge file;
-   (b) coverage of ai-title on recent sessions is low (freshest skew) → maybe Home
-   needs a better title for recent-but-unsummarized sessions; (c) confirm there's no
-   newer summary source. Title plumbing: `electron/claude-session-tracker.ts`
-   (`titleFromLines`, `readSessionHeadMeta`, `cleanAndTruncate`, `TAIL_META_BYTES`) +
-   `electron/home-snapshot.ts` (per-session title assembly).
-2. **Responsive breakpoints for the two hero panels need work.** The two-up
-   (side-by-side) → stacked (narrow) transition is a container-query at ~720px
-   (`renderer/components/Home/Home.css` `.duo-home-heroes` + container-type on
-   `.duo-home`). Needs tuning — heroes likely crush at intermediate pane widths / the
-   720px threshold is wrong for real split-pane widths. Verify live across pane widths
-   (`duo split <pct>` to vary the working-pane width).
-
-</details>
-
-**Next → `/smoke-walk` (via the Skill tool) → propose `cut-version`.** Per
-the owner's "build all 4, then cut" call, the prior open-items round (greeting RealName,
-first-prompt wrapper cleanup, fork wording, `duo term close`) is DONE + verified.
-Full ENH-212 detail + the resolved open-items round: `tasks.md` ENH-212 entry.
+## Known / flagged (non-blocking)
+- **DST spring-forward:** a cron wall-time in the skipped hour (e.g. daily 02:30 on
+  the spring-forward day) is silently not fired, and catch-up won't recover it.
+  Pinned by a test; accept-or-special-case decision owed (ENH-223 PRD §11d).
+- **BUG-211:** browser-pane clipboard first-click focus race — open, P3.
 
 ---
 
-## (prior) ENH-208 Vault: Phase 1 SHIPPED + Phase 2 in flight (v0.10.0 released)
-
-**🛑 MOST RECENT — current state (2026-06-10): ENH-208 Phase 2 capture UX is
-BUILT** on branch `claude/thirsty-brahmagupta-125a0a` (worktree
-`thirsty-brahmagupta-125a0a`) — all five renderer/keyboard features: Settings →
-Default Vault picker · ⇧⌘N quick-capture · ⌘⇧F VaultSearchPalette (file-at-match
-via core `docMatchIndex`) · @today AtMention tokens · silent-stub type-picker.
-Two owner re-picks (AUQ 2026-06-10): **capture took ⌘⇧N (New Folder → ⌥⇧⌘N)**;
-**vault search took ⌘⇧F (global find-prev retired; find-bar-local kept via
-`ctx.inFindBar`)** — both amended into the PRD D11/D22 rows. Adversarially
-reviewed (12 confirmed findings fixed, 2 HIGH) + live-verified on a dev build
-against the `/tmp/enh208-vault` fixture (capture E2E · palette search + congruent
-jump · createType→stub canonical chain · find-bar yield). 1270 tests; typecheck +
-skill-currency clean. **Owed: owner smoke-walk (keystroke items: @today popover,
-type-picker, Settings menu, ⌥⇧⌘N) → merge the ONE PR → cut (likely v0.11.0) →
-`npm run sync:claude` at merge/cut (deliberately deferred — skill/ describes
-unmerged behavior until then) → re-point or clear the default-vault pref (it
-targets the /tmp walk fixture).** New follow-ups: FOLLOWUP-048 (multi-word `[[`
-suggester; renumbered from 046 on the v0.10.1 rebase), FOLLOWUP-047 (orphaned find-prev listeners). Phase-1/Phase-2-model
-history (PRs #83–#88) + the ENH-191 detail below remain valid. PRD:
-`docs/prd/enh-208-vault.md`; scope detail: top of `active-sprint.md`.
-
----
-
-**🛑 PRIOR — ENH-191 multi-window SHIPPED (v0.10.0), current state (2026-06-08):**
-ENH-191 **multi-window is SHIPPED in v0.10.0** (tagged 2026-06-08, signed + notarized, 1119 tests green). Window 2 is **real and functional** — File → New Window (⌥⌘N) or `duo window new` opens a BLANK second window (does NOT clone window 1's pins — NFR-6.2). Each window owns its workspace/browser/navigator/terminals/geometry, all restored across relaunches (N-window restore, ascending-id). Gated by an **"Allow Multiple Windows"** setting (Settings menu), **default ON**; when OFF the New Window item is disabled, `duo window new` exits non-zero, and only window 1 restores. Cross-window CLI is live: every Duo terminal carries `DUO_WINDOW`; `duo --window N <verb>` addresses window N (stale id → primary fallback); `duo windows` lists `[{id, primary, focused, activeWorkspace}]`; `duo doctor` reports the live window count. Session file is now `{version:2, windows:[...]}` (lossless forward-migration + one-time `.v1.bak`; downgrade boots empty gracefully; byte-identical at N=1). Default app-level resolution is by IDENTITY (lowest-id primary), never focus.
-- **Also shipped v0.10.0:** **ENH-204** (#79) — a new terminal opened outside the focused project reverts the rail filter to "All". **ENH-207** (#81) — drag a navigator file/folder onto the terminal column inserts absolute POSIX-quoted path(s) at the cursor.
-- **Live follow-ups (next agent's queue):** **PR #80** (P1 per-request-window-target concurrency-interleaving test + 4 P3 edges), **FOLLOWUP-043** (drag onto a COLLAPSED rail spawns a tab instead of inserting), **BUG-198** (screenshot). Per-item detail in [`tasks.md`](../../tasks.md).
-
-**🛑 PRIOR-CYCLE CONTEXT (ENH-195 / ENH-197 / BUG-195 — all landed pre-v0.10.0):**
-ENH-195 (CLI edits / disk-sync / false-positive conflicts) is **complete, validated, and submitted as a PR** from branch `claude/sharp-hamilton-70eb87` for the owner to integrate (version label + merge with other branches) on `main`. Per-item detail is in [`tasks.md`](../../tasks.md) (ENH-195 / ENH-197 / BUG-195 / ENH-198). One-paragraph version:
-
-- **Shipped + verified this cycle:** the shared `useDiskReconciliation` hook (markdown + canvas + JSON), D3 markdown change-highlight, 3 verbs (`duo status` / `doc edit` / `json set|merge`), B2–B7 responsiveness, warn-hook + guidance — PLUS the four follow-on fixes that landed AFTER the local v0.9.0 cut: **(1) canvas false-positive fix** (the old blocker — `shouldBannerOnClean` now compares the byte-exact disk baseline, not the ID-injected serialized view; root-caused by a 4-lens workflow, regression-tested, verified live); **(2) ENH-197 "View diff"** (a destructive (>50%) external reload now offers **Keep mine / Load new / View diff**, where View diff rebuilds the doc as accept/rejectable tracked changes via the existing CriticMarkup rail — block-LCS so it reads clean, not char-soup; round-trip tested, verified live all 3 buttons); **(3) BUG-195** (`split-view close` orphaned the aux browser WebContentsView → ghost; the renderer close/promote handlers now call `releaseAuxTab()` unconditionally so a reload-stale ref can't skip the reconcile; verified live); **(4)** the strip-JSX strips + frontmatter-preserve (verified). **923 tests, both typecheckers clean.** v0.9.1-rev2 smoke walk: **VIEW-DIFF + WARN-HOOK both PASS.**
-- **Git:** branch `claude/sharp-hamilton-70eb87` carries `f6e1b36` (release: v0.9.0) → `915af34` (bump v0.9.1) → this session's fix commits. **Owner decides the version label + does the push/release on main** (the local `v0.9.0` tag predates the four fixes).
-- **Tracked for later:** ENH-196 (canvas change-highlight parity), ENH-198 (agent-native CriticMarkup track-changes — agents wrote `<ins>` tags instead of CriticMarkup), the FOLLOWUP-031..040 polish queue below.
-- **Dev-build note:** the worktree has no local `node_modules`; launch dev via `node /Users/geoffreydudgeon/Documents/GitHub/duo/node_modules/electron-vite/bin/electron-vite.js dev` (≡ `npm run dev`). `duo eval` targets the BROWSER pane; `duo dom --js` the renderer shell. Smoke walks run in the **split-view aux** (owner's workflow — see the updated `.claude/skills/smoke-walk/SKILL.md`).
-
-**v0.10.0 released (2026-06-08); v0.10.1-dev in-flight.** ENH-191 multi-window (P5a/P5b, PRs #73 + #78) plus ENH-204 (#79) + ENH-207 (#81) shipped in v0.10.0.
-
-**Current initiative:** v0.10.1-dev — drain the ENH-191 follow-up queue (**PR #80** P1/P3 edges, **FOLLOWUP-043**, **BUG-198**) and whatever the owner prioritizes next. **Current-sprint scope lives in [`active-sprint.md`](active-sprint.md)**; the next *feature*-sprint goal + cut target is **TBD — owner to confirm.**
-
-## Current sprint scope
-
-Lives in **[`active-sprint.md`](active-sprint.md)** — the running scratchpad owns the prioritized scope so it does not drift across two files. Open engineering work is in [`tasks.md`](../../tasks.md) (harvest with the `sprint-plan` skill). The next feature-sprint goal + cut target is TBD pending owner direction.
-
-## Critical guardrails for the next agent
-
-These are failure modes hit during recent sessions. Read before touching the codebase.
-
-### 1. macOS Optimize Storage eviction (Sprint 22 emergency, now guarded)
-
-**Trap.** If `~/Documents` is in iCloud Drive and "Optimize Mac Storage" is ON, macOS will silently evict tracked files locally under disk pressure. The file's metadata still claims a non-zero size but the bytes are gone (`dataless` BSD file flag).
-
-**Symptoms.** `git status` → "short read while indexing"; vitest → "Unexpected end of JSON input" on stub package.json files; `git rev-parse HEAD` → "ambiguous argument 'HEAD'"; `git cat-file -e` → exit 138 (SIGBUS) on partially-materialized packfile.
-
-**Guard.** `predev` / `pretest` npm hooks run `bash scripts/check-materialization.sh --quiet || true` so each `npm run dev` warns once if anything is dataless. Recovery is `npm run materialize` (force-reads files to trigger iCloud download + `git checkout HEAD --` for files iCloud can't return).
-
-**Recovery shortcuts when the guard fails:**
-- `defaults write com.apple.bird optimize-storage -bool false` + `killall bird` to stop further evictions.
-- For files iCloud can't return: `rm <file> && git checkout HEAD -- <file>` (the cloud-stub must be deleted before git can write).
-- `.git/refs/heads/main` empty? Reconstruct from `.git/logs/HEAD` reflog tail.
-- node_modules largely dataless? `rm -rf node_modules && npm install` is faster than per-file iCloud download.
-
-Full doc at [`CLAUDE.md § Build commands`](../../CLAUDE.md).
-
-### 2. Promise-cancel-on-cleanup destroys async cache hooks
-
-If you write a hook that does "async probe → merge into Map state" and the host re-renders often, do NOT set `cancelled = true` in the useEffect cleanup. The cleanup fires on every re-render → cancels the in-flight promise → setState never happens → cache stays empty forever. The setState merge is idempotent for stable probe results, so stale-closure resolutions after re-render are safe. Pattern lives in `renderer/hooks/useProjects.ts` with a comment.
-
-### 3. ENH-182 home-dir exclusion (owner directive)
-
-D2 says "marker = CLAUDE.md or .claude/". The exclusion bars ONLY `$HOME` itself + `/`; subdirs qualify normally. See `shared/projects.ts § isExcludedFromQualification` + the three `~/.claude editing scenario` tests in `core/projects-service.test.ts`.
-
-### 4. Always invoke `/smoke-walk` via the Skill tool (CLAUDE.md § 7b)
-
-Hard rule. Don't run `.claude/skills/smoke-walk/generate.mjs` directly. The skill's procedural steps (renderer reload, surface re-probe, pref reset, agent-walks-CLI-items) are not in the generator script.
-
-### 5. Renderer reload after dev restarts
-
-After any `npm run dev` kill+spawn cycle, run:
-```bash
-duo dom --js 'window.location.reload()'
-sleep 3
-until duo dom --js 'typeof window.electron?.session' 2>&1 | grep -q object; do
-  sleep 1
-done
-```
-
-### 6. Computer-use access at session start for UI work (CLAUDE.md § 7e)
-
-If the session has any meaningful UI work on the table (renderer/, TipTap, CSS, keyboard, modals, etc.), call `request_access` with `applications: ["com.github.Electron"]` (bundle id; the display name "Electron" sometimes fuzzy-matches wrong) BEFORE writing code. The app name is **the dev target Electron**, NOT "Duo" (which resolves to the packaged `.app` in /Applications).
-
-**v0.8.0 lesson learned:** pre-walking owner-judgment smoke-walk items via computer-use (real mouse/keyboard + screenshots + worksheet "Mark all Pass" + Copy results) eliminated the owner-walk-then-fix iteration cycle entirely. Standard play for v0.8.x cuts that touch UI surfaces.
-
-### 7. Verify the artifact BEFORE filing fixes from verbal symptom reports
-
-A verbal "looks broken" report can be misleading. Check the actual artifact (file on disk, JSONL entry, network response, DOM probe) and confirm the broken behavior is real before designing a fix. Memory: [feedback_verify_current_behavior_before_proposing_fix.md](.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_verify_current_behavior_before_proposing_fix.md).
-
-### 8. ENH-182 hook-point lesson (Phase 3c iteration)
-
-When designing an effect that fires on user-intent ("opening a file"), hook off the state that captures intent (`activeWorking`), not the state that captures the side effect (`tabMembership` identity change). The first iteration of Phase 3c hooked off `tabMembership` and missed reactivations of existing tabs (no fileTabs change → no membership change → no effect). Second iteration hooks off `activeWorking` and catches both new-file opens AND reactivations.
-
-**Sprint 24 corollary:** FOLLOWUP-031 (claudePresence listener hoist) needs the same care. The natural shape is "context provider at App.tsx → consume via useContext in TerminalPane." Don't introduce a new state-change-cascade pattern.
-
-### 9. DMG version drift trap (Sprint 22 v0.7.10 cut)
-
-`scripts/dist-signed.sh` reads `package.json § version` AT PACKAGING TIME, not at script start. If you bump `package.json` while a background `dist-signed.sh` is mid-run, the DMG filename + Info.plist `CFBundleShortVersionString` come out with the BUMPED version, not the cut version. Sequence:
-1. Cut commit + tag at the cut version.
-2. Build DMG (synchronous wait OR confirmed complete via `ls dist/` before bumping).
-3. THEN bump `package.json`.
-
-### 10. Spec FOLLOWUPs at filing time, not implementation time (Sprint 24 starting rule)
-
-When the audit agent surfaces a follow-up worth filing, capture the proposed fix sketch + an effort estimate IN THE TASK ENTRY (not just "there's a bug"). The Sprint 24 starting state has every FOLLOWUP-031 through 040 documented with file:line refs + fix sketches + effort estimates because that's what makes them tractable a week later. Tasks that say "the X feels slow" without instrumentation guidance become the carry-forward queue's BUG-079s — they sit unaddressed for sprints because picking them up requires re-doing the investigation. Filing-time discipline → implementation-time ease.
-
-### 11. Sprint 23 v0.8.0 pattern — background audit as cheap insurance
-
-The v0.8.0 capstone shipped 4 BUGs fixed that the smoke walk missed entirely. A background `general-purpose` agent reviewed the code in parallel with my implementation work for ~10 minutes and surfaced 13 issues (4 critical enough to fold in pre-cut; 9 deferred). Cost: one agent invocation. Benefit: caught a chained-bug in FOLLOWUP-030's design that would have shipped as user-visible disorientation. **Repeat the pattern for any sprint with non-trivial code changes** — fire the audit at smoke-walk time, while the user does owner-judgment walk; reconcile findings before cut. The Sprint 24 polish wave should still do this (even though changes are small) because the cross-effect interactions are exactly what the audit catches.
-
-## State at-a-glance
-
-- **Latest release:** **v0.10.0** (tagged 2026-06-08, signed + notarized). **Package version: v0.10.1-dev** (in-flight).
-- **Active branch:** `main` — ENH-191 multi-window merged via PRs #73 + #78; ENH-204 (#79) + ENH-207 (#81) merged.
-- **Git status:** run `git status` — verify before assuming clean.
-- **Verify versions:** `duo doctor` should read the current version `(matches)` against a current build (CLI + app both derive the version from `package.json`) and report the live **window count** ("Windows: N").
-- **Disk free:** `df -h ~`; if under ~40 GB run `npm run check:materialization` proactively (iCloud trap — see guardrail § 1).
-
-## What NOT to do
-
-- **Don't re-cut v0.10.0.** It's the latest release; the next cut target (PATCH v0.10.x vs MINOR v0.11.0) is owner-TBD.
-- **Don't bypass the materialization check.** When `predev` warns, run `npm run materialize` before continuing.
-- **Don't toggle `optimize-storage` back to `1`.** It's currently OFF — that's the protective default.
-- **Don't bump package.json during a background DMG build.** See guardrail § 9.
-- **Don't implement owner-decision-gated items without input** — see the standing-decisions table in [`active-sprint.md`](active-sprint.md).
-- **Don't skip the background audit at smoke-walk time** (per guardrail § 11). Even small sprints benefit.
-
-## Quick orientation commands
-
-```bash
-# Confirm everything is current
-git log --oneline -5
-duo doctor
-cat package.json | grep version
-ls -lh dist/Duo-*.dmg
-bash scripts/check-materialization.sh
-
-# Read sprint state
-cat docs/dev/active-sprint.md
-
-# See the latest released cut
-gh release view v0.10.0
-
-# List released DMGs (if present)
-ls dist/Duo-*.dmg
-```
-
-## Starting move
-
-Read [`active-sprint.md`](active-sprint.md) for the current initiative + scope, then [`tasks.md`](../../tasks.md) for open work. If draining the ENH-191 multi-window follow-up queue, start with **PR #80** (P1 per-request-window-target concurrency test + P3 edges), **FOLLOWUP-043** (drag onto collapsed rail), and **BUG-198** (screenshot).
-
-Welcome aboard.
+> Older initiative writeups (ENH-208 Vault, ENH-212 Home, ENH-216 OKF vault, etc.)
+> were removed from this file when they shipped — their detail lives in
+> [`session-log.md`](session-log.md) and git history. Keep this file slim: it is
+> *current state only*, refreshed whenever a feature merges or the version moves
+> (CLAUDE.md rule 13).

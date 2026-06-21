@@ -816,7 +816,7 @@ Cross-references: ENH-141 (the predecessor; established SHIM_DIR-on-PATH but lef
 
 ### Durable file version history — content-addressed store in Duo state, not slower autosave (ENH-221)
 
-**Status:** 🟢 Locked 2026-06-19 (ENH-221; engine + CLI ship this cycle, History-panel UI deferred). **Owner-approved** option (a) from the undo/save-state investigation.
+**Status:** 🟢 Locked 2026-06-19 (ENH-221; engine + CLI + History modal shipped #104 — surface = modal). **Owner-approved** option (a) from the undo/save-state investigation.
 
 **Raised:** 2026-06-19 — credible user feedback: *"it is impossible to undo changes; this compounds with the speed at which autosave occurs, making it harder to manage changes."*
 
@@ -831,7 +831,7 @@ Cross-references: ENH-141 (the predecessor; established SHIM_DIR-on-PATH but lef
 3. **Coalescing, not throttle-skip.** Consecutive `save`-sourced captures within `COALESCE_WINDOW_MS` (90s) collapse into one moving checkpoint (latest wins); no-op saves (identical hash) are dropped; agent/restore/open captures are never coalesced (always distinct timeline points). Capped at `MAX_SNAPSHOTS_PER_FILE` (200) with orphan-blob GC. This bounds the "800ms autosave explodes the timeline" failure directly.
 4. **CLI is the spec.** `duo history <list|show|restore> <path> [<id>]` over the socket. `restore` routes back through `FilesService.write` (`historySource:'restore'`) so the restore is itself captured AND an open editor reconciles via the existing watcher (clean → reload; dirty → conflict banner).
 
-**v1 scope / deferred (tracked under ENH-221).** Ships: core engine + unit tests + capture wiring + CLI + 4-surface docs. Deferred: (a) the **History-panel UI** + per-version diff — surface shape (panel vs modal vs split vs inline timeline) is an OPEN owner UX choice, NOT silently decided; (b) capturing **external / raw-`Edit` writes** (those bypass `FilesService` and arrive via the chokidar watcher — a clean follow-up that has main read content on watch-change); (c) an **on-open baseline** capture (`source:'open'`).
+**v1 scope / deferred (tracked under ENH-221).** Shipped (#104): core engine + unit tests + capture wiring + CLI + 4-surface docs + the **History modal** — timeline · rendered inline diff · restore-with-confirm (surface = **modal**, owner-chosen). Still deferred: (a) capturing **external / raw-`Edit` writes** (those bypass `FilesService` and arrive via the chokidar watcher — a clean follow-up that has main read content on watch-change); (b) an **on-open baseline** capture (`source:'open'`).
 
 **Why not the alternatives.**
 - **Persist the TipTap undo stack across tab close/restart.** Narrower (fixes "lost my undo on close" but not "show me last Tuesday"); ProseMirror history isn't cleanly serializable. Kept as a possible complement, not the primary fix.
@@ -839,6 +839,26 @@ Cross-references: ENH-141 (the predecessor; established SHIM_DIR-on-PATH but lef
 - **Sidecar `<file>.duo-history` next to the document.** Rejected — pollutes the user's tree and reintroduces the sidecar/portability problems §D9 guards against.
 
 Cross-references: `core/file-history-service.ts` (+ `.test.ts`), `electron/files-service.ts` (`write` capture hook + `historyService` field), `electron/main.ts` (instantiation/wiring), `core/socket-server.ts` (`case 'history'`), `cli/duo.ts` (`case 'history'`), CLAUDE.md locked-decision #12 / §D9 (no-sidecar litmus), BUG-046 (all-tabs-mounted, why undo survives tab switches), ENH-195 (the `useDiskReconciliation` watcher that makes `restore` echo-safe).
+
+---
+
+### Scheduled (cron) sessions + attention badge — interactive-only, in-app timer, hook-driven (ENH-223 / ENH-225)
+
+**Status:** 🟢 Locked 2026-06-21 (ENH-223 cron + ENH-225 attention badge; spec locked 2026-06-20, built + smoke-walked v0.11.2 — Tier 1+2+3 + ENH-225 ship together). **Owner-approved** via the intent round (4 AskUserQuestion framing answers, F1–F5) + the decision playground (10 cards, D1–D10).
+
+**Raised:** 2026-06-20 — the owner wanted Duo to fire saved Claude Code sessions on a schedule (a working dir + initial instruction + periodicity), without a scheduled run hijacking the foreground while the user is in flow.
+
+**Decision.** A scheduler for **interactive** Claude Code sessions, paired with a tab attention badge so background runs stay discoverable.
+
+1. **Interactive-only — no headless in v1.** A scheduled job starts a real Claude TUI session inside a Duo tab and hands control to the user; it does NOT run headless. Duo only ever performs *session start + initial instruction* (Claude's positional prompt — `claude --session-id <uuid> "<instruction>"`, or `--resume` for same-session). Headless `-p`/`--print` is gated behind `features.headlessCron` (`FEATURE_HEADLESS_CRON = false`), defaults OFF, is **not exposed in the UI**, and is belt-and-suspenders refused at spawn time by `assertInteractiveCommand` (D4).
+2. **In-app next-fire timer, NOT a system daemon.** Jobs schedule off "next occurrence" timers (not a tick loop) and fire **only while Duo is open**. While-closed misses are governed by a per-job/global catch-up preference (D5): **default skip**, opt-in "run once on next launch," with multiple missed occurrences collapsed into a single catch-up run (no tab storm after a cold launch).
+3. **Scheduler starts only after `SESSION_STATE_RESTORE_SETTLED`.** The renderer fires this signal once its restore chain settles; main gates the scheduler `start()` on the **primary** window's signal (with a timeout fallback so it always starts), so boot catch-up isn't clobbered by session-restore's wholesale `setTabs(restored)`. (This was a live-walk bug: catch-up tabs were created then wiped by restore — fixed by the gate.)
+4. **The cron store is Duo-owned state, §D9-clean.** `~/.claude/duo/cron-jobs.json` (sibling to `projects.json`/`settings.json`) holds the recipe + per-job run pointers (incl. the Duo-minted session uuid — a pointer, not a filesystem sniff). It is a Duo-owned concept the external system doesn't track; it is not a sidecar mirroring external state. Same-vs-fresh resolves by resuming the minted uuid and falling back to fresh if the JSONL is gone (D3).
+5. **Run landing = background tab, no focus steal (F1).** A run opens a background terminal tab in the resolved window; it never interrupts current work. Window resolution is by project-affinity then **identity** (lowest-id primary, never focus) (D10). The **attention badge (ENH-225)** is the discoverability pair: a Duo-managed Claude hook (`Stop`/`Notification` → set, `UserPromptSubmit` → clear) posts to the Unix socket via `duo attention`, keyed on a new **`DUO_TAB`** env stamp; the tab strip shows an amber dot — never on the active tab; clears on focus OR activity. Decoupled as a sibling so cron isn't blocked if the badge slips, and it benefits all sessions, not just cron.
+
+**Known edge — DST spring-forward gap (flagged, not a defect).** A schedule whose wall-time lands in the spring-forward gap (e.g. daily 02:30 on a US DST-forward day) is silently skipped, and D5 catch-up will NOT recover it (catch-up anchors on the same next-fire computation). The DST test pins this *current* behavior; accept-the-skip vs. special-case-the-gap is a non-blocking decision owed — see ENH-223 PRD §11(d).
+
+Cross-references: ENH-223 PRD (`docs/prd/enh-223-scheduled-sessions.md`, §3 D1–D10 + §9/§10 build + §11(d) DST), the no-sidecar invariant (CLAUDE.md locked-decision #12 / §D9, ENH-183), the multi-window identity ADR (run-landing resolves a window by identity, never focus), `core/cron-{schedule,command,store,service}.ts`, `shared/feature-flags.ts` (`FEATURE_HEADLESS_CRON`), `cli/duo.ts` (`case 'cron'` + `duo attention`).
 
 ---
 

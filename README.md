@@ -50,12 +50,20 @@ A signed macOS app that bundles:
   terminal carries a `DUO_WINDOW` stamp, so `duo --window N <verb>` drives a
   specific window (`duo windows` lists them). Gated by an "Allow Multiple
   Windows" setting (on by default).
+- **Worktree lifecycle** — create a separate working copy of a repo
+  ("worktree") straight from the navigator dropdown without typing git, and
+  the app recovers gracefully (reverts to main, no crash) if a worktree you're
+  viewing is removed. Drive it with `duo worktree new | remove`.
 - **Real Chromium browser pane** with persistent Google SSO — sign in once,
   stay signed in across relaunches. Authenticated Google Docs read/edit is
   the flagship success test for the foundation layer.
 - **Rich markdown editor** with Google-Docs-like typography, GFM + tables +
   syntax-highlighted code, autosave, find-in-document, and the standard
   Obsidian-style autocomplete (`[[`, `@`, ⌘O).
+- **File version history** — every save is captured to a durable,
+  content-addressed history. A History panel shows a timeline with an inline
+  diff and one-click restore-with-confirm, and ⌘Z undo works reliably in the
+  editor. Drive it with `duo history list | show | restore`.
 - **HTML canvas** for editing rendered HTML in-place; comment-rail
   annotations; per-file edit-mode toggle.
 - **Lesson packs** — single-canvas FTUX tutorials and multi-canvas
@@ -67,6 +75,13 @@ A signed macOS app that bundles:
   multi-selection) onto the terminal to insert its absolute path at the
   cursor, POSIX-quoted as needed and with no trailing newline, so it never
   auto-runs. Works in a shell or a running Claude prompt.
+- **Scheduled (cron) Claude sessions** — create, view, and manage scheduled
+  Claude runs from the Home screen (presets like Daily/Weekdays or a custom
+  cron expression); jobs run while Duo is open. Drive it with `duo cron list |
+  add | edit | run | pause | resume | rm | show`.
+- **"Waiting on you" tab badge** — a background Claude session that stops and
+  needs you lights an amber dot on its tab, cleared when you focus it. Check
+  it with `duo attention`.
 - **Bundled Claude Code skill + subagent** so a fresh Claude session
   launched inside a Duo terminal auto-discovers them and can drive the
   browser + editor without priming.

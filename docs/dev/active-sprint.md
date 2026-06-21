@@ -1,6 +1,26 @@
-# Active sprint state — ENH-222 worktree lifecycle BUILT + walked (renumbered from ENH-221, not cutting, 2026-06-20); ENH-208 Vault Phase 2 in flight (v0.10.0 carry-forward below)
+# Active sprint state — v0.11.2 batch MERGED to main (ENH-221/222/223/225 + #101), cut GATED on PR #102 (open+clone flow)
 
-## ENH-222 — worktree lifecycle UX (BUILT + owner-walked 2P/1S; renumbered from ENH-221; NOT cutting, updating PR)
+## Current state (2026-06-21)
+
+> **Merged to `main`, awaiting the v0.11.2 cut:** ENH-221 durable file version
+> history + ⌘Z fix + History modal (#104); ENH-222 worktree lifecycle UX, create +
+> removal-recovery (#105); ENH-223 scheduled (cron) Claude sessions, Tier 1+2+3
+> (#103); ENH-225 "waiting on you" attention badge (#103); #101 iCloud
+> sync-conflict dup detection (dev tooling).
+>
+> **Cut is GATED on PR #102** — ENH-224 unified Open + Clone flow (branch
+> `claude/duo-file-open-flow-g3rpdx`, DRAFT). Do not cut until it lands.
+>
+> **Carry-forward (do when #102 lands, held back to avoid plumbing collisions with
+> it):** `tasks.md` status flips for ENH-221/222/223 → ✅ Shipped + add a
+> first-class ENH-225 entry; CLI-doc touch-ups (CLI-COVERAGE.md "last updated" +
+> `duo history` follow-up note; `agents/duo.md` attention-hook wording; SKILL.md add
+> cron/history/worktree/attention to its verb map). Then `/smoke-walk` + cut v0.11.2.
+>
+> **Owner-flag (non-blocking):** DST spring-forward wall-times are silently skipped
+> (cron) — accept-or-special-case TBD (PRD §11d).
+
+## ENH-222 — worktree lifecycle UX (✅ MERGED (#105) — pending the v0.11.2 cut)
 
 > **Owner directive:** "keep advancing the worktree controller UI" → two enhancements:
 > (1) PM-friendly **Create a worktree** from the dropdown, (2) **graceful removal**
@@ -29,7 +49,7 @@
 > (uncommitted mockups lost + recreated from context, then committed). Lesson: commit
 > research artifacts immediately — and this incident is live evidence for enhancement (2).
 
-## ENH-221 — durable file version history (owner-approved 2026-06-19; engine + CLI landed code-only)
+## ENH-221 — durable file version history (✅ MERGED (#104) — full feature incl. History modal + ⌘Z fix; pending the v0.11.2 cut)
 
 > **Owner report:** "it is impossible to undo changes; this compounds with the speed
 > at which autosave occurs." Investigation: in-editor undo is mechanically intact (see

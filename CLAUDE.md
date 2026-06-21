@@ -123,6 +123,10 @@ is the contributor-facing map from those terms to the codebase.
 | **a window** (top-level app window — own workspace/browser/navigator/terminals) | `WindowContext`, tracked in the `WindowRegistry` |
 | **the primary window** (default CLI/app-resolution target) | lowest-id `WindowContext` (resolved by identity, never focus) |
 | **this terminal's window id** | `DUO_WINDOW` env stamp on every Duo terminal; addressable via `duo --window N` |
+| **this terminal's tab id** | `DUO_TAB` env stamp on every Duo PTY (companion to `DUO_WINDOW`); how the attention hook names its tab |
+| **a scheduled (cron) job** | `CronJob` / `CronService` (`core/cron-*.ts`); store `~/.claude/duo/cron-jobs.json`; UI `renderer/components/Home/CronSection.tsx` |
+| **the attention badge** ("waiting on you" tab dot) | a transient per-tab `needsAttention` flag; set via `duo attention` (Duo-managed Claude Stop hook), keyed on `DUO_TAB` |
+| **file version history** | `FileHistoryService` (`core/file-history-service.ts`); `HistoryModal` (`renderer/components/editor/`); `duo history` |
 
 **Modality is verb-driven (ENH-156, 2026-05-16).** The same HTML file flips
 surface by verb: `duo open <path>` → **browser mode** (`kind: 'browser'`,
@@ -264,6 +268,29 @@ path-scoped rules under `.claude/rules/` (see above).
     in-memory session state, and Duo-owned concepts the external system doesn't
     track (workspace layout, pins, install metadata). Full litmus test + the
     ENH-183 § D9 invariant: `docs/DECISIONS.md`.
+13. **Docs are deliverables — keep the ledger and PRDs honest.** Code without its
+    doc updates is not "done."
+    - **`tasks.md` is the ledger.** Every bug/enhancement gets a tracked
+      `BUG-###` / `ENH-###` entry with a Status line *before* work starts, and the
+      Status flips to **✅ Shipped** the moment its PR merges. The `cut-version`
+      auto-archive keys off the ✅ glyph — a merged-but-unflipped entry never
+      archives and rots. One feature = one first-class entry; don't bury a shipped
+      feature's status inside another entry.
+    - **A PRD is required for every major feature** — a new user-visible surface,
+      a new CLI verb family, a new WorkingPane tab type, or a new persisted store.
+      Write `docs/prd/<id>-<slug>.md` with D-numbered decisions and link it from
+      the `tasks.md` entry *before* building. (Owner *decisions* are captured in
+      an interactive HTML playground per rule 11; the PRD is the locked-scope
+      record that outlives it.)
+    - **Functional-requirement changes update the existing PRD.** If you change
+      what an existing feature *does* (not just how it's coded), update its PRD in
+      the SAME PR — append a dated "requirements changed / fixes applied" note or
+      section; never let a PRD drift from shipped behavior. (Pattern: the cron
+      PRD's § 11.)
+    - **Orientation docs track reality.** When a feature merges or the version
+      moves, refresh `docs/dev/RESUME.md` (cold-start state + version) and
+      `docs/dev/active-sprint.md` (status + carry-forward) in the same change — a
+      stale RESUME misorients every post-compaction agent.
 
 ---
 
@@ -279,6 +306,11 @@ path-scoped rules under `.claude/rules/` (see above).
 | First-launch install | Electron permission dialog before installing CLI + skill + agent (deferred; currently manual) |
 | Distribution / cert | Shipped incrementally through Stage 21 (signed+notarized DMG, auto-update, session restore, browser-history persistence, app icon, fork-friendly architecture, cohort distro packs + pack-builder skill). Per-stage history + still-open items live in `docs/roadmap.html`. |
 | Multiple windows (ENH-191) | Shipped v0.10.0. "Allow Multiple Windows" setting **default ON**; New Window (⌥⌘N) / `duo window new` opens a BLANK second window (does not clone pins). Default CLI/app resolution is by IDENTITY (lowest-id primary), **never focus** (grep-gated). Session file is a v2 envelope (`{version:2, windows:[…]}`), forward-migration lossless + `.v1.bak`; downgrade boots empty gracefully. |
+| File version history (ENH-221) | Shipped #104 (v0.11.2 batch). Content-addressed, append-only store at `~/.claude/duo/file-history/` (§D9-clean — Duo-owned log, never a sidecar), captured fire-and-forget OFF the save path (zero added latency). History modal (timeline · inline diff · restore-with-confirm); `duo history list\|show\|restore`. ADR in `docs/DECISIONS.md`. |
+| Worktree lifecycle (ENH-222) | Shipped #105 (v0.11.2 batch). Create a worktree from the navigator dropdown — slug-validated, no git typing — and graceful removal-recovery (revert to MAIN, dismissible banner, never a render crash). `duo worktree new\|remove`. |
+| Scheduled (cron) sessions (ENH-223) | Shipped #103 (v0.11.2 batch). **Interactive-only**, in-app next-fire timer (NOT a system daemon — fires only while Duo is open); headless `-p` behind a default-OFF flag; scheduler starts only after `SESSION_STATE_RESTORE_SETTLED`; store is §D9-clean. Create/manage from Home; `duo cron …`. ADR in `docs/DECISIONS.md`. |
+| Attention badge (ENH-225) | Shipped #103 (v0.11.2 batch). A Duo-managed Claude hook (Stop/Notification=set, UserPromptSubmit=clear) posts to the socket via `duo attention`, keyed on the `DUO_TAB` env stamp; amber tab dot, never on the active tab, clears on focus/activity. |
+| Managed Claude Code hooks | `install-service` writes Duo's hooks into `~/.claude/settings.json` via a `_duo`-marker merge (the PreToolUse open-file guard + the ENH-225 attention hooks). Re-surfaces on version bump. (Distinct from the still-manual first-launch CLI/skill/agent install above.) |
 
 ## Current sprint
 

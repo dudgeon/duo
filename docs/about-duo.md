@@ -49,7 +49,7 @@ You're reviewing a PRD before it goes to engineering. You select a sentence, add
 
 The editor exists for that review loop: the one you already run in Google Docs, moved onto local files, with Claude as one of the reviewers.
 
-Open any markdown file and it reads like a document, not source code. There's a toolbar, ⌘B bolds, a dash starts a bullet, tables are click-to-edit, and autosave is on. If something else changes a file you have open, Duo warns you and shows a side-by-side diff before anything is overwritten, so you never silently lose work. Underneath it's all plain text, which is why the same file moves cleanly into your team's shared project or any other tool without conversion. Comments and suggestions live inside the file too, so they travel with it.
+Open any markdown file and it reads like a document, not source code. There's a toolbar, ⌘B bolds, a dash starts a bullet, tables are click-to-edit, and autosave is on. If something else changes a file you have open, Duo warns you and shows a side-by-side diff before anything is overwritten, so you never silently lose work. Duo also keeps a running version history of every save, so you can scroll back through earlier versions and restore one if you need to — the safety net that pairs with autosave. Underneath it's all plain text, which is why the same file moves cleanly into your team's shared project or any other tool without conversion. Comments and suggestions live inside the file too, so they travel with it.
 
 When Claude edits a document you have open, the changed text glows briefly. You see what moved without re-reading the page.
 
@@ -61,7 +61,7 @@ Smaller things you'd expect are here too: paste an image and it lands in the doc
 
 Most people I show Duo to flinch at the terminal. In practice you'll rarely type commands into it; it's where you talk to Claude, and that conversation gets the biggest pane. It doesn't look like a hacker movie, either — comfortable type, roomy spacing, a light theme if you want one.
 
-Each tab is a conversation. The new-tab button starts Claude already running, in the folder your current terminal is working in, with nothing to set up. Come back the next morning, open a terminal in that folder, and your recent conversations show up as clickable pills with readable titles — so Monday picks up where Friday stopped instead of starting from a blank prompt.
+Each tab is a conversation. The new-tab button starts Claude already running, in the folder your current terminal is working in, with nothing to set up. Come back the next morning, open a terminal in that folder, and your recent conversations show up as clickable pills with readable titles — so Monday picks up where Friday stopped instead of starting from a blank prompt. You can also schedule a Claude session to run on a cadence — a daily morning review, say — and manage those from the Home screen. When a session working in the background finishes and needs you, its tab lights up, so you always know where to look.
 
 ![A fresh Stoop terminal offering to resume recent Claude conversations](images/about-duo/terminal-resume.png)
 
@@ -91,7 +91,7 @@ Playgrounds go one step further: buttons and radio groups on the page send your 
 
 The left sidebar is a file tree, and the quiet half of its job is telling Claude where to work. Ask "where did you put that report?" and the tree scrolls to the file and flashes it. Pin the files you live in so they're always one click away. Deleting always goes to the macOS Trash, so mistakes are recoverable.
 
-It also gives you just enough version-control awareness to be useful without learning git: a ribbon shows which version of the project you're on (the branch, in git-speak), changed files get a dot, and right-clicking a file offers its GitHub link when you need to share one. Getting a copy of your team's shared project onto your machine is a form in the File menu — paste a link, pick a folder.
+It also gives you just enough version-control awareness to be useful without learning git: a ribbon shows which version of the project you're on (the branch, in git-speak), changed files get a dot, and right-clicking a file offers its GitHub link when you need to share one. Getting a copy of your team's shared project onto your machine is a form in the File menu — paste a link, pick a folder. And when you want to try something risky without disturbing your main copy, you can spin up a separate working copy of the project (a "worktree") right from the navigator, no git commands needed.
 
 ![The Stoop project in the navigator — the project's Claude context up top, folders expanded, pinned files kept handy below](images/about-duo/navigator-stoop.png)
 
