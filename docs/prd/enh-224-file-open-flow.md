@@ -1,6 +1,6 @@
 # ENH-224 PRD — Unified Open & GitHub round-trip ("open a remote doc like it's local; Save → PR")
 
-**Status:** Draft for owner sign-off · 2026-06-19 (UI decisions + Open Recent walked 2026-06-20) · **Build started 2026-06-20** (Phase-0 verifiable core landed — see § 6a) · **Owner:** Geoff · **Tracker:** `tasks.md` § ENH-224 · **Decisions captured via:** two AskUserQuestion rounds (2026-06-19) + the OQ-1 UI-study walk + the merged-UI walk (2026-06-20), folded into § 3. · **Preview:** (renders as source on GitHub — read the markdown.)
+**Status:** **Phase 0 (the merged ⌘O Open bar) code-complete — owes a live smoke-walk** (2026-06-21). · **Owner:** Geoff · **Tracker:** `tasks.md` § ENH-224 · **PR:** [#102](https://github.com/dudgeon/duo/pull/102) (rebased on `main`, MERGEABLE). · **Renumbered ENH-221 → ENH-224 (2026-06-21)** to avoid a collision with the *other* agent's ENH-221 (durable file version history) that landed on `main` first; see § 6b. · **Decisions captured via:** two AskUserQuestion rounds (2026-06-19) + the OQ-1 UI-study walk + the merged-UI walk (2026-06-20) + an owner chord/scope walk (2026-06-21, D18/D19), folded into § 3. · **Shipping constraint (owner, 2026-06-21):** *"we will not ship until the full plan is built"* — Phase-0 interim states (e.g. the D19 "Soon" tile) are scaffolding, not a shippable surface. · **Preview:** (renders as source on GitHub — read the markdown.)
 
 ---
 
@@ -213,22 +213,39 @@ share-back internals prove useful standalone — decide during build, keep the
 
 ## 6 · Phased build (each phase independently shippable)
 
-**Phase 0 — The Open bar.** ⌘O / File ▸ Open… UI + the unified resolver (P1)
-for the **already-working** cases only: local path (focus folder + open) and
-non-GitHub URL (browser pane). No GitHub fetch yet. Includes **Open Recent**
-(D14 / P1b). Delivers the "familiar, friendly Open dialog" feel immediately.
-*Acceptance:* ⌘O opens the bar; local path + http(s) URL both resolve correctly;
-Open Recent lists the last ~10 targets, reopens them, and persists across
-restart (missing targets self-heal); `duo open` unchanged for these; `duo recent`
-added with 4-surface sync; smoke-walked; `what-duo-does.html` entry.
+**Phase 0 — The merged Open bar. ✅ code-complete (owes a live smoke-walk).**
+The ⌘O surface SUBSUMES the vault quick-switcher (D18): one progressive overlay
+that fuzzy-finds vault files (the old ⌘O behavior, preserved), OR resolves a
+pasted path / URL via the unified resolver (P1), OR picks a file/folder via a
+native **Browse…** dialog (D17), OR reopens from **Open Recent** (D14 / P1b).
+Routing landed for every resolver branch: local file → viewer, folder →
+navigator root, non-GitHub URL → browser pane, **github-repo → prefilled clone**,
+**github-file → file-vs-repo choice (D19)** — "clone the whole repo, then open
+this file" is LIVE (clone + local open + the D16 "Open `<file>`" success hero),
+"just this doc" is the disabled **"Soon"** tile (its sparse round-trip is
+DR-blocked, see Phase 1). File ▸ Open… (⌘O, display-only accel) + File ▸ Open
+Recent menu added; `duo recent [--json]` + record-on-open (shared store) with
+4-surface sync.
+*Acceptance (met except the live walk):* ⌘O opens the merged bar; a bare token
+fuzzy-finds; local path + http(s) URL + GitHub repo/file all route correctly;
+Open Recent lists the last ~10 targets (local + GitHub), reopens them, persists
+across restart, self-heals missing ones; `duo recent` added with 4-surface sync;
+`what-duo-does.html` entry **(owed)**; **smoke-walked (owed — deferred, dev
+Electron busy)**. Verified: typecheck clean · 1676 tests (resolver +
+`deriveRecentEntry`, recents store, socket `recent`/record-on-open, the
+search-vs-path heuristic) · currency 75/75.
 
-**Phase 1 — GitHub URL → open-as-local (read/edit, no PR).** P2 + P3 + P4:
-recognize a GitHub file URL, shallow-checkout into the managed home, open the
-`.md` in the editor, focus the checkout folder. Saving writes locally. No
-share-back yet.
-*Acceptance:* a `github.com/.../blob/.../*.md` URL opens like a local file;
-relative assets resolve; checkout is opaque (under `~/.claude/duo/checkouts/`);
-4-surface sync for the extended `duo open`; smoke-walked.
+**Phase 1 — GitHub *file* URL → open-as-local *without cloning the whole repo*
+(read/edit, no PR). ⛔ blocked (DR1–DR6).** The "clone the whole repo and open
+the file" path already shipped in Phase 0 (D19). What remains here is the
+*opaque managed **sparse** checkout* — P2 + P3 + P4: recognize a GitHub file URL,
+shallow/sparse-checkout just the doc + its assets into the managed home, open
+the `.md`, focus the checkout folder, write locally. This is the "just this doc"
+choice that's currently the disabled "Soon" tile. Gated on the DR1–DR6 walk
+(checkout-home / reuse / refactor decisions — see § 7 OQ-7).
+*Acceptance:* a `github.com/.../blob/.../*.md` URL's "just this doc" action opens
+like a local file from `~/.claude/duo/checkouts/`; relative assets resolve;
+checkout is opaque; 4-surface sync for the extended `duo open`; smoke-walked.
 
 **Phase 2 — Share-back (the core).** P5 + P6 + P7: divergence → "Submit PR"
 affordance → prefilled confirm sheet → branch/commit/push/PR with **auto-fork**
@@ -253,26 +270,65 @@ hatch works; smoke-walked.
 
 ---
 
-## 6a · Build status (live — updated 2026-06-20)
+## 6a · Build status (live — updated 2026-06-21)
 
-Built incrementally on `claude/duo-file-open-flow-g3rpdx`. Because the build
-runs in a **remote cloud session that can't launch the Electron GUI**, the
-split below is deliberate: pure/logic modules are **unit-tested + type-clean**;
-UI changes are **type-clean only** and owe a smoke-walk on the owner's machine.
+Built on `claude/duo-file-open-flow-g3rpdx` (PR [#102](https://github.com/dudgeon/duo/pull/102),
+rebased onto `main`). The Phase-0 *core* (resolver + recents store + the D16
+clone-success redesign) landed first in a remote cloud session that couldn't
+launch the Electron GUI; the **merged ⌘O Open bar** then landed on the owner's
+machine (2026-06-21). Live verification is still owed: a **concurrent agent owns
+the dev Electron**, so the UI is type-clean + unit/integration-tested but not yet
+smoke-walked. (Build-passing + type-clean is NOT "done" for UI — `CLAUDE.md` § 7.)
 
 | Piece | Decision | State | Verification |
 | --- | --- | --- | --- |
-| `core/open-resolve.ts` — the resolver (classify local-path / github-file / github-repo / url) | D1, D5/DR6 | ✅ landed | 26 unit tests pass |
-| `core/open-recents-service.ts` — Open Recent store (`~/.claude/duo/open-recents.json`, pointers, self-healing, cap 10) | D14 | ✅ landed | 10 unit tests pass |
-| `CloneModal` success-screen redesign — clean message + Done hero, "Clone another" demoted to a link | D16 | ✅ landed (code) | type-clean; **owes smoke-walk** (cloud session) |
-| Open bar surface (⌘O merged palette) + Browse… picker + Open Recent UI + record-on-open wiring | D15, D17, D14, **D18, D19** | ✅ code-complete; **owes live smoke-walk** | typecheck clean · 1646 tests green (incl. socket `recent`/record-on-open + the search-vs-path heuristic + `deriveRecentEntry`) · `duo recent` 4-surface synced. Live DOM-probe + smoke-walk deferred — a concurrent agent owns the dev Electron. |
-| GitHub round-trip (file-vs-repo fork, sparse checkout, share-back/PR, auto-fork) + clone convergence | DR1–DR6, D2–D9 | ⛔ blocked | DR1–DR6 unwalked |
+| `core/open-resolve.ts` — resolver (local-path / github-file / github-repo / url) + pure `deriveRecentEntry` | D1, D5/DR6, D14 | ✅ landed | **31 unit tests** |
+| `core/open-recents-service.ts` — Open Recent store (`~/.claude/duo/open-recents.json`, pointers, self-healing, cap 10) | D14 | ✅ landed | **10 unit tests** |
+| `CloneModal` — D16 success redesign (clean line + Done hero, "Clone another" demoted) **+ prefill URL + `openAfter` "Open `<file>`" hero** | D16, D15 | ✅ landed (code) | type-clean · **owes smoke-walk** |
+| **Merged ⌘O Open bar** (`OpenBar.tsx`, subsumes VaultQuickSwitcher) + Browse… picker + Open Recent UI + File menu + record-on-open + `duo recent` | D14, D15, D17, **D18, D19** | ✅ code-complete · **owes live smoke-walk** | typecheck clean · **1676 tests** (incl. socket `recent`/record-on-open integration + the search-vs-path heuristic) · currency **75/75** · CLI help verified. DOM-probe + `/smoke-walk` deferred (dev Electron busy). |
+| GitHub **file** "just this doc" sparse checkout + the share-back round-trip (divergence → Propose changes → branch/commit/push/PR, auto-fork) | DR1–DR6, D2–D9 | ⛔ blocked | DR1–DR6 unwalked. *Note:* the github-file **"clone the whole repo, then open the file"** path is NOT blocked — it shipped in Phase 0 (D19). Only the *sparse* "just this doc" path + share-back remain. |
 
-**Sequencing note.** D16 ships against today's standalone `CloneModal` so the
-owner-requested success fix lands immediately; the *full-inline merge* (D15)
-folds that modal into the Open surface later. The resolver + recents store are
-the foundation the Open bar consumes — landed + tested ahead of the UI so the
-surface build is lower-risk.
+**Sequencing note.** D16 landed against the standalone `CloneModal` so the
+owner-requested success fix shipped immediately; the Open bar now *routes* a
+GitHub repo/file into that (prefilled) modal (D15 "phased" depth — routing, not
+the full-inline port). The resolver + recents store are the foundation the Open
+bar consumes — landed + tested ahead of the UI so the surface build was
+lower-risk.
+
+## 6b · Plan deltas / change log
+
+Newest first. Captures decisions + scope changes that diverge from the original
+spec so the history is legible.
+
+- **2026-06-21 — Renumbered ENH-221 → ENH-224.** The *other* agent's ENH-221
+  (durable file version history, `claude/enh-221-file-history`) merged to `main`
+  first (#104), so per the multi-agent ticket-collision rule this (unmerged) work
+  took the next free id. Mechanical rename across code/tests/docs + the PRD
+  filename (`enh-221-file-open-flow.md` → `enh-224-…`); git history keeps the
+  prior `ENH-221` commit messages. PR #102 + this branch rebased onto `main`
+  (only conflict: a one-line import block in `electron/main.ts`); MERGEABLE.
+- **2026-06-21 — D18 (⌘O = ONE merged surface).** ⌘O was already the vault
+  quick-switcher. Rather than relocate it to a second chord, the owner chose to
+  make ⌘O a single "open anything" surface that *subsumes* the switcher
+  (fuzzy-find + paste/Browse/recents). `VaultQuickSwitcher.tsx` retired; the File
+  ▸ Open… menu accel is display-only (`registerAccelerator:false`) so the
+  renderer's existing global ⌘O stays the canonical handler.
+- **2026-06-21 — D19 + Phase-1 scope refinement (github-file).** A GitHub *file*
+  URL shows the file-vs-repo choice. Insight: **"clone the whole repo, then open
+  the file" is fully buildable today** (clone + local open) — only the *sparse
+  "just this doc"* round-trip is DR-blocked. So Phase 0 shipped the clone-and-open
+  path (live) with "just this doc" as a disabled **"Soon"** tile, and Phase 1 was
+  re-scoped to *just* the sparse-checkout path (§ 6). The mock's full-inline merge
+  (D15/DM1) stays **phased** for this increment — the Open bar *routes* into the
+  existing prefilled `CloneModal` rather than porting clone inline.
+- **2026-06-21 — Shipping constraint.** Owner: *"we will not ship until the full
+  plan is built."* Phase-0 interim states (the "Soon" tile, the modal hand-off)
+  are scaffolding, not a shippable surface — so they don't need to be
+  ship-quality in isolation; they need to be correct groundwork for the blocked
+  phases. Recorded so a future "propose a cut" moment doesn't fire prematurely on
+  the Open bar alone.
+- **2026-06-20 — D14–D17 + the Phase-0 core** (resolver, recents store, D16
+  success redesign) landed in the cloud session; see § 6a.
 
 ## 7 · Open questions (build-time / owner)
 
