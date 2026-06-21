@@ -36,9 +36,9 @@
 >   `nav.edit` + `nav.reveal` + records the recent; auth-missing bounces to
 >   `gh auth login`; bare-repo URL still → browser pane. `cli/duo.ts
 >   resolveOpenTarget` https-prefixes a scheme-less github host. +4 socket tests ·
->   5-surface doc sync. *Live-verify owed* (a real `duo open <github-url>` — Electron).
-> - **Phase 2 — share-back CORE PLUMBING 🚧 BUILT + tested (2026-06-21):** the
->   owner-scoped no-Electron slice. Net-new git-WRITE core under `core/git/`:
+>   5-surface doc sync. ✅ **live-verified** (`duo open` Spoon-Knife/README).
+> - **Phase 2 — share-back CORE PLUMBING ✅ BUILT + LIVE-VERIFIED (2026-06-21):**
+>   net-new git-WRITE core under `core/git/`:
 >   `divergence.ts` (P5), `proposal-meta.ts` (D7 prefill), `branch/commit/push.ts`,
 >   `fork.ts` (D3 auto-fork), `pr.ts`, `failure-sniff.ts`, `share-back.ts`
 >   (`runShareBack` orchestrator). Plus `duo pr create|status|view` (socket
@@ -52,13 +52,17 @@
 >   files. New IPC SHARE_BACK_STATUS/DIFF/CREATE (preload `window.electron.pr` +
 >   main handlers) → the same `core/git/share-back` engine. probeDiff returns the
 >   D7 proposalMeta for the sheet prefill. typecheck clean · prod bundle compiles
->   · 1741 tests. **NOT visually/behaviorally verified.**
+>   · 1744 tests. ✅ **LIVE-VERIFIED (2026-06-21):** footer appears on
+>   divergence → confirm sheet (heading title + `duo/…-d0dd1f6` branch + real
+>   diff) → `duo pr create` → **auto-fork + cross-fork PR #40238** (D3) → footer
+>   morphs to "Proposed · View PR" (D13). Bug found+fixed live: `16a23b7`
+>   (status-gate — a fresh checkout no longer shows a stranger's head:main PR).
 >
-> **OWED / NEXT (both need Electron — owner is gating it):**
-> - **Live-verify Phase 2 end-to-end:** a real `duo pr create` against a test
->   repo (gh + a checkout) AND a footer smoke-walk (open a github doc → edit →
->   save → bar appears → confirm sheet → real PR → "Proposed · View PR" morph).
->   This is the ONLY remaining Phase-2 work — all code is built.
+> **OWED / NEXT:**
+> - **The whole ENH-224 driving use case (Phases 0–2) is now BUILT + LIVE-VERIFIED.**
+>   Remaining = LATER phases (3 already-local detection D6, 4 format breadth) +
+>   the deferred-polish list below. Test PR #40238 + the fork `dudgeon/Spoon-Knife`
+>   are leftover verification artifacts (close/delete if unwanted).
 > - **Deferred:** sparse-folder checkout (DR6 optimization) · full-inline modal
 >   merge (D15/DM1) · NewVaultModal geometry audit · **UI/CLI symmetry follow-up**:
 >   `duo open <github-url>` now opens just-this-doc via the checkout, but the UI
@@ -68,18 +72,20 @@
 >   (UI change → needs Electron). Documented as a rule-#4 asymmetry in PRD § 6.
 >
 > **VERIFICATION + ENV NOTES:**
-> - **Computer-use Electron access is REVOKED — ASK the owner before using it**
->   (or before launching/killing `npm run dev`; other agents share the app-global
->   socket). Dev verification otherwise via `duo dom`/`duo eval`/`duo recent`.
+> - **Electron: owner-granted (2026-06-21); a dev IS running from THIS worktree**
+>   (launched `npm run dev` after confirming no other instance — socket up,
+>   version matches). Verified the features via `duo dom`/`duo eval` DOM probes +
+>   the worktree `./cli/duo` (the on-PATH `duo` symlinks here). If access is
+>   later revoked, ASK before re-launching; other agents share the app-global socket.
 > - **Dev restart = CLEAN-QUIT first:** `osascript -e 'tell application "Electron" to quit'`
 >   (runs `before-quit` → disposes chokidar watchers → no fsevents SIGABRT), THEN
 >   `pkill -f 'electron-vite dev'` + relaunch. SIGTERM-ing the app direct causes a
 >   benign `fse_instance_destroy` crash report (memory
 >   `feedback_pkill_dev_triggers_benign_fsevents_sigabrt`).
-> - Latest: Phase-2 UI footer affordance (`ProposeBar.tsx` + SHARE_BACK_* IPC +
->   main handlers + MarkdownEditor mount) · typecheck clean · prod bundle compiles
->   · **1741 tests** · currency 76/76. Prior: `65cc392` (Phase-2 core plumbing) ·
->   `4419c5e` (Phase-1 CLI twin) · `49635ee` · `7370416` · `738ae7f`.
+> - Latest: `16a23b7` (live-found status-gate fix) after the full Phase 1–2
+>   live walk · typecheck clean · **1744 tests** · currency 76/76. Prior:
+>   `e1e33b0` (Phase-2 UI footer) · `65cc392` (Phase-2 core plumbing) · `4419c5e`
+>   (Phase-1 CLI twin) · `49635ee` · `7370416` · `738ae7f`.
 > - Leftover state: a real test checkout at `~/.claude/duo/checkouts/octocat-Spoon-Knife@main/`;
 >   iCloud `* 2.*` sync-conflict dupes moved to `/tmp/icloud-dupes-backup-d76de1e/`
 >   (await owner OK to delete — `rm` of untracked files is auto-denied).

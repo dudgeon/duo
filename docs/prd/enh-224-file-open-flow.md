@@ -1,6 +1,6 @@
 # ENH-224 PRD — Unified Open & GitHub round-trip ("open a remote doc like it's local; Save → PR")
 
-**Status:** **Phase 0 (the merged ⌘O Open bar) code-complete — owes a live smoke-walk** (2026-06-21). · **Owner:** Geoff · **Tracker:** `tasks.md` § ENH-224 · **PR:** [#102](https://github.com/dudgeon/duo/pull/102) (rebased on `main`, MERGEABLE). · **Renumbered ENH-221 → ENH-224 (2026-06-21)** to avoid a collision with the *other* agent's ENH-221 (durable file version history) that landed on `main` first; see § 6b. · **Decisions captured via:** two AskUserQuestion rounds (2026-06-19) + the OQ-1 UI-study walk + the merged-UI walk (2026-06-20) + an owner chord/scope walk (2026-06-21, D18/D19), folded into § 3. · **Shipping constraint (owner, 2026-06-21):** *"we will not ship until the full plan is built"* — Phase-0 interim states (e.g. the D19 "Soon" tile) are scaffolding, not a shippable surface. · **Preview:** (renders as source on GitHub — read the markdown.)
+**Status:** **Phases 0–2 (the full driving use case: open a remote doc → edit → Propose changes PR) BUILT + LIVE-VERIFIED end-to-end** (2026-06-21) — walked against octocat/Spoon-Knife → real auto-fork cross-fork PR [#40238](https://github.com/octocat/Spoon-Knife/pull/40238). Phases 3–4 (already-local detection, format breadth) remain. · **Owner:** Geoff · **Tracker:** `tasks.md` § ENH-224 · **PR:** [#102](https://github.com/dudgeon/duo/pull/102) (rebased on `main`, MERGEABLE). · **Renumbered ENH-221 → ENH-224 (2026-06-21)** to avoid a collision with the *other* agent's ENH-221 (durable file version history) that landed on `main` first; see § 6b. · **Decisions captured via:** two AskUserQuestion rounds (2026-06-19) + the OQ-1 UI-study walk + the merged-UI walk (2026-06-20) + an owner chord/scope walk (2026-06-21, D18/D19), folded into § 3. · **Shipping constraint (owner, 2026-06-21):** *"we will not ship until the full plan is built"* — Phase-0 interim states (e.g. the D19 "Soon" tile) are scaffolding, not a shippable surface. · **Preview:** (renders as source on GitHub — read the markdown.)
 
 ---
 
@@ -345,9 +345,9 @@ for UI — `CLAUDE.md` § 7.)
 | `CloneModal` — D16 success redesign (clean line + Done hero, "Clone another" demoted) **+ prefill URL + `openAfter` "Open `<file>`" hero** | D16, D15 | ✅ landed (code) | type-clean · **owes smoke-walk** |
 | **Merged ⌘O Open bar** (`OpenBar.tsx`, subsumes VaultQuickSwitcher) + Browse… picker + Open Recent UI + File menu + record-on-open + `duo recent` | D14, D15, D17, **D18, D19** | ✅ code-complete · **agent-walked live 2026-06-21** · 3 follow-ups (§ 6c) | typecheck clean · **1676 tests** (incl. socket `recent`/record-on-open integration + the search-vs-path heuristic) · currency **75/75**. **Live (computer-use):** every core flow passed (see § 6a header); record-on-open round-trips UI↔`duo recent`↔disk; dev log clean. Owner formal smoke-walk still recommended. |
 | **Phase 1 — "open just this doc"** (managed checkout `core/open-checkout.ts` + `OPEN_GITHUB_FILE` IPC + the live OpenBar tile w/ progress) | DR6, D5 | ✅ UI done · **live-verified** | typecheck clean · tests (managedCheckoutDir / isLikelySha / cloneExtraArgs). **Live:** Spoon-Knife/README.md → depth-1 checkout (1 commit) → opened + folder focused + recent recorded; dev log clean. |
-| **Phase 1 CLI twin** — `duo open <github-file-url>` → same managed checkout (socket `open` branch + `NavBridge.runManagedCheckout` + bare-host CLI resolve) | DR6, D5, **rule #4** | ✅ code-complete + tested 2026-06-21 · **live-verify owed** (Electron) | typecheck clean · **1696 tests** (+4 socket: routing · auth-missing bounce · bare-repo fallthrough · optional-dep fallthrough) · currency 75/75 · 5-surface doc sync. Shares the checkout engine with the UI IPC. **Owed:** a real `duo open <github-url>` against the running app. |
-| **Phase 2 — share-back CORE plumbing** (`core/git/{divergence,proposal-meta,branch,commit,push,fork,pr,share-back}.ts` + `duo pr create\|status\|view` + socket `case 'pr'`) | D2, D3, D7–D13, OQ-3, §12 | 🚧 built + unit-tested 2026-06-21 · **CLI live-verify owed** (gh + a checkout) | typecheck clean · **1738 tests** (+38 pure: arg-builders, parsers, D7 prefill, the D4 `isManagedCheckout` guard) · currency 76/76 · 5-surface doc sync. `runShareBack` orchestrates context→divergence→branch→commit→push-access→**auto-fork (D3)**→push→create-or-update PR (D13), all live via gh/git (§12). The spawning `run*` paths verified live (owed). |
-| **Phase 2 — share-back UI affordance** (`renderer/components/ProposeBar.tsx` — footer bar + confirm sheet + morph-in-place) | D10–D13 | 🚧 BUILT (blind — no Electron) · **live-verify owed** | `ProposeBar` mounts at the bottom of the markdown editor; polls `window.electron.pr.status` on save (D2 signal) — INERT for ordinary files, appears only on a diverged managed checkout. Click → confirm sheet (D7/D12: title/branch/body + fork-note + inline diff via `pr.diff`) → `pr.create` → morphs to "Proposed · View PR" (D13). New IPC SHARE_BACK_STATUS/DIFF/CREATE → `core/git/share-back` (one engine, shared with `duo pr`). typecheck clean · prod bundle compiles · git-subprocess fast-reject for non-checkout paths. **NOT visually/behaviorally verified — owes an Electron smoke-walk.** |
+| **Phase 1 CLI twin** — `duo open <github-file-url>` → same managed checkout (socket `open` branch + `NavBridge.runManagedCheckout` + bare-host CLI resolve) | DR6, D5, **rule #4** | ✅ DONE + **live-verified 2026-06-21** | typecheck clean · **1696 tests** (+4 socket: routing · auth-missing bounce · bare-repo fallthrough · optional-dep fallthrough) · currency 75/75 · 5-surface doc sync. Shares the checkout engine with the UI IPC. **Live:** `duo open` Spoon-Knife/README → checkout reused, README opened as the active editor tab, navigator cwd = the checkout folder, recent under the canonical URL. |
+| **Phase 2 — share-back CORE plumbing** (`core/git/{divergence,proposal-meta,branch,commit,push,fork,pr,share-back}.ts` + `duo pr create\|status\|view` + socket `case 'pr'`) | D2, D3, D7–D13, OQ-3, §12 | ✅ built + **live-verified 2026-06-21** | typecheck clean · **1744 tests** (pure: arg-builders, parsers, D7 prefill, the D4 + `isShareBackBranch` guards) · currency 76/76 · 5-surface doc sync. `runShareBack` orchestrates context→divergence→branch→commit→push-access→**auto-fork (D3)**→push→create-or-update PR (D13), all live via gh/git (§12). **Live:** `duo pr create` Spoon-Knife → auto-fork + cross-fork PR [#40238](https://github.com/octocat/Spoon-Knife/pull/40238); `pr status`/`view` find it (status-gate fix `16a23b7`). |
+| **Phase 2 — share-back UI affordance** (`renderer/components/ProposeBar.tsx` — footer bar + confirm sheet + morph-in-place) | D10–D13 | ✅ BUILT + **live-verified 2026-06-21** | `ProposeBar` mounts at the bottom of the markdown editor; polls `window.electron.pr.status` on save (D2 signal) — INERT for ordinary files, appears only on a diverged managed checkout. Click → confirm sheet (D7/D12: title/branch/body + fork-note + inline diff via `pr.diff`) → `pr.create` → morphs to "Proposed · View PR" (D13). New IPC SHARE_BACK_STATUS/DIFF/CREATE → `core/git/share-back` (one engine, shared with `duo pr`). typecheck clean · prod bundle compiles · git-subprocess fast-reject for non-checkout paths. **Live-walked (DOM-probed):** footer appears on divergence ("differs from octocat/Spoon-Knife") → confirm sheet (heading title + `duo/…-d0dd1f6` branch + real diff) → morphs to "Proposed · View PR ↗" after PR #40238. |
 
 **Sequencing note.** D16 landed against the standalone `CloneModal` so the
 owner-requested success fix shipped immediately; the Open bar now *routes* a
@@ -361,6 +361,28 @@ lower-risk.
 Newest first. Captures decisions + scope changes that diverge from the original
 spec so the history is legible.
 
+- **2026-06-21 — Phases 1–2 LIVE-VERIFIED end-to-end (owner granted Electron).**
+  Walked the full driving use case against `octocat/Spoon-Knife` on this
+  worktree's dev build: (1) `duo open <github-file>` → checkout reused, README
+  opened as the active editor tab, navigator cwd = the checkout folder, recent
+  recorded under the canonical URL; (2) edited + saved → the **"Propose changes"
+  footer appeared** (inert before the edit) reading "This doc differs from
+  octocat/Spoon-Knife"; (3) the **confirm sheet** rendered with the title
+  prefilled from the doc's heading, branch `duo/well-hello-there-…-d0dd1f6`, the
+  fork-note, and the **real inline diff**; (4) `duo pr create` →
+  **auto-fork + cross-fork PR** (D3) → real PR
+  [#40238](https://github.com/octocat/Spoon-Knife/pull/40238) (`forked:true`,
+  `pushedTo:dudgeon`, head `dudgeon:duo/…` → base `main`, author dudgeon —
+  confirmed via `gh`); (5) the footer **morphed** to "Proposed · View PR ↗"
+  (D13). **Bug found + fixed live (`16a23b7`):** on a fresh checkout
+  `duo pr status` reported a *stranger's* `head:main` PR (#40234, LaxmanVLomate) —
+  `gh pr list --head main` matches any fork's PR in a popular repo, and
+  `probeShareBackStatus` queried with no owner; fix gates the PR-match to
+  `duo/…` share-back branches (`isShareBackBranch`, +3 tests). The static review
+  missed it; only live testing surfaced it. *v1 note:* the footer re-polls on
+  save / tab-activation — a CLI-side `duo pr create` doesn't push the morph to an
+  already-open editor until the next re-poll (the in-UI sheet-submit morphs
+  immediately; acceptable surface split).
 - **2026-06-21 — Phase 2 core share-back plumbing built (owner-scoped, no
   Electron).** Owner picked "start Phase 2, core git-write plumbing first". Built
   the net-new git-WRITE core under `core/git/`: `divergence.ts` (P5 —
