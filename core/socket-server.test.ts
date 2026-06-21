@@ -286,3 +286,66 @@ describe('SocketServer — ENH-212 Home CLI routing', () => {
     expect(res.error).toMatch(/requires <uuid>/)
   })
 })
+
+// ENH-221 D14 — `duo recent` routing + record-on-open. Pins the socket-side
+// contract the UI Open bar can't reach: `recent` lists via the NavBridge, and
+// a SUCCESSFUL `open` records a derived pointer (a failed open does NOT). Same
+// pure-node dispatch harness. Guards the "IPC handler gap is invisible to
+// typecheck" class — a missing case here compiles but throws at runtime.
+describe('SocketServer — ENH-221 Open Recent (recent + record-on-open)', () => {
+  it('`duo recent` returns the list from listOpenRecents', async () => {
+    const d = stubDeps()
+    const entries = [{ target: '~/x.md', label: 'x.md', kind: 'local', lastOpenedAt: 123 }]
+    const listOpenRecents = vi.fn(async () => entries)
+    const nav = { listOpenRecents } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'recent')
+    expect(res.ok).toBe(true)
+    expect(res.result).toEqual(entries)
+    expect(listOpenRecents).toHaveBeenCalledTimes(1)
+  })
+
+  it('`duo recent` returns [] when the NavBridge lacks listOpenRecents (optional dep)', async () => {
+    const d = stubDeps()
+    const nav = {} as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'recent')
+    expect(res.ok).toBe(true)
+    expect(res.result).toEqual([])
+  })
+
+  it('a successful web-URL `open` records the derived pointer (origin preferred)', async () => {
+    const d = stubDeps()
+    const recordOpenRecent = vi.fn(async () => {})
+    const nav = { recordOpenRecent, revealMainPaneIfCollapsed: vi.fn() } as never
+    const openTab = vi.fn(async () => ({ ok: true, id: 1, url: 'https://example.com/page' }))
+    const fakeBrowser = { openTab } as never
+    const server = new SocketServer(THROW_CDP, () => fakeBrowser, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'open', {
+      url: 'https://example.com/page',
+      origin: 'https://example.com/page',
+    })
+    expect(res.ok).toBe(true)
+    expect(recordOpenRecent).toHaveBeenCalledWith({
+      target: 'https://example.com/page',
+      label: 'example.com',
+      kind: 'url',
+    })
+  })
+
+  it('a FAILED open (missing file://) does NOT record a recent', async () => {
+    const d = stubDeps()
+    const recordOpenRecent = vi.fn(async () => {})
+    const nav = { recordOpenRecent } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    // A file:// URL for a path that does not exist → the command's inner
+    // result is {ok:false} (the envelope's own `ok` is transport-level) and
+    // the handler breaks BEFORE the record block.
+    const res = await dispatch(server, 'open', {
+      url: 'file:///tmp/enh221-does-not-exist-xyz.md',
+      origin: '/tmp/enh221-does-not-exist-xyz.md',
+    })
+    expect((res.result as { ok?: boolean })?.ok).toBe(false)
+    expect(recordOpenRecent).not.toHaveBeenCalled()
+  })
+})

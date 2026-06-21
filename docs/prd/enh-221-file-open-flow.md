@@ -265,7 +265,7 @@ UI changes are **type-clean only** and owe a smoke-walk on the owner's machine.
 | `core/open-resolve.ts` — the resolver (classify local-path / github-file / github-repo / url) | D1, D5/DR6 | ✅ landed | 26 unit tests pass |
 | `core/open-recents-service.ts` — Open Recent store (`~/.claude/duo/open-recents.json`, pointers, self-healing, cap 10) | D14 | ✅ landed | 10 unit tests pass |
 | `CloneModal` success-screen redesign — clean message + Done hero, "Clone another" demoted to a link | D16 | ✅ landed (code) | type-clean; **owes smoke-walk** (cloud session) |
-| Open bar surface (⌘O merged palette) + Browse… picker + Open Recent UI + record-on-open wiring | D15, D17, D14, **D18, D19** | 🔨 in progress (this increment) | building on the owner's machine; owes smoke-walk |
+| Open bar surface (⌘O merged palette) + Browse… picker + Open Recent UI + record-on-open wiring | D15, D17, D14, **D18, D19** | ✅ code-complete; **owes live smoke-walk** | typecheck clean · 1646 tests green (incl. socket `recent`/record-on-open + the search-vs-path heuristic + `deriveRecentEntry`) · `duo recent` 4-surface synced. Live DOM-probe + smoke-walk deferred — a concurrent agent owns the dev Electron. |
 | GitHub round-trip (file-vs-repo fork, sparse checkout, share-back/PR, auto-fork) + clone convergence | DR1–DR6, D2–D9 | ⛔ blocked | DR1–DR6 unwalked |
 
 **Sequencing note.** D16 ships against today's standalone `CloneModal` so the

@@ -2100,7 +2100,7 @@ export function App() {
   // by the Open bar AND the File ▸ Open Recent menu (NAV_OPEN_BAR_REOPEN).
   const openResolvedTarget = useCallback(async (rawTarget: string) => {
     const recordRecent = (target: string) => {
-      void window.electron.recents.record(deriveRecentEntry(target)).catch(() => {})
+      void window.electron.recents?.record?.(deriveRecentEntry(target))?.catch(() => {})
     }
     const t = resolveOpenTarget(rawTarget)
     if (t.kind === 'local-path') {

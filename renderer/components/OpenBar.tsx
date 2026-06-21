@@ -22,8 +22,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { rankVaultFiles } from './editor/vaultIndex'
 import type { VaultFile } from './editor/wikilinkResolver'
-import { resolveOpenTarget } from '../../core/open-resolve'
-import type { OpenTarget } from '../../core/open-resolve'
+import { classifyInput } from './openBarClassify'
 import type { RecentEntry } from '@shared/types'
 
 export interface OpenBarProps {
@@ -56,34 +55,6 @@ interface Row {
   disabled?: boolean
 }
 
-type BarMode =
-  | { mode: 'empty' }
-  | { mode: 'search'; query: string }
-  | { mode: 'target'; target: OpenTarget; raw: string }
-
-/**
- * Decide whether the input is a vault SEARCH query or an open-TARGET.
- * Anything the resolver classifies as a URL / GitHub link is a target; a
- * scheme-less local-path is a target only when it LOOKS path-shaped (a
- * leading ~ / / / ./ / ../, a drive letter, a `file:` scheme, or any
- * slash). A bare token (`roadmap`) stays a search so ⌘O still fuzzy-finds.
- */
-function classifyInput(raw: string): BarMode {
-  const trimmed = raw.trim()
-  if (!trimmed) return { mode: 'empty' }
-  const target = resolveOpenTarget(trimmed)
-  if (target.kind !== 'local-path') {
-    return { mode: 'target', target, raw: trimmed }
-  }
-  const pathy =
-    /^(~|\/|\.\/|\.\.\/)/.test(trimmed) ||
-    /^[a-zA-Z]:[\\/]/.test(trimmed) ||
-    trimmed.startsWith('file:') ||
-    trimmed.includes('/')
-  if (pathy) return { mode: 'target', target, raw: trimmed }
-  return { mode: 'search', query: trimmed }
-}
-
 const KIND_GLYPH: Record<RecentEntry['kind'], string> = {
   local: '📄',
   'github-file': '🐙',
@@ -104,7 +75,11 @@ export function OpenBar({ open, files, loading, vaultRoot, onOpenTarget, onDismi
     if (!open) return
     setQuery('')
     setActiveIdx(0)
-    void window.electron.recents.list().then(setRecents).catch(() => setRecents([]))
+    // `?? []` tolerates a stale preload (renderer HMR'd ahead of a preload
+    // that predates the recents API) — degrades to no recents, never throws.
+    void Promise.resolve(window.electron.recents?.list?.() ?? [])
+      .then(setRecents)
+      .catch(() => setRecents([]))
     requestAnimationFrame(() => inputRef.current?.focus())
   }, [open])
 
@@ -127,7 +102,7 @@ export function OpenBar({ open, files, loading, vaultRoot, onOpenTarget, onDismi
 
   const onBrowse = async () => {
     try {
-      const picked = await window.electron.open.browse()
+      const picked = await window.electron.open?.browse?.()
       if (picked) activate(picked.path)
     } catch {
       // A cancelled / failed picker leaves the bar open so the user can type.
@@ -136,7 +111,7 @@ export function OpenBar({ open, files, loading, vaultRoot, onOpenTarget, onDismi
 
   const clearRecent = async () => {
     try {
-      await window.electron.recents.clear()
+      await window.electron.recents?.clear?.()
     } catch {
       // best-effort
     }
