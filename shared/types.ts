@@ -2346,6 +2346,12 @@ export const IPC = {
   HOME_SNAPSHOT: 'home:snapshot',
   HOME_LIST_SESSIONS: 'home:list-sessions',
   HOME_SESSION_ACTION: 'home:session-action',
+  // ENH-221 Tier 2 — cron Home surface. One invoke channel (renderer → main)
+  // delegating to CronService.handleCli (list/add/run/pause/resume/rm/show —
+  // the same dispatch the socket CLI uses), plus a push (main → renderer) that
+  // broadcasts the fresh CronJobView[] on every job mutation so Home re-renders.
+  CRON_INVOKE: 'cron:invoke',          // renderer → main (invoke {op, args})
+  CRON_JOBS_CHANGED: 'cron:jobs-changed', // main → renderer (CronJobView[])
   // main → renderer push: focus/synthesize the Home tab (`duo home`).
   HOME_SHOW: 'home:show',
   // ENH-212 — main → renderer push to activate a terminal tab by id.

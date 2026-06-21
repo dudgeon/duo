@@ -63,6 +63,9 @@ export class CronService {
   private readonly nextFireAt = new Map<string, number>()
   /** jobs currently mid-fire — guards against a slow run overlapping its own next tick. */
   private readonly firing = new Set<string>()
+  /** Tier 2 — listeners notified (with fresh views) after any job mutation, so
+   *  the Home surface re-renders live without polling. */
+  private readonly changeListeners = new Set<(jobs: CronJobView[]) => void>()
 
   constructor(deps: CronServiceDeps) {
     this.store = deps.store
@@ -208,6 +211,7 @@ export class CronService {
 
       const fresh = this.store.getJob(jobId)
       if (fresh) this.rescheduleJob(fresh, new Date(this.now()))
+      this.emitChange()
       return result
     } catch (err) {
       // Most likely the D4 gate. Record nothing as "ran"; surface the error.
@@ -247,6 +251,26 @@ export class CronService {
       .sort((a, b) => a.name.localeCompare(b.name))
   }
 
+  /** Tier 2 — subscribe to job-list changes (add / mutate / run / remove). The
+   *  callback receives the fresh view list; returns an unsubscribe fn. */
+  onJobsChanged(cb: (jobs: CronJobView[]) => void): () => void {
+    this.changeListeners.add(cb)
+    return () => this.changeListeners.delete(cb)
+  }
+
+  /** Notify listeners with a fresh snapshot. Called after every mutation. */
+  private emitChange(): void {
+    if (this.changeListeners.size === 0) return
+    const views = this.listViews()
+    for (const cb of this.changeListeners) {
+      try {
+        cb(views)
+      } catch {
+        /* a bad listener must never break the scheduler */
+      }
+    }
+  }
+
   // ── CLI dispatch (`duo cron <op>`) ───────────────────────────────────────────
 
   async handleCli(op: string, args: Record<string, unknown>): Promise<unknown> {
@@ -281,6 +305,7 @@ export class CronService {
         const updated = await this.store.updateJob(id, { enabled: op === 'resume' })
         if (!updated) throw new Error(`no such job: ${id}`)
         this.rescheduleJob(updated, new Date(this.now()))
+        this.emitChange()
         return this.toView(updated)
       }
 
@@ -290,6 +315,7 @@ export class CronService {
         const removed = await this.store.removeJob(id)
         if (!removed) throw new Error(`no such job: ${id}`)
         this.nextFireAt.delete(id)
+        this.emitChange()
         return { ok: true, removed: id }
       }
 
@@ -335,6 +361,7 @@ export class CronService {
 
     const added = await this.store.addJob(job)
     this.rescheduleJob(added, new Date(this.now()))
+    this.emitChange()
     return this.toView(added)
   }
 }

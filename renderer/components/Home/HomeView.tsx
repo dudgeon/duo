@@ -22,6 +22,7 @@ import type { HomeSnapshot, HomeProject, HomeSession } from '@shared/types'
 import { GreetingLine } from './GreetingLine'
 import { HeroPanel } from './HeroPanel'
 import { SpineRow } from './SpineRow'
+import { CronSection } from './CronSection'
 import { selectHeroes, selectSpine, foldSpine, freshestSession } from './homeModel'
 import './Home.css'
 
@@ -226,6 +227,10 @@ export function HomeView({ isActive, onSnapshotChange }: HomeViewProps) {
           )}
         </div>
       )}
+
+      {/* ENH-221 Tier 2 — scheduled ("cron") jobs. Renders nothing when there
+          are no jobs, so it's invisible until the user creates one. */}
+      <CronSection />
 
       {heroes.length === 0 && spine.length === 0 && (
         <div className="duo-home-empty text-ink-mute font-serif">

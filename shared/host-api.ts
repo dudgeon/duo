@@ -28,6 +28,7 @@ import type {
   SelectionFormat, SelectionFormatStateSnapshot,
   PinEntry, NavPinEntry,
   SessionState,
+  CronJobView,
 } from './types'
 
 // ── Electron preload API surface ─────────────────────────────────────────────
@@ -993,6 +994,14 @@ export interface ElectronSessionStateAPI {
   notifyRestoreSettled: () => void
 }
 
+/** ENH-221 Tier 2 — cron Home surface. `invoke` delegates to the main-process
+ *  CronService.handleCli (same dispatch as the socket CLI); `onJobsChanged`
+ *  subscribes to the live CronJobView[] push so Home re-renders on any change. */
+export interface ElectronCronAPI {
+  invoke: (op: string, args?: Record<string, unknown>) => Promise<unknown>
+  onJobsChanged: (cb: (jobs: CronJobView[]) => void) => () => void
+}
+
 // ENH-167 — workspace-as-file. Mirrors the File menu surface: Save /
 // Save As (via opts.saveAs) / Open / Open Recent / New, plus list +
 // active queries + clear-recent for the submenu's housekeeping.
@@ -1068,6 +1077,9 @@ export interface ElectronAPI {
   // expander, the session click contract, and the `duo home` /
   // `duo term tab` push subscriptions.
   home: ElectronHomeAPI
+  // ENH-221 Tier 2 — scheduled ("cron") sessions on Home: invoke the
+  // lifecycle (list/add/run/pause/resume/rm) + subscribe to live job changes.
+  cron: ElectronCronAPI
   // ENH-208 Phase 2 — vault UI affordances (⇧⌘N capture · ⌘⇧F search
   // palette · silent-stub type-picker). Main runs the same core/vault
   // code paths as the `duo vault` CLI verbs.

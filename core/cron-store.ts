@@ -169,6 +169,14 @@ export class CronStore {
     })
   }
 
+  /** Resolves once every queued write has settled. The no-op enqueues AFTER
+   *  all pending ops (the queue serializes), so awaiting it drains the queue.
+   *  Tests await this before removing the temp dir (else a late persist can
+   *  ENOTEMPTY the rmdir); also a clean graceful-shutdown hook. */
+  async whenIdle(): Promise<void> {
+    await this.enqueue(async () => {})
+  }
+
   private async persist(): Promise<void> {
     const tmp = uniqueTmpPath(this.file, 'tmp')
     try {

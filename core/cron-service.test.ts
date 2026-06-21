@@ -34,8 +34,13 @@ describe('CronService', () => {
     await store.load()
   })
   afterEach(async () => {
-    await fs.rm(dir, { recursive: true, force: true })
+    // Real timers + drain the store's write queue BEFORE removing the temp
+    // dir. A tick's fire-and-forget fireJob can leave a persist in flight
+    // (kicked off under fake timers); without the drain it lands mid-rmdir →
+    // ENOTEMPTY flake.
     vi.useRealTimers()
+    await store.whenIdle()
+    await fs.rm(dir, { recursive: true, force: true })
   })
 
   async function addJob(svc: CronService, over: Record<string, unknown> = {}) {
@@ -126,6 +131,20 @@ describe('CronService', () => {
     // A missed fire must NOT advance lastRunAt — D5 catch-up anchors on the
     // last *real* run, so the occurrence stays recoverable on relaunch.
     expect(job.lastRunAt).toBeNull()
+  })
+
+  it('onJobsChanged fires with fresh views on add / run / pause / rm (Tier 2)', async () => {
+    const { runner } = makeRunner()
+    const svc = new CronService({ store, runner, sessionExists: async () => false, headlessAllowed: false })
+    const counts: number[] = []
+    const unsub = svc.onJobsChanged((jobs) => counts.push(jobs.length))
+    const view = (await addJob(svc)) as { id: string } // add → 1 job
+    await svc.fireJob(view.id, { reason: 'manual' })    // run → status change, still 1
+    await svc.handleCli('pause', { id: view.id })        // pause → 1
+    await svc.handleCli('rm', { id: view.id })           // rm → 0
+    unsub()
+    await addJob(svc)                                    // no emit after unsubscribe
+    expect(counts).toEqual([1, 1, 1, 0])
   })
 
   it('pause stops scheduling; resume restores it; rm deletes', async () => {

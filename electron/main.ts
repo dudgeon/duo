@@ -1846,6 +1846,9 @@ app.whenReady().then(async () => {
       },
       log: (msg) => console.log(msg)
     })
+    // ENH-221 Tier 2 — broadcast live job-list changes to every window's Home
+    // surface (add / run / pause / resume / rm + each scheduled/catch-up fire).
+    cronService.onJobsChanged((jobs) => broadcastAll(registry, IPC.CRON_JOBS_CHANGED, jobs))
     // ENH-221 — start the scheduler only AFTER the primary window's renderer
     // has finished session restore. Two launch races, both surfaced in the live
     // walk: (1) firing at whenReady races renderer mount and the new-tab IPC
@@ -3003,6 +3006,15 @@ function setupIPC(): void {
   // Concurrent invokes (N windows × 30s pollers) share one computation.
   ipcMain.handle(IPC.HOME_SNAPSHOT, async (_event, args: { limitPerProject?: number }): Promise<HomeSnapshot> => {
     return computeHomeSnapshot(args?.limitPerProject)
+  })
+
+  // ENH-221 Tier 2 — cron lifecycle from the Home surface. Delegates to the same
+  // CronService.handleCli the socket CLI uses (list/add/run/pause/resume/rm/show).
+  // Writes broadcast a fresh CronJobView[] via onJobsChanged (wired in whenReady),
+  // so the renderer never has to refetch after a mutation.
+  ipcMain.handle(IPC.CRON_INVOKE, async (_event, payload: { op: string; args?: Record<string, unknown> }): Promise<unknown> => {
+    if (!cronService) throw new Error('cron service is not ready yet')
+    return cronService.handleCli(payload.op, payload.args ?? {})
   })
 
   // Paged "all N sessions" expander for one project root — lazy head titles.

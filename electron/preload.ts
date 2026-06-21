@@ -985,6 +985,17 @@ const api: ElectronAPI = {
       ipcRenderer.on(IPC.TERMINAL_CLOSE_TAB, handler)
       return () => ipcRenderer.removeListener(IPC.TERMINAL_CLOSE_TAB, handler)
     }
+  },
+
+  // ENH-221 Tier 2 — scheduled ("cron") sessions on Home. One invoke channel
+  // delegates to CronService.handleCli; onJobsChanged streams live updates.
+  cron: {
+    invoke: (op, args) => ipcRenderer.invoke(IPC.CRON_INVOKE, { op, args }),
+    onJobsChanged: (cb) => {
+      const handler = (_: IpcRendererEvent, jobs: Parameters<typeof cb>[0]) => cb(jobs)
+      ipcRenderer.on(IPC.CRON_JOBS_CHANGED, handler)
+      return () => ipcRenderer.removeListener(IPC.CRON_JOBS_CHANGED, handler)
+    }
   }
 }
 
