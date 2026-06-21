@@ -20,7 +20,7 @@ import type { DuoRequest, DuoResponse } from '../shared/types'
 // read the vault — PRD Phase 4). Only `base render --open` / `vault
 // capture --open` reach the app (to surface a tab), and only when asked.
 import * as vault from '../core/vault'
-import { listWorktrees } from '../core/git/worktree'
+import { listWorktrees, createWorktree, removeWorktree } from '../core/git/worktree'
 
 // Injected at build time from package.json by scripts/build-cli.mjs via
 // esbuild `define`, so the CLI version always tracks the real release —
@@ -486,8 +486,8 @@ const VERBS: VerbSpec[] = [
   {
     name: 'worktree',
     group: 'Repo & git',
-    args: '[list] [<path>]',
-    summary: 'List the git worktrees of the repo at <path> (defaults to the cwd) as JSON: [{ path, branch, head, isMain, isCurrent, detached, prunable, colorIndex }], main checkout first, the cwd\'s worktree flagged isCurrent. Reads git directly (no running app needed). Lets an agent see whether it is in a linked worktree vs the main checkout, and enumerate its siblings — the CLI twin of the navigator Worktrees section.'
+    args: '[list] [<path>] | new "<desc>" [--from <ref>] [--window] | remove <path> [--force]',
+    summary: 'List / create / remove the git worktrees of the repo at <path> (defaults to the cwd). `duo worktree [list] [<path>]` → JSON [{ path, branch, head, isMain, isCurrent, detached, prunable, colorIndex }], main checkout first, the cwd\'s worktree flagged isCurrent. `duo worktree new "<desc>" [--from <ref>] [--window]` → create a worktree off <ref> (default: the main branch) at <repo>/.claude/worktrees/<slug> on branch claude/<slug>, the description sanitized to a path/ref-safe slug (spaces→-, allow-list a–z 0–9 -); --window also opens it in a new Duo window. `duo worktree remove <path> [--force]` → git worktree remove (--force when the worktree is dirty). Reads/writes git directly (no running app needed, except --window). The CLI twin of the navigator Worktrees dropdown + its "+ New worktree" create (ENH-222).'
   },
 
   // ── Health & install ──
@@ -2277,13 +2277,49 @@ async function main(): Promise<void> {
         break
       }
       case 'worktree': {
-        // ENH-210 — list the git worktrees of a repo. Reads git
-        // DIRECTLY (like the vault verbs) — no socket / running app
-        // needed, so it works from any terminal and inside a sandbox.
-        //   duo worktree [list] [<path>]   — defaults to the cwd.
-        // The optional 'list' subcommand is accepted for symmetry with
-        // future worktree subverbs; bare `duo worktree` lists too.
-        const args2 = rest[0] === 'list' ? rest.slice(1) : rest
+        // ENH-210 (list) + ENH-222 (new/remove) — list / create / remove
+        // git worktrees. Reads AND writes git DIRECTLY (like the vault
+        // verbs) — no socket / running app needed, so it works from any
+        // terminal and inside a sandbox. The exception is `new --window`,
+        // which additionally asks the app to open the worktree in a window.
+        const sub = rest[0]
+
+        if (sub === 'new') {
+          // duo worktree new "<desc>" [--from <ref>] [--window]
+          const subRest = rest.slice(1)
+          const desc = positionalArgs(subRest, ['--from'])[0]
+          if (!desc) die('Usage: duo worktree new "<description>" [--from <ref>] [--window]')
+          const fromRef = flagValue(subRest, '--from')
+          const res = await createWorktree(process.cwd(), { name: desc, fromRef })
+          if (!res.ok) die(res.error ?? 'duo worktree new failed')
+          // --window: also open the new worktree in a fresh Duo window
+          // (needs the running app). The worktree already exists either
+          // way, so a window failure is reported, not fatal.
+          if (subRest.includes('--window') && res.path) {
+            const wr = (await send('window', { action: 'new', cwd: res.path })) as { ok?: boolean; error?: string }
+            if (wr && wr.ok === false) {
+              out({ ...res, window: { ok: false, error: wr.error ?? 'could not open window (is "Allow Multiple Windows" enabled?)' } })
+              break
+            }
+          }
+          out(res)
+          break
+        }
+
+        if (sub === 'remove') {
+          // duo worktree remove <path> [--force]
+          const subRest = rest.slice(1)
+          const targetArg = positionalArgs(subRest)[0]
+          if (!targetArg) die('Usage: duo worktree remove <path> [--force]')
+          const targetPath = path.resolve(process.cwd(), targetArg)
+          const res = await removeWorktree(targetPath, { force: subRest.includes('--force') })
+          if (!res.ok) die(res.error ?? 'duo worktree remove failed')
+          out({ ok: true, removed: targetPath })
+          break
+        }
+
+        // Default: list. `duo worktree [list] [<path>]` — defaults to cwd.
+        const args2 = sub === 'list' ? rest.slice(1) : rest
         const target = args2[0]
           ? path.resolve(process.cwd(), args2[0])
           : process.cwd()

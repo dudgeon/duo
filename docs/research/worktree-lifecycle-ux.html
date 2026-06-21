@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>Worktree lifecycle UX — PM-friendly create + graceful removal (ENH-222)</title>
+<style>
+/* ───────────────────────── duo-atelier.css kernel (light page chrome) ───────────────────────── */
+:root {
+  --paper: #fbf8f1; --paper-deep: #f3ede0; --paper-edge: #e8e0cb; --paper-rule: #d9cea8;
+  --ink: #2b2620; --ink-soft: #4a4238; --ink-mute: #6f6557; --ink-ghost: #9a9080;
+  --accent: #c46a1c; --accent-soft: #f4d9b6; --pass: #4a7d3e; --fail: #b13e3a; --warn: #b07527;
+  --code-bg: #2b2823; --code-ink: #e8e0cb;
+  --project-pine: #2E7D74; --project-harbor: #3C6E93; --project-iris: #5B57A6;
+  --project-plum: #87508F; --project-rose: #A4506A; --project-moss: #69763A;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif; font-size: 14px; line-height: 1.55; }
+body { padding: 32px 40px 96px; max-width: 1060px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 25px; }
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 6px; }
+.intro { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 14px 18px; margin-bottom: 24px; font-size: 13.5px; color: var(--ink-soft); }
+.intro strong { color: var(--ink); font-weight: 600; }
+.intro em { color: var(--ink); font-style: italic; }
+h2 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 600; margin: 40px 0 6px; font-size: 20px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px; }
+h3 { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+p { margin: 8px 0; } ul { margin: 8px 0; padding-left: 22px; } li { margin: 4px 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; }
+.lead { font-size: 13.5px; color: var(--ink-mute); margin: 4px 0 16px; max-width: 760px; }
+.callout { background: color-mix(in srgb, var(--warn) 9%, var(--paper)); border: 1px solid color-mix(in srgb, var(--warn) 35%, var(--paper-rule)); border-radius: 6px; padding: 10px 14px; margin: 14px 0; font-size: 12.5px; color: var(--ink-soft); }
+.callout strong { color: var(--ink); }
+
+.decision-card { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 16px 18px; margin: 18px 0; }
+.decision-card .q-title { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px; }
+.decision-card .q-prompt { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 500; font-size: 17px; color: var(--ink); margin: 0 0 12px; line-height: 1.35; }
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option { display: block; background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 10px 12px; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option:has(input[type="radio"]:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes { width: 100%; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px; }
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+details.deferred { margin: 22px 0; padding: 12px 16px; background: var(--paper-deep); border: 1px dashed var(--paper-rule); border-radius: 6px; }
+details.deferred summary { cursor: pointer; font-weight: 600; color: var(--ink-soft); font-size: 13.5px; }
+details.deferred[open] summary { color: var(--ink); }
+details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(--ink-soft); }
+.copy-bar { position: sticky; bottom: 0; margin: 36px -40px -96px; padding: 16px 40px; background: color-mix(in srgb, var(--paper-deep) 96%, transparent); border-top: 1.5px solid var(--paper-rule); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; justify-content: space-between; align-items: center; gap: 16px; z-index: 50; }
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); } .copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button { background: var(--accent); color: white; border: none; border-radius: 5px; padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background 0.12s; }
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); } .copy-bar button.copied { background: var(--pass); }
+
+/* ───────────────────────── high-fidelity dark Duo window mock ───────────────────────── */
+.frame-cap { font-size: 12px; color: var(--ink-mute); margin: 10px 2px 30px; line-height: 1.5; }
+.frame-cap strong { color: var(--ink-soft); }
+.frame-cap .k { font-weight: 700; color: var(--accent); }
+.flow-steps { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 0; font-size: 11.5px; color: var(--ink-mute); }
+.flow-steps .st { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 20px; padding: 2px 10px; }
+.flow-steps .ar { color: var(--ink-ghost); align-self: center; }
+
+.dwin {
+  --p:#1A1611; --pd:#13100C; --pe:#26201A; --pr:#352D23;
+  --dink:#F0E9D6; --dink-s:#C8BD9E; --dink-m:#8A7E66; --dink-g:#5A5142;
+  --acc:#E08F4A; --acc-soft:#3F2A18; --acc-ink:#F2D2A8; --mark:#3F3318;
+  --term-bg:#0C0A07; --term-fg:#E9DEC2;
+  --pine:#2E7D74; --harbor:#3C6E93; --iris:#5B57A6; --plum:#87508F; --rose:#A4506A; --moss:#69763A;
+  width: 100%; border-radius: 11px; overflow: hidden; border: 1px solid #000;
+  background: var(--p); box-shadow: 0 16px 40px rgba(0,0,0,.30), 0 2px 6px rgba(0,0,0,.25);
+  font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; color: var(--dink);
+}
+.dwin .tbar { height: 38px; display:flex; align-items:center; gap:9px; padding: 0 13px; background: var(--pe); border-bottom:1px solid var(--pr); }
+.dwin .lights { display:flex; gap:8px; }
+.dwin .lights i { width:11px; height:11px; border-radius:50%; display:block; box-shadow: inset 0 0 0 .5px rgba(0,0,0,.22); }
+.dwin .lights .r{background:#ff5f57} .dwin .lights .y{background:#febc2e} .dwin .lights .g{background:#28c840}
+.dwin .wordmark { font-family:"New York", Georgia, serif; font-style:italic; font-weight:500; font-size:13.5px; color:var(--dink); margin-left:4px; }
+.dwin .tchip { margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-size:11px; color:var(--dink-s); padding:3px 9px; border-radius:7px; border:1px solid var(--pr); }
+.dwin .tchip .dot { width:8px; height:8px; border-radius:2px; }
+.dwin .tchip .br { font-family: ui-monospace, Menlo, monospace; font-size:10.5px; color:var(--dink-m); }
+
+.dwin .body { display:flex; min-height: 286px; }
+.dwin .nav { width: 216px; flex:0 0 216px; background: var(--pe); border-right:1px solid var(--pr); position:relative; padding-bottom: 8px; }
+.dwin .crumb { display:flex; align-items:center; gap:7px; padding:9px 12px 5px; font-size:12px; color:var(--dink-s); }
+.dwin .crumb .home { color: var(--dink-m); }
+.dwin .crumb .seg { color: var(--dink); font-weight:500; }
+.dwin .crumb .gear { margin-left:auto; color:var(--dink-g); font-size:13px; }
+
+/* worktree pill — faithful to FileTree.tsx lines 877–935 */
+.wpill { display:flex; align-items:center; gap:8px; margin: 4px 8px 2px; padding:6px 12px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:11px; color:var(--dink-m); border:1px solid var(--pr); border-radius:9px; background: var(--pd); cursor:pointer; }
+.wpill.open { border-bottom:0; border-radius:9px 9px 0 0; }
+.wpill .dot { width:8px; height:8px; border-radius:2px; flex:0 0 auto; }
+.wpill .glyph { color:var(--dink-m); flex:0 0 auto; display:inline-flex; }
+.wpill .repo { color:var(--dink); font-weight:500; }
+.wpill .sep { color:var(--dink-m); }
+.wpill .git { flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.wpill .chev { color:var(--dink-g); font-size:8px; flex:0 0 auto; }
+
+/* dropdown overlay — faithful to WorktreeDropdownBody */
+.wdrop { margin: 0 8px; background: var(--pd); border:1px solid var(--pr); border-top:0; border-radius:0 0 9px 9px; box-shadow: 0 10px 26px rgba(0,0,0,.45); overflow:hidden; position:relative; z-index:6; }
+.wdrop .dhdr { padding:7px 12px 4px; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.09em; color:var(--dink-g); }
+.wdrop .it { display:flex; align-items:center; gap:8px; padding:4px 12px; font-size:12px; color:var(--dink-s); }
+.wdrop .it.cur { background: var(--pe); color: var(--dink); }
+.wdrop .it .dot { width:7px; height:7px; border-radius:2px; flex:0 0 auto; }
+.wdrop .it .glyph { color:var(--dink-g); flex:0 0 auto; display:inline-flex; }
+.wdrop .it .label { flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.wdrop .it .meta { font-family: ui-monospace, Menlo, monospace; font-size:10px; color:var(--dink-m); flex:0 0 auto; }
+.wdrop .it .curtag { font-size:9px; text-transform:uppercase; letter-spacing:.04em; color:var(--dink-m); flex:0 0 auto; }
+.wdrop .it .extlink { color:var(--dink-g); font-size:10px; }
+/* NEW: create-worktree action row */
+.wdrop .newrow { display:flex; align-items:center; gap:8px; padding:7px 12px; font-size:12px; color:var(--acc-ink); border-top:1px solid var(--pr); cursor:pointer; }
+.wdrop .newrow.hot { background: var(--acc-soft); }
+.wdrop .newrow .plus { width:14px; height:14px; border-radius:4px; background: color-mix(in srgb, var(--acc) 22%, transparent); color:var(--acc-ink); display:inline-flex; align-items:center; justify-content:center; font-size:13px; line-height:1; flex:0 0 auto; }
+.wdrop .newrow .hint { margin-left:auto; font-family: ui-monospace, Menlo, monospace; font-size:9.5px; color:var(--dink-g); }
+
+/* inline create form (Option B) */
+.wform { padding: 11px 12px 13px; background: var(--pd); border-top:1px solid var(--pr); }
+.wform .flabel { font-size:9px; text-transform:uppercase; letter-spacing:.07em; color:var(--dink-g); margin: 2px 0 4px; }
+.wform .field { display:flex; align-items:center; background: var(--p); border:1px solid var(--pr); border-radius:6px; padding:6px 9px; font-size:12px; color:var(--dink); }
+.wform .field.focus { border-color: var(--acc); box-shadow: 0 0 0 2px color-mix(in srgb, var(--acc) 22%, transparent); }
+.wform .field .caret { width:1px; height:14px; background: var(--acc); margin-left:1px; }
+.wform .field .ph { color: var(--dink-g); }
+.wform .branchprev { font-family: ui-monospace, Menlo, monospace; font-size:10px; color:var(--dink-m); margin: 6px 0 10px; }
+.wform .branchprev b { color: var(--dink-s); font-weight:600; }
+.wform .baserow { display:flex; align-items:center; gap:8px; margin-bottom: 10px; }
+.wform .basechip { display:inline-flex; align-items:center; gap:6px; font-size:11px; color:var(--dink-s); background:var(--p); border:1px solid var(--pr); border-radius:6px; padding:4px 9px; }
+.wform .basechip .glyph { color:var(--dink-g); display:inline-flex; }
+.wform .basechip .car { color:var(--dink-g); font-size:8px; }
+.wform .toggle { display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--dink-s); margin-bottom: 12px; }
+.wform .sw { width:30px; height:17px; border-radius:9px; background: var(--acc); position:relative; flex:0 0 auto; }
+.wform .sw.off { background: var(--dink-g); }
+.wform .sw i { position:absolute; top:2px; width:13px; height:13px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.4); }
+.wform .sw i { right:2px; } .wform .sw.off i { left:2px; right:auto; }
+.wform .factions { display:flex; gap:8px; }
+.wform .btn { flex:1; text-align:center; padding:7px 10px; border-radius:7px; font-size:12px; font-weight:600; cursor:pointer; }
+.wform .btn.primary { background: var(--acc); color:#1A1208; }
+.wform .btn.ghost { background: transparent; border:1px solid var(--pr); color: var(--dink-s); }
+
+/* tree rows */
+.dwin .trow { display:flex; align-items:center; gap:7px; padding:3px 12px 3px 14px; font-size:12.5px; color:var(--dink-s); }
+.dwin .trow .tw { color:var(--dink-g); width:11px; text-align:center; flex:0 0 auto; font-size:10px; }
+.dwin .trow.sel { background: color-mix(in srgb, var(--acc) 13%, transparent); color:var(--dink); border-radius:5px; margin:0 6px; padding-left:8px; }
+.dwin .trow.file .tw { color: transparent; }
+.dwin .trow.dirty::after { content:"●"; color: var(--acc); font-size:8px; margin-left:auto; }
+
+/* right stage — terminal mock */
+.dwin .stage { flex:1; background: var(--term-bg); display:flex; flex-direction:column; min-width:0; }
+.dwin .stage .stabs { height:30px; display:flex; align-items:flex-end; gap:3px; padding:0 9px; background: var(--pe); border-bottom:1px solid var(--pr); }
+.dwin .stage .stab { font-size:11px; color:var(--dink-m); padding:4px 10px; border-radius:6px 6px 0 0; display:flex; align-items:center; gap:6px; }
+.dwin .stage .stab.act { background: var(--term-bg); color:var(--dink-s); }
+.dwin .stage .stab .d { width:7px; height:7px; border-radius:2px; }
+.dwin .stage .term { flex:1; padding:11px 14px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:11px; line-height:1.65; color:var(--term-fg); }
+.dwin .stage .term .mut { color:#6f6452; }
+.dwin .stage .term .acc { color:#E08F4A; }
+.dwin .stage .term .ok { color:#7FB36B; }
+.dwin .stage .term .cur { display:inline-block; width:7px; height:13px; background:var(--term-fg); vertical-align:-2px; }
+.dwin .stage.dim .term { opacity:.55; }
+
+/* result toast */
+.dwin .toast { position:absolute; left:50%; transform:translateX(-50%); bottom:14px; background:#211a12; border:1px solid var(--pr); border-left:3px solid var(--acc); border-radius:8px; padding:9px 13px; font-size:11.5px; color:var(--dink-s); box-shadow:0 8px 22px rgba(0,0,0,.5); z-index:8; max-width:84%; }
+.dwin .toast b { color: var(--dink); }
+.dwin .bodywrap { position:relative; }
+
+/* modal (Option C) */
+.dwin .scrim { position:absolute; inset:0; background: rgba(0,0,0,.55); z-index:10; display:flex; align-items:center; justify-content:center; }
+.dwin .modal { width: 380px; max-width: 86%; background: var(--p); border:1px solid var(--pr); border-radius:13px; box-shadow:0 24px 60px rgba(0,0,0,.6); overflow:hidden; }
+.dwin .modal .mhead { padding:16px 18px 4px; }
+.dwin .modal .mtitle { font-family:"New York", Georgia, serif; font-size:17px; color:var(--dink); margin:0; }
+.dwin .modal .msub { font-size:11.5px; color:var(--dink-m); margin:4px 0 0; }
+.dwin .modal .mbody { padding: 12px 18px 4px; }
+.dwin .modal .mfield { background: var(--pd); border:1px solid var(--pr); border-radius:7px; padding:8px 11px; font-size:13px; color:var(--dink); margin-bottom:4px; }
+.dwin .modal .mfield.focus { border-color:var(--acc); box-shadow:0 0 0 2px color-mix(in srgb, var(--acc) 22%, transparent); }
+.dwin .modal .mfield .caret { display:inline-block; width:1px; height:15px; background:var(--acc); vertical-align:-2px; }
+.dwin .modal .mprev { font-family: ui-monospace, Menlo, monospace; font-size:10.5px; color:var(--dink-m); margin: 0 0 12px; }
+.dwin .modal .mprev b { color:var(--dink-s); }
+.dwin .modal .mrow2 { display:flex; gap:10px; margin-bottom:12px; }
+.dwin .modal .mcol { flex:1; }
+.dwin .modal .mcol .flabel { font-size:9px; text-transform:uppercase; letter-spacing:.07em; color:var(--dink-g); margin:0 0 4px; }
+.dwin .modal .mselect { display:flex; align-items:center; justify-content:space-between; background:var(--pd); border:1px solid var(--pr); border-radius:7px; padding:7px 10px; font-size:12px; color:var(--dink-s); }
+.dwin .modal .mtoggle { display:flex; align-items:center; gap:9px; font-size:12px; color:var(--dink-s); padding:7px 0; }
+.dwin .modal .madv { font-size:11px; color:var(--dink-m); padding:6px 0 2px; border-top:1px solid var(--pr); margin-top:6px; }
+.dwin .modal .mfoot { display:flex; justify-content:flex-end; gap:9px; padding:12px 18px 16px; }
+.dwin .modal .mbtn { padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:600; cursor:pointer; }
+.dwin .modal .mbtn.primary { background:var(--acc); color:#1A1208; }
+.dwin .modal .mbtn.ghost { background:transparent; border:1px solid var(--pr); color:var(--dink-s); }
+
+/* command palette (Option D) */
+.dwin .palette { position:absolute; top:46px; left:50%; transform:translateX(-50%); width: 460px; max-width:84%; background:#1b1611; border:1px solid var(--pr); border-radius:12px; box-shadow:0 24px 60px rgba(0,0,0,.6); overflow:hidden; z-index:10; }
+.dwin .palette .pin { display:flex; align-items:center; gap:9px; padding:12px 14px; border-bottom:1px solid var(--pr); font-size:14px; color:var(--dink); }
+.dwin .palette .pin .pmt { color:var(--acc); font-family:ui-monospace,Menlo,monospace; }
+.dwin .palette .pin .caret { width:1px; height:16px; background:var(--acc); }
+.dwin .palette .prow { display:flex; align-items:center; gap:9px; padding:8px 14px; font-size:12.5px; color:var(--dink-s); }
+.dwin .palette .prow.act { background: var(--acc-soft); color:var(--dink); }
+.dwin .palette .prow .plus { color:var(--acc-ink); }
+.dwin .palette .prow .meta { margin-left:auto; font-family:ui-monospace,Menlo,monospace; font-size:10px; color:var(--dink-g); }
+
+/* removal-recovery banner (Enhancement 2) */
+.dwin .banner { display:flex; align-items:flex-start; gap:9px; margin:6px 8px; padding:9px 11px; background:#2a201a; border:1px solid #6b3f2a; border-left:3px solid var(--acc); border-radius:8px; font-size:11.5px; color:var(--dink-s); }
+.dwin .banner .ic { color:var(--acc); flex:0 0 auto; font-size:13px; line-height:1.2; }
+.dwin .banner b { color:var(--dink); }
+.dwin .banner .x { margin-left:auto; color:var(--dink-g); flex:0 0 auto; }
+.dwin .banner .act { color:var(--acc-ink); text-decoration:underline; cursor:pointer; }
+
+.legend { display:flex; gap:18px; flex-wrap:wrap; font-size:11.5px; color:var(--ink-mute); margin: 6px 0 0; }
+.legend .sw { width:9px; height:9px; border-radius:2px; display:inline-block; margin-right:5px; vertical-align:0; }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Worktree lifecycle UX — create &amp; graceful removal</h1>
+  <div class="meta">
+    <span class="pill">ENH-222</span>
+    <span class="pill">ENH-210 · D5-C</span>
+    2026-06-18 · high-fidelity flow study · 6 decisions
+  </div>
+</header>
+
+<div class="intro">
+  <p style="margin:0 0 12px; padding:8px 12px; background:color-mix(in srgb, var(--pass) 12%, var(--paper)); border:1px solid color-mix(in srgb, var(--pass) 40%, var(--paper-rule)); border-radius:6px; font-size:12.5px;"><strong style="color:var(--pass)">✅ DECIDED + IMPLEMENTED</strong> (ENH-222, v0.11.2 branch <code>claude/eloquent-albattani-7c44d4</code>, owner <code>/smoke-walk</code> pending). This playground is the decision record (D1–D6); the build, findings &amp; deviations live in <strong>docs/prd/enh-222-worktree-lifecycle.md</strong>.</p>
+  <strong>Two enhancements to the worktree controller (the dropdown shipped in ENH-210 / PR #100).</strong>
+  <ol style="margin:8px 0 0; padding-left:20px;">
+    <li><strong>Create a worktree from the dropdown</strong> — a non-technical PM should be able to click the
+      worktree pill and start a brand-new parallel workspace without ever typing <code>git worktree add</code>.</li>
+    <li><strong>Survive removal under-foot</strong> — when an agent merges &amp; deletes the worktree you're viewing,
+      Duo must not throw a render error: it tells you, and reverts the navigator to <em>main</em>.</li>
+  </ol>
+  <p style="margin:10px 0 0;">This is the <strong>ENH-210 D5 escalation from B → C</strong>. D5 shipped as <em>read-only</em>
+  ("detect worktrees; Claude makes them via git") <em>"as long as Claude knows how to make worktrees."</em> The
+  non-technical-PM persona is the evidence that gates write/lifecycle verbs: a PM can't drive the CLI, so Duo needs a
+  first-class <strong>Create</strong> affordance — and, once Duo creates them, it owns the teardown story too.</p>
+</div>
+
+<p class="lead">Below: the entry point, then four realistic flow options for <strong>Create</strong> (Enhancement 1),
+then the <strong>removal-recovery</strong> state (Enhancement 2). Mocks render the real dark Duo chrome at the real
+216-px navigator width, faithful to <code>FileTree.tsx</code>. Pick per decision-card; hit <em>Copy decisions</em> at the bottom.</p>
+
+<div class="legend">
+  <span><span class="sw" style="background:#87508F"></span>worktree hue (plum/iris/pine… = project palette)</span>
+  <span><span class="sw" style="background:#E08F4A"></span>accent (orange) = create / active / recovery</span>
+  <span>⎇ = main checkout glyph</span>
+</div>
+
+<!-- ════════════════════ ENHANCEMENT 1 ════════════════════ -->
+<h2>Enhancement 1 · Create a worktree from the dropdown</h2>
+
+<div class="callout">
+  <strong>Required substrate (all options share it).</strong> Today the pill is only clickable when there are
+  <em>&gt;1</em> worktrees. To host <em>Create</em>, the pill must become an <strong>always-available dropdown trigger</strong>
+  — so a PM sitting on a lone <code>main</code> checkout can open it and make their first worktree. And per Duo's
+  CLI-parity rule, whatever the PM can click, the agent must be able to run: a new <code>duo worktree new</code> verb
+  ships alongside (decisions D2–D4 define its flags).
+</div>
+
+<h3>Entry point — the pill opens, a "New worktree" row sits under the list</h3>
+<div class="dwin">
+  <div class="tbar">
+    <div class="lights"><i class="r"></i><i class="y"></i><i class="g"></i></div>
+    <span class="wordmark">Duo</span>
+    <span class="tchip"><span class="dot" style="background:#5A5142"></span> duo · <span class="br">⎇ main</span></span>
+  </div>
+  <div class="bodywrap"><div class="body">
+    <div class="nav">
+      <div class="crumb"><span class="home">⌂</span> <span class="seg">duo</span> <span class="gear">⚙</span></div>
+      <div class="wpill open">
+        <span class="glyph"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span>
+        <span class="repo">duo</span><span class="sep">·</span><span class="git">main</span>
+        <span class="chev">▲</span>
+      </div>
+      <div class="wdrop">
+        <div class="dhdr">Switch worktree · 1</div>
+        <div class="it cur"><span class="glyph"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span><span class="label">main</span><span class="curtag">current</span></div>
+        <div class="newrow hot"><span class="plus">+</span><span>New worktree…</span><span class="hint">start new work</span></div>
+      </div>
+      <div class="trow"><span class="tw">▸</span> cli</div>
+      <div class="trow"><span class="tw">▸</span> docs</div>
+      <div class="trow"><span class="tw">▸</span> renderer</div>
+    </div>
+    <div class="stage dim">
+      <div class="stabs"><div class="stab act"><span class="d" style="background:#5A5142"></span> claude — main</div></div>
+      <div class="term"><span class="mut">~/duo</span> <span class="acc">❯</span> claude<br><span class="mut">Welcome back. What are we building?</span><br><span class="cur"></span></div>
+    </div>
+  </div></div>
+</div>
+<div class="frame-cap">
+  <strong>The single new control:</strong> a <span class="k">+ New worktree…</span> row, divider-separated at the bottom of the
+  existing switch list. On a lone <code>main</code> checkout the dropdown still opens (today it wouldn't) so the row is always reachable.
+  The four options below differ only in <em>what happens after the PM clicks that row.</em>
+</div>
+
+<!-- Option A — one-tap -->
+<h3>Option A — One-tap: "Start new work" creates instantly</h3>
+<div class="flow-steps"><span class="st">click + New worktree</span><span class="ar">→</span><span class="st">auto-named off main</span><span class="ar">→</span><span class="st">re-rooted + toast</span></div>
+<div class="dwin" style="margin-top:12px">
+  <div class="tbar">
+    <div class="lights"><i class="r"></i><i class="y"></i><i class="g"></i></div>
+    <span class="wordmark">Duo</span>
+    <span class="tchip"><span class="dot" style="background:#A4506A"></span> duo · <span class="br">⎇ bright-canyon</span></span>
+  </div>
+  <div class="bodywrap"><div class="body">
+    <div class="nav">
+      <div class="crumb"><span class="home">⌂</span> <span class="seg">bright-canyon</span> <span class="gear">⚙</span></div>
+      <div class="wpill" style="background: color-mix(in srgb, #A4506A 13%, #13100C)">
+        <span class="dot" style="background:#A4506A"></span>
+        <span class="repo">duo</span><span class="sep">·</span><span class="git">bright-canyon</span>
+        <span class="chev">▼</span>
+      </div>
+      <div class="trow"><span class="tw">▸</span> cli</div>
+      <div class="trow"><span class="tw">▸</span> docs</div>
+      <div class="trow"><span class="tw">▸</span> renderer</div>
+      <div class="trow"><span class="tw">▸</span> shared</div>
+      <div class="trow file"><span class="tw">·</span> tasks.md</div>
+    </div>
+    <div class="stage">
+      <div class="stabs"><div class="stab act"><span class="d" style="background:#A4506A"></span> claude — bright-canyon</div></div>
+      <div class="term"><span class="mut">~/duo/.claude/worktrees/bright-canyon</span><br><span class="ok">✓ worktree created off main</span> <span class="mut">· branch claude/bright-canyon</span><br><span class="acc">❯</span> <span class="cur"></span></div>
+    </div>
+    <div class="toast">✓ Created <b>bright-canyon</b> off <b>main</b> — you're now working here.</div>
+  </div></div>
+</div>
+<div class="frame-cap">
+  <strong>Zero friction, zero naming.</strong> One click mints a worktree off <code>main</code> with an auto-generated
+  codename (<code>bright-canyon</code>), re-roots the navigator, and drops a toast. Fastest path, but the PM ends up with
+  poetic names that say nothing about the work — a drawer of <code>bright-canyon</code> / <code>quiet-meadow</code> worktrees
+  is hard to tell apart later. Best paired with <span class="k">D2 = describe-the-work naming</span> to keep it one-tap-ish
+  but meaningful.
+</div>
+
+<!-- Option B — inline form (recommended) -->
+<h3>Option B — Inline mini-form in the dropdown <span style="font-size:12px;color:var(--accent);font-weight:700;">· recommended</span></h3>
+<div class="flow-steps"><span class="st">click + New worktree</span><span class="ar">→</span><span class="st">row expands to a form in place</span><span class="ar">→</span><span class="st">Create → re-rooted + Claude starts</span></div>
+<div class="dwin" style="margin-top:12px">
+  <div class="tbar">
+    <div class="lights"><i class="r"></i><i class="y"></i><i class="g"></i></div>
+    <span class="wordmark">Duo</span>
+    <span class="tchip"><span class="dot" style="background:#5A5142"></span> duo · <span class="br">⎇ main</span></span>
+  </div>
+  <div class="bodywrap"><div class="body">
+    <div class="nav">
+      <div class="crumb"><span class="home">⌂</span> <span class="seg">duo</span> <span class="gear">⚙</span></div>
+      <div class="wpill open">
+        <span class="glyph"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span>
+        <span class="repo">duo</span><span class="sep">·</span><span class="git">main</span>
+        <span class="chev">▲</span>
+      </div>
+      <div class="wdrop">
+        <div class="dhdr">New worktree</div>
+        <div class="wform">
+          <div class="flabel">What are you working on?</div>
+          <div class="field focus">Q3 pricing page copy<span class="caret"></span></div>
+          <div class="branchprev">creates <b>claude/q3-pricing-page-copy</b></div>
+          <div class="baserow">
+            <span class="flabel" style="margin:0">from</span>
+            <span class="basechip"><span class="glyph"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span> main <span class="car">▾</span></span>
+          </div>
+          <div class="toggle"><span class="sw"><i></i></span> Start a Claude session here</div>
+          <div class="factions"><span class="btn primary">Create worktree</span><span class="btn ghost">Cancel</span></div>
+        </div>
+      </div>
+      <div class="trow"><span class="tw">▸</span> cli</div>
+    </div>
+    <div class="stage dim">
+      <div class="stabs"><div class="stab act"><span class="d" style="background:#5A5142"></span> claude — main</div></div>
+      <div class="term"><span class="mut">~/duo</span> <span class="acc">❯</span><br><span class="cur"></span></div>
+    </div>
+  </div></div>
+</div>
+<div class="frame-cap">
+  <strong>Guided, but stays in the dropdown.</strong> The <code>+ New worktree…</code> row expands in place into a small form:
+  a plain-language <em>"What are you working on?"</em> field (which previews the branch it'll create), a <em>from main ▾</em>
+  base picker, and a <em>Start a Claude session here</em> toggle (default on — Duo is a pair-work tool). One <em>Create</em>
+  and the navigator re-roots into the new worktree with an agent already booting.
+  <br><span class="k">Why recommended:</span> it's the architecturally safe surface in Duo — pure DOM in the left sidebar, so
+  it can't be occluded by the browser pane's <code>WebContentsView</code> (a real hazard for centered modals, see Option C).
+  It extends the just-shipped dropdown instead of adding a whole new modal surface, and it keeps the PM in-context.
+</div>
+
+<!-- Option C — modal -->
+<h3>Option C — Guided modal dialog</h3>
+<div class="flow-steps"><span class="st">click + New worktree</span><span class="ar">→</span><span class="st">centered "Start new work" dialog</span><span class="ar">→</span><span class="st">Create → re-rooted</span></div>
+<div class="dwin" style="margin-top:12px">
+  <div class="tbar">
+    <div class="lights"><i class="r"></i><i class="y"></i><i class="g"></i></div>
+    <span class="wordmark">Duo</span>
+    <span class="tchip"><span class="dot" style="background:#5A5142"></span> duo · <span class="br">⎇ main</span></span>
+  </div>
+  <div class="bodywrap"><div class="body">
+    <div class="nav">
+      <div class="crumb"><span class="home">⌂</span> <span class="seg">duo</span> <span class="gear">⚙</span></div>
+      <div class="wpill" style="opacity:.6"><span class="glyph"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span><span class="repo">duo</span><span class="sep">·</span><span class="git">main</span><span class="chev">▼</span></div>
+      <div class="trow"><span class="tw">▸</span> cli</div>
+      <div class="trow"><span class="tw">▸</span> docs</div>
+    </div>
+    <div class="stage dim"><div class="stabs"><div class="stab act"><span class="d" style="background:#5A5142"></span> claude</div></div><div class="term"><span class="mut">~/duo</span> <span class="acc">❯</span></div></div>
+    <div class="scrim">
+      <div class="modal">
+        <div class="mhead">
+          <p class="mtitle">Start a new piece of work</p>
+          <p class="msub">A worktree is an isolated copy of the project. Work and experiment here without touching main.</p>
+        </div>
+        <div class="mbody">
+          <div class="mcol"><div class="flabel">What are you working on?</div>
+            <div class="mfield focus">Q3 pricing page copy<span class="caret"></span></div></div>
+          <p class="mprev">Branch <b>claude/q3-pricing-page-copy</b> · folder <b>.claude/worktrees/q3-pricing-page-copy</b></p>
+          <div class="mrow2">
+            <div class="mcol"><div class="flabel">Branch from</div><div class="mselect">main <span style="color:var(--dink-g)">▾</span></div></div>
+            <div class="mcol"><div class="flabel">Open in</div><div class="mselect">This window <span style="color:var(--dink-g)">▾</span></div></div>
+          </div>
+          <div class="mtoggle"><span class="sw" style="--acc:#E08F4A;width:30px;height:17px;border-radius:9px;background:#E08F4A;position:relative;display:inline-block"><i style="position:absolute;top:2px;right:2px;width:13px;height:13px;border-radius:50%;background:#fff"></i></span> Start a Claude session in the new worktree</div>
+          <div class="madv">▸ Advanced — custom branch name &amp; folder</div>
+        </div>
+        <div class="mfoot"><span class="mbtn ghost">Cancel</span><span class="mbtn primary">Create worktree</span></div>
+      </div>
+    </div>
+  </div></div>
+</div>
+<div class="frame-cap">
+  <strong>The roomiest, most self-explanatory.</strong> A centered dialog has space for a one-line explainer of <em>what a
+  worktree even is</em>, both "branch from" and "open in" pickers side by side, the Claude toggle, and an <em>Advanced</em>
+  disclosure for power users. Most legible for a first-timer.
+  <br><span class="k">Caveat:</span> centered overlays in Duo can be occluded by the browser pane's <code>WebContentsView</code>
+  (documented hazard — BUG-153). A modal that covers the working area needs the WCV hidden/lowered while it's up — extra
+  plumbing Option B sidesteps entirely.
+</div>
+
+<!-- Option D — palette -->
+<h3>Option D — Command-palette quick-create (power-user lane)</h3>
+<div class="flow-steps"><span class="st">⌘K / type "new worktree"</span><span class="ar">→</span><span class="st">type the name inline</span><span class="ar">→</span><span class="st">Enter → created</span></div>
+<div class="dwin" style="margin-top:12px">
+  <div class="tbar">
+    <div class="lights"><i class="r"></i><i class="y"></i><i class="g"></i></div>
+    <span class="wordmark">Duo</span>
+    <span class="tchip"><span class="dot" style="background:#5A5142"></span> duo · <span class="br">⎇ main</span></span>
+  </div>
+  <div class="bodywrap"><div class="body">
+    <div class="nav">
+      <div class="crumb"><span class="home">⌂</span> <span class="seg">duo</span> <span class="gear">⚙</span></div>
+      <div class="wpill" style="opacity:.55"><span class="glyph"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span><span class="repo">duo</span><span class="sep">·</span><span class="git">main</span></div>
+      <div class="trow"><span class="tw">▸</span> cli</div>
+      <div class="trow"><span class="tw">▸</span> docs</div>
+    </div>
+    <div class="stage dim"><div class="stabs"><div class="stab act"><span class="d" style="background:#5A5142"></span> claude</div></div><div class="term"><span class="mut">~/duo</span> <span class="acc">❯</span></div></div>
+    <div class="palette">
+      <div class="pin"><span class="pmt">⊞</span> new worktree: Q3 pricing page copy<span class="caret"></span></div>
+      <div class="prow act"><span class="plus">+</span> Create worktree <b style="color:var(--dink)">"q3-pricing-page-copy"</b> from main <span class="meta">⏎</span></div>
+      <div class="prow"><span style="color:var(--dink-g)">⎇</span> Switch to… main <span class="meta">current</span></div>
+      <div class="prow"><span style="color:var(--dink-g)">⎇</span> Switch to… enh-208-vault <span class="meta">✱1</span></div>
+    </div>
+  </div></div>
+</div>
+<div class="frame-cap">
+  <strong>Keyboard-first.</strong> Surfaces create/switch in the existing command palette (⌘K) — type a name, hit Enter.
+  Fast for power users and naturally CLI-parity-shaped, but <em>not</em> the headline for a non-technical PM who won't
+  reach for a palette. Best as a <em>complement</em> to B or C, not the primary.
+</div>
+
+<h2>Enhancement 1 — decisions</h2>
+
+<section class="decision-card">
+  <div class="q-title">Decision D1 · Create flow shape</div>
+  <h3 class="q-prompt">When the PM clicks "+ New worktree", what do they get?</h3>
+  <p class="q-context">All four reach the same end state (a new worktree, re-rooted). The question is the surface. The PM is non-technical, and Duo's modal track record has a WebContentsView-occlusion hazard.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d1" value="inline"><div class="q-option-body"><div class="q-option-title">B — Inline mini-form in the dropdown <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">Guided + in-context + architecturally safe (DOM, no WCV occlusion). Extends the shipped dropdown rather than adding a modal surface.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="modal"><div class="q-option-body"><div class="q-option-title">C — Guided modal dialog</div><div class="q-option-rationale">Roomiest, most self-explanatory for a first-timer (explainer + side-by-side pickers). Costs WCV-occlusion plumbing.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="onetap"><div class="q-option-body"><div class="q-option-title">A — One-tap instant create</div><div class="q-option-rationale">Fastest, zero friction. No naming/guidance unless paired with D2=describe. Risk: a drawer of meaningless codenames.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="palette"><div class="q-option-body"><div class="q-option-title">D — Command-palette quick-create</div><div class="q-option-rationale">Keyboard-first; great for power users, wrong headline for a non-technical PM. Best as a complement, not primary.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d1" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision D2 · Naming model</div>
+  <h3 class="q-prompt">How is the new worktree's branch / folder named?</h3>
+  <p class="q-context">Folder lives at <code>.claude/worktrees/&lt;name&gt;</code>, branch at <code>claude/&lt;name&gt;</code> (the current convention). The PM shouldn't have to think in git branch names.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d2" value="describe"><div class="q-option-body"><div class="q-option-title">B — Describe the work → auto-slug <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">"Q3 pricing page copy" → <code>claude/q3-pricing-page-copy</code>. Meaningful names, no git literacy. Branch editable under Advanced.</div></div></label>
+    <label class="q-option"><input type="radio" name="d2" value="codename"><div class="q-option-body"><div class="q-option-title">A — Auto codename (bright-canyon)</div><div class="q-option-rationale">Zero typing. Matches how agents already name worktrees. But codenames don't describe the work — hard to tell apart later.</div></div></label>
+    <label class="q-option"><input type="radio" name="d2" value="branch"><div class="q-option-body"><div class="q-option-title">C — Type the branch name directly</div><div class="q-option-rationale">Full control. Too technical for the target persona as the default; keep it as the Advanced fallback.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d2" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision D3 · Does creating also start a Claude session?</div>
+  <h3 class="q-prompt">After the worktree exists, do we boot an agent in it?</h3>
+  <p class="q-context">Duo exists to host parallel agent work. A PM making a worktree almost always wants someone working in it — but auto-spawning a session has a cost (a terminal, a running <code>claude</code>).</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d3" value="toggle"><div class="q-option-body"><div class="q-option-title">B — Optional toggle, default ON <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">Open a terminal at the new worktree and start <code>claude</code>; let the PM uncheck it. Matches the pair-work premise without being presumptuous.</div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="always"><div class="q-option-body"><div class="q-option-title">A — Always start a session</div><div class="q-option-rationale">Simplest mental model ("new work = new agent"). No opt-out for the rare "I just want the files" case.</div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="never"><div class="q-option-body"><div class="q-option-title">C — Never; just create + re-root</div><div class="q-option-rationale">Cheapest. PM starts the agent themselves. Misses the "and now get to work" moment that makes this PM-friendly.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d3" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision D4 · Where the new worktree opens</div>
+  <h3 class="q-prompt">This window, or a new one?</h3>
+  <p class="q-context">The dropdown already has a per-row "open in new window" button (ENH-210). Create can default either way.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d4" value="here"><div class="q-option-body"><div class="q-option-title">A — This window — re-root the navigator <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">Matches clicking an existing worktree row today. Simplest for a PM doing one thing at a time; new-window stays available via the existing button.</div></div></label>
+    <label class="q-option"><input type="radio" name="d4" value="newwin"><div class="q-option-body"><div class="q-option-title">B — Always a new window</div><div class="q-option-rationale">Keeps main visible alongside. Good for true parallel work; heavier (a whole window) for a quick task.</div></div></label>
+    <label class="q-option"><input type="radio" name="d4" value="ask"><div class="q-option-body"><div class="q-option-title">C — Let the PM choose each time (the "Open in" picker)</div><div class="q-option-rationale">Most flexible (shown in Option C's modal). One extra decision per create; only worth it if both are common.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d4" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<!-- ════════════════════ ENHANCEMENT 2 ════════════════════ -->
+<h2>Enhancement 2 · Survive removal under-foot</h2>
+
+<p class="lead">You're viewing worktree <code>q3-pricing-page-copy</code>. The agent finishes, merges it to main, and runs
+<code>git worktree remove</code>. The folder the navigator is rooted in <strong>vanishes</strong>. Today that risks a
+render error (the nav reads a cwd that no longer exists). Required behavior: <strong>no crash</strong>, tell the PM,
+auto-revert to main.</p>
+
+<h3>Recovery state — banner + auto-revert to main</h3>
+<div class="dwin">
+  <div class="tbar">
+    <div class="lights"><i class="r"></i><i class="y"></i><i class="g"></i></div>
+    <span class="wordmark">Duo</span>
+    <span class="tchip"><span class="dot" style="background:#5A5142"></span> duo · <span class="br">⎇ main</span></span>
+  </div>
+  <div class="bodywrap"><div class="body">
+    <div class="nav">
+      <div class="crumb"><span class="home">⌂</span> <span class="seg">duo</span> <span class="gear">⚙</span></div>
+      <div class="banner">
+        <span class="ic">⎇</span>
+        <div><b>Worktree "q3-pricing-page-copy" was removed</b> (merged &amp; deleted by Claude). You're back on <b>main</b>.
+        <span class="act">View on main ↗</span></div>
+        <span class="x">✕</span>
+      </div>
+      <div class="wpill">
+        <span class="glyph"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span>
+        <span class="repo">duo</span><span class="sep">·</span><span class="git">main</span>
+        <span class="chev">▼</span>
+      </div>
+      <div class="trow"><span class="tw">▸</span> cli</div>
+      <div class="trow"><span class="tw">▸</span> docs</div>
+      <div class="trow"><span class="tw">▸</span> renderer</div>
+      <div class="trow file"><span class="tw">·</span> tasks.md</div>
+    </div>
+    <div class="stage">
+      <div class="stabs"><div class="stab act"><span class="d" style="background:#5A5142"></span> claude — main</div></div>
+      <div class="term"><span class="mut">~/duo/.claude/worktrees/q3-pricing-page-copy</span><br><span class="ok">✓ Merged q3-pricing-page-copy → main (3 commits)</span><br><span class="mut">$ git worktree remove .claude/worktrees/q3-pricing-page-copy</span><br><span class="acc">❯</span> <span class="mut">› Duo returned this window to main.</span><br><span class="cur"></span></div>
+    </div>
+  </div></div>
+</div>
+<div class="frame-cap">
+  <strong>What happens:</strong> Duo notices the current worktree's folder is gone (via the existing focus / file-watch
+  re-probe, hardened by a guard on every navigator read), <span class="k">re-roots the navigator to the main checkout</span>,
+  the titlebar chip drops back to <code>⎇ main</code>, and a dismissible banner explains <em>why</em> the files just changed —
+  with a one-click <em>View on main</em>. No red error screen, no dead tree. The terminal that was in the removed folder is
+  handled per D6's edge-case note.
+</div>
+
+<h2>Enhancement 2 — decisions</h2>
+
+<section class="decision-card">
+  <div class="q-title">Decision D5 · Recovery UX</div>
+  <h3 class="q-prompt">How does Duo tell the PM their worktree disappeared?</h3>
+  <p class="q-context">The non-negotiable part: never throw a render error, always end up somewhere valid (main). The choice is how loud the notice is.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d5" value="banner"><div class="q-option-body"><div class="q-option-title">B — Auto-revert to main + dismissible banner <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">Non-blocking, explains why the files changed, offers a next step. The PM keeps working; nothing is lost (the work merged to main).</div></div></label>
+    <label class="q-option"><input type="radio" name="d5" value="silent"><div class="q-option-body"><div class="q-option-title">A — Silent auto-revert</div><div class="q-option-rationale">Cleanest visually, but a PM who didn't expect it sees their files swap with no explanation — confusing.</div></div></label>
+    <label class="q-option"><input type="radio" name="d5" value="modal"><div class="q-option-body"><div class="q-option-title">C — Blocking modal ("Your worktree was removed")</div><div class="q-option-rationale">Impossible to miss, forces acknowledgment. Heavy for an event that's often expected (the agent just merged), and re-hits the WCV-occlusion hazard.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d5" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision D6 · Detection trigger &amp; the live-terminal edge case</div>
+  <h3 class="q-prompt">When does Duo notice, and what about a terminal still sitting in the dead folder?</h3>
+  <p class="q-context">Today a chokidar watcher pushes <code>GIT_WATCH_INVALIDATE</code> but the navigator doesn't act on it. A removed worktree may also have an open terminal whose cwd no longer exists.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d6" value="guarded"><div class="q-option-body"><div class="q-option-title">B — Watcher/focus re-probe + a vanished-cwd guard on every nav read <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">Defense in depth: react fast on the existing signals, but also wrap navigator reads so a vanished cwd can never crash-render — it triggers revert instead. Terminal in the dead folder gets a one-line "this worktree was removed" notice; stays open (history intact), no new commands.</div></div></label>
+    <label class="q-option"><input type="radio" name="d6" value="signals"><div class="q-option-body"><div class="q-option-title">A — React only on watcher / window-focus re-probe</div><div class="q-option-rationale">Less code. But if a render happens before the probe lands, the unguarded read can still throw — the exact failure we're fixing.</div></div></label>
+    <label class="q-option"><input type="radio" name="d6" value="watch"><div class="q-option-body"><div class="q-option-title">C — Dedicated watch on the worktree root for instant reaction</div><div class="q-option-rationale">Snappiest detection. More watchers to manage across windows; arguably overkill vs. the guard + existing signals.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d6" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<details class="deferred">
+  <summary>What building the picks implies (read after deciding)</summary>
+  <div class="deferred-body">
+    <ul>
+      <li><strong>New CLI verb</strong> <code>duo worktree new "&lt;desc&gt;" [--from main] [--here|--window] [--claude]</code> +
+        <code>duo worktree remove &lt;path&gt;</code> — CLI-parity with the UI button (rule 4). 4-surface doc sync
+        (cli/duo.ts, skill/SKILL.md, agents/duo.md, CLI-COVERAGE.md) + rebuild the binary.</li>
+      <li><strong>Pill becomes an always-on trigger</strong> — clickable even with a single checkout, so the Create row is reachable from a lone main.</li>
+      <li><strong>Backend</strong> — Duo now <em>writes</em> git worktree state for the first time (<code>git worktree add</code> off a base branch, slug collision handling). Lives next to <code>core/git/worktree.ts</code>. Note the CLI bundles core — rebuild on core change.</li>
+      <li><strong>Removal robustness</strong> — an ErrorBoundary around the navigator + a vanished-cwd guard + a "revert to main checkout" path in <code>useNavigator</code>. This is the crash-prevention spine of Enhancement 2; needs a regression test (recurring-regression rule).</li>
+      <li><strong>Smoke matrix</strong> — add: create-from-lone-main, create-from-worktree, removal-under-foot revert, terminal-in-dead-folder.</li>
+    </ul>
+  </div>
+</details>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 6 decisions answered</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  var DECISIONS = [
+    { id: 'd1', title: 'D1 Create flow shape' },
+    { id: 'd2', title: 'D2 Naming model' },
+    { id: 'd3', title: 'D3 Start a Claude session on create?' },
+    { id: 'd4', title: 'D4 Where the new worktree opens' },
+    { id: 'd5', title: 'D5 Removal recovery UX' },
+    { id: 'd6', title: 'D6 Detection trigger + live-terminal edge case' }
+  ];
+  function answered() { return DECISIONS.filter(function (d) { return document.querySelector('input[name="' + d.id + '"]:checked'); }).length; }
+  function refresh() { document.getElementById('answered-count').textContent = String(answered()); }
+  document.addEventListener('change', function (e) { if (e.target && e.target.type === 'radio') refresh(); });
+  function payload() {
+    var lines = ['Worktree lifecycle UX — decisions (docs/research/worktree-lifecycle-ux.html · ENH-222)', ''];
+    DECISIONS.forEach(function (d) {
+      var sel = document.querySelector('input[name="' + d.id + '"]:checked');
+      var n = document.querySelector('.q-notes[data-decision="' + d.id + '"]');
+      lines.push('[' + (sel ? sel.value.toUpperCase() : 'UNANSWERED') + '] ' + d.title);
+      if (n && n.value.trim()) lines.push('    ' + n.value.trim().replace(/\n/g, '\n    '));
+      lines.push('');
+    });
+    return lines.join('\n');
+  }
+  document.getElementById('copy-btn').addEventListener('click', function () {
+    var b = this;
+    navigator.clipboard.writeText(payload()).then(function () {
+      b.classList.add('copied'); b.textContent = 'Copied ✓';
+      setTimeout(function () { b.classList.remove('copied'); b.textContent = 'Copy decisions'; }, 2000);
+    });
+  });
+  refresh();
+})();
+</script>
+</body>
+</html>

@@ -2414,6 +2414,17 @@ function setupIPC(): void {
     return listWorktrees(cwd, { withStatus: true })
   })
 
+  // ENH-222 — create a worktree (renderer → main). The navigator's
+  // "+ New worktree" inline-create form calls this; it writes git state
+  // via the same core function the CLI `duo worktree new` uses.
+  ipcMain.handle(IPC.GIT_CREATE_WORKTREE, async (
+    _event,
+    { cwd, name, fromRef }: { cwd: string; name: string; fromRef?: string }
+  ) => {
+    const { createWorktree } = await import('../core/git/worktree')
+    return createWorktree(cwd, { name, fromRef })
+  })
+
   // ENH-182 — D2 marker probe (renderer → main). Returns true if
   // `dir` contains a CLAUDE.md file or a .claude/ subdirectory.
   // Used by useProjects to detect project markers for dirs the

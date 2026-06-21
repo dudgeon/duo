@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>Inline create form — UI treatments (ENH-222 · D1)</title>
+<style>
+/* ── duo-atelier.css kernel (light page chrome) ── */
+:root {
+  --paper:#fbf8f1; --paper-deep:#f3ede0; --paper-edge:#e8e0cb; --paper-rule:#d9cea8;
+  --ink:#2b2620; --ink-soft:#4a4238; --ink-mute:#6f6557; --ink-ghost:#9a9080;
+  --accent:#c46a1c; --accent-soft:#f4d9b6; --pass:#4a7d3e; --fail:#b13e3a; --warn:#b07527;
+}
+* { box-sizing:border-box; }
+html,body { margin:0; padding:0; background:var(--paper); color:var(--ink); font-family:-apple-system,"SF Pro Text","Segoe UI",system-ui,sans-serif; font-size:14px; line-height:1.55; }
+body { padding:32px 40px 96px; max-width:1120px; margin:0 auto; }
+header.page-head { border-bottom:1px solid var(--paper-rule); padding-bottom:16px; margin-bottom:20px; }
+header.page-head h1 { font-family:"New York","Iowan Old Style",Georgia,serif; font-style:italic; font-weight:500; margin:0 0 4px; font-size:25px; }
+header.page-head .meta { color:var(--ink-mute); font-size:13px; }
+header.page-head .meta .pill { display:inline-block; padding:2px 8px; border-radius:10px; background:var(--accent-soft); color:var(--accent); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.04em; margin-right:6px; }
+.intro { background:var(--paper-deep); border:1px solid var(--paper-rule); border-radius:6px; padding:14px 18px; margin-bottom:18px; font-size:13.5px; color:var(--ink-soft); }
+.intro strong { color:var(--ink); font-weight:600; } .intro em { color:var(--ink); font-style:italic; }
+.locked { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 26px; }
+.locked .lk { font-size:11.5px; color:var(--ink-soft); background:var(--paper); border:1px solid var(--paper-rule); border-radius:20px; padding:3px 11px; }
+.locked .lk b { color:var(--ink); }
+.locked .lk.open { background:color-mix(in srgb, var(--accent) 9%, var(--paper)); border-color:color-mix(in srgb, var(--accent) 45%, var(--paper-rule)); color:var(--accent); font-weight:600; }
+h2 { font-family:"New York","Iowan Old Style",Georgia,serif; font-weight:600; margin:34px 0 6px; font-size:20px; border-bottom:1px solid var(--paper-rule); padding-bottom:6px; }
+h3 { font-weight:600; margin:0 0 4px; font-size:14.5px; }
+code { font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:12.5px; background:var(--paper-deep); padding:1px 5px; border-radius:3px; }
+.lead { font-size:13.5px; color:var(--ink-mute); margin:4px 0 16px; max-width:780px; }
+
+.decision-card { background:var(--paper-deep); border:1.5px solid var(--paper-rule); border-radius:6px; padding:16px 18px; margin:18px 0; }
+.decision-card .q-title { font-weight:700; font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--accent); margin:0 0 6px; }
+.decision-card .q-prompt { font-family:"New York","Iowan Old Style",Georgia,serif; font-weight:500; font-size:17px; color:var(--ink); margin:0 0 12px; line-height:1.35; }
+.decision-card .q-context { font-size:13px; color:var(--ink-mute); margin:0 0 14px; }
+.q-options { display:grid; grid-template-columns:1fr; gap:10px; margin:0 0 12px; }
+.q-option { display:block; background:var(--paper); border:1.5px solid var(--paper-rule); border-radius:5px; padding:10px 12px; cursor:pointer; transition:border-color .12s, background .12s; }
+.q-option:hover { border-color:var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right:8px; cursor:pointer; accent-color:var(--accent); }
+.q-option-body { display:inline-block; vertical-align:top; width:calc(100% - 22px); }
+.q-option:has(input[type="radio"]:checked) { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+.q-option-title { font-weight:600; font-size:13.5px; color:var(--ink); margin:0 0 3px; }
+.q-option-title .recommend-tag { font-size:10px; background:var(--accent-soft); color:var(--accent); text-transform:uppercase; font-weight:700; letter-spacing:.04em; padding:1px 6px; border-radius:8px; margin-left:6px; }
+.q-option-rationale { font-size:12px; color:var(--ink-soft); line-height:1.45; margin:3px 0 0; }
+.q-notes { width:100%; background:var(--paper); border:1px solid var(--paper-rule); border-radius:4px; padding:8px 10px; font-family:inherit; font-size:12.5px; color:var(--ink); resize:vertical; min-height:50px; }
+.q-notes:focus { outline:1.5px solid var(--accent); }
+.copy-bar { position:sticky; bottom:0; margin:36px -40px -96px; padding:16px 40px; background:color-mix(in srgb, var(--paper-deep) 96%, transparent); border-top:1.5px solid var(--paper-rule); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); display:flex; justify-content:space-between; align-items:center; gap:16px; z-index:50; }
+.copy-bar .copy-meta { font-size:12.5px; color:var(--ink-soft); } .copy-bar #answered-count { color:var(--accent); font-weight:700; }
+.copy-bar button { background:var(--accent); color:#fff; border:none; border-radius:5px; padding:9px 18px; font-family:inherit; font-size:13.5px; font-weight:600; cursor:pointer; transition:background .12s; }
+.copy-bar button:hover { background:color-mix(in srgb, black 8%, var(--accent)); } .copy-bar button.copied { background:var(--pass); }
+
+/* ── variant grid + dark Duo mock ── */
+.vgrid { display:grid; grid-template-columns:1fr 1fr; gap:22px 20px; margin:14px 0 8px; }
+@media (max-width:900px){ .vgrid { grid-template-columns:1fr; } }
+.vcell .cap { font-size:12px; color:var(--ink-mute); margin:9px 3px 0; line-height:1.5; }
+.vcell .cap b { color:var(--ink-soft); } .vcell .cap .k { color:var(--accent); font-weight:700; }
+.vtag { display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--accent); margin-bottom:6px; }
+
+.dwin {
+  --p:#1A1611; --pd:#13100C; --pe:#26201A; --pr:#352D23;
+  --dink:#F0E9D6; --dink-s:#C8BD9E; --dink-m:#8A7E66; --dink-g:#5A5142;
+  --acc:#E08F4A; --acc-soft:#3F2A18; --acc-ink:#F2D2A8;
+  --term-bg:#0C0A07; --term-fg:#E9DEC2;
+  width:100%; border-radius:11px; overflow:hidden; border:1px solid #000; background:var(--p);
+  box-shadow:0 14px 34px rgba(0,0,0,.28), 0 2px 6px rgba(0,0,0,.22);
+  font-family:-apple-system,"SF Pro Text",system-ui,sans-serif; color:var(--dink);
+}
+.dwin .tbar { height:34px; display:flex; align-items:center; gap:9px; padding:0 12px; background:var(--pe); border-bottom:1px solid var(--pr); }
+.dwin .lights { display:flex; gap:7px; }
+.dwin .lights i { width:10px; height:10px; border-radius:50%; display:block; box-shadow:inset 0 0 0 .5px rgba(0,0,0,.22); }
+.dwin .lights .r{background:#ff5f57} .dwin .lights .y{background:#febc2e} .dwin .lights .g{background:#28c840}
+.dwin .wordmark { font-family:"New York",Georgia,serif; font-style:italic; font-weight:500; font-size:13px; color:var(--dink); margin-left:3px; }
+.dwin .tchip { margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-size:10.5px; color:var(--dink-s); padding:2px 8px; border-radius:6px; border:1px solid var(--pr); }
+.dwin .tchip .br { font-family:ui-monospace,Menlo,monospace; font-size:10px; color:var(--dink-m); }
+
+.dwin .bodywrap { position:relative; }
+.dwin .body { display:flex; min-height:268px; }
+.dwin .nav { width:216px; flex:0 0 216px; background:var(--pe); border-right:1px solid var(--pr); position:relative; padding-bottom:8px; }
+.dwin .crumb { display:flex; align-items:center; gap:7px; padding:9px 12px 5px; font-size:12px; color:var(--dink-s); }
+.dwin .crumb .home { color:var(--dink-m); } .dwin .crumb .seg { color:var(--dink); font-weight:500; } .dwin .crumb .gear { margin-left:auto; color:var(--dink-g); font-size:13px; }
+.glyph { display:inline-flex; flex:0 0 auto; }
+
+.wpill { display:flex; align-items:center; gap:8px; margin:4px 8px 2px; padding:6px 12px; font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:11px; color:var(--dink-m); border:1px solid var(--pr); border-radius:9px; background:var(--pd); cursor:pointer; }
+.wpill.open { border-bottom:0; border-radius:9px 9px 0 0; }
+.wpill .repo { color:var(--dink); font-weight:500; } .wpill .sep { color:var(--dink-m); } .wpill .git { flex:1; } .wpill .chev { color:var(--dink-g); font-size:8px; }
+.wpill .glyph { color:var(--dink-m); }
+
+.wdrop { margin:0 8px; background:var(--pd); border:1px solid var(--pr); border-top:0; border-radius:0 0 9px 9px; box-shadow:0 10px 26px rgba(0,0,0,.45); position:relative; z-index:6; }
+.wdrop .dhdr { padding:7px 12px 5px; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.09em; color:var(--dink-g); display:flex; align-items:center; }
+.wdrop .dhdr .esc { margin-left:auto; font-weight:600; letter-spacing:.02em; color:var(--dink-g); text-transform:none; }
+
+/* dice / generate glyph */
+.dice { display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:5px; border:1px solid var(--pr); color:var(--dink-s); font-size:11px; cursor:pointer; flex:0 0 auto; }
+.dice:hover { color:var(--acc-ink); border-color:var(--acc); }
+.nameit { display:inline-flex; align-items:center; gap:4px; font-size:10px; color:var(--acc-ink); cursor:pointer; white-space:nowrap; flex:0 0 auto; }
+.nameit:hover { text-decoration:underline; }
+.vok { color:#7FB36B; margin-left:6px; }
+
+/* shared field bits */
+.fld { display:flex; align-items:center; gap:7px; background:var(--p); border:1px solid var(--pr); border-radius:7px; padding:6px 8px; font-size:12px; color:var(--dink); }
+.fld.focus { border-color:var(--acc); box-shadow:0 0 0 2px color-mix(in srgb, var(--acc) 22%, transparent); }
+.fld .txt { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.fld .caret { width:1px; height:14px; background:var(--acc); flex:0 0 auto; }
+.fld .ph { color:var(--dink-g); }
+.prevline { font-family:ui-monospace,Menlo,monospace; font-size:9.5px; color:var(--dink-m); }
+.prevline b { color:var(--dink-s); font-weight:600; }
+.btn { text-align:center; padding:7px 10px; border-radius:7px; font-size:12px; font-weight:600; cursor:pointer; }
+.btn.primary { background:var(--acc); color:#1A1208; } .btn.ghost { background:transparent; border:1px solid var(--pr); color:var(--dink-s); }
+.flabel { font-size:9px; text-transform:uppercase; letter-spacing:.07em; color:var(--dink-g); }
+
+/* Variant A — single-line */
+.vA .line { padding:6px 10px 4px; }
+.vA .row1 { display:flex; align-items:center; gap:7px; }
+.vA .enter { font-family:ui-monospace,Menlo,monospace; font-size:9.5px; color:var(--dink-g); flex:0 0 auto; }
+.vA .meta { display:flex; align-items:center; gap:8px; padding:5px 2px 2px; font-family:ui-monospace,Menlo,monospace; font-size:9.5px; color:var(--dink-m); }
+.vA .meta .opt { margin-left:auto; color:var(--dink-g); cursor:pointer; }
+.vA .meta b { color:var(--dink-s); }
+
+/* Variant B — progressive panel */
+.vB .pan { padding:9px 11px 11px; }
+.vB .genbtn { font-size:10.5px; color:var(--acc-ink); cursor:pointer; flex:0 0 auto; }
+.vB .prevline { margin:6px 2px 9px; }
+.vB .more { margin-top:9px; font-size:10.5px; color:var(--dink-m); cursor:pointer; }
+
+/* Variant C — roomy, widened dropdown */
+.wdrop.wide { width:328px; }
+.vC .pan { padding:10px 12px 12px; }
+.vC .pan .fld { margin-bottom:7px; }
+.vC .prevline { margin:0 2px 11px; }
+.vC .two { display:flex; gap:8px; margin-bottom:11px; }
+.vC .two .col { flex:1; }
+.vC .sel { display:flex; align-items:center; justify-content:space-between; background:var(--p); border:1px solid var(--pr); border-radius:7px; padding:6px 9px; font-size:11.5px; color:var(--dink-s); margin-top:4px; }
+.vC .sel .car { color:var(--dink-g); font-size:8px; }
+.vC .tgl { display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--dink-s); margin-bottom:12px; }
+.sw { width:30px; height:17px; border-radius:9px; background:var(--acc); position:relative; flex:0 0 auto; }
+.sw.off { background:var(--dink-g); } .sw i { position:absolute; top:2px; right:2px; width:13px; height:13px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.4); }
+.sw.off i { left:2px; right:auto; }
+.vC .acts { display:flex; gap:8px; } .vC .acts .btn { flex:1; }
+
+/* Variant D — mad-libs sentence */
+.vD .sent { padding:11px 12px 12px; font-size:13px; line-height:2.05; color:var(--dink-s); }
+.chip { display:inline-flex; align-items:center; gap:5px; border-radius:7px; padding:3px 8px; font-size:12px; white-space:nowrap; }
+.chip.name { background:var(--p); border:1px solid var(--acc); color:var(--dink); box-shadow:0 0 0 2px color-mix(in srgb, var(--acc) 18%, transparent); }
+.chip.name .caret { width:1px; height:13px; background:var(--acc); display:inline-block; }
+.chip.name .d { font-size:10px; color:var(--dink-m); cursor:pointer; }
+.chip.sel { background:var(--pe); border:1px solid var(--pr); color:var(--dink-s); cursor:pointer; }
+.chip.sel .car { font-size:8px; color:var(--dink-g); }
+.chip.tog { background:color-mix(in srgb, var(--acc) 16%, transparent); border:1px solid color-mix(in srgb, var(--acc) 40%, transparent); color:var(--acc-ink); }
+.vD .sent .blank { color:var(--dink-g); font-style:italic; }
+.vD .act { padding:0 12px 12px; } .vD .act .btn { display:inline-block; padding:7px 16px; }
+
+/* tree rows + stage */
+.dwin .trow { display:flex; align-items:center; gap:7px; padding:3px 12px 3px 14px; font-size:12.5px; color:var(--dink-s); }
+.dwin .trow .tw { color:var(--dink-g); width:11px; text-align:center; font-size:10px; }
+.dwin .stage { flex:1; background:var(--term-bg); display:flex; flex-direction:column; min-width:0; position:relative; z-index:1; }
+.dwin .stage .stabs { height:28px; display:flex; align-items:flex-end; gap:3px; padding:0 9px; background:var(--pe); border-bottom:1px solid var(--pr); }
+.dwin .stage .stab { font-size:10.5px; color:var(--dink-m); padding:4px 9px; border-radius:6px 6px 0 0; display:flex; align-items:center; gap:6px; }
+.dwin .stage .stab.act { background:var(--term-bg); color:var(--dink-s); }
+.dwin .stage .stab .d { width:6px; height:6px; border-radius:2px; }
+.dwin .stage .term { flex:1; padding:10px 13px; font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:10.5px; line-height:1.65; color:var(--term-fg); }
+.dwin .stage .term .mut { color:#6f6452; } .dwin .stage .term .acc { color:#E08F4A; } .dwin .stage .term .cur { display:inline-block; width:6px; height:12px; background:var(--term-fg); vertical-align:-2px; }
+.dwin .stage.dim .term { opacity:.5; }
+
+.gb { } /* git-branch glyph wrapper noop */
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Inline create form — UI treatments</h1>
+  <div class="meta">
+    <span class="pill">ENH-222</span><span class="pill">D1 · UI</span>
+    2026-06-18 · follow-up to the lifecycle study · pick one
+  </div>
+</header>
+
+<div class="intro">
+  <p style="margin:0 0 12px; padding:8px 12px; background:color-mix(in srgb, var(--pass) 12%, var(--paper)); border:1px solid color-mix(in srgb, var(--pass) 40%, var(--paper-rule)); border-radius:6px; font-size:12.5px;"><strong style="color:var(--pass)">✅ DECIDED (Variant A) + IMPLEMENTED</strong> (ENH-222, v0.11.2 branch). Build + findings: <strong>docs/prd/enh-222-worktree-lifecycle.md</strong>.</p>
+  <strong>You picked the inline approach but not the form's UI</strong> — <em>"I like this approach but don't like the
+  UI; make and show me more options."</em> Same end state every time: type (or auto-generate) a name → a worktree is
+  created off main, the navigator re-roots, Claude boots. These four differ only in <strong>how the form sits inside the
+  216-px dropdown</strong> — from a one-line field to a plain-language sentence. Every variant carries the
+  <strong>"Name it for me"</strong> option you asked for in D2 — click the <strong>⚄</strong> (or just leave the field
+  blank) and Duo picks a friendly name like <code>bright-canyon</code> so you never have to think one up.
+</div>
+
+<div class="locked">
+  <span class="lk open"><b>✓ D1 form UI:</b> A (one-line) + slug validation</span>
+  <span class="lk"><b>D1 approach:</b> inline ✓</span>
+  <span class="lk"><b>D2:</b> describe → slug, + auto-name ✓</span>
+  <span class="lk"><b>D3:</b> Claude on (default) ✓</span>
+  <span class="lk"><b>D4:</b> this window ✓</span>
+  <span class="lk"><b>D5:</b> banner + revert ✓</span>
+  <span class="lk"><b>D6:</b> guarded ✓</span>
+</div>
+
+<h2>Four treatments</h2>
+<p class="lead">Each mock shows the moment the <code>+ New worktree…</code> row has been clicked, with the form open in the
+dropdown. The differing part is the dropdown — the tree + terminal behind it are identical context.</p>
+
+<div class="vgrid">
+
+  <!-- Variant A — single-line type-and-go -->
+  <div class="vcell">
+    <div class="vtag">Variant A · One-line, type-and-go &nbsp;·&nbsp; ✓ CHOSEN</div>
+    <div class="dwin vA">
+      <div class="tbar"><div class="lights"><i class="r"></i><i class="y"></i><i class="g"></i></div><span class="wordmark">Duo</span><span class="tchip">duo · <span class="br">⎇ main</span></span></div>
+      <div class="bodywrap"><div class="body">
+        <div class="nav">
+          <div class="crumb"><span class="home">⌂</span> <span class="seg">duo</span> <span class="gear">⚙</span></div>
+          <div class="wpill open"><span class="glyph"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span><span class="repo">duo</span><span class="sep">·</span><span class="git">main</span><span class="chev">▲</span></div>
+          <div class="wdrop">
+            <div class="dhdr">New worktree <span class="esc">esc</span></div>
+            <div class="line">
+              <div class="row1">
+                <div class="fld focus"><span class="txt">Q3 Pricing: Copy &amp; v2!</span><span class="caret"></span></div>
+                <span class="nameit" title="Duo picks a name so you don't have to type one">⚄ Name it</span>
+                <span class="enter">⏎</span>
+              </div>
+              <div class="meta">→ creates <b>claude/q3-pricing-copy-v2</b><span class="vok">✓ spaces→-, dropped : &amp; !</span></div>
+              <div class="meta">from main · Claude on <span class="opt">options ▾</span></div>
+            </div>
+          </div>
+          <div class="trow"><span class="tw">▸</span> cli</div>
+          <div class="trow"><span class="tw">▸</span> docs</div>
+        </div>
+        <div class="stage dim"><div class="stabs"><div class="stab act"><span class="d" style="background:#5A5142"></span> claude</div></div><div class="term"><span class="mut">~/duo</span> <span class="acc">❯</span> <span class="cur"></span></div></div>
+      </div></div>
+    </div>
+    <div class="cap"><b>✓ Your pick.</b> The "+ New worktree" row becomes a single input — type a name, hit <span class="k">⏎</span>. <b>Live validation:</b> spaces become hyphens and anything that can't live in a folder/branch name (<code>: &amp; ! / ~ ^ ?</code> …) is stripped as you type, so the created name (the <b>→ creates</b> preview line) is always safe. Smart defaults (from main · Claude on · here) on one ghost line; <span class="k">⚄ Name it</span> auto-names if you'd rather not type; <b>options ▾</b> reveals base/open-in. Risk: the defaults are easy to miss — preview line mitigates.</div>
+  </div>
+
+  <!-- Variant B — progressive panel -->
+  <div class="vcell">
+    <div class="vtag">Variant B · Name + Create, options hidden</div>
+    <div class="dwin vB">
+      <div class="tbar"><div class="lights"><i class="r"></i><i class="y"></i><i class="g"></i></div><span class="wordmark">Duo</span><span class="tchip">duo · <span class="br">⎇ main</span></span></div>
+      <div class="bodywrap"><div class="body">
+        <div class="nav">
+          <div class="crumb"><span class="home">⌂</span> <span class="seg">duo</span> <span class="gear">⚙</span></div>
+          <div class="wpill open"><span class="glyph"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span><span class="repo">duo</span><span class="sep">·</span><span class="git">main</span><span class="chev">▲</span></div>
+          <div class="wdrop">
+            <div class="dhdr">New worktree</div>
+            <div class="pan">
+              <div class="flabel" style="margin-bottom:5px">What are you working on?</div>
+              <div class="fld focus"><span class="txt">Q3 pricing page copy</span><span class="caret"></span><span class="nameit">⚄ Name it for me</span></div>
+              <div class="prevline">creates <b>claude/q3-pricing-page-copy</b></div>
+              <div class="btn primary">Create worktree</div>
+              <div class="more">▸ More options &nbsp;<span style="color:var(--dink-g)">base · open in · Claude</span></div>
+            </div>
+          </div>
+          <div class="trow"><span class="tw">▸</span> cli</div>
+        </div>
+        <div class="stage dim"><div class="stabs"><div class="stab act"><span class="d" style="background:#5A5142"></span> claude</div></div><div class="term"><span class="mut">~/duo</span> <span class="acc">❯</span> <span class="cur"></span></div></div>
+      </div></div>
+    </div>
+    <div class="cap"><b>Progressive disclosure.</b> Just a name field (with a <span class="k">Name it for me</span> link) and one big <b>Create</b>. Base / open-in / Claude live under a collapsed <b>More options</b> — most PMs never open it. Cleanest default; one extra click for the rare power case.</div>
+  </div>
+
+  <!-- Variant C — roomy widened -->
+  <div class="vcell">
+    <div class="vtag">Variant C · Roomy — dropdown widens</div>
+    <div class="dwin vC">
+      <div class="tbar"><div class="lights"><i class="r"></i><i class="y"></i><i class="g"></i></div><span class="wordmark">Duo</span><span class="tchip">duo · <span class="br">⎇ main</span></span></div>
+      <div class="bodywrap"><div class="body">
+        <div class="nav">
+          <div class="crumb"><span class="home">⌂</span> <span class="seg">duo</span> <span class="gear">⚙</span></div>
+          <div class="wpill open"><span class="glyph"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span><span class="repo">duo</span><span class="sep">·</span><span class="git">main</span><span class="chev">▲</span></div>
+          <div class="wdrop wide">
+            <div class="dhdr">New worktree <span class="esc">esc</span></div>
+            <div class="pan">
+              <div class="flabel" style="margin-bottom:5px">What are you working on?</div>
+              <div class="fld focus"><span class="txt">Q3 pricing page copy</span><span class="caret"></span><span class="nameit" title="Duo picks a name so you don't have to type one">⚄ Name it for me</span></div>
+              <div class="prevline"><b>claude/q3-pricing-page-copy</b> · .claude/worktrees/q3-pricing-page-copy</div>
+              <div class="two">
+                <div class="col"><span class="flabel">From</span><div class="sel">main <span class="car">▾</span></div></div>
+                <div class="col"><span class="flabel">Open in</span><div class="sel">This window <span class="car">▾</span></div></div>
+              </div>
+              <div class="tgl"><span class="sw"><i></i></span> Start a Claude session here</div>
+              <div class="acts"><span class="btn primary">Create worktree</span><span class="btn ghost">Cancel</span></div>
+            </div>
+          </div>
+          <div class="trow"><span class="tw">▸</span> cli</div>
+        </div>
+        <div class="stage dim"><div class="stabs"><div class="stab act"><span class="d" style="background:#5A5142"></span> claude</div></div><div class="term"><span class="mut">~/duo</span> <span class="acc">❯</span></div></div>
+      </div></div>
+    </div>
+    <div class="cap"><b>Everything visible, no cramming.</b> The dropdown grows past the sidebar (overflows over the terminal — DOM-safe, no WCV hazard) so name, From / Open-in, and the Claude switch all get room. Most legible; biggest footprint. The <span class="k">⚄</span> auto-names.</div>
+  </div>
+
+  <!-- Variant D — mad-libs sentence -->
+  <div class="vcell">
+    <div class="vtag">Variant D · Plain-language sentence</div>
+    <div class="dwin vD">
+      <div class="tbar"><div class="lights"><i class="r"></i><i class="y"></i><i class="g"></i></div><span class="wordmark">Duo</span><span class="tchip">duo · <span class="br">⎇ main</span></span></div>
+      <div class="bodywrap"><div class="body">
+        <div class="nav">
+          <div class="crumb"><span class="home">⌂</span> <span class="seg">duo</span> <span class="gear">⚙</span></div>
+          <div class="wpill open"><span class="glyph"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span><span class="repo">duo</span><span class="sep">·</span><span class="git">main</span><span class="chev">▲</span></div>
+          <div class="wdrop wide" style="width:300px">
+            <div class="dhdr">New worktree</div>
+            <div class="sent">
+              Start <span class="chip name">Q3 pricing page copy<span class="caret"></span> <span class="d" title="Name it for me — Duo picks one">⚄</span></span>
+              from <span class="chip sel">main <span class="car">▾</span></span>,
+              open <span class="chip sel">here <span class="car">▾</span></span>,
+              with <span class="chip tog">Claude ✓</span>.
+            </div>
+            <div class="act"><span class="btn primary">Create</span></div>
+          </div>
+          <div class="trow"><span class="tw">▸</span> cli</div>
+        </div>
+        <div class="stage dim"><div class="stabs"><div class="stab act"><span class="d" style="background:#5A5142"></span> claude</div></div><div class="term"><span class="mut">~/duo</span> <span class="acc">❯</span></div></div>
+      </div></div>
+    </div>
+    <div class="cap"><b>Reads like English, not a form.</b> The config is one editable sentence; every option is a tappable chip. Most PM-friendly framing — no field labels to parse. Leave the name chip blank → it reads <i>"Start <span class="blank">something…</span>"</i> and the <span class="k">⚄</span> fills an auto-name. Distinctive; the chips are smaller tap targets.</div>
+  </div>
+
+</div>
+
+<h2>Decision</h2>
+<section class="decision-card">
+  <div class="q-title">Decision D1-UI · Inline-form treatment</div>
+  <h3 class="q-prompt">Which form UI sits in the dropdown?</h3>
+  <p class="q-context"><b style="color:var(--accent)">✓ DECIDED 2026-06-18 — Variant A</b> (one-line, type-and-go) <b>+ slug validation</b>: spaces→hyphens, allow-list <code>a–z 0–9 -</code> (strips anything else as you type), collapse/trim hyphens, fall back to "Name it for me" if the input sanitizes to empty. Left interactive for the record.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="ui" value="A" checked><div class="q-option-body"><div class="q-option-title">A — One-line, type-and-go <span class="recommend-tag">Chosen</span></div><div class="q-option-rationale">Single input + ⏎. Lightest, most native to the tree. Defaults shown as one ghost line; options behind a link.</div></div></label>
+    <label class="q-option"><input type="radio" name="ui" value="B"><div class="q-option-body"><div class="q-option-title">B — Name + Create, options hidden</div><div class="q-option-rationale">Progressive disclosure: name field + big Create; base/open-in/Claude under a collapsed "More options". Cleanest default.</div></div></label>
+    <label class="q-option"><input type="radio" name="ui" value="C"><div class="q-option-body"><div class="q-option-title">C — Roomy, dropdown widens</div><div class="q-option-rationale">Everything visible in a wider panel that overflows over the terminal. Most legible; biggest footprint.</div></div></label>
+    <label class="q-option"><input type="radio" name="ui" value="D"><div class="q-option-body"><div class="q-option-title">D — Plain-language sentence</div><div class="q-option-rationale">A "Start [name] from [main], open [here], with [Claude]" sentence of editable chips. Most PM-friendly; smaller tap targets.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="ui" placeholder="What you like / dislike, blends, tweaks..."></textarea>
+</section>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 1 chosen</div>
+  <button id="copy-btn" type="button">Copy decision</button>
+</div>
+
+<script>
+(function () {
+  function answered() { return document.querySelector('input[name="ui"]:checked') ? 1 : 0; }
+  function refresh() { document.getElementById('answered-count').textContent = String(answered()); }
+  document.addEventListener('change', function (e) { if (e.target && e.target.type === 'radio') refresh(); });
+  function payload() {
+    var sel = document.querySelector('input[name="ui"]:checked');
+    var n = document.querySelector('.q-notes[data-decision="ui"]');
+    var lines = ['Worktree create form UI — decision (docs/research/worktree-create-ui.html · ENH-222 D1-UI)', ''];
+    lines.push('[' + (sel ? 'VARIANT ' + sel.value : 'UNCHOSEN') + '] inline-form treatment');
+    if (n && n.value.trim()) lines.push('    ' + n.value.trim().replace(/\n/g, '\n    '));
+    return lines.join('\n');
+  }
+  document.getElementById('copy-btn').addEventListener('click', function () {
+    var b = this;
+    navigator.clipboard.writeText(payload()).then(function () {
+      b.classList.add('copied'); b.textContent = 'Copied ✓';
+      setTimeout(function () { b.classList.remove('copied'); b.textContent = 'Copy decision'; }, 2000);
+    });
+  });
+  refresh();
+})();
+</script>
+</body>
+</html>

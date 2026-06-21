@@ -309,7 +309,10 @@ export function useUserClaudeNavigator(home: string): UserClaudeNavigatorApi {
     expanded,
     pinned: true,
     showDotfiles: true, // .claude itself is a dotdir; its contents may be too
-    listings
+    listings,
+    // ENH-222 — this fixed-root pane never roots in a worktree, so the
+    // worktree-removal recovery banner state is permanently inert here.
+    removedWorktree: null
   }
   const actions: NavigatorActions = {
     navigateTo,
@@ -322,7 +325,10 @@ export function useUserClaudeNavigator(home: string): UserClaudeNavigatorApi {
     toggleExpand,
     togglePinned,
     toggleShowDotfiles,
-    refresh
+    refresh,
+    // ENH-222 — no worktree to revert to / dismiss in the fixed-root pane.
+    setWorktreeRevertTarget: () => {},
+    dismissRemovedWorktree: () => {}
   }
 
   const setShowAll = useCallback((v: boolean) => { setShowAllState(v) }, [])

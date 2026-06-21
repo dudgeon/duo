@@ -2168,6 +2168,9 @@ export const IPC = {
   // ENH-210 — list the worktrees of the repo at cwd. Powers the
   // navigator Worktrees section. renderer → main.
   GIT_WORKTREES: 'git:worktrees',
+  // ENH-222 — create a worktree (renderer → main). Powers the navigator
+  // "+ New worktree" inline-create form. Writes git state.
+  GIT_CREATE_WORKTREE: 'git:createWorktree',
   // ENH-182 — D2 marker probe. Returns true if `dir` contains a
   // CLAUDE.md file or a .claude/ directory (a project marker per
   // the project-as-filter-layer model). Renderer → main; called by

@@ -23,6 +23,28 @@
 
 set -euo pipefail
 
+# ── `--dedup`: clean iCloud SYNC-CONFLICT DUPLICATES (not eviction) ──
+# iCloud Drive sometimes drops a conflict copy named `<file> 2.ts` next to
+# the real file. They're UNTRACKED, but tsconfig's source globs pick them up
+# → spurious TS6307 typecheck failures (155 of them blocked the v0.11.1 cut).
+# Re-reading bytes (the recovery flow below) does NOT remove them — they must
+# be moved aside. `--dedup` does only that; the full run is unchanged.
+# Companion to scripts/check-materialization.sh (which detects + warns).
+if [ "${1:-}" = "--dedup" ] ; then
+  DEST="${TMPDIR:-/tmp}/duo-icloud-dupes"
+  N=0
+  while IFS= read -r f ; do
+    case "$f" in
+      *" "[0-9].*)
+        mkdir -p "$DEST/$(dirname "$f")"
+        mv "$f" "$DEST/$f" && N=$((N + 1))
+        ;;
+    esac
+  done < <(git ls-files --others --exclude-standard -- core renderer shared electron cli 2>/dev/null || true)
+  echo "materialize.sh --dedup: moved $N iCloud sync-conflict duplicate(s) to $DEST"
+  exit 0
+fi
+
 echo ""
 echo "──────────────────────────────────────────────────────────"
 echo " materialize.sh — recovering iCloud-evicted repo files"
