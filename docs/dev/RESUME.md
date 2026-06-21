@@ -1,4 +1,67 @@
 # Resume after compaction — current state (2026-06-21)
+# ⚠ THIS WORKTREE (serene-lumiere-3cccdd) = ENH-224 FILE-OPEN FLOW — full state in `docs/prd/enh-224-file-open-flow.md`
+
+> **Post-compaction orientation (2026-06-21).** This worktree builds **ENH-224**
+> (renumbered from ENH-221 — collision with main's file-history ENH-221 #104) on
+> branch **`claude/duo-file-open-flow-g3rpdx`** = **PR
+> [#102](https://github.com/dudgeon/duo/pull/102)** (rebased on `main`, **MERGEABLE**).
+> The vision: one ⌘O surface to *open a doc or clone a repo*, and "open a remote
+> GitHub doc like it's local → edit → Propose changes (PR)". **Read the PRD first**
+> — `docs/prd/enh-224-file-open-flow.md`: § 3 locked decisions D1–D19, § 6 phases,
+> § 6a build status, § 6b change-log (DR1–DR6 resolutions), § 6c Phase-0 follow-ups.
+>
+> **✅ DONE + live-verified (committed + pushed):**
+> - **Phase 0 — the merged ⌘O Open bar** (`renderer/components/OpenBar.tsx`,
+>   subsumes VaultQuickSwitcher): fuzzy-find + paste path/URL + Browse… (D17) +
+>   Open Recent (D14, `core/open-recents-service.ts` + `OpenRecentsService`
+>   singleton in main, shared with `duo recent` + `duo open` record-on-open) +
+>   github-repo→prefilled CloneModal + github-file→file-vs-repo choice. Resolver
+>   = `core/open-resolve.ts` (`resolveOpenTarget` + `deriveRecentEntry`).
+> - **3 Phase-0 follow-ups** (§ 6c): FU1 CloneModal "Choose…" folder picker
+>   (`OPEN_PICK_DIR`) · FU2 CloneModal geometry matches the bar (640px + top-anchor)
+>   · FU3 ⌘O works from terminal focus (File ▸ Open… menu **registers** the ⌘O
+>   accelerator; see memory `feedback_global_shortcut_terminal_focus_menu_accel`).
+> - **Phase 1 — "open just this doc"** (`core/open-checkout.ts` `runManagedCheckout`
+>   + `OPEN_GITHUB_FILE` IPC + the live OpenBar tile w/ progress panel): a
+>   github-file URL → depth-1 clone at the ref into the opaque
+>   `~/.claude/duo/checkouts/<owner>-<repo>@<ref>/` → opens like a local file +
+>   focuses the folder + records the recent. **DR6 = depth-1 whole-repo** (sparse
+>   deferred); **DR2 = always-ask**. Walked live: `octocat/Spoon-Knife/blob/main/README.md`.
+>
+> **OWED / NEXT:**
+> - **Phase 1 CLI twin** (small): extend the `duo open` socket handler to
+>   recognize github-file URLs → run `runManagedCheckout` (CLI parity, rule #4) +
+>   4-surface sync.
+> - **Phase 2 — share-back** (the big build, decisions LOCKED in § 3 D2–D13): edit →
+>   "Propose changes" footer (D10/D11) → confirm sheet → branch/commit/push/PR +
+>   **auto-fork** (D3) + post-PR morph (D13). Net-new git-WRITE plumbing
+>   `core/git/{branch,commit,push,fork,pr}.ts` + `duo pr create|status|view`.
+> - **Deferred:** sparse-folder checkout (DR6 optimization) · full-inline modal
+>   merge (D15/DM1) · NewVaultModal geometry audit · a github-file *recent*
+>   reopens to clone, not the doc checkout (v1 wart).
+>
+> **VERIFICATION + ENV NOTES:**
+> - **Computer-use Electron access is REVOKED — ASK the owner before using it**
+>   (or before launching/killing `npm run dev`; other agents share the app-global
+>   socket). Dev verification otherwise via `duo dom`/`duo eval`/`duo recent`.
+> - **Dev restart = CLEAN-QUIT first:** `osascript -e 'tell application "Electron" to quit'`
+>   (runs `before-quit` → disposes chokidar watchers → no fsevents SIGABRT), THEN
+>   `pkill -f 'electron-vite dev'` + relaunch. SIGTERM-ing the app direct causes a
+>   benign `fse_instance_destroy` crash report (memory
+>   `feedback_pkill_dev_triggers_benign_fsevents_sigabrt`).
+> - Latest commits: `49635ee` (Phase-1 docs) · `7370416` (Phase-1 wiring) ·
+>   `738ae7f` (Phase-1 foundation) · typecheck clean · **1689 tests** · currency 75/75.
+> - Leftover state: a real test checkout at `~/.claude/duo/checkouts/octocat-Spoon-Knife@main/`;
+>   iCloud `* 2.*` sync-conflict dupes moved to `/tmp/icloud-dupes-backup-d76de1e/`
+>   (await owner OK to delete — `rm` of untracked files is auto-denied).
+> - Per owner: **"won't ship until the full plan is built"** → no version cut yet.
+>
+> The ENH-216 / ENH-212 banners below are OTHER worktrees' (shipped) initiatives —
+> historical, not this worktree's.
+>
+> ---
+
+# ⚠ THIS WORKTREE (quizzical-jepsen) = ENH-216 OKF VAULT MODE — full state in `docs/dev/active-sprint.md` § ENH-216 (top section)
 
 > **Read this first.** This file is the cold-start orientation: where the project
 > is *right now*, not its history. For per-version shipped detail read the top of
