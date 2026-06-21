@@ -1942,6 +1942,11 @@ export const IPC = {
   // (Stage 21c terminology); only the user-facing concept is renamed.
   SESSION_STATE_SNAPSHOT_REQUEST: 'session-state:snapshot-request',  // main → renderer
   SESSION_STATE_SNAPSHOT_RESULT: 'session-state:snapshot-result',    // renderer → main
+  // ENH-221 — a window's renderer fires this once its session restore has
+  // settled (terminal tabs swapped in). main gates the cron scheduler start on
+  // the PRIMARY window's signal so a launch catch-up's background tab isn't
+  // clobbered by restore's wholesale setTabs (found in the live walk).
+  SESSION_STATE_RESTORE_SETTLED: 'session-state:restore-settled',    // renderer → main
 
   // Stage 18 — first-launch self-install (skill + subagent + provenance).
   INSTALL_STATUS: 'install:status',

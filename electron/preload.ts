@@ -826,7 +826,9 @@ const api: ElectronAPI = {
       ipcRenderer.on(IPC.SESSION_STATE_SNAPSHOT_REQUEST, handler)
       return () => ipcRenderer.removeListener(IPC.SESSION_STATE_SNAPSHOT_REQUEST, handler)
     },
-    snapshotReply: (payload) => ipcRenderer.send(IPC.SESSION_STATE_SNAPSHOT_RESULT, payload)
+    snapshotReply: (payload) => ipcRenderer.send(IPC.SESSION_STATE_SNAPSHOT_RESULT, payload),
+    // ENH-221 — tell main this window finished session restore (cron start gate).
+    notifyRestoreSettled: () => ipcRenderer.send(IPC.SESSION_STATE_RESTORE_SETTLED)
   },
 
   // ENH-167 — workspace-as-file menu actions (renderer triggers from

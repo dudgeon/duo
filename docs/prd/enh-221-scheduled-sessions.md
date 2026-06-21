@@ -238,13 +238,57 @@ finds no open window, and `CronService.fireJob` maps that reason to
 anchors on the last *real* run and the missed occurrence stays recoverable on
 relaunch). Locked by a cron-service unit test.
 
-**Verified:** 56 cron unit tests + the full suite (1647) green; typecheck clean
-(node + web); CLI builds, `--help` renders the `Scheduling` group, arg-validation
-correct; `check:skill-currency` passes (4-surface sync). **Not yet exercised
-live (blocked, owner's dev in use):** the socket round-trip + actual tab spawn
-against a running Electron app. The run decision/scheduling logic is fully
-unit-tested behind a mock runner; the live seam is the thin `main.ts` runner
-wiring — queued for the next free dev session.
+**Verified (unit):** 56 cron unit tests + the full suite (1647) green; typecheck
+clean (node + web); CLI builds, `--help` renders the `Scheduling` group,
+arg-validation correct; `check:skill-currency` passes (4-surface sync).
+
+**Live walk — DONE (2026-06-20, local session).** Exercised against a running
+dev build; verified by inspecting `cron-jobs.json` + the spawned `claude`
+session JSONLs (proof the command actually ran) + per-window `term tabs`:
+
+- **Fresh run** — `cron run` spawns a tab running `claude --session-id <uuid>
+  '<instruction>'`; the JSONL's session id matches the minted `lastSessionId`
+  and contains the seeded prompt. ✓
+- **D3 same-session** — run 1 fresh (mints uuid), run 2 **resumes** the same
+  uuid (`lastSessionId` unchanged, state `ran`), run 3 after deleting the JSONL
+  **falls back to fresh** (new uuid, state `fresh-fallback`). ✓
+- **Scheduled fire** — a near-future `--cron` fired at the minute boundary
+  (within one 30 s tick), state `ran`. ✓
+- **D5 catch-up** — a backdated catch-up job fires once on launch (spawns
+  claude); a non-catch-up job with the same missed occurrence does **not**. ✓
+- **D10 landing** — a job whose project is focused in exactly one window lands
+  there (single-match branch); every unmatched (`/private/tmp`) job lands in the
+  primary window (fallback). ✓
+- **Verb cluster** — `list / show / pause / resume / rm` all behave. ✓
+- **D4 headless gate** — not CLI-reachable (the instruction is a quoted
+  positional prompt, never a flag); `FEATURE_HEADLESS_CRON=false` and
+  `assertInteractiveCommand` confirmed in code + unit tests. ✓
+
+**Two bugs found in the live walk and FIXED (the unit-tested mock runner could
+not surface either):**
+
+1. **F1 focus steal.** Cron used the generic new-tab path
+   (`renderer/App.tsx onNewTabRequest`), which unconditionally
+   `setActiveTabId`s the new tab → a run *stole focus*, contradicting F1's
+   "background tab." Fix: a `background?: boolean` on `NewTabRequest`
+   (`shared/host-api.ts`); the renderer skips activation when set; the cron
+   runner passes `background: true`. Verified: a run no longer changes the
+   active tab.
+2. **Catch-up clobbered at launch.** `CronService.start()` ran catch-up the
+   instant `whenReady` fired — first racing renderer mount (new-tab IPC timed
+   out → state `error`, no tab), then (after a `did-finish-load` gate) racing
+   *session restore*, whose wholesale `setTabs(restored)` wiped the catch-up's
+   background tab (tab created → state `ran` → wiped → claude never ran). Fix: a
+   `SESSION_STATE_RESTORE_SETTLED` signal — the renderer fires it once its
+   restore chain settles (`sessionHydrated`), and main gates the scheduler start
+   on the **primary** window's signal (timeout fallback so it always starts).
+   Verified: catch-up now spawns claude into a surviving background tab.
+
+**Note for ENH-223 (attention badge):** cron tabs are `kind: 'shell'` (claude
+runs *inside* the shell via `--cmd` — `kind: 'claude'` would double-launch).
+Presence is process-based and the D9 badge keys on `session_id`, so neither
+needs `kind: 'claude'` — but ENH-223 must surface the badge on these
+shell-hosted claude tabs.
 
 **Still owed (out of Tier 1):** Tier 2 (Home surface + create dialog + row
 actions), ENH-223 (the "waiting on you" tab badge), and the logged future ENHs

@@ -774,6 +774,16 @@ export function App() {
     })
   }, [home])
 
+  // ENH-221 — once this window's session restore has settled, tell main so it
+  // can start the cron scheduler. A launch catch-up's background tab would
+  // otherwise be clobbered by restore's wholesale setTabs (live-walk finding).
+  const restoreSettledNotifiedRef = useRef(false)
+  useEffect(() => {
+    if (!sessionHydrated || restoreSettledNotifiedRef.current) return
+    restoreSettledNotifiedRef.current = true
+    window.electron.sessionState.notifyRestoreSettled()
+  }, [sessionHydrated])
+
   // BUG-057 — auto-open pinned file tabs that aren't in the
   // session-restored fileTabs list. Mirrors the main-side logic for
   // browser pins (in did-finish-load): pins.json is the authoritative
@@ -3035,7 +3045,10 @@ export function App() {
           }
           const tab = makeTab(cwd, kind, home)
           setTabs(prev => [...prev, tab])
-          setActiveTabId(tab.id)
+          // ENH-221 F1 — a background run (cron) opens its tab WITHOUT
+          // stealing focus; the F2/ENH-223 attention badge surfaces it.
+          // Everything else (user new-tab, pin auto-open) activates as before.
+          if (!req.background) setActiveTabId(tab.id)
           if (req.kind !== undefined) {
             // Explicit --kind flag → also bump persisted last-kind so
             // subsequent flagless calls follow the agent's recent choice.

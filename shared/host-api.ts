@@ -671,6 +671,11 @@ export interface NewTabRequest {
    *  Mutually exclusive with kind='claude' auto-launch in v1: if both
    *  apply, --cmd wins (the user's explicit string is more specific). */
   cmd?: string
+  /** ENH-221 F1 — when true, create the tab but DON'T activate it: a
+   *  background run that never steals focus from current work. Cron runs
+   *  set this (the F2/ENH-223 attention badge is how you discover them);
+   *  user-initiated new-tab leaves it undefined → activate as before. */
+  background?: boolean
 }
 
 export interface NewTabResult {
@@ -982,6 +987,10 @@ export interface ElectronSessionStateAPI {
    *  Renderer replies via `snapshotReply(reqId, state)`. */
   onSnapshotRequest: (cb: (reqId: string) => void) => () => void
   snapshotReply: (payload: { reqId: string; state: SessionState }) => void
+  /** ENH-221 — fire once this window's session restore has settled (terminal
+   *  tabs swapped in). main gates the cron scheduler on the primary window's
+   *  signal so a launch catch-up's background tab isn't clobbered by restore. */
+  notifyRestoreSettled: () => void
 }
 
 // ENH-167 — workspace-as-file. Mirrors the File menu surface: Save /

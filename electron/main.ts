@@ -1838,13 +1838,36 @@ app.whenReady().then(async () => {
           if (windowId == null) {
             return { ok: false, reason: 'no-window' as const, error: 'no Duo window open — run deferred to next launch (D5)' }
           }
-          const r = await dispatchNewTabToWindow(windowId, { kind: 'shell', cwd, cmd: command })
+          // F1 — a scheduled run lands in a BACKGROUND tab (no focus steal);
+          // the F2/ENH-223 attention badge is how the user discovers it.
+          const r = await dispatchNewTabToWindow(windowId, { kind: 'shell', cwd, cmd: command, background: true })
           return { ok: r.ok, error: r.error }
         }
       },
       log: (msg) => console.log(msg)
     })
-    cronService.start()
+    // ENH-221 — start the scheduler only AFTER the primary window's renderer
+    // has finished session restore. Two launch races, both surfaced in the live
+    // walk: (1) firing at whenReady races renderer mount and the new-tab IPC
+    // times out; (2) firing at did-finish-load races session restore, whose
+    // wholesale setTabs(restored) CLOBBERS a launch catch-up's background tab —
+    // the tab is created (run records 'ran') then wiped, so claude never runs.
+    // The renderer fires SESSION_STATE_RESTORE_SETTLED once its restore chain
+    // completes; a catch-up lands in the primary window, so we gate on THAT
+    // window's signal. A timeout fallback guarantees the scheduler always starts
+    // (e.g. a renderer that errored before signalling, or a headless boot).
+    let cronStarted = false
+    const startCronOnce = (): void => {
+      if (cronStarted) return
+      cronStarted = true
+      ipcMain.removeAllListeners(IPC.SESSION_STATE_RESTORE_SETTLED)
+      cronService?.start()
+    }
+    ipcMain.on(IPC.SESSION_STATE_RESTORE_SETTLED, (event) => {
+      const senderId = BrowserWindow.fromWebContents(event.sender)?.id
+      if (senderId != null && senderId === registry.primary()?.id) startCronOnce()
+    })
+    setTimeout(startCronOnce, 20_000)
   } catch (err) {
     console.warn('[main] cron scheduler failed to start:', err)
   }
