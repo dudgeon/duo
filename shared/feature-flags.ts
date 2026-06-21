@@ -39,7 +39,7 @@
  *  needs anchors. */
 export const FEATURE_AUTO_INJECT_IDS = false
 
-/** ENH-221 (D4) — gate HEADLESS scheduled-cron runs. Default OFF and
+/** ENH-223 (D4) — gate HEADLESS scheduled-cron runs. Default OFF and
  *  deliberately not exposed in the UI: the spawn-time validator
  *  (`assertInteractiveCommand`, core/cron-command.ts) REJECTS a run whose
  *  `claude` command carries a headless trigger (`-p`/`--print`/

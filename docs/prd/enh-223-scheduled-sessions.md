@@ -1,10 +1,13 @@
-# ENH-221 PRD — Scheduled ("cron") Claude Code sessions
+# ENH-223 PRD — Scheduled ("cron") Claude Code sessions
 
+> **Renumbered 2026-06-21 (collision avoidance):** this feature was **ENH-221**
+> (now reassigned to file-history); the "waiting on you" attention badge sibling
+> moved **ENH-223 → ENH-225**. Older commits / handoffs may say ENH-221.
 > **Status:** spec locked 2026-06-20. Ready to build.
 > **Owner decisions:** intent refined via AskUserQuestion (4 framing answers),
 > then 10 design decisions locked via the decision playground (this doc § 3).
 > **References:**
-> - [docs/research/enh-221-scheduled-sessions.html](../research/enh-221-scheduled-sessions.html)
+> - [docs/research/enh-223-scheduled-sessions.html](../research/enh-223-scheduled-sessions.html)
 >   — the decision playground (10 cards; all answered, recommendations accepted).
 > - Claude Code CLI primitives confirmed via `claude-code-guide` (this doc § 5).
 
@@ -76,7 +79,7 @@ on a schedule, interactively."
 | D6 | Home surfacing layout | **Nested under surfaced projects + one aggregated "Scheduled" block for the rest.** A job's home is its project card; jobs whose project isn't a hero/spine card collect in a single "Scheduled" section so nothing is hidden. |
 | D7 | Create / manage entry points | **Home "+ Schedule" on a project card · project-rail right-click · `File ▸ New Scheduled Job…` menu item · full `duo cron` verbs.** *(Owner note: File-menu entry added.)* Manage actions (run-now / pause / edit / delete) via Home row actions + CLI. |
 | D8 | Scheduler engine | **Add a small, well-tested cron-parser dependency** (e.g. `cron-parser` + a human-readable describer). Schedule off "next occurrence" timers, not a tick loop. Handles the DST/timezone edges presets+advanced cron require. |
-| D9 | Attention badge (F2 build) | **Sibling ENH-223, landing alongside cron.** A Duo-managed `Stop` (+ permission) hook posts `{session_id, state}` to Duo's **existing Unix socket**; main flips a per-tab "needs attention" flag. Decoupled so cron isn't blocked if it slips; benefits all sessions. |
+| D9 | Attention badge (F2 build) | **Sibling ENH-225, landing alongside cron.** A Duo-managed `Stop` (+ permission) hook posts `{session_id, state}` to Duo's **existing Unix socket**; main flips a per-tab "needs attention" flag. Decoupled so cron isn't blocked if it slips; benefits all sessions. |
 | D10 | Run-landing window | **Project-affinity, then primary.** Resolution order: **(1)** if **exactly one** open window has the job's target project as its active/focused project, land there *(owner note)*; **(2)** else the lowest-id primary window (Duo's default identity resolution, never focus); **(3)** if no window is open, the run is a "missed" run governed by § D5. |
 
 ---
@@ -138,14 +141,14 @@ stores):
 |---|---|
 | **1 · Engine + CLI** | `cron-jobs.json` store · `CronScheduler` (next-fire timers, missed-run catch-up per D5) · spawn-into-tab via the D2 primitive · fresh/same (D3) · D4 `-p` gate · window resolution (D10) · full `duo cron list\|add\|run\|pause\|resume\|rm\|show`. Headless even with a minimal Home read. |
 | **2 · Home surface** | Inline-under-project cards + aggregated "Scheduled" block (D6) · status chips (F4) · the create dialog + `File ▸ New Scheduled Job…` + project-rail entry (D7) · row actions (run-now / pause / edit / delete). |
-| **3 · Attention (ENH-223)** | The "waiting on you" tab badge (D9/F2) — sibling ENH benefiting all sessions; cron is its best demo. |
+| **3 · Attention (ENH-225)** | The "waiting on you" tab badge (D9/F2) — sibling ENH benefiting all sessions; cron is its best demo. |
 
 **Logged future ENHs (not in this scope):**
 
 - **ENH-222** — system-scheduler (`launchd`) agent that *launches Duo* at a
   job's time, so runs fire even when the app was closed. The honest path to
   "unattended-ish" without going headless.
-- **ENH-223** — the F2/D9 attention indicator (tracked above; built alongside).
+- **ENH-225** — the F2/D9 attention indicator (tracked above; built alongside).
 - **Headless (`-p`) runs** — gated by the default-off `features.headlessCron`
   flag; a future, deliberately-enabled autonomous mode.
 - **Full run history / log view** — beyond v1's last-run + status.
@@ -284,13 +287,13 @@ not surface either):**
    on the **primary** window's signal (timeout fallback so it always starts).
    Verified: catch-up now spawns claude into a surviving background tab.
 
-**Note for ENH-223 (attention badge):** cron tabs are `kind: 'shell'` (claude
+**Note for ENH-225 (attention badge):** cron tabs are `kind: 'shell'` (claude
 runs *inside* the shell via `--cmd` — `kind: 'claude'` would double-launch).
 Presence is process-based and the D9 badge keys on `session_id`, so neither
-needs `kind: 'claude'` — but ENH-223 must surface the badge on these
+needs `kind: 'claude'` — but ENH-225 must surface the badge on these
 shell-hosted claude tabs.
 
 **Still owed (out of Tier 1):** Tier 2 (Home surface + create dialog + row
-actions), ENH-223 (the "waiting on you" tab badge), and the logged future ENHs
+actions), ENH-225 (the "waiting on you" tab badge), and the logged future ENHs
 (ENH-222 launchd launch; headless `-p` mode; full run-history view).
 

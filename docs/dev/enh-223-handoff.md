@@ -1,4 +1,4 @@
-# ENH-221 handoff — scheduled (cron) Claude sessions
+# ENH-223 handoff — scheduled (cron) Claude sessions
 
 > **For:** the local (Mac) session picking this up. **From:** the cloud session
 > that locked the spec + built Tier 1. **Branch:** `claude/chron-job-management-yfy4ae`
@@ -109,7 +109,7 @@ Docs/4-surface sync: `skill/references/cli-reference.md`, `agents/duo.md`,
   **File ▸ New Scheduled Job…** + project-rail entry; row actions
   (run-now / pause / edit / delete). Touches `renderer/` → run **`/smoke-walk`**
   before any cut (CLAUDE.md §7b).
-- **ENH-223** — the "waiting on you" tab badge (D9): a Duo-managed Stop /
+- **ENH-225** — the "waiting on you" tab badge (D9): a Duo-managed Stop /
   permission hook posting to Duo's Unix socket; benefits all sessions.
 - Logged future: **ENH-222** (`launchd` launches Duo at a job's time),
   headless `-p` mode (the reason `FEATURE_HEADLESS_CRON` exists), full
@@ -117,8 +117,8 @@ Docs/4-surface sync: `skill/references/cli-reference.md`, `agents/duo.md`,
 
 ## References
 
-- PRD: `docs/prd/enh-221-scheduled-sessions.md` (§3 locked decisions, §9 Tier 1
+- PRD: `docs/prd/enh-223-scheduled-sessions.md` (§3 locked decisions, §9 Tier 1
   impl notes + the D8 deviation).
-- Decision playground: `docs/research/enh-221-scheduled-sessions.html`.
-- Ledger: `tasks.md` → ENH-221.
+- Decision playground: `docs/research/enh-223-scheduled-sessions.html`.
+- Ledger: `tasks.md` → ENH-223.
 - PR #103.

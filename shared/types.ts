@@ -327,7 +327,7 @@ export type DuoCommandName =
   // Takes an <id> from `term tabs`, NOT a bare index — `duo tab <n>` owns
   // the browser number space (CLI-COVERAGE note ~line 252).
   | 'term'
-  // ENH-221 — scheduled ("cron") Claude sessions. Single 'cron' command
+  // ENH-223 — scheduled ("cron") Claude sessions. Single 'cron' command
   // with a discriminated `op` arg:
   //   list                    → all jobs as CronJobView[] (+ next-fire + label)
   //   add  --name --cwd --say  → create a job (--every <preset> [--at] [--on]
@@ -685,13 +685,13 @@ export interface ProjectsStateSnapshot {
   counts: Record<string, { terminals: number; workingTabs: number; hasClaudeKindTerminal: boolean }>
 }
 
-// ── ENH-221 — scheduled ("cron") Claude sessions ──────────────────────────────
+// ── ENH-223 — scheduled ("cron") Claude sessions ──────────────────────────────
 // A job is a saved recipe (cwd + initial instruction + periodicity +
 // fresh/same-session) that Duo's in-app scheduler fires WHILE DUO IS OPEN by
 // opening an interactive Claude terminal tab. Duo only does session start +
 // initial instruction; all execution stays interactive (headless `-p` is gated
 // off by FEATURE_HEADLESS_CRON — D4). Persisted at ~/.claude/duo/cron-jobs.json.
-// PRD: docs/prd/enh-221-scheduled-sessions.md.
+// PRD: docs/prd/enh-223-scheduled-sessions.md.
 
 /** Whether each run continues the previous run's session or starts fresh (D3). */
 export type CronSessionMode = 'fresh' | 'same'
@@ -1942,7 +1942,7 @@ export const IPC = {
   // (Stage 21c terminology); only the user-facing concept is renamed.
   SESSION_STATE_SNAPSHOT_REQUEST: 'session-state:snapshot-request',  // main → renderer
   SESSION_STATE_SNAPSHOT_RESULT: 'session-state:snapshot-result',    // renderer → main
-  // ENH-221 — a window's renderer fires this once its session restore has
+  // ENH-223 — a window's renderer fires this once its session restore has
   // settled (terminal tabs swapped in). main gates the cron scheduler start on
   // the PRIMARY window's signal so a launch catch-up's background tab isn't
   // clobbered by restore's wholesale setTabs (found in the live walk).
@@ -2346,7 +2346,7 @@ export const IPC = {
   HOME_SNAPSHOT: 'home:snapshot',
   HOME_LIST_SESSIONS: 'home:list-sessions',
   HOME_SESSION_ACTION: 'home:session-action',
-  // ENH-221 Tier 2 — cron Home surface. One invoke channel (renderer → main)
+  // ENH-223 Tier 2 — cron Home surface. One invoke channel (renderer → main)
   // delegating to CronService.handleCli (list/add/run/pause/resume/rm/show —
   // the same dispatch the socket CLI uses), plus a push (main → renderer) that
   // broadcasts the fresh CronJobView[] on every job mutation so Home re-renders.

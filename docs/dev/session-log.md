@@ -18,7 +18,7 @@
 
 ---
 
-## 2026-06-20 (ENH-221 cron — Tier 1 live-verified + 2 bug fixes; Tier 2 increment 1) — PR #103
+## 2026-06-20 (ENH-223 cron — Tier 1 live-verified + 2 bug fixes; Tier 2 increment 1) — PR #103
 
 Picked up the **scheduled ("cron") Claude sessions** branch (`claude/chron-job-management-yfy4ae`, PR #103) where the cloud session left it: spec locked, Tier 1 (engine + CLI) built + unit-green but **never exercised against a running Electron app** (cloud has no Electron binary). This session did the live verification, fixed what it surfaced, and started Tier 2.
 
@@ -42,7 +42,7 @@ Picked up the **scheduled ("cron") Claude sessions** branch (`claude/chron-job-m
 
 **Tier 2 increment 2 (DONE + live-verified):** the create/edit dialog (`NewCronJobModal`) + entry points (D7). New `handleCli` ops `edit` (patch fields + reparse schedule) and `preview` (validate a draft → human label + next-fire for the F3 live preview, computed in main so the renderer doesn't re-derive the engine); CLI parity verb `duo cron edit <id> …` (+ docs across all 4 surfaces, binary rebuilt). The modal (create + edit modes) has a preset segmented control (Hourly/Daily/Weekdays/Weekly/Custom-cron) + conditional time/weekday/cron fields + a debounced live preview, a session radio, a catch-up checkbox. Entry points: a `duo-open-cron-modal` window CustomEvent (Home "+ New job" header button + per-row **Edit** + project-rail right-click "New Scheduled Job…") and an IPC push for **File ▸ New Scheduled Job…** — both converge on one App open path; the modal parks the browser WCV (BUG-209 lineage) so it isn't occluded. Verified live via `duo dom`: open → fill → F3 preview (`every day at 09:00 · next in 10h`) → create; Edit → pre-filled → save; CLI `cron edit` round-trips to the UI via the push; error paths clean. Full suite **1651 green**.
 
-**Owed (forward plan):** Tier 2 increment 3 — D6 per-project nesting under the hero/spine cards + a per-card "+ Schedule" affordance (increment 1 is the aggregated block only). Then **ENH-223** (the attention badge — must surface on cron's `kind:'shell'` claude tabs). Logged future: ENH-222 (`launchd` launch), headless `-p` mode, full run-history. **`/smoke-walk` before any version cut** — walk the native File-menu + rail-right-click triggers there (they use the verified open path, but the native menus weren't exercised here). (Test/demo cron jobs were cleaned up — `cron-jobs.json` is empty.)
+**Owed (forward plan):** Tier 2 increment 3 — D6 per-project nesting under the hero/spine cards + a per-card "+ Schedule" affordance (increment 1 is the aggregated block only). Then **ENH-225** (the attention badge — must surface on cron's `kind:'shell'` claude tabs). Logged future: ENH-222 (`launchd` launch), headless `-p` mode, full run-history. **`/smoke-walk` before any version cut** — walk the native File-menu + rail-right-click triggers there (they use the verified open path, but the native menus weren't exercised here). (Test/demo cron jobs were cleaned up — `cron-jobs.json` is empty.)
 
 ## 2026-06-18 (v0.11.1 cut — Navigator polish + the table-shatter fix)
 

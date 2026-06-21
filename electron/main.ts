@@ -456,7 +456,7 @@ export function getProjectsState(): import('../shared/types').ProjectsStateSnaps
   return projectsStateCache.getOrDefault(cliDefaultWindowId())
 }
 
-// ENH-221 (D10) — resolve which window a scheduled run lands in. Preference:
+// ENH-223 (D10) — resolve which window a scheduled run lands in. Preference:
 // if EXACTLY ONE open window's focused project encloses the job's cwd, use it;
 // otherwise the primary window (lowest-id, identity — never focus). Returns
 // undefined when no window is open (the run is then a "missed" run — D5).
@@ -561,7 +561,7 @@ const settingsService = new SettingsService()
 const workspaceFileService = new WorkspaceFileService()
 const workspaceHistoryService = new WorkspaceHistoryService()
 const activeWorkspaceService = new ActiveWorkspaceService()
-// ENH-221 — scheduled ("cron") Claude sessions. App-global store
+// ENH-223 — scheduled ("cron") Claude sessions. App-global store
 // (~/.claude/duo/cron-jobs.json); the CronService (the in-app tick scheduler)
 // is created in whenReady once the store is loaded + windows are restored, and
 // torn down in before-quit. Runs are interactive only (FEATURE_HEADLESS_CRON
@@ -1598,7 +1598,7 @@ app.whenReady().then(async () => {
     // surface dropped with S2. Users type `/rename` directly in Claude.
     // ENH-212 (Home) — `duo session open <uuid>` full click contract.
     sessionOpen: sessionOpenForCli,
-    // ENH-221 — `duo cron <op>` scheduled-session management. Delegates to the
+    // ENH-223 — `duo cron <op>` scheduled-session management. Delegates to the
     // main-process CronService (created in whenReady). App-global state, so it
     // ignores --window; a run's landing window is resolved from the job's cwd.
     cron: (op, args) => {
@@ -1814,7 +1814,7 @@ app.whenReady().then(async () => {
   // replace with a banner-integrated experience.
   initAutoUpdater()
 
-  // ENH-221 — load the cron store + start the in-app scheduler now that
+  // ENH-223 — load the cron store + start the in-app scheduler now that
   // services exist and windows are restored (so run-landing resolution sees
   // live windows + their focused projects). The runner spawns an INTERACTIVE
   // run via the existing shell-tab path (kind:'shell' + a full `claude …\n`
@@ -1845,17 +1845,17 @@ app.whenReady().then(async () => {
             return { ok: false, reason: 'no-window' as const, error: 'no Duo window open — run deferred to next launch (D5)' }
           }
           // F1 — a scheduled run lands in a BACKGROUND tab (no focus steal);
-          // the F2/ENH-223 attention badge is how the user discovers it.
+          // the F2/ENH-225 attention badge is how the user discovers it.
           const r = await dispatchNewTabToWindow(windowId, { kind: 'shell', cwd, cmd: command, background: true })
           return { ok: r.ok, error: r.error }
         }
       },
       log: (msg) => console.log(msg)
     })
-    // ENH-221 Tier 2 — broadcast live job-list changes to every window's Home
+    // ENH-223 Tier 2 — broadcast live job-list changes to every window's Home
     // surface (add / run / pause / resume / rm + each scheduled/catch-up fire).
     cronService.onJobsChanged((jobs) => broadcastAll(registry, IPC.CRON_JOBS_CHANGED, jobs))
-    // ENH-221 — start the scheduler only AFTER the primary window's renderer
+    // ENH-223 — start the scheduler only AFTER the primary window's renderer
     // has finished session restore. Two launch races, both surfaced in the live
     // walk: (1) firing at whenReady races renderer mount and the new-tab IPC
     // times out; (2) firing at did-finish-load races session restore, whose
@@ -1901,7 +1901,7 @@ app.on('before-quit', async () => {
     const probe = c.presence as ClaudePresenceProbe | undefined
     probe?.stop()
   }
-  // ENH-221 — stop the cron tick loop (jobs stay persisted in cron-jobs.json;
+  // ENH-223 — stop the cron tick loop (jobs stay persisted in cron-jobs.json;
   // each mutation already persisted synchronously through the store's queue, so
   // no flush is owed here).
   cronService?.stop()
@@ -3014,7 +3014,7 @@ function setupIPC(): void {
     return computeHomeSnapshot(args?.limitPerProject)
   })
 
-  // ENH-221 Tier 2 — cron lifecycle from the Home surface. Delegates to the same
+  // ENH-223 Tier 2 — cron lifecycle from the Home surface. Delegates to the same
   // CronService.handleCli the socket CLI uses (list/add/run/pause/resume/rm/show).
   // Writes broadcast a fresh CronJobView[] via onJobsChanged (wired in whenReady),
   // so the renderer never has to refetch after a mutation.
@@ -3173,7 +3173,7 @@ function installAppMenu(): void {
           click: () => { openNewVaultModal({ windowId: focusedWindowId() }) }
         },
         {
-          // ENH-221 Tier 2 (D7) — File ▸ New Scheduled Job…. No accelerator
+          // ENH-223 Tier 2 (D7) — File ▸ New Scheduled Job…. No accelerator
           // (the ⌘N family is fully booked, like New Vault). CLI parity:
           // `duo cron add …`. Pushes to the focused window; App opens the
           // create dialog seeded with the navigator's current folder.

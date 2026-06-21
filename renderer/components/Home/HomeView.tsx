@@ -228,7 +228,7 @@ export function HomeView({ isActive, onSnapshotChange }: HomeViewProps) {
         </div>
       )}
 
-      {/* ENH-221 Tier 2 — scheduled ("cron") jobs. Renders nothing when there
+      {/* ENH-223 Tier 2 — scheduled ("cron") jobs. Renders nothing when there
           are no jobs, so it's invisible until the user creates one. */}
       <CronSection />
 

@@ -400,7 +400,7 @@ export function App() {
   // ENH-216 (U7) — File → New Vault… modal visibility. Opened by the native
   // File menu entry's IPC push (window.electron.nav.onOpenNewVaultModal).
   const [newVaultModalOpen, setNewVaultModalOpen] = useState(false)
-  // ENH-221 Tier 2 (D7) — New/Edit Scheduled Job dialog. Opened by File ▸ New
+  // ENH-223 Tier 2 (D7) — New/Edit Scheduled Job dialog. Opened by File ▸ New
   // Scheduled Job… (IPC push), the Home "+ New" / Edit actions, and the
   // project-rail right-click (a `duo-open-cron-modal` window CustomEvent),
   // seeded with a working-dir (create) or the job to edit.
@@ -785,7 +785,7 @@ export function App() {
     })
   }, [home])
 
-  // ENH-221 — once this window's session restore has settled, tell main so it
+  // ENH-223 — once this window's session restore has settled, tell main so it
   // can start the cron scheduler. A launch catch-up's background tab would
   // otherwise be clobbered by restore's wholesale setTabs (live-walk finding).
   const restoreSettledNotifiedRef = useRef(false)
@@ -2760,7 +2760,7 @@ export function App() {
     })
   }, [])
 
-  // ENH-221 Tier 2 (D7) — open the New/Edit Scheduled Job dialog. Two triggers,
+  // ENH-223 Tier 2 (D7) — open the New/Edit Scheduled Job dialog. Two triggers,
   // one open path: File ▸ New Scheduled Job… (main push, seeds the navigator's
   // current folder), and a `duo-open-cron-modal` window CustomEvent from the
   // Home "+ New" / Edit actions + the project-rail right-click (carries an
@@ -3082,8 +3082,8 @@ export function App() {
           }
           const tab = makeTab(cwd, kind, home)
           setTabs(prev => [...prev, tab])
-          // ENH-221 F1 — a background run (cron) opens its tab WITHOUT
-          // stealing focus; the F2/ENH-223 attention badge surfaces it.
+          // ENH-223 F1 — a background run (cron) opens its tab WITHOUT
+          // stealing focus; the F2/ENH-225 attention badge surfaces it.
           // Everything else (user new-tab, pin auto-open) activates as before.
           if (!req.background) setActiveTabId(tab.id)
           if (req.kind !== undefined) {
@@ -4477,7 +4477,7 @@ export function App() {
           }
         }}
       />
-      {/* ENH-221 Tier 2 (D7) — New/Edit Scheduled Job dialog. The Home list
+      {/* ENH-223 Tier 2 (D7) — New/Edit Scheduled Job dialog. The Home list
           re-renders off the CRON_JOBS_CHANGED push, so onSaved just closes. */}
       <NewCronJobModal
         open={cronModal.open}

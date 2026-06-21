@@ -672,9 +672,9 @@ export interface NewTabRequest {
    *  Mutually exclusive with kind='claude' auto-launch in v1: if both
    *  apply, --cmd wins (the user's explicit string is more specific). */
   cmd?: string
-  /** ENH-221 F1 — when true, create the tab but DON'T activate it: a
+  /** ENH-223 F1 — when true, create the tab but DON'T activate it: a
    *  background run that never steals focus from current work. Cron runs
-   *  set this (the F2/ENH-223 attention badge is how you discover them);
+   *  set this (the F2/ENH-225 attention badge is how you discover them);
    *  user-initiated new-tab leaves it undefined → activate as before. */
   background?: boolean
 }
@@ -988,13 +988,13 @@ export interface ElectronSessionStateAPI {
    *  Renderer replies via `snapshotReply(reqId, state)`. */
   onSnapshotRequest: (cb: (reqId: string) => void) => () => void
   snapshotReply: (payload: { reqId: string; state: SessionState }) => void
-  /** ENH-221 — fire once this window's session restore has settled (terminal
+  /** ENH-223 — fire once this window's session restore has settled (terminal
    *  tabs swapped in). main gates the cron scheduler on the primary window's
    *  signal so a launch catch-up's background tab isn't clobbered by restore. */
   notifyRestoreSettled: () => void
 }
 
-/** ENH-221 Tier 2 — cron Home surface. `invoke` delegates to the main-process
+/** ENH-223 Tier 2 — cron Home surface. `invoke` delegates to the main-process
  *  CronService.handleCli (same dispatch as the socket CLI); `onJobsChanged`
  *  subscribes to the live CronJobView[] push so Home re-renders on any change. */
 export interface ElectronCronAPI {
@@ -1080,7 +1080,7 @@ export interface ElectronAPI {
   // expander, the session click contract, and the `duo home` /
   // `duo term tab` push subscriptions.
   home: ElectronHomeAPI
-  // ENH-221 Tier 2 — scheduled ("cron") sessions on Home: invoke the
+  // ENH-223 Tier 2 — scheduled ("cron") sessions on Home: invoke the
   // lifecycle (list/add/run/pause/resume/rm) + subscribe to live job changes.
   cron: ElectronCronAPI
   // ENH-208 Phase 2 — vault UI affordances (⇧⌘N capture · ⌘⇧F search

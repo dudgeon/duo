@@ -2391,7 +2391,7 @@ async function main(): Promise<void> {
       }
 
       case 'cron': {
-        // ENH-221 — scheduled ("cron") Claude sessions. Single 'cron' socket
+        // ENH-223 — scheduled ("cron") Claude sessions. Single 'cron' socket
         // command with a discriminated op. Runs are INTERACTIVE only (Duo does
         // session start + initial instruction); headless `-p` is gated off.
         //   cron list
@@ -2433,7 +2433,7 @@ async function main(): Promise<void> {
           if (rest.includes('--catch-up')) payload.catchUp = true
           out(await send('cron', payload))
         } else if (sub === 'edit') {
-          // ENH-221 Tier 2 — edit an existing job (UI/CLI parity with the Home
+          // ENH-223 Tier 2 — edit an existing job (UI/CLI parity with the Home
           // edit action). Only the flags you pass change; any schedule flag
           // (--every/--cron + --at/--on) replaces the WHOLE schedule.
           const id = rest[1]

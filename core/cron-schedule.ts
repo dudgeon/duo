@@ -1,4 +1,4 @@
-// ENH-221 — schedule math for scheduled ("cron") Claude sessions.
+// ENH-223 — schedule math for scheduled ("cron") Claude sessions.
 //
 // Pure + dependency-free. The PRD (D8) locked "add a small cron-parser
 // dependency"; Tier 1 ships this self-contained engine instead so the

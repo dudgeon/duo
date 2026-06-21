@@ -1,4 +1,4 @@
-// ENH-221 — building (and safety-gating) the `claude` command a scheduled
+// ENH-223 — building (and safety-gating) the `claude` command a scheduled
 // run types into its terminal tab. Pure + dependency-free + unit-tested.
 //
 // The established Duo pattern for "spawn a tab running a specific `claude …`
@@ -7,7 +7,7 @@
 // We mirror `buildResumeCommand` (electron/claude-session-tracker.ts) for the
 // resume path and add fresh + positional-prompt builders here.
 //
-// Confirmed Claude Code primitives (claude-code-guide, ENH-221 §5):
+// Confirmed Claude Code primitives (claude-code-guide, ENH-223 §5):
 //   fresh  : claude --session-id <uuid> "<instruction>"   (pre-allocate id, D3)
 //   resume : claude --resume <uuid> "<instruction>"       (same cwd only)
 // Both stay INTERACTIVE (no `-p`). The instruction is the positional prompt

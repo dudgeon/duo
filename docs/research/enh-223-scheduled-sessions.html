@@ -249,7 +249,7 @@ pre.diagram .okf { color: #9bd29a; }
   <h1>Scheduled Claude sessions (cron) — plan &amp; decisions</h1>
   <div class="meta">
     <span class="pill">Decision round</span>
-    <span class="pill">ENH-221</span>
+    <span class="pill">ENH-223</span>
     <span class="pill">draft for sign-off</span>
     2026-06-20 · run a Claude Code command on a schedule, inside Duo, interactively
   </div>
@@ -571,7 +571,7 @@ not repeated here.</p>
   <div class="q-options">
     <label class="q-option"><input type="radio" name="d9" value="sibling-enh-hooks">
       <div class="q-option-body"><div class="q-option-title">Build it as a sibling ENH using a Duo-managed Stop hook → socket; land alongside cron <span class="recommend-tag">Recommended</span></div>
-      <div class="q-option-rationale">A focused ENH-223: Duo installs a <code>Stop</code> (+ permission) hook that posts <code>{session_id, state}</code> to Duo's Unix socket; main flips a per-tab "needs attention" flag. Benefits all sessions, not just cron — and cron is its best demo. Decoupled so cron isn't blocked if it slips.</div></div></label>
+      <div class="q-option-rationale">A focused ENH-225: Duo installs a <code>Stop</code> (+ permission) hook that posts <code>{session_id, state}</code> to Duo's Unix socket; main flips a per-tab "needs attention" flag. Benefits all sessions, not just cron — and cron is its best demo. Decoupled so cron isn't blocked if it slips.</div></div></label>
     <label class="q-option"><input type="radio" name="d9" value="bell-only-now">
       <div class="q-option-body"><div class="q-option-title">Ship a lightweight bell-only badge inside cron v1</div>
       <div class="q-option-rationale">Watch the PTY for the terminal bell (<code>\\a</code>) and badge the tab. No hook install needed; cruder (bell ≠ always "waiting"), but in-scope and immediate.</div></div></label>
@@ -631,7 +631,7 @@ not repeated here.</p>
     <li><strong>ENH-222 — System-scheduler launch.</strong> A <code>launchd</code> agent that
       <em>launches Duo</em> at a job's time so runs fire even when the app was closed. The honest
       path to "unattended-ish" without going headless.</li>
-    <li><strong>ENH-223 — "Waiting on user action" tab indicator</strong> (Decision 9) — built on
+    <li><strong>ENH-225 — "Waiting on user action" tab indicator</strong> (Decision 9) — built on
       Claude Code's Notification/Stop hooks; applies to all sessions.</li>
     <li><strong>Headless (<code>-p</code>) runs.</strong> The whole point of the default-off feature
       flag: a future, deliberately-enabled mode where a job can run autonomously start-to-finish.
@@ -672,7 +672,7 @@ not repeated here.</p>
     { id: 'd9',  title: 'Waiting-on-user tab indicator' },
     { id: 'd10', title: 'Run landing window' }
   ];
-  var STORE_KEY = 'enh-221-cron-r1';
+  var STORE_KEY = 'enh-223-cron-r1';
 
   function state() {
     var s = {};
@@ -715,7 +715,7 @@ not repeated here.</p>
 
   function payload() {
     var s = state();
-    var lines = ['SCHEDULED CLAUDE SESSIONS — ENH-221 DECISIONS', ''];
+    var lines = ['SCHEDULED CLAUDE SESSIONS — ENH-223 DECISIONS', ''];
     DECISIONS.forEach(function (d) {
       var v = s[d.id].value ? s[d.id].value.toUpperCase() : 'UNANSWERED';
       lines.push('[' + v + '] ' + d.title);

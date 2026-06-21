@@ -1,4 +1,4 @@
-// ENH-221 — command building + the headless (-p) gate.
+// ENH-223 — command building + the headless (-p) gate.
 import { describe, it, expect } from 'vitest'
 import {
   mintSessionId,

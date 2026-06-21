@@ -827,7 +827,7 @@ const api: ElectronAPI = {
       return () => ipcRenderer.removeListener(IPC.SESSION_STATE_SNAPSHOT_REQUEST, handler)
     },
     snapshotReply: (payload) => ipcRenderer.send(IPC.SESSION_STATE_SNAPSHOT_RESULT, payload),
-    // ENH-221 — tell main this window finished session restore (cron start gate).
+    // ENH-223 — tell main this window finished session restore (cron start gate).
     notifyRestoreSettled: () => ipcRenderer.send(IPC.SESSION_STATE_RESTORE_SETTLED)
   },
 
@@ -987,7 +987,7 @@ const api: ElectronAPI = {
     }
   },
 
-  // ENH-221 Tier 2 — scheduled ("cron") sessions on Home. One invoke channel
+  // ENH-223 Tier 2 — scheduled ("cron") sessions on Home. One invoke channel
   // delegates to CronService.handleCli; onJobsChanged streams live updates.
   cron: {
     invoke: (op, args) => ipcRenderer.invoke(IPC.CRON_INVOKE, { op, args }),

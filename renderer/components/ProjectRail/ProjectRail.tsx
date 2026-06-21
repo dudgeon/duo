@@ -190,7 +190,7 @@ function ProjectTile({
         label: project.pinned ? 'Unpin from rail' : 'Pin to rail'
       })
     }
-    // ENH-221 Tier 2 (D7) — schedule a job rooted in this project.
+    // ENH-223 Tier 2 (D7) — schedule a job rooted in this project.
     if (items.length > 0) items.push({ type: 'separator' })
     items.push({ id: 'new-cron', label: 'New Scheduled Job…' })
     if (onCloseProject && (n > 0 || m > 0)) {

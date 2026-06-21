@@ -1,4 +1,4 @@
-// ENH-221 — schedule math. Uses LOCAL Date construction + asserts on local
+// ENH-223 — schedule math. Uses LOCAL Date construction + asserts on local
 // fields so the suite is timezone-independent.
 import { describe, it, expect } from 'vitest'
 import {

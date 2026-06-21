@@ -316,7 +316,7 @@ export interface NavBridge {
    *  window (D15 — no DUO_WINDOW stamp resolves to primary, identity,
    *  never focus). uuid regex-validated. */
   sessionOpen: (uuid: string, cwd?: string, force?: boolean) => Promise<{ ok: boolean; action?: 'focus' | 'resume' | 'fork'; error?: string }>
-  /** ENH-221 — `duo cron <op>` scheduled-session management. Delegates the
+  /** ENH-223 — `duo cron <op>` scheduled-session management. Delegates the
    *  discriminated op (list|add|run|pause|resume|rm|show) to the main-process
    *  CronService, which owns the cron-jobs.json store + the in-app scheduler.
    *  App-global (not window-scoped) — a run's landing window is resolved from
@@ -2029,7 +2029,7 @@ export class SocketServer {
         }
 
         case 'cron': {
-          // ENH-221 — scheduled ("cron") Claude sessions. Discriminated op
+          // ENH-223 — scheduled ("cron") Claude sessions. Discriminated op
           // (list|add|edit|run|pause|resume|rm|show), delegated to the
           // CronService. App-global: ignores --window (the run's landing window
           // is resolved from the job's cwd, D10). The bridge throws on bad input.

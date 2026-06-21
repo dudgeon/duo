@@ -1,4 +1,4 @@
-// ENH-221 — CronService orchestration: fresh/resume decision (D3), catch-up
+// ENH-223 — CronService orchestration: fresh/resume decision (D3), catch-up
 // (D5), CLI dispatch, and the tick scheduler.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import * as fs from 'fs/promises'

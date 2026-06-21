@@ -1,4 +1,4 @@
-// ENH-221 — persistence for scheduled ("cron") Claude sessions.
+// ENH-223 — persistence for scheduled ("cron") Claude sessions.
 //
 // App-global store at ~/.claude/duo/cron-jobs.json (D1). Modeled on
 // SettingsService / ProjectsService: an injectable `baseDir` (os.homedir()
