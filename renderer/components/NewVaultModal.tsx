@@ -299,22 +299,22 @@ export function NewVaultModal({ open, onClose, onCreated }: NewVaultModalProps) 
         )}
 
         {result && result.ok && (
-          <div className="mb-3 px-4 py-3 rounded bg-emerald-950/30 border border-emerald-700/40">
+          <div className="mb-3 px-4 py-3 rounded border duo-banner-ok">
             <div className="flex items-start gap-2">
-              <span className="text-emerald-300 text-base leading-none" aria-hidden="true">
+              <span className="duo-text-ok text-base leading-none" aria-hidden="true">
                 ✓
               </span>
               <div className="flex-1 min-w-0">
-                <div className="text-emerald-200 font-semibold text-sm">
+                <div className="duo-text-ok font-semibold text-sm">
                   Created {format === 'okf' ? 'OKF' : 'Obsidian'} vault
                 </div>
-                <div className="text-emerald-300/80 text-xs mt-1 font-mono break-all">
+                <div className="duo-text-ok text-xs mt-1 font-mono break-all">
                   {result.root}
                 </div>
               </div>
             </div>
             {result.warnings && result.warnings.length > 0 && (
-              <ul className="mt-2 ml-4 list-disc text-emerald-200/80 text-xs space-y-0.5">
+              <ul className="mt-2 ml-4 list-disc duo-text-ok text-xs space-y-0.5">
                 {result.warnings.map((w, i) => (
                   <li key={i}>{w}</li>
                 ))}
@@ -324,7 +324,7 @@ export function NewVaultModal({ open, onClose, onCreated }: NewVaultModalProps) 
         )}
 
         {result && !result.ok && (
-          <div className="mb-3 px-3 py-2 rounded text-xs bg-red-950/30 border border-red-700/40 text-red-200">
+          <div className="mb-3 px-3 py-2 rounded text-xs border duo-banner-error">
             <strong>Couldn't create the vault:</strong> {result.error || 'no detail'}
           </div>
         )}

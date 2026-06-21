@@ -82,6 +82,38 @@
       `{ path, branch, slug }`; `duo worktree remove <path>` removes — both
       run git directly with no running app (sandbox-tolerant).
 
+## 3b. Scheduled (cron) jobs (ENH-223 + ENH-225 — create/manage + attention badge, v0.11.x)
+
+- [ ] **Create from each entry point.** Open the New Scheduled Job dialog from
+      (a) Home "+ New job" / a project card "+ Schedule", (b) project-rail
+      right-click, and (c) **File ▸ New Scheduled Job…** — all open the SAME
+      modal. Pick a preset (Hourly / Daily / Weekdays / Weekly) or Custom-cron.
+- [ ] **F3 live preview reads as English + shows next-fire.** As you edit the
+      schedule, the preview shows a natural-language label ("every weekday at
+      09:00") + the next fire; a Custom-cron `*/15 * * * *` → "every 15 minutes".
+- [ ] **Theme legibility (regression — the light-on-light banner class).** Type
+      an **impossible** schedule (Custom-cron `0 0 31 2 *`) to trigger the
+      preview `⚠` error, and force a **save error**. Confirm BOTH the `⚠`
+      preview-error and the save-error banner are clearly legible in **light
+      AND dark** themes (toggle the theme). (Regression: bare `text-red-300` /
+      `bg-red-950 + text-red-200` were illegible on the light cream surface —
+      now `duo-banner-error` / `duo-text-error`.)
+- [ ] **Run fires a BACKGROUND tab (no focus steal).** `duo cron run <id>` (or
+      the row Run-now) spawns a Claude tab WITHOUT pulling focus from the active
+      tab.
+- [ ] **Attention badge (ENH-225).** After a real Claude `Stop` in a cron (or
+      any) background tab, an amber pulse dot appears on that tab (never the
+      active one); focusing it — or new activity — clears it. (Install the
+      managed hooks via the banner first.)
+- [ ] **Boot catch-up isn't clobbered.** With a catch-up-enabled job whose time
+      passed while Duo was closed, relaunch: it fires **once** on launch and is
+      NOT lost to session-restore (the scheduler waits for restore-settled).
+- [ ] **Home nesting.** A job inside a surfaced project's subtree nests under
+      that project's card ("⏱ N" / "+ Schedule"); a job elsewhere (e.g. `/tmp`)
+      falls to the aggregated "Scheduled" block.
+- [ ] **CLI parity.** `duo cron list|add|edit|run|pause|resume|rm|show` and
+      `duo attention` round-trip (the UI reuses the same `handleCli` path).
+
 ## 4. Working pane (catches: browser bounds, tab strip, type routing)
 
 - [ ] About:blank browser tab is visible with working address bar.

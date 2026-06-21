@@ -1802,12 +1802,12 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, pillLabel, onPlaygro
         />
       )}
       {error && (
-        <div className="shrink-0 px-10 py-2 text-xs text-red-400 border-b border-red-900/40 bg-red-950/20">
+        <div className="shrink-0 px-10 py-2 text-xs border-b duo-banner-error">
           {error}
         </div>
       )}
       {recon.externalConflict && (
-        <div className="shrink-0 px-10 py-2.5 text-xs border-b border-amber-900/40 bg-amber-950/30 text-amber-200 flex items-center gap-3">
+        <div className="shrink-0 px-10 py-2.5 text-xs border-b duo-banner-warn flex items-center gap-3">
           <span className="flex-1">
             <strong className="font-semibold">This file changed on disk</strong> while you were editing.
             Reload (loses your edits) or keep yours (next save will overwrite the new disk version).

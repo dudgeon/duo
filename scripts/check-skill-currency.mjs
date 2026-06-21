@@ -183,8 +183,8 @@ const SUBCOMMANDS = {
   // ENH-212 (Home) — re-entry surface + terminal-tab switching.
   home: ['show', 'state', 'refresh'],
   term: ['tabs', 'tab', 'close'],
-  // ENH-221 — scheduled ("cron") Claude sessions.
-  cron: ['list', 'add', 'run', 'pause', 'resume', 'rm', 'show'],
+  // ENH-223 — scheduled ("cron") Claude sessions.
+  cron: ['list', 'add', 'edit', 'run', 'pause', 'resume', 'rm', 'show'],
 }
 
 // Tokens that legitimately follow `duo <verb>` in prose but are NOT verbs:

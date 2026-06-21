@@ -62,7 +62,7 @@ export function SaveControl({
     saved:   'bg-transparent text-zinc-500',
     unsaved: 'bg-accent text-white hover:brightness-110 active:brightness-95 cursor-pointer',
     saving:  'bg-surface-2 text-zinc-400',
-    failed:  'bg-red-950/40 text-red-400 hover:bg-red-950/60 cursor-pointer'
+    failed:  'duo-banner-error cursor-pointer'
   }[state]
 
   const clickable = state === 'unsaved' || state === 'failed'

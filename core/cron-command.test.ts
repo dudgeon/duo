@@ -37,6 +37,21 @@ describe('shellQuoteArg', () => {
   it('returns empty quotes for blank input', () => {
     expect(shellQuoteArg('   ')).toBe("''")
   })
+  it('leaves shell metacharacters inert inside single quotes ($ , backtick, backslash)', () => {
+    // $, a backtick, $(...) command substitution, and a backslash are ALL inert
+    // inside POSIX single quotes — the shell does no expansion there. So they
+    // must pass through verbatim with no escaping (escaping them would actually
+    // change the literal text the prompt carries). Single quotes wrap the
+    // unchanged content.
+    const meta = 'cost $5 `whoami` $(rm -rf /) back\\slash'
+    expect(shellQuoteArg(meta)).toBe("'cost $5 `whoami` $(rm -rf /) back\\slash'")
+  })
+  it('breaks out embedded single quotes safely', () => {
+    // The only character single-quoting can't carry literally is the single
+    // quote itself; the standard break-out idiom is close-quote, escaped quote,
+    // reopen-quote → '\''.
+    expect(shellQuoteArg("it's a test")).toBe("'it'\\''s a test'")
+  })
 })
 
 describe('buildFreshRunCommand', () => {

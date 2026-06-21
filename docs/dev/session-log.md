@@ -18,6 +18,20 @@
 
 ---
 
+## 2026-06-21 (#103 cron — pre-merge review fixes, then MERGED) — ENH-223
+
+Reviewed PR #103 (cron sessions) and, per owner, applied the review's fixes to a high standard **on the branch**, then merged it (no cut — the cut waits on #102 `duo-file-open-flow`). The review was a multi-agent investigation (currency/renumber · repo-wide banner sweep · test gaps · docs · coordination) + a completeness critic that returned **NO-GO** on the first-pass plan and sharpened it (the banner fix needed theme-aware classes, not Tailwind `dark:`; two cron banner sites, not one; the boot-catch-up regression had no test).
+
+**Fixes landed on the branch (all pre-merge):**
+- **Theme legibility — recurrence #3.** The cron dialog's error text was light-on-light in light mode (`NewCronJobModal.tsx:402` bare `text-red-300`; `:433` `bg-red-950/30 + text-red-200`) — the *inverse* of ENH-222's removal banner (`4475df8`) and #104's History legend (`dfc7593`). Added theme-aware `color-mix` classes to `globals.css` (`duo-banner-{error,warn,ok,info}` + `duo-text-*`, light + `[data-theme="dark"]` split, same precedent as `.bg-claude-context`) and — per owner "fix all banners now" — migrated the **whole repo-wide banner family** (~20 sites: NewVaultModal · CloneModal · NewCronJobModal · MarkdownEditor · PageTab · JsonView · SaveControl + the orphaned `text-fail` in HistoryModal, which resolved to nothing). Tailwind `dark:` is unusable (no `darkMode` key in `tailwind.config.mjs`). **Durable rule** added to `.claude/rules/renderer-surfaces.md` ("Theme-legibility", both failure directions) — 3rd recurrence, finally captured in a path-scoped rule (was only in agent auto-memory).
+- **CLI-currency.** `check-skill-currency.mjs`'s allow-list omitted `cron edit` — a silent 5th-surface drift (its green check was NOT evidence of `cron edit` coverage). Added it + fixed two stale ENH-221→223 comments (`check-skill-currency.mjs`, `Home.css`).
+- **Regression tests (+9, suite 1714→1723).** Year/month rollover · overlap `firing` guard · catch-up multi-occurrence collapse + idempotency · a **boot-catch-up guard** (the `SESSION_STATE_RESTORE_SETTLED`-gated start the live walk depended on) · command-quoting shell-metachar inertness (security) · DST (TZ-forced).
+- **Owner flag (non-blocking).** A schedule whose wall-time lands in the DST **spring-forward gap** (e.g. daily 02:30) is **silently skipped**, and D5 catch-up will NOT recover it. The DST test pins this current behavior; PRD §11(d) records the accept-or-special-case decision owed.
+
+**Docs.** PRD §11 (requirements-missed + fixes), the tasks.md ENH-223 entry extended, a **cron section added to the smoke-checklist** (`§3b`, incl. a both-themes legibility line — the checklist had no cron coverage), and the durable rule above.
+
+**Merged** #103 → main (squash). Verification on the merged tree: typecheck clean · **suite 1723** · `check:skill-currency` 76 verbs. The branch was MERGEABLE/CLEAN against current main (it had absorbed #104/#105/#101 at `58953e9`), so the squash was conflict-free. **NOT cut** per owner — the cut waits for #102 to land. Full detail: PRD §11.
+
 ## 2026-06-21 (ENH-223 cron — describer/audit #8 + main integration + Tier 2 inc 3; Tier 2 COMPLETE) — PR #103
 
 Continued the **cron** branch (PR #103). Closed the last open Tier-2 work and got the PR to a MERGEABLE, complete-Tier-2 state.

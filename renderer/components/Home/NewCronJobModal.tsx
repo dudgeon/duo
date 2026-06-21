@@ -399,7 +399,7 @@ export function NewCronJobModal({ open, editJob, defaultCwd, onClose, onSaved }:
         {/* F3 live preview */}
         <div className="mb-3 text-xs min-h-[1.25rem]">
           {previewError ? (
-            <span className="text-red-300">⚠ {previewError}</span>
+            <span className="duo-text-error">⚠ {previewError}</span>
           ) : preview ? (
             <span className="text-ink-mute">
               <span className="text-ink-soft">{preview.label}</span>
@@ -430,7 +430,7 @@ export function NewCronJobModal({ open, editJob, defaultCwd, onClose, onSaved }:
         </div>
 
         {error && (
-          <div className="mb-3 px-3 py-2 rounded text-xs bg-red-950/30 border border-red-700/40 text-red-200">
+          <div className="mb-3 px-3 py-2 rounded text-xs border duo-banner-error">
             <strong>Couldn't save:</strong> {error || 'no detail'}
           </div>
         )}

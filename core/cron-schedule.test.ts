@@ -1,6 +1,6 @@
 // ENH-223 — schedule math. Uses LOCAL Date construction + asserts on local
 // fields so the suite is timezone-independent.
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import {
   parseCronExpr,
   scheduleToCronExpr,
@@ -103,6 +103,80 @@ describe('nextFireAfterSchedule', () => {
   it('returns null for an impossible schedule (Feb 30)', () => {
     const s: CronSchedule = { kind: 'cron', expr: '0 0 30 2 *' }
     expect(nextFireAfterSchedule(s, new Date(2026, 0, 1))).toBeNull()
+  })
+
+  it('rolls over the year boundary (Dec 31 23:00 → Jan 1)', () => {
+    const s: CronSchedule = { kind: 'preset', preset: 'daily', hour: 0, minute: 0 }
+    const next = nextFireAfterSchedule(s, new Date(2026, 11, 31, 23, 0))!
+    expect(next.getFullYear()).toBe(2027)
+    expect(next.getMonth()).toBe(0) // January
+    expect(next.getDate()).toBe(1)
+    expect(next.getHours()).toBe(0)
+  })
+
+  it('rolls over the year boundary for a monthly day-of-month schedule', () => {
+    // `0 9 1 * *` — 09:00 on the 1st of each month. From mid-December the next
+    // 1st is next January.
+    const s: CronSchedule = { kind: 'cron', expr: '0 9 1 * *' }
+    const next = nextFireAfterSchedule(s, new Date(2026, 11, 15, 0, 0))!
+    expect(next.getFullYear()).toBe(2027)
+    expect(next.getMonth()).toBe(0) // January
+    expect(next.getDate()).toBe(1)
+    expect(next.getHours()).toBe(9)
+  })
+})
+
+// This block deliberately forces a DST zone — the rest of the suite is
+// timezone-independent (LOCAL Date construction + local-field assertions). The
+// scheduler steps minute-by-minute over LOCAL wall-clock fields, so DST
+// transitions are exercised by how getHours()/getMinutes() behave across the
+// spring-forward gap and the fall-back repeat.
+describe('DST (America/New_York)', () => {
+  let prevTZ: string | undefined
+  beforeAll(() => {
+    prevTZ = process.env.TZ
+    process.env.TZ = 'America/New_York'
+  })
+  afterAll(() => {
+    if (prevTZ === undefined) delete process.env.TZ
+    else process.env.TZ = prevTZ
+  })
+
+  it('skips a nonexistent wall-time on spring-forward (02:30 on the gap day)', () => {
+    // 2026-03-08: clocks jump 02:00 → 03:00, so 02:30 never occurs that day.
+    // A daily 02:30 schedule, asked from 01:00 that morning, lands on the NEXT
+    // day's 02:30 — the gap-day occurrence is skipped.
+    const s: CronSchedule = { kind: 'preset', preset: 'daily', hour: 2, minute: 30 }
+    const next = nextFireAfterSchedule(s, new Date(2026, 2, 8, 1, 0))!
+    // Pins current behavior: the nonexistent 02:30 on spring-forward is SKIPPED
+    // (D5 catch-up will not recover it). Flagged for owner review.
+    expect(next.getFullYear()).toBe(2026)
+    expect(next.getMonth()).toBe(2) // March
+    expect(next.getDate()).toBe(9) // the day AFTER the gap
+    expect(next.getHours()).toBe(2)
+    expect(next.getMinutes()).toBe(30)
+  })
+
+  it('fires a duplicated wall-time only once on fall-back (01:30 twice → next is the following day)', () => {
+    // 2026-11-01: clocks fall back 02:00 → 01:00, so 01:30 occurs twice. The
+    // scheduler steps minute-by-minute, so the FIRST 01:30 it finds is the one
+    // it fires; computing the next fire FROM that result advances to the next
+    // day rather than re-firing the duplicated 01:30 within the same day.
+    const s: CronSchedule = { kind: 'preset', preset: 'daily', hour: 1, minute: 30 }
+    const first = nextFireAfterSchedule(s, new Date(2026, 10, 1, 0, 30))!
+    expect(first.getFullYear()).toBe(2026)
+    expect(first.getMonth()).toBe(10) // November
+    expect(first.getDate()).toBe(1)
+    expect(first.getHours()).toBe(1)
+    expect(first.getMinutes()).toBe(30)
+
+    // The FOLLOWING fire (computed strictly after the first) is Nov 2 — the
+    // duplicated 01:30 is not fired a second time.
+    const second = nextFireAfterSchedule(s, first)!
+    expect(second.getDate()).toBe(2)
+    expect(second.getHours()).toBe(1)
+    expect(second.getMinutes()).toBe(30)
+    expect(second.getTime()).toBeGreaterThan(first.getTime())
   })
 })
 

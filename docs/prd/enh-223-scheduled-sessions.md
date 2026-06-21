@@ -402,3 +402,50 @@ passes. PR #103 `MERGEABLE`.
 3. Logged future: ENH-222 (`launchd` launch), headless `-p` mode, full
    run-history view.
 
+## 11. Requirements missed in build + fixes applied (pre-merge, 2026-06-21)
+
+A pre-merge review (multi-agent investigation + completeness critic) surfaced
+two missed requirements and a set of unpinned behaviors, all fixed on this
+branch **before** merge.
+
+**(a) Theme legibility — MISSED, fixed (recurring class).** The cron
+create/edit dialog rendered error text with a hardcoded *light* foreground on
+the theme surface: `NewCronJobModal.tsx:402` (the F3 preview-error `⚠` span,
+bare `text-red-300`) and `:433` (the save-error banner, `bg-red-950/30 +
+text-red-200`). Duo boots **light** (`electron/main.ts`
+`nativeTheme.themeSource='light'`), so both were light-on-light / illegible in
+light mode — the *inverse* of, but identical in class to, the ENH-222 removal
+banner (`4475df8`) and the #104 History legend (`dfc7593`). Recurrence #3. Fix:
+added theme-aware `color-mix` classes to `globals.css` (`duo-banner-{error,warn,
+ok,info}` + `duo-text-{…}`, light + `[data-theme="dark"]` split) and migrated
+**both** cron sites — plus, per the owner's "fix all banners now" call, the whole
+repo-wide banner family (`NewVaultModal`, `CloneModal`, `MarkdownEditor`,
+`PageTab`, `JsonView`, `SaveControl`, and the orphaned `text-fail` in
+`HistoryModal` that resolved to nothing). Tailwind `dark:` is unusable here (no
+`darkMode` key in `tailwind.config.mjs`). **A durable rule was added** to
+`.claude/rules/renderer-surfaces.md` ("Theme-legibility", both failure
+directions) so this stops recurring.
+
+**(b) CLI-currency check omitted `cron edit` — MISSED, fixed.** `duo cron edit`
+shipped (Tier 2, `cli/duo.ts`) and is documented in all three human surfaces
+(`CLI-COVERAGE.md`, `agents/duo.md`, `cli-reference.md`), but
+`scripts/check-skill-currency.mjs`'s own `KNOWN_SUBCOMMANDS.cron` allow-list
+omitted `edit` — a silent **5th-surface** drift the check can't self-detect. So
+§10's "skill-currency (76 verbs) passes" was true but was **not** evidence of
+`cron edit` coverage. Fixed: added `'edit'` to the allow-list (+ corrected its
+stale `// ENH-221` comment → ENH-223, and the matching `Home.css` comment).
+
+**(c) Test coverage — added regression guards.** New tests pin behaviors that
+were correct-in-impl but unpinned: year/month rollover; the overlap `firing`
+guard; catch-up multi-occurrence collapse + relaunch idempotency; a core-level
+**boot-catch-up guard** (the `SESSION_STATE_RESTORE_SETTLED`-gated `start()` the
+live walk depended on — `electron/main.ts`); command-quoting shell-metachar
+inertness (security); and DST.
+
+**(d) DST spring-forward — FLAGGED for owner (behavior, not a defect).** A
+schedule whose wall-time lands in the spring-forward gap (e.g. daily 02:30 on a
+US DST-forward day) is **silently skipped**, and D5 catch-up will **not** recover
+it (catch-up anchors on the same next-fire computation). The added DST test pins
+this *current* behavior with a comment. Decision owed: accept the skip, or
+special-case the gap. Non-blocking for v1.
+

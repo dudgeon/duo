@@ -249,6 +249,82 @@ describe('CronService', () => {
     await expect(svc.handleCli('add', { name: 'x', cwd: '/t' })).rejects.toThrow(/--say/)
   })
 
+  it('refuses a second concurrent fire while a run is still starting (overlap guard)', async () => {
+    // REAL timers — this test gates a spawn on a manually-released promise so two
+    // fireJob calls genuinely overlap; fake timers would freeze the awaits.
+    let spawns = 0
+    let releaseGate!: () => void
+    const gate = new Promise<void>((resolve) => {
+      releaseGate = resolve
+    })
+    const runner: CronRunner = {
+      async spawn() {
+        spawns++
+        await gate // hold the first run "starting" until the test releases it
+        return { ok: true }
+      },
+    }
+    const svc = new CronService({ store, runner, sessionExists: async () => false, headlessAllowed: false })
+    const view = (await addJob(svc)) as { id: string }
+
+    // First fire enters and parks inside spawn() awaiting the gate.
+    const first = svc.fireJob(view.id, { reason: 'manual' })
+    await Promise.resolve() // let fireJob run up to the awaited spawn
+    expect(spawns).toBe(1)
+
+    // Second fire while the first is still starting → refused, no extra spawn.
+    const second = await svc.fireJob(view.id, { reason: 'manual' })
+    expect(second.ok).toBe(false)
+    expect(second.error).toMatch(/already starting/)
+    expect(spawns).toBe(1)
+
+    // Release the gate → the first run completes successfully.
+    releaseGate()
+    const firstResult = await first
+    expect(firstResult.ok).toBe(true)
+
+    // A THIRD fire AFTER the guard cleared (in fireJob's finally) succeeds.
+    const third = await svc.fireJob(view.id, { reason: 'manual' })
+    expect(third.ok).toBe(true)
+    expect(spawns).toBe(2)
+  })
+
+  it('does not run catch-up before start() and start() is idempotent', async () => {
+    // A catch-up-eligible job that was missed while Duo was closed must NOT fire
+    // merely on construction — only start() kicks catch-up. And start() must be
+    // safe to call twice (e.g. a re-entrant boot path) without double-firing.
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 0, 2, 12, 0, 0)) // well past today's 09:00
+    const { runner, calls } = makeRunner()
+    const svc = new CronService({
+      store,
+      runner,
+      sessionExists: async () => false,
+      headlessAllowed: false,
+      tickMs: 60_000,
+    })
+    await addJob(svc) // daily 09:00
+    const id = store.getJobs()[0].id
+    await store.updateJob(id, {
+      catchUpOnLaunch: true,
+      createdAt: new Date(2026, 0, 1, 0, 0, 0).toISOString(), // created yesterday, never ran
+    })
+
+    // No spawn just from constructing + adding the job.
+    expect(calls).toHaveLength(0)
+
+    svc.start()
+    await vi.advanceTimersByTimeAsync(0) // let the kicked catch-up settle
+    expect(calls).toHaveLength(1) // start() ran the missed occurrence once
+
+    // Second start() must not re-fire the (now already caught-up) occurrence.
+    svc.start()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(calls).toHaveLength(1)
+
+    svc.stop()
+  })
+
   describe('catch-up (D5)', () => {
     it('fires a catch-up-enabled job whose occurrence was missed while closed', async () => {
       vi.useFakeTimers()
@@ -294,6 +370,32 @@ describe('CronService', () => {
 
       await svc.runCatchUp()
       expect(calls).toHaveLength(0)
+    })
+
+    it('collapses multiple missed occurrences into a single catch-up fire', async () => {
+      vi.useFakeTimers()
+      // Job created Jan 1; "now" is Jan 4 noon, so the Jan 2, Jan 3, and Jan 4
+      // 09:00 occurrences were all missed while closed. Catch-up collapses them
+      // into ONE fire (it anchors on the next occurrence after lastRunAt, not a
+      // per-occurrence replay).
+      vi.setSystemTime(new Date(2026, 0, 4, 12, 0, 0))
+      const { runner, calls } = makeRunner()
+      const svc = new CronService({ store, runner, sessionExists: async () => false, headlessAllowed: false })
+      await addJob(svc) // daily 09:00
+      const id = store.getJobs()[0].id
+      await store.updateJob(id, {
+        catchUpOnLaunch: true,
+        createdAt: new Date(2026, 0, 1, 0, 0, 0).toISOString(),
+      })
+
+      await svc.runCatchUp()
+      expect(calls).toHaveLength(1) // three missed occurrences → a single fire
+      expect(store.getJob(id)!.lastRunState).toBe('ran')
+
+      // A second catch-up after the recorded lastRunAt must NOT re-fire (it's
+      // idempotent — the fire advanced lastRunAt past the latest occurrence).
+      await svc.runCatchUp()
+      expect(calls).toHaveLength(1)
     })
   })
 

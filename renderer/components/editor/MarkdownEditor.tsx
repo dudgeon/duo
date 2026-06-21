@@ -2552,14 +2552,14 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         />
       )}
       {error && (
-        <div className="shrink-0 px-10 py-2 text-xs text-red-400 border-b border-red-900/40 bg-red-950/20">
+        <div className="shrink-0 px-10 py-2 text-xs border-b duo-banner-error">
           {error}
         </div>
       )}
       {/* ENH-195 / v0.9.0 — destructive external reload: recover your version,
           take the disk version, or review the change as tracked changes. */}
       {reloadedFlash && (
-        <div className="shrink-0 px-10 py-2.5 text-xs border-b border-amber-900/40 bg-amber-950/30 text-amber-200 flex items-center gap-3">
+        <div className="shrink-0 px-10 py-2.5 text-xs border-b duo-banner-warn flex items-center gap-3">
           <span className="flex-1">
             <strong className="font-semibold">Most of this document was replaced by a change on disk.</strong>{' '}
             Keep your version, take the new one, or review the differences as tracked changes.
@@ -2589,7 +2589,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       )}
       {/* ENH-195 B4 — file deleted on disk; the buffer is preserved (save recreates it). */}
       {fileRemoved && (
-        <div className="shrink-0 px-10 py-1.5 text-[11px] border-b border-red-900/40 bg-red-950/20 text-red-300">
+        <div className="shrink-0 px-10 py-1.5 text-[11px] border-b duo-banner-error">
           This file was removed on disk. Save to recreate it.
         </div>
       )}
@@ -2598,7 +2598,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           OKF markdown rel links repair on the next vault open or via
           `duo vault relink`. */}
       {likelyMoved && (
-        <div className="shrink-0 px-10 py-1.5 text-[11px] border-b border-sky-900/40 bg-sky-950/20 text-sky-200 flex items-center gap-3">
+        <div className="shrink-0 px-10 py-1.5 text-[11px] border-b duo-banner-info flex items-center gap-3">
           <span className="flex-1">
             A note may have moved — links repair on the next vault open or via{' '}
             <code className="font-mono">duo vault relink</code>.
@@ -2614,7 +2614,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         </div>
       )}
       {recon.externalConflict && (
-        <div className="shrink-0 px-10 py-2.5 text-xs border-b border-amber-900/40 bg-amber-950/30 text-amber-200 flex items-center gap-3">
+        <div className="shrink-0 px-10 py-2.5 text-xs border-b duo-banner-warn flex items-center gap-3">
           <span className="flex-1">
             <strong className="font-semibold">This file changed on disk</strong> while you were editing.
             Keep yours, take the disk version, or review the change as tracked changes.

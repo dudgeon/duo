@@ -491,7 +491,7 @@
   filter: brightness(1.05);
 }
 
-/* ── ENH-221 Tier 2 — Scheduled (cron) jobs ──────────────────────────────── */
+/* ── ENH-223 Tier 2 — Scheduled (cron) jobs ──────────────────────────────── */
 .duo-home-scheduled {
   margin-top: 18px;
   display: flex;
