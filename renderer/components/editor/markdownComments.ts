@@ -246,7 +246,7 @@ export function applyCommentMarksFromSidecar(
       ts: c.ts ?? '',
       body: c.body ?? '',
       replyTo: undefined
-    }, range.from, range.to)
+    }, range.from, range.to, /* addToHistory */ false)
     if (ok) applied += 1
   }
   return applied

@@ -29,6 +29,24 @@
 > (uncommitted mockups lost + recreated from context, then committed). Lesson: commit
 > research artifacts immediately — and this incident is live evidence for enhancement (2).
 
+## ENH-221 — durable file version history (owner-approved 2026-06-19; engine + CLI landed code-only)
+
+> **Owner report:** "it is impossible to undo changes; this compounds with the speed
+> at which autosave occurs." Investigation: in-editor undo is mechanically intact (see
+> ADR); the real gap is no durable version history + a volatile per-tab undo stack, so
+> aggressive autosave leaves no rollback safety net. **Owner constraint:** don't slow
+> autosave (widens the agent-overwrite collision window). **Decision:** option (a) — a
+> content-addressed, append-only version-history store in `~/.claude/duo/file-history/`,
+> captured fire-and-forget off the save path (zero added latency). Locked ADR in
+> `docs/DECISIONS.md`. **Landed this session (code-only, no live verify — another agent
+> holds Electron):** `core/file-history-service.ts` (+10 unit tests) · `FilesService.write`
+> capture hook + `main.ts` wiring · `duo history <list|show|restore>` (socket + CLI +
+> 4-surface docs) · build:cli + sync:claude · 1601/1601 green, typecheck clean.
+> **Next (carry-forward):** History-panel UI + diff (surface shape = OPEN owner UX choice —
+> ask, don't assume; needs live verify + smoke-walk) · capture external/raw-`Edit` writes
+> via the watcher · on-open baseline · live CLI round-trip verify (blocked: sandbox +
+> no Electron). Full writeup: `tasks.md` ENH-221.
+
 ## ENH-211 — navigator render-flicker (PRD filed, not yet built, 2026-06-11)
 
 > **Owner report:** "a lot of flickering in the file navigator." Root-caused to

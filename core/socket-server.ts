@@ -680,7 +680,7 @@ export class SocketServer {
 
     const fullText = frontmatter.joinFrontmatter(split.frontmatter, editResult.body, split.eol)
     const bytes = new TextEncoder().encode(fullText)
-    await this.files.write(path, bytes)
+    await this.files.write(path, bytes, { historySource: 'agent' })
     return { ok: true, changed: true, reason: '', op, path }
   }
 
@@ -755,7 +755,7 @@ export class SocketServer {
       return { reqId: '', ok: true, changed: false, replacements: 0, reason: res.reason, path }
     }
     const fullText = frontmatter.joinFrontmatter(split.frontmatter, res.body, split.eol)
-    await this.files.write(path, new TextEncoder().encode(fullText))
+    await this.files.write(path, new TextEncoder().encode(fullText), { historySource: 'agent' })
     return { reqId: '', ok: true, changed: true, replacements: res.replacements, reason: '', path }
   }
 
@@ -830,7 +830,7 @@ export class SocketServer {
     } else {
       serialized = JSON.stringify(root, null, 2) + '\n'
     }
-    await this.files.write(path, new TextEncoder().encode(serialized))
+    await this.files.write(path, new TextEncoder().encode(serialized), { historySource: 'agent' })
     const reason = isYaml ? 'YAML serialized — comments and anchor names are not preserved' : ''
     return { reqId: '', ok: true, changed: true, reason, path }
   }
@@ -1087,6 +1087,42 @@ export class SocketServer {
           // Computed on-demand from the renderer's window.__duoGetStatus()
           // — see App.tsx for the shape. The keystone orientation verb.
           result = await this.nav.getStatus()
+          break
+        }
+        case 'history': {
+          // ENH-221 — durable file version history. sub ∈ list | show | restore.
+          // Backed by FilesService.historyService (the content-addressed store
+          // at ~/.claude/duo/file-history/). Reads are disk-direct; restore
+          // routes through this.files.write so it is itself captured AND the
+          // open editor reconciles via the watcher.
+          const sub = args['sub'] as string | undefined
+          const histPath = args['path'] as string | undefined
+          const id = args['id'] as string | undefined
+          const history = this.files.historyService
+          if (!history) {
+            result = { ok: false, error: 'history store unavailable' }
+            break
+          }
+          if (!histPath) {
+            result = { ok: false, error: 'history requires a <path>' }
+            break
+          }
+          if (sub === 'list') {
+            result = { ok: true, path: histPath, snapshots: await history.list(histPath) }
+          } else if (sub === 'show') {
+            if (!id) { result = { ok: false, error: 'history show requires <id>' }; break }
+            const bytes = await history.read(histPath, id)
+            if (!bytes) { result = { ok: false, error: `no snapshot ${id} for ${histPath}` }; break }
+            result = { ok: true, path: histPath, id, content: new TextDecoder().decode(bytes) }
+          } else if (sub === 'restore') {
+            if (!id) { result = { ok: false, error: 'history restore requires <id>' }; break }
+            const bytes = await history.read(histPath, id)
+            if (!bytes) { result = { ok: false, error: `no snapshot ${id} for ${histPath}` }; break }
+            const w = await this.files.write(histPath, bytes, { historySource: 'restore' })
+            result = { ok: true, path: histPath, restored: id, size: w.size }
+          } else {
+            result = { ok: false, error: `unknown history subcommand: ${String(sub ?? '(none)')} — try: list | show | restore` }
+          }
           break
         }
         case 'window': {

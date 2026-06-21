@@ -97,6 +97,11 @@ export function applyCriticMarkupFromText(editor: Editor): number {
   const CmtMark = schema.marks.commentMark
 
   const tr = state.tr
+  // ENH-221 — materializing CriticMarkup tokens into marks is a programmatic
+  // derivation of the loaded/reloaded doc, NOT a user edit. Keep it OFF the
+  // undo stack so Cmd+Z never lands on an invisible mark-reapplication (the
+  // "undo appears to do nothing" symptom). SuggestingMode also reads this meta.
+  tr.setMeta('addToHistory', false)
   let converted = 0
 
   // Walk hits in REVERSE document order so splices don't invalidate
