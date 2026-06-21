@@ -187,7 +187,7 @@ export async function listWorktrees(
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// ENH-221 — worktree CREATE / REMOVE (D5-C lifecycle write verbs).
+// ENH-222 — worktree CREATE / REMOVE (D5-C lifecycle write verbs).
 //
 // Duo's FIRST write to git worktree state. Powers `duo worktree new`, the
 // navigator inline-create form (Variant A), and `duo worktree remove`.

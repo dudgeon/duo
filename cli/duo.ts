@@ -480,7 +480,7 @@ const VERBS: VerbSpec[] = [
     name: 'worktree',
     group: 'Repo & git',
     args: '[list] [<path>] | new "<desc>" [--from <ref>] [--window] | remove <path> [--force]',
-    summary: 'List / create / remove the git worktrees of the repo at <path> (defaults to the cwd). `duo worktree [list] [<path>]` → JSON [{ path, branch, head, isMain, isCurrent, detached, prunable, colorIndex }], main checkout first, the cwd\'s worktree flagged isCurrent. `duo worktree new "<desc>" [--from <ref>] [--window]` → create a worktree off <ref> (default: the main branch) at <repo>/.claude/worktrees/<slug> on branch claude/<slug>, the description sanitized to a path/ref-safe slug (spaces→-, allow-list a–z 0–9 -); --window also opens it in a new Duo window. `duo worktree remove <path> [--force]` → git worktree remove (--force when the worktree is dirty). Reads/writes git directly (no running app needed, except --window). The CLI twin of the navigator Worktrees dropdown + its "+ New worktree" create (ENH-221).'
+    summary: 'List / create / remove the git worktrees of the repo at <path> (defaults to the cwd). `duo worktree [list] [<path>]` → JSON [{ path, branch, head, isMain, isCurrent, detached, prunable, colorIndex }], main checkout first, the cwd\'s worktree flagged isCurrent. `duo worktree new "<desc>" [--from <ref>] [--window]` → create a worktree off <ref> (default: the main branch) at <repo>/.claude/worktrees/<slug> on branch claude/<slug>, the description sanitized to a path/ref-safe slug (spaces→-, allow-list a–z 0–9 -); --window also opens it in a new Duo window. `duo worktree remove <path> [--force]` → git worktree remove (--force when the worktree is dirty). Reads/writes git directly (no running app needed, except --window). The CLI twin of the navigator Worktrees dropdown + its "+ New worktree" create (ENH-222).'
   },
 
   // ── Health & install ──
@@ -2230,7 +2230,7 @@ async function main(): Promise<void> {
         break
       }
       case 'worktree': {
-        // ENH-210 (list) + ENH-221 (new/remove) — list / create / remove
+        // ENH-210 (list) + ENH-222 (new/remove) — list / create / remove
         // git worktrees. Reads AND writes git DIRECTLY (like the vault
         // verbs) — no socket / running app needed, so it works from any
         // terminal and inside a sandbox. The exception is `new --window`,

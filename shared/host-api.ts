@@ -1258,7 +1258,7 @@ export interface WorktreeInfo {
   behind?: number
 }
 
-/** ENH-221 — result of creating a worktree (`createWorktree` / the
+/** ENH-222 — result of creating a worktree (`createWorktree` / the
  *  `git:createWorktree` IPC / `duo worktree new`). Never throws; `ok`
  *  false carries a user-facing `error`. */
 export interface CreateWorktreeResult {
@@ -1373,7 +1373,7 @@ export interface ElectronGitAPI {
    *  first, the cwd's worktree flagged `isCurrent`). Powers the
    *  navigator Worktrees section. Returns [] for non-repos. */
   worktrees(cwd: string): Promise<WorktreeInfo[]>
-  /** ENH-221 — create a new worktree off `fromRef` (default: the repo's
+  /** ENH-222 — create a new worktree off `fromRef` (default: the repo's
    *  main branch) under `<repo>/.claude/worktrees/<slug>` on branch
    *  `claude/<slug>`, `name` sanitized to a path/ref-safe slug. Powers the
    *  navigator's "+ New worktree" inline-create form. Never rejects;

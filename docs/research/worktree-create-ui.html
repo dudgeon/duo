@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="duo-editable" content="false">
-<title>Inline create form — UI treatments (ENH-221 · D1)</title>
+<title>Inline create form — UI treatments (ENH-222 · D1)</title>
 <style>
 /* ── duo-atelier.css kernel (light page chrome) ── */
 :root {
@@ -169,13 +169,13 @@ code { font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:12.5px; bac
 <header class="page-head">
   <h1>Inline create form — UI treatments</h1>
   <div class="meta">
-    <span class="pill">ENH-221</span><span class="pill">D1 · UI</span>
+    <span class="pill">ENH-222</span><span class="pill">D1 · UI</span>
     2026-06-18 · follow-up to the lifecycle study · pick one
   </div>
 </header>
 
 <div class="intro">
-  <p style="margin:0 0 12px; padding:8px 12px; background:color-mix(in srgb, var(--pass) 12%, var(--paper)); border:1px solid color-mix(in srgb, var(--pass) 40%, var(--paper-rule)); border-radius:6px; font-size:12.5px;"><strong style="color:var(--pass)">✅ DECIDED (Variant A) + IMPLEMENTED</strong> (ENH-221, v0.11.2 branch). Build + findings: <strong>docs/prd/enh-221-worktree-lifecycle.md</strong>.</p>
+  <p style="margin:0 0 12px; padding:8px 12px; background:color-mix(in srgb, var(--pass) 12%, var(--paper)); border:1px solid color-mix(in srgb, var(--pass) 40%, var(--paper-rule)); border-radius:6px; font-size:12.5px;"><strong style="color:var(--pass)">✅ DECIDED (Variant A) + IMPLEMENTED</strong> (ENH-222, v0.11.2 branch). Build + findings: <strong>docs/prd/enh-222-worktree-lifecycle.md</strong>.</p>
   <strong>You picked the inline approach but not the form's UI</strong> — <em>"I like this approach but don't like the
   UI; make and show me more options."</em> Same end state every time: type (or auto-generate) a name → a worktree is
   created off main, the navigator re-roots, Claude boots. These four differ only in <strong>how the form sits inside the
@@ -344,7 +344,7 @@ dropdown. The differing part is the dropdown — the tree + terminal behind it a
   function payload() {
     var sel = document.querySelector('input[name="ui"]:checked');
     var n = document.querySelector('.q-notes[data-decision="ui"]');
-    var lines = ['Worktree create form UI — decision (docs/research/worktree-create-ui.html · ENH-221 D1-UI)', ''];
+    var lines = ['Worktree create form UI — decision (docs/research/worktree-create-ui.html · ENH-222 D1-UI)', ''];
     lines.push('[' + (sel ? 'VARIANT ' + sel.value : 'UNCHOSEN') + '] inline-form treatment');
     if (n && n.value.trim()) lines.push('    ' + n.value.trim().replace(/\n/g, '\n    '));
     return lines.join('\n');

@@ -55,14 +55,14 @@ export interface NavigatorState {
   showDotfiles: boolean
   /** Children cache keyed by absolute path. `null` means loading. */
   listings: Map<string, DirEntry[] | null>
-  /** ENH-221 (D5) — set when the navigator auto-reverted to main because
+  /** ENH-222 (D5) — set when the navigator auto-reverted to main because
    *  the CURRENT worktree was removed under-foot (agent merged + `git
    *  worktree remove`). Drives the dismissible "back on main" banner; null
    *  when there's nothing to announce. */
   removedWorktree: { label: string } | null
 }
 
-/** ENH-221 (D6) — the current linked worktree's identity, captured by the
+/** ENH-222 (D6) — the current linked worktree's identity, captured by the
  *  consumer while the worktree is ALIVE so the self-heal can revert to its
  *  main checkout (not a path ancestor) once the dir vanishes. */
 export interface WorktreeRevertTarget {
@@ -104,12 +104,12 @@ export interface NavigatorActions {
    *  any "reveal X" callsite (`nav:reveal` action verb, file-tab
    *  context-menu "Reveal in navigator"). */
   revealAndSelect: (filePath: string) => void
-  /** ENH-221 (D6) — feed the CURRENT linked worktree's identity here while
+  /** ENH-222 (D6) — feed the CURRENT linked worktree's identity here while
    *  it's alive, so the self-heal can revert to MAIN (not the nearest path
    *  ancestor) when the worktree dir vanishes. Pass null on main / a
    *  non-worktree checkout. */
   setWorktreeRevertTarget: (target: WorktreeRevertTarget | null) => void
-  /** ENH-221 (D5) — dismiss the "back on main" banner. */
+  /** ENH-222 (D5) — dismiss the "back on main" banner. */
   dismissRemovedWorktree: () => void
 }
 
@@ -145,7 +145,7 @@ export function useNavigator(initialCwd: string, forceInitial = false) {
     try { return localStorage.getItem(LS_KEY_SHOW_DOTFILES) === '1' } catch { return false }
   })
   const [listings, setListings] = useState<NavigatorState['listings']>(() => new Map())
-  // ENH-221 (D5/D6) — worktree-removal recovery. `removedWorktree` drives
+  // ENH-222 (D5/D6) — worktree-removal recovery. `removedWorktree` drives
   // the "back on main" banner; `revertTargetRef` holds the current linked
   // worktree's identity (fed by FileTree while alive) so the self-heal can
   // revert to MAIN when the dir vanishes.
@@ -238,7 +238,7 @@ export function useNavigator(initialCwd: string, forceInitial = false) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ENH-221 (D5/D6) — recover the navigator when the current cwd has
+  // ENH-222 (D5/D6) — recover the navigator when the current cwd has
   // vanished (most commonly: the agent removed the worktree it was rooted
   // in). If the dead cwd is the linked worktree the consumer flagged,
   // revert to its MAIN checkout (not the nearest path ancestor — for a
@@ -325,7 +325,7 @@ export function useNavigator(initialCwd: string, forceInitial = false) {
             return next
           })
           setPrimaryPath(prev => (prev === path ? null : prev))
-          // ENH-221 (D5/D6) — the dead dir is the current cwd; run the
+          // ENH-222 (D5/D6) — the dead dir is the current cwd; run the
           // shared recovery (revert to the removed worktree's main, else
           // the nearest surviving ancestor; banner on a worktree removal).
           if (cwdRef.current === path) recoverDeadCwd(path)
@@ -340,7 +340,7 @@ export function useNavigator(initialCwd: string, forceInitial = false) {
     for (const p of expanded) ensureListing(p)
   }, [expanded, ensureListing])
 
-  // ENH-221 (D6) — window-focus backstop for under-foot cwd removal. The
+  // ENH-222 (D6) — window-focus backstop for under-foot cwd removal. The
   // fs-watcher catches a clean `git worktree remove`, but can miss a busy
   // dir or a whole-repo rm; on focus we re-probe the cwd and run the same
   // recovery if it's gone, so the nav never stays stranded on a dead path.
@@ -435,7 +435,7 @@ export function useNavigator(initialCwd: string, forceInitial = false) {
     setCwd(path)
     setSelectedItems(new Map())
     setPrimaryPath(null)
-    // ENH-221 — an explicit navigation dismisses a stale "back on main"
+    // ENH-222 — an explicit navigation dismisses a stale "back on main"
     // banner (e.g. the user picks another worktree right after a revert).
     setRemovedWorktree(null)
   }, [])
@@ -548,7 +548,7 @@ export function useNavigator(initialCwd: string, forceInitial = false) {
     ensureListing(path)
   }, [ensureListing])
 
-  // ENH-221 (D6) — FileTree feeds the live worktree identity; the self-heal
+  // ENH-222 (D6) — FileTree feeds the live worktree identity; the self-heal
   // consumes it when the cwd dies. Setting a ref (not state) avoids a
   // re-render on every gitSnap refresh.
   const setWorktreeRevertTarget = useCallback((target: WorktreeRevertTarget | null) => {

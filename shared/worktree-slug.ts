@@ -1,4 +1,4 @@
-// ENH-221 — pure worktree-name helpers, shared by the renderer (the live
+// ENH-222 — pure worktree-name helpers, shared by the renderer (the live
 // slug preview + "Name it for me" auto-name in the inline-create form) and
 // core (createWorktree). Kept node-free (no fs / child_process) so the
 // renderer bundle can import it; `core/git/worktree.ts` re-exports these so

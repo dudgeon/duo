@@ -7,7 +7,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { findDeadExpandedPaths, nearestExistingAncestor, pathIsWithin } from './pruneDeadPaths'
 
-// ENH-221 (D6) — the worktree-removal heal keys on pathIsWithin to decide
+// ENH-222 (D6) — the worktree-removal heal keys on pathIsWithin to decide
 // whether a dead cwd is the just-removed worktree (revert to its main) vs.
 // an unrelated dead path (ancestor fallback). The boundary case is the
 // regression risk: a sibling whose name PREFIXES the worktree's.

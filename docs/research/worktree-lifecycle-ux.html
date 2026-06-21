@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="duo-editable" content="false">
-<title>Worktree lifecycle UX — PM-friendly create + graceful removal (ENH-221)</title>
+<title>Worktree lifecycle UX — PM-friendly create + graceful removal (ENH-222)</title>
 <style>
 /* ───────────────────────── duo-atelier.css kernel (light page chrome) ───────────────────────── */
 :root {
@@ -214,14 +214,14 @@ details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(
 <header class="page-head">
   <h1>Worktree lifecycle UX — create &amp; graceful removal</h1>
   <div class="meta">
-    <span class="pill">ENH-221</span>
+    <span class="pill">ENH-222</span>
     <span class="pill">ENH-210 · D5-C</span>
     2026-06-18 · high-fidelity flow study · 6 decisions
   </div>
 </header>
 
 <div class="intro">
-  <p style="margin:0 0 12px; padding:8px 12px; background:color-mix(in srgb, var(--pass) 12%, var(--paper)); border:1px solid color-mix(in srgb, var(--pass) 40%, var(--paper-rule)); border-radius:6px; font-size:12.5px;"><strong style="color:var(--pass)">✅ DECIDED + IMPLEMENTED</strong> (ENH-221, v0.11.2 branch <code>claude/eloquent-albattani-7c44d4</code>, owner <code>/smoke-walk</code> pending). This playground is the decision record (D1–D6); the build, findings &amp; deviations live in <strong>docs/prd/enh-221-worktree-lifecycle.md</strong>.</p>
+  <p style="margin:0 0 12px; padding:8px 12px; background:color-mix(in srgb, var(--pass) 12%, var(--paper)); border:1px solid color-mix(in srgb, var(--pass) 40%, var(--paper-rule)); border-radius:6px; font-size:12.5px;"><strong style="color:var(--pass)">✅ DECIDED + IMPLEMENTED</strong> (ENH-222, v0.11.2 branch <code>claude/eloquent-albattani-7c44d4</code>, owner <code>/smoke-walk</code> pending). This playground is the decision record (D1–D6); the build, findings &amp; deviations live in <strong>docs/prd/enh-222-worktree-lifecycle.md</strong>.</p>
   <strong>Two enhancements to the worktree controller (the dropdown shipped in ENH-210 / PR #100).</strong>
   <ol style="margin:8px 0 0; padding-left:20px;">
     <li><strong>Create a worktree from the dropdown</strong> — a non-technical PM should be able to click the
@@ -617,7 +617,7 @@ auto-revert to main.</p>
   function refresh() { document.getElementById('answered-count').textContent = String(answered()); }
   document.addEventListener('change', function (e) { if (e.target && e.target.type === 'radio') refresh(); });
   function payload() {
-    var lines = ['Worktree lifecycle UX — decisions (docs/research/worktree-lifecycle-ux.html · ENH-221)', ''];
+    var lines = ['Worktree lifecycle UX — decisions (docs/research/worktree-lifecycle-ux.html · ENH-222)', ''];
     DECISIONS.forEach(function (d) {
       var sel = document.querySelector('input[name="' + d.id + '"]:checked');
       var n = document.querySelector('.q-notes[data-decision="' + d.id + '"]');

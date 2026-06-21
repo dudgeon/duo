@@ -57,7 +57,7 @@
       tab and renders content.
 - [ ] `⌘B` toggles the files column between expanded and collapsed rail.
 
-## 3a. Worktree lifecycle (ENH-221 — create + removal recovery, v0.11.2)
+## 3a. Worktree lifecycle (ENH-222 — create + removal recovery, v0.11.2)
 
 - [ ] **Worktree pill opens on ANY repo.** In a git repo (even a lone
       single-checkout one), click the worktree pill under the breadcrumb:

@@ -94,7 +94,7 @@ describe('parseWorktreePorcelain', () => {
   })
 })
 
-// ENH-221 — slug sanitization for `duo worktree new` + the navigator
+// ENH-222 — slug sanitization for `duo worktree new` + the navigator
 // inline-create form (Variant A). The created name must be safe as BOTH a
 // directory and a git ref, so this is the crash-prevention spine of the
 // create flow — pinned here so a refactor can't loosen the allow-list.
@@ -153,7 +153,7 @@ describe('nextAvailableSlug', () => {
   })
 })
 
-// ENH-221 — live git coverage for the WRITE path (createWorktree /
+// ENH-222 — live git coverage for the WRITE path (createWorktree /
 // removeWorktree). Hermetic: a throwaway repo in os.tmpdir(). This is the
 // risky path (Duo's first git mutation), so it gets a real shell-out test
 // rather than being deferred to the smoke walk like the read paths.

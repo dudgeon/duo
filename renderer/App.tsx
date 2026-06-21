@@ -4453,7 +4453,7 @@ export function App() {
           onMouseDown={() => setFocusedColumn('files')}
           aria-label="Files column"
         >
-          {/* ENH-221 (D5) — scoped boundary so an unforeseen navigator
+          {/* ENH-222 (D5) — scoped boundary so an unforeseen navigator
               render error (e.g. stale worktree state mid-removal) degrades
               to an in-pane panel + Reload, never a blank window. The
               useNavigator self-heal handles the expected vanished-cwd case;

@@ -163,7 +163,7 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
     const refresh = async () => {
       try {
         const list = await window.electron.git.worktrees(state.cwd)
-        // ENH-221 — store the full list (was: only when >1, since the
+        // ENH-222 — store the full list (was: only when >1, since the
         // dropdown used to be gated on linked worktrees). The pill is now an
         // always-on trigger, so a lone main checkout must still show its
         // current row in the dropdown (not an empty "Switch worktree · 0").
@@ -210,7 +210,7 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
   // gets an inline chip on its row. Independent of the ribbon: the
   // ribbon fires when CWD-itself is in a repo; the per-folder chips
   // fire on CHILD-FOLDERS that are repos.
-  // ENH-221 (D6) — feed the navigator the CURRENT linked worktree's
+  // ENH-222 (D6) — feed the navigator the CURRENT linked worktree's
   // identity while it's alive, so its self-heal can revert to MAIN (not a
   // path ancestor) and raise the "back on main" banner if the agent removes
   // this worktree under-foot.
@@ -233,8 +233,8 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
   const repoName = repoBasenameFor(gitSnap?.workTreeRoot ?? null)
   const chipTooltip = gitSnap ? formatGitStatusTooltip(gitSnap, repoName) : ''
 
-  // ENH-210 (D4) + ENH-221 — the ribbon is the worktree dropdown trigger.
-  // ENH-221 made it ALWAYS clickable (even on a lone main checkout) so the
+  // ENH-210 (D4) + ENH-222 — the ribbon is the worktree dropdown trigger.
+  // ENH-222 made it ALWAYS clickable (even on a lone main checkout) so the
   // "+ New worktree" create row is reachable. It tints to the CURRENT
   // checkout's hue (linked only — main stays uncolored, the locked baseline).
   const currentWorktree = worktrees.find((w) => w.isCurrent)
@@ -886,7 +886,7 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
           user can see where the .git lives (helps when the ribbon
           surprises them by showing in a directory they didn't realize
           was a git repo). */}
-      {/* ENH-221 (D5) — worktree-removed recovery banner. Shown after the
+      {/* ENH-222 (D5) — worktree-removed recovery banner. Shown after the
           navigator auto-reverts to main because the viewed worktree was
           removed under-foot. Dismissible; also auto-clears on any navigate. */}
       {state.removedWorktree && (
@@ -979,7 +979,7 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
               onSwitch={(p) => { actions.navigateTo(p); setWorktreesOpen(false) }}
               onOpenInWindow={(p) => { void window.electron.nav.openWindowAt?.(p); setWorktreesOpen(false) }}
               onCreateWorktree={async (name, startClaude) => {
-                // ENH-221 — create off the current repo, re-root the
+                // ENH-222 — create off the current repo, re-root the
                 // navigator into the new worktree, and (default) boot a
                 // Claude session there.
                 const res = await window.electron.git.createWorktree({ cwd: state.cwd, name })
@@ -1103,7 +1103,7 @@ function WorktreeDropdownBody({
           </div>
         )
       })}
-      {/* ENH-221 — the "+ New worktree" create row sits under the switch
+      {/* ENH-222 — the "+ New worktree" create row sits under the switch
           list (divider-separated). Reachable even on a lone main checkout
           since the pill is now an always-on trigger. */}
       <WorktreeCreateRow onCreateWorktree={onCreateWorktree} />
@@ -1111,7 +1111,7 @@ function WorktreeDropdownBody({
   )
 }
 
-// ENH-221 (D1 = Variant A) — the inline "+ New worktree" create affordance.
+// ENH-222 (D1 = Variant A) — the inline "+ New worktree" create affordance.
 // Collapsed: a single accent row. Click → it expands IN PLACE into a one-
 // line type-and-go form: name the work (with a live slug preview), "Name it
 // for me" (⚄) auto-names, Enter creates the worktree off main + (default)

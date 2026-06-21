@@ -1,6 +1,6 @@
-# Active sprint state — ENH-221 worktree lifecycle BUILT + pre-walked (owner review paused 2026-06-19); ENH-208 Vault Phase 2 in flight (v0.10.0 carry-forward below)
+# Active sprint state — ENH-222 worktree lifecycle BUILT + walked (renumbered from ENH-221, not cutting, 2026-06-20); ENH-208 Vault Phase 2 in flight (v0.10.0 carry-forward below)
 
-## ENH-221 — worktree lifecycle UX (BUILT + pre-walked; owner `/smoke-walk` pending, review paused 2026-06-19)
+## ENH-222 — worktree lifecycle UX (BUILT + owner-walked 2P/1S; renumbered from ENH-221; NOT cutting, updating PR)
 
 > **Owner directive:** "keep advancing the worktree controller UI" → two enhancements:
 > (1) PM-friendly **Create a worktree** from the dropdown, (2) **graceful removal**
@@ -17,12 +17,14 @@
 > CLI (4-surface synced) → FileTree inline-create form (always-on pill) → nav
 > worktree-aware revert + banner + `ErrorBoundary` (+ `pathIsWithin` test) →
 > `35f7c3a` two pre-walk fixes (lone-repo dropdown, focus backstop). Full suite green
-> (1607), typecheck clean. **PRD:** [`docs/prd/enh-221-worktree-lifecycle.md`](../prd/enh-221-worktree-lifecycle.md).
-> **PAUSED 2026-06-19:** owner can't review now → all Electron ops paused; smoke-walk
-> page is ready (`docs/dev/smoke-walks/v0.11.2.html`, pinned in window 1 aux). **Next:**
-> owner walks + Copy-results, then `cut-version` v0.11.2. **Open follow-ups (don't gate
-> the cut):** in-terminal removal notice (C-3), dropdown refetch-on-open (C-5),
-> base-branch picker (C-4) — see PRD § C/E + `tasks.md` ENH-221.
+> (1607), typecheck clean. **PRD:** [`docs/prd/enh-222-worktree-lifecycle.md`](../prd/enh-222-worktree-lifecycle.md).
+> **Owner smoke-walk 1 (2026-06-20): 2 PASS / 1 SKIP** — LONE-MAIN ✅, REMOVAL ✅ (banner
+> was illegible in light mode → fixed `4475df8`, verified), CREATE skipped then confirmed OK
+> by owner. **Renumbered ENH-221 → ENH-222** because the other agent's ENH-221
+> (`claude/enh-221-file-history`) landed first; **NOT cutting** — retargets a later minor
+> than the file-history v0.11.2 (TBD). **Next:** update the PR/branch (no cut). **Open
+> follow-ups (don't gate):** in-terminal removal notice (C-3), dropdown refetch-on-open
+> (C-5), base-branch picker (C-4) — see PRD § C/E + `tasks.md` ENH-222.
 > **NB (2026-06-18):** a broad worktree purge deleted this session's worktree mid-work
 > (uncommitted mockups lost + recreated from context, then committed). Lesson: commit
 > research artifacts immediately — and this incident is live evidence for enhancement (2).

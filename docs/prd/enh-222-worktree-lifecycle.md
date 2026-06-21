@@ -1,4 +1,4 @@
-# ENH-221 PRD — Worktree lifecycle UX: PM-friendly create + graceful removal
+# ENH-222 PRD — Worktree lifecycle UX: PM-friendly create + graceful removal
 
 > **Status:** **IMPLEMENTED + live-pre-walked** on branch
 > `claude/eloquent-albattani-7c44d4` (off `main` @ `df26ddf`, v0.11.2).
@@ -28,7 +28,7 @@
 >   `WorktreeDropdownBody`, `duo worktree [list]`. Its D5 stress study:
 >   [`docs/research/worktree-d5-stress.html`](../research/worktree-d5-stress.html);
 >   D4 dropdown study: [`docs/research/worktree-d4-study.html`](../research/worktree-d4-study.html).
-> - `tasks.md` → **ENH-221** (running ledger + commit-by-commit build log).
+> - `tasks.md` → **ENH-222** (running ledger + commit-by-commit build log).
 > - **Code (this change touches):** `shared/worktree-slug.ts` (new),
 >   `core/git/worktree.ts`, `cli/duo.ts` (+ `cli/duo` binary),
 >   `shared/types.ts`, `shared/host-api.ts`, `electron/preload.ts`,
@@ -204,4 +204,4 @@ pre-walk** and **fixed in `35f7c3a`**; C-3..C-6 are open/known.
    cover it).
 4. Keyboard model for the dropdown (still click-only per ENH-210 D4.3-A).
 
-These are tracked in `tasks.md` under ENH-221; none gate the v0.11.2 cut.
+These are tracked in `tasks.md` under ENH-222; none gate the v0.11.2 cut.

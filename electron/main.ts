@@ -2392,7 +2392,7 @@ function setupIPC(): void {
     return listWorktrees(cwd, { withStatus: true })
   })
 
-  // ENH-221 — create a worktree (renderer → main). The navigator's
+  // ENH-222 — create a worktree (renderer → main). The navigator's
   // "+ New worktree" inline-create form calls this; it writes git state
   // via the same core function the CLI `duo worktree new` uses.
   ipcMain.handle(IPC.GIT_CREATE_WORKTREE, async (

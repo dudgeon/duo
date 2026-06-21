@@ -35,7 +35,7 @@ export async function findDeadExpandedPaths(
   return checks.filter(([, ok]) => ok === false).map(([p]) => p)
 }
 
-/** ENH-221 — is `child` the same path as `ancestor`, or nested inside it?
+/** ENH-222 — is `child` the same path as `ancestor`, or nested inside it?
  *  Boundary-safe: `/a/foo-bar` is NOT within `/a/foo`. Used by the
  *  navigator's worktree-removal heal (D5/D6) to tell whether the dead cwd
  *  is the worktree that just vanished (→ revert to its main checkout) vs.
