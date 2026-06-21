@@ -505,6 +505,12 @@ const VERBS: VerbSpec[] = [
     summary: 'Probe "gh auth status". Prints JSON { ghInstalled, authenticated, host, user, ghNotFound } so agents can decide whether "duo clone" will work on private repos before trying.'
   },
   {
+    name: 'pr',
+    group: 'Repo & git',
+    args: 'create|status|view [<path>] [--title …] [--body …] [--branch …] [--draft] [--json]',
+    summary: 'Share-back: propose the diverged doc inside a managed checkout (a file opened via "duo open <github-url>") as a GitHub pull request — the CLI twin of the "Propose changes" affordance. "create" branches/commits/pushes/opens the PR, AUTO-FORKING when you lack push access (cross-fork PR). Defaults are prefilled (branch duo/<slug>-<short>, title from the doc\'s first heading); --title/--body/--branch/--draft override. "status" prints JSON { context, divergence, pr }; "view" prints the open PR (or null). <path> defaults to the cwd; it must resolve inside ~/.claude/duo/checkouts/. Unauthenticated bounces to `gh auth login`.'
+  },
+  {
     name: 'worktree',
     group: 'Repo & git',
     args: '[list] [<path>] | new "<desc>" [--from <ref>] [--window] | remove <path> [--force]',
@@ -2318,6 +2324,68 @@ async function main(): Promise<void> {
         } else {
           die(`clone failed (${result.errorKind ?? 'unknown'}): ${result.error ?? 'no detail'}`)
         }
+        break
+      }
+      case 'pr': {
+        // ENH-224 Phase 2 — share-back. `duo pr <create|status|view> [<path>]`.
+        //   create → branch/commit/push/PR (auto-fork, D3) for the diverged
+        //            managed-checkout doc; --title/--body/--branch/--draft
+        //            override the D7 prefill.
+        //   status → JSON { context, divergence, pr } (visibility-cluster).
+        //   view   → the open PR for the checkout's branch (or none).
+        // <path> defaults to the cwd; main resolves it → its managed checkout.
+        const sub = rest.find(a => !a.startsWith('--'))
+        if (sub !== 'create' && sub !== 'status' && sub !== 'view') {
+          die('Usage: duo pr <create|status|view> [<path>] [--title …] [--body …] [--branch …] [--draft] [--json]')
+        }
+        const afterSub = rest.slice(rest.indexOf(sub) + 1)
+        const pathArg = afterSub.find(a => !a.startsWith('--'))
+        const absPath = pathArg
+          ? (path.isAbsolute(pathArg) ? pathArg : path.resolve(process.cwd(), pathArg))
+          : process.cwd()
+        const asJson = rest.includes('--json')
+
+        if (sub === 'create') {
+          const payload: Record<string, unknown> = { sub, path: absPath, draft: rest.includes('--draft') }
+          const title = flagValue(rest, '--title'); if (title) payload['title'] = title
+          const body = flagValue(rest, '--body'); if (body) payload['body'] = body
+          const branch = flagValue(rest, '--branch'); if (branch) payload['branch'] = branch
+          const res = (await send('pr', payload)) as {
+            ok: boolean
+            pr?: { url: string; number: number }
+            pushedTo?: string
+            forked?: boolean
+            action?: string
+            errorKind?: string
+            error?: string
+          }
+          if (asJson) { out(JSON.stringify(res, null, 2)); break }
+          if (res.ok && res.pr) {
+            const verb = res.action === 'updated' ? 'Updated' : 'Opened'
+            const fork = res.forked ? ` (via your fork ${res.pushedTo})` : ''
+            out(`${verb} PR #${res.pr.number}${fork}\n${res.pr.url}`)
+          } else {
+            die(`pr create failed (${res.errorKind ?? 'unknown'}): ${res.error ?? 'no detail'}`)
+          }
+          break
+        }
+
+        if (sub === 'status') {
+          // JSON-first (visibility-cluster) — agents read divergence + PR state.
+          out(JSON.stringify(await send('pr', { sub, path: absPath }), null, 2))
+          break
+        }
+
+        // view
+        const res = (await send('pr', { sub, path: absPath })) as {
+          ok: boolean
+          pr?: { url: string; number: number; state: string } | null
+          error?: string
+        }
+        if (asJson) { out(JSON.stringify(res, null, 2)); break }
+        if (res.ok === false) die(`pr view failed: ${res.error ?? 'not a managed checkout'}`)
+        if (res.pr) out(`PR #${res.pr.number} (${res.pr.state})\n${res.pr.url}`)
+        else out('No open PR for this checkout. Propose one with `duo pr create`.')
         break
       }
       case 'gh-auth': {

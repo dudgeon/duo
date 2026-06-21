@@ -2016,6 +2016,53 @@ export class SocketServer {
           result = await probeGhAuth()
           break
         }
+        case 'pr': {
+          // ENH-224 Phase 2 — share-back. `sub` ∈ create | status | view.
+          //   create → branch/commit/push/PR (auto-fork, D3) for the diverged
+          //            managed-checkout doc at `path` (D7 prefill; --title/
+          //            --body/--branch/--draft override).
+          //   status → divergence + any open PR (JSON; visibility-cluster).
+          //   view   → the open PR for the checkout's current branch (or null).
+          // Resolves `path` → its enclosing managed checkout (D4 — refuses a
+          // path outside ~/.claude/duo/checkouts/). Dynamic import mirrors
+          // `case 'clone'`; the git/gh work runs in main, never a sandboxed CLI.
+          const sub = args['sub'] as string | undefined
+          const prPath = args['path'] as string | undefined
+          if (sub !== 'create' && sub !== 'status' && sub !== 'view') {
+            throw new Error("duo pr requires a subcommand: create | status | view")
+          }
+          if (!prPath) throw new Error('duo pr requires a <path> (a file inside a managed checkout)')
+          const { resolveCheckoutDirForPath, runShareBack, probeShareBackStatus } =
+            await import('./git/share-back')
+          const checkoutDir = await resolveCheckoutDirForPath(prPath)
+          if (!checkoutDir) {
+            result = {
+              ok: false,
+              errorKind: 'not-a-checkout',
+              error: `${prPath} is not inside a Duo-managed checkout (~/.claude/duo/checkouts/). Open a GitHub file first with \`duo open <github-url>\`.`,
+            }
+            break
+          }
+          // The doc's path RELATIVE to the checkout root — drives the prefill +
+          // which file the proposal is scoped to.
+          const relFile = path.relative(checkoutDir, prPath)
+          if (sub === 'create') {
+            result = await runShareBack(checkoutDir, {
+              filePath: relFile || undefined,
+              title: args['title'] as string | undefined,
+              body: args['body'] as string | undefined,
+              branch: args['branch'] as string | undefined,
+              draft: args['draft'] === true,
+            })
+          } else if (sub === 'status') {
+            result = await probeShareBackStatus(checkoutDir)
+          } else {
+            // view → the live status's PR (null when none open).
+            const status = await probeShareBackStatus(checkoutDir)
+            result = { ok: true, pr: status.pr }
+          }
+          break
+        }
         case 'close-tab': {
           // FOLLOWUP-020 — close the focused working-pane tab. Mirrors
           // ⌘W on the working strip. Renderer applies the pinned-tab

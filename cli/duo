@@ -5497,6 +5497,12 @@ var VERBS = [
     summary: 'Probe "gh auth status". Prints JSON { ghInstalled, authenticated, host, user, ghNotFound } so agents can decide whether "duo clone" will work on private repos before trying.'
   },
   {
+    name: "pr",
+    group: "Repo & git",
+    args: "create|status|view [<path>] [--title \u2026] [--body \u2026] [--branch \u2026] [--draft] [--json]",
+    summary: 'Share-back: propose the diverged doc inside a managed checkout (a file opened via "duo open <github-url>") as a GitHub pull request \u2014 the CLI twin of the "Propose changes" affordance. "create" branches/commits/pushes/opens the PR, AUTO-FORKING when you lack push access (cross-fork PR). Defaults are prefilled (branch duo/<slug>-<short>, title from the doc\'s first heading); --title/--body/--branch/--draft override. "status" prints JSON { context, divergence, pr }; "view" prints the open PR (or null). <path> defaults to the cwd; it must resolve inside ~/.claude/duo/checkouts/. Unauthenticated bounces to `gh auth login`.'
+  },
+  {
     name: "worktree",
     group: "Repo & git",
     args: '[list] [<path>] | new "<desc>" [--from <ref>] [--window] | remove <path> [--force]',
@@ -6848,6 +6854,53 @@ To confirm, re-run:
         } else {
           die(`clone failed (${result.errorKind ?? "unknown"}): ${result.error ?? "no detail"}`);
         }
+        break;
+      }
+      case "pr": {
+        const sub = rest.find((a) => !a.startsWith("--"));
+        if (sub !== "create" && sub !== "status" && sub !== "view") {
+          die("Usage: duo pr <create|status|view> [<path>] [--title \u2026] [--body \u2026] [--branch \u2026] [--draft] [--json]");
+        }
+        const afterSub = rest.slice(rest.indexOf(sub) + 1);
+        const pathArg = afterSub.find((a) => !a.startsWith("--"));
+        const absPath = pathArg ? path15.isAbsolute(pathArg) ? pathArg : path15.resolve(process.cwd(), pathArg) : process.cwd();
+        const asJson = rest.includes("--json");
+        if (sub === "create") {
+          const payload = { sub, path: absPath, draft: rest.includes("--draft") };
+          const title = flagValue(rest, "--title");
+          if (title) payload["title"] = title;
+          const body = flagValue(rest, "--body");
+          if (body) payload["body"] = body;
+          const branch = flagValue(rest, "--branch");
+          if (branch) payload["branch"] = branch;
+          const res2 = await send("pr", payload);
+          if (asJson) {
+            out(JSON.stringify(res2, null, 2));
+            break;
+          }
+          if (res2.ok && res2.pr) {
+            const verb = res2.action === "updated" ? "Updated" : "Opened";
+            const fork = res2.forked ? ` (via your fork ${res2.pushedTo})` : "";
+            out(`${verb} PR #${res2.pr.number}${fork}
+${res2.pr.url}`);
+          } else {
+            die(`pr create failed (${res2.errorKind ?? "unknown"}): ${res2.error ?? "no detail"}`);
+          }
+          break;
+        }
+        if (sub === "status") {
+          out(JSON.stringify(await send("pr", { sub, path: absPath }), null, 2));
+          break;
+        }
+        const res = await send("pr", { sub, path: absPath });
+        if (asJson) {
+          out(JSON.stringify(res, null, 2));
+          break;
+        }
+        if (res.ok === false) die(`pr view failed: ${res.error ?? "not a managed checkout"}`);
+        if (res.pr) out(`PR #${res.pr.number} (${res.pr.state})
+${res.pr.url}`);
+        else out("No open PR for this checkout. Propose one with `duo pr create`.");
         break;
       }
       case "gh-auth": {

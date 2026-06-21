@@ -136,6 +136,9 @@ export type DuoCommandName =
   | 'git-status'
   | 'clone'
   | 'gh-auth'
+  // ENH-224 Phase 2 — share-back: `duo pr <create|status|view>` proposes the
+  // diverged managed-checkout doc as a PR (branch/commit/push/PR, auto-fork).
+  | 'pr'
   // FOLLOWUP-020 — `duo close-tab` closes the focused working-pane
   // tab; `duo close-terminal-tab [<n>]` closes the focused terminal
   // tab (or the Nth terminal tab when an index is supplied). Closes
@@ -1816,6 +1819,87 @@ export interface CheckoutPointer {
 export type CheckoutResult =
   | { ok: true; pointer: CheckoutPointer }
   | { ok: false; errorKind: 'auth-missing' | 'checkout-failed' | 'file-missing'; error: string }
+
+// ── ENH-224 Phase 2 — share-back (divergence → branch/commit/push/PR) ────────
+
+/** Working-tree divergence from the fetched baseline (P5). The signal that
+ *  flips the "Propose changes" affordance on (D2). Computed LIVE from the
+ *  checkout's git state — no mirrored state (§12). */
+export interface DivergenceState {
+  /** True when the working tree differs from the baseline (uncommitted edits
+   *  OR commits not yet on the baseline branch). */
+  diverged: boolean
+  /** Repo-relative paths that changed (porcelain-parsed; staged + unstaged). */
+  changedFiles: string[]
+}
+
+/** Prefill for the confirm sheet / `duo pr create` (D7): branch name + PR
+ *  title (from the doc's first heading) + a simple body. Pure-derived. */
+export interface ProposalMeta {
+  /** Branch name `duo/<doc-slug>-<short>` (OQ-5). */
+  branch: string
+  title: string
+  body: string
+}
+
+/** A live-resolved pull-request pointer (no mirrored PR state — §12; queried
+ *  via `gh pr list`/`gh pr view`). */
+export interface PrInfo {
+  number: number
+  url: string
+  state: string
+  /** The PR's head branch name (just the branch — gh stores the fork owner
+   *  separately in headRepositoryOwner). */
+  headRefName?: string
+  /** The login of the repo the head branch lives in — distinguishes a
+   *  cross-fork PR (the fork owner) from a same-repo one (the base owner).
+   *  Used to disambiguate same-branch-name PRs across forks (D13). */
+  headRepositoryOwner?: string
+}
+
+/** Resolved context for a managed checkout, read live from its git: the
+ *  upstream repo, the baseline branch we cloned, and the checkout's current
+ *  branch (the share-back working branch once one is created). */
+export interface CheckoutContext {
+  owner: string
+  repo: string
+  host: string
+  /** The baseline branch the checkout was cloned at (the PR base). */
+  baseBranch: string
+  /** The checkout's current branch (HEAD) — the PR head once pushed. */
+  currentBranch: string
+}
+
+export type ShareBackErrorKind =
+  | 'not-a-checkout'
+  | 'no-divergence'
+  | 'auth-missing'
+  | 'branch-failed'
+  | 'fork-failed'
+  | 'commit-failed'
+  | 'push-failed'
+  | 'pr-failed'
+
+export type ShareBackResult =
+  | {
+      ok: true
+      pr: PrInfo
+      /** Owner the branch was pushed to: origin (push access) or the fork (D3). */
+      pushedTo: string
+      /** True when an auto-fork (D3) happened en route. */
+      forked: boolean
+      /** 'created' a fresh PR, or 'updated' an existing one (D13). */
+      action: 'created' | 'updated'
+    }
+  | { ok: false; errorKind: ShareBackErrorKind; error: string }
+
+/** `duo pr status` snapshot: divergence + any open PR for the checkout's
+ *  current branch. All live (§12). */
+export interface ShareBackStatus {
+  context: CheckoutContext | null
+  divergence: DivergenceState
+  pr: PrInfo | null
+}
 
 // ── IPC channel names (renderer ↔ main) ─────────────────────────────────────
 

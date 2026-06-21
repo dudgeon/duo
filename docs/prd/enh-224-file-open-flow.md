@@ -200,7 +200,7 @@ The CLI is the spec — the human Open bar + Submit-PR affordance each need a tw
 | --- | --- | --- |
 | `duo open <path-or-url>` | **Extend** the existing verb to recognize GitHub file URLs → checkout → open (P1–P4). Local + non-GitHub URL behavior unchanged. | The Open-bar twin. |
 | `duo recent [--json]` | List the last ~10 Open-bar targets (the Open Recent menu's twin); reopen by re-passing the target to `duo open`. | Recents are pointers; missing ones self-heal (D14). |
-| `duo pr create [<path>] [--title …] [--body …] [--draft]` | Share-back (P6): branch/commit/push/PR, auto-fork as needed. Defaults prefilled from the doc (D7); flags override. | The "Submit PR" twin. |
+| `duo pr create [<path>] [--title …] [--body …] [--branch …] [--draft] [--json]` | Share-back (P6): branch/commit/push/PR, auto-fork as needed. Defaults prefilled from the doc (D7); flags override. `--json` prints the structured `ShareBackResult`. | The "Submit PR" twin. |
 | `duo pr status [<path>]` | Report the doc's checkout + divergence + PR state (JSON). | Visibility-cluster citizen. |
 | `duo pr view [<path>]` | Print / open the PR URL (P7). | "View PR" twin. |
 
@@ -276,13 +276,30 @@ ordinary local file in the checkout.
 like a local file from `~/.claude/duo/checkouts/`; relative assets resolve;
 checkout is opaque; 4-surface sync for the extended `duo open`; smoke-walked.
 
-**Phase 2 — Share-back (the core).** P5 + P6 + P7: divergence → "Submit PR"
-affordance → prefilled confirm sheet → branch/commit/push/PR with **auto-fork**
-(D3) → "View PR" → subsequent-save updates the PR. Net-new
-`core/git/{branch,commit,push,fork,pr}.ts` + `duo pr create|status|view`.
-*Acceptance:* edit a remote `.md`, click Submit PR, a real PR appears upstream
+**Phase 2 — Share-back (the core). 🚧 CORE PLUMBING BUILT + tested (2026-06-21);
+CLI live-verify + UI affordance owed.** P5 + P6 + P7: divergence → "Propose
+changes" → branch/commit/push/PR with **auto-fork** (D3) → "View PR" →
+subsequent-save updates the PR. **Built (no Electron — the owner-scoped slice):**
+the net-new git-WRITE core — `core/git/{divergence,proposal-meta,branch,commit,
+push,fork,pr,failure-sniff,share-back}.ts` — plus the `duo pr create|status|view`
+CLI verb (socket `case 'pr'` → `core/git/share-back`, dynamic-imported like
+`clone`) + 5-surface doc sync. The orchestrator (`runShareBack`) sequences:
+resolve context LIVE from the checkout's git (§12 — owner/repo from origin, base
+from the current branch) → divergence gate (`git status --porcelain`) → D7
+prefill (branch `duo/<slug>-<short>`, title from the doc's first heading) →
+branch → commit (whatever diverged — OQ-3) → **push-access probe → AUTO-FORK
+(D3)** when no push access → push (to origin or the fork URL) → **create-or-update**
+the PR (D13; `findOpenPr` → update vs `gh pr create`). All PR/divergence state
+read live via `gh`/git — no sidecar (§12). The path→checkout resolver refuses
+any path outside `~/.claude/duo/checkouts/` (D4 — never the user's own tree).
+42 pure unit tests (arg-builders, parsers, prefill, the D4 guard); the spawning
+`run*` orchestrators are verified live (owed). **Owed:** (a) a real
+`duo pr create` against a test repo (needs gh + Electron/a checkout); (b) the
+**UI footer affordance** (D10–D13 — "Propose changes" bar + confirm sheet +
+morph-in-place) — the deferred renderer half.
+*Acceptance:* edit a remote `.md`, Propose changes, a real PR appears upstream
 (cross-fork when no push access); unauthenticated bounces to `gh auth login`;
-re-save updates the same PR; full 4-surface sync; smoke-walked.
+re-save updates the same PR; full 5-surface sync; smoke-walked.
 
 **Phase 3 — Already-local detection (D6).** Match pasted URL → known local
 clones by remote URL; offer to open from the real clone (focus the folder) with
@@ -323,7 +340,8 @@ for UI — `CLAUDE.md` § 7.)
 | **Merged ⌘O Open bar** (`OpenBar.tsx`, subsumes VaultQuickSwitcher) + Browse… picker + Open Recent UI + File menu + record-on-open + `duo recent` | D14, D15, D17, **D18, D19** | ✅ code-complete · **agent-walked live 2026-06-21** · 3 follow-ups (§ 6c) | typecheck clean · **1676 tests** (incl. socket `recent`/record-on-open integration + the search-vs-path heuristic) · currency **75/75**. **Live (computer-use):** every core flow passed (see § 6a header); record-on-open round-trips UI↔`duo recent`↔disk; dev log clean. Owner formal smoke-walk still recommended. |
 | **Phase 1 — "open just this doc"** (managed checkout `core/open-checkout.ts` + `OPEN_GITHUB_FILE` IPC + the live OpenBar tile w/ progress) | DR6, D5 | ✅ UI done · **live-verified** | typecheck clean · tests (managedCheckoutDir / isLikelySha / cloneExtraArgs). **Live:** Spoon-Knife/README.md → depth-1 checkout (1 commit) → opened + folder focused + recent recorded; dev log clean. |
 | **Phase 1 CLI twin** — `duo open <github-file-url>` → same managed checkout (socket `open` branch + `NavBridge.runManagedCheckout` + bare-host CLI resolve) | DR6, D5, **rule #4** | ✅ code-complete + tested 2026-06-21 · **live-verify owed** (Electron) | typecheck clean · **1696 tests** (+4 socket: routing · auth-missing bounce · bare-repo fallthrough · optional-dep fallthrough) · currency 75/75 · 5-surface doc sync. Shares the checkout engine with the UI IPC. **Owed:** a real `duo open <github-url>` against the running app. |
-| **Phase 2 — share-back round-trip** (divergence → "Propose changes" → branch/commit/push/PR, auto-fork) | D2, D3, D7–D13 | ⛔ not built (decisions locked) | Net-new git-WRITE plumbing (`core/git/{branch,commit,push,fork,pr}.ts` + `duo pr …`). Decisions are locked in § 3; this is a build, not a walk. |
+| **Phase 2 — share-back CORE plumbing** (`core/git/{divergence,proposal-meta,branch,commit,push,fork,pr,share-back}.ts` + `duo pr create\|status\|view` + socket `case 'pr'`) | D2, D3, D7–D13, OQ-3, §12 | 🚧 built + unit-tested 2026-06-21 · **CLI live-verify owed** (gh + a checkout) | typecheck clean · **1738 tests** (+38 pure: arg-builders, parsers, D7 prefill, the D4 `isManagedCheckout` guard) · currency 76/76 · 5-surface doc sync. `runShareBack` orchestrates context→divergence→branch→commit→push-access→**auto-fork (D3)**→push→create-or-update PR (D13), all live via gh/git (§12). The spawning `run*` paths verified live (owed). |
+| **Phase 2 — share-back UI affordance** (footer "Propose changes" bar + confirm sheet + morph-in-place) | D10–D13 | ⛔ not built (deferred — needs Electron) | The renderer half: divergence watcher → footer bar → confirm sheet (title/branch/fork-note/inline diff) → View/Update PR morph. Reuses the built `core/git/share-back` engine via a new IPC. |
 
 **Sequencing note.** D16 landed against the standalone `CloneModal` so the
 owner-requested success fix shipped immediately; the Open bar now *routes* a
@@ -337,6 +355,35 @@ lower-risk.
 Newest first. Captures decisions + scope changes that diverge from the original
 spec so the history is legible.
 
+- **2026-06-21 — Phase 2 core share-back plumbing built (owner-scoped, no
+  Electron).** Owner picked "start Phase 2, core git-write plumbing first". Built
+  the net-new git-WRITE core under `core/git/`: `divergence.ts` (P5 —
+  `git status --porcelain` → the "Propose changes" trigger), `proposal-meta.ts`
+  (D7 prefill — pure heading→title/slug→branch), `branch/commit/push.ts` (thin
+  execGit wrappers + pure arg-builders), `fork.ts` (D3 — `permissionAllowsPush` +
+  `probePushAccess` + `runFork`), `pr.ts` (`gh pr create`/`gh pr list` + pure
+  parsers), `failure-sniff.ts` (shared auth-stderr classifier), and the
+  `share-back.ts` orchestrator (`runShareBack`, `probeShareBackStatus`,
+  `resolveCheckoutDirForPath`). Plus `duo pr create|status|view` (socket
+  `case 'pr'` → dynamic-imports share-back, mirroring `case 'clone'`) + the
+  `'pr'` DuoCommandName + 5-surface doc sync. **§12-clean:** everything is read
+  LIVE from the checkout's git + gh — owner/repo from origin, base from the
+  current branch, PR state from `gh pr list`; nothing mirrored. **D4-guarded:**
+  `isManagedCheckout` + `resolveCheckoutDirForPath` refuse any path outside
+  `~/.claude/duo/checkouts/`, so share-back can never touch the user's own tree.
+  **Tested:** 42 pure unit tests (the spawning `run*` orchestrators are verified
+  live like `runClone`, owed). **Deferred (needs Electron):** the UI footer
+  affordance (D10–D13) + a real `duo pr create` live walk. *An adversarial review
+  pass (3 lenses → per-finding verification) hardened the update/cross-fork path
+  before commit:* (1) `findOpenPr` is now owner-aware (`selectPr` filters by
+  `headRepositoryOwner`) so a cross-fork PR is matched + a same-branch-name PR in
+  someone else's fork can't be mistaken for ours — fixing the D13 "update vs
+  duplicate-PR" bug; (2) a re-proposal **reuses** the existing `duo/…` branch
+  rather than deriving a new name off the moved HEAD; (3) a `committed:false`
+  (race / nothing staged) short-circuits to no-divergence instead of an empty PR;
+  (4) `branch-failed` errorKind split from `commit-failed`. The review confirmed
+  the D4 traversal guard, execFile (no-shell) injection-safety, and OQ-3 staging
+  scope as correct.
 - **2026-06-21 — Phase 1 CLI twin landed (rule #4 parity).** `duo open
   <github-file-url>` now does what the Open bar's "open just this doc" does: the
   socket `open` handler (`core/socket-server.ts`) classifies its target via the

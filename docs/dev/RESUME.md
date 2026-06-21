@@ -37,12 +37,20 @@
 >   `gh auth login`; bare-repo URL still → browser pane. `cli/duo.ts
 >   resolveOpenTarget` https-prefixes a scheme-less github host. +4 socket tests ·
 >   5-surface doc sync. *Live-verify owed* (a real `duo open <github-url>` — Electron).
+> - **Phase 2 — share-back CORE PLUMBING 🚧 BUILT + tested (2026-06-21):** the
+>   owner-scoped no-Electron slice. Net-new git-WRITE core under `core/git/`:
+>   `divergence.ts` (P5), `proposal-meta.ts` (D7 prefill), `branch/commit/push.ts`,
+>   `fork.ts` (D3 auto-fork), `pr.ts`, `failure-sniff.ts`, `share-back.ts`
+>   (`runShareBack` orchestrator). Plus `duo pr create|status|view` (socket
+>   `case 'pr'` → dynamic-imports share-back, like `clone`) + 5-surface sync. All
+>   state read LIVE from the checkout's git/gh (§12); D4-guarded to
+>   `~/.claude/duo/checkouts/`. 42 pure unit tests (spawning `run*` = live-owed).
 >
 > **OWED / NEXT:**
-> - **Phase 2 — share-back** (the big build, decisions LOCKED in § 3 D2–D13): edit →
->   "Propose changes" footer (D10/D11) → confirm sheet → branch/commit/push/PR +
->   **auto-fork** (D3) + post-PR morph (D13). Net-new git-WRITE plumbing
->   `core/git/{branch,commit,push,fork,pr}.ts` + `duo pr create|status|view`.
+> - **Phase 2 — finish:** (a) a live `duo pr create` against a test repo (gh +
+>   a real checkout — needs Electron/a running app); (b) the **UI footer
+>   affordance** (D10–D13 — "Propose changes" bar + confirm sheet + morph) — the
+>   deferred renderer half, reuses the built `core/git/share-back` via a new IPC.
 > - **Deferred:** sparse-folder checkout (DR6 optimization) · full-inline modal
 >   merge (D15/DM1) · NewVaultModal geometry audit · **UI/CLI symmetry follow-up**:
 >   `duo open <github-url>` now opens just-this-doc via the checkout, but the UI
@@ -60,10 +68,10 @@
 >   `pkill -f 'electron-vite dev'` + relaunch. SIGTERM-ing the app direct causes a
 >   benign `fse_instance_destroy` crash report (memory
 >   `feedback_pkill_dev_triggers_benign_fsevents_sigabrt`).
-> - Latest: Phase-1 CLI twin (socket `open` github-file branch + bare-host CLI
->   resolve + 5-surface docs) · typecheck clean · **1696 tests** · currency 75/75 ·
->   binary rebuilt. Prior: `49635ee` (Phase-1 docs) · `7370416` (Phase-1 wiring) ·
->   `738ae7f` (Phase-1 foundation).
+> - Latest: Phase-2 core share-back plumbing (`core/git/*` + `duo pr` + socket
+>   `case 'pr'` + 5-surface docs) · typecheck clean · **1738 tests** · currency
+>   76/76 · binary rebuilt. Prior: `4419c5e` (Phase-1 CLI twin) · `49635ee`
+>   (Phase-1 docs) · `7370416` (Phase-1 wiring) · `738ae7f` (Phase-1 foundation).
 > - Leftover state: a real test checkout at `~/.claude/duo/checkouts/octocat-Spoon-Knife@main/`;
 >   iCloud `* 2.*` sync-conflict dupes moved to `/tmp/icloud-dupes-backup-d76de1e/`
 >   (await owner OK to delete — `rm` of untracked files is auto-denied).
