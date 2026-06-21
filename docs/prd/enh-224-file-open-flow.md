@@ -275,17 +275,23 @@ hatch works; smoke-walked.
 Built on `claude/duo-file-open-flow-g3rpdx` (PR [#102](https://github.com/dudgeon/duo/pull/102),
 rebased onto `main`). The Phase-0 *core* (resolver + recents store + the D16
 clone-success redesign) landed first in a remote cloud session that couldn't
-launch the Electron GUI; the **merged ⌘O Open bar** then landed on the owner's
-machine (2026-06-21). Live verification is still owed: a **concurrent agent owns
-the dev Electron**, so the UI is type-clean + unit/integration-tested but not yet
-smoke-walked. (Build-passing + type-clean is NOT "done" for UI — `CLAUDE.md` § 7.)
+launch the Electron GUI; the **merged ⌘O Open bar** then landed + was
+**agent-walked live (computer-use, 2026-06-21)** on the owner's machine. Every
+core flow passed — File ▸ Open… + ⌘O open the bar; the github-file D19 choice,
+github-repo→prefilled-clone, local-path→open, Browse… native picker, and
+**record-on-open (UI write → `duo recent` reads the same store)** all verified;
+dev log clean (no IPC-handler-gap errors). The walk surfaced **3 polish
+follow-ups** (§ 6c). Still recommended before a cut: the **owner's own
+smoke-walk** (subjective polish + the vault-fuzzy-find / clone-completion paths
+that need a real vault / a live clone). (Build-passing + type-clean is NOT "done"
+for UI — `CLAUDE.md` § 7.)
 
 | Piece | Decision | State | Verification |
 | --- | --- | --- | --- |
 | `core/open-resolve.ts` — resolver (local-path / github-file / github-repo / url) + pure `deriveRecentEntry` | D1, D5/DR6, D14 | ✅ landed | **31 unit tests** |
 | `core/open-recents-service.ts` — Open Recent store (`~/.claude/duo/open-recents.json`, pointers, self-healing, cap 10) | D14 | ✅ landed | **10 unit tests** |
 | `CloneModal` — D16 success redesign (clean line + Done hero, "Clone another" demoted) **+ prefill URL + `openAfter` "Open `<file>`" hero** | D16, D15 | ✅ landed (code) | type-clean · **owes smoke-walk** |
-| **Merged ⌘O Open bar** (`OpenBar.tsx`, subsumes VaultQuickSwitcher) + Browse… picker + Open Recent UI + File menu + record-on-open + `duo recent` | D14, D15, D17, **D18, D19** | ✅ code-complete · **owes live smoke-walk** | typecheck clean · **1676 tests** (incl. socket `recent`/record-on-open integration + the search-vs-path heuristic) · currency **75/75** · CLI help verified. DOM-probe + `/smoke-walk` deferred (dev Electron busy). |
+| **Merged ⌘O Open bar** (`OpenBar.tsx`, subsumes VaultQuickSwitcher) + Browse… picker + Open Recent UI + File menu + record-on-open + `duo recent` | D14, D15, D17, **D18, D19** | ✅ code-complete · **agent-walked live 2026-06-21** · 3 follow-ups (§ 6c) | typecheck clean · **1676 tests** (incl. socket `recent`/record-on-open integration + the search-vs-path heuristic) · currency **75/75**. **Live (computer-use):** every core flow passed (see § 6a header); record-on-open round-trips UI↔`duo recent`↔disk; dev log clean. Owner formal smoke-walk still recommended. |
 | GitHub **file** "just this doc" sparse checkout + the share-back round-trip (divergence → Propose changes → branch/commit/push/PR, auto-fork) | DR1–DR6, D2–D9 | ⛔ blocked | DR1–DR6 unwalked. *Note:* the github-file **"clone the whole repo, then open the file"** path is NOT blocked — it shipped in Phase 0 (D19). Only the *sparse* "just this doc" path + share-back remain. |
 
 **Sequencing note.** D16 landed against the standalone `CloneModal` so the
@@ -329,6 +335,49 @@ spec so the history is legible.
   the Open bar alone.
 - **2026-06-20 — D14–D17 + the Phase-0 core** (resolver, recents store, D16
   success redesign) landed in the cloud session; see § 6a.
+
+## 6c · Phase-0 follow-ups — live-walk punch list (2026-06-21)
+
+Surfaced during the agent computer-use walk of the merged Open bar (every core
+flow passed — § 6a). Polish/consistency items to land **before Phase 0 is called
+done**. **Captured, NOT executed** (owner directive 2026-06-21: *"add these
+requirements to the plan, don't just execute now"*).
+
+- **FU1 — CloneModal: a "Choose…" button for the destination folder
+  (owner-raised, 2026-06-21).** The clone-confirm's "Parent directory" field is
+  type-only today. Add a button that opens the native folder picker
+  (`dialog.showOpenDialog` with `properties: ['openDirectory','createDirectory']`)
+  and writes the pick back to the field — the same native-picker pattern as the
+  Open bar's Browse… (D17), and exactly what the merged-UI mock **state 3** shows
+  ("Clone into … [Browse…]"). Reuse: model on the existing `VAULT_CREATE_PICK_DIR`
+  folder-picker IPC, or add a folder-only mode to the new `OPEN_BROWSE` handler.
+- **FU2 — Modal width/placement consistency (owner-raised, 2026-06-21; refines
+  D15/DM1).** The open flow shows **≥2 distinct Duo modals with mismatched
+  geometry**: the **Open bar** (`.duo-qs-shell` — `min(640px, 92vw)`,
+  **top-anchored** ~96px from the top) and the **CloneModal**
+  (`w-[480px] max-w-[90vw]`, **vertically centered**). So the OpenBar→CloneModal
+  hand-off jumps in *both* width and vertical position.
+  - *Pragmatic recommendation — do now:* unify geometry. Give the CloneModal the
+    Open bar's width (~640px) + top-anchor (~96px) so the hand-off reads as one
+    surface morphing, no jump. Cheap; captures most of the win.
+  - *Endpoint — defer:* the **full-inline merge** (D15/DM1) folds the clone
+    fields *into* the Open-bar shell so there is literally one modal — heavier;
+    reassess when the GitHub round-trip (Phase 1/2) lands. Owner: *"be pragmatic,
+    don't merge if a bad idea."* → lean to the consistency pass; treat the full
+    merge as optional.
+  - *While here:* audit `NewVaultModal` (+ any other DOM modal in this flow) for
+    the same geometry so all of Duo's modals read consistently.
+- **FU3 — ⌘O from terminal focus (agent live-walk finding, 2026-06-21).** ⌘O
+  opens the bar from **editor/browser** focus + the File ▸ Open… menu, but **NOT
+  when the terminal column is focused** (xterm swallows the key — *pre-existing*;
+  the old ⌘O quick-switcher had the identical gap, so not a regression). Since
+  D1/D18 make ⌘O *the* open affordance everywhere, fix by letting the File ▸
+  Open… menu item **register** the ⌘O accelerator (drop `registerAccelerator:
+  false` in `electron/main.ts`) — a native menu accelerator fires regardless of
+  which pane/WebContents has focus. One-line change; re-verify ⌘O from terminal
+  focus after. (The display-only-accelerator comment in `main.ts` is wrong — it
+  claims the renderer shortcut "fires from every focus context"; the walk
+  disproved that. Fix the comment with the change.)
 
 ## 7 · Open questions (build-time / owner)
 
