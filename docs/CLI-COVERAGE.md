@@ -276,6 +276,32 @@ collision. The new-tab verb is in the bare `duo new-tab` namespace
 title}` + tab-strip primary affordance ("`+` = claude") justify
 top-level placement.
 
+### Scheduling (cron) — ENH-223 Tier 1 (engine + CLI)
+
+Scheduled ("cron") Claude sessions. A job is a saved recipe (cwd + initial
+instruction + periodicity + fresh/same-session) that Duo's in-app scheduler
+fires **while Duo is open** by opening an **interactive** Claude terminal tab
+seeded with the instruction. Duo only does session start + initial instruction;
+all execution stays interactive — headless `-p`/`--print` is rejected at spawn
+time (gated by `FEATURE_HEADLESS_CRON`, default off, not in the UI — D4). Single
+`cron` socket command with a discriminated `op`, delegated to the main-process
+`CronService` (owns `~/.claude/duo/cron-jobs.json` + the tick scheduler). The
+run's landing window is resolved from the job's cwd (D10), not `--window`.
+
+| Verb | UI parallel | Shape |
+|---|---|---|
+| ✅ `duo cron list` | Home "Scheduled" rows (Tier 2) | **Shipped (ENH-223 Tier 1).** `CronJobView[]` — each job + computed `nextFireAt` + human `scheduleLabel` + last-run status. |
+| ✅ `duo cron add --name <n> --cwd <path> --say "<instruction>" (--every hourly\|daily\|weekdays\|weekly [--at HH:MM] [--on <weekday>] \| --cron "<expr>") [--session fresh\|same] [--catch-up]` | "+ Schedule" / File ▸ New Scheduled Job (Tier 2) | **Shipped (ENH-223 Tier 1).** Creates a job. Fresh runs pre-allocate the session id (`claude --session-id <uuid> "<instruction>"`, D3); `--session same` resumes the prior run's session (`claude --resume <uuid> …`), falling back to fresh if it's gone. `--catch-up` = run once on next launch if an occurrence was missed while closed (D5). Returns `CronJobView`. |
+| ✅ `duo cron edit <id> [--name <n>] [--cwd <path>] [--say "<instruction>"] (--every <preset> [--at HH:MM] [--on <weekday>] \| --cron "<expr>") [--session fresh\|same] [--catch-up \| --no-catch-up]` | Home "Edit" row action (Tier 2) | **Shipped (ENH-223 Tier 2).** Edits a job — only the flags you pass change; any schedule flag replaces the whole schedule; `--no-catch-up` turns catch-up off. Returns `CronJobView`. |
+| ✅ `duo cron show <id>` | Job row detail (Tier 2) | **Shipped (ENH-223 Tier 1).** One job's `CronJobView`. |
+| ✅ `duo cron run <id>` | "Run now" row action (Tier 2) | **Shipped (ENH-223 Tier 1).** Fires a job now (manual), same path as a scheduled fire. Returns `CronJobView`. |
+| ✅ `duo cron pause <id>` / `duo cron resume <id>` | Pause/resume toggle (Tier 2) | **Shipped (ENH-223 Tier 1).** Disable / re-enable without deleting (paused jobs persist but never fire). Returns `CronJobView`. |
+| ✅ `duo cron rm <id>` | Delete row action (Tier 2) | **Shipped (ENH-223 Tier 1).** Deletes a job. Returns `{ ok, removed }`. |
+| ✅ `duo attention --state set\|clear [--tab <id>]` | The "waiting on you" tab badge (ENH-225) | **Shipped (ENH-225).** Set/clear a terminal tab's attention badge. Primarily driven by Duo's managed Stop/Notification (set) + UserPromptSubmit (clear) hooks (keyed on `$DUO_TAB`); exposed for parity so an agent can flag a tab needing the user. `--tab` defaults to `$DUO_TAB`; the badge also clears on tab focus. Returns `{ ok, tabId, needsAttention }`. |
+
+**Tier 2 (Home surface) + ENH-225 (the "waiting on you" tab badge) are tracked
+separately** — see `docs/prd/enh-223-scheduled-sessions.md`.
+
 ### Pane focus — partially shipped
 
 | Verb | UI parallel | Status |

@@ -28,6 +28,8 @@ import type {
   SelectionFormat, SelectionFormatStateSnapshot,
   PinEntry, NavPinEntry,
   SessionState,
+  CronJobView,
+  TabAttentionPush,
 } from './types'
 
 // ── Electron preload API surface ─────────────────────────────────────────────
@@ -699,6 +701,11 @@ export interface NewTabRequest {
    *  Mutually exclusive with kind='claude' auto-launch in v1: if both
    *  apply, --cmd wins (the user's explicit string is more specific). */
   cmd?: string
+  /** ENH-223 F1 — when true, create the tab but DON'T activate it: a
+   *  background run that never steals focus from current work. Cron runs
+   *  set this (the F2/ENH-225 attention badge is how you discover them);
+   *  user-initiated new-tab leaves it undefined → activate as before. */
+  background?: boolean
 }
 
 export interface NewTabResult {
@@ -1010,6 +1017,24 @@ export interface ElectronSessionStateAPI {
    *  Renderer replies via `snapshotReply(reqId, state)`. */
   onSnapshotRequest: (cb: (reqId: string) => void) => () => void
   snapshotReply: (payload: { reqId: string; state: SessionState }) => void
+  /** ENH-223 — fire once this window's session restore has settled (terminal
+   *  tabs swapped in). main gates the cron scheduler on the primary window's
+   *  signal so a launch catch-up's background tab isn't clobbered by restore. */
+  notifyRestoreSettled: () => void
+}
+
+/** ENH-223 Tier 2 — cron Home surface. `invoke` delegates to the main-process
+ *  CronService.handleCli (same dispatch as the socket CLI); `onJobsChanged`
+ *  subscribes to the live CronJobView[] push so Home re-renders on any change. */
+export interface ElectronCronAPI {
+  invoke: (op: string, args?: Record<string, unknown>) => Promise<unknown>
+  onJobsChanged: (cb: (jobs: CronJobView[]) => void) => () => void
+  /** File ▸ New Scheduled Job… — main asks the focused window to open the
+   *  create dialog (D7). */
+  onOpenNewModal: (cb: () => void) => () => void
+  /** The dialog's Browse button — open a native folder picker; resolves to the
+   *  chosen absolute path or null (cancelled). */
+  pickDirectory: (defaultPath?: string) => Promise<string | null>
 }
 
 // ENH-167 — workspace-as-file. Mirrors the File menu surface: Save /
@@ -1089,6 +1114,9 @@ export interface ElectronAPI {
   // expander, the session click contract, and the `duo home` /
   // `duo term tab` push subscriptions.
   home: ElectronHomeAPI
+  // ENH-223 Tier 2 — scheduled ("cron") sessions on Home: invoke the
+  // lifecycle (list/add/run/pause/resume/rm) + subscribe to live job changes.
+  cron: ElectronCronAPI
   // ENH-208 Phase 2 — vault UI affordances (⇧⌘N capture · ⌘⇧F search
   // palette · silent-stub type-picker). Main runs the same core/vault
   // code paths as the `duo vault` CLI verbs.
@@ -1474,6 +1502,10 @@ export interface ElectronHomeAPI {
   /** main → renderer push to CLOSE a terminal tab by id (`duo term close
    *  <id>`). The handler routes through the existing closeTab path. */
   onTerminalCloseTab(cb: (tabId: string) => void): () => void
+  /** ENH-225 (F2/D9) — main → renderer push when a terminal tab's "waiting on
+   *  you" attention flag flips (set by the Stop/permission hook, cleared by the
+   *  UserPromptSubmit hook). The renderer holds it keyed by tabId for the badge. */
+  onTerminalTabAttention(cb: (p: TabAttentionPush) => void): () => void
 }
 
 declare global {

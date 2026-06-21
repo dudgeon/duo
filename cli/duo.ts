@@ -419,6 +419,20 @@ const VERBS: VerbSpec[] = [
     summary: 'Manage terminal tabs. term tabs enumerates the window\'s terminal tabs ([{id, kind, cwd, title, active}]); term tab <id> activates the tab with that id; term close <id> [--force] closes it (kills its PTY — refused if a live claude is running there unless --force). Take ids from "term tabs" — NOT a bare index; "duo tab <n>" owns the browser number space. Honors --window N.'
   },
   {
+    name: 'cron',
+    group: 'Scheduling',
+    args: '<list|add|edit|run|pause|resume|rm|show> [args]',
+    summary:
+      'Scheduled ("cron") Claude sessions — fire a Claude command in a project on a schedule, INTERACTIVELY (Duo does session start + initial instruction, then hands control to you; runs only fire while Duo is open). list shows jobs (+ next-fire + status); add --name <n> --cwd <path> --say "<instruction>" (--every hourly|daily|weekdays|weekly [--at HH:MM] [--on <weekday>] | --cron "<expr>") [--session fresh|same] [--catch-up]; edit <id> [same flags] changes a job (schedule flags replace the whole schedule; --no-catch-up turns catch-up off); run <id> fires now; pause / resume / rm / show <id> manage one job (ids from "cron list").'
+  },
+  {
+    name: 'attention',
+    group: 'Terminal',
+    args: '--state set|clear [--tab <id>]',
+    summary:
+      'Set/clear a terminal tab\'s "waiting on you" attention badge (ENH-225). Primarily driven by the Duo-managed Stop/permission/UserPromptSubmit hooks (which call it with the tab\'s $DUO_TAB stamp); exposed as a verb for parity so an agent can flag a tab that needs the user, or clear one. --tab defaults to $DUO_TAB (the env stamp on every Duo PTY). The badge also clears when the user focuses the tab.'
+  },
+  {
     name: 'claude-return',
     group: 'Terminal',
     args: '[submit|newline]',
@@ -2466,6 +2480,102 @@ async function main(): Promise<void> {
         break
       }
 
+      case 'cron': {
+        // ENH-223 — scheduled ("cron") Claude sessions. Single 'cron' socket
+        // command with a discriminated op. Runs are INTERACTIVE only (Duo does
+        // session start + initial instruction); headless `-p` is gated off.
+        //   cron list
+        //   cron add --name <n> --cwd <path> --say "<instruction>"
+        //            (--every hourly|daily|weekdays|weekly [--at HH:MM] [--on <weekday>]
+        //             | --cron "<expr>")  [--session fresh|same] [--catch-up]
+        //   cron show|run|pause|resume|rm <id>
+        const sub = rest[0]
+        if (!sub) {
+          die('Usage: duo cron <list|add|edit|run|pause|resume|rm|show> [args]')
+        }
+        if (sub === 'list') {
+          out(await send('cron', { op: 'list' }))
+        } else if (sub === 'add') {
+          const name = flagValue(rest, '--name')
+          const cwd = flagValue(rest, '--cwd')
+          const say = flagValue(rest, '--say')
+          if (!name) {
+            die('Usage: duo cron add --name <name> --cwd <path> --say "<instruction>" (--every <preset> [--at HH:MM] [--on <weekday>] | --cron "<expr>") [--session fresh|same] [--catch-up]')
+          }
+          if (!cwd) die('duo cron add: --cwd <path> is required')
+          if (!say) die('duo cron add: --say "<instruction>" is required')
+          const payload: Record<string, unknown> = {
+            op: 'add',
+            name,
+            cwd: resolveFilePath(cwd),
+            instruction: say
+          }
+          const cron = flagValue(rest, '--cron')
+          const every = flagValue(rest, '--every')
+          const at = flagValue(rest, '--at')
+          const on = flagValue(rest, '--on')
+          const sessionMode = flagValue(rest, '--session')
+          if (cron) payload.cron = cron
+          if (every) payload.every = every
+          if (at) payload.at = at
+          if (on) payload.on = on
+          if (sessionMode) payload.session = sessionMode
+          if (rest.includes('--catch-up')) payload.catchUp = true
+          out(await send('cron', payload))
+        } else if (sub === 'edit') {
+          // ENH-223 Tier 2 — edit an existing job (UI/CLI parity with the Home
+          // edit action). Only the flags you pass change; any schedule flag
+          // (--every/--cron + --at/--on) replaces the WHOLE schedule.
+          const id = rest[1]
+          if (!id) {
+            die('Usage: duo cron edit <id> [--name <n>] [--cwd <path>] [--say "<instruction>"] (--every <preset> [--at HH:MM] [--on <weekday>] | --cron "<expr>") [--session fresh|same] [--catch-up | --no-catch-up]')
+          }
+          const payload: Record<string, unknown> = { op: 'edit', id }
+          const name = flagValue(rest, '--name')
+          const cwd = flagValue(rest, '--cwd')
+          const say = flagValue(rest, '--say')
+          const cron = flagValue(rest, '--cron')
+          const every = flagValue(rest, '--every')
+          const at = flagValue(rest, '--at')
+          const on = flagValue(rest, '--on')
+          const sessionMode = flagValue(rest, '--session')
+          if (name) payload.name = name
+          if (cwd) payload.cwd = resolveFilePath(cwd)
+          if (say) payload.instruction = say
+          if (cron) payload.cron = cron
+          if (every) payload.every = every
+          if (at) payload.at = at
+          if (on) payload.on = on
+          if (sessionMode) payload.session = sessionMode
+          if (rest.includes('--catch-up')) payload.catchUp = true
+          else if (rest.includes('--no-catch-up')) payload.catchUp = false
+          out(await send('cron', payload))
+        } else if (sub === 'show' || sub === 'run' || sub === 'pause' || sub === 'resume' || sub === 'rm') {
+          const id = rest[1]
+          if (!id) die(`Usage: duo cron ${sub} <id>   (id from "duo cron list")`)
+          out(await send('cron', { op: sub, id }))
+        } else {
+          die(`Unknown cron sub-op: ${sub}. Expected list|add|edit|run|pause|resume|rm|show.`)
+        }
+        break
+      }
+
+      case 'attention': {
+        // ENH-225 (F2/D9) — set/clear a terminal tab's "waiting on you" badge.
+        // Primarily invoked by the Duo-managed attention hook (duo-attention.sh
+        // reads $DUO_TAB + a set|clear arg); exposed as a verb for CLI parity so
+        // an agent can flag/clear a tab too. --tab defaults to $DUO_TAB so the
+        // hook can call `duo attention --state set` with no explicit id.
+        const tab = flagValue(rest, '--tab') ?? process.env.DUO_TAB
+        const state = flagValue(rest, '--state') ?? flagValue(rest, '--event')
+        if (!tab) die('Usage: duo attention --tab <id> --state set|clear   (--tab defaults to $DUO_TAB)')
+        if (state !== 'set' && state !== 'clear') {
+          die('duo attention: --state must be set | clear')
+        }
+        out(await send('attention', { tabId: tab, event: state }))
+        break
+      }
+
       case 'workspace-pill-menu': {
         // ENH-184 (Sprint 23 / v0.8.0) — toggle the workspace-pill
         // click-to-open-menu localStorage flag (default OFF). Bare
@@ -3142,6 +3252,7 @@ function renderCommandsBlock(): string {
     'HTML canvas',
     'Working pane & layout',
     'Terminal',
+    'Scheduling',
     'Workspace & projects',
     'Repo & git',
     // ENH-208 vault / graph / base verbs (extended by ENH-216 OKF mode).

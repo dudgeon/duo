@@ -59,3 +59,32 @@ ENH-196. Cross-ref the [DECISIONS.md:620 amendment](../../docs/DECISIONS.md)
    new-CLI-verb checklist (`.claude/rules/cli-plumbing.md`).
 8. Skill stub at `skill/examples/<type>-authoring.md`.
 9. PRD update — confirm v1 deferrals have a sub-stage home.
+
+## Theme-legibility — a hardcoded color needs its hardcoded counterpart
+
+Duo ships **light by default** (`electron/main.ts` sets
+`nativeTheme.themeSource = 'light'`) and has a dark theme via the
+`[data-theme="dark"]` attribute. A color that's only correct on ONE surface
+tone is a **recurring** bug class — verify any colored status/error/banner text
+in BOTH themes before calling it done. The two failure directions:
+
+- **Fixed background + theme-var foreground** → dark-on-dark in dark mode (e.g.
+  a `bg-[#2a201a]` toast with `text-ink`/`text-accent`).
+- **Fixed *light* foreground on a theme surface** → light-on-light in light
+  mode (e.g. `text-red-300` / `text-red-200`, or a dark-only banner tint
+  `bg-{c}-950/30 + text-{c}-200`, on `bg-surface-0` = `--duo-paper` `#FBF8EE`
+  light / `#1A1611` dark). The inverse of the first, equally illegible.
+
+**Use the shared theme-aware classes, not ad-hoc Tailwind color utilities.**
+`globals.css` defines both-themes-legible classes (a `color-mix` tint + a
+`[data-theme="dark"]` foreground split — same precedent as `.bg-claude-context`):
+banners (set bg + border-color + fg; pair with a `border`/`border-b` width util)
+`duo-banner-error` / `duo-banner-warn` / `duo-banner-ok` / `duo-banner-info`;
+bare text `duo-text-error` / `duo-text-warn` / `duo-text-ok` / `duo-text-info`.
+**Tailwind's `dark:` variant does NOT work here** — there is no `darkMode` key in
+`tailwind.config.mjs`, so `dark:` would track the OS scheme, not Duo's in-app
+`[data-theme]` toggle.
+
+This keeps recurring: ENH-222 removal banner (dark-on-dark) `4475df8`; #104
+History-modal diff legend (dark-on-dark) `dfc7593`; ENH-223 cron preview-error +
+the repo-wide banner sweep (light-on-light, this PR).

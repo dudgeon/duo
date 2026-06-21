@@ -490,3 +490,148 @@
 .duo-home-confirm-go:hover {
   filter: brightness(1.05);
 }
+
+/* ── ENH-223 Tier 2 — Scheduled (cron) jobs ──────────────────────────────── */
+.duo-home-scheduled {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.duo-home-scheduled-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.duo-home-scheduled-title {
+  font-size: 15px;
+  color: var(--duo-ink-soft);
+  margin: 0;
+}
+
+.duo-home-cron-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.duo-home-cron-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  transition: background 0.12s ease;
+}
+.duo-home-cron-row:hover {
+  background: var(--duo-paper-edge);
+}
+
+.duo-home-cron-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.duo-home-cron-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.duo-home-cron-name {
+  font-size: 13px;
+  color: var(--duo-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.duo-home-cron-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--duo-ink-mute);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.duo-home-cron-proj {
+  font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', ui-monospace, monospace;
+}
+
+/* Status chip — mirrors the .duo-home-open-pill idiom. */
+.duo-home-cron-chip {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+.duo-home-cron-chip.is-ran { color: #ffffff; background: var(--duo-project-pine); }
+.duo-home-cron-chip.is-never {
+  color: var(--duo-ink-mute);
+  background: transparent;
+  border: 1px solid var(--duo-paper-rule, var(--duo-paper-edge));
+}
+.duo-home-cron-chip.is-paused { color: var(--duo-ink-mute); background: var(--duo-paper-edge); }
+.duo-home-cron-chip.is-missed { color: #ffffff; background: #b45309; } /* amber-700 */
+.duo-home-cron-chip.is-error  { color: #ffffff; background: #b91c1c; } /* red-700 */
+
+/* Row actions — always visible (discoverable + DOM-testable), kept quiet. */
+.duo-home-cron-actions {
+  flex-shrink: 0;
+  display: flex;
+  gap: 4px;
+}
+.duo-home-cron-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  border: 1px solid var(--duo-paper-rule, var(--duo-paper-edge));
+  background: transparent;
+  color: var(--duo-ink-soft);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.duo-home-cron-btn:hover:not(:disabled) { background: var(--duo-paper-edge); color: var(--duo-ink); }
+.duo-home-cron-btn:disabled { opacity: 0.5; cursor: default; }
+.duo-home-cron-btn.is-delete:hover:not(:disabled) { border-color: #b91c1c; color: #b91c1c; }
+.duo-home-cron-btn.is-delete.is-armed { background: #b91c1c; color: #ffffff; border-color: #b91c1c; }
+
+/* D6 — cron jobs nested under a project card (hero / expanded spine). A faint
+   rule separates them from the card's sessions/files; rows reuse
+   .duo-home-cron-row. The block always renders (at least the "+ Schedule"
+   affordance) so every surfaced project can be scheduled. */
+.duo-home-card-cron {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--duo-paper-rule, var(--duo-paper-edge));
+}
+
+/* "+ Schedule" — a quiet, left-aligned affordance offered on every card (D7). */
+.duo-home-cron-schedule {
+  align-self: flex-start;
+  color: var(--duo-ink-mute);
+}
+
+/* Collapsed-spine indicator: N scheduled jobs, visible without expanding. */
+.duo-home-spine-cron {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--duo-ink-mute);
+  font-variant-numeric: tabular-nums;
+}

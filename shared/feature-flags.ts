@@ -38,3 +38,13 @@
  *  Agents can still call `duo html stamp-ids` manually if a session
  *  needs anchors. */
 export const FEATURE_AUTO_INJECT_IDS = false
+
+/** ENH-223 (D4) — gate HEADLESS scheduled-cron runs. Default OFF and
+ *  deliberately not exposed in the UI: the spawn-time validator
+ *  (`assertInteractiveCommand`, core/cron-command.ts) REJECTS a run whose
+ *  `claude` command carries a headless trigger (`-p`/`--print`/
+ *  `--output-format`/`--bare`) unless this is true. v1 cron is interactive
+ *  only — Duo does session start + initial instruction, then hands control
+ *  to the user. Flip to true (recompile) only when an autonomous headless
+ *  run mode is designed (permissions, safety, output capture). */
+export const FEATURE_HEADLESS_CRON = false

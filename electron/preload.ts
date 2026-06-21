@@ -834,7 +834,9 @@ const api: ElectronAPI = {
       ipcRenderer.on(IPC.SESSION_STATE_SNAPSHOT_REQUEST, handler)
       return () => ipcRenderer.removeListener(IPC.SESSION_STATE_SNAPSHOT_REQUEST, handler)
     },
-    snapshotReply: (payload) => ipcRenderer.send(IPC.SESSION_STATE_SNAPSHOT_RESULT, payload)
+    snapshotReply: (payload) => ipcRenderer.send(IPC.SESSION_STATE_SNAPSHOT_RESULT, payload),
+    // ENH-223 — tell main this window finished session restore (cron start gate).
+    notifyRestoreSettled: () => ipcRenderer.send(IPC.SESSION_STATE_RESTORE_SETTLED)
   },
 
   // ENH-167 — workspace-as-file menu actions (renderer triggers from
@@ -991,7 +993,32 @@ const api: ElectronAPI = {
       const handler = (_e: unknown, payload: { tabId: string }) => cb(payload.tabId)
       ipcRenderer.on(IPC.TERMINAL_CLOSE_TAB, handler)
       return () => ipcRenderer.removeListener(IPC.TERMINAL_CLOSE_TAB, handler)
+    },
+    // ENH-225 (F2/D9) — main → renderer push when a tab's attention flag flips.
+    onTerminalTabAttention: (cb: (p: import('../shared/types').TabAttentionPush) => void) => {
+      const handler = (_e: unknown, payload: import('../shared/types').TabAttentionPush) => cb(payload)
+      ipcRenderer.on(IPC.TERMINAL_TAB_ATTENTION, handler)
+      return () => ipcRenderer.removeListener(IPC.TERMINAL_TAB_ATTENTION, handler)
     }
+  },
+
+  // ENH-223 Tier 2 — scheduled ("cron") sessions on Home. One invoke channel
+  // delegates to CronService.handleCli; onJobsChanged streams live updates.
+  cron: {
+    invoke: (op, args) => ipcRenderer.invoke(IPC.CRON_INVOKE, { op, args }),
+    onJobsChanged: (cb) => {
+      const handler = (_: IpcRendererEvent, jobs: Parameters<typeof cb>[0]) => cb(jobs)
+      ipcRenderer.on(IPC.CRON_JOBS_CHANGED, handler)
+      return () => ipcRenderer.removeListener(IPC.CRON_JOBS_CHANGED, handler)
+    },
+    onOpenNewModal: (cb) => {
+      const handler = () => cb()
+      ipcRenderer.on(IPC.CRON_OPEN_NEW_MODAL, handler)
+      return () => ipcRenderer.removeListener(IPC.CRON_OPEN_NEW_MODAL, handler)
+    },
+    // ENH-223 — the cron dialog's Browse button → native folder picker.
+    pickDirectory: (defaultPath) =>
+      ipcRenderer.invoke(IPC.DIALOG_PICK_DIRECTORY, defaultPath) as Promise<string | null>
   }
 }
 

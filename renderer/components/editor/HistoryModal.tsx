@@ -310,7 +310,7 @@ export function HistoryModal({ open, path, onClose, onRestored }: HistoryModalPr
         <div className="flex items-center justify-between px-4 py-3 border-t border-border">
           <div className="text-xs text-ink-mute">
             {error ? (
-              <span className="text-fail">{error}</span>
+              <span className="duo-text-error">{error}</span>
             ) : confirming ? (
               <span>Restore this version? Your current content is saved to history first.</span>
             ) : selectedIsNewest ? (

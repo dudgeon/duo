@@ -1566,6 +1566,31 @@ html.dark {
 [data-theme="dark"] .history-legend-add { color: #b9e0a4; }
 [data-theme="dark"] .history-legend-del { color: #e9b1ae; }
 
+/* Theme-aware status banners + colored text (repo-wide legibility fix).
+   The previous dark-only pattern (bg-{c}-950/30 + text-{c}-200) went
+   light-on-light on the cream light surface (--duo-paper #FBF8EE) and was
+   illegible in light mode. These read on BOTH themes: a fixed low-alpha
+   color-mix tint (mirrors .bg-claude-context) + a theme-split foreground.
+   Pair the banner classes with a layout border util (border / border-b);
+   they set border-color, the util sets width. See
+   .claude/rules/renderer-surfaces.md → "Theme-legibility". */
+.duo-banner-error { background: color-mix(in srgb, #dc2626 10%, transparent); border-color: color-mix(in srgb, #dc2626 42%, transparent); color: #991b1b; }
+.duo-banner-warn  { background: color-mix(in srgb, #d97706 12%, transparent); border-color: color-mix(in srgb, #d97706 42%, transparent); color: #8a4b06; }
+.duo-banner-ok    { background: color-mix(in srgb, #059669 12%, transparent); border-color: color-mix(in srgb, #059669 42%, transparent); color: #065f46; }
+[data-theme="dark"] .duo-banner-error { background: color-mix(in srgb, #f87171 16%, transparent); border-color: color-mix(in srgb, #f87171 42%, transparent); color: #fca5a5; }
+[data-theme="dark"] .duo-banner-warn  { background: color-mix(in srgb, #fbbf24 16%, transparent); border-color: color-mix(in srgb, #fbbf24 42%, transparent); color: #fcd34d; }
+[data-theme="dark"] .duo-banner-ok    { background: color-mix(in srgb, #34d399 16%, transparent); border-color: color-mix(in srgb, #34d399 42%, transparent); color: #6ee7b7; }
+.duo-banner-info  { background: color-mix(in srgb, #0284c7 12%, transparent); border-color: color-mix(in srgb, #0284c7 42%, transparent); color: #075985; }
+[data-theme="dark"] .duo-banner-info  { background: color-mix(in srgb, #38bdf8 16%, transparent); border-color: color-mix(in srgb, #38bdf8 42%, transparent); color: #7dd3fc; }
+.duo-text-error { color: #b91c1c; }
+.duo-text-warn  { color: #b45309; }
+.duo-text-ok    { color: #047857; }
+.duo-text-info  { color: #0369a1; }
+[data-theme="dark"] .duo-text-error { color: #fca5a5; }
+[data-theme="dark"] .duo-text-warn  { color: #fcd34d; }
+[data-theme="dark"] .duo-text-ok    { color: #6ee7b7; }
+[data-theme="dark"] .duo-text-info  { color: #7dd3fc; }
+
 /* Sprint 11 — SuggestionPopover (`[[` wikilink, `@` mention).
    Mounted via React Portal to <body>; absolute-positioned via
    inline style above the trigger DOMRect. */

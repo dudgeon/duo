@@ -7,17 +7,21 @@
 // The session-click contract and the recent-file-open bridge are owned by
 // the parent (HomeView); HeroPanel reports clicks via the callbacks.
 
-import type { HomeProject, HomeSession } from '@shared/types'
+import type { HomeProject, HomeSession, CronJobView } from '@shared/types'
 import { SessionList } from './SessionList'
+import { CronJobRow, NewScheduleButton, type CronInvoke } from './CronJobRow'
 import { ageShort, projectHue, fileChipLabel } from './homeModel'
 
 interface HeroPanelProps {
   project: HomeProject
+  /** D6 — cron jobs whose project is this card; rendered nested below. */
+  cronJobs: CronJobView[]
+  cronInvoke: CronInvoke
   onActivateSession: (project: HomeProject, session: HomeSession) => void
   onOpenFile: (path: string) => void
 }
 
-export function HeroPanel({ project, onActivateSession, onOpenFile }: HeroPanelProps) {
+export function HeroPanel({ project, cronJobs, cronInvoke, onActivateSession, onOpenFile }: HeroPanelProps) {
   return (
     <section className="duo-home-hero" aria-label={`${project.displayName} project`}>
       <header className="duo-home-hero-head">
@@ -57,6 +61,16 @@ export function HeroPanel({ project, onActivateSession, onOpenFile }: HeroPanelP
           ))}
         </div>
       )}
+
+      {/* D6 — scheduled jobs for this project, nested under the card, + the D7
+          per-card "+ Schedule" affordance (always offered, seeds the dialog
+          with this project's cwd). */}
+      <div className="duo-home-card-cron" aria-label="Scheduled jobs">
+        {cronJobs.map((job) => (
+          <CronJobRow key={job.id} job={job} invoke={cronInvoke} hideProject />
+        ))}
+        <NewScheduleButton cwd={project.rootPath} />
+      </div>
     </section>
   )
 }

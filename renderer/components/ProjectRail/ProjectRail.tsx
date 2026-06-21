@@ -181,7 +181,6 @@ function ProjectTile({
   // tile stays a plain button + we get native NSMenu styling.
   const onContextMenu = async (e: React.MouseEvent) => {
     e.preventDefault()
-    if (!onTogglePin && !onCloseProject) return
     const n = counts?.terminals ?? 0
     const m = counts?.workingTabs ?? 0
     const items: MenuTemplateItem[] = []
@@ -191,8 +190,11 @@ function ProjectTile({
         label: project.pinned ? 'Unpin from rail' : 'Pin to rail'
       })
     }
+    // ENH-223 Tier 2 (D7) — schedule a job rooted in this project.
+    if (items.length > 0) items.push({ type: 'separator' })
+    items.push({ id: 'new-cron', label: 'New Scheduled Job…' })
     if (onCloseProject && (n > 0 || m > 0)) {
-      if (items.length > 0) items.push({ type: 'separator' })
+      items.push({ type: 'separator' })
       // Pluralize honestly so the menu reads naturally with edge
       // counts (1 terminal vs 2 terminals; 0 tabs hides the half).
       const termLabel = n === 1 ? '1 terminal' : `${n} terminals`
@@ -213,6 +215,9 @@ function ProjectTile({
     })
     if (result.chosenId === 'pin' || result.chosenId === 'unpin') {
       onTogglePin?.(project.root)
+    } else if (result.chosenId === 'new-cron') {
+      // App listens for this and opens the create dialog seeded with the root.
+      window.dispatchEvent(new CustomEvent('duo-open-cron-modal', { detail: { defaultCwd: project.root } }))
     } else if (result.chosenId === 'close') {
       onCloseProject?.(project.root)
     }

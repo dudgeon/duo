@@ -240,7 +240,7 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
         </div>
 
         {showAuthBanner && (
-          <div className="mb-3 px-3 py-2 rounded text-xs bg-amber-950/30 border border-amber-700/40 text-amber-200">
+          <div className="mb-3 px-3 py-2 rounded text-xs border duo-banner-warn">
             <strong className="font-semibold">gh not authenticated.</strong> Private repos won't clone.
             Run <code className="font-mono">gh auth login</code> in a Duo terminal first.
             Public repos will still work via plain git clone.
@@ -266,9 +266,9 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
           // ENH-162 — pre-flight collision warning. Surfaces BEFORE the
           // user clicks Clone so they can edit the parent or rename
           // without round-tripping through a cryptic gh/git failure.
-          <div className="mb-3 px-3 py-2 rounded text-xs bg-amber-950/30 border border-amber-700/40 text-amber-200">
+          <div className="mb-3 px-3 py-2 rounded text-xs border duo-banner-warn">
             <div className="flex items-start gap-2">
-              <span className="text-amber-300 leading-none mt-0.5" aria-hidden="true">⚠</span>
+              <span className="duo-text-warn leading-none mt-0.5" aria-hidden="true">⚠</span>
               <div className="flex-1 min-w-0">
                 <strong className="font-semibold">A folder already exists at that path.</strong>
                 <div className="font-mono text-[11px] mt-1 break-all opacity-80">{collisionAbsPath}</div>
@@ -278,7 +278,7 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
                 <button
                   type="button"
                   onClick={() => void window.electron.files.revealInFinder(collisionAbsPath)}
-                  className="mt-1.5 text-[11px] underline text-amber-300 hover:text-amber-200"
+                  className="mt-1.5 text-[11px] underline duo-text-warn"
                 >
                   Reveal existing folder in Finder
                 </button>
@@ -349,29 +349,29 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
           // completely opaque." Replaced the 1-liner with a clearer
           // confirmation + next-step suggestions. Navigator is already
           // navigated to the new folder by App.tsx's onCloned handler.
-          <div className="mb-3 px-4 py-3 rounded bg-emerald-950/30 border border-emerald-700/40">
+          <div className="mb-3 px-4 py-3 rounded border duo-banner-ok">
             <div className="flex items-start gap-2">
-              <span className="text-emerald-300 text-base leading-none" aria-hidden="true">✓</span>
+              <span className="duo-text-ok text-base leading-none" aria-hidden="true">✓</span>
               <div className="flex-1 min-w-0">
-                <div className="text-emerald-200 font-semibold text-sm">
+                <div className="duo-text-ok font-semibold text-sm">
                   Cloned via {result.via}
                 </div>
-                <div className="text-emerald-300/80 text-xs mt-1 font-mono break-all">
+                <div className="duo-text-ok text-xs mt-1 font-mono break-all">
                   {result.clonedTo}
                 </div>
               </div>
             </div>
-            <div className="text-emerald-200/90 text-xs mt-3 leading-relaxed">
-              <strong className="text-emerald-200">Navigator is now showing the new folder.</strong>{' '}
+            <div className="duo-text-ok text-xs mt-3 leading-relaxed">
+              <strong className="duo-text-ok">Navigator is now showing the new folder.</strong>{' '}
               You can:
-              <ul className="mt-1 ml-4 list-disc text-emerald-200/80 space-y-0.5">
+              <ul className="mt-1 ml-4 list-disc duo-text-ok space-y-0.5">
                 <li>Click any file in the navigator to open it.</li>
                 <li>
                   Right-click the repo folder → <em>Open terminal here</em>{' '}
                   for a shell at the repo root.
                 </li>
                 <li>
-                  Press <kbd className="font-mono bg-emerald-900/40 px-1 rounded">⌘O</kbd>{' '}
+                  Press <kbd className="font-mono duo-banner-ok px-1 rounded">⌘O</kbd>{' '}
                   to jump to any file by name.
                 </li>
               </ul>
@@ -379,7 +379,7 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
           </div>
         )}
         {result && !result.ok && (
-          <div className="mb-3 px-3 py-2 rounded text-xs bg-red-950/30 border border-red-700/40 text-red-200">
+          <div className="mb-3 px-3 py-2 rounded text-xs border duo-banner-error">
             {isCollisionError ? (
               // ENH-162 — friendlier render when stderr matches the
               // "destination already exists" pattern.
@@ -394,7 +394,7 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
                   <button
                     type="button"
                     onClick={() => void window.electron.files.revealInFinder(collisionAbsPath)}
-                    className="mt-1.5 text-[11px] underline text-red-300 hover:text-red-200"
+                    className="mt-1.5 text-[11px] underline duo-text-error"
                   >
                     Reveal existing folder in Finder
                   </button>

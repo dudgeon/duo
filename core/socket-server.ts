@@ -60,6 +60,7 @@ import type {
   WorkingAuxSnapshot
 } from '../shared/types'
 import { SOCKET_PATH, PORT_FILE } from './constants'
+import { attentionForEvent } from './attention'
 
 export interface NavBridge {
   /** Returns the most recent snapshot pushed by the renderer. */
@@ -316,6 +317,17 @@ export interface NavBridge {
    *  window (D15 — no DUO_WINDOW stamp resolves to primary, identity,
    *  never focus). uuid regex-validated. */
   sessionOpen: (uuid: string, cwd?: string, force?: boolean) => Promise<{ ok: boolean; action?: 'focus' | 'resume' | 'fork'; error?: string }>
+  /** ENH-223 — `duo cron <op>` scheduled-session management. Delegates the
+   *  discriminated op (list|add|run|pause|resume|rm|show) to the main-process
+   *  CronService, which owns the cron-jobs.json store + the in-app scheduler.
+   *  App-global (not window-scoped) — a run's landing window is resolved from
+   *  the job's cwd (D10), not the request's --window. Throws on bad input. */
+  cron: (op: string, args: Record<string, unknown>) => Promise<unknown>
+  /** ENH-225 (F2/D9) — set/clear a terminal tab's "waiting on you" attention
+   *  flag and broadcast it to the renderer's tab strip. Called by the Duo-
+   *  managed attention hook via `duo attention` (tabId = the DUO_TAB env stamp),
+   *  or directly by an agent for parity. Transient; no-op on an unknown tab. */
+  setTabAttention: (tabId: string, needsAttention: boolean) => void
 }
 
 /** ENH-195 (review) — canonicalize a path for open-vs-closed routing:
@@ -2055,6 +2067,29 @@ export class SocketServer {
           } else {
             throw new Error(`Unknown term op: ${op}. Expected tabs|tab|close.`)
           }
+          break
+        }
+
+        case 'cron': {
+          // ENH-223 — scheduled ("cron") Claude sessions. Discriminated op
+          // (list|add|edit|run|pause|resume|rm|show), delegated to the
+          // CronService. App-global: ignores --window (the run's landing window
+          // is resolved from the job's cwd, D10). The bridge throws on bad input.
+          const op = args['op'] as string | undefined
+          if (!op) throw new Error('cron requires an op (list|add|edit|run|pause|resume|rm|show)')
+          result = await this.nav.cron(op, args)
+          break
+        }
+
+        case 'attention': {
+          // ENH-225 (F2/D9) — the attention hook posts {tabId, event} here.
+          // Stop/Notification → needs attention; UserPromptSubmit/clear → clear.
+          // tabId comes from the hook's $DUO_TAB stamp (or an agent's --tab).
+          const tabId = (args['tabId'] ?? args['tab']) as string | undefined
+          if (!tabId) throw new Error('attention requires --tab <id> (the DUO_TAB env stamp)')
+          const needsAttention = attentionForEvent(String(args['event'] ?? ''))
+          this.nav.setTabAttention(tabId, needsAttention)
+          result = { ok: true, tabId, needsAttention }
           break
         }
 

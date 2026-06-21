@@ -5,7 +5,8 @@
 // (HomeView / HeroPanel / SpineRow / SessionRow / GreetingLine) consumes
 // these; it never re-derives any of this logic inline.
 
-import type { GreetingData, HomeProject } from '@shared/types'
+import type { GreetingData, HomeProject, CronJobView } from '@shared/types'
+import { deepestEnclosingRoot } from '@shared/projects'
 
 /** Map colorIndex (0..5) → CSS var. Mirrors the six `--duo-project-*`
  *  tokens in `renderer/styles/globals.css` (which themselves mirror the
@@ -43,6 +44,36 @@ export function selectHeroes(projects: HomeProject[]): HomeProject[] {
 
 export function selectSpine(projects: HomeProject[]): HomeProject[] {
   return projects.slice(2)
+}
+
+/**
+ * D6 — assign each cron job to its owning project card. A job's home is the
+ * SURFACED hero/spine card whose root is the deepest enclosing ancestor of the
+ * job's cwd; jobs whose project isn't surfaced (folded spine, a project with no
+ * Home sessions, or a cwd under no known root) collect in `unmatched` for the
+ * aggregated "Scheduled" block — so nothing is hidden. Pure: `allRoots` is the
+ * full qualifying set (so deepest-enclosing resolves correctly even when a
+ * surfaced root nests inside another), `surfacedRoots` gates what actually nests.
+ */
+export function assignCronJobs(
+  jobs: CronJobView[],
+  allRoots: readonly string[],
+  surfacedRoots: ReadonlySet<string>
+): { byRoot: Map<string, CronJobView[]>; unmatched: CronJobView[] } {
+  const qualifying = new Set(allRoots)
+  const byRoot = new Map<string, CronJobView[]>()
+  const unmatched: CronJobView[] = []
+  for (const job of jobs) {
+    const root = deepestEnclosingRoot(job.cwd, qualifying)
+    if (root && surfacedRoots.has(root)) {
+      const list = byRoot.get(root)
+      if (list) list.push(job)
+      else byRoot.set(root, [job])
+    } else {
+      unmatched.push(job)
+    }
+  }
+  return { byRoot, unmatched }
 }
 
 /** D5 — the spine fold. Returns the rows shown when collapsed (the first

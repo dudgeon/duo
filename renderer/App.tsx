@@ -14,6 +14,8 @@ import { UpdateAvailableBanner } from './components/UpdateAvailableBanner'
 import { ExternalRedirectedBanner } from './components/ExternalRedirectedBanner'
 import { CloneModal } from './components/CloneModal'
 import { NewVaultModal } from './components/NewVaultModal'
+import { NewCronJobModal } from './components/Home/NewCronJobModal'
+import type { CronJobView } from '@shared/types'
 import { LinkPromptModal } from './components/editor/LinkPromptModal'
 import { WorkspaceSwitcherDropdown } from './components/WorkspaceSwitcherDropdown'
 import type { FileTab, ActiveWorking } from './components/WorkingPane'
@@ -373,6 +375,13 @@ export function App() {
   const [tabs, setTabs] = useState<TabSession[]>(() => [makeTab(home, 'shell', home)])
   const [activeTabId, setActiveTabId] = useState<string>(() => tabs[0].id)
   const [lastTabKind, setLastTabKind] = useState<TerminalTabKind>(loadLastTabKind)
+  // ENH-225 (F2/D9) — transient "waiting on you" flags keyed by tab id, set by
+  // the attention hook (main → onTerminalTabAttention push). Never persisted.
+  const [attentionByTabId, setAttentionByTabId] = useState<Record<string, boolean>>({})
+  // A ref mirror of activeTabId so the (deps:[]) attention subscription can read
+  // the LIVE active tab without re-subscribing (mirrors focusedColumnRef).
+  const activeTabIdRef = useRef(activeTabId)
+  useEffect(() => { activeTabIdRef.current = activeTabId }, [activeTabId])
 
   const [splitPct, setSplitPct] = useState(55)
   // ENH-040 — prevSplitPct caches the last "real" split (clamped
@@ -398,6 +407,15 @@ export function App() {
   // ENH-216 (U7) — File → New Vault… modal visibility. Opened by the native
   // File menu entry's IPC push (window.electron.nav.onOpenNewVaultModal).
   const [newVaultModalOpen, setNewVaultModalOpen] = useState(false)
+  // ENH-223 Tier 2 (D7) — New/Edit Scheduled Job dialog. Opened by File ▸ New
+  // Scheduled Job… (IPC push), the Home "+ New" / Edit actions, and the
+  // project-rail right-click (a `duo-open-cron-modal` window CustomEvent),
+  // seeded with a working-dir (create) or the job to edit.
+  const [cronModal, setCronModal] = useState<{ open: boolean; editJob: CronJobView | null; defaultCwd: string }>({
+    open: false,
+    editJob: null,
+    defaultCwd: '',
+  })
   // FOLLOWUP-025 v2 walk-rev3 — when EITHER the Clone modal or the New Vault
   // modal opens, park the browser-pane WCV off-screen so it doesn't paint over
   // the modal. WCVs are native OS overlays that beat the renderer's z-index
@@ -411,12 +429,12 @@ export function App() {
   // modal was still open, un-parking the WCV back on top of it. Restoring ONLY
   // when no park-requiring modal remains open closes that gap.
   useEffect(() => {
-    if (cloneModalOpen || newVaultModalOpen) {
+    if (cloneModalOpen || newVaultModalOpen || cronModal.open) {
       window.dispatchEvent(new CustomEvent('duo-wcv-park'))
     } else {
       window.dispatchEvent(new CustomEvent('duo-wcv-restore'))
     }
-  }, [cloneModalOpen, newVaultModalOpen])
+  }, [cloneModalOpen, newVaultModalOpen, cronModal.open])
   const lastAutoCollapseState = useRef(false)
 
   // BUG-048 v3 — focusedColumn is mirrored into a ref alongside the
@@ -773,6 +791,16 @@ export function App() {
       setSessionHydrated(true)  // don't block the save loop on a load failure
     })
   }, [home])
+
+  // ENH-223 — once this window's session restore has settled, tell main so it
+  // can start the cron scheduler. A launch catch-up's background tab would
+  // otherwise be clobbered by restore's wholesale setTabs (live-walk finding).
+  const restoreSettledNotifiedRef = useRef(false)
+  useEffect(() => {
+    if (!sessionHydrated || restoreSettledNotifiedRef.current) return
+    restoreSettledNotifiedRef.current = true
+    window.electron.sessionState.notifyRestoreSettled()
+  }, [sessionHydrated])
 
   // BUG-057 — auto-open pinned file tabs that aren't in the
   // session-restored fileTabs list. Mirrors the main-side logic for
@@ -2400,6 +2428,32 @@ export function App() {
     return onShow(() => { ensureHomeActive() })
   }, [ensureHomeActive])
 
+  // ENH-225 (F2/D9) — the attention hook flips a tab's "waiting on you" flag.
+  // Track it keyed by tab id; the TabBar shows a badge. (Cron's background-tab
+  // launch is paired with this so an idle-awaiting tab is still discoverable.)
+  useEffect(() => {
+    const onAttention = window.electron.home?.onTerminalTabAttention
+    if (typeof onAttention !== 'function') return
+    return onAttention(({ tabId, needsAttention }) => {
+      // The Stop/Notification hook fires on EVERY turn, including in the tab the
+      // user is actively focused on. Ignore a SET that targets the active tab —
+      // you're already looking at it, and otherwise the flag stays true (the
+      // render gate hides it while active) and surfaces as a stale "waiting on
+      // you" badge the moment you switch away. A CLEAR always applies.
+      if (needsAttention && tabId === activeTabIdRef.current) return
+      setAttentionByTabId((prev) =>
+        prev[tabId] === needsAttention ? prev : { ...prev, [tabId]: needsAttention }
+      )
+    })
+  }, [])
+
+  // ENH-225 — focus fallback: when a flagged tab becomes active, the user has
+  // seen it, so clear its badge locally (no round-trip). The activity-clear leg
+  // comes from the UserPromptSubmit hook → onTerminalTabAttention(false).
+  useEffect(() => {
+    setAttentionByTabId((prev) => (prev[activeTabId] ? { ...prev, [activeTabId]: false } : prev))
+  }, [activeTabId])
+
   // ENH-212 — recent-file chip click inside Home dispatches a
   // `duo-home-open-file` CustomEvent (HomeView stays free of App props per
   // the step boundary); App owns the open-file machinery. Route through
@@ -2739,6 +2793,32 @@ export function App() {
     })
   }, [])
 
+  // ENH-223 Tier 2 (D7) — open the New/Edit Scheduled Job dialog. Two triggers,
+  // one open path: File ▸ New Scheduled Job… (main push, seeds the navigator's
+  // current folder), and a `duo-open-cron-modal` window CustomEvent from the
+  // Home "+ New" / Edit actions + the project-rail right-click (carries an
+  // editJob or a defaultCwd). The cwd seed tracks the focused project / nav cwd
+  // via a ref so the once-subscribed handler reads it fresh.
+  const cronDefaultCwdRef = useRef('')
+  useEffect(() => {
+    cronDefaultCwdRef.current = focusedProject ?? pendingCwd ?? ''
+  }, [focusedProject, pendingCwd])
+  useEffect(() => {
+    const openCreate = (cwd?: string) =>
+      setCronModal({ open: true, editJob: null, defaultCwd: cwd ?? cronDefaultCwdRef.current })
+    const unsub = window.electron.cron.onOpenNewModal(() => openCreate())
+    const onEvt = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { editJob?: CronJobView | null; defaultCwd?: string } | undefined
+      if (detail?.editJob) setCronModal({ open: true, editJob: detail.editJob, defaultCwd: '' })
+      else openCreate(detail?.defaultCwd)
+    }
+    window.addEventListener('duo-open-cron-modal', onEvt)
+    return () => {
+      unsub()
+      window.removeEventListener('duo-open-cron-modal', onEvt)
+    }
+  }, [])
+
   // FOLLOWUP-020 — `duo close-terminal-tab [<n>]` from the CLI.
   // n omitted → close the focused terminal tab; n supplied (1-indexed)
   // → close that specific tab. Mirrors the ⌘W chord when focusedColumn
@@ -3035,7 +3115,10 @@ export function App() {
           }
           const tab = makeTab(cwd, kind, home)
           setTabs(prev => [...prev, tab])
-          setActiveTabId(tab.id)
+          // ENH-223 F1 — a background run (cron) opens its tab WITHOUT
+          // stealing focus; the F2/ENH-225 attention badge surfaces it.
+          // Everything else (user new-tab, pin auto-open) activates as before.
+          if (!req.background) setActiveTabId(tab.id)
           if (req.kind !== undefined) {
             // Explicit --kind flag → also bump persisted last-kind so
             // subsequent flagless calls follow the agent's recent choice.
@@ -3107,6 +3190,12 @@ export function App() {
       if (Object.keys(pruned).length === Object.keys(prev).length) return prev
       try { localStorage.setItem(FONT_BUMP_BY_TAB_KEY, JSON.stringify(pruned)) } catch { /* quota */ }
       return pruned
+    })
+    // ENH-225 — drop attention flags for tabs that no longer exist (a flagged
+    // background/cron tab that got closed). Never persisted, so no localStorage.
+    setAttentionByTabId(prev => {
+      const pruned = pruneByTab(prev, liveIds)
+      return Object.keys(pruned).length === Object.keys(prev).length ? prev : pruned
     })
   }, [tabs])
 
@@ -4427,6 +4516,14 @@ export function App() {
           }
         }}
       />
+      {/* ENH-223 Tier 2 (D7) — New/Edit Scheduled Job dialog. The Home list
+          re-renders off the CRON_JOBS_CHANGED push, so onSaved just closes. */}
+      <NewCronJobModal
+        open={cronModal.open}
+        editJob={cronModal.editJob}
+        defaultCwd={cronModal.defaultCwd}
+        onClose={() => setCronModal((m) => ({ ...m, open: false }))}
+      />
       {/* BUG-137 walk-3 follow-up — replacement for window.prompt
           (Electron renderers throw on the native prompt API). Self-
           contained; listens for 'duo-link-prompt-request' events. */}
@@ -4623,6 +4720,7 @@ export function App() {
                   // for hidden tabs aren't unmounted.
                   tabs={visibleTerminals}
                   activeTabId={activeTabId}
+                  attention={attentionByTabId}
                   onSelect={setActiveTabId}
                   // Stage 19c D17 — split button. `+` = claude (primary,
                   // opinionated); `>` = shell. Both update the persisted

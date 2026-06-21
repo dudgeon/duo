@@ -6,6 +6,9 @@ import { projectColorToken } from '../projectColors'
 interface TabBarProps {
   tabs: TabSession[]
   activeTabId: string
+  /** ENH-225 (F2/D9) — per-tab "waiting on you" flags (keyed by tab id). A
+   *  flagged tab shows an attention dot; cleared on focus or by the hook. */
+  attention?: Record<string, boolean>
   onSelect: (id: string) => void
   // Stage 19c D17 — split-button affordance. `+` (left, primary) opens a
   // new claude session; `>` (right, secondary) opens a vanilla shell.
@@ -59,6 +62,7 @@ interface TabBarProps {
 export function TabBar({
   tabs,
   activeTabId,
+  attention,
   onSelect,
   onNewClaude,
   onNewShell,
@@ -124,6 +128,9 @@ export function TabBar({
             key={tab.id}
             tab={tab}
             isActive={tab.id === activeTabId}
+            // ENH-225 — "waiting on you" badge (never on the active tab; if it's
+            // active you're already looking at it).
+            needsAttention={tab.id !== activeTabId && !!attention?.[tab.id]}
             onSelect={() => onSelect(tab.id)}
             onCloseSelf={() => onClose(tab.id)}
             canClose={tabs.length > 1}
@@ -258,13 +265,16 @@ interface TabProps {
   /** ENH-210 — present only when this tab's cwd is a LINKED worktree;
    *  drives the hue dot + ⎇ marker + worktree tooltip. */
   worktree?: WorktreeBadge
+  /** ENH-225 (F2/D9) — this tab's Claude session is idle awaiting your
+   *  input/permission; show the "waiting on you" attention dot. */
+  needsAttention?: boolean
 }
 
 function Tab({
   tab, isActive, onSelect, onCloseSelf, canClose, buttonRef, onRevealCwd,
   index, total, canReorder, onMoveTab, onCloseOthers,
   isDropTarget, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd,
-  worktree
+  worktree, needsAttention
 }: TabProps) {
   // ENH-188 — right-click → native context menu, approaching parity
   // with the canvas-tab menu (WorkingTabStrip). Items are grouped:
@@ -378,6 +388,19 @@ function Tab({
       <TabIcon kind={tab.kind} active={isActive} />
 
       <span className="truncate leading-none not-italic">{tab.title}</span>
+
+      {/* ENH-225 (F2/D9) — "waiting on you" dot: this tab's Claude session is
+          idle awaiting your input/permission. Amber reads on both themes and
+          is distinct from the accent active-stripe; the pulse draws the eye to
+          a background tab without stealing focus (the F1 pairing). */}
+      {needsAttention && (
+        <span
+          aria-label="Waiting on you — Claude needs your input"
+          title="Waiting on you — Claude is idle, awaiting your input or a permission"
+          className="shrink-0 w-1.5 h-1.5 rounded-full animate-pulse"
+          style={{ backgroundColor: '#f59e0b', boxShadow: '0 0 0 2px color-mix(in srgb, #f59e0b 28%, transparent)' }}
+        />
+      )}
 
       {/* ENH-210 (D2) — visible repo · ⎇branch chip on worktree tabs.
           The owner picked B (repo + branch chip) over the tooltip-only

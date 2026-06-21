@@ -28,7 +28,8 @@ vi.mock('electron', () => ({
 import {
   composeManagedClaudeMdBlock,
   planClaudeMdMerge,
-  planCliShim
+  planCliShim,
+  planManagedHooksMerge
 } from './install-service'
 
 describe('composeManagedClaudeMdBlock', () => {
@@ -250,5 +251,82 @@ describe('planCliShim', () => {
     expect(planCliShim({ kind: 'non-symlink' }, desired)).toEqual({
       kind: 'refuse-non-symlink'
     })
+  })
+})
+
+describe('planManagedHooksMerge (ENH-225 attention-hook settings.json merge)', () => {
+  const SH = '$HOME/.claude/duo/hooks/duo-attention.sh'
+  const SPECS = [
+    { event: 'Stop', command: `${SH} set` },
+    { event: 'Notification', command: `${SH} set` },
+    { event: 'UserPromptSubmit', command: `${SH} clear` },
+  ]
+  // Read our marked entry out of a hooks[event] array.
+  const duoEntries = (settings: any, event: string) =>
+    (settings.hooks?.[event] ?? []).filter((e: any) => typeof e?._duo === 'string')
+  const commandsFor = (settings: any, event: string) =>
+    (settings.hooks?.[event] ?? []).flatMap((e: any) => (e.hooks ?? []).map((h: any) => h.command))
+
+  it('adds a marked entry for each event on empty settings', () => {
+    const out = planManagedHooksMerge({}, '1.2.3', SPECS)
+    for (const { event, command } of SPECS) {
+      const ours = duoEntries(out, event)
+      expect(ours).toHaveLength(1)
+      expect(ours[0]._duo).toBe('managed-v1.2.3')
+      expect(ours[0].hooks[0]).toEqual({ type: 'command', command })
+    }
+  })
+
+  it('is idempotent — running twice yields one entry per event, not duplicates', () => {
+    const once = planManagedHooksMerge({}, '1.2.3', SPECS)
+    const twice = planManagedHooksMerge(once, '1.2.3', SPECS)
+    expect(twice).toEqual(once)
+    for (const { event } of SPECS) expect(duoEntries(twice, event)).toHaveLength(1)
+  })
+
+  it('refreshes the version of a prior duo entry (no accumulation)', () => {
+    const old = planManagedHooksMerge({}, '1.0.0', SPECS)
+    const next = planManagedHooksMerge(old, '2.0.0', SPECS)
+    for (const { event } of SPECS) {
+      const ours = duoEntries(next, event)
+      expect(ours).toHaveLength(1)
+      expect(ours[0]._duo).toBe('managed-v2.0.0')
+    }
+  })
+
+  it('preserves foreign (user-authored) hooks on the same event', () => {
+    const userHook = { matcher: 'Bash', hooks: [{ type: 'command', command: 'echo hi' }] }
+    const out: any = planManagedHooksMerge({ hooks: { Stop: [userHook] } }, '1.2.3', SPECS)
+    expect(out.hooks.Stop).toHaveLength(2) // user's + ours
+    expect(out.hooks.Stop[0]).toEqual(userHook)
+    expect(duoEntries(out, 'Stop')).toHaveLength(1)
+  })
+
+  it('drops a pre-marker orphan with our exact command (no duplication)', () => {
+    const orphan = { hooks: [{ type: 'command', command: `${SH} set` }] } // unmarked, our command
+    const out: any = planManagedHooksMerge({ hooks: { Stop: [orphan] } }, '1.2.3', SPECS)
+    expect(out.hooks.Stop).toHaveLength(1)
+    expect(typeof out.hooks.Stop[0]._duo).toBe('string') // the fresh marked one
+    expect(commandsFor(out, 'Stop')).toEqual([`${SH} set`])
+  })
+
+  it('preserves other settings keys and other hook events', () => {
+    const input = { model: 'claude', hooks: { PreToolUse: [{ matcher: 'Edit', hooks: [{ type: 'command', command: 'guard' }] }] } }
+    const out: any = planManagedHooksMerge(input, '1.2.3', SPECS)
+    expect(out.model).toBe('claude')
+    expect(out.hooks.PreToolUse).toEqual(input.hooks.PreToolUse) // untouched
+    expect(duoEntries(out, 'Stop')).toHaveLength(1)
+  })
+
+  it('does not mutate the input settings', () => {
+    const input = { hooks: { Stop: [] as unknown[] } }
+    const snapshot = JSON.stringify(input)
+    planManagedHooksMerge(input, '1.2.3', SPECS)
+    expect(JSON.stringify(input)).toBe(snapshot)
+  })
+
+  it('tolerates a non-object / malformed settings input', () => {
+    const out = planManagedHooksMerge(null as unknown as Record<string, unknown>, '1.2.3', SPECS)
+    expect(duoEntries(out, 'Stop')).toHaveLength(1)
   })
 })

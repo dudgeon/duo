@@ -581,7 +581,7 @@ export function JsonView({ path, onDirtyChange, isActive }: JsonViewProps) {
   if (load.status === 'read-error') {
     return (
       <div className="p-4 text-sm">
-        <div className="font-semibold text-red-400">Could not read file</div>
+        <div className="font-semibold duo-text-error">Could not read file</div>
         <div className="mt-1 font-mono text-xs text-ink-mute">{load.readError}</div>
       </div>
     )
@@ -609,13 +609,13 @@ export function JsonView({ path, onDirtyChange, isActive }: JsonViewProps) {
             </div>
           )}
           {load.status === 'parse-error' && (
-            <div className="rounded bg-red-950/40 px-2 py-0.5 text-red-400" title={load.parseError}>
+            <div className="rounded px-2 py-0.5 duo-banner-error" title={load.parseError}>
               Parse error
             </div>
           )}
           {dirty && <div className="text-ink-mute">● unsaved</div>}
           {saveError && (
-            <div className="rounded bg-red-950/40 px-2 py-0.5 text-red-400" title={saveError}>
+            <div className="rounded px-2 py-0.5 duo-banner-error" title={saveError}>
               Save failed
             </div>
           )}
@@ -654,7 +654,7 @@ export function JsonView({ path, onDirtyChange, isActive }: JsonViewProps) {
           Same amber treatment + Reload / Keep-mine affordances as the
           markdown editor. */}
       {recon.externalConflict && (
-        <div className="shrink-0 px-3 py-2 text-xs border-b border-amber-900/40 bg-amber-950/30 text-amber-200 flex items-center gap-3">
+        <div className="shrink-0 px-3 py-2 text-xs border-b duo-banner-warn flex items-center gap-3">
           <span className="flex-1">
             <strong className="font-semibold">This file changed on disk</strong> while you were editing.
             Reload (loses your edits) or keep yours (next save will overwrite the new disk version).
@@ -693,18 +693,18 @@ export function JsonView({ path, onDirtyChange, isActive }: JsonViewProps) {
         {viewMode === 'source' && (
           <div className="flex h-full flex-col">
             {sourceParseError && (
-              <div className="border-b border-red-700/60 bg-red-950/60 px-3 py-2 text-sm text-red-100">
+              <div className="border-b px-3 py-2 text-sm duo-banner-error">
                 {/* Walk-5 fix — friendly preface + hint + raw error.
                     Walk-6 fix — bumped contrast across all three
                     layers (text-red-100 + bg-red-950/60). The dim
                     raw-error line in walk-5 (red-400/70) was
                     illegible against the dark background. */}
-                <div className="font-semibold text-red-50">{sourceParseError.summary}</div>
+                <div className="font-semibold duo-text-error">{sourceParseError.summary}</div>
                 {sourceParseError.hint && (
-                  <div className="mt-1 text-red-100">{sourceParseError.hint}</div>
+                  <div className="mt-1 duo-text-error">{sourceParseError.hint}</div>
                 )}
                 {sourceParseError.raw && (
-                  <div className="mt-1 font-mono text-xs text-red-200">{sourceParseError.raw}</div>
+                  <div className="mt-1 font-mono text-xs duo-text-error">{sourceParseError.raw}</div>
                 )}
               </div>
             )}
