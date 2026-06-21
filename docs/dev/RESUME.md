@@ -59,15 +59,15 @@
 >   (status-gate — a fresh checkout no longer shows a stranger's head:main PR).
 >
 > **OWED / NEXT:**
-> - **ALL 5 PHASES (0–4) BUILT.** Phases 0–2 LIVE-VERIFIED (PR #40238). **Phase 3
->   (already-local detection D6)** + **Phase 4 (format breadth D8 + escape hatch
->   D4)** built + tested (`976bd64`, `9ac158d`) — **owe a live walk** (re-request
->   Electron): P3 = open a github-file whose repo IS a navigator project → the
->   Open bar's 3rd "Open from your local clone" choice / `duo open` prefers-local;
->   P4 = the "Propose changes" footer in a JSON/YAML + HTML-canvas checkout doc +
->   `duo pr export <path> <dest>`. UI "Save a copy…" affordance deferred (owner UX
->   choice). Test PR #40238 + the fork `dudgeon/Spoon-Knife` are leftover
->   verification artifacts (close/delete if unwanted).
+> - **✅ ENH-224 DONE — ALL 5 PHASES (0–4) BUILT, REVIEWED, + LIVE-VERIFIED.**
+>   The driving use case (PR #40238); Phase 3 walked (`duo open dudgeon/duo/…` →
+>   `via:local-clone`); Phase 4 walked (footer in JSON + HTML-canvas checkout
+>   docs; `duo pr export` + overwrite guard). 4 adversarial review passes folded.
+>   Remaining = **deferred polish only** (below) + a couple owner UX calls (the UI
+>   "Save a copy…" affordance surface; the UI/CLI recents-symmetry follow-up).
+>   Test PR #40238 + the fork `dudgeon/Spoon-Knife` are leftover verification
+>   artifacts (close/delete if unwanted). A **version cut** is the natural next
+>   step (owner's "won't ship until full plan built" is now satisfied).
 > - **Deferred:** sparse-folder checkout (DR6 optimization) · full-inline modal
 >   merge (D15/DM1) · NewVaultModal geometry audit · **UI/CLI symmetry follow-up**:
 >   `duo open <github-url>` now opens just-this-doc via the checkout, but the UI
@@ -87,10 +87,10 @@
 >   `pkill -f 'electron-vite dev'` + relaunch. SIGTERM-ing the app direct causes a
 >   benign `fse_instance_destroy` crash report (memory
 >   `feedback_pkill_dev_triggers_benign_fsevents_sigabrt`).
-> - Latest: `9ac158d` (Phase 4) · `976bd64` (Phase 3) · `59dc65b` (P1–2
->   live-verified docs) · `16a23b7` (status-gate fix) · `e1e33b0` (P2 UI footer) ·
->   `65cc392` (P2 core) · `4419c5e` (P1 CLI twin). typecheck clean · **1750 tests**
->   · currency 76/76 · prod bundle compiles.
+> - Latest: `2074c8d` (P3/4 review fixes) · `26f5ca7` (all-phases docs) ·
+>   `9ac158d` (P4) · `976bd64` (P3) · `59dc65b` (P1–2 live docs) · `16a23b7`
+>   (status-gate) · `e1e33b0` (P2 UI) · `65cc392` (P2 core) · `4419c5e` (P1 twin).
+>   typecheck clean · **1750 tests** · currency 76/76 · prod bundle compiles.
 > - Leftover state: a real test checkout at `~/.claude/duo/checkouts/octocat-Spoon-Knife@main/`;
 >   iCloud `* 2.*` sync-conflict dupes moved to `/tmp/icloud-dupes-backup-d76de1e/`
 >   (await owner OK to delete — `rm` of untracked files is auto-denied).
