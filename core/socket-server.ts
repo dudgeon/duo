@@ -2066,11 +2066,11 @@ export class SocketServer {
           // `case 'clone'`; the git/gh work runs in main, never a sandboxed CLI.
           const sub = args['sub'] as string | undefined
           const prPath = args['path'] as string | undefined
-          if (sub !== 'create' && sub !== 'status' && sub !== 'view') {
-            throw new Error("duo pr requires a subcommand: create | status | view")
+          if (sub !== 'create' && sub !== 'status' && sub !== 'view' && sub !== 'export') {
+            throw new Error("duo pr requires a subcommand: create | status | view | export")
           }
           if (!prPath) throw new Error('duo pr requires a <path> (a file inside a managed checkout)')
-          const { resolveCheckoutDirForPath, runShareBack, probeShareBackStatus } =
+          const { resolveCheckoutDirForPath, runShareBack, probeShareBackStatus, exportCheckoutFile } =
             await import('./git/share-back')
           const checkoutDir = await resolveCheckoutDirForPath(prPath)
           if (!checkoutDir) {
@@ -2094,6 +2094,10 @@ export class SocketServer {
             })
           } else if (sub === 'status') {
             result = await probeShareBackStatus(checkoutDir)
+          } else if (sub === 'export') {
+            // ENH-224 Phase 4 (D4 escape hatch) — copy the checkout doc to a
+            // real local path the user keeps.
+            result = await exportCheckoutFile(prPath, (args['dest'] as string) ?? '')
           } else {
             // view → the live status's PR (null when none open).
             const status = await probeShareBackStatus(checkoutDir)

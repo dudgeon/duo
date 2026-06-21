@@ -65,6 +65,27 @@ export async function resolveCheckoutDirForPath(p: string): Promise<string | nul
   return isManagedCheckout(root) ? root : null
 }
 
+export interface ExportResult { ok: boolean; dest?: string; error?: string }
+
+/**
+ * ENH-224 Phase 4 (D4 escape hatch — "save a real local copy here…"). Copy a
+ * file FROM a managed checkout to a real local `destPath` (creating parent
+ * dirs). Guards that `srcPath` is inside the managed home so this stays the
+ * checkout-escape, not a general file copy.
+ */
+export async function exportCheckoutFile(srcPath: string, destPath: string): Promise<ExportResult> {
+  const checkoutDir = await resolveCheckoutDirForPath(srcPath)
+  if (!checkoutDir) return { ok: false, error: 'Source is not inside a Duo-managed checkout.' }
+  if (!destPath || !destPath.trim()) return { ok: false, error: 'A destination path is required.' }
+  try {
+    await fs.mkdir(path.dirname(destPath), { recursive: true })
+    await fs.copyFile(srcPath, destPath)
+    return { ok: true, dest: destPath }
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+}
+
 /** Parse the ref a managed checkout was created at from its dir name
  *  (`<owner>-<repo>@<ref>`). Pure. Returns null when the name has no `@`.
  *  Note: the ref was sanitized by managedCheckoutDir, so a slashed branch is

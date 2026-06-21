@@ -507,8 +507,8 @@ const VERBS: VerbSpec[] = [
   {
     name: 'pr',
     group: 'Repo & git',
-    args: 'create|status|view [<path>] [--title …] [--body …] [--branch …] [--draft] [--json]',
-    summary: 'Share-back: propose the diverged doc inside a managed checkout (a file opened via "duo open <github-url>") as a GitHub pull request — the CLI twin of the "Propose changes" affordance. "create" branches/commits/pushes/opens the PR, AUTO-FORKING when you lack push access (cross-fork PR). Defaults are prefilled (branch duo/<slug>-<short>, title from the doc\'s first heading); --title/--body/--branch/--draft override. "status" prints JSON { context, divergence, pr }; "view" prints the open PR (or null). <path> defaults to the cwd; it must resolve inside ~/.claude/duo/checkouts/. Unauthenticated bounces to `gh auth login`.'
+    args: 'create|status|view [<path>] | export <path> <dest> [--title …] [--body …] [--branch …] [--draft] [--json]',
+    summary: 'Share-back: propose the diverged doc inside a managed checkout (a file opened via "duo open <github-url>") as a GitHub pull request — the CLI twin of the "Propose changes" affordance. "create" branches/commits/pushes/opens the PR, AUTO-FORKING when you lack push access (cross-fork PR). Defaults are prefilled (branch duo/<slug>-<short>, title from the doc\'s first heading); --title/--body/--branch/--draft override. Works for any editable text format (.md/.json/.yaml/.html — D8). "status" prints JSON { context, divergence, pr }; "view" prints the open PR (or null). "export <path> <dest>" saves a real local copy of the checkout doc outside the opaque home (the D4 escape hatch). <path> defaults to the cwd; it must resolve inside ~/.claude/duo/checkouts/. Unauthenticated bounces to `gh auth login`.'
   },
   {
     name: 'worktree',
@@ -2340,15 +2340,31 @@ async function main(): Promise<void> {
         //   view   → the open PR for the checkout's branch (or none).
         // <path> defaults to the cwd; main resolves it → its managed checkout.
         const sub = rest.find(a => !a.startsWith('--'))
-        if (sub !== 'create' && sub !== 'status' && sub !== 'view') {
-          die('Usage: duo pr <create|status|view> [<path>] [--title …] [--body …] [--branch …] [--draft] [--json]')
+        if (sub !== 'create' && sub !== 'status' && sub !== 'view' && sub !== 'export') {
+          die('Usage: duo pr <create|status|view|export> [<path>] [<dest> for export] [--title …] [--body …] [--branch …] [--draft] [--json]')
         }
         const afterSub = rest.slice(rest.indexOf(sub) + 1)
-        const pathArg = afterSub.find(a => !a.startsWith('--'))
+        const positionals = afterSub.filter(a => !a.startsWith('--'))
+        const pathArg = positionals[0]
         const absPath = pathArg
           ? (path.isAbsolute(pathArg) ? pathArg : path.resolve(process.cwd(), pathArg))
           : process.cwd()
         const asJson = rest.includes('--json')
+
+        if (sub === 'export') {
+          // ENH-224 Phase 4 (D4 escape hatch) — copy the open checkout doc to a
+          // real local path: `duo pr export <path> <dest>`.
+          const destArg = positionals[1]
+          if (!destArg) die('Usage: duo pr export <path> <dest>')
+          const destAbs = path.isAbsolute(destArg) ? destArg : path.resolve(process.cwd(), destArg)
+          const res = (await send('pr', { sub, path: absPath, dest: destAbs })) as {
+            ok: boolean; dest?: string; error?: string
+          }
+          if (asJson) { out(JSON.stringify(res, null, 2)); break }
+          if (res.ok) out(`Saved a copy → ${res.dest}`)
+          else die(`pr export failed: ${res.error ?? 'unknown'}`)
+          break
+        }
 
         if (sub === 'create') {
           const payload: Record<string, unknown> = { sub, path: absPath, draft: rest.includes('--draft') }

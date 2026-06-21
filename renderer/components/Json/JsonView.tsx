@@ -28,6 +28,8 @@ import { decodeUtf8, encodeUtf8 } from '../editor/markdown-io'
 import { useAutosavePreference } from '../editor/autosavePreference'
 import { formatFromPath, parseSource, serializeSource, humanizeParseError, type JsonFormat, type ParserErrorDisplay } from './jsonFormat'
 import { useDiskReconciliation } from '../../hooks/useDiskReconciliation'
+// ENH-224 Phase 4 (D8) — extend the "Propose changes" round-trip to JSON/YAML.
+import { ProposeBar } from '../ProposeBar'
 // ENH-195 — pure structured-edit helpers shared with the disk-direct
 // path in core/socket-server.ts so the two `duo json` routes can't drift.
 import { applyJsonPointer, deepMerge } from '../../../core/json/jsonOps'
@@ -121,6 +123,9 @@ export function JsonView({ path, onDirtyChange, isActive }: JsonViewProps) {
   const [sourceParseError, setSourceParseError] = useState<ParserErrorDisplay | null>(null)
   const [dirty, setDirty] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  // ENH-224 Phase 4 — bumped on each save so the ProposeBar re-polls share-back
+  // divergence (the D2/D8 "save → maybe propose" signal).
+  const [shareBackTick, setShareBackTick] = useState(0)
 
   // The live JSON object. Mutated in place by JsonViewEditor's onEdit;
   // re-serialized by save() and by the tree → source toggle.
@@ -353,6 +358,7 @@ export function JsonView({ path, onDirtyChange, isActive }: JsonViewProps) {
       lastSavedTextRef.current = text
       setSourceText(text)
       setDirty(false)
+      setShareBackTick(t => t + 1)
       setSaveError(null)
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : String(err))
@@ -727,6 +733,9 @@ export function JsonView({ path, onDirtyChange, isActive }: JsonViewProps) {
           </div>
         )}
       </div>
+      {/* ENH-224 Phase 4 (D8) — "Propose changes" footer for a JSON/YAML doc in
+          a managed checkout. Self-gating: inert for ordinary files. */}
+      <ProposeBar path={path} active={isActive ?? false} refreshKey={shareBackTick} />
     </div>
   )
 }

@@ -5499,8 +5499,8 @@ var VERBS = [
   {
     name: "pr",
     group: "Repo & git",
-    args: "create|status|view [<path>] [--title \u2026] [--body \u2026] [--branch \u2026] [--draft] [--json]",
-    summary: 'Share-back: propose the diverged doc inside a managed checkout (a file opened via "duo open <github-url>") as a GitHub pull request \u2014 the CLI twin of the "Propose changes" affordance. "create" branches/commits/pushes/opens the PR, AUTO-FORKING when you lack push access (cross-fork PR). Defaults are prefilled (branch duo/<slug>-<short>, title from the doc\'s first heading); --title/--body/--branch/--draft override. "status" prints JSON { context, divergence, pr }; "view" prints the open PR (or null). <path> defaults to the cwd; it must resolve inside ~/.claude/duo/checkouts/. Unauthenticated bounces to `gh auth login`.'
+    args: "create|status|view [<path>] | export <path> <dest> [--title \u2026] [--body \u2026] [--branch \u2026] [--draft] [--json]",
+    summary: 'Share-back: propose the diverged doc inside a managed checkout (a file opened via "duo open <github-url>") as a GitHub pull request \u2014 the CLI twin of the "Propose changes" affordance. "create" branches/commits/pushes/opens the PR, AUTO-FORKING when you lack push access (cross-fork PR). Defaults are prefilled (branch duo/<slug>-<short>, title from the doc\'s first heading); --title/--body/--branch/--draft override. Works for any editable text format (.md/.json/.yaml/.html \u2014 D8). "status" prints JSON { context, divergence, pr }; "view" prints the open PR (or null). "export <path> <dest>" saves a real local copy of the checkout doc outside the opaque home (the D4 escape hatch). <path> defaults to the cwd; it must resolve inside ~/.claude/duo/checkouts/. Unauthenticated bounces to `gh auth login`.'
   },
   {
     name: "worktree",
@@ -6860,13 +6860,27 @@ To confirm, re-run:
       }
       case "pr": {
         const sub = rest.find((a) => !a.startsWith("--"));
-        if (sub !== "create" && sub !== "status" && sub !== "view") {
-          die("Usage: duo pr <create|status|view> [<path>] [--title \u2026] [--body \u2026] [--branch \u2026] [--draft] [--json]");
+        if (sub !== "create" && sub !== "status" && sub !== "view" && sub !== "export") {
+          die("Usage: duo pr <create|status|view|export> [<path>] [<dest> for export] [--title \u2026] [--body \u2026] [--branch \u2026] [--draft] [--json]");
         }
         const afterSub = rest.slice(rest.indexOf(sub) + 1);
-        const pathArg = afterSub.find((a) => !a.startsWith("--"));
+        const positionals = afterSub.filter((a) => !a.startsWith("--"));
+        const pathArg = positionals[0];
         const absPath = pathArg ? path15.isAbsolute(pathArg) ? pathArg : path15.resolve(process.cwd(), pathArg) : process.cwd();
         const asJson = rest.includes("--json");
+        if (sub === "export") {
+          const destArg = positionals[1];
+          if (!destArg) die("Usage: duo pr export <path> <dest>");
+          const destAbs = path15.isAbsolute(destArg) ? destArg : path15.resolve(process.cwd(), destArg);
+          const res2 = await send("pr", { sub, path: absPath, dest: destAbs });
+          if (asJson) {
+            out(JSON.stringify(res2, null, 2));
+            break;
+          }
+          if (res2.ok) out(`Saved a copy \u2192 ${res2.dest}`);
+          else die(`pr export failed: ${res2.error ?? "unknown"}`);
+          break;
+        }
         if (sub === "create") {
           const payload = { sub, path: absPath, draft: rest.includes("--draft") };
           const title = flagValue(rest, "--title");
