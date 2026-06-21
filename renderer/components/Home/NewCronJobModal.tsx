@@ -191,6 +191,17 @@ export function NewCronJobModal({ open, editJob, defaultCwd, onClose, onSaved }:
   const canSave =
     !busy && !!name.trim() && !!cwd.trim() && !!instruction.trim() && !previewError && !previewPending
 
+  // Browse… → native folder picker, seeded with the current path. Cancel keeps
+  // whatever's typed.
+  const onBrowseCwd = async () => {
+    try {
+      const picked = await window.electron.cron.pickDirectory(cwd.trim() || undefined)
+      if (picked) setCwd(picked)
+    } catch {
+      /* picker unavailable / cancelled — leave the typed value */
+    }
+  }
+
   const handleSave = async () => {
     if (!canSave) return
     const home = window.electron.env?.HOME ?? ''
@@ -256,6 +267,13 @@ export function NewCronJobModal({ open, editJob, defaultCwd, onClose, onSaved }:
           </button>
         </div>
 
+        {/* How scheduled jobs behave — interactive-only (no headless yet). */}
+        <p className="mb-3 px-3 py-2 rounded text-xs bg-accent/10 border border-border text-ink-soft">
+          Scheduled jobs run interactively in the terminal and require user interaction
+          after the first prompt; headless (<span className="font-mono">-p</span>) execution
+          is not yet supported.
+        </p>
+
         {/* Name */}
         <label className="block text-xs text-ink-mute mb-1" htmlFor="cron-name">Name</label>
         <input
@@ -269,17 +287,28 @@ export function NewCronJobModal({ open, editJob, defaultCwd, onClose, onSaved }:
           className={`${inputCls} mb-3`}
         />
 
-        {/* Working directory */}
-        <label className="block text-xs text-ink-mute mb-1" htmlFor="cron-cwd">Working directory</label>
-        <input
-          id="cron-cwd"
-          type="text"
-          value={cwd}
-          onChange={(e) => setCwd(e.target.value)}
-          placeholder="/Users/you/project"
-          disabled={busy}
-          className={`${inputCls} font-mono mb-3`}
-        />
+        {/* Project (working directory) — type a path or Browse to a folder. */}
+        <label className="block text-xs text-ink-mute mb-1" htmlFor="cron-cwd">Project (working directory)</label>
+        <div className="flex gap-2 mb-3">
+          <input
+            id="cron-cwd"
+            type="text"
+            value={cwd}
+            onChange={(e) => setCwd(e.target.value)}
+            placeholder="/Users/you/project"
+            disabled={busy}
+            className={`${inputCls} font-mono`}
+          />
+          <button
+            type="button"
+            onClick={onBrowseCwd}
+            disabled={busy}
+            className="shrink-0 px-3 py-1 text-sm border border-border rounded text-ink hover:bg-accent/10 disabled:opacity-50"
+            title="Choose a folder"
+          >
+            Browse…
+          </button>
+        </div>
 
         {/* Instruction */}
         <label className="block text-xs text-ink-mute mb-1" htmlFor="cron-instruction">What should Claude do?</label>

@@ -1015,7 +1015,10 @@ const api: ElectronAPI = {
       const handler = () => cb()
       ipcRenderer.on(IPC.CRON_OPEN_NEW_MODAL, handler)
       return () => ipcRenderer.removeListener(IPC.CRON_OPEN_NEW_MODAL, handler)
-    }
+    },
+    // ENH-223 — the cron dialog's Browse button → native folder picker.
+    pickDirectory: (defaultPath) =>
+      ipcRenderer.invoke(IPC.DIALOG_PICK_DIRECTORY, defaultPath) as Promise<string | null>
   }
 }
 

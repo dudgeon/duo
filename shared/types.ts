@@ -2378,6 +2378,9 @@ export const IPC = {
   CRON_JOBS_CHANGED: 'cron:jobs-changed', // main → renderer (CronJobView[])
   // main → renderer push: open the New Scheduled Job dialog (File ▸ menu, D7).
   CRON_OPEN_NEW_MODAL: 'cron:open-new-modal',
+  // renderer → main invoke: open a native "choose folder" dialog, returns the
+  // absolute path or null (cancelled). Used by the cron dialog's Browse button.
+  DIALOG_PICK_DIRECTORY: 'dialog:pick-directory',
   // main → renderer push: focus/synthesize the Home tab (`duo home`).
   HOME_SHOW: 'home:show',
   // ENH-212 — main → renderer push to activate a terminal tab by id.

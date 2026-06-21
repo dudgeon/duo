@@ -1032,6 +1032,9 @@ export interface ElectronCronAPI {
   /** File ▸ New Scheduled Job… — main asks the focused window to open the
    *  create dialog (D7). */
   onOpenNewModal: (cb: () => void) => () => void
+  /** The dialog's Browse button — open a native folder picker; resolves to the
+   *  chosen absolute path or null (cancelled). */
+  pickDirectory: (defaultPath?: string) => Promise<string | null>
 }
 
 // ENH-167 — workspace-as-file. Mirrors the File menu surface: Save /

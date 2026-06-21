@@ -3062,6 +3062,19 @@ function setupIPC(): void {
     return cronService.handleCli(payload.op, payload.args ?? {})
   })
 
+  // ENH-223 — native "choose folder" picker for the cron dialog's Browse button.
+  // Returns the chosen absolute path, or null when cancelled.
+  ipcMain.handle(IPC.DIALOG_PICK_DIRECTORY, async (event, defaultPath?: string): Promise<string | null> => {
+    const win = BrowserWindow.fromWebContents(event.sender) ?? undefined
+    const result = await dialog.showOpenDialog(win as BrowserWindow, {
+      title: 'Choose Project Folder',
+      message: 'Pick the working directory this scheduled job runs in',
+      properties: ['openDirectory', 'createDirectory'],
+      ...(defaultPath ? { defaultPath } : {}),
+    })
+    return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]
+  })
+
   // Paged "all N sessions" expander for one project root — lazy head titles.
   // The open-session join rides along so an expanded session still shows its
   // green pill if a live terminal hosts it.
