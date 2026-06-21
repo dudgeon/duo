@@ -35,6 +35,18 @@ export async function findDeadExpandedPaths(
   return checks.filter(([, ok]) => ok === false).map(([p]) => p)
 }
 
+/** ENH-222 — is `child` the same path as `ancestor`, or nested inside it?
+ *  Boundary-safe: `/a/foo-bar` is NOT within `/a/foo`. Used by the
+ *  navigator's worktree-removal heal (D5/D6) to tell whether the dead cwd
+ *  is the worktree that just vanished (→ revert to its main checkout) vs.
+ *  some unrelated dead path (→ nearest-ancestor fallback). */
+export function pathIsWithin(child: string, ancestor: string): boolean {
+  const a = ancestor.replace(/\/+$/, '')
+  const c = child.replace(/\/+$/, '')
+  if (!a) return false
+  return c === a || c.startsWith(a + '/')
+}
+
 /** Walk up from a dead path to the nearest ancestor that still exists.
  *  Returns `fallback` if no ancestor below root qualifies. Used to
  *  recover a missing persisted `cwd` to something the navigator can

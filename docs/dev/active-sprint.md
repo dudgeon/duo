@@ -1,4 +1,33 @@
-# Active sprint state — ENH-208 Vault: Phase 1 SHIPPED + Phase 2 in flight (v0.10.0 carry-forward below)
+# Active sprint state — ENH-222 worktree lifecycle BUILT + walked (renumbered from ENH-221, not cutting, 2026-06-20); ENH-208 Vault Phase 2 in flight (v0.10.0 carry-forward below)
+
+## ENH-222 — worktree lifecycle UX (BUILT + owner-walked 2P/1S; renumbered from ENH-221; NOT cutting, updating PR)
+
+> **Owner directive:** "keep advancing the worktree controller UI" → two enhancements:
+> (1) PM-friendly **Create a worktree** from the dropdown, (2) **graceful removal**
+> when an agent merges+deletes the viewed worktree (no render crash; revert to main).
+> This is the **ENH-210 D5 B→C escalation** (write/lifecycle verbs, unblocked by the
+> non-technical-PM persona). High-fidelity flow study with 6 owner decisions filed at
+> [`docs/research/worktree-lifecycle-ux.html`](../research/worktree-lifecycle-ux.html);
+> D1-form-UI follow-up at [`docs/research/worktree-create-ui.html`](../research/worktree-create-ui.html).
+> **Decisions locked (walks 1–2, 2026-06-18):** D1 form UI = **Variant A**
+> (one-line, type-and-go) **+ slug validation** (allow-list `[a-z0-9-]`, auto-name
+> fallback); D2–D6 per recs.
+> **BUILT + pre-walked (2026-06-19), phased per owner option (a):** core slug +
+> `createWorktree`/`removeWorktree` (+ live-git tests) → `duo worktree new/remove`
+> CLI (4-surface synced) → FileTree inline-create form (always-on pill) → nav
+> worktree-aware revert + banner + `ErrorBoundary` (+ `pathIsWithin` test) →
+> `35f7c3a` two pre-walk fixes (lone-repo dropdown, focus backstop). Full suite green
+> (1607), typecheck clean. **PRD:** [`docs/prd/enh-222-worktree-lifecycle.md`](../prd/enh-222-worktree-lifecycle.md).
+> **Owner smoke-walk 1 (2026-06-20): 2 PASS / 1 SKIP** — LONE-MAIN ✅, REMOVAL ✅ (banner
+> was illegible in light mode → fixed `4475df8`, verified), CREATE skipped then confirmed OK
+> by owner. **Renumbered ENH-221 → ENH-222** because the other agent's ENH-221
+> (`claude/enh-221-file-history`) landed first; **NOT cutting** — retargets a later minor
+> than the file-history v0.11.2 (TBD). **Next:** update the PR/branch (no cut). **Open
+> follow-ups (don't gate):** in-terminal removal notice (C-3), dropdown refetch-on-open
+> (C-5), base-branch picker (C-4) — see PRD § C/E + `tasks.md` ENH-222.
+> **NB (2026-06-18):** a broad worktree purge deleted this session's worktree mid-work
+> (uncommitted mockups lost + recreated from context, then committed). Lesson: commit
+> research artifacts immediately — and this incident is live evidence for enhancement (2).
 
 ## ENH-211 — navigator render-flicker (PRD filed, not yet built, 2026-06-11)
 

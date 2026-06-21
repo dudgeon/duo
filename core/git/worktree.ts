@@ -17,11 +17,16 @@
 // Pure parsing + git shell-outs; never throws (mirrors getGitStatus).
 
 import * as path from 'path'
+import * as fs from 'fs'
 import { execGit } from './exec'
 import { hashColorIndex } from '../../shared/projects'
-import type { WorktreeInfo } from '../../shared/host-api'
+import { slugifyWorktreeName, nextAvailableSlug } from '../../shared/worktree-slug'
+import type { WorktreeInfo, CreateWorktreeResult } from '../../shared/host-api'
 
-export type { WorktreeInfo } from '../../shared/host-api'
+export type { WorktreeInfo, CreateWorktreeResult } from '../../shared/host-api'
+// Re-export the pure slug helpers so existing importers (the CLI, the
+// worktree.test.ts unit tests) keep resolving them from this module.
+export { slugifyWorktreeName, nextAvailableSlug } from '../../shared/worktree-slug'
 
 export interface WorktreeIdentity {
   /** True when `cwd` resolves into a linked (non-main) worktree. */
@@ -179,4 +184,124 @@ export async function listWorktrees(
   return Promise.all(
     worktrees.map(async (wt) => (wt.prunable ? wt : { ...wt, ...(await worktreeStatus(wt.path)) }))
   )
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// ENH-222 — worktree CREATE / REMOVE (D5-C lifecycle write verbs).
+//
+// Duo's FIRST write to git worktree state. Powers `duo worktree new`, the
+// navigator inline-create form (Variant A), and `duo worktree remove`.
+// Like the reads above, these never throw — they return a structured
+// result so the CLI and the IPC handler share one error path.
+// ─────────────────────────────────────────────────────────────────────
+
+const WORKTREES_SUBDIR = '.claude/worktrees'
+const BRANCH_PREFIX = 'claude/'
+
+function dirExistsSafe(p: string): boolean {
+  try {
+    return fs.existsSync(p)
+  } catch {
+    return false
+  }
+}
+
+export interface CreateWorktreeOptions {
+  /** Raw user text (slugified here) or an already-clean slug. */
+  name: string
+  /** Base commit-ish for the new branch. Defaults to the repo's main
+   *  worktree branch (i.e. "from main"). */
+  fromRef?: string
+}
+
+/**
+ * Create a new linked worktree off `fromRef` (default: the repo's main
+ * branch), at `<mainRoot>/.claude/worktrees/<slug>` on branch
+ * `claude/<slug>`. Resolves a collision-free slug (dir AND branch both
+ * free) before the `git worktree add`. Never throws.
+ */
+export async function createWorktree(
+  repoCwd: string,
+  opts: CreateWorktreeOptions
+): Promise<CreateWorktreeResult> {
+  const identity = await resolveWorktreeIdentity(repoCwd)
+  if (!identity.mainWorktreeRoot) {
+    return { ok: false, error: 'Not inside a git repository.' }
+  }
+  const mainRoot = identity.mainWorktreeRoot
+
+  const baseSlug = slugifyWorktreeName(opts.name)
+  if (!baseSlug) {
+    return { ok: false, error: 'Name is empty after removing unusable characters.' }
+  }
+
+  // Existing claude/* branches (one git call) + on-disk worktree dirs →
+  // a synchronous `taken` predicate so slug resolution stays pure.
+  const branchesRes = await execGit(
+    'git',
+    ['for-each-ref', '--format=%(refname:short)', `refs/heads/${BRANCH_PREFIX}`],
+    { cwd: mainRoot }
+  )
+  const existingBranches = new Set(
+    branchesRes.ok ? branchesRes.stdout.split('\n').map((l) => l.trim()).filter(Boolean) : []
+  )
+  const worktreesDir = path.join(mainRoot, WORKTREES_SUBDIR)
+  const taken = (slug: string): boolean =>
+    existingBranches.has(BRANCH_PREFIX + slug) || dirExistsSafe(path.join(worktreesDir, slug))
+
+  const slug = nextAvailableSlug(baseSlug, taken)
+  const wtPath = path.join(worktreesDir, slug)
+  const branch = BRANCH_PREFIX + slug
+
+  // Base ref: caller's, else the main worktree's branch ("from main").
+  let fromRef = opts.fromRef
+  if (!fromRef) {
+    const wts = await listWorktrees(mainRoot)
+    fromRef = wts.find((w) => w.isMain)?.branch || 'HEAD'
+  }
+
+  // `git worktree add` creates the leaf dir; ensure the parent exists for
+  // the first-ever worktree of a repo.
+  try {
+    fs.mkdirSync(worktreesDir, { recursive: true })
+  } catch {
+    /* best-effort; git reports the real error if the path is unusable */
+  }
+
+  const addRes = await execGit(
+    'git',
+    ['worktree', 'add', '-b', branch, wtPath, fromRef],
+    { cwd: mainRoot, timeoutMs: 30_000 }
+  )
+  if (!addRes.ok) {
+    return {
+      ok: false,
+      error: (addRes.stderr || addRes.stdout || 'git worktree add failed').trim(),
+      slug,
+      path: wtPath,
+      branch
+    }
+  }
+  return { ok: true, path: wtPath, branch, slug }
+}
+
+/**
+ * Remove a linked worktree (`git worktree remove`). Runs from the repo's
+ * main root so it works even when `worktreePath` is the current cwd.
+ * `force` is required when the worktree is dirty. Never throws.
+ */
+export async function removeWorktree(
+  worktreePath: string,
+  opts: { force?: boolean } = {}
+): Promise<{ ok: boolean; error?: string }> {
+  const identity = await resolveWorktreeIdentity(worktreePath)
+  const cwd = identity.mainWorktreeRoot || path.dirname(worktreePath)
+  const args = ['worktree', 'remove']
+  if (opts.force) args.push('--force')
+  args.push(worktreePath)
+  const res = await execGit('git', args, { cwd, timeoutMs: 30_000 })
+  if (!res.ok) {
+    return { ok: false, error: (res.stderr || res.stdout || 'git worktree remove failed').trim() }
+  }
+  return { ok: true }
 }
