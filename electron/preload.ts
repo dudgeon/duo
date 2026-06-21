@@ -439,7 +439,33 @@ const api: ElectronAPI = {
       const handler = () => cb()
       ipcRenderer.on(IPC.NAV_OPEN_NEW_VAULT_MODAL, handler)
       return () => ipcRenderer.removeListener(IPC.NAV_OPEN_NEW_VAULT_MODAL, handler)
+    },
+
+    // ENH-221 D1/D18 — File → Open… menu opens the merged Open bar.
+    onOpenBar: (cb: () => void) => {
+      const handler = () => cb()
+      ipcRenderer.on(IPC.NAV_OPEN_BAR, handler)
+      return () => ipcRenderer.removeListener(IPC.NAV_OPEN_BAR, handler)
+    },
+    // ENH-221 D14 — File → Open Recent ▸ <target> reopens via the renderer.
+    onOpenBarReopen: (cb: (target: string) => void) => {
+      const handler = (_: IpcRendererEvent, target: string) => cb(target)
+      ipcRenderer.on(IPC.NAV_OPEN_BAR_REOPEN, handler)
+      return () => ipcRenderer.removeListener(IPC.NAV_OPEN_BAR_REOPEN, handler)
     }
+  },
+
+  // ENH-221 D17 — native file/folder picker behind the Open bar's Browse…
+  open: {
+    browse: () => ipcRenderer.invoke(IPC.OPEN_BROWSE),
+  },
+
+  // ENH-221 D14 — Open Recent store (pointers; resolved live). Backed by a
+  // main-process OpenRecentsService singleton shared with `duo open`.
+  recents: {
+    list: () => ipcRenderer.invoke(IPC.RECENTS_LIST),
+    record: (entry) => ipcRenderer.invoke(IPC.RECENTS_RECORD, entry),
+    clear: () => ipcRenderer.invoke(IPC.RECENTS_CLEAR),
   },
 
   editor: {

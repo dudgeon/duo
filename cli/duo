@@ -33,7 +33,7 @@ var import_crypto = require("crypto");
 var import_node_fs = __toESM(require("node:fs"));
 var import_node_path = __toESM(require("node:path"));
 
-// node_modules/js-yaml/dist/js-yaml.mjs
+// ../../../node_modules/js-yaml/dist/js-yaml.mjs
 function isNothing(subject) {
   return typeof subject === "undefined" || subject === null;
 }
@@ -5085,7 +5085,13 @@ var VERBS = [
     name: "open",
     group: "Browser & tabs",
     args: "<path-or-url> [--canvas] [--reveal]",
-    summary: "Open a local file or URL. HTML defaults to the browser pane (scripts run, interactive) \u2014 use this to show the user a generated explainer / playground. Non-HTML routes to its natural surface (.md \u2192 editor, image \u2192 viewer). --canvas forces canvas mode (source-editable, scripts blocked); --reveal expands the working pane."
+    summary: 'Open a local file or URL. HTML defaults to the browser pane (scripts run, interactive) \u2014 use this to show the user a generated explainer / playground. Non-HTML routes to its natural surface (.md \u2192 editor, image \u2192 viewer). --canvas forces canvas mode (source-editable, scripts blocked); --reveal expands the working pane. Successful opens are recorded in Open Recent (see "recent").'
+  },
+  {
+    name: "recent",
+    group: "Browser & tabs",
+    args: "[--json]",
+    summary: 'List the last ~10 Open-bar targets (local paths + GitHub URLs) \u2014 the CLI twin of File \u25B8 Open Recent + the empty \u2318O Open bar. Reopen one by re-passing its target to "open". --json prints the raw RecentEntry[] array.'
   },
   {
     name: "reload",
@@ -5810,10 +5816,37 @@ async function main() {
         const resolved = resolveOpenTarget(positional);
         const payload = {
           url: resolved,
-          mode: canvasOverride ? "canvas" : "browser"
+          mode: canvasOverride ? "canvas" : "browser",
+          // ENH-221 D14 — pass the original positional so record-on-open
+          // stores the human-friendly target (~/x.md) not the file:// URL.
+          origin: positional
         };
         if (reveal) payload["reveal"] = true;
         out(await send("open", payload));
+        break;
+      }
+      case "recent": {
+        const asJson = rest.includes("--json");
+        const res = await send("recent");
+        const recents = Array.isArray(res) ? res : [];
+        if (asJson) {
+          out(recents);
+          break;
+        }
+        if (!Array.isArray(recents) || recents.length === 0) {
+          console.log("No recent files. Open one with `duo open <path-or-url>`.");
+          break;
+        }
+        const kindGlyph = {
+          local: "\u{1F4C4}",
+          "github-file": "\u{1F419}",
+          "github-repo": "\u{1F4E6}",
+          url: "\u{1F517}"
+        };
+        for (const r of recents) {
+          console.log(`${kindGlyph[r.kind] ?? "\u2022"}  ${r.label}
+    ${r.target}`);
+        }
         break;
       }
       case "reload": {

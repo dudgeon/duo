@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolveOpenTarget } from './open-resolve'
+import { resolveOpenTarget, deriveRecentEntry } from './open-resolve'
 
 describe('resolveOpenTarget — local paths', () => {
   it('absolute path', () => {
@@ -171,5 +171,47 @@ describe('resolveOpenTarget — other URLs', () => {
 
   it('non-web scheme (mailto) → url', () => {
     expect(resolveOpenTarget('mailto:a@b.com')).toEqual({ kind: 'url', url: 'mailto:a@b.com' })
+  })
+})
+
+describe('deriveRecentEntry — Open Recent pointers (D14)', () => {
+  it('local path → basename label, kind local, raw target preserved', () => {
+    expect(deriveRecentEntry('~/duo/docs/roadmap.md')).toEqual({
+      target: '~/duo/docs/roadmap.md',
+      label: 'roadmap.md',
+      kind: 'local',
+    })
+  })
+
+  it('local folder (trailing slash) → last segment label', () => {
+    expect(deriveRecentEntry('/Users/me/projects/duo/')).toEqual({
+      target: '/Users/me/projects/duo/',
+      label: 'duo',
+      kind: 'local',
+    })
+  })
+
+  it('github file URL → "owner/repo › file" label, kind github-file', () => {
+    expect(deriveRecentEntry('https://github.com/dudgeon/duo/blob/main/docs/roadmap.md')).toEqual({
+      target: 'https://github.com/dudgeon/duo/blob/main/docs/roadmap.md',
+      label: 'dudgeon/duo › roadmap.md',
+      kind: 'github-file',
+    })
+  })
+
+  it('github repo URL → "owner/repo" label, kind github-repo', () => {
+    expect(deriveRecentEntry('https://github.com/vercel/next.js')).toEqual({
+      target: 'https://github.com/vercel/next.js',
+      label: 'vercel/next.js',
+      kind: 'github-repo',
+    })
+  })
+
+  it('other URL → hostname label, kind url', () => {
+    expect(deriveRecentEntry('https://example.com/some/page')).toEqual({
+      target: 'https://example.com/some/page',
+      label: 'example.com',
+      kind: 'url',
+    })
   })
 })

@@ -1,7 +1,7 @@
 import { app, BrowserWindow, Menu, dialog, ipcMain, nativeImage, nativeTheme, protocol, session, shell, webContents, clipboard } from 'electron'
 import type { MenuItemConstructorOptions, WebContents } from 'electron'
 import * as nodeFs from 'fs/promises'
-import { watch as fsWatchSync, mkdirSync as fsMkdirSync, existsSync as fsExistsSync, realpathSync as fsRealpathSync } from 'fs'
+import { watch as fsWatchSync, mkdirSync as fsMkdirSync, existsSync as fsExistsSync, realpathSync as fsRealpathSync, statSync as fsStatSync } from 'fs'
 import * as nodePath from 'path'
 import { execSync, execFile } from 'child_process'
 import { promisify } from 'util'
@@ -86,6 +86,9 @@ import { initAutoUpdater } from './auto-updater'
 import { SessionStateService } from '../core/session-state-service'
 import { SettingsService } from '../core/settings-service'
 import { FileHistoryService, type SnapshotSource } from '../core/file-history-service'
+// ENH-221 — Open Recent store + the Open-bar resolver (shared with the CLI).
+import { OpenRecentsService } from '../core/open-recents-service'
+import { resolveOpenTarget as classifyOpenTarget } from '../core/open-resolve'
 import { WorkspaceFileService } from '../core/workspace-file-service'
 import { WorkspaceHistoryService } from '../core/workspace-history-service'
 import { ActiveWorkspaceService } from '../core/active-workspace-service'
@@ -145,7 +148,9 @@ import type {
   HomeSnapshot,
   HomeSession,
   HomeSessionAction,
-  HomeSessionActionResult
+  HomeSessionActionResult,
+  RecentEntry,
+  BrowseResult
 } from '../shared/types'
 
 // Last nav state snapshot the renderer pushed. Drives `duo nav state`.
@@ -573,6 +578,15 @@ const activeWorkspaceService = new ActiveWorkspaceService()
 // gates headless, default off).
 const cronStore = new CronStore()
 let cronService: CronService | null = null
+
+// ENH-221 D14 — Open Recent store (machine-global pointers). ONE main-process
+// singleton shared by the renderer IPC handlers AND the `duo open` socket
+// handler (NavBridge.recordOpenRecent), so CLI + UI opens land in one list
+// with a single writer (no cross-process races). The File ▸ Open Recent
+// submenu reads a synchronous cache refreshed on every record/clear — mirrors
+// the workspace Open-Recent submenu pattern (buildRecentWorkspacesSubmenu).
+const openRecents = new OpenRecentsService()
+let cachedOpenRecents: RecentEntry[] = []
 
 // ENH-167 v1.2 — autosave mirror. Every flush of session-state.json
 // also writes the active .duo-workspace if one is loaded. The hook
@@ -1374,6 +1388,9 @@ app.whenReady().then(async () => {
   // ensureLoaded()); the async rebuild here repaints the submenu
   // once the file is parsed.
   void rebuildAppMenu()
+  // ENH-221 D14 — same pattern for File ▸ Open Recent (the Open-bar recents).
+  // installAppMenu() above built it from the empty cache; prime + repaint.
+  void refreshOpenRecentsCache()
   // ENH-031 — global right-click context menu for every WebContents
   // (main renderer + every WebContentsView Duo creates). Default items
   // cover Cut / Copy / Paste / Select All / Spell-check / Look Up /
@@ -1556,6 +1573,10 @@ app.whenReady().then(async () => {
     setShiftReturn: setShiftReturnMode,
     // ENH-172 (Sprint 20) — show/hide hidden-files toggle.
     setHiddenFiles: setHiddenFiles,
+    // ENH-221 D14 — `duo open` record-on-open + `duo recent` share the same
+    // main-process OpenRecentsService singleton the UI Open bar writes to.
+    recordOpenRecent: async (entry) => { await recordOpenRecentAndRefresh(entry) },
+    listOpenRecents: () => openRecents.list(),
     // ENH-178 (Sprint 20) — browser-mode push (CLI → renderer echo).
     pushBrowserMode: pushBrowserMode,
     setSplit: setSplit,
@@ -2425,6 +2446,44 @@ function setupIPC(): void {
     }
   })
 
+  // ENH-221 D17 — native Browse… picker behind the Open bar. ONE dialog with
+  // both openFile + openDirectory enabled (a picked file opens in its viewer;
+  // a picked folder roots the navigator). Parented on the SENDER window (the
+  // one whose Open bar fired it), never raw mainWindow (check-window-routing).
+  ipcMain.handle(IPC.OPEN_BROWSE, async (event): Promise<BrowseResult | null> => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win || win.isDestroyed()) return null
+    const result = await dialog.showOpenDialog(win, {
+      title: 'Open File or Folder',
+      message: 'Pick a file to open, or a folder to root the navigator',
+      properties: ['openFile', 'openDirectory'],
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    const picked = result.filePaths[0]
+    let kind: 'file' | 'directory' = 'file'
+    try {
+      kind = fsStatSync(picked).isDirectory() ? 'directory' : 'file'
+    } catch {
+      // Stat failure (race / permission) — default to 'file'; the renderer's
+      // open path tolerates a missing file with a clean error.
+    }
+    return { path: picked, kind }
+  })
+
+  // ENH-221 D14 — Open Recent store IPC. Backed by the `openRecents` singleton
+  // (shared with `duo open` record-on-open). record/clear refresh the
+  // synchronous menu cache so File ▸ Open Recent stays current.
+  ipcMain.handle(IPC.RECENTS_LIST, () => openRecents.list())
+  ipcMain.handle(
+    IPC.RECENTS_RECORD,
+    (_event, entry: Omit<RecentEntry, 'lastOpenedAt'>) => recordOpenRecentAndRefresh(entry)
+  )
+  ipcMain.handle(IPC.RECENTS_CLEAR, async () => {
+    await openRecents.clear()
+    cachedOpenRecents = []
+    installAppMenu()
+  })
+
   // Stage 24 — pinned WorkingPane tabs.
   ipcMain.handle(IPC.PINS_LIST, () => {
     return pinsService.list()
@@ -3247,6 +3306,24 @@ function installAppMenu(): void {
           click: () => { void openNewWindow() }
         },
         { type: 'separator' },
+        // ENH-221 D1/D14/D18 — the merged Open bar (⌘O) + its Open Recent.
+        // The accelerator is DISPLAY-ONLY (registerAccelerator:false): the
+        // renderer's global ⌘O shortcut is the canonical handler (it fires
+        // from every focus context via key-forwarding), so binding ⌘O here
+        // too would double-trigger. The click is the menu/mouse path to the
+        // same merged bar. "Open Recent" lists Open-bar targets (files +
+        // GitHub URLs) — distinct from "Open Recent Workspace" below.
+        {
+          label: 'Open…',
+          accelerator: 'CmdOrCtrl+O',
+          registerAccelerator: false,
+          click: () => { pushOpenBar(focusedWindowId()) }
+        },
+        {
+          label: 'Open Recent',
+          submenu: buildOpenRecentSubmenu()
+        },
+        { type: 'separator' },
         // ENH-167 — workspace-as-file. Save the open tabs + terminals
         // to a `.duo-workspace`; open one to switch contexts (Duo
         // resets in-place and rehydrates from the loaded state).
@@ -3591,6 +3668,61 @@ function buildRecentWorkspacesSubmenu(): MenuItemConstructorOptions[] {
     }
   })
   return items
+}
+
+// ENH-221 D14 — File ▸ Open Recent submenu (Open-bar targets: local paths +
+// GitHub URLs). Distinct from "Open Recent Workspace" (which lists
+// .duo-workspace envelopes). Reads `cachedOpenRecents` synchronously —
+// refreshOpenRecentsCache() keeps it current. Clicking an item re-resolves
+// the target through the renderer's Open-bar open path (NAV_OPEN_BAR_REOPEN).
+function buildOpenRecentSubmenu(): MenuItemConstructorOptions[] {
+  const items: MenuItemConstructorOptions[] = cachedOpenRecents.map(entry => ({
+    label: entry.label,
+    sublabel: entry.target,
+    click: () => { pushOpenBarReopen(entry.target, focusedWindowId()) }
+  }))
+  if (items.length > 0) {
+    items.push({ type: 'separator' })
+  } else {
+    items.push({ label: 'No recent files', enabled: false })
+  }
+  items.push({
+    label: 'Clear Recent',
+    enabled: cachedOpenRecents.length > 0,
+    click: async () => {
+      await openRecents.clear()
+      cachedOpenRecents = []
+      installAppMenu()
+    }
+  })
+  return items
+}
+
+// ENH-221 D14 — refresh the synchronous Open-Recent cache from disk + repaint
+// the menu. Called at boot and after every record/clear.
+async function refreshOpenRecentsCache(): Promise<void> {
+  try {
+    cachedOpenRecents = await openRecents.list()
+  } catch {
+    cachedOpenRecents = []
+  }
+  installAppMenu()
+}
+
+// ENH-221 D14 — record an open (UI Open bar via IPC, or `duo open` via the
+// socket handler's NavBridge.recordOpenRecent) + repaint the menu. record()
+// dedupes by target + caps at 10; we cache its return so the menu is fresh
+// without a second read.
+async function recordOpenRecentAndRefresh(
+  entry: Omit<RecentEntry, 'lastOpenedAt'>
+): Promise<RecentEntry[]> {
+  try {
+    cachedOpenRecents = await openRecents.record(entry)
+    installAppMenu()
+  } catch {
+    // Recents are best-effort — a write failure never blocks the open.
+  }
+  return cachedOpenRecents
 }
 
 // ENH-208 Phase 2 (D11) — Settings → Default Vault. The default vault VALUE is
@@ -4468,6 +4600,28 @@ export function sendEdit(path: string, mode?: 'canvas' | 'browser'): { ok: boole
     return { ok: false, error: 'Duo window not ready' }
   }
   win.webContents.send(IPC.NAV_EDIT, mode ? { path, mode } : path)
+  return { ok: true }
+}
+
+// ENH-221 D1/D18 — File ▸ Open… opens the merged Open bar in the target
+// window (focused for the menu click; primary as a fallback).
+function pushOpenBar(windowId?: number): { ok: boolean; error?: string } {
+  const win = windowByIdOrPrimary(windowId)
+  if (!win || win.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  win.webContents.send(IPC.NAV_OPEN_BAR)
+  return { ok: true }
+}
+
+// ENH-221 D14 — File ▸ Open Recent ▸ <target>: hand the raw target back to the
+// renderer, which re-resolves it through the same Open-bar open path.
+function pushOpenBarReopen(target: string, windowId?: number): { ok: boolean; error?: string } {
+  const win = windowByIdOrPrimary(windowId)
+  if (!win || win.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  win.webContents.send(IPC.NAV_OPEN_BAR_REOPEN, target)
   return { ok: true }
 }
 

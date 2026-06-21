@@ -30,18 +30,11 @@ import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
 import { createWriteQueue, uniqueTmpPath } from './write-queue'
+import type { RecentEntry, RecentKind } from '../shared/types'
 
-export type RecentKind = 'local' | 'github-file' | 'github-repo' | 'url'
-
-export interface RecentEntry {
-  /** The raw target string the user opened (path or URL). Identity key. */
-  target: string
-  /** Friendly display label (e.g. "roadmap.md" or "o/r › README.md"). */
-  label: string
-  kind: RecentKind
-  /** Epoch ms of the most recent open. */
-  lastOpenedAt: number
-}
+// Canonical type home is shared/types.ts (so the renderer Open bar + preload
+// share one contract). Re-exported here for existing core/CLI importers.
+export type { RecentEntry, RecentKind }
 
 interface RecentsFile {
   version: number

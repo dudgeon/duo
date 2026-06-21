@@ -59,7 +59,14 @@ const VERBS: VerbSpec[] = [
     group: 'Browser & tabs',
     args: '<path-or-url> [--canvas] [--reveal]',
     summary:
-      'Open a local file or URL. HTML defaults to the browser pane (scripts run, interactive) — use this to show the user a generated explainer / playground. Non-HTML routes to its natural surface (.md → editor, image → viewer). --canvas forces canvas mode (source-editable, scripts blocked); --reveal expands the working pane.'
+      'Open a local file or URL. HTML defaults to the browser pane (scripts run, interactive) — use this to show the user a generated explainer / playground. Non-HTML routes to its natural surface (.md → editor, image → viewer). --canvas forces canvas mode (source-editable, scripts blocked); --reveal expands the working pane. Successful opens are recorded in Open Recent (see "recent").'
+  },
+  {
+    name: 'recent',
+    group: 'Browser & tabs',
+    args: '[--json]',
+    summary:
+      'List the last ~10 Open-bar targets (local paths + GitHub URLs) — the CLI twin of File ▸ Open Recent + the empty ⌘O Open bar. Reopen one by re-passing its target to "open". --json prints the raw RecentEntry[] array.'
   },
   {
     name: 'reload',
@@ -961,10 +968,40 @@ async function main(): Promise<void> {
         const resolved = resolveOpenTarget(positional)
         const payload: Record<string, unknown> = {
           url: resolved,
-          mode: canvasOverride ? 'canvas' : 'browser'
+          mode: canvasOverride ? 'canvas' : 'browser',
+          // ENH-221 D14 — pass the original positional so record-on-open
+          // stores the human-friendly target (~/x.md) not the file:// URL.
+          origin: positional
         }
         if (reveal) payload['reveal'] = true
         out(await send('open', payload))
+        break
+      }
+      case 'recent': {
+        // ENH-221 D14 — list the Open Recent store (the CLI twin of File ▸
+        // Open Recent + the empty Open bar). `--json` prints the raw array;
+        // default prints a friendly aligned list. Reopen by re-passing a
+        // target to `duo open`.
+        const asJson = rest.includes('--json')
+        // send() resolves with res.result directly — the RecentEntry[] array.
+        const res = await send('recent')
+        const recents = (Array.isArray(res) ? res : []) as Array<{
+          target: string; label: string; kind: string; lastOpenedAt: number
+        }>
+        if (asJson) {
+          out(recents)
+          break
+        }
+        if (!Array.isArray(recents) || recents.length === 0) {
+          console.log('No recent files. Open one with `duo open <path-or-url>`.')
+          break
+        }
+        const kindGlyph: Record<string, string> = {
+          local: '📄', 'github-file': '🐙', 'github-repo': '📦', url: '🔗'
+        }
+        for (const r of recents) {
+          console.log(`${kindGlyph[r.kind] ?? '•'}  ${r.label}\n    ${r.target}`)
+        }
         break
       }
       case 'reload': {

@@ -19,6 +19,8 @@
 // GitHub's web URL is itself ambiguous without the API; documented, not
 // solved here.
 
+import type { RecentKind } from '../shared/types'
+
 export type OpenTargetKind = 'local-path' | 'github-file' | 'github-repo' | 'url'
 
 export interface LocalPathTarget {
@@ -201,4 +203,42 @@ export function resolveOpenTarget(input: string): OpenTarget {
   if (GITHUB_HOSTS.has(host)) return parseGithubWeb(url)
   if (host === RAW_HOST) return parseRawGithubusercontent(url)
   return { kind: 'url', url: url.href }
+}
+
+/** Last non-empty path segment (a basename, for any "/"-delimited string). */
+function lastSegment(p: string): string {
+  const trimmed = p.replace(/\/+$/, '')
+  const i = trimmed.lastIndexOf('/')
+  return i >= 0 ? trimmed.slice(i + 1) : trimmed
+}
+
+/**
+ * ENH-221 D14 — derive an Open Recent pointer from a raw Open-bar target.
+ * Pure (no FS/network), so the renderer Open bar, the `duo open` socket
+ * handler, and the `duo recent` CLI all compute identical labels/kinds.
+ * `target` stays the raw string the user opened (the identity key + what
+ * gets re-passed to reopen); only the display label is derived.
+ */
+export function deriveRecentEntry(
+  rawTarget: string
+): { target: string; label: string; kind: RecentKind } {
+  const t = resolveOpenTarget(rawTarget)
+  switch (t.kind) {
+    case 'local-path':
+      return { target: rawTarget, label: lastSegment(t.path) || rawTarget, kind: 'local' }
+    case 'github-file':
+      return {
+        target: rawTarget,
+        label: `${t.owner}/${t.repo} › ${lastSegment(t.filePath)}`,
+        kind: 'github-file',
+      }
+    case 'github-repo':
+      return { target: rawTarget, label: `${t.owner}/${t.repo}`, kind: 'github-repo' }
+    case 'url':
+      try {
+        return { target: rawTarget, label: new URL(t.url).hostname, kind: 'url' }
+      } catch {
+        return { target: rawTarget, label: t.url, kind: 'url' }
+      }
+  }
 }

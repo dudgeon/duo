@@ -27,11 +27,21 @@ interface CloneModalProps {
    *  modal falls back to ~/Documents. App.tsx supplies the
    *  right-click context path OR the Navigator's current cwd. */
   defaultParent?: string | null
+  /** ENH-221 D15 — pre-populate the repo URL (the Open bar routes a GitHub
+   *  repo / file URL here). null/undefined → empty field (manual clone). */
+  defaultUrl?: string | null
+  /** ENH-221 D16 — when the clone came from a GitHub *file* URL, the path to
+   *  that file within the repo. On success the hero becomes "Open <file>"
+   *  and opens `<clonedTo>/<openAfterRelPath>`. null → the plain "Done" hero. */
+  openAfterRelPath?: string | null
   onClose: () => void
   /** Called with the cloned-folder absolute path on success. Parent
    *  decides whether to navigate the file tree there (recommended) or
    *  leave the modal-side "Open in Duo" button as the action. */
   onCloned: (clonedTo: string) => void
+  /** ENH-221 D16 — open the post-clone target file (absolute path). Wired by
+   *  the "Open <file>" success hero when openAfterRelPath is set. */
+  onOpenAfter?: (absPath: string) => void
 }
 
 /** Fallback target-dir parent when neither right-click context nor
@@ -52,7 +62,7 @@ function deriveRepoName(url: string): string {
   return name
 }
 
-export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModalProps) {
+export function CloneModal({ open, defaultParent, defaultUrl, openAfterRelPath, onClose, onCloned, onOpenAfter }: CloneModalProps) {
   const [url, setUrl] = useState('')
   const [targetParent, setTargetParent] = useState(defaultParent ?? DEFAULT_PARENT)
   const [repoName, setRepoName] = useState('')
@@ -79,7 +89,8 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
   // is to scope the reset to open-transitions only.
   useEffect(() => {
     if (!open) return
-    setUrl('')
+    // ENH-221 D15 — prefill the URL when the Open bar routed a GitHub URL in.
+    setUrl(defaultUrl ?? '')
     setTargetParent(defaultParent ?? DEFAULT_PARENT)
     setRepoName('')
     setResult(null)
@@ -165,6 +176,16 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
   // already exists. Owner can change the parent dir or repoName to
   // unstick the button.
   const canClone = !busy && !!url.trim() && !!repoName && collisionState !== 'exists'
+
+  // ENH-221 D16 — context-aware success hero. When the clone came from a
+  // GitHub *file* URL, the hero opens that file after cloning (clonedTo + the
+  // in-repo path); otherwise it's a plain "Done". The label name lives here
+  // so the JSX can render it without re-deriving.
+  const heroOpenPath =
+    result?.ok && result.clonedTo && openAfterRelPath
+      ? `${result.clonedTo.replace(/\/+$/, '')}/${openAfterRelPath.replace(/^\/+/, '')}`
+      : null
+  const heroOpenName = openAfterRelPath ? openAfterRelPath.split('/').pop() : null
 
   // ENH-162 — recognize the "destination path already exists" stderr
   // class so we can render a clearer error than the raw gh/git output.
@@ -415,12 +436,11 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
         )}
 
         {result?.ok ? (
-          // D16 — success footer. Hero = Done (the bare-repo clone is the
-          // only origin today: File ▸ Clone… / FileTree / duo clone). When
-          // the merged Open flow routes a *file* URL into clone (DR-gated),
-          // the hero becomes "Open <file>" via an openAfter prop — the
-          // documented seam. "Clone another" is the demoted quiet link
-          // (multi-clone is the edge case, per owner).
+          // D16 — success footer. Hero is "Done" for a bare-repo clone
+          // (File ▸ Clone… / FileTree / duo clone), OR "Open <file>" when the
+          // merged Open flow routed a GitHub *file* URL into clone (ENH-221
+          // D19 live path — openAfterRelPath set). "Clone another" is the
+          // demoted quiet link (multi-clone is the edge case, per owner).
           <div className="flex items-center justify-between">
             <button
               type="button"
@@ -429,13 +449,23 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
             >
               Clone another
             </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-1 text-sm bg-accent text-white rounded hover:bg-accent/90"
-            >
-              Done
-            </button>
+            {heroOpenPath ? (
+              <button
+                type="button"
+                onClick={() => { onOpenAfter?.(heroOpenPath); onClose() }}
+                className="px-4 py-1 text-sm bg-accent text-white rounded hover:bg-accent/90"
+              >
+                Open {heroOpenName}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-1 text-sm bg-accent text-white rounded hover:bg-accent/90"
+              >
+                Done
+              </button>
+            )}
           </div>
         ) : (
           <div className="flex gap-2 justify-end">

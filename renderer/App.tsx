@@ -4,7 +4,8 @@ import { TabBar } from './components/TabBar'
 import { TerminalPane } from './components/TerminalPane'
 import { WorkingPane } from './components/WorkingPane'
 import { TabSearchPalette, type TabSearchEntry } from './components/TabSearchPalette'
-import { VaultQuickSwitcher } from './components/VaultQuickSwitcher'
+import { OpenBar } from './components/OpenBar'
+import { resolveOpenTarget, deriveRecentEntry } from '../core/open-resolve'
 import { VaultSearchPalette } from './components/VaultSearchPalette'
 import { parkGotoMatch, VAULT_GOTO_MATCH_EVENT } from './components/editor/vaultGotoMatch'
 import { useVaultIndex } from './components/editor/vaultIndex'
@@ -404,6 +405,11 @@ export function App() {
   // IPC push (window.electron.nav.onOpenCloneModal). Closed by the
   // modal's own Cancel/Esc/Done; opens are idempotent.
   const [cloneModalOpen, setCloneModalOpen] = useState(false)
+  // ENH-221 D15/D16 — when the Open bar routes a GitHub repo / file URL into
+  // the clone flow, prefill the modal's URL and (for a file) the relative
+  // path to open after cloning (the success hero becomes "Open <file>").
+  const [cloneModalUrl, setCloneModalUrl] = useState<string | null>(null)
+  const [cloneModalOpenAfter, setCloneModalOpenAfter] = useState<string | null>(null)
   // ENH-216 (U7) — File → New Vault… modal visibility. Opened by the native
   // File menu entry's IPC push (window.electron.nav.onOpenNewVaultModal).
   const [newVaultModalOpen, setNewVaultModalOpen] = useState(false)
@@ -513,10 +519,13 @@ export function App() {
   // The palette is a renderer overlay; we set its `open` state from
   // the `duo-open-tab-search` window event fired by useKeyboardShortcuts.
   const [tabSearchOpen, setTabSearchOpen] = useState<boolean>(false)
-  // Sprint 11 ENH-096 B.4 — ⌘O vault quick switcher overlay state.
-  // Distinct from tabSearchOpen (⌘⇧A — open tabs). Sources its file
-  // list from useVaultIndex below, keyed off the active file's path.
-  const [vaultQuickSwitcherOpen, setVaultQuickSwitcherOpen] = useState<boolean>(false)
+  // ENH-221 D18 — ⌘O opens the merged Open bar (the surface that SUBSUMES
+  // the old VaultQuickSwitcher: vault fuzzy-find + paste-a-path/URL + Browse…
+  // + Open Recent). State name kept loosely "open bar"; the dispatch key
+  // stays `openVaultQuickSwitcher` so the ⌘O chord wiring is untouched.
+  // Distinct from tabSearchOpen (⌘⇧A — open tabs). Sources its fuzzy-find
+  // file list from useVaultIndex below, keyed off the active file's path.
+  const [openBarOpen, setOpenBarOpen] = useState<boolean>(false)
   // ENH-208 Phase 2 (D22) — ⌘⇧F vault-search palette overlay state.
   // Distinct from both above: full-text search over the UI-resolved
   // vault, IPC-backed (window.electron.vault.search) rather than
@@ -2073,6 +2082,63 @@ export function App() {
     void openFileSmart(entry.path, entry.name)
   }, [openFileSmart])
 
+  // ENH-221 — open the Clone modal pre-filled (from the Open bar routing a
+  // GitHub repo, or a GitHub file URL whose "clone the whole repo" choice was
+  // taken — openAfterRelPath then makes the success hero "Open <file>").
+  const openCloneModalPrefilled = useCallback((url: string, openAfterRelPath?: string) => {
+    setCloneModalUrl(url)
+    setCloneModalOpenAfter(openAfterRelPath ?? null)
+    setCloneModalDefaultParent(null)
+    setCloneModalOpen(true)
+  }, [])
+
+  // ENH-221 D1/D14/D15 — the single Open-bar open path. Classifies a raw
+  // target (a typed/pasted path or URL, a Browse… pick, a vault file's
+  // absPath, or a recent's stored target) and routes it: local file → viewer,
+  // folder → navigator root, URL → browser pane, GitHub repo/file → the
+  // pre-filled clone flow. Records the Open Recent pointer on success. Shared
+  // by the Open bar AND the File ▸ Open Recent menu (NAV_OPEN_BAR_REOPEN).
+  const openResolvedTarget = useCallback(async (rawTarget: string) => {
+    const recordRecent = (target: string) => {
+      void window.electron.recents.record(deriveRecentEntry(target)).catch(() => {})
+    }
+    const t = resolveOpenTarget(rawTarget)
+    if (t.kind === 'local-path') {
+      // Expand ~; resolve a bare relative path against the navigator cwd.
+      let abs = t.path
+      if (abs === '~') abs = home
+      else if (abs.startsWith('~/')) abs = home.replace(/\/$/, '') + abs.slice(1)
+      else if (!abs.startsWith('/')) abs = `${(nav.state.cwd ?? home).replace(/\/$/, '')}/${abs}`
+      const isDir = await window.electron.files.dirExists(abs).catch(() => false)
+      if (isDir) {
+        nav.actions.navigateTo(abs)
+      } else {
+        const name = abs.replace(/\/+$/, '').split('/').pop() || abs
+        await openFileSmart(abs, name)
+      }
+      recordRecent(abs)
+      window.electron.keyboard?.reclaimFocus?.()
+      return
+    }
+    if (t.kind === 'url') {
+      await window.electron.browser.addTab(t.url)
+      setActiveWorking({ kind: 'browser' })
+      setFocusedColumn('working')
+      recordRecent(t.url)
+      return
+    }
+    if (t.kind === 'github-repo') {
+      openCloneModalPrefilled(t.cloneUrl)
+      recordRecent(rawTarget)
+      return
+    }
+    // github-file — clone the repo, open the file after (D19 live path; the
+    // sparse "just this doc" round-trip is DR-blocked). GithubFileTarget has
+    // no cloneUrl (it's a file, not a repo target) — build it from owner/repo.
+    openCloneModalPrefilled(`https://github.com/${t.owner}/${t.repo}`, t.filePath)
+    recordRecent(rawTarget)
+  }, [home, nav.actions, nav.state.cwd, openFileSmart, openCloneModalPrefilled])
+
   const closeFileTab = useCallback((id: string) => {
     // ENH-212 — Home is the single non-closable surface (slot 0). This is
     // the ONE guard: ⌘W, the strip's close glyph (suppressed in
@@ -2784,6 +2850,17 @@ export function App() {
     })
   }, [])
 
+  // ENH-221 D1/D18 — File ▸ Open… (native menu) opens the merged Open bar,
+  // the same surface ⌘O opens.
+  useEffect(() => {
+    return window.electron.nav.onOpenBar(() => setOpenBarOpen(true))
+  }, [])
+  // ENH-221 D14 — File ▸ Open Recent ▸ <target> reopens through the shared
+  // Open-bar open path (so menu + bar + `duo open` behave identically).
+  useEffect(() => {
+    return window.electron.nav.onOpenBarReopen((target) => { void openResolvedTarget(target) })
+  }, [openResolvedTarget])
+
   // ENH-216 (U7) — File → New Vault… menu trigger. Mirrors the Clone
   // modal's menu-driven open. The native menu item sends
   // NAV_OPEN_NEW_VAULT_MODAL; this opens the dialog (OKF default — D2).
@@ -2960,12 +3037,12 @@ export function App() {
   // user saw the dim backdrop bleeding into pane edges but the palette
   // body was hidden behind the still-visible page content.
   //
-  // Sprint 11 ENH-096 B.4 — VaultQuickSwitcher (⌘O) gets the same
-  // treatment. ENH-208 (D22) — VaultSearchPalette (⌘⇧F) joins the
-  // set. Any overlay open → mute WCVs.
+  // ENH-221 — the merged Open bar (⌘O) gets the same WCV-mute treatment.
+  // ENH-208 (D22) — VaultSearchPalette (⌘⇧F) joins the set. Any overlay
+  // open → mute WCVs.
   useEffect(() => {
-    window.electron.browser.setOverlayMuted(tabSearchOpen || vaultQuickSwitcherOpen || vaultSearchOpen)
-  }, [tabSearchOpen, vaultQuickSwitcherOpen, vaultSearchOpen])
+    window.electron.browser.setOverlayMuted(tabSearchOpen || openBarOpen || vaultSearchOpen)
+  }, [tabSearchOpen, openBarOpen, vaultSearchOpen])
 
   // Sprint 11 ENH-096 B.4 — vault index for the ⌘O quick switcher.
   // Keyed off the active file's path; recomputes only on vault-root
@@ -3815,8 +3892,9 @@ export function App() {
     focusAuxPane: () => focusPane('aux'),
     // ENH-102 (Sprint 9) — ⌘⇧⌫ deletes the active file with confirm.
     deleteCurrentFile,
-    // Sprint 11 ENH-096 B.4 — ⌘O opens the vault quick switcher.
-    openVaultQuickSwitcher: () => setVaultQuickSwitcherOpen(true),
+    // ENH-221 D18 — ⌘O opens the merged Open bar (dispatch key unchanged so
+    // the existing ⌘O chord wiring routes here).
+    openVaultQuickSwitcher: () => setOpenBarOpen(true),
     // ENH-172 (Sprint 20) — ⌘⇧. toggles show-hidden-files. The View
     // menu accelerator owns this at the app-menu level; this is the
     // renderer-side fallback. nav.toggleShowDotfiles flips the hook
@@ -4493,12 +4571,19 @@ export function App() {
       <CloneModal
         open={cloneModalOpen}
         defaultParent={cloneModalDefaultParent ?? nav.state.cwd ?? null}
+        defaultUrl={cloneModalUrl}
+        openAfterRelPath={cloneModalOpenAfter}
         onClose={() => {
           setCloneModalOpen(false)
           setCloneModalDefaultParent(null)
+          setCloneModalUrl(null)
+          setCloneModalOpenAfter(null)
         }}
         onCloned={(clonedTo) => {
           nav.actions.navigateTo(clonedTo)
+        }}
+        onOpenAfter={(absPath) => {
+          void openFileSmart(absPath, absPath.replace(/\/+$/, '').split('/').pop() || absPath)
         }}
       />
       {/* ENH-216 (U7) — File → New Vault… modal. Pure-UI complement to the
@@ -5027,29 +5112,19 @@ export function App() {
           </div>
         </div>
       </div>
-      {/* Sprint 11 ENH-096 B.4 — VaultQuickSwitcher overlay (⌘O).
-          Mounted parallel to TabSearchPalette so the same z-index
-          rules apply. Sources its file list from the vault index
-          keyed off the active file's path. */}
-      <VaultQuickSwitcher
-        open={vaultQuickSwitcherOpen}
+      {/* ENH-221 D18 — the merged Open bar (⌘O) replaces VaultQuickSwitcher.
+          Mounted parallel to TabSearchPalette so the same z-index + WCV
+          overlay-mute rules apply. Fuzzy-find sources the same vault index
+          (keyed off the active file's path); every open routes through
+          openResolvedTarget so the bar, the File ▸ Open Recent menu, and
+          `duo open` share one open path (+ one Open Recent store). */}
+      <OpenBar
+        open={openBarOpen}
         files={vaultIndexForSwitcher.files}
         loading={vaultIndexForSwitcher.loading}
         vaultRoot={vaultIndexForSwitcher.vaultRoot}
-        onPick={(file) => {
-          setVaultQuickSwitcherOpen(false)
-          const name = file.basename + (file.ext ? '.' + file.ext : '')
-          void openFileSmart(file.absPath, name)
-          // Sprint 11 walk-3 fix — when ⌘O Enter picks a file, the
-          // overlay's input loses focus on unmount. Without an
-          // explicit reclaim, OS-level focus can land on document.
-          // body before openFile's rAF chain runs, so the contenteditable.
-          // focus() succeeds at the DOM layer but the user perceives
-          // the new tab as "background." Same fix shape as BUG-103
-          // (⌘T URL-bar focus).
-          window.electron.keyboard?.reclaimFocus?.()
-        }}
-        onDismiss={() => setVaultQuickSwitcherOpen(false)}
+        onOpenTarget={(rawTarget) => { void openResolvedTarget(rawTarget) }}
+        onDismiss={() => setOpenBarOpen(false)}
       />
       {/* ENH-208 Phase 2 (D22) — VaultSearchPalette overlay (⌘⇧F).
           Full-text search over the UI-resolved vault via the vault

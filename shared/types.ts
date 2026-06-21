@@ -52,6 +52,9 @@ export interface DuoResponse {
 export type DuoCommandName =
   | 'navigate'
   | 'open'
+  // ENH-221 D14 — list the Open Recent store (last ~10 Open-bar targets).
+  // The CLI twin of File ▸ Open Recent + the empty-bar recents list.
+  | 'recent'
   // Stage 20 — `duo reload` reloads the active browser tab in place.
   // Pair for `navigate` that doesn't require a URL.
   | 'reload'
@@ -1753,6 +1756,34 @@ export interface HomeSessionActionResult {
   externalLive?: boolean
 }
 
+// ── ENH-221 — Open bar: Open Recent (D14) + native Browse… (D17) ─────────────
+
+/** What an Open Recent entry points at. Mirrors the resolver's kinds, but
+ *  flattened (a recent doesn't need the parsed owner/repo/ref — re-resolved
+ *  live from `target` on reopen). Canonical home for `OpenRecentsService`. */
+export type RecentKind = 'local' | 'github-file' | 'github-repo' | 'url'
+
+/** One Open Recent pointer (no mirrored content — CLAUDE.md §12). `target`
+ *  is the identity key (the raw path/URL the user opened); it re-runs through
+ *  the resolver on click so a missing target self-heals. */
+export interface RecentEntry {
+  /** The raw target string the user opened (path or URL). Identity key. */
+  target: string
+  /** Friendly display label (e.g. "roadmap.md" or "o/r › README.md"). */
+  label: string
+  kind: RecentKind
+  /** Epoch ms of the most recent open. */
+  lastOpenedAt: number
+}
+
+/** Result of the native Browse… picker (D17): a single picked path plus
+ *  whether it's a file (→ open in viewer) or a directory (→ root the
+ *  navigator). `null` when the user cancels the dialog. */
+export interface BrowseResult {
+  path: string
+  kind: 'file' | 'directory'
+}
+
 // ── IPC channel names (renderer ↔ main) ─────────────────────────────────────
 
 export const IPC = {
@@ -2350,6 +2381,25 @@ export const IPC = {
   // default format — D2). Mirrors NAV_OPEN_CLONE_MODAL's menu-trigger
   // pattern.
   NAV_OPEN_NEW_VAULT_MODAL: 'nav:open-new-vault-modal',
+  // ENH-221 D1/D18 — main → renderer push from the File → Open… menu
+  // entry. Renderer opens the merged Open bar (the ⌘O surface). Mirrors
+  // NAV_OPEN_CLONE_MODAL's menu-trigger pattern.
+  NAV_OPEN_BAR: 'nav:open-bar',
+  // ENH-221 D14 — main → renderer push from a File → Open Recent submenu
+  // item. Carries the recent `target` string; the renderer re-resolves it
+  // through the same Open-bar open path (local → openFileSmart, url →
+  // browser pane, github → clone). Keeps one open code path.
+  NAV_OPEN_BAR_REOPEN: 'nav:open-bar-reopen',
+  // ENH-221 D17 — renderer → main native file/folder picker (Browse…).
+  // Returns a BrowseResult ({ path, kind } | null). Single dialog with
+  // both openFile + openDirectory enabled.
+  OPEN_BROWSE: 'open:browse',
+  // ENH-221 D14 — Open Recent store (machine-global pointers). list /
+  // record / clear, backed by a main-process OpenRecentsService singleton
+  // shared with the `duo open` socket handler (one writer, no races).
+  RECENTS_LIST: 'recents:list',
+  RECENTS_RECORD: 'recents:record',
+  RECENTS_CLEAR: 'recents:clear',
 
   // ENH-183 C5 — read banner title + user-message-count from the
   // Claude JSONL store. Renderer → main; main consults JSONL only
