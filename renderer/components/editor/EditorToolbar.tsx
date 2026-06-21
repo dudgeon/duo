@@ -29,11 +29,14 @@ interface Props {
    *  per-app by the host). */
   autosaveOn: boolean
   onToggleAutosave: () => void
+  /** ENH-221 — open the file version-history modal ("the richer rewind").
+   *  Distinct from undo/redo: a cross-session timeline + restore-any-point. */
+  onShowHistory?: () => void
 }
 
 export function EditorToolbar({
   actions, onSave, dirty, saving,
-  saveError, autosaveOn, onToggleAutosave
+  saveError, autosaveOn, onToggleAutosave, onShowHistory
 }: Props) {
   // selectionVersion is consumed via the prop signature alone — the
   // mere change of value triggers React to re-render this component,
@@ -137,6 +140,11 @@ export function EditorToolbar({
         <Btn onMouseDown={() => actions.redo()} disabled={!actions.canRedo()} title="Redo (⌘⇧Z)">
           <span className="text-xs">↷</span>
         </Btn>
+        {onShowHistory && (
+          <Btn onMouseDown={onShowHistory} title="Version history">
+            <span className="text-xs">◷</span>
+          </Btn>
+        )}
 
         {extras && (extras.insertComponent || extras.toggleViewSource || extras.toggleLock) && (
           <>

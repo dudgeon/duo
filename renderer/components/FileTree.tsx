@@ -22,6 +22,7 @@ import { createPortal } from 'react-dom'
 import type { DirEntry, MenuTemplateItem, NavPinEntry, GitStatusSnapshot } from '@shared/types'
 import { formatGitStatusChip, formatGitStatusTooltip, repoBasenameFor } from '@shared/host-api'
 import type { WorktreeInfo } from '@shared/host-api'
+import { slugifyWorktreeName, generateWorktreeCodename } from '@shared/worktree-slug'
 import { projectColorToken } from '../projectColors'
 import { isClaudeContextPath } from './claudeContextPath'
 import type { NavigatorState, NavigatorActions } from '../hooks/useNavigator'
@@ -162,7 +163,11 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
     const refresh = async () => {
       try {
         const list = await window.electron.git.worktrees(state.cwd)
-        if (!cancelled) setWorktrees(list.length > 1 ? list : [])
+        // ENH-222 — store the full list (was: only when >1, since the
+        // dropdown used to be gated on linked worktrees). The pill is now an
+        // always-on trigger, so a lone main checkout must still show its
+        // current row in the dropdown (not an empty "Switch worktree · 0").
+        if (!cancelled) setWorktrees(list)
       } catch {
         if (!cancelled) setWorktrees([])
       }
@@ -205,14 +210,33 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
   // gets an inline chip on its row. Independent of the ribbon: the
   // ribbon fires when CWD-itself is in a repo; the per-folder chips
   // fire on CHILD-FOLDERS that are repos.
+  // ENH-222 (D6) — feed the navigator the CURRENT linked worktree's
+  // identity while it's alive, so its self-heal can revert to MAIN (not a
+  // path ancestor) and raise the "back on main" banner if the agent removes
+  // this worktree under-foot.
+  useEffect(() => {
+    if (rootEntriesOverride !== undefined) return
+    if (gitSnap?.isLinkedWorktree && gitSnap.workTreeRoot && gitSnap.mainWorktreeRoot) {
+      const label = gitSnap.workTreeRoot.split('/').filter(Boolean).pop() || gitSnap.branch || 'worktree'
+      actions.setWorktreeRevertTarget({
+        worktreeRoot: gitSnap.workTreeRoot,
+        mainRoot: gitSnap.mainWorktreeRoot,
+        label
+      })
+    } else {
+      actions.setWorktreeRevertTarget(null)
+    }
+    // actions is stable (useNavigator callbacks); gitSnap fields are the signal.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gitSnap?.isLinkedWorktree, gitSnap?.workTreeRoot, gitSnap?.mainWorktreeRoot, gitSnap?.branch, rootEntriesOverride])
+
   const repoName = repoBasenameFor(gitSnap?.workTreeRoot ?? null)
   const chipTooltip = gitSnap ? formatGitStatusTooltip(gitSnap, repoName) : ''
 
-  // ENH-210 (D4) — ribbon-as-trigger derivations. The ribbon becomes a
-  // dropdown trigger only when the repo has linked worktrees; it tints
-  // to the CURRENT checkout's hue (linked only — main stays uncolored,
-  // the locked baseline).
-  const hasLinkedWorktrees = worktrees.length > 1
+  // ENH-210 (D4) + ENH-222 — the ribbon is the worktree dropdown trigger.
+  // ENH-222 made it ALWAYS clickable (even on a lone main checkout) so the
+  // "+ New worktree" create row is reachable. It tints to the CURRENT
+  // checkout's hue (linked only — main stays uncolored, the locked baseline).
   const currentWorktree = worktrees.find((w) => w.isCurrent)
   const currentWorktreeHue = currentWorktree && !currentWorktree.isMain
     ? projectColorToken(currentWorktree.colorIndex)
@@ -862,6 +886,29 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
           user can see where the .git lives (helps when the ribbon
           surprises them by showing in a directory they didn't realize
           was a git repo). */}
+      {/* ENH-222 (D5) — worktree-removed recovery banner. Shown after the
+          navigator auto-reverts to main because the viewed worktree was
+          removed under-foot. Dismissible; also auto-clears on any navigate. */}
+      {state.removedWorktree && (
+        <div
+          role="status"
+          className="mx-2 mt-2 flex items-start gap-2 rounded-lg border border-l-[3px] px-2.5 py-2 text-[11px] text-[#D8CDB4]"
+          style={{ background: '#2a201a', borderColor: '#6b3f2a', borderLeftColor: '#E08F4A' }}
+        >
+          <span aria-hidden="true" className="shrink-0 text-[#E08F4A]" style={{ lineHeight: 1.3 }}>⎇</span>
+          <div className="flex-1 leading-snug">
+            <span className="font-medium text-[#F4ECD8]">Worktree “{state.removedWorktree.label}” was removed</span> — you’re back on main.
+          </div>
+          <button
+            type="button"
+            onClick={() => actions.dismissRemovedWorktree()}
+            aria-label="Dismiss"
+            className="shrink-0 text-[#A89B80] transition-colors hover:text-[#F4ECD8]"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       {gitChip && isInRepo && gitSnap?.workTreeRoot && (
         <div ref={worktreeMenuRef} className="relative mx-2 mt-2 mb-1">
           {/* ENH-210 (D4) → navigator pill ("Navigator: Claude-context
@@ -875,27 +922,22 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
               does NOT push the tree down); right-click keeps the repo
               context menu. */}
           <div
-            role={hasLinkedWorktrees ? 'button' : undefined}
-            aria-expanded={hasLinkedWorktrees ? worktreesOpen : undefined}
+            role="button"
+            aria-expanded={worktreesOpen}
             className={[
-              'px-3 py-1.5 text-[11px] font-mono text-ink-mute flex items-center gap-2 transition-colors hover:bg-paper-edge',
-              hasLinkedWorktrees ? 'cursor-pointer' : 'cursor-context-menu',
+              'px-3 py-1.5 text-[11px] font-mono text-ink-mute flex items-center gap-2 transition-colors hover:bg-paper-edge cursor-pointer',
               // Open: top-rounded with no bottom border so the overlay menu
               // joins seamlessly below; closed: a fully-rounded inset pill.
-              worktreesOpen && hasLinkedWorktrees ? 'rounded-t-lg border border-b-0 border-paper-rule' : 'rounded-lg border border-paper-rule'
+              worktreesOpen ? 'rounded-t-lg border border-b-0 border-paper-rule' : 'rounded-lg border border-paper-rule'
             ].join(' ')}
             style={{
               background: currentWorktreeHue
                 ? `color-mix(in srgb, ${currentWorktreeHue} 13%, var(--duo-paper-deep))`
                 : 'var(--duo-paper-deep)'
             }}
-            title={
-              hasLinkedWorktrees
-                ? `${chipTooltip}\n${gitSnap.workTreeRoot}\n\nClick to switch worktree`
-                : `${chipTooltip}\n${gitSnap.workTreeRoot}`
-            }
+            title={`${chipTooltip}\n${gitSnap.workTreeRoot}\n\nClick to switch or create a worktree`}
             data-duo-git-ribbon="1"
-            onClick={hasLinkedWorktrees ? () => setWorktreesOpen((o) => !o) : undefined}
+            onClick={() => setWorktreesOpen((o) => !o)}
             onContextMenu={(e) => {
               if (!gitSnap?.workTreeRoot) return
               const ribbonEntry: DirEntry = {
@@ -927,17 +969,28 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
             <span className="font-medium text-ink">{repoName || 'repo'}</span>
             <span className="text-ink-mute">·</span>
             <span className="truncate flex-1">{gitChip}</span>
-            {hasLinkedWorktrees && (
-              <span className="shrink-0 text-ink-ghost text-[8px] leading-none" aria-hidden="true">
-                {worktreesOpen ? '▲' : '▼'}
-              </span>
-            )}
+            <span className="shrink-0 text-ink-ghost text-[8px] leading-none" aria-hidden="true">
+              {worktreesOpen ? '▲' : '▼'}
+            </span>
           </div>
-          {worktreesOpen && hasLinkedWorktrees && (
+          {worktreesOpen && (
             <WorktreeDropdownBody
               worktrees={worktrees}
               onSwitch={(p) => { actions.navigateTo(p); setWorktreesOpen(false) }}
               onOpenInWindow={(p) => { void window.electron.nav.openWindowAt?.(p); setWorktreesOpen(false) }}
+              onCreateWorktree={async (name, startClaude) => {
+                // ENH-222 — create off the current repo, re-root the
+                // navigator into the new worktree, and (default) boot a
+                // Claude session there.
+                const res = await window.electron.git.createWorktree({ cwd: state.cwd, name })
+                if (!res?.ok || !res.path) {
+                  return { ok: false, error: res?.error ?? 'Could not create the worktree.' }
+                }
+                setWorktreesOpen(false)
+                actions.navigateTo(res.path)
+                if (startClaude) onOpenClaudeIn?.(res.path)
+                return { ok: true }
+              }}
             />
           )}
         </div>
@@ -977,11 +1030,13 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
 function WorktreeDropdownBody({
   worktrees,
   onSwitch,
-  onOpenInWindow
+  onOpenInWindow,
+  onCreateWorktree
 }: {
   worktrees: WorktreeInfo[]
   onSwitch: (path: string) => void
   onOpenInWindow: (path: string) => void
+  onCreateWorktree: (name: string, startClaude: boolean) => Promise<{ ok: boolean; error?: string }>
 }) {
   return (
     <div
@@ -1048,6 +1103,166 @@ function WorktreeDropdownBody({
           </div>
         )
       })}
+      {/* ENH-222 — the "+ New worktree" create row sits under the switch
+          list (divider-separated). Reachable even on a lone main checkout
+          since the pill is now an always-on trigger. */}
+      <WorktreeCreateRow onCreateWorktree={onCreateWorktree} />
+    </div>
+  )
+}
+
+// ENH-222 (D1 = Variant A) — the inline "+ New worktree" create affordance.
+// Collapsed: a single accent row. Click → it expands IN PLACE into a one-
+// line type-and-go form: name the work (with a live slug preview), "Name it
+// for me" (⚄) auto-names, Enter creates the worktree off main + (default)
+// boots a Claude session. The typed name is sanitized to a path/ref-safe
+// slug by the SAME `slugifyWorktreeName` the backend uses — no drift.
+function WorktreeCreateRow({
+  onCreateWorktree
+}: {
+  onCreateWorktree: (name: string, startClaude: boolean) => Promise<{ ok: boolean; error?: string }>
+}) {
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState('')
+  const [startClaude, setStartClaude] = useState(true)
+  const [showOptions, setShowOptions] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (open) inputRef.current?.focus()
+  }, [open])
+
+  const slug = slugifyWorktreeName(name)
+
+  const reset = () => {
+    setOpen(false)
+    setName('')
+    setErr(null)
+    setShowOptions(false)
+  }
+
+  const submit = async () => {
+    if (busy) return
+    setBusy(true)
+    setErr(null)
+    const finalName = slug || generateWorktreeCodename()
+    const res = await onCreateWorktree(finalName, startClaude)
+    if (!res.ok) {
+      setBusy(false)
+      setErr(res.error ?? 'Could not create the worktree.')
+      return
+    }
+    // success: the parent has closed the dropdown + re-rooted, which
+    // unmounts this row — intentionally no further setState.
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => setOpen(true)}
+        className="flex w-full items-center gap-2 border-t border-paper-rule px-3 py-1.5 text-left text-[12px] text-accent-ink transition-colors hover:bg-accent/10"
+      >
+        <span
+          aria-hidden="true"
+          className="flex h-[14px] w-[14px] shrink-0 items-center justify-center rounded bg-accent/20 text-[13px] leading-none text-accent-ink"
+        >
+          +
+        </span>
+        <span className="flex-1">New worktree…</span>
+        <span className="shrink-0 font-mono text-[9px] text-ink-ghost">start new work</span>
+      </button>
+    )
+  }
+
+  return (
+    <div className="border-t border-paper-rule px-3 py-2">
+      <div className="flex items-center gap-2">
+        <input
+          ref={inputRef}
+          value={name}
+          disabled={busy}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              void submit()
+            } else if (e.key === 'Escape') {
+              e.preventDefault()
+              reset()
+            }
+            // Keep typed keystrokes inside the field (the navigator tree has
+            // its own key handling) — but let Enter/Escape above act first.
+            e.stopPropagation()
+          }}
+          placeholder="Name this work…"
+          className="min-w-0 flex-1 rounded border border-paper-rule bg-paper-deep px-2 py-1 text-[12px] text-ink outline-none focus:border-accent"
+          aria-label="Name the new worktree"
+        />
+        <button
+          type="button"
+          title="Name it for me — Duo picks one"
+          onClick={() => setName(generateWorktreeCodename())}
+          disabled={busy}
+          className="shrink-0 rounded border border-paper-rule px-1.5 py-1 text-[11px] text-ink-soft transition-colors hover:border-accent hover:text-accent-ink"
+        >
+          ⚄
+        </button>
+      </div>
+      <div className="mt-1 flex items-center gap-1.5 font-mono text-[10px] text-ink-mute">
+        {slug ? (
+          <span className="truncate">
+            → creates <span className="text-ink-soft">claude/{slug}</span>
+          </span>
+        ) : (
+          <span className="text-ink-ghost">→ leave blank to auto-name</span>
+        )}
+        <span className="text-ink-ghost">·</span>
+        <button
+          type="button"
+          onClick={() => setShowOptions((o) => !o)}
+          className="shrink-0 text-ink-ghost transition-colors hover:text-ink-soft"
+        >
+          options {showOptions ? '▴' : '▾'}
+        </button>
+      </div>
+      {showOptions && (
+        <label className="mt-1.5 flex items-center gap-2 text-[11px] text-ink-soft">
+          <input
+            type="checkbox"
+            checked={startClaude}
+            onChange={(e) => setStartClaude(e.target.checked)}
+            style={{ accentColor: 'var(--duo-accent)' }}
+          />
+          Start a Claude session here
+        </label>
+      )}
+      {err && (
+        <div className="mt-1 text-[10px]" style={{ color: '#d9776a' }}>
+          {err}
+        </div>
+      )}
+      <div className="mt-2 flex gap-2">
+        <button
+          type="button"
+          onClick={() => void submit()}
+          disabled={busy}
+          className="flex-1 rounded bg-accent px-2 py-1 text-[12px] font-semibold text-[#1A1208] transition-opacity disabled:opacity-60"
+        >
+          {busy ? 'Creating…' : 'Create worktree'}
+        </button>
+        <button
+          type="button"
+          onClick={reset}
+          disabled={busy}
+          className="rounded border border-paper-rule px-2 py-1 text-[12px] text-ink-soft"
+        >
+          Cancel
+        </button>
+      </div>
     </div>
   )
 }

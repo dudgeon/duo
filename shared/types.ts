@@ -87,6 +87,10 @@ export type DuoCommandName =
   // read-only buffer search.
   | 'doc-goto'
   | 'doc-find'
+  // ENH-221 — durable local file version history. `duo history <sub> <path>`
+  // (sub ∈ list | show | restore) over the content-addressed store in
+  // ~/.claude/duo/file-history/. Single cmd; sub carried in args.sub.
+  | 'history'
   // Stage 11 § D33d — theme
   | 'theme'
   // Sprint 16 / v0.6.15 — Claude-tab Enter key preferences. Both
@@ -1826,6 +1830,10 @@ export const IPC = {
   FILES_LIST: 'files:list',
   FILES_READ: 'files:read',
   FILES_WRITE: 'files:write',            // Stage 11 — editor-driven save
+  // ENH-221 — durable file version history (renderer-facing; the History view).
+  HISTORY_LIST: 'history:list',
+  HISTORY_SHOW: 'history:show',
+  HISTORY_RESTORE: 'history:restore',
   FILES_OPEN_PATH: 'files:open-path',  // FOLLOWUP-026 — renamed from FILES_OPEN_EXTERNAL: this is shell.openPath for local file paths (NOT URLs)
   FILES_OPEN_EXTERNAL_URL: 'files:open-external-url',  // BUG-132 — shell.openExternal for http/https/mailto URLs (distinct from FILES_OPEN_PATH which opens local paths via shell.openPath)
   FILES_REVEAL_IN_FINDER: 'files:reveal-in-finder',
@@ -2246,6 +2254,9 @@ export const IPC = {
   // ENH-210 — list the worktrees of the repo at cwd. Powers the
   // navigator Worktrees section. renderer → main.
   GIT_WORKTREES: 'git:worktrees',
+  // ENH-222 — create a worktree (renderer → main). Powers the navigator
+  // "+ New worktree" inline-create form. Writes git state.
+  GIT_CREATE_WORKTREE: 'git:createWorktree',
   // ENH-182 — D2 marker probe. Returns true if `dir` contains a
   // CLAUDE.md file or a .claude/ directory (a project marker per
   // the project-as-filter-layer model). Renderer → main; called by

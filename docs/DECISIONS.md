@@ -814,6 +814,34 @@ Cross-references: ENH-141 (the predecessor; established SHIM_DIR-on-PATH but lef
 
 ---
 
+### Durable file version history — content-addressed store in Duo state, not slower autosave (ENH-221)
+
+**Status:** 🟢 Locked 2026-06-19 (ENH-221; engine + CLI ship this cycle, History-panel UI deferred). **Owner-approved** option (a) from the undo/save-state investigation.
+
+**Raised:** 2026-06-19 — credible user feedback: *"it is impossible to undo changes; this compounds with the speed at which autosave occurs, making it harder to manage changes."*
+
+**Investigation (what's actually broken).** In-editor undo is **not** mechanically broken. TipTap's `history` plugin is enabled (`MarkdownEditor.tsx`, StarterKit), `setContent(content, false)` only sets `preventUpdate` (it does NOT clear or suppress the undo history — verified against the pinned `@tiptap/core@2.27.2` source: it issues a normal undoable `tr.replaceWith`), autosave never calls `clearHistory`, and tabs stay mounted (`WorkingPane.tsx` `key={tab.id}` + `display:none`, BUG-046) so undo survives tab switches. What *is* broken is **architectural**: with an 800ms autosave the file is always "saved", so the classic unsaved-buffer safety net is gone, and the in-editor undo stack is the only recourse — and it is volatile (in-memory, capped, gone on tab close / file reopen / app restart). There is **no version/time-travel history** anywhere. Net felt experience: "I can't get my earlier content back."
+
+**Constraint (owner).** Do NOT slow autosave to fix this. A slower debounce *widens* the window where an agent reads a stale on-disk version and writes back over unsaved edits. Fast autosave is the right collision-safety call; the safety net must come from elsewhere.
+
+**Decision.** A durable, append-only, content-addressed **file version history**, captured independently of both the volatile undo stack and the autosave cadence.
+
+1. **Store location — Duo state, NOT a sidecar.** `~/.claude/duo/file-history/` (`index/<sha256(abspath)>.json` + per-file `blobs/<sha256(abspath)>/<contentHash>`), alongside `browser-history.json` / `workspace-history.json`. **§D9-clean:** it is a Duo-owned concept the filesystem doesn't track (permitted), and it is structurally incapable of drifting because it is a LOG of past states — it never claims to be current content. The live file on disk stays the sole source of truth for "now".
+2. **Capture off the save critical path.** `FilesService.write` mirrors the just-written bytes into `FileHistoryService.capture(...)` **fire-and-forget, after** the result is computed; `capture()` never throws. Zero added save latency — this is what lets autosave stay fast (honoring the constraint).
+3. **Coalescing, not throttle-skip.** Consecutive `save`-sourced captures within `COALESCE_WINDOW_MS` (90s) collapse into one moving checkpoint (latest wins); no-op saves (identical hash) are dropped; agent/restore/open captures are never coalesced (always distinct timeline points). Capped at `MAX_SNAPSHOTS_PER_FILE` (200) with orphan-blob GC. This bounds the "800ms autosave explodes the timeline" failure directly.
+4. **CLI is the spec.** `duo history <list|show|restore> <path> [<id>]` over the socket. `restore` routes back through `FilesService.write` (`historySource:'restore'`) so the restore is itself captured AND an open editor reconciles via the existing watcher (clean → reload; dirty → conflict banner).
+
+**v1 scope / deferred (tracked under ENH-221).** Ships: core engine + unit tests + capture wiring + CLI + 4-surface docs. Deferred: (a) the **History-panel UI** + per-version diff — surface shape (panel vs modal vs split vs inline timeline) is an OPEN owner UX choice, NOT silently decided; (b) capturing **external / raw-`Edit` writes** (those bypass `FilesService` and arrive via the chokidar watcher — a clean follow-up that has main read content on watch-change); (c) an **on-open baseline** capture (`source:'open'`).
+
+**Why not the alternatives.**
+- **Persist the TipTap undo stack across tab close/restart.** Narrower (fixes "lost my undo on close" but not "show me last Tuesday"); ProseMirror history isn't cleanly serializable. Kept as a possible complement, not the primary fix.
+- **Git-backed history.** Elegant when the file is in a repo, but undefined for the (common) non-repo file; the content-addressed Duo store is the drift-free general answer and matches existing `*-history` precedent.
+- **Sidecar `<file>.duo-history` next to the document.** Rejected — pollutes the user's tree and reintroduces the sidecar/portability problems §D9 guards against.
+
+Cross-references: `core/file-history-service.ts` (+ `.test.ts`), `electron/files-service.ts` (`write` capture hook + `historyService` field), `electron/main.ts` (instantiation/wiring), `core/socket-server.ts` (`case 'history'`), `cli/duo.ts` (`case 'history'`), CLAUDE.md locked-decision #12 / §D9 (no-sidecar litmus), BUG-046 (all-tabs-mounted, why undo survives tab switches), ENH-195 (the `useDiskReconciliation` watcher that makes `restore` echo-safe).
+
+---
+
 ## Open ADRs (pending decision)
 
 ### Sandbox-tolerant transport and install paths for the `duo` CLI

@@ -107,13 +107,26 @@ export function AuxBrowserSlot({
       })
     }
 
+    // BUG-209 — park the aux WCV off-screen while a full-viewport renderer
+    // modal is open (History modal, New Vault, Clone, …). The aux pane is a
+    // SECOND native WebContentsView; the main BrowserRenderer's park covered
+    // only the main pane, so a DOM modal stayed occluded by the aux WCV (and
+    // its footer Close was unclickable). Mirrors BrowserRenderer's park.
+    const park = () => {
+      window.electron.browser.setAuxBounds({ x: 0, y: 0, width: 1, height: 1 })
+    }
+
     send()
     const ro = new ResizeObserver(send)
     ro.observe(el)
     window.addEventListener('resize', send)
+    window.addEventListener('duo-wcv-park', park)
+    window.addEventListener('duo-wcv-restore', send)
     return () => {
       ro.disconnect()
       window.removeEventListener('resize', send)
+      window.removeEventListener('duo-wcv-park', park)
+      window.removeEventListener('duo-wcv-restore', send)
       // On unmount (split closed / browser unpinned), shrink the aux
       // slot to 1×1 so the now-stale aux bounds don't leave the WCV
       // visible over whatever takes the aux pane's place. Symmetric

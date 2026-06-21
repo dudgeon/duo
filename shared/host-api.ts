@@ -229,7 +229,14 @@ export interface ElectronFilesAPI {
   read: (path: string) => Promise<FileReadResult>
   /** Stage 11 — write a file atomically (tmp + rename). Creates parent dirs
    *  if needed. Caller sends raw bytes. */
-  write: (path: string, bytes: Uint8Array) => Promise<FileWriteResult>
+  write: (
+    path: string,
+    bytes: Uint8Array,
+    // ENH-221 — tag the version-history capture. Omit (default 'save') for
+    // user edits; 'agent' for Duo-mediated agent writes; 'restore' for a
+    // history restore. Drives the History timeline's "who" column.
+    opts?: { historySource?: FileHistorySnapshot['source'] }
+  ) => Promise<FileWriteResult>
   /** FOLLOWUP-026 — renamed from openExternal: opens a local file
    *  path via shell.openPath (the OS picks the default app for that
    *  extension). Distinct from openExternalUrl which is for URLs. */
@@ -579,6 +586,27 @@ export interface ElectronClaudeKeyPrefsAPI {
  *  ElectronThemeAPI: renderer owns localStorage; main caches the
  *  current value via pushState so `duo author` can read without a
  *  renderer round-trip; CLI overrides re-broadcast via onSet. */
+/** ENH-221 — durable file version history. One snapshot per captured content
+ *  state (structurally mirrors core/file-history-service.ts `Snapshot`; kept
+ *  here so shared/ stays self-contained — the renderer modal imports the
+ *  canonical type from core for its own use). */
+export interface FileHistorySnapshot {
+  id: string
+  ts: number
+  hash: string
+  size: number
+  source: 'save' | 'agent' | 'restore' | 'open' | 'external'
+}
+export interface ElectronHistoryAPI {
+  /** Chronological snapshots (oldest → newest) for a file; [] if none. */
+  list: (path: string) => Promise<FileHistorySnapshot[]>
+  /** The content of a snapshot, or null if the id is unknown. */
+  show: (path: string, id: string) => Promise<string | null>
+  /** Write a snapshot's content back through the normal save path
+   *  (captured as source 'restore'); null if the id is unknown. */
+  restore: (path: string, id: string) => Promise<{ ok: boolean; size?: number } | null>
+}
+
 export interface ElectronAuthorAPI {
   pushState: (snapshot: AuthorStateSnapshot) => void
   onSet: (cb: (author: string) => void) => () => void
@@ -1026,6 +1054,8 @@ export interface ElectronAPI {
   pty: ElectronPtyAPI
   browser: ElectronBrowserAPI
   files: ElectronFilesAPI
+  // ENH-221 — durable file version history (the History view).
+  history: ElectronHistoryAPI
   nav: ElectronNavAPI
   editor: ElectronEditorAPI
   canvas: ElectronCanvasAPI
@@ -1282,6 +1312,21 @@ export interface WorktreeInfo {
   behind?: number
 }
 
+/** ENH-222 — result of creating a worktree (`createWorktree` / the
+ *  `git:createWorktree` IPC / `duo worktree new`). Never throws; `ok`
+ *  false carries a user-facing `error`. */
+export interface CreateWorktreeResult {
+  ok: boolean
+  /** Absolute path of the new worktree (also set on a failed `add` so the
+   *  caller can report what it tried). */
+  path?: string
+  /** Full branch name created, e.g. `claude/q3-pricing-copy-v2`. */
+  branch?: string
+  /** The resolved slug (after sanitize + collision suffix). */
+  slug?: string
+  error?: string
+}
+
 /**
  * ENH-152a v2 — compose the Navigator chip's display string. Locked
  * owner decisions (v0.7.0-rev2/rev3 gates):
@@ -1382,6 +1427,12 @@ export interface ElectronGitAPI {
    *  first, the cwd's worktree flagged `isCurrent`). Powers the
    *  navigator Worktrees section. Returns [] for non-repos. */
   worktrees(cwd: string): Promise<WorktreeInfo[]>
+  /** ENH-222 — create a new worktree off `fromRef` (default: the repo's
+   *  main branch) under `<repo>/.claude/worktrees/<slug>` on branch
+   *  `claude/<slug>`, `name` sanitized to a path/ref-safe slug. Powers the
+   *  navigator's "+ New worktree" inline-create form. Never rejects;
+   *  resolves `{ ok:false, error }` on failure. */
+  createWorktree(req: { cwd: string; name: string; fromRef?: string }): Promise<CreateWorktreeResult>
   /** ENH-151 — clone a GitHub repo via gh / git. Used by the
    *  File → Clone… modal. */
   clone(req: CloneRequest): Promise<CloneResult>

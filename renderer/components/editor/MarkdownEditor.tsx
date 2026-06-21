@@ -34,6 +34,7 @@ import { Markdown } from 'tiptap-markdown'
 import type { Editor } from '@tiptap/react'
 
 import { EditorToolbar } from './EditorToolbar'
+import { HistoryModal } from './HistoryModal'
 import { SuggestingBanner } from './SuggestingBanner'
 import { UnifiedAnnotationRail } from './UnifiedAnnotationRail'
 import { collectTrackedChanges, countTrackedChanges, type TrackedRange } from './trackedChanges'
@@ -379,6 +380,8 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // but lives in component state so the toolbar re-renders on toggle.
   // Synced on file load + every toggle.
   const [suggestingMode, setSuggestingMode] = useState(false)
+  // ENH-221 — file version-history modal ("the richer rewind").
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [newCommentAt, setNewCommentAt] = useState<{
     commentId: string
     range: { from: number; to: number }
@@ -460,6 +463,12 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // newer tab open.
   const pathRef = useRef(path)
   pathRef.current = path
+
+  // ENH-221 — set when the next save's content originated from a Duo-mediated
+  // agent op (duo doc write/edit on the open buffer). The save reads it to tag
+  // the version-history capture 'agent' instead of 'save' (the "who" column),
+  // then clears it. User keystrokes leave it false → 'save'.
+  const agentWritePendingRef = useRef(false)
 
   // Track previous isNew so we can detect the new-file commit transition
   // (true \u2192 false) and hand keyboard focus to the prose, per D33f.
@@ -716,7 +725,14 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           return true
         }
 
-        const match = matchGlobalShortcut(e, { inEditableSurface: true })
+        // ENH-221 / v0.11.2 fix — pass inAnyTextInput:true. The editor IS a
+        // text-input surface, so chords gated on it (notably ENH-179's ⌘Z
+        // reopen-last-closed-tab) must DEFER to the editor's own handling.
+        // Omitting it made ⌘Z match reopen here → `return true` → ProseMirror's
+        // undo keymap never ran (the live "can't undo" the owner hit: undo
+        // button + ⌘⇧Z worked, ⌘Z dead). The document capture-phase listener
+        // already computes inAnyTextInput correctly; this mirrors it.
+        const match = matchGlobalShortcut(e, { inEditableSurface: true, inAnyTextInput: true })
         if (match) {
           // Don't let ProseMirror also act on it. The document
           // capture-phase listener has already fired and dispatched
@@ -1229,7 +1245,11 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
 
         const full = joinFrontmatter(frontmatterRef.current, body, eolRef.current)
         const bytes = encodeUtf8(full)
-        await window.electron.files.write(path, bytes)
+        // ENH-221 — tag the history capture 'agent' when this save carries
+        // agent-applied content; consume the flag so the next user edit is 'save'.
+        const historySource = agentWritePendingRef.current ? 'agent' : 'save'
+        agentWritePendingRef.current = false
+        await window.electron.files.write(path, bytes, { historySource })
         recon.noteSaved(body)
       }
 
@@ -2208,6 +2228,8 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
    *  (clean buffer) and the post-accept path (dirty buffer + accepted). */
   const applyDocWrite = useCallback((req: DocWriteRequest) => {
     if (!editor) return
+    // ENH-221 — this content is agent-authored; the ensuing autosave tags it 'agent'.
+    agentWritePendingRef.current = true
     try {
       if (req.mode === 'replace-all') {
         // Markdown text — tiptap-markdown reparses it into PM doc.
@@ -2376,6 +2398,8 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           })
           return
         }
+        // ENH-221 — agent-authored content; tag the ensuing save 'agent'.
+        agentWritePendingRef.current = true
         editor.commands.setContent(preprocessSubstitutions(res.body), true)
         editor.commands.markJustAdded(0, editor.state.doc.content.size)
         // Echo-safe save (routes through the recon hook). Fire-and-
@@ -2473,6 +2497,14 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         saveError={saveError}
         autosaveOn={autosaveOn}
         onToggleAutosave={toggleAutosave}
+        onShowHistory={isNew ? undefined : () => setHistoryOpen(true)}
+      />
+      {/* ENH-221 — version-history modal (additional rewind atop native Cmd+Z). */}
+      <HistoryModal
+        open={historyOpen}
+        path={pathRef.current}
+        onClose={() => setHistoryOpen(false)}
+        onRestored={() => editor?.commands.focus()}
       />
       {/* BUG-139 — Properties panel for YAML frontmatter. Always
           visible (collapsed or expanded) when the file has a

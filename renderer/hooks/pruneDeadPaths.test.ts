@@ -5,7 +5,28 @@
 // the whole chain is gone.
 
 import { describe, it, expect, vi } from 'vitest'
-import { findDeadExpandedPaths, nearestExistingAncestor } from './pruneDeadPaths'
+import { findDeadExpandedPaths, nearestExistingAncestor, pathIsWithin } from './pruneDeadPaths'
+
+// ENH-222 (D6) — the worktree-removal heal keys on pathIsWithin to decide
+// whether a dead cwd is the just-removed worktree (revert to its main) vs.
+// an unrelated dead path (ancestor fallback). The boundary case is the
+// regression risk: a sibling whose name PREFIXES the worktree's.
+describe('pathIsWithin', () => {
+  const wt = '/Users/me/duo/.claude/worktrees/q3-pricing'
+  it('matches the worktree root itself and any nested path', () => {
+    expect(pathIsWithin(wt, wt)).toBe(true)
+    expect(pathIsWithin(wt + '/src/index.ts', wt)).toBe(true)
+    expect(pathIsWithin(wt + '/', wt)).toBe(true)
+  })
+  it('does NOT match a sibling whose name prefixes the worktree', () => {
+    expect(pathIsWithin('/Users/me/duo/.claude/worktrees/q3-pricing-v2', wt)).toBe(false)
+    expect(pathIsWithin('/Users/me/duo/.claude/worktrees', wt)).toBe(false)
+    expect(pathIsWithin('/Users/me/other', wt)).toBe(false)
+  })
+  it('is false for an empty ancestor (no revert target captured)', () => {
+    expect(pathIsWithin(wt, '')).toBe(false)
+  })
+})
 
 describe('findDeadExpandedPaths', () => {
   it('returns paths whose probe resolved false', async () => {

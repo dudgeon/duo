@@ -20,7 +20,7 @@ import type { DuoRequest, DuoResponse } from '../shared/types'
 // read the vault — PRD Phase 4). Only `base render --open` / `vault
 // capture --open` reach the app (to surface a tab), and only when asked.
 import * as vault from '../core/vault'
-import { listWorktrees } from '../core/git/worktree'
+import { listWorktrees, createWorktree, removeWorktree } from '../core/git/worktree'
 
 // Injected at build time from package.json by scripts/build-cli.mjs via
 // esbuild `define`, so the CLI version always tracks the real release —
@@ -331,6 +331,13 @@ const VERBS: VerbSpec[] = [
     args: '[a|b|c]',
     summary: 'Read or set the Send → Duo payload format: a = quote + provenance (default), b = literal text only, c = opaque token. No arg prints current; an arg sets + persists.'
   },
+  {
+    name: 'history',
+    group: 'Markdown editor (doc)',
+    args: '<list|show|restore> <path> [<id>]',
+    summary:
+      'Durable version history for a saved file (independent of the editor undo stack). list <path> prints snapshots (id, ts, size, source) oldest→newest. show <path> <id> prints that version to stdout. restore <path> <id> writes that version back (echo-safe when the file is open; the editor reconciles). Backed by the content-addressed store in ~/.claude/duo/file-history/.'
+  },
 
   // ── HTML canvas ──
   {
@@ -486,8 +493,8 @@ const VERBS: VerbSpec[] = [
   {
     name: 'worktree',
     group: 'Repo & git',
-    args: '[list] [<path>]',
-    summary: 'List the git worktrees of the repo at <path> (defaults to the cwd) as JSON: [{ path, branch, head, isMain, isCurrent, detached, prunable, colorIndex }], main checkout first, the cwd\'s worktree flagged isCurrent. Reads git directly (no running app needed). Lets an agent see whether it is in a linked worktree vs the main checkout, and enumerate its siblings — the CLI twin of the navigator Worktrees section.'
+    args: '[list] [<path>] | new "<desc>" [--from <ref>] [--window] | remove <path> [--force]',
+    summary: 'List / create / remove the git worktrees of the repo at <path> (defaults to the cwd). `duo worktree [list] [<path>]` → JSON [{ path, branch, head, isMain, isCurrent, detached, prunable, colorIndex }], main checkout first, the cwd\'s worktree flagged isCurrent. `duo worktree new "<desc>" [--from <ref>] [--window]` → create a worktree off <ref> (default: the main branch) at <repo>/.claude/worktrees/<slug> on branch claude/<slug>, the description sanitized to a path/ref-safe slug (spaces→-, allow-list a–z 0–9 -); --window also opens it in a new Duo window. `duo worktree remove <path> [--force]` → git worktree remove (--force when the worktree is dirty). Reads/writes git directly (no running app needed, except --window). The CLI twin of the navigator Worktrees dropdown + its "+ New worktree" create (ENH-222).'
   },
 
   // ── Health & install ──
@@ -1839,6 +1846,46 @@ async function main(): Promise<void> {
         out(await send('external', { url }))
         break
       }
+      case 'history': {
+        // ENH-221 — `duo history <list|show|restore> <path> [<id>]`.
+        // Durable version history, independent of the editor's undo stack.
+        const sub = rest[0]
+        if (!sub || sub === '--help' || sub === '-h') {
+          die('Usage: duo history <list|show|restore> <path> [<id>]')
+        }
+        const target = rest[1]
+        if (!target) die(`Usage: duo history ${sub} <path>${sub === 'list' ? '' : ' <id>'}`)
+        const resolved = resolveFilePath(target)
+        if (sub === 'list') {
+          const res = (await send('history', { sub: 'list', path: resolved })) as {
+            ok: boolean; snapshots?: Array<Record<string, unknown>>; error?: string
+          }
+          if (!res.ok) die(res.error ?? 'history list failed')
+          const snaps = res.snapshots ?? []
+          if (snaps.length === 0) {
+            process.stderr.write(`# no version history for ${resolved}\n`)
+          } else {
+            // One JSON object per line — pipe-friendly for agents.
+            for (const s of snaps) process.stdout.write(JSON.stringify(s) + '\n')
+          }
+        } else if (sub === 'show') {
+          const id = rest[2]
+          if (!id) die('Usage: duo history show <path> <id>')
+          const res = (await send('history', { sub: 'show', path: resolved, id })) as {
+            ok: boolean; content?: string; error?: string
+          }
+          if (!res.ok) die(res.error ?? 'history show failed')
+          process.stdout.write(res.content ?? '')
+          if (res.content && !res.content.endsWith('\n')) process.stdout.write('\n')
+        } else if (sub === 'restore') {
+          const id = rest[2]
+          if (!id) die('Usage: duo history restore <path> <id>')
+          out(await send('history', { sub: 'restore', path: resolved, id }))
+        } else {
+          die(`Unknown history subcommand: ${sub} — try: list | show | restore`)
+        }
+        break
+      }
       case 'selection-format': {
         // `duo selection-format`           → print current state (JSON)
         // `duo selection-format <a|b|c>`   → set + print new state
@@ -2237,13 +2284,49 @@ async function main(): Promise<void> {
         break
       }
       case 'worktree': {
-        // ENH-210 — list the git worktrees of a repo. Reads git
-        // DIRECTLY (like the vault verbs) — no socket / running app
-        // needed, so it works from any terminal and inside a sandbox.
-        //   duo worktree [list] [<path>]   — defaults to the cwd.
-        // The optional 'list' subcommand is accepted for symmetry with
-        // future worktree subverbs; bare `duo worktree` lists too.
-        const args2 = rest[0] === 'list' ? rest.slice(1) : rest
+        // ENH-210 (list) + ENH-222 (new/remove) — list / create / remove
+        // git worktrees. Reads AND writes git DIRECTLY (like the vault
+        // verbs) — no socket / running app needed, so it works from any
+        // terminal and inside a sandbox. The exception is `new --window`,
+        // which additionally asks the app to open the worktree in a window.
+        const sub = rest[0]
+
+        if (sub === 'new') {
+          // duo worktree new "<desc>" [--from <ref>] [--window]
+          const subRest = rest.slice(1)
+          const desc = positionalArgs(subRest, ['--from'])[0]
+          if (!desc) die('Usage: duo worktree new "<description>" [--from <ref>] [--window]')
+          const fromRef = flagValue(subRest, '--from')
+          const res = await createWorktree(process.cwd(), { name: desc, fromRef })
+          if (!res.ok) die(res.error ?? 'duo worktree new failed')
+          // --window: also open the new worktree in a fresh Duo window
+          // (needs the running app). The worktree already exists either
+          // way, so a window failure is reported, not fatal.
+          if (subRest.includes('--window') && res.path) {
+            const wr = (await send('window', { action: 'new', cwd: res.path })) as { ok?: boolean; error?: string }
+            if (wr && wr.ok === false) {
+              out({ ...res, window: { ok: false, error: wr.error ?? 'could not open window (is "Allow Multiple Windows" enabled?)' } })
+              break
+            }
+          }
+          out(res)
+          break
+        }
+
+        if (sub === 'remove') {
+          // duo worktree remove <path> [--force]
+          const subRest = rest.slice(1)
+          const targetArg = positionalArgs(subRest)[0]
+          if (!targetArg) die('Usage: duo worktree remove <path> [--force]')
+          const targetPath = path.resolve(process.cwd(), targetArg)
+          const res = await removeWorktree(targetPath, { force: subRest.includes('--force') })
+          if (!res.ok) die(res.error ?? 'duo worktree remove failed')
+          out({ ok: true, removed: targetPath })
+          break
+        }
+
+        // Default: list. `duo worktree [list] [<path>]` — defaults to cwd.
+        const args2 = sub === 'list' ? rest.slice(1) : rest
         const target = args2[0]
           ? path.resolve(process.cwd(), args2[0])
           : process.cwd()

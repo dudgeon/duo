@@ -85,6 +85,7 @@ import { UpdateChecker } from '../core/update-checker'
 import { initAutoUpdater } from './auto-updater'
 import { SessionStateService } from '../core/session-state-service'
 import { SettingsService } from '../core/settings-service'
+import { FileHistoryService, type SnapshotSource } from '../core/file-history-service'
 import { WorkspaceFileService } from '../core/workspace-file-service'
 import { WorkspaceHistoryService } from '../core/workspace-history-service'
 import { ActiveWorkspaceService } from '../core/active-workspace-service'
@@ -423,6 +424,10 @@ app.on('open-file', (event, path) => {
 })
 const ptyManager = new PtyManager(app.getVersion())
 const filesService = new FilesService()
+// ENH-221 — durable version history. Every Duo-mediated write (editor autosave,
+// `duo doc` verbs, restores) is mirrored into ~/.claude/duo/file-history/.
+const fileHistoryService = new FileHistoryService()
+filesService.historyService = fileHistoryService
 const pinsService = new PinsService()
 const navPinsService = new NavPinsService()
 // ENH-182 Phase 3 — persisted projects.json (pins + color overrides).
@@ -2173,8 +2178,25 @@ function setupIPC(): void {
     return filesService.read(p)
   })
 
-  ipcMain.handle(IPC.FILES_WRITE, (_event, { path: p, bytes }: { path: string; bytes: Uint8Array }) => {
-    return filesService.write(p, bytes)
+  ipcMain.handle(IPC.FILES_WRITE, (_event, { path: p, bytes, historySource }: { path: string; bytes: Uint8Array; historySource?: SnapshotSource }) => {
+    return filesService.write(p, bytes, historySource ? { historySource } : {})
+  })
+
+  // ── File version history (ENH-221) ────────────────────────────────────────
+  ipcMain.handle(IPC.HISTORY_LIST, (_event, { path: p }: { path: string }) => {
+    return fileHistoryService.list(p)
+  })
+  ipcMain.handle(IPC.HISTORY_SHOW, async (_event, { path: p, id }: { path: string; id: string }) => {
+    const bytes = await fileHistoryService.read(p, id)
+    return bytes ? new TextDecoder().decode(bytes) : null
+  })
+  ipcMain.handle(IPC.HISTORY_RESTORE, async (_event, { path: p, id }: { path: string; id: string }) => {
+    const bytes = await fileHistoryService.read(p, id)
+    if (!bytes) return null
+    // Route through the normal save path so the restore is itself captured
+    // (source 'restore') and any open editor reconciles via the watcher.
+    const r = await filesService.write(p, bytes, { historySource: 'restore' })
+    return { ok: true, size: r.size }
   })
 
   ipcMain.handle(IPC.FILES_OPEN_PATH, (_event, { path: p }: { path: string }) => {
@@ -2506,6 +2528,17 @@ function setupIPC(): void {
     // ahead-behind chips, so enrich with status. The CLI `duo worktree`
     // calls listWorktrees directly (cheap, no status).
     return listWorktrees(cwd, { withStatus: true })
+  })
+
+  // ENH-222 — create a worktree (renderer → main). The navigator's
+  // "+ New worktree" inline-create form calls this; it writes git state
+  // via the same core function the CLI `duo worktree new` uses.
+  ipcMain.handle(IPC.GIT_CREATE_WORKTREE, async (
+    _event,
+    { cwd, name, fromRef }: { cwd: string; name: string; fromRef?: string }
+  ) => {
+    const { createWorktree } = await import('../core/git/worktree')
+    return createWorktree(cwd, { name, fromRef })
   })
 
   // ENH-182 — D2 marker probe (renderer → main). Returns true if

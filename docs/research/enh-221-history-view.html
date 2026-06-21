@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>ENH-221 — File version history: user-facing surface</title>
+<style>
+/* ── Atelier kernel (duo-atelier.css, inlined per CLAUDE.md §11) ───────── */
+:root{
+  --paper:#fbf8f1;--paper-deep:#f3ede0;--paper-edge:#e8e0cb;--paper-rule:#d9cea8;
+  --ink:#2b2620;--ink-soft:#4a4238;--ink-mute:#6f6557;--ink-ghost:#9a9080;
+  --accent:#c46a1c;--accent-soft:#f4d9b6;--pass:#4a7d3e;--fail:#b13e3a;--warn:#b07527;
+  --code-bg:#2b2823;--code-ink:#e8e0cb;
+  --project-pine:#2E7D74;--project-harbor:#3C6E93;--project-iris:#5B57A6;
+  --project-plum:#87508F;--project-rose:#A4506A;--project-moss:#69763A;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);
+  font-family:-apple-system,"SF Pro Text","Segoe UI",system-ui,sans-serif;font-size:14px;line-height:1.55;}
+body{padding:32px 40px 96px;max-width:920px;margin:0 auto;}
+header.page-head{border-bottom:1px solid var(--paper-rule);padding-bottom:16px;margin-bottom:24px;}
+header.page-head h1{font-family:"New York","Iowan Old Style",Georgia,serif;font-style:italic;font-weight:500;margin:0 0 4px;font-size:24px;}
+header.page-head .meta{color:var(--ink-mute);font-size:13px;}
+header.page-head .meta .pill{display:inline-block;padding:2px 8px;border-radius:10px;background:var(--accent-soft);color:var(--accent);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin-right:6px;}
+.intro{background:var(--paper-deep);border:1px solid var(--paper-rule);border-radius:6px;padding:14px 18px;margin-bottom:28px;font-size:13.5px;color:var(--ink-soft);}
+.intro strong{color:var(--ink);font-weight:600;}
+h2{font-family:"New York","Iowan Old Style",Georgia,serif;font-weight:600;margin:36px 0 12px;font-size:19px;border-bottom:1px solid var(--paper-rule);padding-bottom:6px;}
+h3{font-weight:600;margin:22px 0 8px;font-size:15px;}
+h4{margin:16px 0 6px;font-size:13.5px;}
+p{margin:8px 0;}ul,ol{margin:8px 0;padding-left:24px;}li{margin:4px 0;}
+code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12.5px;background:var(--paper-deep);padding:1px 5px;border-radius:3px;}
+.decision-card{background:var(--paper-deep);border:1.5px solid var(--paper-rule);border-radius:6px;padding:16px 18px;margin:18px 0;}
+.decision-card .q-title{font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--accent);margin:0 0 6px;}
+.decision-card .q-prompt{font-family:"New York","Iowan Old Style",Georgia,serif;font-weight:500;font-size:17px;color:var(--ink);margin:0 0 12px;line-height:1.35;}
+.decision-card .q-context{font-size:13px;color:var(--ink-mute);margin:0 0 14px;}
+.q-options{display:grid;grid-template-columns:1fr;gap:10px;margin:0 0 12px;}
+.q-option{display:block;background:var(--paper);border:1.5px solid var(--paper-rule);border-radius:5px;padding:10px 12px;cursor:pointer;transition:border-color .12s,background .12s;}
+.q-option:hover{border-color:var(--ink-ghost);}
+.q-option input[type="radio"]{margin-right:8px;cursor:pointer;accent-color:var(--accent);}
+.q-option:has(input[type="radio"]:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 6%,var(--paper));}
+.q-option-body{display:inline-block;vertical-align:top;width:calc(100% - 22px);}
+.q-option-title{font-weight:600;font-size:13.5px;color:var(--ink);margin:0 0 3px;}
+.q-option-title .recommend-tag{font-size:10px;background:var(--accent-soft);color:var(--accent);text-transform:uppercase;font-weight:700;letter-spacing:.04em;padding:1px 6px;border-radius:8px;margin-left:6px;}
+.q-option-rationale{font-size:12px;color:var(--ink-soft);line-height:1.45;margin:3px 0 0;}
+.q-notes{width:100%;background:var(--paper);border:1px solid var(--paper-rule);border-radius:4px;padding:8px 10px;font-family:inherit;font-size:12.5px;color:var(--ink);resize:vertical;min-height:50px;}
+.q-notes:focus{outline:1.5px solid var(--accent);}
+details.deferred{margin:22px 0;padding:12px 16px;background:var(--paper-deep);border:1px dashed var(--paper-rule);border-radius:6px;}
+details.deferred summary{cursor:pointer;font-weight:600;color:var(--ink-soft);font-size:13.5px;}
+details.deferred[open] summary{color:var(--ink);}
+details.deferred .deferred-body{margin-top:12px;font-size:13px;color:var(--ink-soft);}
+.copy-bar{position:sticky;bottom:0;margin:32px -40px -96px;padding:16px 40px;background:color-mix(in srgb,var(--paper-deep) 96%,transparent);border-top:1.5px solid var(--paper-rule);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;justify-content:space-between;align-items:center;gap:16px;}
+.copy-bar .copy-meta{font-size:12.5px;color:var(--ink-soft);}
+.copy-bar #answered-count{color:var(--accent);font-weight:700;}
+.copy-bar button{background:var(--accent);color:#fff;border:none;border-radius:5px;padding:9px 18px;font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;transition:background .12s;}
+.copy-bar button:hover{background:color-mix(in srgb,black 8%,var(--accent));}
+.copy-bar button.copied{background:var(--pass);}
+
+/* ── Per-playground: surface mockups ──────────────────────────────────── */
+.options-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:14px 0 8px;}
+@media(max-width:760px){.options-grid{grid-template-columns:1fr;}}
+.option-card{border:1.5px solid var(--paper-rule);border-radius:8px;padding:14px;background:var(--paper-deep);}
+.option-card.recommended{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+.option-card h3{margin:0 0 2px;font-size:14px;}
+.option-card .tag{font-size:10px;text-transform:uppercase;letter-spacing:.04em;font-weight:700;color:var(--accent);}
+.option-card .blurb{font-size:12px;color:var(--ink-soft);margin:6px 0 10px;line-height:1.45;}
+.option-card .pc{font-size:11.5px;margin:2px 0;color:var(--ink-soft);}
+.option-card .pc b{font-weight:700;}
+.pro b{color:var(--pass);}.con b{color:var(--fail);}
+
+/* mini app-shell mockup */
+.mock{border:1px solid var(--paper-edge);border-radius:7px;overflow:hidden;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.07);margin-bottom:10px;}
+.mock-bar{height:20px;background:var(--paper-deep);border-bottom:1px solid var(--paper-edge);display:flex;align-items:center;gap:5px;padding:0 8px;}
+.tl-light{width:7px;height:7px;border-radius:50%;background:var(--ink-ghost);opacity:.5;}
+.mock-tabs{display:flex;gap:0;height:18px;font-size:9px;border-bottom:1px solid var(--paper-edge);background:var(--paper);}
+.mock-tab{padding:3px 9px;color:var(--ink-mute);border-right:1px solid var(--paper-edge);}
+.mock-tab.active{background:#fff;color:var(--ink);font-weight:600;box-shadow:inset 0 -2px 0 var(--accent);}
+.mock-body{display:flex;height:180px;position:relative;}
+.editor{flex:1;padding:12px 13px;background:#fff;overflow:hidden;}
+.ln{height:6px;border-radius:3px;background:var(--paper-edge);margin:7px 0;}
+.ln.h{height:9px;width:42%;background:var(--ink-ghost);opacity:.55;}
+.ln.add{background:color-mix(in srgb,var(--pass) 30%,#fff);}
+.ln.del{background:color-mix(in srgb,var(--fail) 30%,#fff);}
+
+/* timeline list (shared by rail / modal / aux) */
+.tl{padding:8px 0;}
+.tl-head{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-mute);padding:0 11px 7px;border-bottom:1px solid var(--paper-edge);display:flex;justify-content:space-between;align-items:center;}
+.tl-head .x{color:var(--ink-ghost);font-weight:400;}
+.tl-row{display:flex;gap:8px;padding:7px 11px;align-items:flex-start;border-bottom:1px solid color-mix(in srgb,var(--paper-edge) 60%,#fff);}
+.tl-row.sel{background:color-mix(in srgb,var(--accent) 8%,#fff);box-shadow:inset 2px 0 0 var(--accent);}
+.tl-dot{width:8px;height:8px;border-radius:50%;margin-top:3px;flex:none;}
+.you{background:var(--accent);}.agent{background:var(--project-iris);}.restored{background:var(--project-pine);}
+.tl-when{font-size:11px;font-weight:600;color:var(--ink);line-height:1.2;}
+.tl-meta{font-size:9.5px;color:var(--ink-mute);margin-top:1px;}
+.src{font-size:8.5px;text-transform:uppercase;letter-spacing:.03em;font-weight:700;padding:0 4px;border-radius:6px;margin-right:4px;color:#fff;}
+.src.you{background:var(--accent);}.src.agent{background:var(--project-iris);}.src.restored{background:var(--project-pine);}
+.btn-mini{font-size:9px;font-weight:600;color:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:1px 6px;margin-left:auto;background:color-mix(in srgb,var(--accent) 7%,#fff);white-space:nowrap;}
+
+/* A — right rail */
+.rail{width:158px;border-left:1px solid var(--paper-edge);background:var(--paper);flex:none;overflow:hidden;}
+
+/* B — modal */
+.scrim{position:absolute;inset:0;background:rgba(20,17,12,.45);display:flex;align-items:center;justify-content:center;}
+.modal{width:88%;height:86%;background:#fff;border-radius:7px;box-shadow:0 8px 24px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;}
+.modal-top{height:22px;border-bottom:1px solid var(--paper-edge);display:flex;align-items:center;justify-content:space-between;padding:0 10px;font-size:10px;font-weight:700;background:var(--paper-deep);}
+.modal-top .restore{font-size:9px;color:#fff;background:var(--accent);border-radius:4px;padding:2px 7px;font-weight:600;}
+.modal-mid{display:flex;flex:1;overflow:hidden;}
+.modal-list{width:150px;border-right:1px solid var(--paper-edge);background:var(--paper);overflow:hidden;}
+.modal-diff{flex:1;padding:11px 13px;background:#fff;}
+
+/* C — aux split */
+.divider{width:4px;background:var(--paper-deep);border-left:1px solid var(--paper-edge);border-right:1px solid var(--paper-edge);flex:none;}
+.aux{flex:1;background:#fff;overflow:hidden;display:flex;flex-direction:column;}
+
+/* D — popover */
+.chip{position:absolute;top:6px;right:8px;font-size:9px;font-weight:600;color:var(--ink-mute);background:var(--paper-deep);border:1px solid var(--paper-edge);border-radius:11px;padding:2px 8px;display:flex;align-items:center;gap:4px;}
+.chip .led{width:6px;height:6px;border-radius:50%;background:var(--pass);}
+.pop{position:absolute;top:24px;right:8px;width:184px;background:#fff;border:1px solid var(--paper-edge);border-radius:7px;box-shadow:0 6px 18px rgba(0,0,0,.18);overflow:hidden;z-index:2;}
+.pop-foot{font-size:9.5px;color:var(--accent);font-weight:600;text-align:center;padding:6px;border-top:1px solid var(--paper-edge);background:var(--paper);}
+
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-soft);margin:6px 0 0;}
+.legend span{display:inline-flex;align-items:center;gap:5px;}
+.legend i{width:9px;height:9px;border-radius:50%;display:inline-block;}
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>File version history — the user-facing surface</h1>
+  <div class="meta">
+    <span class="pill">ENH-221</span>
+    <span class="pill">Decision</span>
+    Engine + CLI landed (branch <code>claude/enh-221-file-history</code>). This decides the UI. · 2026-06-19
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> The version-history <em>engine</em> is built and on its branch: every
+  Duo-mediated save is snapshotted into a durable, append-only store, reachable today via
+  <code>duo history list / show / restore</code>. But a person can't <em>see</em> it yet — there's no UI, so
+  the original complaint ("I can't undo / manage my changes") isn't solved for an actual user.
+  This playground mocks up four candidate surfaces and asks you to pick one + a few interaction details.
+  Pick below, hit <strong>Copy decisions</strong>, paste back to Claude. The chosen surface gets built +
+  verified live (Electron) next.
+</div>
+
+<h2>What every version of this shows</h2>
+<p>All four surfaces render the same data — a reverse-chronological <strong>timeline of snapshots</strong>,
+each tagged by who wrote it. The differences are <em>where it lives</em> and <em>how much room it gets for a diff</em>.</p>
+<div class="legend">
+  <span><i class="you" style="background:var(--accent)"></i> <b>You</b> — your own saves (autosave checkpoints)</span>
+  <span><i class="agent" style="background:var(--project-iris)"></i> <b>Agent</b> — a Claude / <code>duo doc</code> write</span>
+  <span><i class="restored" style="background:var(--project-pine)"></i> <b>Restored</b> — a roll-back point</span>
+</div>
+
+<h2>Four candidate surfaces</h2>
+<div class="options-grid">
+
+  <!-- A · RAIL -->
+  <div class="option-card recommended">
+    <div class="tag">Recommended</div>
+    <h3>A · Right-side History rail</h3>
+    <div class="mock">
+      <div class="mock-bar"><span class="tl-light"></span><span class="tl-light"></span><span class="tl-light"></span></div>
+      <div class="mock-body">
+        <div class="editor">
+          <div class="ln h"></div><div class="ln"></div><div class="ln" style="width:88%"></div>
+          <div class="ln" style="width:74%"></div><div class="ln"></div><div class="ln" style="width:60%"></div>
+          <div class="ln" style="width:82%"></div><div class="ln" style="width:48%"></div>
+        </div>
+        <div class="rail">
+          <div class="tl">
+            <div class="tl-head">History <span class="x">×</span></div>
+            <div class="tl-row sel"><span class="tl-dot you"></span><div><div class="tl-when">2 min ago</div><div class="tl-meta"><span class="src you">You</span>+3 lines</div></div></div>
+            <div class="tl-row"><span class="tl-dot agent"></span><div><div class="tl-when">14 min ago</div><div class="tl-meta"><span class="src agent">Agent</span>rewrote ¶2</div></div></div>
+            <div class="tl-row"><span class="tl-dot you"></span><div><div class="tl-when">1 hr ago</div><div class="tl-meta"><span class="src you">You</span>−8 lines</div></div></div>
+            <div class="tl-row"><span class="tl-dot you"></span><div><div class="tl-when">Today 9:04</div><div class="tl-meta"><span class="src you">You</span>opened</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="blurb">A panel docked to the right of the editor (toggle from the toolbar / ⌘Y). Click a row to preview-diff it in place; Restore from the row.</div>
+    <div class="pc pro"><b>+</b> Non-occluding — stays beside your text; glanceable while you work.</div>
+    <div class="pc pro"><b>+</b> Familiar (VS Code Timeline, Notion, Google Docs side panel).</div>
+    <div class="pc con"><b>−</b> Narrow → diff is cramped (mitigate: click row = inline diff in the editor).</div>
+  </div>
+
+  <!-- B · MODAL -->
+  <div class="option-card">
+    <div class="tag">&nbsp;</div>
+    <h3>B · Full version-history modal</h3>
+    <div class="mock">
+      <div class="mock-bar"><span class="tl-light"></span><span class="tl-light"></span><span class="tl-light"></span></div>
+      <div class="mock-body">
+        <div class="editor">
+          <div class="ln h"></div><div class="ln"></div><div class="ln" style="width:80%"></div><div class="ln" style="width:66%"></div>
+        </div>
+        <div class="scrim">
+          <div class="modal">
+            <div class="modal-top"><span>Version history</span><span class="restore">Restore this version</span></div>
+            <div class="modal-mid">
+              <div class="modal-list">
+                <div class="tl">
+                  <div class="tl-row sel"><span class="tl-dot you"></span><div><div class="tl-when">2 min ago</div><div class="tl-meta"><span class="src you">You</span></div></div></div>
+                  <div class="tl-row"><span class="tl-dot agent"></span><div><div class="tl-when">14 min ago</div><div class="tl-meta"><span class="src agent">Agent</span></div></div></div>
+                  <div class="tl-row"><span class="tl-dot you"></span><div><div class="tl-when">1 hr ago</div><div class="tl-meta"><span class="src you">You</span></div></div></div>
+                </div>
+              </div>
+              <div class="modal-diff">
+                <div class="ln h"></div><div class="ln add" style="width:90%"></div><div class="ln"></div>
+                <div class="ln del" style="width:70%"></div><div class="ln add" style="width:84%"></div><div class="ln" style="width:55%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="blurb">A large overlay (Google-Docs-style): timeline on the left, full diff on the right, one big "Restore this version".</div>
+    <div class="pc pro"><b>+</b> Most room for a side-by-side diff; focused review.</div>
+    <div class="pc con"><b>−</b> Occludes the editor; heavyweight for a quick "undo last save".</div>
+    <div class="pc con"><b>−</b> Must park the WebContentsView (BUG-153 occlusion class).</div>
+  </div>
+
+  <!-- C · AUX SPLIT -->
+  <div class="option-card">
+    <div class="tag">&nbsp;</div>
+    <h3>C · Split-view aux pane</h3>
+    <div class="mock">
+      <div class="mock-bar"><span class="tl-light"></span><span class="tl-light"></span><span class="tl-light"></span></div>
+      <div class="mock-body">
+        <div class="editor" style="flex:1.1">
+          <div class="ln h"></div><div class="ln"></div><div class="ln" style="width:86%"></div>
+          <div class="ln" style="width:72%"></div><div class="ln"></div><div class="ln" style="width:58%"></div>
+        </div>
+        <div class="divider"></div>
+        <div class="aux">
+          <div class="mock-tabs"><div class="mock-tab">doc.md</div><div class="mock-tab active">History</div></div>
+          <div class="tl">
+            <div class="tl-row sel"><span class="tl-dot you"></span><div><div class="tl-when">2 min ago</div><div class="tl-meta"><span class="src you">You</span>+3</div></div></div>
+            <div class="tl-row"><span class="tl-dot agent"></span><div><div class="tl-when">14 min</div><div class="tl-meta"><span class="src agent">Agent</span></div></div></div>
+            <div class="tl-row"><span class="tl-dot you"></span><div><div class="tl-when">1 hr</div><div class="tl-meta"><span class="src you">You</span></div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="blurb">History opens as a tab in Duo's existing aux split pane — diff sits beside the live doc, reusing the split infrastructure.</div>
+    <div class="pc pro"><b>+</b> Side-by-side with the live doc; reuses shipped split-view plumbing.</div>
+    <div class="pc con"><b>−</b> Steals the aux slot (users also use it for files/browser); heavier gesture.</div>
+  </div>
+
+  <!-- D · POPOVER -->
+  <div class="option-card">
+    <div class="tag">&nbsp;</div>
+    <h3>D · Save-chip dropdown</h3>
+    <div class="mock">
+      <div class="mock-bar"><span class="tl-light"></span><span class="tl-light"></span><span class="tl-light"></span></div>
+      <div class="mock-body">
+        <div class="editor">
+          <div class="ln h"></div><div class="ln"></div><div class="ln" style="width:88%"></div>
+          <div class="ln" style="width:70%"></div><div class="ln"></div><div class="ln" style="width:62%"></div>
+        </div>
+        <div class="chip"><span class="led"></span>Saved ▾</div>
+        <div class="pop">
+          <div class="tl">
+            <div class="tl-row"><span class="tl-dot you"></span><div><div class="tl-when">2 min ago</div><div class="tl-meta"><span class="src you">You</span></div></div><span class="btn-mini">Restore</span></div>
+            <div class="tl-row"><span class="tl-dot agent"></span><div><div class="tl-when">14 min ago</div><div class="tl-meta"><span class="src agent">Agent</span></div></div><span class="btn-mini">Restore</span></div>
+            <div class="tl-row"><span class="tl-dot you"></span><div><div class="tl-when">1 hr ago</div><div class="tl-meta"><span class="src you">You</span></div></div><span class="btn-mini">Restore</span></div>
+          </div>
+          <div class="pop-foot">See full history…</div>
+        </div>
+      </div>
+    </div>
+    <div class="blurb">A lightweight popover hanging off the save-state chip: the last few checkpoints with inline Restore; a link to a fuller view.</div>
+    <div class="pc pro"><b>+</b> Lowest-friction; turns the always-visible save indicator into a safety net.</div>
+    <div class="pc con"><b>−</b> No room for a real diff/long timeline — needs one of A/B/C behind "See full history".</div>
+  </div>
+
+</div>
+
+<p style="font-size:12.5px;color:var(--ink-mute)">These aren't mutually exclusive — <strong>D pairs naturally with A</strong> (chip popover for the quick case, rail for the full timeline). The decision below is which one we <em>build first</em>.</p>
+
+<h2>Decisions</h2>
+
+<section class="decision-card">
+  <div class="q-title">Decision 1 · Primary surface</div>
+  <h3 class="q-prompt">Where does version history live?</h3>
+  <p class="q-context">The one we design + build + live-verify first. Others can follow.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d1-surface" value="A-rail">
+      <div class="q-option-body"><div class="q-option-title">A · Right-side History rail <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Non-occluding, glanceable, familiar; click-row drives an inline diff in the editor so the narrow width isn't a real constraint.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1-surface" value="B-modal">
+      <div class="q-option-body"><div class="q-option-title">B · Full version-history modal</div>
+      <div class="q-option-rationale">Best for a rich side-by-side diff and focused review; heavier, occludes the editor, needs WCV parking.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1-surface" value="C-aux">
+      <div class="q-option-body"><div class="q-option-title">C · Split-view aux pane</div>
+      <div class="q-option-rationale">Reuses shipped split plumbing, diff beside the live doc; but commandeers the aux slot users want for files/browser.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1-surface" value="D-popover">
+      <div class="q-option-body"><div class="q-option-title">D · Save-chip dropdown</div>
+      <div class="q-option-rationale">Lowest-friction quick-restore; too small for diff/long timeline alone — best as a companion to A.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1-surface" value="A+D">
+      <div class="q-option-body"><div class="q-option-title">A + D together</div>
+      <div class="q-option-rationale">Rail for the full timeline, chip popover for the one-click "undo my last save". Slightly more build; best end-state UX.</div></div></label>
+  </div>
+  <textarea class="q-notes" name="d1-notes" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 2 · What "Restore" does</div>
+  <h3 class="q-prompt">When the user restores an older version, what happens to the current content?</h3>
+  <p class="q-context">All routes are safe (the current state is itself a snapshot, so a restore is reversible). This is about the gesture.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d2-restore" value="overwrite-confirm">
+      <div class="q-option-body"><div class="q-option-title">Overwrite current, with a one-line confirm <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">"Restore this version? Your current content is saved to history first." Simplest mental model; one click; fully reversible.</div></div></label>
+    <label class="q-option"><input type="radio" name="d2-restore" value="tracked-diff">
+      <div class="q-option-body"><div class="q-option-title">Bring it in as tracked changes to accept/reject</div>
+      <div class="q-option-rationale">Reuses Suggesting mode — restore = a reviewable diff you accept line-by-line. Most control; more steps; only meaningful in the markdown editor.</div></div></label>
+    <label class="q-option"><input type="radio" name="d2-restore" value="open-readonly">
+      <div class="q-option-body"><div class="q-option-title">Open the old version in a read-only tab</div>
+      <div class="q-option-rationale">Never touches the live file — user copies what they want by hand. Safest, but doesn't really "restore".</div></div></label>
+  </div>
+  <textarea class="q-notes" name="d2-notes" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 3 · Row content</div>
+  <h3 class="q-prompt">How much does each timeline entry show?</h3>
+  <p class="q-context">More detail = more scannable, but a busier rail.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d3-row" value="standard">
+      <div class="q-option-body"><div class="q-option-title">Time + who + size delta <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">e.g. "2 min ago · You · +3 lines". Enough to find the right version at a glance without clutter. (Shown in the mockups.)</div></div></label>
+    <label class="q-option"><input type="radio" name="d3-row" value="minimal">
+      <div class="q-option-body"><div class="q-option-title">Time + who only</div>
+      <div class="q-option-rationale">Cleanest. Drop the size delta; rely on click-to-diff to see what changed.</div></div></label>
+    <label class="q-option"><input type="radio" name="d3-row" value="rich">
+      <div class="q-option-body"><div class="q-option-title">Time + who + delta + first-changed-line preview</div>
+      <div class="q-option-rationale">Most scannable ("…changed the title to X"); needs a cheap diff per row, busier UI.</div></div></label>
+  </div>
+  <textarea class="q-notes" name="d3-notes" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 4 · Diff display</div>
+  <h3 class="q-prompt">How do we show what changed in a selected version?</h3>
+  <p class="q-context">Drives how much diff machinery the first build needs.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d4-diff" value="inline">
+      <div class="q-option-body"><div class="q-option-title">Inline highlight in the editor <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Selecting a version paints adds/removes right in the doc (reuses the existing change-highlight + tracked-diff machinery). Works great with the narrow rail.</div></div></label>
+    <label class="q-option"><input type="radio" name="d4-diff" value="sidebyside">
+      <div class="q-option-body"><div class="q-option-title">Side-by-side (old | current)</div>
+      <div class="q-option-rationale">Classic two-column diff; clearest for big rewrites; wants the modal (B) or aux (C) for width.</div></div></label>
+    <label class="q-option"><input type="radio" name="d4-diff" value="none-v1">
+      <div class="q-option-body"><div class="q-option-title">No diff in v1 — preview + restore only</div>
+      <div class="q-option-rationale">Ship the timeline + preview + restore first; add diff in a follow-up. Fastest path to a usable safety net.</div></div></label>
+  </div>
+  <textarea class="q-notes" name="d4-notes" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<details class="deferred">
+  <summary>Context I'm carrying into this (engine facts + already-deferred items)</summary>
+  <div class="deferred-body">
+    <ul>
+      <li><strong>Already built (this branch):</strong> the store (<code>~/.claude/duo/file-history/</code>), capture on every Duo-mediated save (fire-and-forget, zero added save latency), 90s autosave coalescing, and <code>duo history list/show/restore</code>. The UI sits on top of these — no engine changes needed for A/B/C/D.</li>
+      <li><strong>Restore is always safe</strong> regardless of D2: it writes through the normal save path, so the pre-restore state is itself snapshotted and an open editor reconciles via the watcher.</li>
+      <li><strong>Still deferred (separate from this UI decision):</strong> capturing <em>external</em> / raw-<code>Edit</code> writes that bypass Duo (needs a watcher-side capture); an on-open baseline snapshot; <code>duo history diff</code> on the CLI.</li>
+      <li><strong>CLI parity:</strong> whatever the UI can do, the CLI already mostly mirrors (list/show/restore). A UI "diff" would want a matching <code>duo history diff</code>.</li>
+    </ul>
+  </div>
+</details>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 4 decisions answered</div>
+  <button id="copy-decisions" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function(){
+  var counter=document.getElementById('answered-count');
+  var button=document.getElementById('copy-decisions');
+  var QUESTIONS=[
+    {id:'d1-surface',title:'Decision 1 · Primary surface'},
+    {id:'d2-restore',title:'Decision 2 · What Restore does'},
+    {id:'d3-row',title:'Decision 3 · Row content'},
+    {id:'d4-diff',title:'Decision 4 · Diff display'}
+  ];
+  function refresh(){
+    var n=0;
+    for(var i=0;i<QUESTIONS.length;i++){
+      if(document.querySelector('input[name="'+QUESTIONS[i].id+'"]:checked'))n++;
+    }
+    counter.textContent=n+' / '+QUESTIONS.length;
+  }
+  document.addEventListener('change',refresh);
+  refresh();
+  function build(){
+    var L=[];
+    L.push('ENH-221 — FILE HISTORY UI SURFACE — DECISIONS ('+new Date().toISOString().slice(0,10)+')');
+    L.push('=================================================================');
+    L.push('');
+    for(var i=0;i<QUESTIONS.length;i++){
+      var q=QUESTIONS[i];
+      var c=document.querySelector('input[name="'+q.id+'"]:checked');
+      var v=c?c.value:'(no pick)';
+      var base=q.id.split('-')[0];
+      var notesEl=document.querySelector('textarea[name="'+base+'-notes"]');
+      var notes=notesEl?notesEl.value.trim():'';
+      L.push('['+v.toUpperCase()+'] '+q.title);
+      if(notes){var parts=notes.split('\n');for(var j=0;j<parts.length;j++)L.push('    '+parts[j]);}
+      L.push('');
+    }
+    L.push('---');
+    L.push('Source: docs/research/enh-221-history-view.html');
+    return L.join('\n');
+  }
+  button.addEventListener('click',async function(){
+    var payload=build();
+    try{
+      await navigator.clipboard.writeText(payload);
+      button.textContent='Copied!';button.classList.add('copied');
+      setTimeout(function(){button.textContent='Copy decisions';button.classList.remove('copied');},2000);
+    }catch(e){
+      button.textContent='Copy failed — select + copy manually';
+      console.error(e);
+    }
+  });
+})();
+</script>
+</body>
+</html>

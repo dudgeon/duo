@@ -263,12 +263,20 @@ const api: ElectronAPI = {
     }
   },
 
+  // ENH-221 — durable file version history (the History view).
+  history: {
+    list: (p) => ipcRenderer.invoke(IPC.HISTORY_LIST, { path: p }),
+    show: (p, id) => ipcRenderer.invoke(IPC.HISTORY_SHOW, { path: p, id }),
+    restore: (p, id) => ipcRenderer.invoke(IPC.HISTORY_RESTORE, { path: p, id })
+  },
+
   files: {
     list: (p) => ipcRenderer.invoke(IPC.FILES_LIST, { path: p }),
 
     read: (p) => ipcRenderer.invoke(IPC.FILES_READ, { path: p }),
 
-    write: (p, bytes) => ipcRenderer.invoke(IPC.FILES_WRITE, { path: p, bytes }),
+    write: (p, bytes, opts) =>
+      ipcRenderer.invoke(IPC.FILES_WRITE, { path: p, bytes, historySource: opts?.historySource }),
 
     openPath: (p) => ipcRenderer.invoke(IPC.FILES_OPEN_PATH, { path: p }),
 
@@ -946,6 +954,7 @@ const api: ElectronAPI = {
   git: {
     status: (cwd) => ipcRenderer.invoke(IPC.GIT_STATUS, { cwd }),
     worktrees: (cwd) => ipcRenderer.invoke(IPC.GIT_WORKTREES, { cwd }),
+    createWorktree: (req) => ipcRenderer.invoke(IPC.GIT_CREATE_WORKTREE, req),
     clone: (req) => ipcRenderer.invoke(IPC.GIT_CLONE, req),
     ghAuth: () => ipcRenderer.invoke(IPC.GH_AUTH_STATUS),
     githubUrlFor: (req) => ipcRenderer.invoke(IPC.GIT_GITHUB_URL_FOR, req),
