@@ -98,6 +98,8 @@ import {
   probeDiff,
   runShareBack,
 } from '../core/git/share-back'
+// ENH-224 Phase 3 — already-local detection (D6).
+import { matchLocalClone } from '../core/git/local-clone-match'
 import { WorkspaceFileService } from '../core/workspace-file-service'
 import { WorkspaceHistoryService } from '../core/workspace-history-service'
 import { ActiveWorkspaceService } from '../core/active-workspace-service'
@@ -2505,6 +2507,20 @@ function setupIPC(): void {
   // success; on auth-missing it shows the gh-auth bounce. Network/git work —
   // lives in main, off the (sandboxed) CLI.
   ipcMain.handle(IPC.OPEN_GITHUB_FILE, (_event, target: CheckoutTarget) => runManagedCheckout(target))
+
+  // ENH-224 Phase 3 (D6) — does the user already have this repo cloned (a
+  // navigator git-root project) with the file? Candidate roots = the projects
+  // rail's git roots. Returns the match (Open bar offers "open from your clone")
+  // or null (→ managed checkout). Git/fs reads; main, off the sandboxed CLI.
+  ipcMain.handle(IPC.OPEN_MATCH_LOCAL_CLONE, (_event, target: CheckoutTarget) => {
+    const candidateRoots = getProjectsState().projects.filter((p) => p.isGitRoot).map((p) => p.root)
+    return matchLocalClone({
+      owner: target.owner,
+      repo: target.repo,
+      filePath: target.filePath,
+      candidateRoots,
+    })
+  })
 
   // ENH-224 D14 — Open Recent store IPC. Backed by the `openRecents` singleton
   // (shared with `duo open` record-on-open). record/clear refresh the

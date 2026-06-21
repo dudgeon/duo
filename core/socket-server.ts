@@ -66,6 +66,8 @@ import type {
 // ENH-224 Phase 1 (CLI twin) — classify a `duo open` target so a github-file
 // URL routes to the managed checkout instead of the browser pane.
 import { deriveRecentEntry, resolveOpenTarget as classifyOpenTarget } from './open-resolve'
+// ENH-224 Phase 3 (D6) — prefer the user's existing local clone over a managed checkout.
+import { matchLocalClone } from './git/local-clone-match'
 import { SOCKET_PATH, PORT_FILE } from './constants'
 import { attentionForEvent } from './attention'
 
@@ -1017,6 +1019,41 @@ export class SocketServer {
           if (!resolvedLocally && this.nav.runManagedCheckout) {
             const classified = classifyOpenTarget(url)
             if (classified.kind === 'github-file') {
+              // ENH-224 Phase 3 (D6) — already-local detection. If the user has
+              // this repo cloned (a navigator git-root project) AND it has the
+              // file, prefer opening from THEIR clone over a redundant managed
+              // checkout — unless `--checkout` forces the opaque path. We only
+              // OPEN (never edit) their tree, and the share-back footer is gated
+              // to managed checkouts, so no surprise PR. The CLI prefers-local +
+              // reports the path; the UI offers the choice (matchLocalClone IPC).
+              let openedFromClone = false
+              if (args['checkout'] !== true) {
+                const candidateRoots = (this.nav.getProjectsState?.()?.projects ?? [])
+                  .filter((p) => p.isGitRoot)
+                  .map((p) => p.root)
+                if (candidateRoots.length > 0) {
+                  const match = await matchLocalClone({
+                    owner: classified.owner,
+                    repo: classified.repo,
+                    filePath: classified.filePath,
+                    candidateRoots,
+                  })
+                  if (match) {
+                    const editRes = this.nav.edit(match.fileAbsPath)
+                    if (editRes.ok) {
+                      this.nav.reveal(match.fileAbsPath)
+                      recentTargetOverride = classified.canonical
+                      result = {
+                        ok: true, url, routedTo: 'editor', via: 'local-clone',
+                        localClone: { root: match.root, fileAbsPath: match.fileAbsPath, branch: match.branch },
+                      }
+                      resolvedLocally = true
+                      openedFromClone = true
+                    }
+                  }
+                }
+              }
+              if (!openedFromClone) {
               const checkout = await this.nav.runManagedCheckout({
                 owner: classified.owner,
                 repo: classified.repo,
@@ -1059,6 +1096,7 @@ export class SocketServer {
                 result = { ok: false, error: hint, errorKind: checkout.errorKind }
                 break
               }
+              } // end if (!openedFromClone) — Phase 3 fell through to checkout
             }
           }
           let openedTabId: number | null = null

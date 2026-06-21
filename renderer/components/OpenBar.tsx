@@ -23,7 +23,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { rankVaultFiles } from './editor/vaultIndex'
 import type { VaultFile } from './editor/wikilinkResolver'
 import { classifyInput } from './openBarClassify'
-import type { RecentEntry, CheckoutTarget, CheckoutResult } from '@shared/types'
+import type { RecentEntry, CheckoutTarget, CheckoutResult, LocalCloneMatch } from '@shared/types'
 
 export interface OpenBarProps {
   /** Whether the overlay is currently visible. */
@@ -45,6 +45,11 @@ export interface OpenBarProps {
    *  CheckoutResult so the bar can show progress + the gh-auth bounce inline.
    *  Optional so the bar still renders if the host hasn't wired it. */
   onOpenGithubDoc?: (target: CheckoutTarget) => Promise<CheckoutResult>
+  /** ENH-224 Phase 3 (D6) — open the file from the user's EXISTING local clone
+   *  (modality 1: focus the folder + open the file), instead of a managed
+   *  checkout. The bar offers this as a third choice when the host's
+   *  matchLocalClone IPC finds a clone. Optional. */
+  onOpenLocalClone?: (fileAbsPath: string) => void
   /** Esc / outside-click / post-activation close. */
   onDismiss: () => void
 }
@@ -67,10 +72,13 @@ const KIND_GLYPH: Record<RecentEntry['kind'], string> = {
   url: '🔗',
 }
 
-export function OpenBar({ open, files, loading, vaultRoot, onOpenTarget, onOpenGithubDoc, onDismiss }: OpenBarProps) {
+export function OpenBar({ open, files, loading, vaultRoot, onOpenTarget, onOpenGithubDoc, onOpenLocalClone, onDismiss }: OpenBarProps) {
   const [query, setQuery] = useState('')
   const [activeIdx, setActiveIdx] = useState(0)
   const [recents, setRecents] = useState<RecentEntry[]>([])
+  // ENH-224 Phase 3 (D6) — the user's existing local clone of a pasted
+  // github-file's repo (or null). Fetched async when the input is a github-file.
+  const [localClone, setLocalClone] = useState<LocalCloneMatch | null>(null)
   // ENH-224 Phase 1 — the "open just this doc" checkout progress / error state.
   // null = idle; busy = pulling; error = the checkout failed (auth/other).
   const [checkout, setCheckout] = useState<
@@ -105,6 +113,24 @@ export function OpenBar({ open, files, loading, vaultRoot, onOpenTarget, onOpenG
         : [],
     [classified, files]
   )
+
+  // ENH-224 Phase 3 (D6) — when the input resolves to a github-file, ask main
+  // whether the repo is already cloned locally (a navigator git-root project)
+  // so the choice can offer "open from your clone". Cleared otherwise.
+  useEffect(() => {
+    const t = classified.mode === 'target' ? classified.target : null
+    if (!t || t.kind !== 'github-file' || !onOpenLocalClone) {
+      setLocalClone(null)
+      return
+    }
+    let cancelled = false
+    void Promise.resolve(
+      window.electron.open?.matchLocalClone?.({ owner: t.owner, repo: t.repo, ref: t.ref, filePath: t.filePath }) ?? null
+    )
+      .then((m) => { if (!cancelled) setLocalClone(m ?? null) })
+      .catch(() => { if (!cancelled) setLocalClone(null) })
+    return () => { cancelled = true }
+  }, [classified, onOpenLocalClone])
 
   // Fire an open + close. Every actionable row routes through here so the
   // host records the recent and we dismiss uniformly.
@@ -245,6 +271,10 @@ export function OpenBar({ open, files, loading, vaultRoot, onOpenTarget, onOpenG
       // the whole repo" routes through the visible clone flow. (The disabled
       // "Soon" state is the fallback when the host hasn't wired the checkout.)
       const docTarget: CheckoutTarget = { owner: t.owner, repo: t.repo, ref: t.ref, filePath: t.filePath }
+      // ENH-224 Phase 3 (D6) — captured for the closure; the row is only emitted
+      // when both are present, so the non-null access is sound.
+      const lc = localClone
+      const openClone = onOpenLocalClone
       return {
         hint: (
           <>
@@ -252,6 +282,19 @@ export function OpenBar({ open, files, loading, vaultRoot, onOpenTarget, onOpenG
           </>
         ),
         rows: [
+          // D6 — preferred when you already have the repo cloned locally.
+          ...(lc && openClone ? [{
+            key: 'gh-file-local-clone',
+            onActivate: () => { openClone(lc.fileAbsPath); onDismiss() },
+            node: (
+              <div className="duo-ob-choice">
+                <div className="duo-ob-choice-title">📁 Open from your local clone</div>
+                <div className="duo-ob-choice-desc">
+                  You already have <code>{t.owner}/{t.repo}</code> cloned at <code>{lc.root}</code>{lc.branch ? <> (on <code>{lc.branch}</code>)</> : null}. Opens your real file — your tree, your git, no checkout.
+                </div>
+              </div>
+            ),
+          }] : []),
           {
             key: 'gh-file-doc',
             disabled: !onOpenGithubDoc,
@@ -299,7 +342,7 @@ export function OpenBar({ open, files, loading, vaultRoot, onOpenTarget, onOpenG
       ],
       hint: null,
     }
-  }, [classified, recents, searchResults, vaultRoot, loading, files.length])
+  }, [classified, recents, searchResults, vaultRoot, loading, files.length, localClone, onOpenLocalClone, onDismiss])
 
   // Selectable rows = non-disabled, actionable rows. activeIdx indexes these.
   const activatable = useMemo(() => rows.filter((r) => r.onActivate && !r.disabled), [rows])

@@ -31,7 +31,7 @@ import type {
   CronJobView,
   TabAttentionPush,
   RecentEntry, BrowseResult,
-  CheckoutTarget, CheckoutResult,
+  CheckoutTarget, CheckoutResult, LocalCloneMatch,
   ShareBackStatus, ShareBackDiff, ShareBackResult, ShareBackCreateOpts,
 } from './types'
 
@@ -1155,6 +1155,10 @@ export interface ElectronOpenAPI {
    *  The renderer opens pointer.fileAbsPath + focuses checkoutDir on success;
    *  on auth-missing it shows the gh-auth bounce. */
   githubFile(target: CheckoutTarget): Promise<CheckoutResult>
+  /** ENH-224 Phase 3 (D6) — does the user already have a local clone of this
+   *  github-file's repo that contains the file? Returns the match (the Open bar
+   *  offers "open from your clone") or null (→ managed checkout). */
+  matchLocalClone(target: CheckoutTarget): Promise<LocalCloneMatch | null>
 }
 
 // ENH-224 D14 — Open Recent store. Pointers only (§12); resolved live on

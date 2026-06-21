@@ -462,6 +462,8 @@ const api: ElectronAPI = {
     pickDirectory: () => ipcRenderer.invoke(IPC.OPEN_PICK_DIR),
     // ENH-224 Phase 1 — "open just this doc" → managed checkout.
     githubFile: (target) => ipcRenderer.invoke(IPC.OPEN_GITHUB_FILE, target),
+    // ENH-224 Phase 3 (D6) — is the repo already cloned locally?
+    matchLocalClone: (target) => ipcRenderer.invoke(IPC.OPEN_MATCH_LOCAL_CLONE, target),
   },
 
   // ENH-224 D14 — Open Recent store (pointers; resolved live). Backed by a

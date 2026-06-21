@@ -2158,6 +2158,18 @@ export function App() {
     return res
   }, [openFileSmart, nav.actions])
 
+  // ENH-224 Phase 3 (D6) — open the file from the user's EXISTING local clone
+  // (modality 1): open it + focus its folder + record a LOCAL recent. We never
+  // check out the URL's ref / edit their branch — just open the file as-is.
+  const onOpenLocalClone = useCallback((fileAbsPath: string) => {
+    const name = fileAbsPath.replace(/\/+$/, '').split('/').pop() || fileAbsPath
+    void openFileSmart(fileAbsPath, name)
+    const dir = fileAbsPath.slice(0, fileAbsPath.lastIndexOf('/')) || '/'
+    nav.actions.navigateTo(dir)
+    void window.electron.recents?.record?.(deriveRecentEntry(fileAbsPath))?.catch(() => {})
+    window.electron.keyboard?.reclaimFocus?.()
+  }, [openFileSmart, nav.actions])
+
   const closeFileTab = useCallback((id: string) => {
     // ENH-212 — Home is the single non-closable surface (slot 0). This is
     // the ONE guard: ⌘W, the strip's close glyph (suppressed in
@@ -5144,6 +5156,7 @@ export function App() {
         vaultRoot={vaultIndexForSwitcher.vaultRoot}
         onOpenTarget={(rawTarget) => { void openResolvedTarget(rawTarget) }}
         onOpenGithubDoc={onOpenGithubDoc}
+        onOpenLocalClone={onOpenLocalClone}
         onDismiss={() => setOpenBarOpen(false)}
       />
       {/* ENH-208 Phase 2 (D22) — VaultSearchPalette overlay (⌘⇧F).

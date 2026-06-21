@@ -1922,6 +1922,20 @@ export interface ShareBackDiff {
   error?: string
 }
 
+// ── ENH-224 Phase 3 — already-local detection (D6) ──────────────────────────
+
+/** A user's existing local clone of the repo a github-file URL points at — the
+ *  modality-1 reuse target. Resolved live from navigator git-root projects;
+ *  we OFFER to open the file from here (never silently edit the user's tree). */
+export interface LocalCloneMatch {
+  /** The clone's work-tree root. */
+  root: string
+  /** Absolute path to the file inside the clone (root/filePath). */
+  fileAbsPath: string
+  /** The clone's current branch (informational). */
+  branch: string
+}
+
 /** Overrides the confirm sheet / `duo pr create` may pass on top of the D7
  *  prefill. */
 export interface ShareBackCreateOpts {
@@ -2550,6 +2564,11 @@ export const IPC = {
   // (depth-1 clone at the ref into the opaque managed home). Returns a
   // CheckoutResult; the renderer opens pointer.fileAbsPath + focuses checkoutDir.
   OPEN_GITHUB_FILE: 'open:github-file',
+  // ENH-224 Phase 3 (D6) — renderer → main: does the user already have a local
+  // clone of this github-file's repo (a navigator git-root project) that
+  // contains the file? Returns a LocalCloneMatch (offer to open from there) or
+  // null (→ managed checkout). The Open bar shows the offer as a third choice.
+  OPEN_MATCH_LOCAL_CLONE: 'open:match-local-clone',
   // ENH-224 D14 — Open Recent store (machine-global pointers). list /
   // record / clear, backed by a main-process OpenRecentsService singleton
   // shared with the `duo open` socket handler (one writer, no races).

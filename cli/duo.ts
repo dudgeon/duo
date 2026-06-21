@@ -57,9 +57,9 @@ const VERBS: VerbSpec[] = [
   {
     name: 'open',
     group: 'Browser & tabs',
-    args: '<path-or-url> [--canvas] [--reveal]',
+    args: '<path-or-url> [--canvas] [--reveal] [--checkout]',
     summary:
-      'Open a local file or URL. HTML defaults to the browser pane (scripts run, interactive) — use this to show the user a generated explainer / playground. Non-HTML routes to its natural surface (.md → editor, image → viewer). A GitHub *file* URL (github.com/<o>/<r>/blob/<ref>/<path>, /raw/, or raw.githubusercontent.com) is pulled into an opaque managed checkout under ~/.claude/duo/checkouts/ and opened like a local file (the Open bar\'s "open just this doc"); a bare repo or other GitHub URL still opens in the browser pane. --canvas forces canvas mode (source-editable, scripts blocked); --reveal expands the working pane. Successful opens are recorded in Open Recent (see "recent").'
+      'Open a local file or URL. HTML defaults to the browser pane (scripts run, interactive) — use this to show the user a generated explainer / playground. Non-HTML routes to its natural surface (.md → editor, image → viewer). A GitHub *file* URL (github.com/<o>/<r>/blob/<ref>/<path>, /raw/, or raw.githubusercontent.com): if you already have that repo cloned in a navigator project (D6), it opens YOUR real file from the clone (reports the path); otherwise it is pulled into an opaque managed checkout under ~/.claude/duo/checkouts/ and opened like a local file (the Open bar\'s "open just this doc"). --checkout forces the managed checkout even when a local clone exists. A bare repo or other GitHub URL still opens in the browser pane. --canvas forces canvas mode (source-editable, scripts blocked); --reveal expands the working pane. Successful opens are recorded in Open Recent (see "recent").'
   },
   {
     name: 'recent',
@@ -970,7 +970,11 @@ async function main(): Promise<void> {
         // consulted by this verb — verb name decides surface.
         const reveal = rest.includes('--reveal')
         const canvasOverride = rest.includes('--canvas')
-        const positional = rest.find(a => !a.startsWith('--')) ?? die('Usage: duo open <path-or-url> [--canvas] [--reveal]')
+        // ENH-224 Phase 3 (D6) — `--checkout` forces the opaque managed checkout
+        // for a github-file URL even when the repo is already cloned locally
+        // (the default prefers your existing clone + reports its path).
+        const forceCheckout = rest.includes('--checkout')
+        const positional = rest.find(a => !a.startsWith('--')) ?? die('Usage: duo open <path-or-url> [--canvas] [--reveal] [--checkout]')
         const resolved = resolveOpenTarget(positional)
         const payload: Record<string, unknown> = {
           url: resolved,
@@ -980,6 +984,7 @@ async function main(): Promise<void> {
           origin: positional
         }
         if (reveal) payload['reveal'] = true
+        if (forceCheckout) payload['checkout'] = true
         out(await send('open', payload))
         break
       }
