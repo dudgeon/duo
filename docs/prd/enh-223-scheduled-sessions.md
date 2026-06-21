@@ -295,7 +295,17 @@ shell-hosted claude tabs.
 
 ---
 
-## 10. Status (2026-06-21) — Tier 2 COMPLETE (inc 1+2+3) + audited + integrated
+## 10. Status (2026-06-21) — COMPLETE (Tier 1+2+3 + ENH-225), smoke-walked, ready to merge/cut
+
+> **Final state:** the whole feature is built, integrated with `main`, reviewed
+> (2 adversarial multi-agent passes), unit + live verified, and owner
+> smoke-walked (v0.11.2 — 3 PASS, 1 FAIL resolved as an install precondition +
+> re-verified end-to-end incl. a real Claude `Stop` lighting the badge). Suite
+> **1714** · typecheck clean · skill-currency 76 verbs. PR #103 `MERGEABLE`. The
+> only remaining step is the version **cut** (it can merge before or after #102).
+> Reviewer brief: `docs/dev/enh-223-handoff.md`. Create-dialog polish from the
+> walk (Browse picker / "Project (working directory)" / interactive note) landed
+> in `95c845e`.
 
 **Tier 2 increment 1 — Home "Scheduled" block (DONE, live-verified).** Engine→
 renderer plumbing: a `CronService.onJobsChanged` change-emitter → a

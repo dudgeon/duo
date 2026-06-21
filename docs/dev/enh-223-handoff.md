@@ -1,93 +1,96 @@
-# ENH-223 (cron) — RESUME (2026-06-21)
+# ENH-223 (cron) — REVIEWER BRIEF (2026-06-21)
 
-> **For:** the next session picking this up (likely post-compaction).
-> **Branch:** `claude/chron-job-management-yfy4ae` · **PR:** #103 (draft).
-> **Renumbered:** this feature was ENH-221 (now file-history's); the attention
-> badge sibling moved ENH-223 → **ENH-225**. Older commits say ENH-221.
+> **For:** the agent reviewing + merging PR #103.
+> **Branch:** `claude/chron-job-management-yfy4ae` · **PR:** #103.
+> **Status:** feature COMPLETE — Tier 1 + 2 + 3 + ENH-225, integrated with
+> `main`, reviewed, tested, smoke-walked. `MERGEABLE`/`CLEAN`.
+> **Numbering note:** this feature was ENH-221 (now file-history's); the badge
+> sibling is **ENH-225**. Commits before 2026-06-21 say ENH-221.
 
-## State in one paragraph
+## What the PR delivers
 
-**Scheduled ("cron") Claude sessions** — Tier 1 (engine + CLI) and **Tier 2
-increments 1 + 2** are **built, live-verified, audited, committed, and pushed**.
-Users can create / view / edit / run / pause / resume / delete scheduled jobs
-from the **Home "Scheduled" block** + a **create/edit dialog** (with an F3 live
-preview) + the **full `duo cron` CLI** (`list|add|edit|run|pause|resume|rm|show`).
-A multi-agent adversarial audit found 8 real issues; 7 are fixed (1 deferred —
-the advanced-cron describer, an owner dep decision). typecheck clean · full suite
-**1654 green** · `check:skill-currency` (74 verbs) passes. The work is at a
-**clean, shippable milestone**.
+**Scheduled ("cron") Claude Code sessions** + the **"waiting on you" tab badge**.
 
-## Resume plan (do in order)
+- **Tier 1 — engine + CLI.** `cron-jobs.json` store, tick scheduler, next-fire
+  math, D5 missed-run catch-up, spawn-into-background-tab, D3 fresh/resume, D4
+  headless `-p` gate (default off), D10 window landing. Full `duo cron
+  list|add|edit|run|pause|resume|rm|show`.
+- **Tier 2 — Home surface.** Create/edit dialog (`NewCronJobModal`) with a
+  debounced F3 live preview, status chips, row actions; **D6 per-project
+  nesting** (jobs nest under their hero/spine card; the aggregated "Scheduled"
+  block holds only unmatched jobs); **D7 entry points** (Home "+ Schedule",
+  project-rail right-click, File ▸ New Scheduled Job…, CLI).
+- **Audit #8 — describer.** Hand-rolled `describeCron` (no dependency) renders
+  cron as natural English for the F3 preview + Home rows + CLI.
+- **Tier 3 — ENH-225 attention badge.** A Duo-managed Claude Code hook
+  (Stop/Notification → set, UserPromptSubmit → clear) posts `{tabId, event}` to
+  the socket via `duo attention`; main flips a transient per-tab flag; the tab
+  strip shows an amber pulse dot (never on the active tab; clears on activity OR
+  focus). Tab identity = a new `DUO_TAB` env stamp on every PTY.
 
-0. **Merge ORDER (owner, 2026-06-21):** this branch merges **after**
-   `claude/duo-file-open-flow-g3rpdx` (which was rebasing concurrently). So
-   **wait for that branch to land on `main`, then rebase onto the updated
-   `main`** (it touches overlapping plumbing too — rebasing onto a main that
-   already includes it avoids a double conflict resolution). Coordinate the
-   shared Electron dev: **ask the owner before launching `npm run dev` / using
-   Electron** (other agents share the app-global socket — I released it to the
-   duo-file-open-flow agent at handoff time).
-1. **Rebase onto the updated `origin/main`** (best with fresh context).
-   As of 2026-06-21 `origin/main` was **6 commits ahead** of the `df26ddf` fork
-   point (will be more once duo-file-open-flow lands); we're 11 ahead. **~13
-   overlapping files**, all shared plumbing: `shared/types.ts`, `host-api.ts`,
-   `electron/main.ts`, `electron/preload.ts`, `renderer/App.tsx`,
-   `core/socket-server.ts`, `cli/duo.ts`, `agents/duo.md`, `docs/CLI-COVERAGE.md`,
-   `skill/references/cli-reference.md`, `docs/dev/session-log.md`, `tasks.md`,
-   `cli/duo` (binary). Conflicts are mostly **additive** — cron ADDS to enums
-   (`DuoCommandName`, the `IPC` object), switch statements (socket-server `case`,
-   the cli `case 'cron'`), the preload `cron:` namespace, `ElectronAPI`, and doc
-   tables. Resolve by **keeping both sides**. After: `npm install` (electron-
-   rebuild), `npm run typecheck`, `npm run test:run` (expect 1654+), rebuild the
-   cli binary if `cli/duo.ts` changed (`npm run build:cli && git add cli/duo`),
-   then a quick live re-check of `duo cron add/run` against a fresh `npm run dev`.
-2. **`/smoke-walk`** via the Skill tool (touches `renderer/` → required before a
-   cut). It must exercise the **native File ▸ New Scheduled Job… menu** and the
-   **project-rail right-click "New Scheduled Job…"** — those use the verified
-   open path but the *native menus* were never driven headlessly. Also walk:
-   create → fire (a tab spawns in the background, no focus steal) → Edit → the
-   status chips → delete-confirm.
-3. **Cut a version** with Tier 1 + Tier 2 inc 1+2 as the cron **v1** (use the
-   `cut-version` skill). This is a coherent, complete capability — ship it.
-4. **Then** (post-v1, optional polish): **Tier 2 increment 3** — D6 per-project
-   nesting (jobs nested under their hero/spine card via `deepestEnclosingRoot`
-   from `shared/projects.ts`; the aggregated "Scheduled" block keeps only
-   unmatched jobs). Extract a reusable `CronJobRow` from `CronSection`. Add a
-   per-card "+ Schedule" affordance.
-5. **ENH-225** — the "waiting on you" attention badge (D9/F2): a Duo-managed
-   `Stop` (+ permission) hook posts `{session_id, state}` to Duo's Unix socket;
-   main flips a per-tab needs-attention flag. **Must surface on cron's
-   `kind:'shell'` claude tabs** — key the badge on `session_id` (presence is
-   process-based, the badge keys on the session, so neither needs `kind:'claude'`).
+## Commit map (review in this order)
 
-## Invariants / gotchas — don't regress these
+| Commits | What |
+|---|---|
+| `04fecb9`→`d891a6a` | plan + Tier 1 (engine + CLI) |
+| `52d4641` `f60a376` `5e251cf` `e8d039d` `66770cb` | Tier 1 live-walk fixes · Tier 2 inc 1+2 · 7 audit fixes |
+| `6dd555c` | audit #8 — `describeCron` (+ adversarial-verify fixes) |
+| `58953e9` | **merge of `origin/main`** (the only conflict resolution) |
+| `c2571ba` | Tier 2 inc 3 — D6 per-project nesting |
+| `7af4fcd` | **ENH-225** attention badge |
+| `5528636` `2029240` | ENH-225 unit tests + adversarial-review fixes |
+| `95c845e` | create-dialog polish (Browse / relabel / interactive note) |
 
-- **Cron job cwd MUST be absolute** (audit HIGH fix). The CLI absolutizes via
-  `resolveFilePath`; the modal requires absolute + a server `assertCwdAbsolute`
-  guard. A relative/typo'd cwd would silently run the job in `$HOME`.
-- **F1 — runs open a BACKGROUND tab** (`NewTabRequest.background` flag); never
-  re-introduce focus-steal.
-- **Catch-up (D5) waits for `SESSION_STATE_RESTORE_SETTLED`** (primary window),
-  not `did-finish-load` — restore's wholesale `setTabs` clobbers a tab appended
-  during boot. See memory `feedback_cron_catchup_waits_for_restore_settled`.
-- **One invoke channel reuses `handleCli`** — keep CLI + UI on the one code path.
-- **Killing the dev: kill the zsh-wrapper ROOT** (electron-vite respawns its
-  child). `pkill -f "<worktree>/node_modules"` + kill the npm/zsh root.
-- **Audit #8 — RESOLVED (2026-06-21, commit `6dd555c`).** Hand-rolled
-  `describeCron` (no dep, per owner D8) renders cron in natural English for the
-  F3 preview + Home rows + CLI `list`/`show`; honesty-biased (echoes anything it
-  can't render faithfully). An adversarial multi-agent pass caught + fixed two
-  lie-classes (non-dividing `*/N` steps; impossible calendar dates). The
-  describer lives entirely in `core/cron-schedule.ts` — NOT a rebase-overlap
-  file, so it won't conflict.
-- **Electron access** — request it from the owner (don't assume); a prior
-  `request_access` timed out unactioned.
+## How it was verified
+
+- **Automated:** typecheck clean · full suite **1714** · `check:skill-currency`
+  76 verbs. Logic is unit-tested: `core/cron-{schedule,command,store,service}`,
+  `homeModel.assignCronJobs`, `attentionForEvent`, `planManagedHooksMerge`.
+- **Live (`duo dom` against a real dev build):** the cron run path (session-JSONL
+  inspection), D3/D5/D10, the Home nesting placements, the badge round-trip, and
+  — finally — a **real Claude `Stop` lighting the badge** (fired a cron job in a
+  trusted dir so no folder-trust prompt blocked it).
+- **Adversarial multi-agent reviews:** the describer (caught + fixed two
+  lie-classes — non-dividing `*/N` steps + impossible calendar dates) and
+  ENH-225/inc-3 (caught + fixed the active-tab false-badge + prune-on-close).
+- **Owner smoke-walk v0.11.2:** 3 PASS; the 1 FAIL was an install precondition
+  (not code), resolved + re-verified end-to-end. Manifest:
+  `docs/dev/smoke-walks/v0.11.2.json`.
+
+## Invariants — don't regress these
+
+- **Cron cwd MUST be absolute** (`assertCwdAbsolute` server guard + modal).
+- **Runs open a BACKGROUND tab** (`NewTabRequest.background`) — never focus-steal.
+- **Catch-up (D5) waits for `SESSION_STATE_RESTORE_SETTLED`**, not
+  `did-finish-load` (restore's `setTabs` clobbers a boot-appended tab).
+- **One invoke channel reuses `handleCli`** — CLI + UI on one code path.
+- **The badge never shows on the ACTIVE tab** (the Stop hook fires there every
+  turn; an `activeTabIdRef` drops that SET — see commit `2029240`).
+- **`DUO_TAB` = the renderer's TabSession.id** — the badge keys on it.
+
+## Merge plan + the one cut-time check
+
+- #103 is `MERGEABLE` and may merge **before or after** #102
+  (`duo-file-open-flow`) — the integration is already done (commit `58953e9`;
+  conflicts were additive, kept-both). The repo **squash-merges**.
+- **The attention badge requires the Duo install to have run** — it rides the
+  SAME managed-hook install path (`installService.run()`) as the priming/guard
+  hooks. At cut time, confirm the install banner re-surfaces on the version bump
+  so existing users pick up the new `Stop`/`Notification`/`UserPromptSubmit`
+  hooks (this governs ALL managed hooks, not just ENH-225).
+
+## Out of scope (logged future)
+
+Headless `-p` autonomous runs (feature-flagged off), ENH-222 (`launchd` launch
+of Duo at a job's time), full run-history view. The "overlapping fires" edge
+(PRD §7) is a tracked open question, not a blocker.
 
 ## Pointers
 
 - PRD: `docs/prd/enh-223-scheduled-sessions.md` (§3 locked decisions, §9 Tier 1
-  impl + live-walk, **§10 = current status**).
-- Session log: `docs/dev/session-log.md` (2026-06-20 + 2026-06-21 entries).
-- Ledger: `tasks.md` → ENH-223 (+ ENH-225 for the badge).
-- Module map: PRD §9. Renderer: `renderer/components/Home/{CronSection,
-  NewCronJobModal}.tsx`, `App.tsx` cron wiring, `ProjectRail.tsx`.
+  impl, §10 = full current status).
+- Ledger: `tasks.md` → ENH-223. Session log: `docs/dev/session-log.md`
+  (2026-06-20 + 2026-06-21).
+- Module map (PRD §9). Renderer: `renderer/components/Home/{CronSection,
+  CronJobRow,NewCronJobModal,HeroPanel,SpineRow,HomeView}.tsx`,
+  `renderer/components/TabBar.tsx` (badge), `App.tsx` cron + attention wiring.
