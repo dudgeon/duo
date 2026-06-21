@@ -243,21 +243,36 @@ export function CloneModal({ open, defaultParent, defaultUrl, openAfterRelPath, 
     setTimeout(() => urlInputRef.current?.focus(), 0)
   }
 
+  // ENH-224 FU1 — native folder picker for the clone destination. Opens an
+  // openDirectory + createDirectory dialog; the absolute pick replaces the
+  // (type-able) parent-directory field. `?.` tolerates a stale preload.
+  const handleChooseDir = async () => {
+    try {
+      const dir = await window.electron.open?.pickDirectory?.()
+      if (dir) setTargetParent(dir)
+    } catch {
+      // Cancelled / failed picker — leave the typed value as-is.
+    }
+  }
+
   // Auth-missing banner: shown when gh isn't authenticated AND we
   // know it (auth probe completed). Doesn't block submitting (git
   // clone may still work for public repos), just sets expectations.
   const showAuthBanner = auth && !auth.authenticated
 
   return (
+    // ENH-224 FU2 — match the Open bar's geometry (top-anchored ~96px,
+    // ~640px wide) so the Open bar → Clone hand-off reads as one surface
+    // morphing rather than a jump in size + position.
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-black/40"
       onClick={(e) => {
         // Click outside the modal body dismisses (when not busy).
         if (e.target === e.currentTarget && !busy) onClose()
       }}
     >
       <div
-        className="bg-surface-0 border border-border rounded-lg shadow-xl w-[480px] max-w-[90vw] p-5 text-ink"
+        className="bg-surface-0 border border-border rounded-lg shadow-xl w-[640px] max-w-[92vw] p-5 text-ink"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">
@@ -324,16 +339,27 @@ export function CloneModal({ open, defaultParent, defaultUrl, openAfterRelPath, 
         <label className="block text-xs text-ink-mute mb-1" htmlFor="clone-target">
           Parent directory (final path: {targetDir || <em className="opacity-50">enter a URL first</em>})
         </label>
-        <input
-          id="clone-target"
-          type="text"
-          value={targetParent}
-          onChange={(e) => setTargetParent(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="~/Documents"
-          disabled={busy}
-          className="w-full px-2 py-1 mb-3 bg-paper-deep border border-border rounded text-sm font-mono text-ink placeholder-ink-ghost focus:outline-accent"
-        />
+        {/* ENH-224 FU1 — type a path OR pick one with the native folder picker. */}
+        <div className="flex gap-2 mb-3">
+          <input
+            id="clone-target"
+            type="text"
+            value={targetParent}
+            onChange={(e) => setTargetParent(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="~/Documents"
+            disabled={busy}
+            className="flex-1 min-w-0 px-2 py-1 bg-paper-deep border border-border rounded text-sm font-mono text-ink placeholder-ink-ghost focus:outline-accent"
+          />
+          <button
+            type="button"
+            onClick={() => void handleChooseDir()}
+            disabled={busy}
+            className="px-3 py-1 text-sm border border-border rounded text-ink-soft hover:bg-accent/10 disabled:opacity-50 whitespace-nowrap"
+          >
+            Choose…
+          </button>
+        </div>
 
         {busy && (
           // FOLLOWUP-025 v2 walk-rev3 — owner: "the 'cloning' status

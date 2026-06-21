@@ -458,6 +458,8 @@ const api: ElectronAPI = {
   // ENH-224 D17 — native file/folder picker behind the Open bar's Browse…
   open: {
     browse: () => ipcRenderer.invoke(IPC.OPEN_BROWSE),
+    // ENH-224 FU1 — folder-only picker for the CloneModal destination.
+    pickDirectory: () => ipcRenderer.invoke(IPC.OPEN_PICK_DIR),
   },
 
   // ENH-224 D14 — Open Recent store (pointers; resolved live). Backed by a

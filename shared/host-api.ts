@@ -1141,6 +1141,10 @@ export interface ElectronAPI {
 // in viewer; directory → root the navigator), or null on cancel.
 export interface ElectronOpenAPI {
   browse(): Promise<BrowseResult | null>
+  /** ENH-224 FU1 — native FOLDER-only picker (openDirectory +
+   *  createDirectory). Returns the picked directory path, or null on cancel.
+   *  Backs the CloneModal's "Choose…" destination button. */
+  pickDirectory(): Promise<string | null>
 }
 
 // ENH-224 D14 — Open Recent store. Pointers only (§12); resolved live on

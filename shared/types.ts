@@ -2394,6 +2394,10 @@ export const IPC = {
   // Returns a BrowseResult ({ path, kind } | null). Single dialog with
   // both openFile + openDirectory enabled.
   OPEN_BROWSE: 'open:browse',
+  // ENH-224 FU1 — renderer → main native FOLDER picker (openDirectory +
+  // createDirectory). Returns the picked dir path (string) | null. Used by
+  // the CloneModal's "Choose…" destination button.
+  OPEN_PICK_DIR: 'open:pick-dir',
   // ENH-224 D14 — Open Recent store (machine-global pointers). list /
   // record / clear, backed by a main-process OpenRecentsService singleton
   // shared with the `duo open` socket handler (one writer, no races).

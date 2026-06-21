@@ -2470,6 +2470,21 @@ function setupIPC(): void {
     return { path: picked, kind }
   })
 
+  // ENH-224 FU1 — folder-only picker for the CloneModal destination "Choose…"
+  // button. openDirectory + createDirectory (so the user can make a new folder
+  // for the clone). Parented on the SENDER window (check-window-routing).
+  ipcMain.handle(IPC.OPEN_PICK_DIR, async (event): Promise<string | null> => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win || win.isDestroyed()) return null
+    const result = await dialog.showOpenDialog(win, {
+      title: 'Choose Destination Folder',
+      message: 'Pick (or create) a folder to clone into',
+      properties: ['openDirectory', 'createDirectory'],
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0]
+  })
+
   // ENH-224 D14 — Open Recent store IPC. Backed by the `openRecents` singleton
   // (shared with `duo open` record-on-open). record/clear refresh the
   // synchronous menu cache so File ▸ Open Recent stays current.
@@ -3306,17 +3321,18 @@ function installAppMenu(): void {
           click: () => { void openNewWindow() }
         },
         { type: 'separator' },
-        // ENH-224 D1/D14/D18 — the merged Open bar (⌘O) + its Open Recent.
-        // The accelerator is DISPLAY-ONLY (registerAccelerator:false): the
-        // renderer's global ⌘O shortcut is the canonical handler (it fires
-        // from every focus context via key-forwarding), so binding ⌘O here
-        // too would double-trigger. The click is the menu/mouse path to the
-        // same merged bar. "Open Recent" lists Open-bar targets (files +
-        // GitHub URLs) — distinct from "Open Recent Workspace" below.
+        // ENH-224 D1/D14/D18 (FU3) — the merged Open bar (⌘O) + its Open Recent.
+        // The native menu accelerator OWNS ⌘O: it fires regardless of which
+        // pane/WebContents has focus (the renderer's global shortcut misses
+        // terminal-column focus — xterm swallows the key — so a display-only
+        // accelerator left ⌘O dead there). Binding it here makes ⌘O *the* open
+        // affordance everywhere (D1/D18); pushOpenBar → NAV_OPEN_BAR → the bar.
+        // The renderer ⌘O shortcut stays as a harmless fallback. "Open Recent"
+        // lists Open-bar targets (files + GitHub URLs) — distinct from "Open
+        // Recent Workspace" below.
         {
           label: 'Open…',
           accelerator: 'CmdOrCtrl+O',
-          registerAccelerator: false,
           click: () => { pushOpenBar(focusedWindowId()) }
         },
         {
