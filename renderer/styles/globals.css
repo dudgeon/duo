@@ -1764,7 +1764,7 @@ html.dark {
 [data-theme="dark"] .duo-qs-empty,
 [data-theme="dark"] .duo-qs-footer { color: #9a9080; }
 
-/* ENH-221 — the merged Open bar (duo-ob-*) extends the duo-qs shell. */
+/* ENH-224 — the merged Open bar (duo-ob-*) extends the duo-qs shell. */
 .duo-ob-header {
   display: flex;
   align-items: center;

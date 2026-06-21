@@ -1,4 +1,4 @@
-// ENH-221 D1/D15/D18 — the merged Open bar (the ⌘O surface).
+// ENH-224 D1/D15/D18 — the merged Open bar (the ⌘O surface).
 //
 // ONE progressive overlay that SUBSUMES the old VaultQuickSwitcher (D18):
 //

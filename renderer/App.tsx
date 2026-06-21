@@ -405,7 +405,7 @@ export function App() {
   // IPC push (window.electron.nav.onOpenCloneModal). Closed by the
   // modal's own Cancel/Esc/Done; opens are idempotent.
   const [cloneModalOpen, setCloneModalOpen] = useState(false)
-  // ENH-221 D15/D16 — when the Open bar routes a GitHub repo / file URL into
+  // ENH-224 D15/D16 — when the Open bar routes a GitHub repo / file URL into
   // the clone flow, prefill the modal's URL and (for a file) the relative
   // path to open after cloning (the success hero becomes "Open <file>").
   const [cloneModalUrl, setCloneModalUrl] = useState<string | null>(null)
@@ -519,7 +519,7 @@ export function App() {
   // The palette is a renderer overlay; we set its `open` state from
   // the `duo-open-tab-search` window event fired by useKeyboardShortcuts.
   const [tabSearchOpen, setTabSearchOpen] = useState<boolean>(false)
-  // ENH-221 D18 — ⌘O opens the merged Open bar (the surface that SUBSUMES
+  // ENH-224 D18 — ⌘O opens the merged Open bar (the surface that SUBSUMES
   // the old VaultQuickSwitcher: vault fuzzy-find + paste-a-path/URL + Browse…
   // + Open Recent). State name kept loosely "open bar"; the dispatch key
   // stays `openVaultQuickSwitcher` so the ⌘O chord wiring is untouched.
@@ -2082,7 +2082,7 @@ export function App() {
     void openFileSmart(entry.path, entry.name)
   }, [openFileSmart])
 
-  // ENH-221 — open the Clone modal pre-filled (from the Open bar routing a
+  // ENH-224 — open the Clone modal pre-filled (from the Open bar routing a
   // GitHub repo, or a GitHub file URL whose "clone the whole repo" choice was
   // taken — openAfterRelPath then makes the success hero "Open <file>").
   const openCloneModalPrefilled = useCallback((url: string, openAfterRelPath?: string) => {
@@ -2092,7 +2092,7 @@ export function App() {
     setCloneModalOpen(true)
   }, [])
 
-  // ENH-221 D1/D14/D15 — the single Open-bar open path. Classifies a raw
+  // ENH-224 D1/D14/D15 — the single Open-bar open path. Classifies a raw
   // target (a typed/pasted path or URL, a Browse… pick, a vault file's
   // absPath, or a recent's stored target) and routes it: local file → viewer,
   // folder → navigator root, URL → browser pane, GitHub repo/file → the
@@ -2850,12 +2850,12 @@ export function App() {
     })
   }, [])
 
-  // ENH-221 D1/D18 — File ▸ Open… (native menu) opens the merged Open bar,
+  // ENH-224 D1/D18 — File ▸ Open… (native menu) opens the merged Open bar,
   // the same surface ⌘O opens.
   useEffect(() => {
     return window.electron.nav.onOpenBar(() => setOpenBarOpen(true))
   }, [])
-  // ENH-221 D14 — File ▸ Open Recent ▸ <target> reopens through the shared
+  // ENH-224 D14 — File ▸ Open Recent ▸ <target> reopens through the shared
   // Open-bar open path (so menu + bar + `duo open` behave identically).
   useEffect(() => {
     return window.electron.nav.onOpenBarReopen((target) => { void openResolvedTarget(target) })
@@ -3037,7 +3037,7 @@ export function App() {
   // user saw the dim backdrop bleeding into pane edges but the palette
   // body was hidden behind the still-visible page content.
   //
-  // ENH-221 — the merged Open bar (⌘O) gets the same WCV-mute treatment.
+  // ENH-224 — the merged Open bar (⌘O) gets the same WCV-mute treatment.
   // ENH-208 (D22) — VaultSearchPalette (⌘⇧F) joins the set. Any overlay
   // open → mute WCVs.
   useEffect(() => {
@@ -3892,7 +3892,7 @@ export function App() {
     focusAuxPane: () => focusPane('aux'),
     // ENH-102 (Sprint 9) — ⌘⇧⌫ deletes the active file with confirm.
     deleteCurrentFile,
-    // ENH-221 D18 — ⌘O opens the merged Open bar (dispatch key unchanged so
+    // ENH-224 D18 — ⌘O opens the merged Open bar (dispatch key unchanged so
     // the existing ⌘O chord wiring routes here).
     openVaultQuickSwitcher: () => setOpenBarOpen(true),
     // ENH-172 (Sprint 20) — ⌘⇧. toggles show-hidden-files. The View
@@ -5112,7 +5112,7 @@ export function App() {
           </div>
         </div>
       </div>
-      {/* ENH-221 D18 — the merged Open bar (⌘O) replaces VaultQuickSwitcher.
+      {/* ENH-224 D18 — the merged Open bar (⌘O) replaces VaultQuickSwitcher.
           Mounted parallel to TabSearchPalette so the same z-index + WCV
           overlay-mute rules apply. Fuzzy-find sources the same vault index
           (keyed off the active file's path); every open routes through

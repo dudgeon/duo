@@ -1,4 +1,4 @@
-// ENH-221 — Open-flow resolver (the "Open brain").
+// ENH-224 — Open-flow resolver (the "Open brain").
 //
 // Pure classification of an Open-bar target string into one of four
 // kinds, shared by the UI Open bar and the `duo open` CLI (D1). No
@@ -213,7 +213,7 @@ function lastSegment(p: string): string {
 }
 
 /**
- * ENH-221 D14 — derive an Open Recent pointer from a raw Open-bar target.
+ * ENH-224 D14 — derive an Open Recent pointer from a raw Open-bar target.
  * Pure (no FS/network), so the renderer Open bar, the `duo open` socket
  * handler, and the `duo recent` CLI all compute identical labels/kinds.
  * `target` stays the raw string the user opened (the identity key + what

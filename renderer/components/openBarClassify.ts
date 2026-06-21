@@ -1,4 +1,4 @@
-// ENH-221 — the Open bar's search-vs-target heuristic (extracted pure so it's
+// ENH-224 — the Open bar's search-vs-target heuristic (extracted pure so it's
 // node-testable, no React/DOM). resolveOpenTarget is the classifier; this adds
 // the ONE thing the resolver deliberately can't decide: whether a scheme-less
 // local-path input is meant as a vault SEARCH query (a bare token → fuzzy-find,

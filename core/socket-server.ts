@@ -60,7 +60,7 @@ import type {
   WorkingAuxSnapshot,
   RecentEntry
 } from '../shared/types'
-// ENH-221 D14 — pure derivation of an Open Recent pointer from a target.
+// ENH-224 D14 — pure derivation of an Open Recent pointer from a target.
 import { deriveRecentEntry } from './open-resolve'
 import { SOCKET_PATH, PORT_FILE } from './constants'
 import { attentionForEvent } from './attention'
@@ -146,12 +146,12 @@ export interface NavBridge {
    *  Triggered by the native File menu entry + CLI parity for
    *  `duo clone --modal` (future). */
   openCloneModal: () => { ok: boolean; error?: string }
-  /** ENH-221 D14 — record an Open Recent pointer (the `duo open` twin of
+  /** ENH-224 D14 — record an Open Recent pointer (the `duo open` twin of
    *  the UI Open bar's record-on-open). Best-effort; main owns the
    *  OpenRecentsService singleton the UI also writes to. Optional so
    *  NavBridge test doubles don't have to stub it. */
   recordOpenRecent?: (entry: Omit<RecentEntry, 'lastOpenedAt'>) => Promise<void>
-  /** ENH-221 D14 — list the Open Recent store (the `duo recent` twin of
+  /** ENH-224 D14 — list the Open Recent store (the `duo recent` twin of
    *  File ▸ Open Recent). Optional for the same reason. */
   listOpenRecents?: () => Promise<RecentEntry[]>
   /** ENH-183 C12 — Claude session lifecycle CLI verbs. Each one
@@ -1039,7 +1039,7 @@ export class SocketServer {
               this.getAddressedWindowId()
             )
           }
-          // ENH-221 D14 — record-on-open (the `duo open` twin of the UI Open
+          // ENH-224 D14 — record-on-open (the `duo open` twin of the UI Open
           // bar's record). Best-effort; the raw target prefers the CLI's
           // original positional (args.origin) so the recent stays
           // human-friendly (~/x.md, not file:///…), falling back to `url`.
@@ -1054,7 +1054,7 @@ export class SocketServer {
           break
         }
         case 'recent': {
-          // ENH-221 D14 — `duo recent` lists the Open Recent store (the CLI
+          // ENH-224 D14 — `duo recent` lists the Open Recent store (the CLI
           // twin of File ▸ Open Recent + the empty Open bar). Reopen by
           // re-passing a target to `duo open`. result = the RecentEntry[]
           // array (the outer envelope adds {id, ok, result}).

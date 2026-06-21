@@ -349,10 +349,10 @@ export interface ElectronNavAPI {
    *  opens the New Vault dialog (OKF the default format — D2). Mirrors
    *  onOpenCloneModal's menu-driven pattern. */
   onOpenNewVaultModal: (cb: () => void) => () => void
-  /** ENH-221 D1/D18 — File → Open… menu trigger. Renderer opens the
+  /** ENH-224 D1/D18 — File → Open… menu trigger. Renderer opens the
    *  merged Open bar (the same surface ⌘O opens). */
   onOpenBar: (cb: () => void) => () => void
-  /** ENH-221 D14 — File → Open Recent ▸ <target> click. Renderer
+  /** ENH-224 D14 — File → Open Recent ▸ <target> click. Renderer
    *  re-resolves `target` through the Open-bar open path (local →
    *  openFileSmart, url → browser, github → clone). */
   onOpenBarReopen: (cb: (target: string) => void) => () => void
@@ -1129,21 +1129,21 @@ export interface ElectronAPI {
   // palette · silent-stub type-picker). Main runs the same core/vault
   // code paths as the `duo vault` CLI verbs.
   vault: ElectronVaultAPI
-  // ENH-221 D17 — native Browse… file/folder picker behind the Open bar.
+  // ENH-224 D17 — native Browse… file/folder picker behind the Open bar.
   open: ElectronOpenAPI
-  // ENH-221 D14 — Open Recent store (list/record/clear), shared with the
+  // ENH-224 D14 — Open Recent store (list/record/clear), shared with the
   // `duo recent` CLI + `duo open` record-on-open.
   recents: ElectronRecentsAPI
 }
 
-// ENH-221 D17 — native file/folder picker. ONE dialog with both openFile +
+// ENH-224 D17 — native file/folder picker. ONE dialog with both openFile +
 // openDirectory enabled; resolves to the picked path + its kind (file → open
 // in viewer; directory → root the navigator), or null on cancel.
 export interface ElectronOpenAPI {
   browse(): Promise<BrowseResult | null>
 }
 
-// ENH-221 D14 — Open Recent store. Pointers only (§12); resolved live on
+// ENH-224 D14 — Open Recent store. Pointers only (§12); resolved live on
 // reopen. Backed by a main-process OpenRecentsService singleton shared with
 // the `duo open` socket handler so CLI + UI opens land in one list.
 export interface ElectronRecentsAPI {

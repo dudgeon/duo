@@ -5817,7 +5817,7 @@ async function main() {
         const payload = {
           url: resolved,
           mode: canvasOverride ? "canvas" : "browser",
-          // ENH-221 D14 — pass the original positional so record-on-open
+          // ENH-224 D14 — pass the original positional so record-on-open
           // stores the human-friendly target (~/x.md) not the file:// URL.
           origin: positional
         };

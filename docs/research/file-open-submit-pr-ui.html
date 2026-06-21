@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="duo-editable" content="false">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ENH-221 · "Submit PR" affordance — UI treatment study</title>
+<title>ENH-224 · "Submit PR" affordance — UI treatment study</title>
 <style>
 /* ============================================================
    Atelier kernel (inlined verbatim from skill/references/duo-atelier.css)
@@ -210,14 +210,14 @@ details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(
 <header class="page-head">
   <h1>"Submit PR" affordance — UI treatment study</h1>
   <div class="meta">
-    <span class="pill">ENH-221</span>
+    <span class="pill">ENH-224</span>
     <span class="pill">OQ-1</span>
-    Decision playground · 2026-06-19 · pairs with <code>docs/prd/enh-221-file-open-flow.md</code>
+    Decision playground · 2026-06-19 · pairs with <code>docs/prd/enh-224-file-open-flow.md</code>
   </div>
 </header>
 
 <div class="intro">
-  <strong>What this is.</strong> ENH-221 opens a GitHub doc into an opaque local
+  <strong>What this is.</strong> ENH-224 opens a GitHub doc into an opaque local
   checkout so it edits like a local file. The moment the working copy
   <strong>diverges from the fetched baseline</strong>, Duo surfaces a way to ship
   those edits back as a pull request (auto-forking when you lack push access).
@@ -675,7 +675,7 @@ edit. PRD P7 says subsequent saves update the same PR.</p>
   document.addEventListener('change', refresh);
 
   function buildPayload() {
-    const lines = ['ENH-221 · "Submit PR" affordance — UI treatment decisions', ''];
+    const lines = ['ENH-224 · "Submit PR" affordance — UI treatment decisions', ''];
     for (const d of DECISIONS) {
       const checked = document.querySelector(`input[name="${d.name}"]:checked`);
       const notes = document.querySelector(`textarea[data-decision="${d.name}"]`);

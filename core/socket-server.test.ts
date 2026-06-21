@@ -287,12 +287,12 @@ describe('SocketServer — ENH-212 Home CLI routing', () => {
   })
 })
 
-// ENH-221 D14 — `duo recent` routing + record-on-open. Pins the socket-side
+// ENH-224 D14 — `duo recent` routing + record-on-open. Pins the socket-side
 // contract the UI Open bar can't reach: `recent` lists via the NavBridge, and
 // a SUCCESSFUL `open` records a derived pointer (a failed open does NOT). Same
 // pure-node dispatch harness. Guards the "IPC handler gap is invisible to
 // typecheck" class — a missing case here compiles but throws at runtime.
-describe('SocketServer — ENH-221 Open Recent (recent + record-on-open)', () => {
+describe('SocketServer — ENH-224 Open Recent (recent + record-on-open)', () => {
   it('`duo recent` returns the list from listOpenRecents', async () => {
     const d = stubDeps()
     const entries = [{ target: '~/x.md', label: 'x.md', kind: 'local', lastOpenedAt: 123 }]

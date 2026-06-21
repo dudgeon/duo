@@ -969,7 +969,7 @@ async function main(): Promise<void> {
         const payload: Record<string, unknown> = {
           url: resolved,
           mode: canvasOverride ? 'canvas' : 'browser',
-          // ENH-221 D14 — pass the original positional so record-on-open
+          // ENH-224 D14 — pass the original positional so record-on-open
           // stores the human-friendly target (~/x.md) not the file:// URL.
           origin: positional
         }
@@ -978,7 +978,7 @@ async function main(): Promise<void> {
         break
       }
       case 'recent': {
-        // ENH-221 D14 — list the Open Recent store (the CLI twin of File ▸
+        // ENH-224 D14 — list the Open Recent store (the CLI twin of File ▸
         // Open Recent + the empty Open bar). `--json` prints the raw array;
         // default prints a friendly aligned list. Reopen by re-passing a
         // target to `duo open`.

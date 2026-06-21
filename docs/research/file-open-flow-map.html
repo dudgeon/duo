@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="duo-editable" content="false">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ENH-221 · Open-flow map + clone convergence</title>
+<title>ENH-224 · Open-flow map + clone convergence</title>
 <style>
 /* ===== Atelier kernel (inlined from skill/references/duo-atelier.css) ===== */
 :root{
@@ -129,9 +129,9 @@ table.cmp td b{color:var(--ink);}
 <header class="page-head">
   <h1>Open-flow map + clone convergence</h1>
   <div class="meta">
-    <span class="pill">ENH-221</span>
+    <span class="pill">ENH-224</span>
     <span class="pill">flow + refactor</span>
-    2026-06-20 · pairs with <code>docs/prd/enh-221-file-open-flow.md</code>
+    2026-06-20 · pairs with <code>docs/prd/enh-224-file-open-flow.md</code>
   </div>
 </header>
 
@@ -149,7 +149,7 @@ table.cmp td b{color:var(--ink);}
 
 <div class="legend">
   <span class="k"><span class="swatch sw-exist"></span> reuses a shipped Duo surface</span>
-  <span class="k"><span class="swatch sw-new"></span> net-new for ENH-221</span>
+  <span class="k"><span class="swatch sw-new"></span> net-new for ENH-224</span>
   <span class="k"><span class="swatch sw-choice"></span> the new choice you asked for</span>
 </div>
 
@@ -235,7 +235,7 @@ today (D9). Public repos clone via plain <code>git</code> regardless.</p>
   <b>The one genuinely new decision point</b> is the orange <b>❖ choice</b> on the
   GitHub-file row. Everything to its right already exists or is already specced —
   the "Clone the repo" lane is <em>entirely green</em> (Duo's shipped clone flow),
-  and the "Just this doc" lane is ENH-221's round-trip. The choice is the seam
+  and the "Just this doc" lane is ENH-224's round-trip. The choice is the seam
   that lets one paste serve both intents.
 </div>
 
@@ -275,7 +275,7 @@ isn't re-asked forever — see DR2.</p>
 (ENH-151, v0.7.0) → <code>core/git/clone.ts runClone()</code> (gh-preferred, git
 fallback), plus <code>CloneModal.tsx</code> (URL + parent-dir picker + collision
 detection + auth banner) reached from File ▸ Clone… and the FileTree right-click.
-On success it sets the navigator root. The question is whether ENH-221's new
+On success it sets the navigator root. The question is whether ENH-224's new
 "clone the repo" branch re-uses that, or grows a parallel one.</p>
 
 <div class="conv">
@@ -284,7 +284,7 @@ On success it sets the navigator root. The question is whether ENH-221's new
     <div class="entryrow"><span class="ep">File ▸ Clone…</span><span class="to">→</span><span class="ep">CloneModal</span></div>
     <div class="entryrow"><span class="ep">FileTree ▸ Clone here</span><span class="to">→</span><span class="ep">CloneModal</span></div>
     <div class="entryrow"><span class="ep">duo clone</span><span class="to">→</span><span class="ep">runClone</span></div>
-    <div class="entryrow"><span class="ep" style="border-style:dashed;color:var(--ink-mute)">⌘O (ENH-221, file URL)</span><span class="to">→</span><span class="ep dup">??? new path?</span></div>
+    <div class="entryrow"><span class="ep" style="border-style:dashed;color:var(--ink-mute)">⌘O (ENH-224, file URL)</span><span class="to">→</span><span class="ep dup">??? new path?</span></div>
     <div class="substrate"><code>core/git/clone.ts · runClone()</code> — full clone, user dir</div>
   </div>
   <div class="col">
@@ -400,10 +400,10 @@ On success it sets the navigator root. The question is whether ENH-221's new
   <div class="q-options">
     <label class="q-option"><input type="radio" name="dr5" value="now-light">
       <div class="q-option-body"><div class="q-option-title">Converge now, light <span class="recommend-tag">Recommended</span></div>
-      <div class="q-option-rationale">Parameterize <code>runClone({depth,openAfter})</code> + route the ⌘O "Clone the repo" choice through the existing CloneModal. Small, low-risk, and prevents a second divergent clone door from being born in ENH-221. Lands with Phase 1/2.</div></div></label>
+      <div class="q-option-rationale">Parameterize <code>runClone({depth,openAfter})</code> + route the ⌘O "Clone the repo" choice through the existing CloneModal. Small, low-risk, and prevents a second divergent clone door from being born in ENH-224. Lands with Phase 1/2.</div></div></label>
     <label class="q-option"><input type="radio" name="dr5" value="defer">
       <div class="q-option-body"><div class="q-option-title">Defer — ship the managed-doc path first, wire clone later</div>
-      <div class="q-option-rationale">Keep ENH-221 v1 to "just this doc"; add the "clone the repo" branch in a fast-follow. Less now, but the choice prompt (§2) ships incomplete or absent at first.</div></div></label>
+      <div class="q-option-rationale">Keep ENH-224 v1 to "just this doc"; add the "clone the repo" branch in a fast-follow. Less now, but the choice prompt (§2) ships incomplete or absent at first.</div></div></label>
     <label class="q-option"><input type="radio" name="dr5" value="full-rewrite">
       <div class="q-option-body"><div class="q-option-title">Bigger — fold the CloneModal into the Open bar entirely</div>
       <div class="q-option-rationale">One unified Open/Clone surface; retire the standalone modal. Cleanest end-state, but a real rewrite of a shipped, working surface — not justified by this need alone.</div></div></label>
@@ -424,7 +424,7 @@ On success it sets the navigator root. The question is whether ENH-221's new
       <div class="q-option-rationale">Maximum fidelity (cross-folder links resolve too), at the cost of pulling the whole tree for one doc. Heavier but simplest to reason about.</div></div></label>
     <label class="q-option"><input type="radio" name="dr6" value="raw-only">
       <div class="q-option-body"><div class="q-option-title">Just the one file (raw), reconstruct git lazily</div>
-      <div class="q-option-rationale">Lightest possible. But relative assets break and committing back needs more reconstruction — the trade ENH-221 already rejected once.</div></div></label>
+      <div class="q-option-rationale">Lightest possible. But relative assets break and committing back needs more reconstruction — the trade ENH-224 already rejected once.</div></div></label>
   </div>
   <textarea class="q-notes" data-decision="dr6" placeholder="Notes…"></textarea>
 </section>
@@ -459,7 +459,7 @@ On success it sets the navigator root. The question is whether ENH-221's new
   function refresh(){document.getElementById('answered-count').textContent=answered();}
   document.addEventListener('change',refresh);
   function payload(){
-    const out=['ENH-221 · Open-flow map + clone convergence — decisions',''];
+    const out=['ENH-224 · Open-flow map + clone convergence — decisions',''];
     for(const d of DECISIONS){
       const c=document.querySelector('input[name="'+d.name+'"]:checked');
       const n=document.querySelector('textarea[data-decision="'+d.name+'"]');

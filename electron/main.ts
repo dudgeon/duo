@@ -86,7 +86,7 @@ import { initAutoUpdater } from './auto-updater'
 import { SessionStateService } from '../core/session-state-service'
 import { SettingsService } from '../core/settings-service'
 import { FileHistoryService, type SnapshotSource } from '../core/file-history-service'
-// ENH-221 — Open Recent store + the Open-bar resolver (shared with the CLI).
+// ENH-224 — Open Recent store + the Open-bar resolver (shared with the CLI).
 import { OpenRecentsService } from '../core/open-recents-service'
 import { resolveOpenTarget as classifyOpenTarget } from '../core/open-resolve'
 import { WorkspaceFileService } from '../core/workspace-file-service'
@@ -579,7 +579,7 @@ const activeWorkspaceService = new ActiveWorkspaceService()
 const cronStore = new CronStore()
 let cronService: CronService | null = null
 
-// ENH-221 D14 — Open Recent store (machine-global pointers). ONE main-process
+// ENH-224 D14 — Open Recent store (machine-global pointers). ONE main-process
 // singleton shared by the renderer IPC handlers AND the `duo open` socket
 // handler (NavBridge.recordOpenRecent), so CLI + UI opens land in one list
 // with a single writer (no cross-process races). The File ▸ Open Recent
@@ -1388,7 +1388,7 @@ app.whenReady().then(async () => {
   // ensureLoaded()); the async rebuild here repaints the submenu
   // once the file is parsed.
   void rebuildAppMenu()
-  // ENH-221 D14 — same pattern for File ▸ Open Recent (the Open-bar recents).
+  // ENH-224 D14 — same pattern for File ▸ Open Recent (the Open-bar recents).
   // installAppMenu() above built it from the empty cache; prime + repaint.
   void refreshOpenRecentsCache()
   // ENH-031 — global right-click context menu for every WebContents
@@ -1573,7 +1573,7 @@ app.whenReady().then(async () => {
     setShiftReturn: setShiftReturnMode,
     // ENH-172 (Sprint 20) — show/hide hidden-files toggle.
     setHiddenFiles: setHiddenFiles,
-    // ENH-221 D14 — `duo open` record-on-open + `duo recent` share the same
+    // ENH-224 D14 — `duo open` record-on-open + `duo recent` share the same
     // main-process OpenRecentsService singleton the UI Open bar writes to.
     recordOpenRecent: async (entry) => { await recordOpenRecentAndRefresh(entry) },
     listOpenRecents: () => openRecents.list(),
@@ -2446,7 +2446,7 @@ function setupIPC(): void {
     }
   })
 
-  // ENH-221 D17 — native Browse… picker behind the Open bar. ONE dialog with
+  // ENH-224 D17 — native Browse… picker behind the Open bar. ONE dialog with
   // both openFile + openDirectory enabled (a picked file opens in its viewer;
   // a picked folder roots the navigator). Parented on the SENDER window (the
   // one whose Open bar fired it), never raw mainWindow (check-window-routing).
@@ -2470,7 +2470,7 @@ function setupIPC(): void {
     return { path: picked, kind }
   })
 
-  // ENH-221 D14 — Open Recent store IPC. Backed by the `openRecents` singleton
+  // ENH-224 D14 — Open Recent store IPC. Backed by the `openRecents` singleton
   // (shared with `duo open` record-on-open). record/clear refresh the
   // synchronous menu cache so File ▸ Open Recent stays current.
   ipcMain.handle(IPC.RECENTS_LIST, () => openRecents.list())
@@ -3306,7 +3306,7 @@ function installAppMenu(): void {
           click: () => { void openNewWindow() }
         },
         { type: 'separator' },
-        // ENH-221 D1/D14/D18 — the merged Open bar (⌘O) + its Open Recent.
+        // ENH-224 D1/D14/D18 — the merged Open bar (⌘O) + its Open Recent.
         // The accelerator is DISPLAY-ONLY (registerAccelerator:false): the
         // renderer's global ⌘O shortcut is the canonical handler (it fires
         // from every focus context via key-forwarding), so binding ⌘O here
@@ -3670,7 +3670,7 @@ function buildRecentWorkspacesSubmenu(): MenuItemConstructorOptions[] {
   return items
 }
 
-// ENH-221 D14 — File ▸ Open Recent submenu (Open-bar targets: local paths +
+// ENH-224 D14 — File ▸ Open Recent submenu (Open-bar targets: local paths +
 // GitHub URLs). Distinct from "Open Recent Workspace" (which lists
 // .duo-workspace envelopes). Reads `cachedOpenRecents` synchronously —
 // refreshOpenRecentsCache() keeps it current. Clicking an item re-resolves
@@ -3698,7 +3698,7 @@ function buildOpenRecentSubmenu(): MenuItemConstructorOptions[] {
   return items
 }
 
-// ENH-221 D14 — refresh the synchronous Open-Recent cache from disk + repaint
+// ENH-224 D14 — refresh the synchronous Open-Recent cache from disk + repaint
 // the menu. Called at boot and after every record/clear.
 async function refreshOpenRecentsCache(): Promise<void> {
   try {
@@ -3709,7 +3709,7 @@ async function refreshOpenRecentsCache(): Promise<void> {
   installAppMenu()
 }
 
-// ENH-221 D14 — record an open (UI Open bar via IPC, or `duo open` via the
+// ENH-224 D14 — record an open (UI Open bar via IPC, or `duo open` via the
 // socket handler's NavBridge.recordOpenRecent) + repaint the menu. record()
 // dedupes by target + caps at 10; we cache its return so the menu is fresh
 // without a second read.
@@ -4603,7 +4603,7 @@ export function sendEdit(path: string, mode?: 'canvas' | 'browser'): { ok: boole
   return { ok: true }
 }
 
-// ENH-221 D1/D18 — File ▸ Open… opens the merged Open bar in the target
+// ENH-224 D1/D18 — File ▸ Open… opens the merged Open bar in the target
 // window (focused for the menu click; primary as a fallback).
 function pushOpenBar(windowId?: number): { ok: boolean; error?: string } {
   const win = windowByIdOrPrimary(windowId)
@@ -4614,7 +4614,7 @@ function pushOpenBar(windowId?: number): { ok: boolean; error?: string } {
   return { ok: true }
 }
 
-// ENH-221 D14 — File ▸ Open Recent ▸ <target>: hand the raw target back to the
+// ENH-224 D14 — File ▸ Open Recent ▸ <target>: hand the raw target back to the
 // renderer, which re-resolves it through the same Open-bar open path.
 function pushOpenBarReopen(target: string, windowId?: number): { ok: boolean; error?: string } {
   const win = windowByIdOrPrimary(windowId)

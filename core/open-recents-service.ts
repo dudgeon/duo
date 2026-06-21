@@ -1,4 +1,4 @@
-// ENH-221 D14 — Open Recent store.
+// ENH-224 D14 — Open Recent store.
 //
 // Persists `~/.claude/duo/open-recents.json` — the last N targets opened
 // via the Open bar (local paths AND GitHub URLs), machine-global,

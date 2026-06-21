@@ -1,11 +1,11 @@
-// ENH-221 — the Open bar's search-vs-target heuristic. The resolver itself is
+// ENH-224 — the Open bar's search-vs-target heuristic. The resolver itself is
 // covered in core/open-resolve.test.ts; this pins the ONE decision layered on
 // top: a bare token fuzzy-finds the vault, anything path-shaped or a URL opens.
 
 import { describe, it, expect } from 'vitest'
 import { classifyInput } from './openBarClassify'
 
-describe('classifyInput — search vs open-target (ENH-221 D18)', () => {
+describe('classifyInput — search vs open-target (ENH-224 D18)', () => {
   it('empty / whitespace → empty mode', () => {
     expect(classifyInput('').mode).toBe('empty')
     expect(classifyInput('   ').mode).toBe('empty')

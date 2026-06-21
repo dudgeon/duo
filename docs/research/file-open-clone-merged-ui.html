@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="duo-editable" content="false">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ENH-221 · Merged Open + Clone surface</title>
+<title>ENH-224 · Merged Open + Clone surface</title>
 <style>
 /* ===== Atelier kernel (inlined) ===== */
 :root{
@@ -136,7 +136,7 @@ kbd{font-family:ui-monospace,Menlo,monospace;background:var(--paper);border:1px 
 <header class="page-head">
   <h1>Merged Open + Clone surface</h1>
   <div class="meta">
-    <span class="pill">ENH-221</span>
+    <span class="pill">ENH-224</span>
     <span class="pill">DR3 / DR5</span>
     2026-06-20 · the merged-UI you asked to see · pairs with the flow map
   </div>
@@ -360,7 +360,7 @@ so it shouldn't own the hero button.</p>
   function refresh(){document.getElementById('answered-count').textContent=answered();}
   document.addEventListener('change',refresh);
   function payload(){
-    const out=['ENH-221 · Merged Open + Clone surface — decisions',''];
+    const out=['ENH-224 · Merged Open + Clone surface — decisions',''];
     for(const d of DECISIONS){
       const c=document.querySelector('input[name="'+d.name+'"]:checked');
       const n=document.querySelector('textarea[data-decision="'+d.name+'"]');

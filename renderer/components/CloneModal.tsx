@@ -27,10 +27,10 @@ interface CloneModalProps {
    *  modal falls back to ~/Documents. App.tsx supplies the
    *  right-click context path OR the Navigator's current cwd. */
   defaultParent?: string | null
-  /** ENH-221 D15 — pre-populate the repo URL (the Open bar routes a GitHub
+  /** ENH-224 D15 — pre-populate the repo URL (the Open bar routes a GitHub
    *  repo / file URL here). null/undefined → empty field (manual clone). */
   defaultUrl?: string | null
-  /** ENH-221 D16 — when the clone came from a GitHub *file* URL, the path to
+  /** ENH-224 D16 — when the clone came from a GitHub *file* URL, the path to
    *  that file within the repo. On success the hero becomes "Open <file>"
    *  and opens `<clonedTo>/<openAfterRelPath>`. null → the plain "Done" hero. */
   openAfterRelPath?: string | null
@@ -39,7 +39,7 @@ interface CloneModalProps {
    *  decides whether to navigate the file tree there (recommended) or
    *  leave the modal-side "Open in Duo" button as the action. */
   onCloned: (clonedTo: string) => void
-  /** ENH-221 D16 — open the post-clone target file (absolute path). Wired by
+  /** ENH-224 D16 — open the post-clone target file (absolute path). Wired by
    *  the "Open <file>" success hero when openAfterRelPath is set. */
   onOpenAfter?: (absPath: string) => void
 }
@@ -89,7 +89,7 @@ export function CloneModal({ open, defaultParent, defaultUrl, openAfterRelPath, 
   // is to scope the reset to open-transitions only.
   useEffect(() => {
     if (!open) return
-    // ENH-221 D15 — prefill the URL when the Open bar routed a GitHub URL in.
+    // ENH-224 D15 — prefill the URL when the Open bar routed a GitHub URL in.
     setUrl(defaultUrl ?? '')
     setTargetParent(defaultParent ?? DEFAULT_PARENT)
     setRepoName('')
@@ -177,7 +177,7 @@ export function CloneModal({ open, defaultParent, defaultUrl, openAfterRelPath, 
   // unstick the button.
   const canClone = !busy && !!url.trim() && !!repoName && collisionState !== 'exists'
 
-  // ENH-221 D16 — context-aware success hero. When the clone came from a
+  // ENH-224 D16 — context-aware success hero. When the clone came from a
   // GitHub *file* URL, the hero opens that file after cloning (clonedTo + the
   // in-repo path); otherwise it's a plain "Done". The label name lives here
   // so the JSX can render it without re-deriving.
@@ -376,7 +376,7 @@ export function CloneModal({ open, defaultParent, defaultUrl, openAfterRelPath, 
           </div>
         )}
         {result && result.ok && (
-          // ENH-221 D16 — success-screen redesign. The prior panel led with
+          // ENH-224 D16 — success-screen redesign. The prior panel led with
           // a wall of next-step prose; the owner's note: "cloning >1 repo at
           // a time is an edge case — show a success message and make the hero
           // either Done or Open." So: one clean confirmation line; the action
@@ -438,7 +438,7 @@ export function CloneModal({ open, defaultParent, defaultUrl, openAfterRelPath, 
         {result?.ok ? (
           // D16 — success footer. Hero is "Done" for a bare-repo clone
           // (File ▸ Clone… / FileTree / duo clone), OR "Open <file>" when the
-          // merged Open flow routed a GitHub *file* URL into clone (ENH-221
+          // merged Open flow routed a GitHub *file* URL into clone (ENH-224
           // D19 live path — openAfterRelPath set). "Clone another" is the
           // demoted quiet link (multi-clone is the edge case, per owner).
           <div className="flex items-center justify-between">

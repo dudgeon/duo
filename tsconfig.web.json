@@ -19,7 +19,7 @@
     "core/html/**/*",
     "core/markdown/**/*",
     "core/json/**/*",
-    // ENH-221 — the Open-bar resolver is PURE (only a type-only import from
+    // ENH-224 — the Open-bar resolver is PURE (only a type-only import from
     // shared/types), so the renderer Open bar can share it with the CLI/main.
     "core/open-resolve.ts"
   ],

@@ -441,13 +441,13 @@ const api: ElectronAPI = {
       return () => ipcRenderer.removeListener(IPC.NAV_OPEN_NEW_VAULT_MODAL, handler)
     },
 
-    // ENH-221 D1/D18 — File → Open… menu opens the merged Open bar.
+    // ENH-224 D1/D18 — File → Open… menu opens the merged Open bar.
     onOpenBar: (cb: () => void) => {
       const handler = () => cb()
       ipcRenderer.on(IPC.NAV_OPEN_BAR, handler)
       return () => ipcRenderer.removeListener(IPC.NAV_OPEN_BAR, handler)
     },
-    // ENH-221 D14 — File → Open Recent ▸ <target> reopens via the renderer.
+    // ENH-224 D14 — File → Open Recent ▸ <target> reopens via the renderer.
     onOpenBarReopen: (cb: (target: string) => void) => {
       const handler = (_: IpcRendererEvent, target: string) => cb(target)
       ipcRenderer.on(IPC.NAV_OPEN_BAR_REOPEN, handler)
@@ -455,12 +455,12 @@ const api: ElectronAPI = {
     }
   },
 
-  // ENH-221 D17 — native file/folder picker behind the Open bar's Browse…
+  // ENH-224 D17 — native file/folder picker behind the Open bar's Browse…
   open: {
     browse: () => ipcRenderer.invoke(IPC.OPEN_BROWSE),
   },
 
-  // ENH-221 D14 — Open Recent store (pointers; resolved live). Backed by a
+  // ENH-224 D14 — Open Recent store (pointers; resolved live). Backed by a
   // main-process OpenRecentsService singleton shared with `duo open`.
   recents: {
     list: () => ipcRenderer.invoke(IPC.RECENTS_LIST),

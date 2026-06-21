@@ -52,7 +52,7 @@ export interface DuoResponse {
 export type DuoCommandName =
   | 'navigate'
   | 'open'
-  // ENH-221 D14 — list the Open Recent store (last ~10 Open-bar targets).
+  // ENH-224 D14 — list the Open Recent store (last ~10 Open-bar targets).
   // The CLI twin of File ▸ Open Recent + the empty-bar recents list.
   | 'recent'
   // Stage 20 — `duo reload` reloads the active browser tab in place.
@@ -1756,7 +1756,7 @@ export interface HomeSessionActionResult {
   externalLive?: boolean
 }
 
-// ── ENH-221 — Open bar: Open Recent (D14) + native Browse… (D17) ─────────────
+// ── ENH-224 — Open bar: Open Recent (D14) + native Browse… (D17) ─────────────
 
 /** What an Open Recent entry points at. Mirrors the resolver's kinds, but
  *  flattened (a recent doesn't need the parsed owner/repo/ref — re-resolved
@@ -2381,20 +2381,20 @@ export const IPC = {
   // default format — D2). Mirrors NAV_OPEN_CLONE_MODAL's menu-trigger
   // pattern.
   NAV_OPEN_NEW_VAULT_MODAL: 'nav:open-new-vault-modal',
-  // ENH-221 D1/D18 — main → renderer push from the File → Open… menu
+  // ENH-224 D1/D18 — main → renderer push from the File → Open… menu
   // entry. Renderer opens the merged Open bar (the ⌘O surface). Mirrors
   // NAV_OPEN_CLONE_MODAL's menu-trigger pattern.
   NAV_OPEN_BAR: 'nav:open-bar',
-  // ENH-221 D14 — main → renderer push from a File → Open Recent submenu
+  // ENH-224 D14 — main → renderer push from a File → Open Recent submenu
   // item. Carries the recent `target` string; the renderer re-resolves it
   // through the same Open-bar open path (local → openFileSmart, url →
   // browser pane, github → clone). Keeps one open code path.
   NAV_OPEN_BAR_REOPEN: 'nav:open-bar-reopen',
-  // ENH-221 D17 — renderer → main native file/folder picker (Browse…).
+  // ENH-224 D17 — renderer → main native file/folder picker (Browse…).
   // Returns a BrowseResult ({ path, kind } | null). Single dialog with
   // both openFile + openDirectory enabled.
   OPEN_BROWSE: 'open:browse',
-  // ENH-221 D14 — Open Recent store (machine-global pointers). list /
+  // ENH-224 D14 — Open Recent store (machine-global pointers). list /
   // record / clear, backed by a main-process OpenRecentsService singleton
   // shared with the `duo open` socket handler (one writer, no races).
   RECENTS_LIST: 'recents:list',

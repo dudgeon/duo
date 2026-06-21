@@ -154,9 +154,9 @@
 
 ---
 
-### ENH-221: Unified Open & GitHub round-trip — "open a remote doc like it's local; Save → PR"
+### ENH-224: Unified Open & GitHub round-trip — "open a remote doc like it's local; Save → PR"
 
-**Status:** 🆕 Filed 2026-06-19 (owner-driven; two AUQ rounds walked). **Priority:** P1 (differentiating collaboration flow — turns Duo from "IDE I drive" into "easiest way to co-edit a doc"). **Effort:** L (multi-phase). **PRD:** [docs/prd/enh-221-file-open-flow.md](docs/prd/enh-221-file-open-flow.md).
+**Status:** 🆕 Filed 2026-06-19 (owner-driven; two AUQ rounds walked). **Priority:** P1 (differentiating collaboration flow — turns Duo from "IDE I drive" into "easiest way to co-edit a doc"). **Effort:** L (multi-phase). **PRD:** [docs/prd/enh-224-file-open-flow.md](docs/prd/enh-224-file-open-flow.md).
 
 **Ask (owner).** Duo still feels like an IDE. Want a Google-Docs-style **Open** flow: ⌘O, paste a local path **or** a GitHub link, and Duo does the right thing. Local → focus folder + open viewer. GitHub file URL → opaque managed checkout → opens like a local file; **save local, and when the local copy diverges from the fetched baseline a "Submit PR" button appears** → one-tap (prefilled, editable) ships a PR back, **auto-forking** when the user has no push access (the cross-person/cross-namespace case). Open → edit → save ≈ propose changes.
 

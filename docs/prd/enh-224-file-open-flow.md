@@ -1,6 +1,6 @@
-# ENH-221 PRD — Unified Open & GitHub round-trip ("open a remote doc like it's local; Save → PR")
+# ENH-224 PRD — Unified Open & GitHub round-trip ("open a remote doc like it's local; Save → PR")
 
-**Status:** Draft for owner sign-off · 2026-06-19 (UI decisions + Open Recent walked 2026-06-20) · **Build started 2026-06-20** (Phase-0 verifiable core landed — see § 6a) · **Owner:** Geoff · **Tracker:** `tasks.md` § ENH-221 · **Decisions captured via:** two AskUserQuestion rounds (2026-06-19) + the OQ-1 UI-study walk + the merged-UI walk (2026-06-20), folded into § 3. · **Preview:** (renders as source on GitHub — read the markdown.)
+**Status:** Draft for owner sign-off · 2026-06-19 (UI decisions + Open Recent walked 2026-06-20) · **Build started 2026-06-20** (Phase-0 verifiable core landed — see § 6a) · **Owner:** Geoff · **Tracker:** `tasks.md` § ENH-224 · **Decisions captured via:** two AskUserQuestion rounds (2026-06-19) + the OQ-1 UI-study walk + the merged-UI walk (2026-06-20), folded into § 3. · **Preview:** (renders as source on GitHub — read the markdown.)
 
 ---
 
