@@ -185,6 +185,45 @@ describe('CronService', () => {
     await expect(svc.handleCli('preview', { cron: 'not a valid cron' })).rejects.toThrow()
   })
 
+  it('rejects a non-absolute cwd on add + edit (audit fix)', async () => {
+    const { runner } = makeRunner()
+    const svc = new CronService({ store, runner, sessionExists: async () => false, headlessAllowed: false })
+    await expect(
+      svc.handleCli('add', { name: 'x', cwd: 'relative/path', instruction: 'hi', every: 'daily', at: '09:00' })
+    ).rejects.toThrow(/absolute path/)
+    const view = (await addJob(svc)) as { id: string }
+    await expect(svc.handleCli('edit', { id: view.id, cwd: './nope' })).rejects.toThrow(/absolute path/)
+  })
+
+  it('rejects an unschedulable cron (Feb 30) on add + preview (audit fix)', async () => {
+    const { runner } = makeRunner()
+    const svc = new CronService({ store, runner, sessionExists: async () => false, headlessAllowed: false })
+    await expect(
+      svc.handleCli('add', { name: 'x', cwd: '/tmp/p', instruction: 'hi', cron: '0 0 30 2 *' })
+    ).rejects.toThrow(/never fires/)
+    await expect(svc.handleCli('preview', { cron: '0 0 30 2 *' })).rejects.toThrow(/never fires/)
+  })
+
+  it('a throwing fire reschedules so it does not tight-loop every tick (audit fix)', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 0, 1, 8, 59, 30))
+    let calls = 0
+    const runner: CronRunner = {
+      async spawn() {
+        calls++
+        throw new Error('boom') // simulates a persist/gate throw inside fireJob's try
+      },
+    }
+    const svc = new CronService({ store, runner, sessionExists: async () => false, headlessAllowed: false, tickMs: 60_000 })
+    await addJob(svc) // daily 09:00
+    svc.start()
+    await vi.advanceTimersByTimeAsync(60_000) // 09:00:30 — fires once, throws into the catch
+    expect(calls).toBe(1)
+    await vi.advanceTimersByTimeAsync(60_000) // 09:01:30 — must NOT re-fire (catch rescheduled to tomorrow)
+    expect(calls).toBe(1)
+    svc.stop()
+  })
+
   it('pause stops scheduling; resume restores it; rm deletes', async () => {
     const { runner } = makeRunner()
     const svc = new CronService({ store, runner, sessionExists: async () => false, headlessAllowed: false })

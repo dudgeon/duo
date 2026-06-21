@@ -31,6 +31,13 @@ type PresetKind = 'hourly' | 'daily' | 'weekdays' | 'weekly' | 'cron'
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
+/** Strip Electron's "Error invoking remote method 'x': Error: " IPC wrapper so
+ *  the user-facing preview/save error reads as the real message. */
+function cleanError(err: unknown): string {
+  const m = err instanceof Error ? err.message : String(err)
+  return m.replace(/^Error invoking remote method '[^']*':\s*(Error:\s*)?/, '')
+}
+
 const PRESETS: { value: PresetKind; label: string }[] = [
   { value: 'hourly', label: 'Hourly' },
   { value: 'daily', label: 'Daily' },
@@ -61,6 +68,7 @@ function fromSchedule(s: CronSchedule | undefined): {
     case 'weekly':
       return { ...base, preset: 'weekly', weekday: String(s.weekday), at: `${pad(s.hour)}:${pad(s.minute)}` }
   }
+  return base // defensive — a malformed / future-version persisted preset degrades to the daily form
 }
 
 export function NewCronJobModal({ open, editJob, defaultCwd, onClose, onSaved }: NewCronJobModalProps) {
@@ -78,6 +86,10 @@ export function NewCronJobModal({ open, editJob, defaultCwd, onClose, onSaved }:
 
   const [preview, setPreview] = useState<{ label: string; nextFireAt: string | null } | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
+  // True while the latest schedule edit hasn't been previewed/validated yet —
+  // gates Save so a click within the 250ms debounce can't submit an unvalidated
+  // schedule (audit fix).
+  const [previewPending, setPreviewPending] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const nameRef = useRef<HTMLInputElement>(null)
@@ -150,6 +162,7 @@ export function NewCronJobModal({ open, editJob, defaultCwd, onClose, onSaved }:
   useEffect(() => {
     if (!open) return
     let cancelled = false
+    setPreviewPending(true)
     const h = setTimeout(() => {
       void window.electron.cron
         .invoke('preview', scheduleArgs())
@@ -158,11 +171,13 @@ export function NewCronJobModal({ open, editJob, defaultCwd, onClose, onSaved }:
           const res = r as { scheduleLabel: string; nextFireAt: string | null }
           setPreview({ label: res.scheduleLabel, nextFireAt: res.nextFireAt })
           setPreviewError(null)
+          setPreviewPending(false)
         })
         .catch((err) => {
           if (cancelled) return
           setPreview(null)
-          setPreviewError(err instanceof Error ? err.message : String(err))
+          setPreviewError(cleanError(err))
+          setPreviewPending(false)
         })
     }, 250)
     return () => {
@@ -173,15 +188,23 @@ export function NewCronJobModal({ open, editJob, defaultCwd, onClose, onSaved }:
 
   if (!open) return null
 
-  const canSave = !busy && !!name.trim() && !!cwd.trim() && !!instruction.trim() && !previewError
+  const canSave =
+    !busy && !!name.trim() && !!cwd.trim() && !!instruction.trim() && !previewError && !previewPending
 
   const handleSave = async () => {
     if (!canSave) return
+    const home = window.electron.env?.HOME ?? ''
+    const expandedCwd = home ? cwd.trim().replace(/^~(?=$|\/)/, home) : cwd.trim()
+    // Audit fix — require an absolute path. A relative/typo'd cwd would be
+    // silently rewritten to the home dir at fire time (PtyManager fallback),
+    // running the job in the wrong place with no error.
+    if (!expandedCwd.startsWith('/')) {
+      setError('Working directory must be an absolute path (e.g. /Users/you/project).')
+      return
+    }
     setBusy(true)
     setError(null)
     try {
-      const home = window.electron.env?.HOME ?? ''
-      const expandedCwd = home ? cwd.trim().replace(/^~(?=$|\/)/, home) : cwd.trim()
       const payload: Record<string, unknown> = {
         name: name.trim(),
         cwd: expandedCwd,
@@ -195,7 +218,7 @@ export function NewCronJobModal({ open, editJob, defaultCwd, onClose, onSaved }:
       onSaved?.(saved)
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(cleanError(err))
     } finally {
       setBusy(false)
     }

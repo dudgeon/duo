@@ -1831,6 +1831,12 @@ app.whenReady().then(async () => {
       },
       runner: {
         spawn: async ({ cwd, command }) => {
+          // Audit fix — don't fire into a vanished dir: PtyManager would silently
+          // substitute the home dir (resolveExistingCwd), running the job in the
+          // wrong place and recording a false 'ran'. Record an error instead.
+          if (!fsExistsSync(cwd)) {
+            return { ok: false, error: `working directory no longer exists: ${cwd}` }
+          }
           const windowId = resolveCronLandingWindow(cwd) // D10
           // D10(3) — no window open at all (registry empty → primary() is
           // undefined). The run is "missed", governed by D5 catch-up, NOT a

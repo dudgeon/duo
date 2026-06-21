@@ -9,7 +9,8 @@
 // injected via CronRunner + sessionExists, so this module has no Electron deps.
 
 import { randomUUID } from 'node:crypto'
-import type { CronJob, CronJobView, CronRunState, CronSessionMode } from '../shared/types'
+import { isAbsolute } from 'node:path'
+import type { CronJob, CronJobView, CronRunState, CronSessionMode, CronSchedule } from '../shared/types'
 import { CronStore } from './cron-store'
 import { nextFireAfterSchedule, describeSchedule, parseScheduleArgs } from './cron-schedule'
 import {
@@ -214,9 +215,15 @@ export class CronService {
       this.emitChange()
       return result
     } catch (err) {
-      // Most likely the D4 gate. Record nothing as "ran"; surface the error.
+      // Most likely the D4 gate, or a store-persist I/O failure thrown from
+      // updateJob. Record nothing as "ran"; surface the error.
       const message = err instanceof Error ? err.message : String(err)
       this.log(`[cron] run for job ${jobId} blocked: ${message}`)
+      // Audit fix — every other terminal branch reschedules; this one must too,
+      // else a THROW (e.g. a disk-full persist) leaves nextFireAt anchored in
+      // the past and every 30s tick re-fires + re-throws (tight retry loop).
+      const fresh = this.store.getJob(jobId)
+      if (fresh) this.rescheduleJob(fresh, new Date(this.now()))
       return { ok: false, error: message }
     } finally {
       this.firing.delete(jobId)
@@ -344,7 +351,11 @@ export class CronService {
           on: str(args.on),
         })
         const next = nextFireAfterSchedule(schedule, new Date(this.now()))
-        return { scheduleLabel: describeSchedule(schedule), nextFireAt: next ? next.toISOString() : null }
+        // Audit fix — an unschedulable expression (e.g. Feb 30) parses but never
+        // fires. Surface it in the F3 preview rather than letting the user save
+        // a silently-dead job.
+        if (!next) throw new Error('this schedule never fires (impossible date — e.g. Feb 30)')
+        return { scheduleLabel: describeSchedule(schedule), nextFireAt: next.toISOString() }
       }
 
       default:
@@ -360,18 +371,23 @@ export class CronService {
     const name = str(args.name)
     if (name) patch.name = name
     const cwd = str(args.cwd)
-    if (cwd) patch.cwd = cwd
+    if (cwd) {
+      assertCwdAbsolute(cwd)
+      patch.cwd = cwd
+    }
     const instruction = str(args.instruction)
     if (instruction) patch.instruction = instruction
     const sessionRaw = str(args.session)
     if (sessionRaw === 'same' || sessionRaw === 'fresh') patch.session = sessionRaw
     if (str(args.cron) || str(args.every) || str(args.at) || str(args.on)) {
-      patch.schedule = parseScheduleArgs({
+      const schedule = parseScheduleArgs({
         cron: str(args.cron),
         every: str(args.every),
         at: str(args.at),
         on: str(args.on),
       })
+      this.assertSchedulable(schedule)
+      patch.schedule = schedule
     }
     // catch-up: true → on; false → inherit the global default (null); absent → unchanged.
     if (args.catchUp === true || args.catchUp === 'true') patch.catchUpOnLaunch = true
@@ -387,6 +403,7 @@ export class CronService {
     if (!name) throw new Error('cron add requires --name')
     if (!cwd) throw new Error('cron add requires --cwd')
     if (!instruction) throw new Error('cron add requires --say "<instruction>"')
+    assertCwdAbsolute(cwd)
 
     const schedule = parseScheduleArgs({
       cron: str(args.cron),
@@ -394,6 +411,7 @@ export class CronService {
       at: str(args.at),
       on: str(args.on),
     })
+    this.assertSchedulable(schedule)
 
     const sessionRaw = str(args.session)
     const session: CronSessionMode = sessionRaw === 'same' ? 'same' : 'fresh'
@@ -418,6 +436,24 @@ export class CronService {
     this.rescheduleJob(added, new Date(this.now()))
     this.emitChange()
     return this.toView(added)
+  }
+
+  /** Reject a schedule that parses but has no occurrence (e.g. Feb 30) so we
+   *  don't persist an enabled-but-silently-dead job (audit fix). */
+  private assertSchedulable(schedule: CronSchedule): void {
+    if (!nextFireAfterSchedule(schedule, new Date(this.now()))) {
+      throw new Error('cron: this schedule never fires (impossible date — e.g. Feb 30)')
+    }
+  }
+}
+
+/** A cron job's cwd must be absolute — a relative/typo'd path would be silently
+ *  rewritten to the user's home dir at fire time (PtyManager fallback), running
+ *  the job in the wrong directory with no error. The CLI absolutizes via
+ *  resolveFilePath; this guards the IPC/modal path to the same invariant. */
+function assertCwdAbsolute(cwd: string): void {
+  if (!isAbsolute(cwd)) {
+    throw new Error(`cron: working directory must be an absolute path, got "${cwd}"`)
   }
 }
 

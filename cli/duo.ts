@@ -2401,7 +2401,7 @@ async function main(): Promise<void> {
         //   cron show|run|pause|resume|rm <id>
         const sub = rest[0]
         if (!sub) {
-          die('Usage: duo cron <list|add|run|pause|resume|rm|show> [args]')
+          die('Usage: duo cron <list|add|edit|run|pause|resume|rm|show> [args]')
         }
         if (sub === 'list') {
           out(await send('cron', { op: 'list' }))
