@@ -608,3 +608,30 @@
 .duo-home-cron-btn:disabled { opacity: 0.5; cursor: default; }
 .duo-home-cron-btn.is-delete:hover:not(:disabled) { border-color: #b91c1c; color: #b91c1c; }
 .duo-home-cron-btn.is-delete.is-armed { background: #b91c1c; color: #ffffff; border-color: #b91c1c; }
+
+/* D6 — cron jobs nested under a project card (hero / expanded spine). A faint
+   rule separates them from the card's sessions/files; rows reuse
+   .duo-home-cron-row. The block always renders (at least the "+ Schedule"
+   affordance) so every surfaced project can be scheduled. */
+.duo-home-card-cron {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--duo-paper-rule, var(--duo-paper-edge));
+}
+
+/* "+ Schedule" — a quiet, left-aligned affordance offered on every card (D7). */
+.duo-home-cron-schedule {
+  align-self: flex-start;
+  color: var(--duo-ink-mute);
+}
+
+/* Collapsed-spine indicator: N scheduled jobs, visible without expanding. */
+.duo-home-spine-cron {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--duo-ink-mute);
+  font-variant-numeric: tabular-nums;
+}

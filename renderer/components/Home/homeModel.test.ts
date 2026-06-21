@@ -11,9 +11,10 @@ import {
   projectHue,
   subPathLabel,
   fileChipLabel,
+  assignCronJobs,
   SPINE_FOLD_AFTER
 } from './homeModel'
-import type { HomeProject, HomeSession, GreetingData } from '@shared/types'
+import type { HomeProject, HomeSession, GreetingData, CronJobView } from '@shared/types'
 
 const MIN = 60_000
 const HOUR = 60 * MIN
@@ -247,5 +248,72 @@ describe('freshestSession (round-2 #3)', () => {
   it('null when there are no sessions', () => {
     expect(freshestSession([project('empty', 0)])).toBeNull()
     expect(freshestSession([])).toBeNull()
+  })
+})
+
+describe('assignCronJobs (D6 — nest under surfaced project cards)', () => {
+  /** Minimal CronJobView — assignCronJobs only reads `cwd`. */
+  function job(id: string, cwd: string): CronJobView {
+    return { id, cwd } as CronJobView
+  }
+
+  it('nests a job whose cwd is exactly a surfaced root', () => {
+    const { byRoot, unmatched } = assignCronJobs(
+      [job('a', '/Users/x/app')],
+      ['/Users/x/app', '/Users/x/web'],
+      new Set(['/Users/x/app'])
+    )
+    expect(byRoot.get('/Users/x/app')?.map((j) => j.id)).toEqual(['a'])
+    expect(unmatched).toEqual([])
+  })
+
+  it('nests a job in a SUBDIR under its deepest enclosing surfaced root', () => {
+    const { byRoot, unmatched } = assignCronJobs(
+      [job('a', '/Users/x/app/packages/core')],
+      ['/Users/x/app'],
+      new Set(['/Users/x/app'])
+    )
+    expect(byRoot.get('/Users/x/app')?.map((j) => j.id)).toEqual(['a'])
+    expect(unmatched).toEqual([])
+  })
+
+  it('picks the DEEPEST enclosing root when roots nest', () => {
+    const { byRoot } = assignCronJobs(
+      [job('a', '/Users/x/app/sub/work')],
+      ['/Users/x/app', '/Users/x/app/sub'],
+      new Set(['/Users/x/app', '/Users/x/app/sub'])
+    )
+    expect(byRoot.get('/Users/x/app/sub')?.map((j) => j.id)).toEqual(['a'])
+    expect(byRoot.has('/Users/x/app')).toBe(false)
+  })
+
+  it('aggregates (unmatched) a job whose owning project is NOT surfaced', () => {
+    // root exists (folded spine) but isn't in surfacedRoots → aggregated block
+    const { byRoot, unmatched } = assignCronJobs(
+      [job('a', '/Users/x/folded')],
+      ['/Users/x/app', '/Users/x/folded'],
+      new Set(['/Users/x/app'])
+    )
+    expect(byRoot.size).toBe(0)
+    expect(unmatched.map((j) => j.id)).toEqual(['a'])
+  })
+
+  it('aggregates a job whose cwd matches no known root', () => {
+    const { unmatched } = assignCronJobs(
+      [job('a', '/tmp/orphan')],
+      ['/Users/x/app'],
+      new Set(['/Users/x/app'])
+    )
+    expect(unmatched.map((j) => j.id)).toEqual(['a'])
+  })
+
+  it('groups multiple jobs under the same root and preserves order', () => {
+    const { byRoot } = assignCronJobs(
+      [job('a', '/Users/x/app'), job('b', '/Users/x/app/sub'), job('c', '/Users/x/web')],
+      ['/Users/x/app', '/Users/x/web'],
+      new Set(['/Users/x/app', '/Users/x/web'])
+    )
+    expect(byRoot.get('/Users/x/app')?.map((j) => j.id)).toEqual(['a', 'b'])
+    expect(byRoot.get('/Users/x/web')?.map((j) => j.id)).toEqual(['c'])
   })
 })

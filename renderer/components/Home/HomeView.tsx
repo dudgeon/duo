@@ -23,7 +23,8 @@ import { GreetingLine } from './GreetingLine'
 import { HeroPanel } from './HeroPanel'
 import { SpineRow } from './SpineRow'
 import { CronSection } from './CronSection'
-import { selectHeroes, selectSpine, foldSpine, freshestSession } from './homeModel'
+import { useCronJobs } from './CronJobRow'
+import { selectHeroes, selectSpine, foldSpine, freshestSession, assignCronJobs } from './homeModel'
 import './Home.css'
 
 /** Heroes show their 3 most-recent sessions inline (§ 1); the snapshot's
@@ -54,6 +55,11 @@ export function HomeView({ isActive, onSnapshotChange }: HomeViewProps) {
   // The session pending a fork-confirm — set when the user clicks a session
   // that's live OUTSIDE Duo. We warn, but let the user fork it (their call).
   const [forkConfirm, setForkConfirm] = useState<HomeSession | null>(null)
+
+  // ENH-223 Tier 2 — scheduled ("cron") jobs, fetched live. Lifted here (not in
+  // CronSection) so jobs can BOTH nest under their project card (D6) and the
+  // remainder feed the aggregated "Scheduled" block.
+  const { jobs: cronJobs, invoke: cronInvoke } = useCronJobs()
 
   // Guard against a late-resolving fetch landing after unmount / after the
   // surface went inactive. Mirrors the cancelled-flag pattern the editor
@@ -181,6 +187,12 @@ export function HomeView({ isActive, onSnapshotChange }: HomeViewProps) {
   const { visible: visibleSpine, hiddenCount } = foldSpine(spine, spineExpanded)
   const freshest = freshestSession(snapshot.projects)
 
+  // D6 — split cron jobs into per-(surfaced-)project buckets + the aggregated
+  // remainder. Surfaced = the two heroes + the currently-visible spine rows.
+  const allRoots = snapshot.projects.map((p) => p.rootPath)
+  const surfacedRoots = new Set([...heroes, ...visibleSpine].map((p) => p.rootPath))
+  const { byRoot: cronByRoot, unmatched: cronUnmatched } = assignCronJobs(cronJobs, allRoots, surfacedRoots)
+
   return (
     <div className="duo-home" data-duo-tab-kind="home">
       <GreetingLine
@@ -194,6 +206,8 @@ export function HomeView({ isActive, onSnapshotChange }: HomeViewProps) {
             <HeroPanel
               key={project.rootPath}
               project={project}
+              cronJobs={cronByRoot.get(project.rootPath) ?? []}
+              cronInvoke={cronInvoke}
               onActivateSession={onActivateSessionInProject}
               onOpenFile={onOpenFile}
             />
@@ -208,6 +222,8 @@ export function HomeView({ isActive, onSnapshotChange }: HomeViewProps) {
               key={project.rootPath}
               project={project}
               expanded={expandedSpine.has(project.rootPath)}
+              cronJobs={cronByRoot.get(project.rootPath) ?? []}
+              cronInvoke={cronInvoke}
               onToggle={onToggleSpine}
               onActivateSession={onActivateSessionInProject}
             />
@@ -228,9 +244,10 @@ export function HomeView({ isActive, onSnapshotChange }: HomeViewProps) {
         </div>
       )}
 
-      {/* ENH-223 Tier 2 — scheduled ("cron") jobs. Renders nothing when there
-          are no jobs, so it's invisible until the user creates one. */}
-      <CronSection />
+      {/* ENH-223 Tier 2 — the aggregated "Scheduled" block (D6): only jobs whose
+          project isn't a surfaced card. Jobs under surfaced projects nest under
+          their hero/spine card instead. Renders nothing when empty. */}
+      <CronSection jobs={cronUnmatched} invoke={cronInvoke} />
 
       {heroes.length === 0 && spine.length === 0 && (
         <div className="duo-home-empty text-ink-mute font-serif">

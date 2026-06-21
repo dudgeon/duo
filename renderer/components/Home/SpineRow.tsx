@@ -7,18 +7,22 @@
 // latest session. Only a click on a revealed session row focuses/resumes.
 // The parent (HomeView) owns the expanded set + the session-click contract.
 
-import type { HomeProject, HomeSession } from '@shared/types'
+import type { HomeProject, HomeSession, CronJobView } from '@shared/types'
 import { SessionList } from './SessionList'
+import { CronJobRow, NewScheduleButton, type CronInvoke } from './CronJobRow'
 import { ageShort, projectHue } from './homeModel'
 
 interface SpineRowProps {
   project: HomeProject
   expanded: boolean
+  /** D6 — cron jobs whose project is this card; shown nested when expanded. */
+  cronJobs: CronJobView[]
+  cronInvoke: CronInvoke
   onToggle: (project: HomeProject) => void
   onActivateSession: (project: HomeProject, session: HomeSession) => void
 }
 
-export function SpineRow({ project, expanded, onToggle, onActivateSession }: SpineRowProps) {
+export function SpineRow({ project, expanded, cronJobs, cronInvoke, onToggle, onActivateSession }: SpineRowProps) {
   const latest = project.sessions[0]
   const count = project.sessionCount
   return (
@@ -41,12 +45,24 @@ export function SpineRow({ project, expanded, onToggle, onActivateSession }: Spi
           {count} {count === 1 ? 'session' : 'sessions'}
         </span>
         <span className="duo-home-spine-latest">{latest ? latest.title : '—'}</span>
+        {cronJobs.length > 0 && (
+          <span className="duo-home-spine-cron" title={`${cronJobs.length} scheduled job${cronJobs.length === 1 ? '' : 's'}`}>
+            ⏱ {cronJobs.length}
+          </span>
+        )}
         <span className="duo-home-spine-age">{ageShort(Date.now() - project.lastActiveAt)}</span>
       </button>
 
       {expanded && (
         <div className="duo-home-spine-sessions">
           <SessionList project={project} onActivateSession={onActivateSession} />
+          {/* D6 — scheduled jobs nested in the expanded card + per-card "+ Schedule". */}
+          <div className="duo-home-card-cron" aria-label="Scheduled jobs">
+            {cronJobs.map((job) => (
+              <CronJobRow key={job.id} job={job} invoke={cronInvoke} hideProject />
+            ))}
+            <NewScheduleButton cwd={project.rootPath} />
+          </div>
         </div>
       )}
     </div>
