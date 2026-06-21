@@ -18,6 +18,20 @@
 
 ---
 
+## 2026-06-21 (ENH-223 cron — describer/audit #8 + main integration + Tier 2 inc 3; Tier 2 COMPLETE) — PR #103
+
+Continued the **cron** branch (PR #103). Closed the last open Tier-2 work and got the PR to a MERGEABLE, complete-Tier-2 state.
+
+**Cleared iCloud git corruption first.** `git fetch` was failing (`did not send all necessary objects`) — sync-conflict duplicate refs (`…/chron-job-management-yfy4ae 2`, `…/duo-file-open-flow-g3rpdx 2`) + stale `index 2/3/4`. Removed them; fetch + fsck clean. → the OTHER iCloud trap (dup refs, not eviction).
+
+**Audit #8 — hand-rolled advanced-cron describer (commit `6dd555c`, per owner D8).** `describeCron` renders a 5-field cron in natural English for the F3 preview + Home rows + CLI list/show (via `describeSchedule`); dependency-free; honesty-biased (echoes anything it can't render faithfully). A **multi-agent adversarial verification workflow** (47 agents grounding every claim against the engine's real next-fire times via a probe) caught two lie-classes my happy-path unit tests missed, both fixed: (a) **non-dividing `*/N` steps** (`*/7` min, `0 */5` hr) that reset at the hour/day wrap — `detectStep` now requires the step to divide 60/24, else falls to an honest explicit-time list; (b) **impossible calendar dates** ("31st of April" never fires) — the DOM branch echoes when a (day,month) pair is calendar-impossible. 31 cron-schedule tests. **Lesson:** my own tests verify what I think is right; an adversary grounded against ground-truth finds what I didn't think of. Also re-learned the `*/` -in-a-block-comment trap (closes the comment → esbuild parse error) — twice.
+
+**Integrated `origin/main` (commit `58953e9`).** `git merge origin/main` (chosen over rebase — the repo squash-merges, so a merge resolves the 13 additive plumbing conflicts ONCE vs replaying 15 commits). All 13 plumbing files (`shared/types.ts`, `host-api.ts`, `main.ts`, `preload.ts`, `App.tsx`, `socket-server.ts`, `cli/duo.ts` + docs) **auto-merged**; only `tasks.md` + `session-log.md` hand-resolved (keep-both). Rebuilt `cli/duo` from merged source (both `history` + `cron` verbs). typecheck clean, suite 1696, skill-currency 75 verbs. **Owner flipped the order: #103 may merge BEFORE #102** (`duo-file-open-flow`) if it wraps first → integrates onto current main; #102 rebases onto a main that includes cron.
+
+**Tier 2 increment 3 — D6 per-project nesting (commit `c2571ba`, live-verified).** Jobs now nest under their project's hero/spine card; the aggregated "Scheduled" block holds only the remainder. Extracted a reusable `CronJobRow` + `useCronJobs` + `NewScheduleButton`; pure `assignCronJobs(jobs, allRoots, surfacedRoots)` splits by deepest-enclosing root. D7 per-card "+ Schedule" seeds the dialog with the project cwd. Spine rows show a "⏱ N" count collapsed + nest when expanded. **Live-verified via `duo dom`** in a real dev build (took over the shared socket from the serene-lumiere dev, per owner): a subdir job nests under its deepest-enclosing hero, a `/tmp` job → aggregated block, "+ Schedule" opens the dialog seeded with the project cwd, spine badge + expand-nesting render, a row Pause round-trips (chip → paused). Full suite **1702**. **Tier 2 is complete (D6 + D7).**
+
+**Still owed:** the `/smoke-walk` of the **native** File ▸ New Scheduled Job… menu + the project-rail right-click — both native Electron menus DOM can't drive (they dispatch the same modal-open path that IS verified). Then the cut (after #102 also lands). Then ENH-225 (attention badge).
+
 ## 2026-06-20 (ENH-223 cron — Tier 1 live-verified + 2 bug fixes; Tier 2 increment 1) — PR #103
 
 Picked up the **scheduled ("cron") Claude sessions** branch (`claude/chron-job-management-yfy4ae`, PR #103) where the cloud session left it: spec locked, Tier 1 (engine + CLI) built + unit-green but **never exercised against a running Electron app** (cloud has no Electron binary). This session did the live verification, fixed what it surfaced, and started Tier 2.

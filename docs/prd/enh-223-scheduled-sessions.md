@@ -295,7 +295,7 @@ shell-hosted claude tabs.
 
 ---
 
-## 10. Status (2026-06-21) — Tier 2 increments 1+2 shipped + audited
+## 10. Status (2026-06-21) — Tier 2 COMPLETE (inc 1+2+3) + audited + integrated
 
 **Tier 2 increment 1 — Home "Scheduled" block (DONE, live-verified).** Engine→
 renderer plumbing: a `CronService.onJobsChanged` change-emitter → a
@@ -304,7 +304,6 @@ reuses the **same `handleCli` the socket CLI uses** (one code path for CLI + UI)
 `CronSection` renders one row per job — status chip (ran/never/missed/error/
 paused), schedule label, next-fire, project, + row actions (Run now / Pause /
 Resume / Delete with a 2-click confirm). Invisible when there are no jobs.
-(Aggregated block only — the D6 per-project nesting is increment 3.)
 
 **Tier 2 increment 2 — create/edit dialog + entry points (DONE, live-verified).**
 `NewCronJobModal` (create + edit): preset segmented control (Hourly/Daily/
@@ -338,23 +337,42 @@ the step to divide 60/24), and (b) impossible calendar dates ("31st of April"
 never fires — the day-of-month branch now echoes when a (day, month) pair is
 calendar-impossible). Commit `6dd555c`.
 
-**Verified:** 19 cron-service + 31 cron-schedule unit tests + full suite (1666)
-green; typecheck clean; `check:skill-currency` (74 verbs) passes. PR #103.
+**Tier 2 increment 3 — D6 per-project nesting (DONE, live-verified, commit
+`c2571ba`).** Cron jobs now nest under their project's hero/spine card on Home;
+the aggregated "Scheduled" block holds only the remainder (jobs whose project
+isn't a surfaced card) so nothing is hidden. Adds the D7 per-card "+ Schedule"
+affordance (seeds the dialog with the project cwd). Extracted a reusable
+`CronJobRow` (+ `useCronJobs`, `NewScheduleButton`); a pure
+`assignCronJobs(jobs, allRoots, surfacedRoots)` splits jobs by deepest-enclosing
+root (`shared/projects` `deepestEnclosingRoot`); surfaced = 2 heroes + visible
+spine. Heroes nest jobs + "+ Schedule" always; spine rows show a "⏱ N" count
+collapsed and the nested block when expanded. **Live-verified** (`duo dom`): a
+subdir job nests under its deepest-enclosing hero card, a `/tmp` job falls to the
+aggregated block, "+ Schedule" opens the dialog seeded with the project cwd, the
+spine badge + expand-nesting render, and a row Pause round-trips. The native
+File-menu + rail entry points dispatch the SAME verified modal-open path; their
+native-menu click-leg is for the owner-walked `/smoke-walk`. **Tier 2 is now
+complete (D6 + D7 fully implemented).**
 
-**Still owed (the resume plan — see `docs/dev/enh-223-handoff.md`):**
-1. **Merge order + rebase.** This branch merges **after**
-   `claude/duo-file-open-flow-g3rpdx` (owner, 2026-06-21) — wait for it to land,
-   then **rebase onto the updated `main`** (6+ commits ahead; ~13 overlapping
-   plumbing files — `shared/types.ts`, `host-api.ts`, `main.ts`, `preload.ts`,
-   `App.tsx`, `socket-server.ts`, `cli/duo.ts` + docs; mostly *additive*
-   conflicts). Ask the owner before launching the shared Electron dev.
-2. **`/smoke-walk`** (exercises the native File-menu + rail triggers that
-   couldn't be driven headlessly), then **cut** Tier 1 + Tier 2 inc 1+2 as the
-   cron v1.
-3. **Tier 2 increment 3** — D6 per-project nesting (jobs under their hero/spine
-   card via `deepestEnclosingRoot`) + a per-card "+ Schedule". *(Polish — can
-   ship after v1.)*
-4. **ENH-225** — the "waiting on you" attention badge (must surface on cron's
+**Integration (commit `58953e9`).** Merged `origin/main` (#100/#99/#101/#105/#104)
+into the branch — all 13 plumbing files auto-merged; only `tasks.md` +
+`session-log.md` hand-resolved (keep-both). **PR #103 is `MERGEABLE`/`CLEAN`.**
+Per owner (2026-06-21), **#103 may merge BEFORE #102** (`duo-file-open-flow`) if
+it wraps first — so it integrates onto the *current* main (no #102), and #102
+rebases onto a main that already includes cron.
+
+**Verified:** 19 cron-service + 31 cron-schedule + (homeModel) 6 assignCronJobs
+unit tests + full suite (**1702**) green; typecheck clean; `check:skill-currency`
+(75 verbs) passes. PR #103 `MERGEABLE`.
+
+**Still owed:**
+1. **`/smoke-walk`** — the only unexercised leg is the **native** File ▸ New
+   Scheduled Job… menu + the project-rail right-click (both native Electron
+   menus DOM can't drive; both dispatch the already-verified modal-open path).
+   Fold into the pre-cut walk.
+2. **Cut** Tier 1 + Tier 2 (inc 1+2+3) as the cron **v1** (after #102 also lands,
+   per the cut-after-both plan).
+3. **ENH-225** — the "waiting on you" attention badge (must surface on cron's
    `kind:'shell'` claude tabs). *(Separate sibling.)*
 5. Logged future: ENH-222 (`launchd` launch), headless `-p` mode, full
    run-history view.
