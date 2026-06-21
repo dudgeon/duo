@@ -1054,48 +1054,48 @@ export class SocketServer {
                 }
               }
               if (!openedFromClone) {
-              const checkout = await this.nav.runManagedCheckout({
-                owner: classified.owner,
-                repo: classified.repo,
-                ref: classified.ref,
-                filePath: classified.filePath,
-              })
-              if (checkout.ok) {
-                // Open the checked-out file like a local doc, and ONLY claim
-                // success if the renderer actually mounted it — mirrors the
-                // file:// branch's `if (editResult.ok)` gate (a failed edit
-                // must not report ok:true).
-                const editResult = this.nav.edit(checkout.pointer.fileAbsPath)
-                if (editResult.ok) {
-                  // Focus the checkout FOLDER so the doc's siblings/assets are
-                  // visible (D5). reveal() roots cwd at the revealed path's
-                  // PARENT + selects it, so reveal the FILE → cwd = checkoutDir
-                  // with the doc highlighted — matching the UI's
-                  // navigateTo(checkoutDir); reveal(checkoutDir) would instead
-                  // land at ~/.claude/duo/checkouts/. Best-effort (a failed
-                  // navigator focus never fails the open).
-                  this.nav.reveal(checkout.pointer.fileAbsPath)
-                  // Record under the canonical github.com/blob URL (parity with
-                  // App.tsx onOpenGithubDoc) — applied in the shared record
-                  // block below.
-                  recentTargetOverride = classified.canonical
-                  result = { ok: true, url, routedTo: 'editor', checkout: checkout.pointer }
-                  resolvedLocally = true
+                const checkout = await this.nav.runManagedCheckout({
+                  owner: classified.owner,
+                  repo: classified.repo,
+                  ref: classified.ref,
+                  filePath: classified.filePath,
+                })
+                if (checkout.ok) {
+                  // Open the checked-out file like a local doc, and ONLY claim
+                  // success if the renderer actually mounted it — mirrors the
+                  // file:// branch's `if (editResult.ok)` gate (a failed edit
+                  // must not report ok:true).
+                  const editResult = this.nav.edit(checkout.pointer.fileAbsPath)
+                  if (editResult.ok) {
+                    // Focus the checkout FOLDER so the doc's siblings/assets are
+                    // visible (D5). reveal() roots cwd at the revealed path's
+                    // PARENT + selects it, so reveal the FILE → cwd = checkoutDir
+                    // with the doc highlighted — matching the UI's
+                    // navigateTo(checkoutDir); reveal(checkoutDir) would instead
+                    // land at ~/.claude/duo/checkouts/. Best-effort (a failed
+                    // navigator focus never fails the open).
+                    this.nav.reveal(checkout.pointer.fileAbsPath)
+                    // Record under the canonical github.com/blob URL (parity with
+                    // App.tsx onOpenGithubDoc) — applied in the shared record
+                    // block below.
+                    recentTargetOverride = classified.canonical
+                    result = { ok: true, url, routedTo: 'editor', checkout: checkout.pointer }
+                    resolvedLocally = true
+                  } else {
+                    result = { ok: false, error: editResult.error ?? 'Could not open the checked-out file.', checkout: checkout.pointer }
+                    break
+                  }
                 } else {
-                  result = { ok: false, error: editResult.error ?? 'Could not open the checked-out file.', checkout: checkout.pointer }
+                  // auth-missing → the same gh-auth bounce the Clone modal uses
+                  // (D9); file-missing / checkout-failed surface plainly so an
+                  // agent can self-correct. Break early — no browser fallback,
+                  // no recent recorded for a failed open.
+                  const hint = checkout.errorKind === 'auth-missing'
+                    ? checkout.error + ' Run `gh auth login`, then retry.'
+                    : checkout.error
+                  result = { ok: false, error: hint, errorKind: checkout.errorKind }
                   break
                 }
-              } else {
-                // auth-missing → the same gh-auth bounce the Clone modal uses
-                // (D9); file-missing / checkout-failed surface plainly so an
-                // agent can self-correct. Break early — no browser fallback,
-                // no recent recorded for a failed open.
-                const hint = checkout.errorKind === 'auth-missing'
-                  ? checkout.error + ' Run `gh auth login`, then retry.'
-                  : checkout.error
-                result = { ok: false, error: hint, errorKind: checkout.errorKind }
-                break
-              }
               } // end if (!openedFromClone) — Phase 3 fell through to checkout
             }
           }

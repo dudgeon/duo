@@ -38,10 +38,16 @@ export interface MatchLocalCloneOpts {
 
 /**
  * Find the first candidate root that is a clone of owner/repo AND actually
- * contains `filePath`. Reads each root's `origin` remote (git). The file-exists
- * check guards against a clone on a branch where the file lives elsewhere /
- * doesn't exist — in which case we fall back to the managed checkout rather than
- * open a missing path. Returns null when nothing matches.
+ * contains `filePath`. Reads each root's `origin` remote (git).
+ *
+ * NOTE (D6, by design): the URL's `ref` is intentionally NOT matched — we open
+ * WHATEVER the user has at that path on their CURRENT branch (modality 1: their
+ * tree, their git), which may differ from the URL's ref. The UI surfaces the
+ * clone's branch (`branch` below) so the offer is informed; the share-back
+ * footer is gated to managed checkouts, so opening here never proposes a PR.
+ * The file-exists check only ensures the path is present (so we never open a
+ * missing file) — when it's absent we fall back to the managed checkout.
+ * Returns null when nothing matches.
  */
 export async function matchLocalClone(opts: MatchLocalCloneOpts): Promise<LocalCloneMatch | null> {
   const { owner, repo, filePath, candidateRoots } = opts

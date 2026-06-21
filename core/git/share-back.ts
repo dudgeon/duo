@@ -77,6 +77,14 @@ export async function exportCheckoutFile(srcPath: string, destPath: string): Pro
   const checkoutDir = await resolveCheckoutDirForPath(srcPath)
   if (!checkoutDir) return { ok: false, error: 'Source is not inside a Duo-managed checkout.' }
   if (!destPath || !destPath.trim()) return { ok: false, error: 'A destination path is required.' }
+  // Refuse to clobber — the escape hatch SAVES a copy, it never silently
+  // overwrites an existing file (pick a fresh dest, or remove the old one).
+  try {
+    await fs.access(destPath)
+    return { ok: false, error: `Destination already exists: ${destPath}` }
+  } catch {
+    // dest doesn't exist — good, proceed.
+  }
   try {
     await fs.mkdir(path.dirname(destPath), { recursive: true })
     await fs.copyFile(srcPath, destPath)
