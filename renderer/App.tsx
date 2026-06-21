@@ -378,6 +378,10 @@ export function App() {
   // ENH-225 (F2/D9) — transient "waiting on you" flags keyed by tab id, set by
   // the attention hook (main → onTerminalTabAttention push). Never persisted.
   const [attentionByTabId, setAttentionByTabId] = useState<Record<string, boolean>>({})
+  // A ref mirror of activeTabId so the (deps:[]) attention subscription can read
+  // the LIVE active tab without re-subscribing (mirrors focusedColumnRef).
+  const activeTabIdRef = useRef(activeTabId)
+  useEffect(() => { activeTabIdRef.current = activeTabId }, [activeTabId])
 
   const [splitPct, setSplitPct] = useState(55)
   // ENH-040 — prevSplitPct caches the last "real" split (clamped
@@ -2431,6 +2435,12 @@ export function App() {
     const onAttention = window.electron.home?.onTerminalTabAttention
     if (typeof onAttention !== 'function') return
     return onAttention(({ tabId, needsAttention }) => {
+      // The Stop/Notification hook fires on EVERY turn, including in the tab the
+      // user is actively focused on. Ignore a SET that targets the active tab —
+      // you're already looking at it, and otherwise the flag stays true (the
+      // render gate hides it while active) and surfaces as a stale "waiting on
+      // you" badge the moment you switch away. A CLEAR always applies.
+      if (needsAttention && tabId === activeTabIdRef.current) return
       setAttentionByTabId((prev) =>
         prev[tabId] === needsAttention ? prev : { ...prev, [tabId]: needsAttention }
       )
@@ -3180,6 +3190,12 @@ export function App() {
       if (Object.keys(pruned).length === Object.keys(prev).length) return prev
       try { localStorage.setItem(FONT_BUMP_BY_TAB_KEY, JSON.stringify(pruned)) } catch { /* quota */ }
       return pruned
+    })
+    // ENH-225 — drop attention flags for tabs that no longer exist (a flagged
+    // background/cron tab that got closed). Never persisted, so no localStorage.
+    setAttentionByTabId(prev => {
+      const pruned = pruneByTab(prev, liveIds)
+      return Object.keys(pruned).length === Object.keys(prev).length ? prev : pruned
     })
   }, [tabs])
 
