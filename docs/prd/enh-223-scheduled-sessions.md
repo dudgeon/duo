@@ -322,12 +322,24 @@ a server `assertCwdAbsolute` guard). MED: `fireJob` catch didn't reschedule →
 tight retry loop on a persist throw (now reschedules). LOWs: fire-time cwd stat,
 reject unschedulable cron (Feb 30) on add/edit/preview, `fromSchedule` default,
 `canSave` preview-pending gate, bare-`duo cron` usage string, IPC-error prefix
-strip. **DEFERRED #8** — the Custom-cron preview still echoes the raw expression
-(the D8 `cronstrue`-vs-hand-roll describer call; left tracked, not a unilateral
-dep add).
+strip.
 
-**Verified:** 19 cron-service unit tests + full suite (1654) green; typecheck
-clean; `check:skill-currency` (74 verbs) passes. PR #103.
+**Audit #8 — RESOLVED (2026-06-21, hand-rolled, per owner D8).** The Custom-cron
+preview no longer echoes the raw expression: `describeCron` renders a 5-field
+cron in natural English ("every weekday at 09:00", "every 15 minutes", "at
+09:00 on the 1st and 15th of each month"), feeding the F3 preview + Home rows +
+CLI `list`/`show` via `describeSchedule`. Dependency-free (no `cronstrue`),
+honesty-biased — echoes the raw expression for anything it can't render
+faithfully. A second adversarial multi-agent pass (47 agents grounding every
+claim against the engine's real next-fire times) caught two lie-classes my
+happy-path tests missed, both fixed: (a) non-dividing `*/N` steps that reset at
+the hour/day wrap ("every 7 minutes" isn't uniform — `detectStep` now requires
+the step to divide 60/24), and (b) impossible calendar dates ("31st of April"
+never fires — the day-of-month branch now echoes when a (day, month) pair is
+calendar-impossible). Commit `6dd555c`.
+
+**Verified:** 19 cron-service + 31 cron-schedule unit tests + full suite (1666)
+green; typecheck clean; `check:skill-currency` (74 verbs) passes. PR #103.
 
 **Still owed (the resume plan — see `docs/dev/enh-223-handoff.md`):**
 1. **Merge order + rebase.** This branch merges **after**

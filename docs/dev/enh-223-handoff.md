@@ -73,10 +73,13 @@ the advanced-cron describer, an owner dep decision). typecheck clean · full sui
 - **One invoke channel reuses `handleCli`** — keep CLI + UI on the one code path.
 - **Killing the dev: kill the zsh-wrapper ROOT** (electron-vite respawns its
   child). `pkill -f "<worktree>/node_modules"` + kill the npm/zsh root.
-- **DEFERRED audit #8** — the Custom-cron preview echoes the raw expression. The
-  D8 decision was "keep the dependency-free engine; revisit `cron-parser` +
-  `cronstrue` when the preview is built." It's built now → owner call: hand-roll
-  a small describer (no dep) or add `cronstrue`. Don't add a dep unilaterally.
+- **Audit #8 — RESOLVED (2026-06-21, commit `6dd555c`).** Hand-rolled
+  `describeCron` (no dep, per owner D8) renders cron in natural English for the
+  F3 preview + Home rows + CLI `list`/`show`; honesty-biased (echoes anything it
+  can't render faithfully). An adversarial multi-agent pass caught + fixed two
+  lie-classes (non-dividing `*/N` steps; impossible calendar dates). The
+  describer lives entirely in `core/cron-schedule.ts` — NOT a rebase-overlap
+  file, so it won't conflict.
 - **Electron access** — request it from the owner (don't assume); a prior
   `request_access` timed out unactioned.
 
