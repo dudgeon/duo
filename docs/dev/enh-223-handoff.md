@@ -1,124 +1,81 @@
-# ENH-223 handoff — scheduled (cron) Claude sessions
+# ENH-223 (cron) — RESUME (2026-06-21)
 
-> **For:** the local (Mac) session picking this up. **From:** the cloud session
-> that locked the spec + built Tier 1. **Branch:** `claude/chron-job-management-yfy4ae`
-> · **PR:** #103 (draft).
+> **For:** the next session picking this up (likely post-compaction).
+> **Branch:** `claude/chron-job-management-yfy4ae` · **PR:** #103 (draft).
+> **Renumbered:** this feature was ENH-221 (now file-history's); the attention
+> badge sibling moved ENH-223 → **ENH-225**. Older commits say ENH-221.
 
 ## State in one paragraph
 
-Spec is **locked** (decision playground + PRD, all 10 decisions + 2 owner
-notes). **Tier 1 (engine + CLI) is built, committed, and pushed** — typecheck
-clean, 55 cron unit tests + full suite (1626) green, `check:skill-currency`
-passes. The ONE thing the cloud session could **not** do is exercise the live
-socket round-trip + actual tab spawn against a running Electron app (the cloud
-container has no Electron binary). **That live verification is the first job
-locally**, before building Tier 2.
+**Scheduled ("cron") Claude sessions** — Tier 1 (engine + CLI) and **Tier 2
+increments 1 + 2** are **built, live-verified, audited, committed, and pushed**.
+Users can create / view / edit / run / pause / resume / delete scheduled jobs
+from the **Home "Scheduled" block** + a **create/edit dialog** (with an F3 live
+preview) + the **full `duo cron` CLI** (`list|add|edit|run|pause|resume|rm|show`).
+A multi-agent adversarial audit found 8 real issues; 7 are fixed (1 deferred —
+the advanced-cron describer, an owner dep decision). typecheck clean · full suite
+**1654 green** · `check:skill-currency` (74 verbs) passes. The work is at a
+**clean, shippable milestone**.
 
-## Get the environment
+## Resume plan (do in order)
 
-```bash
-git fetch origin claude/chron-job-management-yfy4ae
-git checkout claude/chron-job-management-yfy4ae
-npm install            # runs electron-rebuild (node-pty) — needs the real install, not --ignore-scripts
-npm run typecheck      # expect clean
-npm run test:run       # expect green (incl. core/cron-*.test.ts)
-npm run dev            # launch Duo
-```
+1. **Rebase onto `origin/main` FIRST** (best with fresh context). `origin/main`
+   is **6 commits ahead** of the `df26ddf` fork point; we're 11 ahead. **~13
+   overlapping files**, all shared plumbing: `shared/types.ts`, `host-api.ts`,
+   `electron/main.ts`, `electron/preload.ts`, `renderer/App.tsx`,
+   `core/socket-server.ts`, `cli/duo.ts`, `agents/duo.md`, `docs/CLI-COVERAGE.md`,
+   `skill/references/cli-reference.md`, `docs/dev/session-log.md`, `tasks.md`,
+   `cli/duo` (binary). Conflicts are mostly **additive** — cron ADDS to enums
+   (`DuoCommandName`, the `IPC` object), switch statements (socket-server `case`,
+   the cli `case 'cron'`), the preload `cron:` namespace, `ElectronAPI`, and doc
+   tables. Resolve by **keeping both sides**. After: `npm install` (electron-
+   rebuild), `npm run typecheck`, `npm run test:run` (expect 1654+), rebuild the
+   cli binary if `cli/duo.ts` changed (`npm run build:cli && git add cli/duo`),
+   then a quick live re-check of `duo cron add/run` against a fresh `npm run dev`.
+2. **`/smoke-walk`** via the Skill tool (touches `renderer/` → required before a
+   cut). It must exercise the **native File ▸ New Scheduled Job… menu** and the
+   **project-rail right-click "New Scheduled Job…"** — those use the verified
+   open path but the *native menus* were never driven headlessly. Also walk:
+   create → fire (a tab spawns in the background, no focus steal) → Edit → the
+   status chips → delete-confirm.
+3. **Cut a version** with Tier 1 + Tier 2 inc 1+2 as the cron **v1** (use the
+   `cut-version` skill). This is a coherent, complete capability — ship it.
+4. **Then** (post-v1, optional polish): **Tier 2 increment 3** — D6 per-project
+   nesting (jobs nested under their hero/spine card via `deepestEnclosingRoot`
+   from `shared/projects.ts`; the aggregated "Scheduled" block keeps only
+   unmatched jobs). Extract a reusable `CronJobRow` from `CronSection`. Add a
+   per-card "+ Schedule" affordance.
+5. **ENH-225** — the "waiting on you" attention badge (D9/F2): a Duo-managed
+   `Stop` (+ permission) hook posts `{session_id, state}` to Duo's Unix socket;
+   main flips a per-tab needs-attention flag. **Must surface on cron's
+   `kind:'shell'` claude tabs** — key the badge on `session_id` (presence is
+   process-based, the badge keys on the session, so neither needs `kind:'claude'`).
 
-## FIRST: verify the live run path (the unverified seam)
+## Invariants / gotchas — don't regress these
 
-The run-decision/scheduling logic is unit-tested behind a mock runner; the
-untested part is the thin `main.ts` runner wiring (`dispatchNewTabToWindow` +
-`resolveCronLandingWindow` + `sessionExists`). Walk it:
+- **Cron job cwd MUST be absolute** (audit HIGH fix). The CLI absolutizes via
+  `resolveFilePath`; the modal requires absolute + a server `assertCwdAbsolute`
+  guard. A relative/typo'd cwd would silently run the job in `$HOME`.
+- **F1 — runs open a BACKGROUND tab** (`NewTabRequest.background` flag); never
+  re-introduce focus-steal.
+- **Catch-up (D5) waits for `SESSION_STATE_RESTORE_SETTLED`** (primary window),
+  not `did-finish-load` — restore's wholesale `setTabs` clobbers a tab appended
+  during boot. See memory `feedback_cron_catchup_waits_for_restore_settled`.
+- **One invoke channel reuses `handleCli`** — keep CLI + UI on the one code path.
+- **Killing the dev: kill the zsh-wrapper ROOT** (electron-vite respawns its
+  child). `pkill -f "<worktree>/node_modules"` + kill the npm/zsh root.
+- **DEFERRED audit #8** — the Custom-cron preview echoes the raw expression. The
+  D8 decision was "keep the dependency-free engine; revisit `cron-parser` +
+  `cronstrue` when the preview is built." It's built now → owner call: hand-roll
+  a small describer (no dep) or add `cronstrue`. Don't add a dep unilaterally.
+- **Electron access** — request it from the owner (don't assume); a prior
+  `request_access` timed out unactioned.
 
-1. **Fresh run spawns + seeds the prompt.**
-   ```bash
-   ./cli/duo cron add --name "Smoke" --cwd "$PWD" --say "say hello and stop" --every daily --at 09:00
-   ./cli/duo cron run <id>      # id from the add output / `duo cron list`
-   ```
-   Expect: a new terminal tab opens (no focus steal) running
-   `claude --session-id <uuid> 'say hello and stop'` and Claude starts with that
-   as its first message. Confirm `~/.claude/duo/cron-jobs.json` exists and the
-   job's `lastSessionId` / `lastRunAt` / `lastRunState: "ran"` were recorded.
-2. **Same-session resume (D3).** Set a job to `--session same`, run it twice.
-   First run = `--session-id` (fresh); second = `claude --resume <sameuuid> …`.
-   Delete the session JSONL between runs and confirm it falls back to fresh
-   (`lastRunState: "fresh-fallback"`).
-3. **Scheduled fire.** Add a job `--every hourly` or a near-future `--cron`
-   (e.g. set `--at` to a minute ~2 min out via `--cron "M H * * *"`), leave Duo
-   open, confirm it fires at the minute (tick is 30s).
-4. **Catch-up (D5).** Add a job `--catch-up` with a past daily time, quit Duo,
-   relaunch — confirm it fires once on launch. Without `--catch-up`, confirm it
-   does NOT.
-5. **D10 landing window** (multi-window on). Focus window 2 on the job's project
-   → run → confirm it lands in window 2; with no/ambiguous match it lands in the
-   primary (lowest-id) window.
-6. **Headless gate (D4).** It's not reachable from the CLI (instruction is
-   quoted), but confirm `FEATURE_HEADLESS_CRON=false` and that the gate exists
-   (`core/cron-command.ts` `assertInteractiveCommand`).
-7. `./cli/duo cron list | show <id> | pause <id> | resume <id> | rm <id>` all
-   behave.
-
-If the live walk reveals wiring bugs, they'll be in `electron/main.ts` (the
-`runner.spawn` closure + `resolveCronLandingWindow`) — the pure modules are
-solid.
-
-## Decisions worth re-confirming with the owner
-
-- **D8 deviation.** Locked decision was "add a small cron-parser dependency";
-  Tier 1 ships a **dependency-free engine** (`core/cron-schedule.ts`) because the
-  cloud build env was network-gated. It covers presets + standard 5-field cron
-  (lists/ranges/steps, dom/dow either-match, DST-correct local next-fire). Now
-  that you're local with network, the owner may prefer swapping in `cron-parser`
-  (+ a describer like `cronstrue`) — it's isolated behind
-  `nextFireAfterSchedule` / `describeSchedule` / `parseScheduleArgs`, a one-file
-  change. Ask before changing.
-- **No-window fire records `lastRunState: "error"`** (not "missed") when a
-  scheduled tick fires with all windows closed (process alive on darwin). Minor;
-  decide if it's worth distinguishing.
-
-## Module map (Tier 1)
-
-| File | Role |
-|---|---|
-| `core/cron-schedule.ts` (+ test) | preset/cron → next-fire + describe + arg parsing (the self-contained engine) |
-| `core/cron-command.ts` (+ test) | `claude` command building + shell-quote + the `-p` gate |
-| `core/cron-store.ts` (+ test) | `~/.claude/duo/cron-jobs.json` persistence |
-| `core/cron-service.ts` (+ test) | Electron-free orchestrator: tick scheduler, catch-up, fresh/same, CLI dispatch |
-| `electron/main.ts` | CronService lifecycle + runner + D10 `resolveCronLandingWindow` + `sessionExists` + `NavBridge.cron` |
-| `core/socket-server.ts` | `case 'cron'` |
-| `cli/duo.ts` (+ `cli/duo` binary) | `duo cron …` cluster + `Scheduling` help group |
-| `shared/types.ts` | `CronJob`/`CronJobsFile`/`CronSchedule`/`CronJobView` + `'cron'` |
-| `shared/feature-flags.ts` | `FEATURE_HEADLESS_CRON = false` (D4) |
-
-Docs/4-surface sync: `skill/references/cli-reference.md`, `agents/duo.md`,
-`docs/CLI-COVERAGE.md`, `scripts/check-skill-currency.mjs`.
-
-## Housekeeping the cloud session could NOT do
-
-- **`npm run sync:claude`** — copies `skill/` + `agents/` into `~/.claude/`
-  (the cloud container's home is ephemeral, so it was skipped). Run it locally
-  so the installed skill/subagent reflect the new `duo cron` verbs.
-- After any `cli/duo.ts` edit: **`npm run build:cli && git add cli/duo`** (the
-  binary is committed).
-
-## What's next (after live verification)
-
-- **Tier 2 — Home surface** (PRD §6): jobs nested under their project's Home
-  card + an aggregated "Scheduled" block; status chips; create dialog +
-  **File ▸ New Scheduled Job…** + project-rail entry; row actions
-  (run-now / pause / edit / delete). Touches `renderer/` → run **`/smoke-walk`**
-  before any cut (CLAUDE.md §7b).
-- **ENH-225** — the "waiting on you" tab badge (D9): a Duo-managed Stop /
-  permission hook posting to Duo's Unix socket; benefits all sessions.
-- Logged future: **ENH-222** (`launchd` launches Duo at a job's time),
-  headless `-p` mode (the reason `FEATURE_HEADLESS_CRON` exists), full
-  run-history view.
-
-## References
+## Pointers
 
 - PRD: `docs/prd/enh-223-scheduled-sessions.md` (§3 locked decisions, §9 Tier 1
-  impl notes + the D8 deviation).
-- Decision playground: `docs/research/enh-223-scheduled-sessions.html`.
-- Ledger: `tasks.md` → ENH-223.
-- PR #103.
+  impl + live-walk, **§10 = current status**).
+- Session log: `docs/dev/session-log.md` (2026-06-20 + 2026-06-21 entries).
+- Ledger: `tasks.md` → ENH-223 (+ ENH-225 for the badge).
+- Module map: PRD §9. Renderer: `renderer/components/Home/{CronSection,
+  NewCronJobModal}.tsx`, `App.tsx` cron wiring, `ProjectRail.tsx`.

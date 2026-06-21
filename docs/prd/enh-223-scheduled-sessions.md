@@ -293,7 +293,54 @@ Presence is process-based and the D9 badge keys on `session_id`, so neither
 needs `kind: 'claude'` — but ENH-225 must surface the badge on these
 shell-hosted claude tabs.
 
-**Still owed (out of Tier 1):** Tier 2 (Home surface + create dialog + row
-actions), ENH-225 (the "waiting on you" tab badge), and the logged future ENHs
-(ENH-222 launchd launch; headless `-p` mode; full run-history view).
+---
+
+## 10. Status (2026-06-21) — Tier 2 increments 1+2 shipped + audited
+
+**Tier 2 increment 1 — Home "Scheduled" block (DONE, live-verified).** Engine→
+renderer plumbing: a `CronService.onJobsChanged` change-emitter → a
+`CRON_JOBS_CHANGED` broadcast, and a single `CRON_INVOKE` invoke channel that
+reuses the **same `handleCli` the socket CLI uses** (one code path for CLI + UI).
+`CronSection` renders one row per job — status chip (ran/never/missed/error/
+paused), schedule label, next-fire, project, + row actions (Run now / Pause /
+Resume / Delete with a 2-click confirm). Invisible when there are no jobs.
+(Aggregated block only — the D6 per-project nesting is increment 3.)
+
+**Tier 2 increment 2 — create/edit dialog + entry points (DONE, live-verified).**
+`NewCronJobModal` (create + edit): preset segmented control (Hourly/Daily/
+Weekdays/Weekly/Custom-cron) + conditional time/weekday/cron fields + a
+**debounced F3 live preview** (the `preview` op validates in main → label +
+next-fire), session radio, catch-up checkbox. Entry points (D7): a
+`duo-open-cron-modal` CustomEvent (Home "+ New job" + per-row Edit + project-rail
+right-click) and a `CRON_OPEN_NEW_MODAL` push for **File ▸ New Scheduled Job…**.
+**CLI parity verb `duo cron edit`** (+ `edit`/`preview` `handleCli` ops, 4-surface
+docs). The modal parks the browser WCV (BUG-209 lineage) so it isn't occluded.
+
+**Adversarial audit (multi-agent, 8 confirmed / 6 refuted) — 7 fixed.** HIGH:
+modal persisted a non-absolute cwd → silent `$HOME` run (now absolute-required +
+a server `assertCwdAbsolute` guard). MED: `fireJob` catch didn't reschedule →
+tight retry loop on a persist throw (now reschedules). LOWs: fire-time cwd stat,
+reject unschedulable cron (Feb 30) on add/edit/preview, `fromSchedule` default,
+`canSave` preview-pending gate, bare-`duo cron` usage string, IPC-error prefix
+strip. **DEFERRED #8** — the Custom-cron preview still echoes the raw expression
+(the D8 `cronstrue`-vs-hand-roll describer call; left tracked, not a unilateral
+dep add).
+
+**Verified:** 19 cron-service unit tests + full suite (1654) green; typecheck
+clean; `check:skill-currency` (74 verbs) passes. PR #103.
+
+**Still owed (the resume plan — see `docs/dev/enh-223-handoff.md`):**
+1. **Rebase onto `origin/main`** (6 commits ahead; ~13 overlapping plumbing
+   files — `shared/types.ts`, `host-api.ts`, `main.ts`, `preload.ts`, `App.tsx`,
+   `socket-server.ts`, `cli/duo.ts` + docs; mostly *additive* conflicts).
+2. **`/smoke-walk`** (exercises the native File-menu + rail triggers that
+   couldn't be driven headlessly), then **cut** Tier 1 + Tier 2 inc 1+2 as the
+   cron v1.
+3. **Tier 2 increment 3** — D6 per-project nesting (jobs under their hero/spine
+   card via `deepestEnclosingRoot`) + a per-card "+ Schedule". *(Polish — can
+   ship after v1.)*
+4. **ENH-225** — the "waiting on you" attention badge (must surface on cron's
+   `kind:'shell'` claude tabs). *(Separate sibling.)*
+5. Logged future: ENH-222 (`launchd` launch), headless `-p` mode, full
+   run-history view.
 
