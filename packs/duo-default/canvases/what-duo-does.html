@@ -303,6 +303,24 @@
   </div>
 </article>
 
+<article class="item" data-keys="file version history timeline rewind revisions snapshots save inline diff restore one-click panel durable agent attribution enh-221">
+  <div class="num">123</div>
+  <div>
+    <h3>Rewind a file to an earlier version</h3>
+    <p class="why"><strong>v0.11.2:</strong> every save of a file you have open is captured to a durable on-disk history — not just the last one. Open the History panel and you get a timeline of past versions; pick any two and see an inline diff of exactly what changed between them, then one-click restore brings an earlier version back as the current file. Useful when an edit (yours or the agent's) went sideways and you want the prior wording back without digging through git.</p>
+    <p class="how"><strong>CLI</strong><code>duo history list &lt;file&gt;</code> (the timeline) · <code>duo history show &lt;file&gt; &lt;id&gt;</code> (a past version + its diff) · <code>duo history restore &lt;file&gt; &lt;id&gt;</code> (bring it back).</p>
+  </div>
+</article>
+
+<article class="item" data-keys="github remote doc url open edit propose changes pull request pr unified open bar cmd o recent enh-218">
+  <div class="num">124</div>
+  <div>
+    <h3>Open a remote GitHub doc, edit it, and propose your changes back as a PR</h3>
+    <p class="why"><strong>v0.11.2:</strong> paste a GitHub document URL and Duo fetches it into the editor — you read and edit it like any local file, with the full toolbar, comments, and tracked changes. When you're happy, propose your edits back to the repo as a pull request without leaving Duo or hand-rolling a branch. A unified <strong>⌘O Open bar</strong> is the single front door for all of this — type or paste a path, a URL, or a GitHub doc link and Duo routes it to the right surface.</p>
+    <p class="how"><strong>UI</strong>⌘O opens the Open bar; paste a GitHub doc URL → edit → propose. <strong>CLI</strong><code>duo open &lt;github-url&gt;</code> (fetch + open the remote doc) · <code>duo pr create … --yes</code> (propose your edits as a PR) · <code>duo recent</code> (recently opened paths + URLs).</p>
+  </div>
+</article>
+
 <h2 class="cat">Browsing the web</h2>
 <p class="cat-tagline">An embedded Chromium pane. Tabs, address bar, the same shortcuts you'd expect.</p>
 
@@ -577,6 +595,15 @@
   </div>
 </article>
 
+<article class="item" data-keys="worktree git worktree create new working copy branch navigator dropdown without git command removed missing recover gracefully resilience enh-220">
+  <div class="num">125</div>
+  <div>
+    <h3>Make a separate working copy of a repo (worktree) without typing git</h3>
+    <p class="why"><strong>v0.11.2:</strong> a <em>worktree</em> is a second checkout of the same repo on its own branch, so you can work on two things at once without stashing or re-cloning. Create one straight from the navigator's repo dropdown — no <code>git worktree</code> incantation to remember — and Duo wires it up for you. If a worktree you're currently viewing gets removed out from under you (by you, the agent, or git), Duo recovers gracefully instead of leaving you staring at a dead path.</p>
+    <p class="how"><strong>UI</strong>Navigator repo dropdown → New worktree. <strong>CLI</strong><code>duo worktree new</code> (create a worktree) · <code>duo worktree remove</code> (tear one down).</p>
+  </div>
+</article>
+
 
 <article class="item" data-keys="claude context fill highlight .claude folder CLAUDE.md terracotta wash navigator always-on which files agent reads project">
   <div class="num">122</div>
@@ -705,6 +732,24 @@
     <h3>Switch terminal tabs from the CLI</h3>
     <p class="why">Agents can now change <em>which</em> terminal tab is focused — the last terminal-tab parity hole, closed. Enumerate the window's terminal tabs to get a stable id space, then activate one by id. This is the terminal number space, distinct from <code>duo tab &lt;n&gt;</code> which addresses <em>browser</em> tabs.</p>
     <p class="how"><strong>CLI</strong><code>duo term tabs</code> lists <code>{id, kind, cwd, title, active}</code> per tab; <code>duo term tab &lt;id&gt;</code> activates the one with that id (a stale id is a harmless no-op). The CLI parity for ⌘1–9 / a click on the terminal strip. Honors <code>--window N</code>.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="cron schedule scheduled claude session recurring presets custom cron expression home screen run pause resume while duo open daily nightly background enh-221">
+  <div class="num">126</div>
+  <div>
+    <h3>Schedule Claude sessions to run on a timer (cron)</h3>
+    <p class="why"><strong>v0.11.2:</strong> set up a Claude run that fires on a schedule — nightly cleanup, a morning triage pass, an hourly check — and manage the whole set from the Home screen. Pick a preset (daily, hourly, etc.) or write a custom cron expression; view what's scheduled, edit it, run one on demand, or pause and resume. Scheduled runs fire while Duo is open, so they share your real workspace and tools rather than a stripped-down environment.</p>
+    <p class="how"><strong>UI</strong>Home screen → scheduled runs panel. <strong>CLI</strong><code>duo cron list | add | edit | run | pause | resume | rm | show</code> (the full lifecycle — create, inspect, trigger, pause/resume, and remove a scheduled run).</p>
+  </div>
+</article>
+
+<article class="item" data-keys="waiting on you attention amber dot tab badge background claude session stopped needs input idle notification awaiting reply enh-221">
+  <div class="num">127</div>
+  <div>
+    <h3>See which background Claude session is waiting on you</h3>
+    <p class="why"><strong>v0.11.2:</strong> when a Claude session you're not currently looking at stops and needs your input — a question, a confirmation, the end of a run — its tab lights up with a small amber dot. No more cycling through tabs to find which conversation has stalled waiting for you; the "waiting on you" cue is right on the tab.</p>
+    <p class="how"><strong>UI</strong>Automatic — the amber dot appears on any background terminal tab whose Claude session is waiting. <strong>CLI</strong><code>duo attention</code> (which sessions are currently waiting on you).</p>
   </div>
 </article>
 
@@ -1279,7 +1324,7 @@
 </article>
 
 <footer>
-  <p>This is Duo v0.11.1. Last updated 2026-06-18. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
+  <p>This is Duo v0.11.2. Last updated 2026-06-22. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
   <p style="margin-top:6px; color: var(--ink-ghost); font-size: 11px;">Find an item that should be here? Tell Claude — the cut-version skill updates this file with each release.</p>
 </footer>
 

@@ -25,6 +25,20 @@
 
 ---
 
+## v0.11.2 — 2026-06-22 — Five features: file history, scheduled sessions, remote-doc PRs, worktree creation, attention badge
+
+The biggest single cut since the foundation work — five user-visible capabilities that were developed on parallel branches and landed in one wave, plus the security and legibility hardening that surfaced when they merged.
+
+**What's in it.** **File version history** finally gives autosave a rewind: a content-addressed log of every save with a timeline, inline diff, and restore, paired with a real fix for the ⌘Z that had been silently eaten by a global shortcut since v0.7.7. **Worktree lifecycle UX** lets a non-technical PM create and recover git worktrees from the navigator without ever typing git. **Scheduled (cron) sessions** plus the **"waiting on you" attention badge** make Duo run Claude on a cadence and tell you when a background run needs you. And **open-a-remote-GitHub-doc → edit → Propose-changes-PR** turns Duo into a round-trip editor for docs you don't have checked out — paste a URL, edit it like a local file, propose a PR.
+
+**Three decisions baked in.** (1) The file-history and cron stores are Duo-owned, drift-proof state (DECISIONS §D9), never sidecars next to your files. (2) Cron is interactive-only — a real Claude TUI in a tab, an in-app timer that fires only while Duo is open, headless `-p` gated behind a default-off flag — because unattended agent execution is a different trust model we deliberately didn't ship. (3) The remote-doc PR flow requires an explicit `--yes` on the agent path: an agent can do what you can, but opening a public PR under your GitHub identity is a credential-spending action that needs a confirmation, not an inference.
+
+**What the pre-cut verification caught.** The merge exposed a latent bug the whole batch's "legible in both themes" claim depended on: 46 dark-mode CSS overrides keyed off a `[data-theme="dark"]` attribute the renderer never sets (it uses `html.dark`), so they'd been dead — banners, diff marks, the History legend, the Open bar all rendered light-on-dark in dark mode. Caught and fixed before the cut.
+
+**What this isn't.** Cron doesn't run while Duo is closed (a `launchd` "wake Duo at the job's time" path is logged for later); there's no headless mode in the UI; and the remote-doc flow is `github.com`-only for v1 (enterprise GitHub falls to the browser). Signed + notarized — first launch is a single double-click.
+
+---
+
 ## v0.11.1 — 2026-06-18 — Navigator polish + the table-shatter fix
 
 **Why this lands here.** A refinement-and-fix patch on top of v0.11.0's worktree-aware chapter, not a new one. Two user-visible navigator changes (the Claude-context fill replacing the old collapsible panel; the worktree ribbon becoming a pill with an attached overlay), one data-integrity fix (multi-line table cells no longer corrupt on save), and two docs items (the hook-availability probe; a pack-builder link fix that unblocks the strict release gate). Four PRs: #100 (navigator), #99 (table fix), #82 (hook probe), #77 (pack-builder links).

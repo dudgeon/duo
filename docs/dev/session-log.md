@@ -18,6 +18,10 @@
 
 ---
 
+## 2026-06-22 — v0.11.2 CUT (signed + notarized) — the five-feature batch
+
+Cut **v0.11.2** — the largest single release since the foundation: ENH-221 file version history + the ⌘Z fix + History modal (#104), ENH-222 worktree lifecycle UX (#105), ENH-223 scheduled (cron) sessions (#103), ENH-225 "waiting on you" attention badge (#103), and ENH-224 open-a-remote-GitHub-doc → edit → Propose-PR + the ⌘O Open bar (#102), plus #101 iCloud dup detection (dev tooling). All five PRs were reviewed (multi-dimension), fixed pre-merge, and merged onto `main` one at a time with a rebuild + typecheck between each. #102's review surfaced two security blockers — an agent on the socket could fork + open a PR under the user's GitHub identity with no confirmation, and argv-flag smuggling on user-derived URLs/refs/branches — both fixed before merge (the `--yes` gate + `--`/attached-form + validation). **Pre-cut verification caught a real bug:** 46 dark-mode CSS overrides keyed off `[data-theme="dark"]` but the renderer flips `html.dark`, so the whole batch's "legible in both themes" was false in dark mode — fixed (`419da86`), verified live via DOM computed-color probes (computer-use can't reach a worktree dev build, so the probe was the rigorous substitute). DMG signed + notarized + launch-validated (104M arm64). Suite 1888 green, typecheck clean, `check:skill-currency` 78 verbs. Cut + DMG + GitHub release done from a clean `main` worktree (the primary checkout was occupied by another worker's WIP).
+
 ## 2026-06-21 (#103 cron — pre-merge review fixes, then MERGED) — ENH-223
 
 Reviewed PR #103 (cron sessions) and, per owner, applied the review's fixes to a high standard **on the branch**, then merged it (no cut — the cut waits on #102 `duo-file-open-flow`). The review was a multi-agent investigation (currency/renumber · repo-wide banner sweep · test gaps · docs · coordination) + a completeness critic that returned **NO-GO** on the first-pass plan and sharpened it (the banner fix needed theme-aware classes, not Tailwind `dark:`; two cron banner sites, not one; the boot-catch-up regression had no test).

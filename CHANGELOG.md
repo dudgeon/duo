@@ -19,7 +19,31 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.11.1 cut 2026-06-18.
+> Empty — v0.11.2 cut 2026-06-22.
+
+## [0.11.2] — 2026-06-22 — File history, scheduled sessions, remote-doc → PR, worktree creation
+
+### Added
+- **File version history (ENH-221)** — every save is captured to a durable, content-addressed store (`~/.claude/duo/file-history/`); a History modal (the `◷` toolbar button) shows a newest-first timeline (time · who · Δsize) with a rendered inline diff vs the current version and restore-with-confirm, plus agent/you/restore source attribution. `duo history list | show | restore` (#104).
+- **Worktree lifecycle UX (ENH-222)** — create a git worktree from the navigator dropdown with a live path/ref-safe slug preview ("+ New worktree") — no git typing — and graceful recovery when a rooted worktree is removed under-foot (the navigator reverts to main with a dismissible banner, never a render crash). `duo worktree new "<desc>" [--from] [--window]` · `duo worktree remove <path> [--force]` (#105).
+- **Scheduled (cron) Claude sessions (ENH-223)** — create, view, and manage scheduled Claude runs from the Home screen: presets (Hourly/Daily/Weekdays/Weekly) or a custom 5-field cron with a live English preview + next-fire, per-project nesting, background-tab launch (no focus steal), and a "run once on next launch if missed" catch-up. Interactive-only (jobs fire while Duo is open). `duo cron list | add | edit | run | pause | resume | rm | show` (#103).
+- **"Waiting on you" tab attention badge (ENH-225)** — a background Claude session that stops and needs you lights an amber pulse dot on its tab (never the active one), cleared on focus or activity. Driven by a Duo-managed Claude Stop/Notification hook keyed on a new `DUO_TAB` env stamp. `duo attention` (#103).
+- **Open a remote GitHub doc → edit → Propose changes (PR) (ENH-224)** — paste a GitHub doc URL into the unified ⌘O Open bar and Duo pulls it into a managed checkout that opens like a local file; edit it, then "Propose changes" pushes a branch and opens a PR (auto-forking if you lack push access). The ⌘O Open bar classifies whatever you type (search / local path / `file://` / web URL / GitHub blob or repo URL). `duo open <github-url>` · `duo recent` · `duo pr create --yes | status | view | export` (#102).
+
+### Changed
+- **⌘Z undo works in the editor again (ENH-221)** — it had been eaten by the global "reopen last closed tab" chord (`⌘Z`) inside the editor since v0.7.7, silently no-op'ing or reopening tabs; it now defers to the editor's own undo when focus is in a text surface (#104).
+- **Repo-wide error/status banner legibility** — every error/status banner (clone, New Vault, the editor "changed on disk" reload, JSON parse errors, the cron preview/save errors, …) migrated to theme-aware classes that read correctly in both light and dark (was a dark-only palette that went illegible in the default light theme).
+
+### Fixed
+- **Dark-mode CSS overrides were dead** — 46 component-level dark rules in `globals.css` keyed off a `[data-theme="dark"]` attribute the renderer never sets (it flips `html.dark`), so the diff marks, the History legend, the new banners, and the Open bar / quick-switcher all fell back to light colors in dark mode. Corrected to `html.dark`; light mode unaffected.
+- **Split-view aux WebContentsView occluded DOM modals (BUG-209)** — the History / New Vault / Clone modals are now fully visible (and their footer Close clickable) when a browser is pinned in the split-view aux pane (#104).
+
+### Security
+- **`duo pr create` requires explicit `--yes` (ENH-224)** — an agent driving the Unix socket can no longer fork a repo + open a public PR under your GitHub identity without confirmation; the in-app "Propose changes" sheet is the gate for the UI path (#102).
+- **Git/gh command construction hardened** — clone URLs, refs, and branch names are validated and pushed past an end-of-options (`--`) separator (or the attached `--branch=<ref>` form) so a `-`-leading value can't be smuggled in as a git/gh flag (#102).
+
+### Tooling
+- **iCloud sync-conflict duplicate detection (#101)** — the materialization check now flags `<file> 2.ts` sync-conflict duplicates (a second macOS Optimize-Storage trap) that pollute tsconfig globs with spurious `TS6307` failures; `npm run materialize --dedup` / `check-materialization --fix` moves them aside.
 
 ## [0.11.1] — 2026-06-18 — Navigator polish + the table-shatter fix
 
@@ -1996,7 +2020,8 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.11.1...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.11.2...HEAD
+[0.11.2]: https://github.com/dudgeon/duo/compare/v0.11.1...v0.11.2
 [0.11.1]: https://github.com/dudgeon/duo/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/dudgeon/duo/compare/v0.10.3...v0.11.0
 [0.10.3]: https://github.com/dudgeon/duo/compare/v0.10.2...v0.10.3
