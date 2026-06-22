@@ -2081,8 +2081,9 @@ export class SocketServer {
             }
             break
           }
-          // The doc's path RELATIVE to the checkout root — drives the prefill +
-          // which file the proposal is scoped to.
+          // The doc's path RELATIVE to the checkout root — drives the PREFILL
+          // (title/slug). NOTE the PR commit is checkout-scoped (OQ-3): it stages
+          // every change in the checkout, not just this one file.
           const relFile = path.relative(checkoutDir, prPath)
           if (sub === 'create') {
             result = await runShareBack(checkoutDir, {
@@ -2091,6 +2092,9 @@ export class SocketServer {
               body: args['body'] as string | undefined,
               branch: args['branch'] as string | undefined,
               draft: args['draft'] === true,
+              // ENH-224 — only an explicit `--yes` (carried as `yes` in the
+              // payload) authorizes the fork/push/PR from the agent/CLI path.
+              confirmed: args['yes'] === true,
             })
           } else if (sub === 'status') {
             result = await probeShareBackStatus(checkoutDir)

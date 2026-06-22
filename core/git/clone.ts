@@ -49,7 +49,9 @@ export interface CloneRequest {
 export function cloneExtraArgs(req: Pick<CloneRequest, 'depth' | 'ref'>): string[] {
   const args: string[] = []
   if (req.depth && req.depth > 0) args.push('--depth', String(req.depth))
-  if (req.ref) args.push('--branch', req.ref)
+  // Attached `--branch=<ref>` form: a ref starting with '-' can't be parsed as a
+  // separate flag (ENH-224 security — ref is URL-derived).
+  if (req.ref) args.push(`--branch=${req.ref}`)
   return args
 }
 
@@ -74,6 +76,11 @@ export interface CloneResult {
 export async function runClone(req: CloneRequest): Promise<CloneResult> {
   if (!req.url || !req.url.trim()) {
     return { ok: false, errorKind: 'bad-url', error: 'URL is required.' }
+  }
+  // ENH-224 security — a URL starting with '-' could be read as a git/gh flag
+  // (gh repo clone has no `--` guard for its positional; reject up front).
+  if (req.url.trim().startsWith('-')) {
+    return { ok: false, errorKind: 'bad-url', error: 'URL must not start with "-".' }
   }
 
   const auth = await probeGhAuth()
@@ -147,7 +154,7 @@ async function gitClone(req: CloneRequest): Promise<CloneResult> {
     }
   }
   // ENH-224 — depth/ref flags go before the url (git clone [flags] url dir).
-  const args = ['clone', ...cloneExtraArgs(req), req.url]
+  const args = ['clone', ...cloneExtraArgs(req), '--', req.url]
   if (req.targetDir) args.push(req.targetDir)
   const res = await execGit('git', args, { cwd: req.cwd ?? process.env.HOME, timeoutMs: 120_000 })
   if (res.ok) {

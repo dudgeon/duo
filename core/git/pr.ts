@@ -75,10 +75,11 @@ export function parsePrList(stdout: string): PrInfo[] {
  * can't be mistaken for ours (the cross-fork detection + collision guard, D13).
  * Without `owner`, fall back to the first match (best-effort, e.g. status).
  */
-export function selectPr(list: PrInfo[], owner?: string): PrInfo | null {
-  if (owner) {
-    const want = owner.toLowerCase()
-    return list.find((p) => (p.headRepositoryOwner ?? '').toLowerCase() === want) ?? null
+export function selectPr(list: PrInfo[], owner?: string | string[]): PrInfo | null {
+  const owners = owner ? (Array.isArray(owner) ? owner : [owner]) : []
+  if (owners.length) {
+    const wants = owners.map((o) => o.toLowerCase())
+    return list.find((p) => wants.includes((p.headRepositoryOwner ?? '').toLowerCase())) ?? null
   }
   return list[0] ?? null
 }
@@ -105,7 +106,7 @@ export async function runCreatePr(cwd: string, opts: PrCreateOpts): Promise<PrCr
 export async function findOpenPr(
   cwd: string,
   head: string,
-  opts: { owner?: string } = {}
+  opts: { owner?: string | string[] } = {}
 ): Promise<PrInfo | null> {
   const branch = head.includes(':') ? head.split(':')[1] : head
   if (!branch) return null

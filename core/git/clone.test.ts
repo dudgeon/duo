@@ -13,13 +13,15 @@ describe('cloneExtraArgs — depth/ref flags', () => {
     expect(cloneExtraArgs({ depth: 1 })).toEqual(['--depth', '1'])
   })
 
-  it('ref → --branch <ref>', () => {
-    expect(cloneExtraArgs({ ref: 'main' })).toEqual(['--branch', 'main'])
+  it('ref → --branch=<ref> (attached form — a leading-dash ref cannot be read as a flag)', () => {
+    expect(cloneExtraArgs({ ref: 'main' })).toEqual(['--branch=main'])
+    // ENH-224 security regression: the value stays attached, never a separate arg.
+    expect(cloneExtraArgs({ ref: '--upload-pack=x' })).toEqual(['--branch=--upload-pack=x'])
   })
 
   it('depth + ref → both, depth first', () => {
     expect(cloneExtraArgs({ depth: 1, ref: 'release/1.x' })).toEqual([
-      '--depth', '1', '--branch', 'release/1.x',
+      '--depth', '1', '--branch=release/1.x',
     ])
   })
 

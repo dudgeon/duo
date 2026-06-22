@@ -418,7 +418,7 @@ export function CloneModal({ open, defaultParent, defaultUrl, openAfterRelPath, 
                 <div className="duo-text-ok text-xs mt-1 font-mono break-all">
                   {result.clonedTo}
                 </div>
-                <div className="text-emerald-200/80 text-xs mt-1">
+                <div className="duo-text-ok opacity-80 text-xs mt-1">
                   It’s now in your navigator.
                 </div>
               </div>

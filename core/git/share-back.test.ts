@@ -1,9 +1,55 @@
 // ENH-224 Phase 2 — unit tests for the share-back PURE helpers (arg-builders,
-// parsers, meta-derivation). The spawning run* orchestrators are verified live
-// (a real repo + gh), mirroring clone.test.ts which tests cloneExtraArgs but
-// not runClone.
+// parsers, meta-derivation) PLUS the runShareBack ORCHESTRATOR's branch
+// behavior (ENH-224 confirm-gate hardening / PR #102 review should-fix). The
+// pure helpers were the original coverage; the orchestrator was "verified live"
+// (a real repo + gh) and so untested by the unit suite. The orchestrator block
+// at the bottom closes that gap by mocking every collaborator runShareBack
+// sequences, so the branch/commit/push/fork/PR routing — and the new
+// `confirmed` gate — are pinned without spawning git/gh.
+//
+// Mocking strategy: the sibling collaborator modules are vi.mock'd via
+// importActual so their PURE exports (parsePorcelain, pushArgs, prCreateArgs,
+// permissionAllowsPush, selectPr, …) stay REAL for the helper tests above,
+// while the spawning run*/probe* functions become controllable spies. The
+// two in-module git calls runShareBack makes itself — resolveCheckoutContext's
+// `git remote get-url origin` / `git branch --show-current` and revParseShort's
+// `git rev-parse` — are driven by a mocked ./exec that dispatches on args. The
+// primary-doc read is mocked at ./fs (fs/promises) to keep it filesystem-free.
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+// ── Module mocks (hoisted above the imports) ────────────────────────────────
+// importActual keeps each module's PURE helpers real for the helper-tests; only
+// the spawning entry points are replaced. ./exec drives the in-module git calls.
+
+vi.mock('./exec', () => ({ execGit: vi.fn() }))
+vi.mock('./auth', () => ({ probeGhAuth: vi.fn() }))
+vi.mock('./divergence', async (orig) => ({
+  ...(await orig<typeof import('./divergence')>()),
+  probeDivergence: vi.fn(),
+}))
+vi.mock('./branch', () => ({ runCreateBranch: vi.fn() }))
+vi.mock('./commit', () => ({ runStageAndCommit: vi.fn() }))
+vi.mock('./push', async (orig) => ({
+  ...(await orig<typeof import('./push')>()),
+  runPush: vi.fn(),
+}))
+vi.mock('./fork', async (orig) => ({
+  ...(await orig<typeof import('./fork')>()),
+  probePushAccess: vi.fn(),
+  runFork: vi.fn(),
+}))
+vi.mock('./pr', async (orig) => ({
+  ...(await orig<typeof import('./pr')>()),
+  runCreatePr: vi.fn(),
+  findOpenPr: vi.fn(),
+}))
+vi.mock('fs/promises', async (orig) => ({
+  ...(await orig<typeof import('fs/promises')>()),
+  // Default: the primary-doc read fails soft → docText '' (deterministic, no fs).
+  readFile: vi.fn(async () => { throw new Error('mocked: no doc read') }),
+}))
+
 import {
   stripLeadingFrontmatter,
   firstHeading,
@@ -15,8 +61,18 @@ import { parsePorcelain } from './divergence'
 import { pushArgs } from './push'
 import { permissionAllowsPush } from './fork'
 import { prCreateArgs, prNumberFromUrl, prUrlFromStdout, parsePrList, selectPr } from './pr'
-import { refFromCheckoutDir, isManagedCheckout, parseNumstat, isShareBackBranch } from './share-back'
+import { refFromCheckoutDir, isManagedCheckout, parseNumstat, isShareBackBranch, runShareBack } from './share-back'
 import { looksLikeAuthFailure } from './failure-sniff'
+
+// Mocked collaborators — imported so the tests can program their return values.
+import { execGit } from './exec'
+import { probeGhAuth } from './auth'
+import { probeDivergence } from './divergence'
+import { runCreateBranch } from './branch'
+import { runStageAndCommit } from './commit'
+import { runPush } from './push'
+import { probePushAccess, runFork } from './fork'
+import { runCreatePr, findOpenPr } from './pr'
 
 describe('proposal-meta — stripLeadingFrontmatter', () => {
   it('drops a leading --- frontmatter block', () => {
@@ -256,5 +312,172 @@ describe('failure-sniff — looksLikeAuthFailure', () => {
   it('does not flag unrelated errors', () => {
     expect(looksLikeAuthFailure('fatal: couldn’t find remote ref')).toBe(false)
     expect(looksLikeAuthFailure('')).toBe(false)
+  })
+})
+
+// ── runShareBack — orchestrator branch behavior (ENH-224 confirm-gate / PR #102)
+//
+// Mocks every collaborator runShareBack sequences. The in-module git calls
+// (resolveCheckoutContext + revParseShort) ride a dispatching ./exec mock so the
+// checkout resolves to a deterministic origin/owner/repo/branch without a repo.
+// CHECKOUT_DIR is a fake path under the managed home; nothing on disk is touched.
+
+const CHECKOUT_DIR = '/home/u/.claude/duo/checkouts/octocat-Spoon-Knife@main'
+
+const ok = (stdout = '') => ({ ok: true, stdout, stderr: '', exitCode: 0, notFound: false })
+
+/** Program the ./exec mock to answer the git calls resolveCheckoutContext +
+ *  revParseShort make. `currentBranch` defaults to 'main' (a baseline branch →
+ *  resolveBaseBranch returns it directly, no `gh repo view` call). */
+function programExec(opts: { currentBranch?: string } = {}) {
+  const currentBranch = opts.currentBranch ?? 'main'
+  vi.mocked(execGit).mockImplementation(async (_bin: 'git' | 'gh', args: string[]) => {
+    const joined = args.join(' ')
+    if (joined === 'remote get-url origin') return ok('https://github.com/octocat/Spoon-Knife.git\n')
+    if (joined === 'branch --show-current') return ok(currentBranch + '\n')
+    if (args[0] === 'rev-parse') return ok('d0dd1f6\n')
+    // Any unexpected call → a clean failure (surfaces as a test-visible miss).
+    return { ok: false, stdout: '', stderr: 'unexpected execGit: ' + joined, exitCode: 1, notFound: false }
+  })
+}
+
+describe('runShareBack — confirm gate + branch routing (ENH-224 / PR #102)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    // Sensible authed + diverged defaults; each test overrides as needed.
+    programExec()
+    vi.mocked(probeGhAuth).mockResolvedValue({ ghInstalled: true, authenticated: true, host: 'github.com', user: 'me', ghNotFound: false })
+    vi.mocked(probeDivergence).mockResolvedValue({ diverged: true, changedFiles: ['README.md'] })
+    vi.mocked(runCreateBranch).mockResolvedValue({ ok: true, created: true })
+    vi.mocked(runStageAndCommit).mockResolvedValue({ ok: true, committed: true })
+    vi.mocked(probePushAccess).mockResolvedValue({ canPush: true, viewerPermission: 'WRITE' })
+    vi.mocked(runFork).mockResolvedValue({ ok: true, forkOwner: 'me' })
+    vi.mocked(runPush).mockResolvedValue({ ok: true })
+    vi.mocked(findOpenPr).mockResolvedValue(null)
+    vi.mocked(runCreatePr).mockResolvedValue({
+      ok: true,
+      pr: { number: 7, url: 'https://github.com/octocat/Spoon-Knife/pull/7', state: 'OPEN', headRefName: 'duo/x' },
+    })
+  })
+
+  it('refuses without confirmation (BEFORE any mutation) → needs-confirmation', async () => {
+    const res = await runShareBack(CHECKOUT_DIR, { confirmed: false })
+    expect(res.ok).toBe(false)
+    if (res.ok) throw new Error('expected refusal')
+    expect(res.errorKind).toBe('needs-confirmation')
+    // The gate sits before ANY branch/commit/push/fork/PR.
+    expect(runCreateBranch).not.toHaveBeenCalled()
+    expect(runStageAndCommit).not.toHaveBeenCalled()
+    expect(probePushAccess).not.toHaveBeenCalled()
+    expect(runFork).not.toHaveBeenCalled()
+    expect(runPush).not.toHaveBeenCalled()
+    expect(runCreatePr).not.toHaveBeenCalled()
+  })
+
+  it('also refuses when confirmed is OMITTED entirely (default-off gate)', async () => {
+    const res = await runShareBack(CHECKOUT_DIR) // no opts at all
+    expect(res.ok).toBe(false)
+    if (res.ok) throw new Error('expected refusal')
+    expect(res.errorKind).toBe('needs-confirmation')
+    expect(runCreateBranch).not.toHaveBeenCalled()
+    expect(runPush).not.toHaveBeenCalled()
+    expect(runCreatePr).not.toHaveBeenCalled()
+  })
+
+  it('happy path (push access, no existing PR) → created, pushed to origin', async () => {
+    const res = await runShareBack(CHECKOUT_DIR, { confirmed: true })
+    expect(res.ok).toBe(true)
+    if (!res.ok) throw new Error(res.error)
+    expect(res.action).toBe('created')
+    expect(res.forked).toBe(false)
+    expect(res.pushedTo).toBe('octocat') // origin owner, no fork
+    expect(res.pr.number).toBe(7)
+    // Pushed to origin (push access) — never forked.
+    expect(runFork).not.toHaveBeenCalled()
+    expect(runPush).toHaveBeenCalledTimes(1)
+    const pushArg = vi.mocked(runPush).mock.calls[0][1]
+    expect(pushArg.remote).toBe('origin')
+    // The derived branch is the duo/<slug>-<short> namespace; the PR head is
+    // that bare branch (same-repo, no fork prefix).
+    expect(pushArg.branch).toMatch(/^duo\//)
+    expect(runCreatePr).toHaveBeenCalledTimes(1)
+    const prArg = vi.mocked(runCreatePr).mock.calls[0][1]
+    expect(prArg.head).toBe(pushArg.branch) // same-repo head — no `owner:` prefix
+    expect(prArg.base).toBe('main')
+  })
+
+  it('auto-fork path (no push access) → forked, prHead is forkOwner:branch, pushed to the fork URL', async () => {
+    vi.mocked(probePushAccess).mockResolvedValue({ canPush: false, viewerPermission: 'READ' })
+    const res = await runShareBack(CHECKOUT_DIR, { confirmed: true })
+    expect(res.ok).toBe(true)
+    if (!res.ok) throw new Error(res.error)
+    expect(res.forked).toBe(true)
+    expect(res.pushedTo).toBe('me') // the fork owner
+    expect(runFork).toHaveBeenCalledTimes(1)
+    expect(runFork).toHaveBeenCalledWith('octocat', 'Spoon-Knife', CHECKOUT_DIR)
+    // Pushed to the fork URL, not origin.
+    const pushArg = vi.mocked(runPush).mock.calls[0][1]
+    expect(pushArg.remote).toBe('https://github.com/me/Spoon-Knife.git')
+    // The cross-fork PR head carries the fork owner prefix.
+    const prArg = vi.mocked(runCreatePr).mock.calls[0][1]
+    expect(prArg.head).toBe('me:' + pushArg.branch)
+    // findOpenPr is asked with the fork owner so a stranger's same-named branch
+    // can't be mistaken for ours (D13).
+    expect(findOpenPr).toHaveBeenCalledWith(CHECKOUT_DIR, 'me:' + pushArg.branch, { owner: 'me' })
+  })
+
+  it('existing-PR path (findOpenPr returns a PR) → updated, no runCreatePr', async () => {
+    const existing = { number: 42, url: 'https://github.com/octocat/Spoon-Knife/pull/42', state: 'OPEN', headRefName: 'duo/x', headRepositoryOwner: 'octocat' }
+    vi.mocked(findOpenPr).mockResolvedValue(existing)
+    const res = await runShareBack(CHECKOUT_DIR, { confirmed: true })
+    expect(res.ok).toBe(true)
+    if (!res.ok) throw new Error(res.error)
+    expect(res.action).toBe('updated')
+    expect(res.pr.number).toBe(42)
+    // The push already updated the open PR — no fresh PR is created (D13).
+    expect(runCreatePr).not.toHaveBeenCalled()
+  })
+
+  it('no-divergence short-circuits BEFORE the confirm gate (and any mutation)', async () => {
+    vi.mocked(probeDivergence).mockResolvedValue({ diverged: false, changedFiles: [] })
+    const res = await runShareBack(CHECKOUT_DIR, { confirmed: true })
+    expect(res.ok).toBe(false)
+    if (res.ok) throw new Error('expected no-divergence')
+    expect(res.errorKind).toBe('no-divergence')
+    expect(runCreateBranch).not.toHaveBeenCalled()
+  })
+
+  it('auth-missing short-circuits with a gh-auth bounce (no divergence probe, no mutation)', async () => {
+    vi.mocked(probeGhAuth).mockResolvedValue({ ghInstalled: true, authenticated: false, ghNotFound: false })
+    const res = await runShareBack(CHECKOUT_DIR, { confirmed: true })
+    expect(res.ok).toBe(false)
+    if (res.ok) throw new Error('expected auth-missing')
+    expect(res.errorKind).toBe('auth-missing')
+    expect(res.error).toMatch(/gh auth login/)
+    expect(probeDivergence).not.toHaveBeenCalled()
+    expect(runCreateBranch).not.toHaveBeenCalled()
+  })
+
+  it('not-a-checkout (no origin remote) returns early before the auth probe', async () => {
+    vi.mocked(execGit).mockImplementation(async (_bin, args) => {
+      if (args.join(' ') === 'remote get-url origin') {
+        return { ok: false, stdout: '', stderr: 'no origin', exitCode: 1, notFound: false }
+      }
+      return ok('')
+    })
+    const res = await runShareBack(CHECKOUT_DIR, { confirmed: true })
+    expect(res.ok).toBe(false)
+    if (res.ok) throw new Error('expected not-a-checkout')
+    expect(res.errorKind).toBe('not-a-checkout')
+    expect(probeGhAuth).not.toHaveBeenCalled()
+  })
+
+  it('a re-proposal (already on a duo/ branch) REUSES that branch as the PR head', async () => {
+    programExec({ currentBranch: 'duo/existing-abc1234' })
+    const res = await runShareBack(CHECKOUT_DIR, { confirmed: true })
+    expect(res.ok).toBe(true)
+    if (!res.ok) throw new Error(res.error)
+    const pushArg = vi.mocked(runPush).mock.calls[0][1]
+    expect(pushArg.branch).toBe('duo/existing-abc1234') // reused, not re-derived
   })
 })

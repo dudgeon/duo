@@ -507,8 +507,8 @@ const VERBS: VerbSpec[] = [
   {
     name: 'pr',
     group: 'Repo & git',
-    args: 'create|status|view [<path>] | export <path> <dest> [--title …] [--body …] [--branch …] [--draft] [--json]',
-    summary: 'Share-back: propose the diverged doc inside a managed checkout (a file opened via "duo open <github-url>") as a GitHub pull request — the CLI twin of the "Propose changes" affordance. "create" branches/commits/pushes/opens the PR, AUTO-FORKING when you lack push access (cross-fork PR). Defaults are prefilled (branch duo/<slug>-<short>, title from the doc\'s first heading); --title/--body/--branch/--draft override. Works for any editable text format (.md/.json/.yaml/.html — D8). "status" prints JSON { context, divergence, pr }; "view" prints the open PR (or null). "export <path> <dest>" saves a real local copy of the checkout doc outside the opaque home (the D4 escape hatch). <path> defaults to the cwd; it must resolve inside ~/.claude/duo/checkouts/. Unauthenticated bounces to `gh auth login`.'
+    args: 'create [<path>] --yes [--title …] [--body …] [--branch …] [--draft] | status|view [<path>] | export <path> <dest> [--json]',
+    summary: 'Share-back: propose the diverged doc inside a managed checkout (a file opened via "duo open <github-url>") as a GitHub pull request — the CLI twin of the "Propose changes" affordance. "create" (requires --yes — it pushes + opens a PR under your GitHub identity) branches/commits/pushes/opens the PR, committing ALL changes in the checkout (not just one file), AUTO-FORKING when you lack push access (cross-fork PR). Defaults are prefilled (branch duo/<slug>-<short>, title from the doc\'s first heading); --title/--body/--branch/--draft override. Works for any editable text format (.md/.json/.yaml/.html — D8). "status" prints JSON { context, divergence, pr }; "view" prints the open PR (or null). "export <path> <dest>" saves a real local copy of the checkout doc outside the opaque home (the D4 escape hatch). <path> defaults to the cwd; it must resolve inside ~/.claude/duo/checkouts/. Unauthenticated bounces to `gh auth login`.'
   },
   {
     name: 'worktree',
@@ -2367,7 +2367,13 @@ async function main(): Promise<void> {
         }
 
         if (sub === 'create') {
-          const payload: Record<string, unknown> = { sub, path: absPath, draft: rest.includes('--draft') }
+          // ENH-224 — creating a PR forks/pushes/opens it under the user's GitHub
+          // identity. Require an explicit `--yes` so an agent can't propose
+          // silently; the engine enforces this too (errorKind 'needs-confirmation').
+          if (!rest.includes('--yes')) {
+            die('Refusing to open a PR without confirmation. Re-run with --yes:\n  duo pr create [<path>] --yes [--draft] [--title …] [--body …] [--branch …]')
+          }
+          const payload: Record<string, unknown> = { sub, path: absPath, yes: true, draft: rest.includes('--draft') }
           const title = flagValue(rest, '--title'); if (title) payload['title'] = title
           const body = flagValue(rest, '--body'); if (body) payload['body'] = body
           const branch = flagValue(rest, '--branch'); if (branch) payload['branch'] = branch

@@ -2565,7 +2565,10 @@ function setupIPC(): void {
         return { ok: false, errorKind: 'not-a-checkout', error: 'Not inside a Duo-managed checkout.' }
       }
       const rel = nodePath.relative(checkoutDir, docPath)
-      return runShareBack(checkoutDir, { ...opts, filePath: opts?.filePath ?? (rel || undefined) })
+      // The UI "Propose changes" sheet IS the confirmation — reaching this IPC
+      // handler means the user clicked through it. (The agent/socket path must
+      // pass --yes; see runShareBack's gate.)
+      return runShareBack(checkoutDir, { ...opts, confirmed: true, filePath: opts?.filePath ?? (rel || undefined) })
     }
   )
 

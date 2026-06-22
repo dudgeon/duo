@@ -27,6 +27,7 @@ import {
   isHomeTab
 } from './components/Home/homeTab'
 import { classifyFile } from './components/fileClassifier'
+import { absolutizeOpenPath } from './components/openPathResolve'
 import { FilesPane, type FilesPaneHandle } from './components/FilesPane'
 import { CollapsedPaneRail } from './components/CollapsedPaneRail'
 import { DUO_FS_PATH_MIME } from './components/dragPathPayload'
@@ -2105,10 +2106,8 @@ export function App() {
     const t = resolveOpenTarget(rawTarget)
     if (t.kind === 'local-path') {
       // Expand ~; resolve a bare relative path against the navigator cwd.
-      let abs = t.path
-      if (abs === '~') abs = home
-      else if (abs.startsWith('~/')) abs = home.replace(/\/$/, '') + abs.slice(1)
-      else if (!abs.startsWith('/')) abs = `${(nav.state.cwd ?? home).replace(/\/$/, '')}/${abs}`
+      // Pure resolution in absolutizeOpenPath (unit-tested).
+      const abs = absolutizeOpenPath(t.path, home, nav.state.cwd ?? undefined)
       const isDir = await window.electron.files.dirExists(abs).catch(() => false)
       if (isDir) {
         nav.actions.navigateTo(abs)

@@ -1879,6 +1879,7 @@ export type ShareBackErrorKind =
   | 'commit-failed'
   | 'push-failed'
   | 'pr-failed'
+  | 'needs-confirmation'
 
 export type ShareBackResult =
   | {

@@ -8,12 +8,13 @@
 // in place to "Proposed · View PR" (D13). All git/gh state is read LIVE from
 // main (core/git/share-back) — never mirrored (§12).
 //
-// ⚠ NOT yet live-verified — this renderer surface was built without Electron
-// access (owner deferred it). Owes a smoke walk: divergence → bar appears →
-// confirm sheet → real PR → morph.
+// The visibility/morph predicate (the single `return null` gate + which mode
+// renders) is the pure `proposeBarState` helper, unit-tested in
+// proposeBarState.test.ts — keep this component's gate in sync with it.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ShareBackStatus, ShareBackDiff, ShareBackResult, PrInfo } from '../../shared/types'
+import { proposeBarState } from './proposeBarState'
 
 interface Props {
   /** Absolute path of the open doc. */
@@ -109,8 +110,9 @@ export function ProposeBar({ path, active, refreshKey }: Props): JSX.Element | n
   const effectivePr = createdPr ?? status?.pr ?? null
 
   // Inert for ordinary files (D10 — zero footprint unless this is a diverged
-  // managed checkout, or it already has a PR to view).
-  if (!inCheckout || (!diverged && !effectivePr)) return null
+  // managed checkout, or it already has a PR to view). Pure decision in
+  // proposeBarState (unit-tested) so the gate stays verifiable.
+  if (!proposeBarState({ inCheckout, diverged, hasPr: !!effectivePr }).visible) return null
 
   return (
     <>

@@ -33,7 +33,7 @@ var import_crypto = require("crypto");
 var import_node_fs = __toESM(require("node:fs"));
 var import_node_path = __toESM(require("node:path"));
 
-// ../../../node_modules/js-yaml/dist/js-yaml.mjs
+// node_modules/js-yaml/dist/js-yaml.mjs
 function isNothing(subject) {
   return typeof subject === "undefined" || subject === null;
 }
@@ -5499,8 +5499,8 @@ var VERBS = [
   {
     name: "pr",
     group: "Repo & git",
-    args: "create|status|view [<path>] | export <path> <dest> [--title \u2026] [--body \u2026] [--branch \u2026] [--draft] [--json]",
-    summary: 'Share-back: propose the diverged doc inside a managed checkout (a file opened via "duo open <github-url>") as a GitHub pull request \u2014 the CLI twin of the "Propose changes" affordance. "create" branches/commits/pushes/opens the PR, AUTO-FORKING when you lack push access (cross-fork PR). Defaults are prefilled (branch duo/<slug>-<short>, title from the doc\'s first heading); --title/--body/--branch/--draft override. Works for any editable text format (.md/.json/.yaml/.html \u2014 D8). "status" prints JSON { context, divergence, pr }; "view" prints the open PR (or null). "export <path> <dest>" saves a real local copy of the checkout doc outside the opaque home (the D4 escape hatch). <path> defaults to the cwd; it must resolve inside ~/.claude/duo/checkouts/. Unauthenticated bounces to `gh auth login`.'
+    args: "create [<path>] --yes [--title \u2026] [--body \u2026] [--branch \u2026] [--draft] | status|view [<path>] | export <path> <dest> [--json]",
+    summary: 'Share-back: propose the diverged doc inside a managed checkout (a file opened via "duo open <github-url>") as a GitHub pull request \u2014 the CLI twin of the "Propose changes" affordance. "create" (requires --yes \u2014 it pushes + opens a PR under your GitHub identity) branches/commits/pushes/opens the PR, committing ALL changes in the checkout (not just one file), AUTO-FORKING when you lack push access (cross-fork PR). Defaults are prefilled (branch duo/<slug>-<short>, title from the doc\'s first heading); --title/--body/--branch/--draft override. Works for any editable text format (.md/.json/.yaml/.html \u2014 D8). "status" prints JSON { context, divergence, pr }; "view" prints the open PR (or null). "export <path> <dest>" saves a real local copy of the checkout doc outside the opaque home (the D4 escape hatch). <path> defaults to the cwd; it must resolve inside ~/.claude/duo/checkouts/. Unauthenticated bounces to `gh auth login`.'
   },
   {
     name: "worktree",
@@ -6882,7 +6882,10 @@ To confirm, re-run:
           break;
         }
         if (sub === "create") {
-          const payload = { sub, path: absPath, draft: rest.includes("--draft") };
+          if (!rest.includes("--yes")) {
+            die("Refusing to open a PR without confirmation. Re-run with --yes:\n  duo pr create [<path>] --yes [--draft] [--title \u2026] [--body \u2026] [--branch \u2026]");
+          }
+          const payload = { sub, path: absPath, yes: true, draft: rest.includes("--draft") };
           const title = flagValue(rest, "--title");
           if (title) payload["title"] = title;
           const body = flagValue(rest, "--body");

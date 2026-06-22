@@ -17,7 +17,10 @@
 // The SocketServer constructor body is empty (parameter-properties only), so
 // constructing here starts no servers and has no side effects.
 
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest'
+import * as fs from 'fs'
+import * as os from 'os'
+import * as path from 'path'
 import { SocketServer } from './socket-server'
 
 // Minimal stand-ins for the non-cdp/browser ctor deps. The commands under
@@ -481,5 +484,82 @@ describe('SocketServer — ENH-224 Phase 1 github-file open (managed checkout tw
     const res = await dispatch(server, 'open', { url: GH_FILE, origin: GH_FILE })
     expect(res.ok).toBe(true)
     expect(openTab).toHaveBeenCalledWith(GH_FILE)
+  })
+})
+
+// ENH-224 / PR #102 — the `open` handler's LOCAL-FILE dispatch (BUG-067 / BUG-129).
+// The existing Open-Recent block above pins the web-URL + github-file branches and
+// the "missing file → no recent" guard, but NOT the two local-path leaves of the
+// same handler: a file:// URL whose target EXISTS routes through nav.edit (the
+// renderer's smart router) — never the browser pane — and records the recent;
+// a file:// URL whose target is MISSING breaks early with the explicit
+// `File not found: <path>` error (so an agent's wrong-cwd relative path
+// self-corrects), opening no tab and recording nothing. Same pure-node dispatch
+// harness. THROW_BROWSER proves the local leaves never fall through to openTab.
+describe('SocketServer — ENH-224 open handler local-file dispatch (BUG-067 / BUG-129)', () => {
+  let tmpDir: string
+  let realFile: string
+  let realFileUrl: string
+
+  beforeAll(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'duo-socket-open-'))
+    realFile = path.join(tmpDir, 'note.md')
+    fs.writeFileSync(realFile, '# A real local doc\n')
+    realFileUrl = 'file://' + realFile
+  })
+  afterAll(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+  })
+
+  it('a file:// URL for an EXISTING file routes through nav.edit (not the browser) and records the recent', async () => {
+    const d = stubDeps()
+    const edit = vi.fn(() => ({ ok: true }))
+    const recordOpenRecent = vi.fn(async () => {})
+    const nav = { edit, recordOpenRecent, revealMainPaneIfCollapsed: vi.fn() } as never
+    // THROW_BROWSER proves the resolved local file NEVER falls through to openTab.
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'open', { url: realFileUrl, origin: realFile })
+    expect(res.ok).toBe(true)
+    expect((res.result as { ok?: boolean }).ok).toBe(true)
+    // Non-HTML → the renderer's classifier picks the surface; routedTo is 'editor'.
+    expect((res.result as { routedTo?: string }).routedTo).toBe('editor')
+    expect(edit).toHaveBeenCalledTimes(1)
+    // edit() receives the decoded local path (no file:// scheme), and no HTML mode.
+    expect(edit).toHaveBeenCalledWith(realFile, undefined)
+    // record-on-open fires off the human-friendly origin (the local path).
+    expect(recordOpenRecent).toHaveBeenCalledTimes(1)
+    const recorded = (recordOpenRecent.mock.calls as unknown[][])[0][0] as { target?: string }
+    expect(recorded.target).toBe(realFile)
+  })
+
+  it('an HTML file:// URL respects the default browser mode (ENH-156) — edit gets mode=browser, routedTo=browser', async () => {
+    const d = stubDeps()
+    const htmlFile = path.join(tmpDir, 'page.html')
+    fs.writeFileSync(htmlFile, '<h1>hi</h1>')
+    const edit = vi.fn(() => ({ ok: true }))
+    const recordOpenRecent = vi.fn(async () => {})
+    const nav = { edit, recordOpenRecent, revealMainPaneIfCollapsed: vi.fn() } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    // CLI passes mode:'browser' by default for `duo open <html>`.
+    const res = await dispatch(server, 'open', { url: 'file://' + htmlFile, origin: htmlFile, mode: 'browser' })
+    expect(res.ok).toBe(true)
+    expect((res.result as { routedTo?: string }).routedTo).toBe('browser')
+    expect(edit).toHaveBeenCalledWith(htmlFile, 'browser')
+  })
+
+  it('a file:// URL for a MISSING file breaks early with "File not found: <path>" — no tab, no recent', async () => {
+    const d = stubDeps()
+    const edit = vi.fn(() => ({ ok: true }))
+    const recordOpenRecent = vi.fn(async () => {})
+    const nav = { edit, recordOpenRecent, revealMainPaneIfCollapsed: vi.fn() } as never
+    // THROW_BROWSER proves the missing file does NOT fall through to a blank tab.
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const missing = path.join(tmpDir, 'does-not-exist-xyz.md')
+    const res = await dispatch(server, 'open', { url: 'file://' + missing, origin: missing })
+    expect((res.result as { ok?: boolean }).ok).toBe(false)
+    expect((res.result as { error?: string }).error).toBe('File not found: ' + missing)
+    // The early break sits before nav.edit + the record block.
+    expect(edit).not.toHaveBeenCalled()
+    expect(recordOpenRecent).not.toHaveBeenCalled()
   })
 })

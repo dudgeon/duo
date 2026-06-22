@@ -65,8 +65,18 @@ export async function runManagedCheckout(
   opts: ManagedCheckoutOpts = {}
 ): Promise<CheckoutResult> {
   const { owner, repo, ref, filePath } = target
+  // ENH-224 security — ref + filePath come from the (untrusted) URL. Reject a ref
+  // that could be read as a git flag, and a filePath that escapes the checkout
+  // (path traversal), BEFORE any clone/checkout/read.
+  if (ref.startsWith('-')) {
+    return { ok: false, errorKind: 'checkout-failed', error: `Invalid ref: ${ref}` }
+  }
   const checkoutDir = managedCheckoutDir(owner, repo, ref, opts.baseDir)
   const fileAbsPath = path.join(checkoutDir, filePath)
+  const relInside = path.relative(checkoutDir, fileAbsPath)
+  if (relInside.startsWith('..') || path.isAbsolute(relInside)) {
+    return { ok: false, errorKind: 'file-missing', error: `Invalid file path: ${filePath}` }
+  }
   const cloneUrl = `https://github.com/${owner}/${repo}`
 
   // Idempotent reuse — the existing checkout IS the managed copy (§12 pointer,

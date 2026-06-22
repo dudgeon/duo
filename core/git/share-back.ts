@@ -150,6 +150,11 @@ export interface ShareBackOpts {
   body?: string
   branch?: string
   draft?: boolean
+  /** ENH-224 — explicit go-ahead to push a branch / open a PR under the user's
+   *  GitHub identity. The UI sets it (the "Propose changes" sheet IS the gate);
+   *  the CLI sets it only with `--yes`. Without it runShareBack refuses BEFORE
+   *  any fork/push/PR, so an agent on the bare socket can't propose silently. */
+  confirmed?: boolean
 }
 
 /**
@@ -171,6 +176,19 @@ export async function runShareBack(checkoutDir: string, opts: ShareBackOpts = {}
   const div = await probeDivergence(checkoutDir)
   if (!div.diverged) {
     return { ok: false, errorKind: 'no-divergence', error: 'No changes to propose — the doc matches its source.' }
+  }
+
+  // ENH-224 — refuse to fork / push / open a PR without explicit confirmation.
+  // The UI path sets opts.confirmed (the "Propose changes" sheet IS the gate);
+  // the CLI sets it only with `--yes`. The bare socket/agent path does NOT, so an
+  // agent can't fork the repo + open a public PR under the user's identity
+  // silently. Sits before ANY mutation (branch/commit/push/fork/PR).
+  if (!opts.confirmed) {
+    return {
+      ok: false,
+      errorKind: 'needs-confirmation',
+      error: 'Refusing to push a branch or open a PR without confirmation. Re-run `duo pr create` with `--yes`, or use the "Propose changes" button.',
+    }
   }
 
   // Primary doc → prefill (D7). opts override the derived defaults.
@@ -268,7 +286,12 @@ export async function probeShareBackStatus(checkoutDir: string): Promise<ShareBa
   // has many open `head:main` PRs from forks.)
   let pr = null
   if (isShareBackBranch(context?.currentBranch)) {
-    pr = await findOpenPr(checkoutDir, context!.currentBranch)
+    // Constrain by head owner so a stranger's same-named `duo/…` branch in
+    // another fork isn't matched. OUR PR's head is on origin (= context.owner,
+    // push access) OR our fork (= the gh login); selectPr matches either.
+    const me = await execGit('gh', ['api', 'user', '--jq', '.login'], { cwd: checkoutDir })
+    const owners = [context?.owner, me.ok ? me.stdout.trim() : ''].filter(Boolean) as string[]
+    pr = await findOpenPr(checkoutDir, context!.currentBranch, owners.length ? { owner: owners } : {})
   }
   return { context, divergence, pr }
 }

@@ -16,6 +16,11 @@ export interface BranchResult {
 
 export async function runCreateBranch(cwd: string, name: string): Promise<BranchResult> {
   if (!name.trim()) return { ok: false, error: 'branch name is required' }
+  // ENH-224 security — opts.branch is agent-supplied; reject a name that could be
+  // read as a git flag, or isn't a valid ref shape (no leading '-').
+  if (name.startsWith('-') || !/^[\w][\w./+-]*$/.test(name)) {
+    return { ok: false, error: `invalid branch name: ${name}` }
+  }
 
   // Already on the target branch? (re-proposal, same session)
   const cur = await execGit('git', ['branch', '--show-current'], { cwd })

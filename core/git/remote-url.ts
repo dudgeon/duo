@@ -70,11 +70,10 @@ export function parseRemoteUrl(remote: string): ParsedRemote | null {
 export function isGitHubHost(host: string | null | undefined): boolean {
   if (!host) return false
   if (host === 'github.com') return true
-  if (host.startsWith('github.') && host.endsWith('.com')) return true
-  // Some enterprise installs use github.companyname (no .com) — match
-  // those too. Reject obvious non-GH hosts (gitlab.*, bitbucket.*).
-  if (host.startsWith('github.')) return true
-  return false
+  // Enterprise: github.<company>.com or github.<company> — a SINGLE label after
+  // "github.". The single-label bound rejects multi-label spoofs like
+  // github.evil.attacker.com (which the old startsWith('github.') matched).
+  return /^github\.[\w-]+(\.com)?$/.test(host)
 }
 
 /**
