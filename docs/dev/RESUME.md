@@ -1,4 +1,107 @@
 # Resume after compaction — current state (2026-06-21)
+# ⚠ THIS WORKTREE (serene-lumiere-3cccdd) = ENH-224 FILE-OPEN FLOW — full state in `docs/prd/enh-224-file-open-flow.md`
+
+> **Post-compaction orientation (2026-06-21).** This worktree builds **ENH-224**
+> (renumbered from ENH-221 — collision with main's file-history ENH-221 #104) on
+> branch **`claude/duo-file-open-flow-g3rpdx`** = **PR
+> [#102](https://github.com/dudgeon/duo/pull/102)** (rebased on `main`, **MERGEABLE**).
+> The vision: one ⌘O surface to *open a doc or clone a repo*, and "open a remote
+> GitHub doc like it's local → edit → Propose changes (PR)". **Read the PRD first**
+> — `docs/prd/enh-224-file-open-flow.md`: § 3 locked decisions D1–D19, § 6 phases,
+> § 6a build status, § 6b change-log (DR1–DR6 resolutions), § 6c Phase-0 follow-ups.
+>
+> **✅ DONE + live-verified (committed + pushed):**
+> - **Phase 0 — the merged ⌘O Open bar** (`renderer/components/OpenBar.tsx`,
+>   subsumes VaultQuickSwitcher): fuzzy-find + paste path/URL + Browse… (D17) +
+>   Open Recent (D14, `core/open-recents-service.ts` + `OpenRecentsService`
+>   singleton in main, shared with `duo recent` + `duo open` record-on-open) +
+>   github-repo→prefilled CloneModal + github-file→file-vs-repo choice. Resolver
+>   = `core/open-resolve.ts` (`resolveOpenTarget` + `deriveRecentEntry`).
+> - **3 Phase-0 follow-ups** (§ 6c): FU1 CloneModal "Choose…" folder picker
+>   (`OPEN_PICK_DIR`) · FU2 CloneModal geometry matches the bar (640px + top-anchor)
+>   · FU3 ⌘O works from terminal focus (File ▸ Open… menu **registers** the ⌘O
+>   accelerator; see memory `feedback_global_shortcut_terminal_focus_menu_accel`).
+> - **Phase 1 — "open just this doc"** (`core/open-checkout.ts` `runManagedCheckout`
+>   + `OPEN_GITHUB_FILE` IPC + the live OpenBar tile w/ progress panel): a
+>   github-file URL → depth-1 clone at the ref into the opaque
+>   `~/.claude/duo/checkouts/<owner>-<repo>@<ref>/` → opens like a local file +
+>   focuses the folder + records the recent. **DR6 = depth-1 whole-repo** (sparse
+>   deferred); **DR2 = always-ask**. Walked live: `octocat/Spoon-Knife/blob/main/README.md`.
+>
+> - **Phase 1 CLI twin ✅ DONE + tested (2026-06-21):** the `duo open` socket
+>   handler (`core/socket-server.ts` case `open`) classifies its target → on a
+>   github-file URL runs the SAME managed checkout via a new optional
+>   `NavBridge.runManagedCheckout` (wired in `electron/main.ts` to
+>   `runManagedCheckout` — one engine, shared with the `OPEN_GITHUB_FILE` IPC) →
+>   `nav.edit` + `nav.reveal` + records the recent; auth-missing bounces to
+>   `gh auth login`; bare-repo URL still → browser pane. `cli/duo.ts
+>   resolveOpenTarget` https-prefixes a scheme-less github host. +4 socket tests ·
+>   5-surface doc sync. ✅ **live-verified** (`duo open` Spoon-Knife/README).
+> - **Phase 2 — share-back CORE PLUMBING ✅ BUILT + LIVE-VERIFIED (2026-06-21):**
+>   net-new git-WRITE core under `core/git/`:
+>   `divergence.ts` (P5), `proposal-meta.ts` (D7 prefill), `branch/commit/push.ts`,
+>   `fork.ts` (D3 auto-fork), `pr.ts`, `failure-sniff.ts`, `share-back.ts`
+>   (`runShareBack` orchestrator). Plus `duo pr create|status|view` (socket
+>   `case 'pr'` → dynamic-imports share-back, like `clone`) + 5-surface sync. All
+>   state read LIVE from the checkout's git/gh (§12); D4-guarded to
+>   `~/.claude/duo/checkouts/`. 42 pure unit tests (spawning `run*` = live-owed).
+> - **Phase 2 — UI footer affordance 🚧 BUILT (blind, no Electron):**
+>   `renderer/components/ProposeBar.tsx` (footer bar + confirm sheet + morph,
+>   D10–D13) mounts under the markdown editor (MarkdownEditor.tsx, gated `!isNew`
+>   + `isActive`; a `shareBackTick` bumps on save → re-poll). INERT for ordinary
+>   files. New IPC SHARE_BACK_STATUS/DIFF/CREATE (preload `window.electron.pr` +
+>   main handlers) → the same `core/git/share-back` engine. probeDiff returns the
+>   D7 proposalMeta for the sheet prefill. typecheck clean · prod bundle compiles
+>   · 1744 tests. ✅ **LIVE-VERIFIED (2026-06-21):** footer appears on
+>   divergence → confirm sheet (heading title + `duo/…-d0dd1f6` branch + real
+>   diff) → `duo pr create` → **auto-fork + cross-fork PR #40238** (D3) → footer
+>   morphs to "Proposed · View PR" (D13). Bug found+fixed live: `16a23b7`
+>   (status-gate — a fresh checkout no longer shows a stranger's head:main PR).
+>
+> **OWED / NEXT:**
+> - **✅ ENH-224 DONE — ALL 5 PHASES (0–4) BUILT, REVIEWED, + LIVE-VERIFIED.**
+>   The driving use case (PR #40238); Phase 3 walked (`duo open dudgeon/duo/…` →
+>   `via:local-clone`); Phase 4 walked (footer in JSON + HTML-canvas checkout
+>   docs; `duo pr export` + overwrite guard). 4 adversarial review passes folded.
+>   Remaining = **deferred polish only** (below) + a couple owner UX calls (the UI
+>   "Save a copy…" affordance surface; the UI/CLI recents-symmetry follow-up).
+>   Test PR #40238 + the fork `dudgeon/Spoon-Knife` are leftover verification
+>   artifacts (close/delete if unwanted). A **version cut** is the natural next
+>   step (owner's "won't ship until full plan built" is now satisfied).
+> - **Deferred:** sparse-folder checkout (DR6 optimization) · full-inline modal
+>   merge (D15/DM1) · NewVaultModal geometry audit · **UI/CLI symmetry follow-up**:
+>   `duo open <github-url>` now opens just-this-doc via the checkout, but the UI
+>   *recents-list* reopen of a github-file still routes to the clone modal
+>   (`App.tsx openResolvedTarget` — deliberate "clone the whole repo" default).
+>   Could route github-file recents through `onOpenGithubDoc` for full symmetry
+>   (UI change → needs Electron). Documented as a rule-#4 asymmetry in PRD § 6.
+>
+> **VERIFICATION + ENV NOTES:**
+> - **Electron: owner-granted (2026-06-21); a dev IS running from THIS worktree**
+>   (launched `npm run dev` after confirming no other instance — socket up,
+>   version matches). Verified the features via `duo dom`/`duo eval` DOM probes +
+>   the worktree `./cli/duo` (the on-PATH `duo` symlinks here). If access is
+>   later revoked, ASK before re-launching; other agents share the app-global socket.
+> - **Dev restart = CLEAN-QUIT first:** `osascript -e 'tell application "Electron" to quit'`
+>   (runs `before-quit` → disposes chokidar watchers → no fsevents SIGABRT), THEN
+>   `pkill -f 'electron-vite dev'` + relaunch. SIGTERM-ing the app direct causes a
+>   benign `fse_instance_destroy` crash report (memory
+>   `feedback_pkill_dev_triggers_benign_fsevents_sigabrt`).
+> - Latest: `2074c8d` (P3/4 review fixes) · `26f5ca7` (all-phases docs) ·
+>   `9ac158d` (P4) · `976bd64` (P3) · `59dc65b` (P1–2 live docs) · `16a23b7`
+>   (status-gate) · `e1e33b0` (P2 UI) · `65cc392` (P2 core) · `4419c5e` (P1 twin).
+>   typecheck clean · **1750 tests** · currency 76/76 · prod bundle compiles.
+> - Leftover state: a real test checkout at `~/.claude/duo/checkouts/octocat-Spoon-Knife@main/`;
+>   iCloud `* 2.*` sync-conflict dupes moved to `/tmp/icloud-dupes-backup-d76de1e/`
+>   (await owner OK to delete — `rm` of untracked files is auto-denied).
+> - Per owner: **"won't ship until the full plan is built"** → no version cut yet.
+>
+> The ENH-216 / ENH-212 banners below are OTHER worktrees' (shipped) initiatives —
+> historical, not this worktree's.
+>
+> ---
+
+# ⚠ THIS WORKTREE (quizzical-jepsen) = ENH-216 OKF VAULT MODE — full state in `docs/dev/active-sprint.md` § ENH-216 (top section)
 
 > **Read this first.** This file is the cold-start orientation: where the project
 > is *right now*, not its history. For per-version shipped detail read the top of

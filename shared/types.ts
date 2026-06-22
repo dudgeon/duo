@@ -52,6 +52,9 @@ export interface DuoResponse {
 export type DuoCommandName =
   | 'navigate'
   | 'open'
+  // ENH-224 D14 — list the Open Recent store (last ~10 Open-bar targets).
+  // The CLI twin of File ▸ Open Recent + the empty-bar recents list.
+  | 'recent'
   // Stage 20 — `duo reload` reloads the active browser tab in place.
   // Pair for `navigate` that doesn't require a URL.
   | 'reload'
@@ -133,6 +136,9 @@ export type DuoCommandName =
   | 'git-status'
   | 'clone'
   | 'gh-auth'
+  // ENH-224 Phase 2 — share-back: `duo pr <create|status|view>` proposes the
+  // diverged managed-checkout doc as a PR (branch/commit/push/PR, auto-fork).
+  | 'pr'
   // FOLLOWUP-020 — `duo close-tab` closes the focused working-pane
   // tab; `duo close-terminal-tab [<n>]` closes the focused terminal
   // tab (or the Nth terminal tab when an index is supplied). Closes
@@ -1753,6 +1759,194 @@ export interface HomeSessionActionResult {
   externalLive?: boolean
 }
 
+// ── ENH-224 — Open bar: Open Recent (D14) + native Browse… (D17) ─────────────
+
+/** What an Open Recent entry points at. Mirrors the resolver's kinds, but
+ *  flattened (a recent doesn't need the parsed owner/repo/ref — re-resolved
+ *  live from `target` on reopen). Canonical home for `OpenRecentsService`. */
+export type RecentKind = 'local' | 'github-file' | 'github-repo' | 'url'
+
+/** One Open Recent pointer (no mirrored content — CLAUDE.md §12). `target`
+ *  is the identity key (the raw path/URL the user opened); it re-runs through
+ *  the resolver on click so a missing target self-heals. */
+export interface RecentEntry {
+  /** The raw target string the user opened (path or URL). Identity key. */
+  target: string
+  /** Friendly display label (e.g. "roadmap.md" or "o/r › README.md"). */
+  label: string
+  kind: RecentKind
+  /** Epoch ms of the most recent open. */
+  lastOpenedAt: number
+}
+
+/** Result of the native Browse… picker (D17): a single picked path plus
+ *  whether it's a file (→ open in viewer) or a directory (→ root the
+ *  navigator). `null` when the user cancels the dialog. */
+export interface BrowseResult {
+  path: string
+  kind: 'file' | 'directory'
+}
+
+// ── ENH-224 Phase 1 — opaque managed checkout ("open just this doc") ─────────
+
+/** The pieces of a github-file URL the managed checkout needs (the resolver's
+ *  GithubFileTarget, flattened to what crosses the IPC boundary). */
+export interface CheckoutTarget {
+  owner: string
+  repo: string
+  /** branch | tag | sha. */
+  ref: string
+  /** File path within the repo (no leading slash). */
+  filePath: string
+}
+
+/** A live-resolved pointer to a managed checkout (no mirrored GitHub state —
+ *  CLAUDE.md §12). The renderer opens `fileAbsPath` + focuses `checkoutDir`. */
+export interface CheckoutPointer {
+  owner: string
+  repo: string
+  ref: string
+  filePath: string
+  /** Absolute opaque checkout dir (~/.claude/duo/checkouts/…). */
+  checkoutDir: string
+  /** Absolute path to the checked-out file. */
+  fileAbsPath: string
+  /** Fetched baseline commit SHA — the divergence anchor for Phase 2. */
+  baselineSha: string
+  via: 'gh' | 'git' | 'reused'
+}
+
+export type CheckoutResult =
+  | { ok: true; pointer: CheckoutPointer }
+  | { ok: false; errorKind: 'auth-missing' | 'checkout-failed' | 'file-missing'; error: string }
+
+// ── ENH-224 Phase 2 — share-back (divergence → branch/commit/push/PR) ────────
+
+/** Working-tree divergence from the fetched baseline (P5). The signal that
+ *  flips the "Propose changes" affordance on (D2). Computed LIVE from the
+ *  checkout's git state — no mirrored state (§12). */
+export interface DivergenceState {
+  /** True when the working tree differs from the baseline (uncommitted edits
+   *  OR commits not yet on the baseline branch). */
+  diverged: boolean
+  /** Repo-relative paths that changed (porcelain-parsed; staged + unstaged). */
+  changedFiles: string[]
+}
+
+/** Prefill for the confirm sheet / `duo pr create` (D7): branch name + PR
+ *  title (from the doc's first heading) + a simple body. Pure-derived. */
+export interface ProposalMeta {
+  /** Branch name `duo/<doc-slug>-<short>` (OQ-5). */
+  branch: string
+  title: string
+  body: string
+}
+
+/** A live-resolved pull-request pointer (no mirrored PR state — §12; queried
+ *  via `gh pr list`/`gh pr view`). */
+export interface PrInfo {
+  number: number
+  url: string
+  state: string
+  /** The PR's head branch name (just the branch — gh stores the fork owner
+   *  separately in headRepositoryOwner). */
+  headRefName?: string
+  /** The login of the repo the head branch lives in — distinguishes a
+   *  cross-fork PR (the fork owner) from a same-repo one (the base owner).
+   *  Used to disambiguate same-branch-name PRs across forks (D13). */
+  headRepositoryOwner?: string
+}
+
+/** Resolved context for a managed checkout, read live from its git: the
+ *  upstream repo, the baseline branch we cloned, and the checkout's current
+ *  branch (the share-back working branch once one is created). */
+export interface CheckoutContext {
+  owner: string
+  repo: string
+  host: string
+  /** The baseline branch the checkout was cloned at (the PR base). */
+  baseBranch: string
+  /** The checkout's current branch (HEAD) — the PR head once pushed. */
+  currentBranch: string
+}
+
+export type ShareBackErrorKind =
+  | 'not-a-checkout'
+  | 'no-divergence'
+  | 'auth-missing'
+  | 'branch-failed'
+  | 'fork-failed'
+  | 'commit-failed'
+  | 'push-failed'
+  | 'pr-failed'
+  | 'needs-confirmation'
+
+export type ShareBackResult =
+  | {
+      ok: true
+      pr: PrInfo
+      /** Owner the branch was pushed to: origin (push access) or the fork (D3). */
+      pushedTo: string
+      /** True when an auto-fork (D3) happened en route. */
+      forked: boolean
+      /** 'created' a fresh PR, or 'updated' an existing one (D13). */
+      action: 'created' | 'updated'
+    }
+  | { ok: false; errorKind: ShareBackErrorKind; error: string }
+
+/** `duo pr status` snapshot: divergence + any open PR for the checkout's
+ *  current branch. All live (§12). */
+export interface ShareBackStatus {
+  context: CheckoutContext | null
+  divergence: DivergenceState
+  pr: PrInfo | null
+}
+
+/** Totals for the confirm-sheet header / fork-note (D12). Pure-derived from
+ *  `git diff --numstat`. */
+export interface DiffStat {
+  filesChanged: number
+  additions: number
+  deletions: number
+}
+
+/** The working-tree diff for the D12 confirm-sheet inline diff. */
+export interface ShareBackDiff {
+  ok: boolean
+  /** Raw unified `git diff HEAD` text (rendered monospace in the sheet). */
+  diff: string
+  stat: DiffStat
+  /** D7 prefill for the sheet's editable title/branch/body fields — derived
+   *  server-side (heading title + branch incl. the baseline short) when the
+   *  diff was scoped to a single doc. */
+  proposalMeta?: ProposalMeta
+  error?: string
+}
+
+// ── ENH-224 Phase 3 — already-local detection (D6) ──────────────────────────
+
+/** A user's existing local clone of the repo a github-file URL points at — the
+ *  modality-1 reuse target. Resolved live from navigator git-root projects;
+ *  we OFFER to open the file from here (never silently edit the user's tree). */
+export interface LocalCloneMatch {
+  /** The clone's work-tree root. */
+  root: string
+  /** Absolute path to the file inside the clone (root/filePath). */
+  fileAbsPath: string
+  /** The clone's current branch (informational). */
+  branch: string
+}
+
+/** Overrides the confirm sheet / `duo pr create` may pass on top of the D7
+ *  prefill. */
+export interface ShareBackCreateOpts {
+  filePath?: string
+  title?: string
+  body?: string
+  branch?: string
+  draft?: boolean
+}
+
 // ── IPC channel names (renderer ↔ main) ─────────────────────────────────────
 
 export const IPC = {
@@ -2350,6 +2544,49 @@ export const IPC = {
   // default format — D2). Mirrors NAV_OPEN_CLONE_MODAL's menu-trigger
   // pattern.
   NAV_OPEN_NEW_VAULT_MODAL: 'nav:open-new-vault-modal',
+  // ENH-224 D1/D18 — main → renderer push from the File → Open… menu
+  // entry. Renderer opens the merged Open bar (the ⌘O surface). Mirrors
+  // NAV_OPEN_CLONE_MODAL's menu-trigger pattern.
+  NAV_OPEN_BAR: 'nav:open-bar',
+  // ENH-224 D14 — main → renderer push from a File → Open Recent submenu
+  // item. Carries the recent `target` string; the renderer re-resolves it
+  // through the same Open-bar open path (local → openFileSmart, url →
+  // browser pane, github → clone). Keeps one open code path.
+  NAV_OPEN_BAR_REOPEN: 'nav:open-bar-reopen',
+  // ENH-224 D17 — renderer → main native file/folder picker (Browse…).
+  // Returns a BrowseResult ({ path, kind } | null). Single dialog with
+  // both openFile + openDirectory enabled.
+  OPEN_BROWSE: 'open:browse',
+  // ENH-224 FU1 — renderer → main native FOLDER picker (openDirectory +
+  // createDirectory). Returns the picked dir path (string) | null. Used by
+  // the CloneModal's "Choose…" destination button.
+  OPEN_PICK_DIR: 'open:pick-dir',
+  // ENH-224 Phase 1 — renderer → main "open just this doc": runManagedCheckout
+  // (depth-1 clone at the ref into the opaque managed home). Returns a
+  // CheckoutResult; the renderer opens pointer.fileAbsPath + focuses checkoutDir.
+  OPEN_GITHUB_FILE: 'open:github-file',
+  // ENH-224 Phase 3 (D6) — renderer → main: does the user already have a local
+  // clone of this github-file's repo (a navigator git-root project) that
+  // contains the file? Returns a LocalCloneMatch (offer to open from there) or
+  // null (→ managed checkout). The Open bar shows the offer as a third choice.
+  OPEN_MATCH_LOCAL_CLONE: 'open:match-local-clone',
+  // ENH-224 D14 — Open Recent store (machine-global pointers). list /
+  // record / clear, backed by a main-process OpenRecentsService singleton
+  // shared with the `duo open` socket handler (one writer, no races).
+  RECENTS_LIST: 'recents:list',
+  RECENTS_RECORD: 'recents:record',
+  RECENTS_CLEAR: 'recents:clear',
+  // ENH-224 Phase 2 — share-back (the "Propose changes" footer affordance,
+  // D10–D13). renderer → main, given a doc PATH inside a managed checkout:
+  //   STATUS → divergence + open-PR snapshot (drives the affordance + morph).
+  //   DIFF   → the working-tree diff for the confirm-sheet inline view (D12).
+  //   CREATE → run the full share-back (branch/commit/push/PR, auto-fork).
+  // Each resolves the path → its checkout (refuses outside ~/.claude/duo/
+  // checkouts/, D4); the git/gh work reuses core/git/share-back (same engine
+  // as `duo pr`). A non-checkout path returns an inert no-divergence snapshot.
+  SHARE_BACK_STATUS: 'share-back:status',
+  SHARE_BACK_DIFF: 'share-back:diff',
+  SHARE_BACK_CREATE: 'share-back:create',
 
   // ENH-183 C5 — read banner title + user-message-count from the
   // Claude JSONL store. Renderer → main; main consults JSONL only

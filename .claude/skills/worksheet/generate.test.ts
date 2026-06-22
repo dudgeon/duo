@@ -515,6 +515,31 @@ describe('composition (Copy results text format)', () => {
     expect(text).toContain('[SKIP] BUG-003 — Third item')
   })
 
+  // Regression guard (recurring "Copy results does nothing" in the split-view
+  // aux WebContentsView, where the async clipboard AND execCommand can no-op
+  // silently while reporting success). The ONLY reliable path is a pre-selected
+  // textarea the user can ⌘C — so the copy handler MUST always surface it.
+  it('ALWAYS surfaces a pre-selected fallback textarea with the results (guaranteed paste-back)', async () => {
+    renderWorksheet(SAMPLE_MANIFEST)
+    setRadio('BUG-001', 'PASS')
+    document.getElementById('copy')!.click()
+    await Promise.resolve(); await Promise.resolve()
+    const ta = document.querySelector('#copy-modal .copy-modal-ta') as HTMLTextAreaElement | null
+    expect(ta).toBeTruthy()
+    expect(ta!.value).toContain('[PASS] BUG-001 — First item')
+  })
+
+  it('still surfaces the fallback textarea when the async clipboard REJECTS (the aux-pane failure mode)', async () => {
+    writeTextMock.mockRejectedValueOnce(new Error('Document is not focused'))
+    renderWorksheet(SAMPLE_MANIFEST)
+    setRadio('BUG-002', 'FAIL')
+    document.getElementById('copy')!.click()
+    await Promise.resolve(); await Promise.resolve()
+    const ta = document.querySelector('#copy-modal .copy-modal-ta') as HTMLTextAreaElement | null
+    expect(ta).toBeTruthy()
+    expect(ta!.value).toContain('[FAIL] BUG-002 — Second item')
+  })
+
   it('indents notes under the item line as "  Notes: <line>"', () => {
     renderWorksheet(SAMPLE_MANIFEST)
     setRadio('BUG-001', 'PASS')

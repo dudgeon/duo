@@ -5084,8 +5084,14 @@ var VERBS = [
   {
     name: "open",
     group: "Browser & tabs",
-    args: "<path-or-url> [--canvas] [--reveal]",
-    summary: "Open a local file or URL. HTML defaults to the browser pane (scripts run, interactive) \u2014 use this to show the user a generated explainer / playground. Non-HTML routes to its natural surface (.md \u2192 editor, image \u2192 viewer). --canvas forces canvas mode (source-editable, scripts blocked); --reveal expands the working pane."
+    args: "<path-or-url> [--canvas] [--reveal] [--checkout]",
+    summary: `Open a local file or URL. HTML defaults to the browser pane (scripts run, interactive) \u2014 use this to show the user a generated explainer / playground. Non-HTML routes to its natural surface (.md \u2192 editor, image \u2192 viewer). A GitHub *file* URL (github.com/<o>/<r>/blob/<ref>/<path>, /raw/, or raw.githubusercontent.com): if you already have that repo cloned in a navigator project (D6), it opens YOUR real file from the clone (reports the path); otherwise it is pulled into an opaque managed checkout under ~/.claude/duo/checkouts/ and opened like a local file (the Open bar's "open just this doc"). --checkout forces the managed checkout even when a local clone exists. A bare repo or other GitHub URL still opens in the browser pane. --canvas forces canvas mode (source-editable, scripts blocked); --reveal expands the working pane. Successful opens are recorded in Open Recent (see "recent").`
+  },
+  {
+    name: "recent",
+    group: "Browser & tabs",
+    args: "[--json]",
+    summary: 'List the last ~10 Open-bar targets (local paths + GitHub URLs) \u2014 the CLI twin of File \u25B8 Open Recent + the empty \u2318O Open bar. Reopen one by re-passing its target to "open". --json prints the raw RecentEntry[] array.'
   },
   {
     name: "reload",
@@ -5491,6 +5497,12 @@ var VERBS = [
     summary: 'Probe "gh auth status". Prints JSON { ghInstalled, authenticated, host, user, ghNotFound } so agents can decide whether "duo clone" will work on private repos before trying.'
   },
   {
+    name: "pr",
+    group: "Repo & git",
+    args: "create [<path>] --yes [--title \u2026] [--body \u2026] [--branch \u2026] [--draft] | status|view [<path>] | export <path> <dest> [--json]",
+    summary: 'Share-back: propose the diverged doc inside a managed checkout (a file opened via "duo open <github-url>") as a GitHub pull request \u2014 the CLI twin of the "Propose changes" affordance. "create" (requires --yes \u2014 it pushes + opens a PR under your GitHub identity) branches/commits/pushes/opens the PR, committing ALL changes in the checkout (not just one file), AUTO-FORKING when you lack push access (cross-fork PR). Defaults are prefilled (branch duo/<slug>-<short>, title from the doc\'s first heading); --title/--body/--branch/--draft override. Works for any editable text format (.md/.json/.yaml/.html \u2014 D8). "status" prints JSON { context, divergence, pr }; "view" prints the open PR (or null). "export <path> <dest>" saves a real local copy of the checkout doc outside the opaque home (the D4 escape hatch). <path> defaults to the cwd; it must resolve inside ~/.claude/duo/checkouts/. Unauthenticated bounces to `gh auth login`.'
+  },
+  {
     name: "worktree",
     group: "Repo & git",
     args: '[list] [<path>] | new "<desc>" [--from <ref>] [--window] | remove <path> [--force]',
@@ -5806,14 +5818,43 @@ async function main() {
       case "open": {
         const reveal = rest.includes("--reveal");
         const canvasOverride = rest.includes("--canvas");
-        const positional = rest.find((a) => !a.startsWith("--")) ?? die("Usage: duo open <path-or-url> [--canvas] [--reveal]");
+        const forceCheckout = rest.includes("--checkout");
+        const positional = rest.find((a) => !a.startsWith("--")) ?? die("Usage: duo open <path-or-url> [--canvas] [--reveal] [--checkout]");
         const resolved = resolveOpenTarget(positional);
         const payload = {
           url: resolved,
-          mode: canvasOverride ? "canvas" : "browser"
+          mode: canvasOverride ? "canvas" : "browser",
+          // ENH-224 D14 — pass the original positional so record-on-open
+          // stores the human-friendly target (~/x.md) not the file:// URL.
+          origin: positional
         };
         if (reveal) payload["reveal"] = true;
+        if (forceCheckout) payload["checkout"] = true;
         out(await send("open", payload));
+        break;
+      }
+      case "recent": {
+        const asJson = rest.includes("--json");
+        const res = await send("recent");
+        const recents = Array.isArray(res) ? res : [];
+        if (asJson) {
+          out(recents);
+          break;
+        }
+        if (!Array.isArray(recents) || recents.length === 0) {
+          console.log("No recent files. Open one with `duo open <path-or-url>`.");
+          break;
+        }
+        const kindGlyph = {
+          local: "\u{1F4C4}",
+          "github-file": "\u{1F419}",
+          "github-repo": "\u{1F4E6}",
+          url: "\u{1F517}"
+        };
+        for (const r of recents) {
+          console.log(`${kindGlyph[r.kind] ?? "\u2022"}  ${r.label}
+    ${r.target}`);
+        }
         break;
       }
       case "reload": {
@@ -6817,6 +6858,70 @@ To confirm, re-run:
         }
         break;
       }
+      case "pr": {
+        const sub = rest.find((a) => !a.startsWith("--"));
+        if (sub !== "create" && sub !== "status" && sub !== "view" && sub !== "export") {
+          die("Usage: duo pr <create|status|view|export> [<path>] [<dest> for export] [--title \u2026] [--body \u2026] [--branch \u2026] [--draft] [--json]");
+        }
+        const afterSub = rest.slice(rest.indexOf(sub) + 1);
+        const positionals = afterSub.filter((a) => !a.startsWith("--"));
+        const pathArg = positionals[0];
+        const absPath = pathArg ? path15.isAbsolute(pathArg) ? pathArg : path15.resolve(process.cwd(), pathArg) : process.cwd();
+        const asJson = rest.includes("--json");
+        if (sub === "export") {
+          const destArg = positionals[1];
+          if (!destArg) die("Usage: duo pr export <path> <dest>");
+          const destAbs = path15.isAbsolute(destArg) ? destArg : path15.resolve(process.cwd(), destArg);
+          const res2 = await send("pr", { sub, path: absPath, dest: destAbs });
+          if (asJson) {
+            out(JSON.stringify(res2, null, 2));
+            break;
+          }
+          if (res2.ok) out(`Saved a copy \u2192 ${res2.dest}`);
+          else die(`pr export failed: ${res2.error ?? "unknown"}`);
+          break;
+        }
+        if (sub === "create") {
+          if (!rest.includes("--yes")) {
+            die("Refusing to open a PR without confirmation. Re-run with --yes:\n  duo pr create [<path>] --yes [--draft] [--title \u2026] [--body \u2026] [--branch \u2026]");
+          }
+          const payload = { sub, path: absPath, yes: true, draft: rest.includes("--draft") };
+          const title = flagValue(rest, "--title");
+          if (title) payload["title"] = title;
+          const body = flagValue(rest, "--body");
+          if (body) payload["body"] = body;
+          const branch = flagValue(rest, "--branch");
+          if (branch) payload["branch"] = branch;
+          const res2 = await send("pr", payload);
+          if (asJson) {
+            out(JSON.stringify(res2, null, 2));
+            break;
+          }
+          if (res2.ok && res2.pr) {
+            const verb = res2.action === "updated" ? "Updated" : "Opened";
+            const fork = res2.forked ? ` (via your fork ${res2.pushedTo})` : "";
+            out(`${verb} PR #${res2.pr.number}${fork}
+${res2.pr.url}`);
+          } else {
+            die(`pr create failed (${res2.errorKind ?? "unknown"}): ${res2.error ?? "no detail"}`);
+          }
+          break;
+        }
+        if (sub === "status") {
+          out(JSON.stringify(await send("pr", { sub, path: absPath }), null, 2));
+          break;
+        }
+        const res = await send("pr", { sub, path: absPath });
+        if (asJson) {
+          out(JSON.stringify(res, null, 2));
+          break;
+        }
+        if (res.ok === false) die(`pr view failed: ${res.error ?? "not a managed checkout"}`);
+        if (res.pr) out(`PR #${res.pr.number} (${res.pr.state})
+${res.pr.url}`);
+        else out("No open PR for this checkout. Propose one with `duo pr create`.");
+        break;
+      }
       case "gh-auth": {
         out(await send("gh-auth", {}));
         break;
@@ -7288,6 +7393,9 @@ function resolveFilePath(input) {
 }
 function resolveOpenTarget(target) {
   if (/^[a-z][a-z0-9+.-]*:/i.test(target)) return target;
+  if (/^(www\.)?(github\.com|raw\.githubusercontent\.com)\//i.test(target)) {
+    return "https://" + target;
+  }
   let absolute;
   if (target.startsWith("~/") || target === "~") {
     absolute = path15.resolve(target.replace(/^~/, os3.homedir()));

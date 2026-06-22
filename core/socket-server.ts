@@ -57,8 +57,17 @@ import type {
   NewTabResult,
   TerminalTabKind,
   NavPinEntry,
-  WorkingAuxSnapshot
+  WorkingAuxSnapshot,
+  RecentEntry,
+  CheckoutTarget,
+  CheckoutResult
 } from '../shared/types'
+// ENH-224 D14 — pure derivation of an Open Recent pointer from a target.
+// ENH-224 Phase 1 (CLI twin) — classify a `duo open` target so a github-file
+// URL routes to the managed checkout instead of the browser pane.
+import { deriveRecentEntry, resolveOpenTarget as classifyOpenTarget } from './open-resolve'
+// ENH-224 Phase 3 (D6) — prefer the user's existing local clone over a managed checkout.
+import { matchLocalClone } from './git/local-clone-match'
 import { SOCKET_PATH, PORT_FILE } from './constants'
 import { attentionForEvent } from './attention'
 
@@ -143,6 +152,21 @@ export interface NavBridge {
    *  Triggered by the native File menu entry + CLI parity for
    *  `duo clone --modal` (future). */
   openCloneModal: () => { ok: boolean; error?: string }
+  /** ENH-224 D14 — record an Open Recent pointer (the `duo open` twin of
+   *  the UI Open bar's record-on-open). Best-effort; main owns the
+   *  OpenRecentsService singleton the UI also writes to. Optional so
+   *  NavBridge test doubles don't have to stub it. */
+  recordOpenRecent?: (entry: Omit<RecentEntry, 'lastOpenedAt'>) => Promise<void>
+  /** ENH-224 D14 — list the Open Recent store (the `duo recent` twin of
+   *  File ▸ Open Recent). Optional for the same reason. */
+  listOpenRecents?: () => Promise<RecentEntry[]>
+  /** ENH-224 Phase 1 (CLI twin) — pull a github-file `duo open` target into
+   *  the opaque managed checkout (the socket twin of the OPEN_GITHUB_FILE IPC
+   *  the UI Open bar drives). Network/git work; main owns the call (wired to
+   *  `core/open-checkout.runManagedCheckout`). Optional so NavBridge test
+   *  doubles don't have to stub it — when absent, a github-file URL falls
+   *  through to the browser pane (the pre-Phase-1 behavior). */
+  runManagedCheckout?: (target: CheckoutTarget) => Promise<CheckoutResult>
   /** ENH-183 C12 — Claude session lifecycle CLI verbs. Each one
    *  routes through PtyManager (resume/rename inject into the named
    *  PTY) or claude-session-tracker (list reads JSONL store).
@@ -933,6 +957,12 @@ export class SocketServer {
           // path; bare hostnames are pre-resolved by the CLI's
           // resolveOpenTarget() before we ever see them.
           let resolvedLocally = false
+          // ENH-224 Phase 1 — when a github-file checkout succeeds, the recent
+          // is recorded under the CANONICAL github.com/blob URL (set in that
+          // branch) rather than args.origin, so a raw/permalink variant stores
+          // the SAME pointer the UI would (App.tsx onOpenGithubDoc). null for
+          // every other open (local / web URL) → falls back to origin/url.
+          let recentTargetOverride: string | null = null
           // BUG-129 — track file:// URLs that DON'T resolve so we can
           // emit an explicit "file not found" error instead of falling
           // through to openTab (which would just render a blank tab).
@@ -974,6 +1004,100 @@ export class SocketServer {
           if (!resolvedLocally && missingFilePath !== null) {
             result = { ok: false, error: `File not found: ${missingFilePath}` }
             break
+          }
+          // ENH-224 Phase 1 (CLI twin / rule #4) — a GitHub *file* URL is the
+          // `duo open` parity of the Open bar's "open just this doc" tile
+          // (D19/DR6). Pull the file into an opaque managed checkout (depth-1
+          // clone at the ref into ~/.claude/duo/checkouts/<owner>-<repo>@<ref>/),
+          // then open it like a local file + focus the checkout folder (D5) —
+          // exactly what the renderer's onOpenGithubDoc does after the
+          // OPEN_GITHUB_FILE IPC. A bare-repo or non-file GitHub URL (/pulls,
+          // /issues, …) is NOT a github-file → it falls through to the
+          // browser-tab path below, unchanged. The checkout runs in main (this
+          // process), never a sandboxed CLI. record-on-open (below) stores the
+          // github-file recent off args.origin like every other open.
+          if (!resolvedLocally && this.nav.runManagedCheckout) {
+            const classified = classifyOpenTarget(url)
+            if (classified.kind === 'github-file') {
+              // ENH-224 Phase 3 (D6) — already-local detection. If the user has
+              // this repo cloned (a navigator git-root project) AND it has the
+              // file, prefer opening from THEIR clone over a redundant managed
+              // checkout — unless `--checkout` forces the opaque path. We only
+              // OPEN (never edit) their tree, and the share-back footer is gated
+              // to managed checkouts, so no surprise PR. The CLI prefers-local +
+              // reports the path; the UI offers the choice (matchLocalClone IPC).
+              let openedFromClone = false
+              if (args['checkout'] !== true) {
+                const candidateRoots = (this.nav.getProjectsState?.()?.projects ?? [])
+                  .filter((p) => p.isGitRoot)
+                  .map((p) => p.root)
+                if (candidateRoots.length > 0) {
+                  const match = await matchLocalClone({
+                    owner: classified.owner,
+                    repo: classified.repo,
+                    filePath: classified.filePath,
+                    candidateRoots,
+                  })
+                  if (match) {
+                    const editRes = this.nav.edit(match.fileAbsPath)
+                    if (editRes.ok) {
+                      this.nav.reveal(match.fileAbsPath)
+                      recentTargetOverride = classified.canonical
+                      result = {
+                        ok: true, url, routedTo: 'editor', via: 'local-clone',
+                        localClone: { root: match.root, fileAbsPath: match.fileAbsPath, branch: match.branch },
+                      }
+                      resolvedLocally = true
+                      openedFromClone = true
+                    }
+                  }
+                }
+              }
+              if (!openedFromClone) {
+                const checkout = await this.nav.runManagedCheckout({
+                  owner: classified.owner,
+                  repo: classified.repo,
+                  ref: classified.ref,
+                  filePath: classified.filePath,
+                })
+                if (checkout.ok) {
+                  // Open the checked-out file like a local doc, and ONLY claim
+                  // success if the renderer actually mounted it — mirrors the
+                  // file:// branch's `if (editResult.ok)` gate (a failed edit
+                  // must not report ok:true).
+                  const editResult = this.nav.edit(checkout.pointer.fileAbsPath)
+                  if (editResult.ok) {
+                    // Focus the checkout FOLDER so the doc's siblings/assets are
+                    // visible (D5). reveal() roots cwd at the revealed path's
+                    // PARENT + selects it, so reveal the FILE → cwd = checkoutDir
+                    // with the doc highlighted — matching the UI's
+                    // navigateTo(checkoutDir); reveal(checkoutDir) would instead
+                    // land at ~/.claude/duo/checkouts/. Best-effort (a failed
+                    // navigator focus never fails the open).
+                    this.nav.reveal(checkout.pointer.fileAbsPath)
+                    // Record under the canonical github.com/blob URL (parity with
+                    // App.tsx onOpenGithubDoc) — applied in the shared record
+                    // block below.
+                    recentTargetOverride = classified.canonical
+                    result = { ok: true, url, routedTo: 'editor', checkout: checkout.pointer }
+                    resolvedLocally = true
+                  } else {
+                    result = { ok: false, error: editResult.error ?? 'Could not open the checked-out file.', checkout: checkout.pointer }
+                    break
+                  }
+                } else {
+                  // auth-missing → the same gh-auth bounce the Clone modal uses
+                  // (D9); file-missing / checkout-failed surface plainly so an
+                  // agent can self-correct. Break early — no browser fallback,
+                  // no recent recorded for a failed open.
+                  const hint = checkout.errorKind === 'auth-missing'
+                    ? checkout.error + ' Run `gh auth login`, then retry.'
+                    : checkout.error
+                  result = { ok: false, error: hint, errorKind: checkout.errorKind }
+                  break
+                }
+              } // end if (!openedFromClone) — Phase 3 fell through to checkout
+            }
           }
           let openedTabId: number | null = null
           if (!resolvedLocally) {
@@ -1028,6 +1152,27 @@ export class SocketServer {
               this.getAddressedWindowId()
             )
           }
+          // ENH-224 D14 — record-on-open (the `duo open` twin of the UI Open
+          // bar's record). Best-effort; the raw target prefers the github-file
+          // canonical override (parity), then the CLI's original positional
+          // (args.origin) so the recent stays human-friendly (~/x.md, not
+          // file:///…), falling back to `url`.
+          if ((result as { ok?: boolean })?.ok === true && this.nav.recordOpenRecent) {
+            const rawTarget = recentTargetOverride || (args['origin'] as string) || url
+            try {
+              void this.nav.recordOpenRecent(deriveRecentEntry(rawTarget))
+            } catch {
+              // recents are best-effort — never fail an open over them.
+            }
+          }
+          break
+        }
+        case 'recent': {
+          // ENH-224 D14 — `duo recent` lists the Open Recent store (the CLI
+          // twin of File ▸ Open Recent + the empty Open bar). Reopen by
+          // re-passing a target to `duo open`. result = the RecentEntry[]
+          // array (the outer envelope adds {id, ok, result}).
+          result = this.nav.listOpenRecents ? await this.nav.listOpenRecents() : []
           break
         }
         case 'reload': {
@@ -1907,6 +2052,61 @@ export class SocketServer {
           // when it lands GitHub integrations.
           const { probeGhAuth } = await import('./git/auth')
           result = await probeGhAuth()
+          break
+        }
+        case 'pr': {
+          // ENH-224 Phase 2 — share-back. `sub` ∈ create | status | view.
+          //   create → branch/commit/push/PR (auto-fork, D3) for the diverged
+          //            managed-checkout doc at `path` (D7 prefill; --title/
+          //            --body/--branch/--draft override).
+          //   status → divergence + any open PR (JSON; visibility-cluster).
+          //   view   → the open PR for the checkout's current branch (or null).
+          // Resolves `path` → its enclosing managed checkout (D4 — refuses a
+          // path outside ~/.claude/duo/checkouts/). Dynamic import mirrors
+          // `case 'clone'`; the git/gh work runs in main, never a sandboxed CLI.
+          const sub = args['sub'] as string | undefined
+          const prPath = args['path'] as string | undefined
+          if (sub !== 'create' && sub !== 'status' && sub !== 'view' && sub !== 'export') {
+            throw new Error("duo pr requires a subcommand: create | status | view | export")
+          }
+          if (!prPath) throw new Error('duo pr requires a <path> (a file inside a managed checkout)')
+          const { resolveCheckoutDirForPath, runShareBack, probeShareBackStatus, exportCheckoutFile } =
+            await import('./git/share-back')
+          const checkoutDir = await resolveCheckoutDirForPath(prPath)
+          if (!checkoutDir) {
+            result = {
+              ok: false,
+              errorKind: 'not-a-checkout',
+              error: `${prPath} is not inside a Duo-managed checkout (~/.claude/duo/checkouts/). Open a GitHub file first with \`duo open <github-url>\`.`,
+            }
+            break
+          }
+          // The doc's path RELATIVE to the checkout root — drives the PREFILL
+          // (title/slug). NOTE the PR commit is checkout-scoped (OQ-3): it stages
+          // every change in the checkout, not just this one file.
+          const relFile = path.relative(checkoutDir, prPath)
+          if (sub === 'create') {
+            result = await runShareBack(checkoutDir, {
+              filePath: relFile || undefined,
+              title: args['title'] as string | undefined,
+              body: args['body'] as string | undefined,
+              branch: args['branch'] as string | undefined,
+              draft: args['draft'] === true,
+              // ENH-224 — only an explicit `--yes` (carried as `yes` in the
+              // payload) authorizes the fork/push/PR from the agent/CLI path.
+              confirmed: args['yes'] === true,
+            })
+          } else if (sub === 'status') {
+            result = await probeShareBackStatus(checkoutDir)
+          } else if (sub === 'export') {
+            // ENH-224 Phase 4 (D4 escape hatch) — copy the checkout doc to a
+            // real local path the user keeps.
+            result = await exportCheckoutFile(prPath, (args['dest'] as string) ?? '')
+          } else {
+            // view → the live status's PR (null when none open).
+            const status = await probeShareBackStatus(checkoutDir)
+            result = { ok: true, pr: status.pr }
+          }
           break
         }
         case 'close-tab': {

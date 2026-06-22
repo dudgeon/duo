@@ -79,6 +79,75 @@ Picked up the **scheduled ("cron") Claude sessions** branch (`claude/chron-job-m
 **Tier 2 increment 2 (DONE + live-verified):** the create/edit dialog (`NewCronJobModal`) + entry points (D7). New `handleCli` ops `edit` (patch fields + reparse schedule) and `preview` (validate a draft → human label + next-fire for the F3 live preview, computed in main so the renderer doesn't re-derive the engine); CLI parity verb `duo cron edit <id> …` (+ docs across all 4 surfaces, binary rebuilt). The modal (create + edit modes) has a preset segmented control (Hourly/Daily/Weekdays/Weekly/Custom-cron) + conditional time/weekday/cron fields + a debounced live preview, a session radio, a catch-up checkbox. Entry points: a `duo-open-cron-modal` window CustomEvent (Home "+ New job" header button + per-row **Edit** + project-rail right-click "New Scheduled Job…") and an IPC push for **File ▸ New Scheduled Job…** — both converge on one App open path; the modal parks the browser WCV (BUG-209 lineage) so it isn't occluded. Verified live via `duo dom`: open → fill → F3 preview (`every day at 09:00 · next in 10h`) → create; Edit → pre-filled → save; CLI `cron edit` round-trips to the UI via the push; error paths clean. Full suite **1651 green**.
 
 **Owed (forward plan):** Tier 2 increment 3 — D6 per-project nesting under the hero/spine cards + a per-card "+ Schedule" affordance (increment 1 is the aggregated block only). Then **ENH-225** (the attention badge — must surface on cron's `kind:'shell'` claude tabs). Logged future: ENH-222 (`launchd` launch), headless `-p` mode, full run-history. **`/smoke-walk` before any version cut** — walk the native File-menu + rail-right-click triggers there (they use the verified open path, but the native menus weren't exercised here). (Test/demo cron jobs were cleaned up — `cron-jobs.json` is empty.)
+## 2026-06-21 (ENH-224 file-open flow — Phase 0 + 3 follow-ups + Phase 1 all live-verified; worktree `serene-lumiere-3cccdd`, PR #102)
+
+Picked up the in-flight **ENH-224** (file-open flow) handoff on branch
+`claude/duo-file-open-flow-g3rpdx`. Full state lives in
+`docs/prd/enh-224-file-open-flow.md` (§ 3 decisions D1–D19, § 6a build status,
+§ 6b change-log, § 6c follow-ups) + the RESUME.md top banner. This is the prose
+of what landed + why + what's owed.
+
+**Renumber ENH-221 → ENH-224.** Owner-directed: main's #104 landed its *own*
+ENH-221 (durable file version history), so this (unmerged) work took the next
+free id. Mechanical rename across code/tests/docs + the PRD filename; git history
+keeps the old commit messages. Then **rebased the branch onto `main`** (only one
+real conflict — a 1-line import block in `electron/main.ts`); PR #102 MERGEABLE.
+
+**Phase 0 — the merged ⌘O Open bar (`renderer/components/OpenBar.tsx`).** Owner
+chose (over two cheaper options) to make ⌘O ONE surface that *subsumes* the vault
+quick-switcher (D18): fuzzy-find + paste-a-path/URL + Browse… (D17) + Open Recent
+(D14). Routing funnels through one `App.openResolvedTarget` shared by the bar, the
+File ▸ Open Recent menu, and `duo open`. github-repo → prefilled CloneModal;
+github-file → the file-vs-repo choice (D19). New: `core/open-resolve.ts`
+(resolver + `deriveRecentEntry`), `core/open-recents-service.ts` (machine-global
+`OpenRecentsService` singleton in main, shared by the UI IPC + `duo open`
+record-on-open + the `duo recent` CLI), native Browse… picker, File ▸ Open… +
+Open Recent menu. CloneModal got prefill + the D16 "Open ‹file›" success hero.
+**Agent-walked live (computer-use):** every flow passed; record-on-open
+round-trips UI↔`duo recent`↔disk.
+
+**3 Phase-0 follow-ups (owner-raised + 1 agent finding), all DONE + live-verified
+(§ 6c).** FU1 — CloneModal "Choose…" destination folder picker (new
+`OPEN_PICK_DIR` openDirectory+createDirectory IPC). FU2 — CloneModal geometry now
+matches the Open bar (640px + top-anchored) so the hand-off reads as one surface
+morphing. FU3 — **⌘O didn't fire from terminal-column (xterm) focus** (pre-existing;
+the renderer keymap misses it); fixed by letting File ▸ Open… **register** the ⌘O
+accelerator (a native menu accelerator fires from any focus). Lesson in memory
+`feedback_global_shortcut_terminal_focus_menu_accel`.
+
+**DR1–DR6 resolved → Phase 1.** DR1/3/4/5 were settled by the Phase-0 build
+(validated live); DR2 = **always-ask** (owner); DR6 = **depth-1 whole-repo managed
+checkout** (agent rec — asset-complete + reuses tested `runClone`; sparse-folder
+deferred).
+
+**Phase 1 — "open just this doc" — DONE + live-verified.** `core/open-checkout.ts`
+`runManagedCheckout`: depth-1 clone at the URL's ref into the opaque
+`~/.claude/duo/checkouts/<owner>-<repo>@<ref>/` (reuses `runClone`, extended with
+`depth`/`ref` via the tested `cloneExtraArgs`; full-clone+`git checkout` for a SHA
+ref), `rev-parse HEAD` baseline, idempotent reuse, returns a §12 pointer. Wired:
+`OPEN_GITHUB_FILE` IPC → the OpenBar "just this doc" tile is live (drops "Soon")
+with a "Pulling ‹file›…" progress panel + inline gh-auth bounce; `App.onOpenGithubDoc`
+opens the checked-out file + focuses the folder + records the recent. **Walked live:**
+`github.com/octocat/Spoon-Knife/blob/main/README.md` → depth-1 checkout (1 commit,
+baseline `d0dd1f6`) → README opened in the editor + navigator focused the checkout
+folder + `duo recent` shows `🐙 octocat/Spoon-Knife › README.md`; dev log clean.
+
+**Owed / next.** Phase 1 **CLI twin** (`duo open <github-url>` → checkout, for
+rule-#4 parity). **Phase 2 — share-back** (the big build; decisions LOCKED, § 3
+D2–D13): divergence → "Propose changes" footer → confirm sheet → branch/commit/
+push/PR + auto-fork → post-PR morph. Net-new git-WRITE plumbing
+`core/git/{branch,commit,push,fork,pr}.ts` + `duo pr …`. Deferred: sparse-folder
+checkout · full-inline modal merge (D15/DM1) · NewVaultModal geometry audit. Per
+owner **"won't ship until the full plan is built"** → no cut. Gates: typecheck
+clean · **1689 tests** · currency 75/75. Latest commits `49635ee`/`7370416`/
+`738ae7f`. **Env:** computer-use Electron access REVOKED (ask before use);
+dev-restart = clean-quit (`osascript … quit`) then `pkill electron-vite` to avoid
+the benign fsevents SIGABRT (memory
+`feedback_pkill_dev_triggers_benign_fsevents_sigabrt`); iCloud `* 2.*` dupes in
+`/tmp/icloud-dupes-backup-d76de1e/`.
+
+---
+
 ## 2026-06-20→21 (merge wave — #101 + #105 + #104 all landed; nav fix-forward; #104 dark-mode legend fix)
 
 Took control of the open-PR merge execution (owner directive). **Merged two reviewed-ready PRs to `main` (squash):** **#101** (`76b7e6c` — detect iCloud sync-conflict `* 2.ts` duplicates in the materialization check; tooling-only, zero file overlap) and **#105** (`c7224c5` — ENH-222 worktree lifecycle UX). Both reviewed first (SHIP / SHIP). Branches kept (checked out in sibling worktrees; remote cleanup deferred). #101 was the freebie (only `CLAUDE.md` + 2 scripts); #105 was the first of the four mutually-conflicting feature PRs so it merged clean.

@@ -439,7 +439,47 @@ const api: ElectronAPI = {
       const handler = () => cb()
       ipcRenderer.on(IPC.NAV_OPEN_NEW_VAULT_MODAL, handler)
       return () => ipcRenderer.removeListener(IPC.NAV_OPEN_NEW_VAULT_MODAL, handler)
+    },
+
+    // ENH-224 D1/D18 — File → Open… menu opens the merged Open bar.
+    onOpenBar: (cb: () => void) => {
+      const handler = () => cb()
+      ipcRenderer.on(IPC.NAV_OPEN_BAR, handler)
+      return () => ipcRenderer.removeListener(IPC.NAV_OPEN_BAR, handler)
+    },
+    // ENH-224 D14 — File → Open Recent ▸ <target> reopens via the renderer.
+    onOpenBarReopen: (cb: (target: string) => void) => {
+      const handler = (_: IpcRendererEvent, target: string) => cb(target)
+      ipcRenderer.on(IPC.NAV_OPEN_BAR_REOPEN, handler)
+      return () => ipcRenderer.removeListener(IPC.NAV_OPEN_BAR_REOPEN, handler)
     }
+  },
+
+  // ENH-224 D17 — native file/folder picker behind the Open bar's Browse…
+  open: {
+    browse: () => ipcRenderer.invoke(IPC.OPEN_BROWSE),
+    // ENH-224 FU1 — folder-only picker for the CloneModal destination.
+    pickDirectory: () => ipcRenderer.invoke(IPC.OPEN_PICK_DIR),
+    // ENH-224 Phase 1 — "open just this doc" → managed checkout.
+    githubFile: (target) => ipcRenderer.invoke(IPC.OPEN_GITHUB_FILE, target),
+    // ENH-224 Phase 3 (D6) — is the repo already cloned locally?
+    matchLocalClone: (target) => ipcRenderer.invoke(IPC.OPEN_MATCH_LOCAL_CLONE, target),
+  },
+
+  // ENH-224 D14 — Open Recent store (pointers; resolved live). Backed by a
+  // main-process OpenRecentsService singleton shared with `duo open`.
+  recents: {
+    list: () => ipcRenderer.invoke(IPC.RECENTS_LIST),
+    record: (entry) => ipcRenderer.invoke(IPC.RECENTS_RECORD, entry),
+    clear: () => ipcRenderer.invoke(IPC.RECENTS_CLEAR),
+  },
+
+  // ENH-224 Phase 2 — share-back ("Propose changes" footer, D10–D13). Same
+  // engine as `duo pr` (core/git/share-back), reached over IPC.
+  pr: {
+    status: (docPath) => ipcRenderer.invoke(IPC.SHARE_BACK_STATUS, docPath),
+    diff: (docPath) => ipcRenderer.invoke(IPC.SHARE_BACK_DIFF, docPath),
+    create: (docPath, opts) => ipcRenderer.invoke(IPC.SHARE_BACK_CREATE, docPath, opts),
   },
 
   editor: {

@@ -17,7 +17,10 @@
 // The SocketServer constructor body is empty (parameter-properties only), so
 // constructing here starts no servers and has no side effects.
 
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest'
+import * as fs from 'fs'
+import * as os from 'os'
+import * as path from 'path'
 import { SocketServer } from './socket-server'
 
 // Minimal stand-ins for the non-cdp/browser ctor deps. The commands under
@@ -284,5 +287,279 @@ describe('SocketServer — ENH-212 Home CLI routing', () => {
     const res = await dispatch(server, 'session', { op: 'open' })
     expect(res.ok).toBe(false)
     expect(res.error).toMatch(/requires <uuid>/)
+  })
+})
+
+// ENH-224 D14 — `duo recent` routing + record-on-open. Pins the socket-side
+// contract the UI Open bar can't reach: `recent` lists via the NavBridge, and
+// a SUCCESSFUL `open` records a derived pointer (a failed open does NOT). Same
+// pure-node dispatch harness. Guards the "IPC handler gap is invisible to
+// typecheck" class — a missing case here compiles but throws at runtime.
+describe('SocketServer — ENH-224 Open Recent (recent + record-on-open)', () => {
+  it('`duo recent` returns the list from listOpenRecents', async () => {
+    const d = stubDeps()
+    const entries = [{ target: '~/x.md', label: 'x.md', kind: 'local', lastOpenedAt: 123 }]
+    const listOpenRecents = vi.fn(async () => entries)
+    const nav = { listOpenRecents } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'recent')
+    expect(res.ok).toBe(true)
+    expect(res.result).toEqual(entries)
+    expect(listOpenRecents).toHaveBeenCalledTimes(1)
+  })
+
+  it('`duo recent` returns [] when the NavBridge lacks listOpenRecents (optional dep)', async () => {
+    const d = stubDeps()
+    const nav = {} as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'recent')
+    expect(res.ok).toBe(true)
+    expect(res.result).toEqual([])
+  })
+
+  it('a successful web-URL `open` records the derived pointer (origin preferred)', async () => {
+    const d = stubDeps()
+    const recordOpenRecent = vi.fn(async () => {})
+    const nav = { recordOpenRecent, revealMainPaneIfCollapsed: vi.fn() } as never
+    const openTab = vi.fn(async () => ({ ok: true, id: 1, url: 'https://example.com/page' }))
+    const fakeBrowser = { openTab } as never
+    const server = new SocketServer(THROW_CDP, () => fakeBrowser, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'open', {
+      url: 'https://example.com/page',
+      origin: 'https://example.com/page',
+    })
+    expect(res.ok).toBe(true)
+    expect(recordOpenRecent).toHaveBeenCalledWith({
+      target: 'https://example.com/page',
+      label: 'example.com',
+      kind: 'url',
+    })
+  })
+
+  it('a FAILED open (missing file://) does NOT record a recent', async () => {
+    const d = stubDeps()
+    const recordOpenRecent = vi.fn(async () => {})
+    const nav = { recordOpenRecent } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    // A file:// URL for a path that does not exist → the command's inner
+    // result is {ok:false} (the envelope's own `ok` is transport-level) and
+    // the handler breaks BEFORE the record block.
+    const res = await dispatch(server, 'open', {
+      url: 'file:///tmp/enh221-does-not-exist-xyz.md',
+      origin: '/tmp/enh221-does-not-exist-xyz.md',
+    })
+    expect((res.result as { ok?: boolean })?.ok).toBe(false)
+    expect(recordOpenRecent).not.toHaveBeenCalled()
+  })
+})
+
+// ENH-224 Phase 1 (CLI twin / rule #4) — `duo open <github-file-url>` is the
+// socket twin of the Open bar's "open just this doc": classify → managed
+// checkout → open-as-local (nav.edit) + focus the checkout folder (nav.reveal)
+// → record the github-file recent. A bare-repo / non-file GitHub URL still
+// falls through to the browser pane. Pins the routing decision + the optional-
+// dep degradation (the same handler-gap class as the record-on-open tests).
+describe('SocketServer — ENH-224 Phase 1 github-file open (managed checkout twin)', () => {
+  const GH_FILE = 'https://github.com/octocat/Spoon-Knife/blob/main/README.md'
+  const POINTER = {
+    owner: 'octocat',
+    repo: 'Spoon-Knife',
+    ref: 'main',
+    filePath: 'README.md',
+    checkoutDir: '/co/octocat-Spoon-Knife@main',
+    fileAbsPath: '/co/octocat-Spoon-Knife@main/README.md',
+    baselineSha: 'd0dd1f6',
+    via: 'reused' as const,
+  }
+
+  it('a github-file URL runs the checkout, opens the file, focuses the folder, records the recent', async () => {
+    const d = stubDeps()
+    const runManagedCheckout = vi.fn(async () => ({ ok: true, pointer: POINTER }))
+    const edit = vi.fn(() => ({ ok: true }))
+    const reveal = vi.fn(() => ({ ok: true }))
+    const recordOpenRecent = vi.fn(async () => {})
+    const nav = { runManagedCheckout, edit, reveal, recordOpenRecent } as never
+    // THROW_BROWSER proves no browser-tab fallback fired for the resolved file.
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'open', { url: GH_FILE, origin: GH_FILE, mode: 'browser' })
+    expect(res.ok).toBe(true)
+    expect((res.result as { ok?: boolean }).ok).toBe(true)
+    expect((res.result as { routedTo?: string }).routedTo).toBe('editor')
+    expect(runManagedCheckout).toHaveBeenCalledTimes(1)
+    expect(runManagedCheckout).toHaveBeenCalledWith({
+      owner: 'octocat', repo: 'Spoon-Knife', ref: 'main', filePath: 'README.md',
+    })
+    expect(edit).toHaveBeenCalledTimes(1)
+    expect(edit).toHaveBeenCalledWith(POINTER.fileAbsPath)
+    // reveal the FILE (not the dir) so cwd lands INSIDE the checkout folder
+    // (D5 — siblings visible), matching the UI's navigateTo(checkoutDir).
+    expect(reveal).toHaveBeenCalledTimes(1)
+    expect(reveal).toHaveBeenCalledWith(POINTER.fileAbsPath)
+    expect(recordOpenRecent).toHaveBeenCalledTimes(1)
+    expect(recordOpenRecent).toHaveBeenCalledWith({
+      target: GH_FILE,
+      label: 'octocat/Spoon-Knife › README.md',
+      kind: 'github-file',
+    })
+  })
+
+  it('a successful checkout whose edit() FAILS reports an error, records nothing, opens no tab', async () => {
+    const d = stubDeps()
+    const runManagedCheckout = vi.fn(async () => ({ ok: true, pointer: POINTER }))
+    const edit = vi.fn(() => ({ ok: false, error: 'renderer not ready' }))
+    const reveal = vi.fn(() => ({ ok: true }))
+    const recordOpenRecent = vi.fn(async () => {})
+    const nav = { runManagedCheckout, edit, reveal, recordOpenRecent } as never
+    // THROW_BROWSER proves a failed edit does NOT fall through to a browser tab.
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'open', { url: GH_FILE, origin: GH_FILE })
+    expect((res.result as { ok?: boolean }).ok).toBe(false)
+    expect((res.result as { error?: string }).error).toContain('renderer not ready')
+    expect(reveal).not.toHaveBeenCalled()
+    expect(recordOpenRecent).not.toHaveBeenCalled()
+  })
+
+  it('records the recent under the CANONICAL github.com/blob URL even when opened via a raw URL (UI parity)', async () => {
+    const d = stubDeps()
+    const runManagedCheckout = vi.fn(async () => ({ ok: true, pointer: POINTER }))
+    const edit = vi.fn(() => ({ ok: true }))
+    const reveal = vi.fn(() => ({ ok: true }))
+    const recordOpenRecent = vi.fn(async () => {})
+    const nav = { runManagedCheckout, edit, reveal, recordOpenRecent } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const rawUrl = 'https://raw.githubusercontent.com/octocat/Spoon-Knife/main/README.md'
+    const res = await dispatch(server, 'open', { url: rawUrl, origin: rawUrl })
+    expect((res.result as { ok?: boolean }).ok).toBe(true)
+    // recorded under the canonical github.com/blob form — NOT the raw URL — so
+    // the CLI + UI store the SAME pointer for the same file.
+    expect(recordOpenRecent).toHaveBeenCalledWith({
+      target: 'https://github.com/octocat/Spoon-Knife/blob/main/README.md',
+      label: 'octocat/Spoon-Knife › README.md',
+      kind: 'github-file',
+    })
+  })
+
+  it('an auth-missing checkout bounces to `gh auth login`, opens nothing, records nothing', async () => {
+    const d = stubDeps()
+    const runManagedCheckout = vi.fn(async () => ({
+      ok: false as const, errorKind: 'auth-missing' as const, error: 'GitHub authentication required.',
+    }))
+    const edit = vi.fn(() => ({ ok: true }))
+    const recordOpenRecent = vi.fn(async () => {})
+    const nav = { runManagedCheckout, edit, reveal: vi.fn(() => ({ ok: true })), recordOpenRecent } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'open', { url: GH_FILE, origin: GH_FILE })
+    expect((res.result as { ok?: boolean }).ok).toBe(false)
+    expect((res.result as { errorKind?: string }).errorKind).toBe('auth-missing')
+    expect((res.result as { error?: string }).error).toContain('gh auth login')
+    expect(edit).not.toHaveBeenCalled()
+    expect(recordOpenRecent).not.toHaveBeenCalled()
+  })
+
+  it('a bare github REPO URL does NOT check out — it falls through to the browser pane', async () => {
+    const d = stubDeps()
+    const runManagedCheckout = vi.fn(async () => ({ ok: true, pointer: POINTER }))
+    const recordOpenRecent = vi.fn(async () => {})
+    const nav = { runManagedCheckout, recordOpenRecent, revealMainPaneIfCollapsed: vi.fn() } as never
+    const openTab = vi.fn(async () => ({ ok: true, id: 7, url: 'https://github.com/octocat/Spoon-Knife' }))
+    const fakeBrowser = { openTab } as never
+    const server = new SocketServer(THROW_CDP, () => fakeBrowser, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const repoUrl = 'https://github.com/octocat/Spoon-Knife'
+    const res = await dispatch(server, 'open', { url: repoUrl, origin: repoUrl })
+    expect(res.ok).toBe(true)
+    expect(runManagedCheckout).not.toHaveBeenCalled()
+    expect(openTab).toHaveBeenCalledWith(repoUrl)
+    expect(recordOpenRecent).toHaveBeenCalledWith({
+      target: repoUrl, label: 'octocat/Spoon-Knife', kind: 'github-repo',
+    })
+  })
+
+  it('without runManagedCheckout (optional dep), a github-file URL falls through to the browser pane', async () => {
+    const d = stubDeps()
+    const recordOpenRecent = vi.fn(async () => {})
+    const nav = { recordOpenRecent, revealMainPaneIfCollapsed: vi.fn() } as never
+    const openTab = vi.fn(async () => ({ ok: true, id: 3, url: GH_FILE }))
+    const fakeBrowser = { openTab } as never
+    const server = new SocketServer(THROW_CDP, () => fakeBrowser, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'open', { url: GH_FILE, origin: GH_FILE })
+    expect(res.ok).toBe(true)
+    expect(openTab).toHaveBeenCalledWith(GH_FILE)
+  })
+})
+
+// ENH-224 / PR #102 — the `open` handler's LOCAL-FILE dispatch (BUG-067 / BUG-129).
+// The existing Open-Recent block above pins the web-URL + github-file branches and
+// the "missing file → no recent" guard, but NOT the two local-path leaves of the
+// same handler: a file:// URL whose target EXISTS routes through nav.edit (the
+// renderer's smart router) — never the browser pane — and records the recent;
+// a file:// URL whose target is MISSING breaks early with the explicit
+// `File not found: <path>` error (so an agent's wrong-cwd relative path
+// self-corrects), opening no tab and recording nothing. Same pure-node dispatch
+// harness. THROW_BROWSER proves the local leaves never fall through to openTab.
+describe('SocketServer — ENH-224 open handler local-file dispatch (BUG-067 / BUG-129)', () => {
+  let tmpDir: string
+  let realFile: string
+  let realFileUrl: string
+
+  beforeAll(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'duo-socket-open-'))
+    realFile = path.join(tmpDir, 'note.md')
+    fs.writeFileSync(realFile, '# A real local doc\n')
+    realFileUrl = 'file://' + realFile
+  })
+  afterAll(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+  })
+
+  it('a file:// URL for an EXISTING file routes through nav.edit (not the browser) and records the recent', async () => {
+    const d = stubDeps()
+    const edit = vi.fn(() => ({ ok: true }))
+    const recordOpenRecent = vi.fn(async () => {})
+    const nav = { edit, recordOpenRecent, revealMainPaneIfCollapsed: vi.fn() } as never
+    // THROW_BROWSER proves the resolved local file NEVER falls through to openTab.
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'open', { url: realFileUrl, origin: realFile })
+    expect(res.ok).toBe(true)
+    expect((res.result as { ok?: boolean }).ok).toBe(true)
+    // Non-HTML → the renderer's classifier picks the surface; routedTo is 'editor'.
+    expect((res.result as { routedTo?: string }).routedTo).toBe('editor')
+    expect(edit).toHaveBeenCalledTimes(1)
+    // edit() receives the decoded local path (no file:// scheme), and no HTML mode.
+    expect(edit).toHaveBeenCalledWith(realFile, undefined)
+    // record-on-open fires off the human-friendly origin (the local path).
+    expect(recordOpenRecent).toHaveBeenCalledTimes(1)
+    const recorded = (recordOpenRecent.mock.calls as unknown[][])[0][0] as { target?: string }
+    expect(recorded.target).toBe(realFile)
+  })
+
+  it('an HTML file:// URL respects the default browser mode (ENH-156) — edit gets mode=browser, routedTo=browser', async () => {
+    const d = stubDeps()
+    const htmlFile = path.join(tmpDir, 'page.html')
+    fs.writeFileSync(htmlFile, '<h1>hi</h1>')
+    const edit = vi.fn(() => ({ ok: true }))
+    const recordOpenRecent = vi.fn(async () => {})
+    const nav = { edit, recordOpenRecent, revealMainPaneIfCollapsed: vi.fn() } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    // CLI passes mode:'browser' by default for `duo open <html>`.
+    const res = await dispatch(server, 'open', { url: 'file://' + htmlFile, origin: htmlFile, mode: 'browser' })
+    expect(res.ok).toBe(true)
+    expect((res.result as { routedTo?: string }).routedTo).toBe('browser')
+    expect(edit).toHaveBeenCalledWith(htmlFile, 'browser')
+  })
+
+  it('a file:// URL for a MISSING file breaks early with "File not found: <path>" — no tab, no recent', async () => {
+    const d = stubDeps()
+    const edit = vi.fn(() => ({ ok: true }))
+    const recordOpenRecent = vi.fn(async () => {})
+    const nav = { edit, recordOpenRecent, revealMainPaneIfCollapsed: vi.fn() } as never
+    // THROW_BROWSER proves the missing file does NOT fall through to a blank tab.
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const missing = path.join(tmpDir, 'does-not-exist-xyz.md')
+    const res = await dispatch(server, 'open', { url: 'file://' + missing, origin: missing })
+    expect((res.result as { ok?: boolean }).ok).toBe(false)
+    expect((res.result as { error?: string }).error).toBe('File not found: ' + missing)
+    // The early break sits before nav.edit + the record block.
+    expect(edit).not.toHaveBeenCalled()
+    expect(recordOpenRecent).not.toHaveBeenCalled()
   })
 })

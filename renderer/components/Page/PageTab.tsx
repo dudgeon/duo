@@ -14,6 +14,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { EditorToolbar } from '../editor/EditorToolbar'
+// ENH-224 Phase 4 (D8) — extend the "Propose changes" round-trip to the HTML canvas.
+import { ProposeBar } from '../ProposeBar'
 import { useAutosavePreference } from '../editor/autosavePreference'
 import { RenderedPage, type RenderedPageHandle } from './RenderedPage'
 import { buildPageEditorActions } from './pageEditorActions'
@@ -323,6 +325,9 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, pillLabel, onPlaygro
   const [initialHtml, setInitialHtml] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
+  // ENH-224 Phase 4 — bumped on each save so the ProposeBar re-polls share-back
+  // divergence (the D2/D8 "save → maybe propose" signal).
+  const [shareBackTick, setShareBackTick] = useState(0)
   // ENH-195 D5 — external-write reconciliation (the chokidar watcher, the echo
   // gauntlet, the byte-exact baseline, save-pre-reconcile, and the "changed on
   // disk" conflict banner state) now lives in the shared `useDiskReconciliation`
@@ -658,6 +663,7 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, pillLabel, onPlaygro
       }
       setDirty(false)
       onDirtyChange?.(false)
+      setShareBackTick(t => t + 1)
       // Sprint 10 ENH-103 — successful save clears the pill's
       // "Failed — retry" state.
       setSaveError(null)
@@ -1915,6 +1921,9 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, pillLabel, onPlaygro
           onCancel={handleCancelNewComment}
         />
       )}
+      {/* ENH-224 Phase 4 (D8) — "Propose changes" footer for an HTML canvas in a
+          managed checkout. Self-gating: inert for ordinary canvases. */}
+      <ProposeBar path={path} active={isActive} refreshKey={shareBackTick} />
     </div>
   )
 }

@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ENH-224 · "Submit PR" affordance — UI treatment study</title>
+<style>
+/* ============================================================
+   Atelier kernel (inlined verbatim from skill/references/duo-atelier.css)
+   ============================================================ */
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+  --project-pine:   #2E7D74;
+  --project-harbor: #3C6E93;
+  --project-iris:   #5B57A6;
+  --project-plum:   #87508F;
+  --project-rose:   #A4506A;
+  --project-moss:   #69763A;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+body { padding: 32px 40px 96px; max-width: 920px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px; }
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 6px; }
+.intro { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 14px 18px; margin-bottom: 28px; font-size: 13.5px; color: var(--ink-soft); }
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 600; margin: 36px 0 12px; font-size: 19px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px; }
+h3 { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+h4 { margin: 16px 0 6px; font-size: 13.5px; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; }
+pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; line-height: 1.5; background: var(--code-bg); color: var(--code-ink); padding: 14px 16px; border-radius: 6px; overflow-x: auto; }
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+.decision-card { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 16px 18px; margin: 18px 0; }
+.decision-card .q-title { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px; }
+.decision-card .q-prompt { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 500; font-size: 17px; color: var(--ink); margin: 0 0 12px; line-height: 1.35; }
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option { display: block; background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 10px 12px; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes { width: 100%; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px; }
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+details.deferred { margin: 22px 0; padding: 12px 16px; background: var(--paper-deep); border: 1px dashed var(--paper-rule); border-radius: 6px; }
+details.deferred summary { cursor: pointer; font-weight: 600; color: var(--ink-soft); font-size: 13.5px; }
+details.deferred[open] summary { color: var(--ink); }
+details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(--ink-soft); }
+.copy-bar { position: sticky; bottom: 0; margin: 32px -40px -96px; padding: 16px 40px; background: color-mix(in srgb, var(--paper-deep) 96%, transparent); border-top: 1.5px solid var(--paper-rule); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button { background: var(--accent); color: white; border: none; border-radius: 5px; padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background 0.12s; }
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* ============================================================
+   Per-playground patterns — FAITHFUL editor-chrome mockups
+   Reproduces renderer/components/WorkingTabStrip.tsx +
+   editor/EditorToolbar.tsx + SaveControl.tsx at real scale,
+   using Duo's real app tokens (light mode, globals.css).
+   ============================================================ */
+.ed {
+  /* real Duo light-mode tokens (globals.css) */
+  --s0:#FBF8EE; --s1:#F0E9D6; --s2:#E8DFC8; --s3:#DFD4B6;
+  --edge:#E5DCC1; --rule:#D4C8A6;
+  --ed-ink:#1A1410; --ed-ink-soft:#3D352A; --ed-ink-mute:#7B6F58; --ed-ink-ghost:#B8AB8E;
+  --acc:#C66A2E; --acc-soft:#F2D9B8;
+  border: 1px solid var(--edge); border-radius: 10px; overflow: hidden;
+  background: var(--s0); box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  margin: 10px 0 4px; position: relative;
+}
+.ed.narrow { max-width: 360px; }
+.ed-cap { font-size: 12px; font-weight: 700; color: var(--ink-soft); margin: 22px 0 2px; }
+.ed-cap .sub { font-weight: 500; color: var(--ink-mute); }
+
+/* —— tab strip (h-9 / 36px) —— */
+.ed-tabs { display: flex; align-items: flex-end; height: 36px; padding: 0 8px; gap: 2px; background: var(--s1); border-bottom: 1px solid var(--rule); }
+.ed-tab { position: relative; display: flex; align-items: center; gap: 6px; padding: 0 10px; height: 28px; border-radius: 8px 8px 0 0; color: var(--ed-ink-mute); font-size: 12px; }
+.ed-tab.active { background: var(--s0); color: var(--ed-ink); font-family: "New York","Iowan Old Style",Georgia,serif; font-style: italic; font-weight: 500; font-size: 13px; box-shadow: inset 0 1px 0 var(--rule), inset 1px 0 var(--rule), inset -1px 0 var(--rule); }
+.ed-tab.active::before { content:""; position:absolute; left:0; right:0; top:0; height:2px; background: var(--acc); border-radius: 8px 8px 0 0; }
+.ed-tab .ticon { width:10px; height:10px; flex:none; }
+.ed-tab.active .ticon { color: var(--acc); }
+.ed-tab:not(.active) .ticon { color: var(--ed-ink-ghost); }
+.ed-tab .fname { font-style: normal; }
+.ed-tab.active .fname { font-style: italic; }
+.ed-tab .dirty { width:6px; height:6px; border-radius:50%; background: var(--acc); flex:none; }
+.ed-tab .xbtn { width:14px; height:14px; display:flex; align-items:center; justify-content:center; color: var(--ed-ink-mute); font-size:10px; opacity:.8; }
+.ed-tabs .grow { flex:1; }
+.ed-newcluster { display:flex; align-items:center; margin-bottom:4px; }
+.ed-newcluster .vsep { width:1px; height:20px; background: var(--rule); }
+.ed-icbtn { width:26px; height:24px; display:flex; align-items:center; justify-content:center; color: var(--ed-ink-mute); }
+.ed-icbtn svg { width:11px; height:11px; }
+
+/* —— main toolbar (h-10 / 40px, gap-1, px-2) —— */
+.ed-tb { display:flex; align-items:center; height:40px; padding:0 8px; gap:4px; background: var(--s1); border-bottom:1px solid var(--rule); color: var(--ed-ink-soft); }
+.ed-tb.clip { overflow:hidden; }
+.ed-tb.scroll { overflow-x:auto; scrollbar-width:thin; }
+.ed-sel { display:inline-flex; align-items:center; gap:4px; background: var(--s2); border:1px solid var(--rule); border-radius:5px; padding:3px 7px; font-size:11px; color: var(--ed-ink-soft); white-space:nowrap; flex:none; }
+.ed-vsep { width:1px; height:20px; background: var(--rule); margin:0 2px; flex:none; }
+.ed-btn { width:28px; height:28px; flex:none; display:flex; align-items:center; justify-content:center; border-radius:6px; color: var(--ed-ink-soft); font-size:13px; }
+.ed-btn:hover { background: var(--s3); }
+.ed-btn.mono { font-family: ui-monospace, Menlo, monospace; font-size:11px; }
+.ed-btn.bld{font-weight:700;} .ed-btn.itl{font-style:italic;} .ed-btn.und{text-decoration:underline;} .ed-btn.stk{text-decoration:line-through;}
+.ed-btn.sm { font-size:11px; }
+.ed-btn svg { width:14px; height:14px; }
+.ed-spring { margin-left:auto; flex:none; }
+.ed-right { display:flex; align-items:center; gap:6px; flex:none; }
+
+/* SaveControl pill (h-6, rounded-full, min-w ~64px) */
+.ed-save { height:24px; display:inline-flex; align-items:center; justify-content:center; padding:0 10px; border-radius:999px; font-size:12px; font-weight:500; min-width:64px; white-space:nowrap; }
+.ed-save.saved { background:transparent; color: var(--ed-ink-mute); }
+.ed-save.unsaved { background: var(--acc); color:#fff; }
+
+/* the PR control (the thing under study) */
+.ed-pr { height:24px; display:inline-flex; align-items:center; gap:5px; padding:0 11px; border-radius:999px; background: var(--acc); color:#fff; font-size:11.5px; font-weight:700; white-space:nowrap; flex:none; }
+.ed-pr.ghost { background:transparent; color: var(--acc); border:1.5px solid var(--acc); }
+.ed-pr .glyph { font-size:12px; line-height:1; }
+.ed-pr .ct { background:rgba(255,255,255,.28); border-radius:7px; padding:0 5px; font-size:9.5px; }
+
+/* —— doc body —— */
+.ed-doc { padding:16px 18px; background: var(--s0); }
+.ed-doc .h { height:12px; width:54%; background: var(--ed-ink); opacity:.82; border-radius:3px; margin:0 0 11px; }
+.ed-doc .ln { height:7px; border-radius:3px; background: var(--ed-ink); opacity:.14; margin:7px 0; }
+.ed-doc .ln.w1{width:94%}.ed-doc .ln.w2{width:86%}.ed-doc .ln.w3{width:72%}
+.ed-doc .ln.ch { background: var(--acc); opacity:.5; }
+
+/* treatment B — banner under toolbar */
+.ed-banner { display:flex; align-items:center; gap:10px; padding:7px 12px; background: color-mix(in srgb, var(--acc) 12%, var(--s0)); border-bottom:1px solid var(--acc-soft); font-size:11.5px; color: var(--ed-ink-soft); }
+.ed-banner .grow { flex:1; } .ed-banner strong { color: var(--ed-ink); }
+.ed-banner .x { color: var(--ed-ink-ghost); font-weight:700; }
+
+/* treatment C — chip in the tab strip + popover */
+.ed-chip { display:inline-flex; align-items:center; gap:5px; height:20px; padding:0 9px; border-radius:11px; font-size:10.5px; font-weight:600; color: var(--acc); background: color-mix(in srgb, var(--acc) 10%, var(--s0)); border:1px solid var(--acc-soft); align-self:center; }
+.ed-pop { position:relative; }
+.ed-popbox { margin:0 8px; padding:9px 11px; border:1px solid var(--edge); border-radius:8px; background: var(--s1); box-shadow:0 5px 14px rgba(0,0,0,.12); font-size:10.5px; color: var(--ed-ink-mute); position:relative; z-index:4; }
+.ed-popbox .row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.ed-popbox .files { color: var(--ed-ink-soft); margin-bottom:7px; }
+
+/* treatment D — footer bar */
+.ed-footer { display:flex; align-items:center; gap:10px; padding:8px 12px; background: color-mix(in srgb, var(--acc) 10%, var(--s0)); border-top:1px solid var(--acc-soft); font-size:11.5px; color: var(--ed-ink-soft); }
+.ed-footer .grow { flex:1; } .ed-footer strong { color: var(--ed-ink); }
+
+/* occlusion read-out under each mock */
+.occ { font-size:11.5px; color: var(--ink-soft); margin:6px 0 0; padding-left:12px; border-left:2px solid var(--paper-rule); }
+.occ .bad { color: var(--fail); font-weight:600; }
+.occ .ok { color: var(--pass); font-weight:600; }
+.occ .warn { color: var(--warn); font-weight:600; }
+
+/* the confirm sheet mock (D7) */
+.sheet-wrap { display: flex; justify-content: center; margin: 16px 0; }
+.sheet {
+  width: 100%; max-width: 460px;
+  border: 1px solid var(--paper-edge); border-radius: 10px; background: var(--paper);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12); overflow: hidden; font-size: 12px;
+}
+.sheet .s-head { padding: 12px 16px; border-bottom: 1px solid var(--paper-edge); font-weight: 700; font-size: 13px; display:flex; align-items:center; gap:8px; }
+.sheet .s-head .repo { font-weight: 500; color: var(--ink-mute); font-size: 11.5px; }
+.sheet .s-body { padding: 12px 16px; }
+.sheet .field { margin-bottom: 11px; }
+.sheet .field label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-ghost); font-weight: 700; margin-bottom: 3px; }
+.sheet .field .val { border: 1px solid var(--paper-edge); border-radius: 5px; padding: 6px 9px; background: var(--paper-deep); color: var(--ink); }
+.sheet .field .val.muted { color: var(--ink-mute); font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
+.sheet .fork-note { font-size: 10.5px; color: var(--warn); margin: 2px 0 0; display:flex; gap:5px; align-items:center; }
+.sheet .diffbox { border: 1px solid var(--paper-edge); border-radius: 6px; overflow: hidden; font-family: ui-monospace, Menlo, monospace; font-size: 10.5px; }
+.sheet .diffbox .dl { padding: 2px 9px; }
+.sheet .diffbox .dl.add { background: color-mix(in srgb, var(--pass) 14%, var(--paper)); color: #2f5b27; }
+.sheet .diffbox .dl.del { background: color-mix(in srgb, var(--fail) 12%, var(--paper)); color: #7d2b28; }
+.sheet .diffbox .dl.ctx { color: var(--ink-mute); }
+.sheet .s-foot { display: flex; justify-content: flex-end; gap: 9px; padding: 11px 16px; border-top: 1px solid var(--paper-edge); background: var(--paper-deep); }
+.sheet .s-foot .cancel { color: var(--ink-mute); font-weight: 600; padding: 6px 12px; }
+
+.legend { font-size: 11.5px; color: var(--ink-mute); margin: 4px 0 0; }
+.flow-row { display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:11.5px; color:var(--ink-soft); margin: 6px 0; }
+.flow-row .step { background: var(--paper-deep); border:1px solid var(--paper-edge); border-radius: 20px; padding: 3px 11px; font-weight:600; }
+.flow-row .arr { color: var(--ink-ghost); }
+.flow-row .step.hot { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.tag { display:inline-block; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; padding:1px 6px; border-radius:7px; background: var(--paper-deep); color: var(--ink-mute); }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>"Submit PR" affordance — UI treatment study</h1>
+  <div class="meta">
+    <span class="pill">ENH-224</span>
+    <span class="pill">OQ-1</span>
+    Decision playground · 2026-06-19 · pairs with <code>docs/prd/enh-224-file-open-flow.md</code>
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> ENH-224 opens a GitHub doc into an opaque local
+  checkout so it edits like a local file. The moment the working copy
+  <strong>diverges from the fetched baseline</strong>, Duo surfaces a way to ship
+  those edits back as a pull request (auto-forking when you lack push access).
+  This page is the one open question the PRD flagged — <strong>how that
+  "ship it back" affordance should look and feel.</strong> Mockups below are
+  static sketches at ~Duo's editor scale; pick a treatment per decision card and
+  hit <strong>Copy decisions</strong>.
+</div>
+
+<div class="flow-row">
+  <span class="step">⌘O paste GitHub link</span><span class="arr">→</span>
+  <span class="step">opens like local</span><span class="arr">→</span>
+  <span class="step">edit &amp; save (local)</span><span class="arr">→</span>
+  <span class="step hot">diverges → affordance appears</span><span class="arr">→</span>
+  <span class="step">confirm sheet</span><span class="arr">→</span>
+  <span class="step">PR opened</span>
+</div>
+
+<h2>Decision 1 · Where the affordance lives</h2>
+<p class="legend">These mockups reproduce the <strong>real</strong> editor chrome —
+the <code>WorkingTabStrip</code> (36px, serif-italic active tab + new-tab
+cluster) and the <code>EditorToolbar</code> (40px; heading select · B I U S
+<code>&lt;/&gt;</code> · link · • 1. ☐ ❝ <code>{}</code> — table · undo/redo),
+ending in the right-aligned <code>SaveControl</code> pill. <strong>That Save
+pill is the key context:</strong> the toolbar's right edge is already occupied,
+and the bar already horizontal-scrolls on a narrow canvas (owner directive,
+2026-05-18; it never wraps). Each treatment is shown dropped into that real
+layout with an occlusion read-out.</p>
+
+<div class="intro" style="margin:14px 0 6px;">
+  <strong>Two distinct states, two distinct controls.</strong> "Save" = saved to
+  the local checkout (the existing pill — reads <em>Saved</em> once on disk).
+  "Submit PR" = the local file <em>differs from the fetched upstream baseline</em>.
+  They're orthogonal: below, the doc is <strong>saved locally</strong> (Save pill
+  = muted "Saved") <strong>and</strong> diverged from upstream (the new affordance
+  is showing). <span style="color:var(--accent)">Orange lines</span> = edited text.
+</div>
+
+<div class="ed-cap">Reference · <span class="sub">the editor today — in sync, no divergence, no new affordance</span></div>
+<div class="ed">
+  <div class="ed-tabs">
+    <div class="ed-tab active">
+      <svg class="ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
+      <span class="fname">roadmap.md</span>
+    </div>
+    <div class="grow"></div>
+    <div class="ed-newcluster">
+      <span class="vsep"></span>
+      <span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+      <span class="vsep"></span>
+      <span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 2.5 15 0 18M12 3c-2.5 2.5-2.5 15 0 18"/></svg></span>
+      <span class="vsep"></span>
+      <span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="1.5"/><line x1="14" y1="5" x2="14" y2="19"/></svg></span>
+    </div>
+  </div>
+  <div class="ed-tb clip">
+    <span class="ed-sel">Paragraph ▾</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn bld">B</span><span class="ed-btn itl">I</span><span class="ed-btn und">U</span><span class="ed-btn stk">S</span><span class="ed-btn mono">&lt;/&gt;</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn">•</span><span class="ed-btn sm">1.</span><span class="ed-btn sm">☐</span><span class="ed-btn sm">❝</span><span class="ed-btn mono">{}</span><span class="ed-btn sm">—</span>
+    <span class="ed-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg></span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn sm">↶</span><span class="ed-btn sm">↷</span>
+    <span class="ed-spring"></span>
+    <div class="ed-right"><span class="ed-save saved">Saved</span></div>
+  </div>
+  <div class="ed-doc">
+    <div class="h"></div>
+    <div class="ln w1"></div><div class="ln w2"></div><div class="ln w1"></div><div class="ln w3"></div>
+  </div>
+</div>
+<p class="occ"><span class="ok">Baseline.</span> Note how full the bar already is, and that the right edge ends in the Save pill. Every treatment has to coexist with both.</p>
+
+<div class="ed-cap">A · <span class="sub">toolbar button — added to the right cluster, beside the Save pill</span></div>
+<div class="ed">
+  <div class="ed-tabs">
+    <div class="ed-tab active">
+      <svg class="ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
+      <span class="fname">roadmap.md</span>
+    </div>
+    <div class="grow"></div>
+    <div class="ed-newcluster">
+      <span class="vsep"></span><span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+      <span class="vsep"></span><span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 2.5 15 0 18M12 3c-2.5 2.5-2.5 15 0 18"/></svg></span>
+      <span class="vsep"></span><span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="1.5"/><line x1="14" y1="5" x2="14" y2="19"/></svg></span>
+    </div>
+  </div>
+  <div class="ed-tb clip">
+    <span class="ed-sel">Paragraph ▾</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn bld">B</span><span class="ed-btn itl">I</span><span class="ed-btn und">U</span><span class="ed-btn stk">S</span><span class="ed-btn mono">&lt;/&gt;</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn">•</span><span class="ed-btn sm">1.</span><span class="ed-btn sm">☐</span><span class="ed-btn sm">❝</span><span class="ed-btn mono">{}</span><span class="ed-btn sm">—</span>
+    <span class="ed-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg></span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn sm">↶</span><span class="ed-btn sm">↷</span>
+    <span class="ed-spring"></span>
+    <div class="ed-right">
+      <span class="ed-pr"><span class="glyph">⇪</span>Submit PR <span class="ct">2</span></span>
+      <span class="ed-save saved">Saved</span>
+    </div>
+  </div>
+  <div class="ed-doc">
+    <div class="h"></div>
+    <div class="ln w1"></div><div class="ln w1 ch"></div><div class="ln w2"></div><div class="ln w3 ch"></div>
+  </div>
+</div>
+<p class="occ"><span class="warn">Two pills now share the right edge.</span> The accent "Submit PR" reads loud right next to the muted "Save" — fine at full width, but the two compete for the most valuable real estate. See the narrow case ↓.</p>
+
+<div class="ed-cap">A (narrow) · <span class="sub">~360px canvas — the toolbar already scrolls; the right pills get pushed off</span></div>
+<div class="ed narrow">
+  <div class="ed-tabs">
+    <div class="ed-tab active">
+      <svg class="ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
+      <span class="fname">roadmap.md</span>
+    </div>
+    <div class="grow"></div>
+    <div class="ed-newcluster"><span class="vsep"></span><span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span></div>
+  </div>
+  <div class="ed-tb clip">
+    <span class="ed-sel">Paragraph ▾</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn bld">B</span><span class="ed-btn itl">I</span><span class="ed-btn und">U</span><span class="ed-btn stk">S</span><span class="ed-btn mono">&lt;/&gt;</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn">•</span><span class="ed-btn sm">1.</span><span class="ed-btn sm">☐</span><span class="ed-btn sm">❝</span>
+    <span class="ed-pr" style="margin-left:6px;"><span class="glyph">⇪</span>Submit PR <span class="ct">2</span></span>
+    <span class="ed-save saved" style="margin-left:6px;">Saved</span>
+  </div>
+  <div class="ed-doc"><div class="h"></div><div class="ln w1 ch"></div><div class="ln w2"></div></div>
+</div>
+<p class="occ"><span class="bad">The occlusion.</span> On a narrow canvas the 20-button bar overflow-scrolls; the right edge is clipped, so "Submit PR" lives <em>past</em> the formatting buttons in the scroll tail — exactly where a non-developer won't look. The accent pill also competes with the table/undo glyphs for the visible strip.</p>
+
+<div class="ed-cap">B · <span class="sub">slide-in banner — a full-width strip between the toolbar and the doc</span></div>
+<div class="ed">
+  <div class="ed-tabs">
+    <div class="ed-tab active">
+      <svg class="ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
+      <span class="fname">roadmap.md</span>
+    </div>
+    <div class="grow"></div>
+    <div class="ed-newcluster"><span class="vsep"></span><span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span><span class="vsep"></span><span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 2.5 15 0 18M12 3c-2.5 2.5-2.5 15 0 18"/></svg></span></div>
+  </div>
+  <div class="ed-tb clip">
+    <span class="ed-sel">Paragraph ▾</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn bld">B</span><span class="ed-btn itl">I</span><span class="ed-btn und">U</span><span class="ed-btn stk">S</span><span class="ed-btn mono">&lt;/&gt;</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn">•</span><span class="ed-btn sm">1.</span><span class="ed-btn sm">☐</span><span class="ed-btn sm">❝</span><span class="ed-btn mono">{}</span><span class="ed-btn sm">—</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn sm">↶</span><span class="ed-btn sm">↷</span>
+    <span class="ed-spring"></span>
+    <div class="ed-right"><span class="ed-save saved">Saved</span></div>
+  </div>
+  <div class="ed-banner">
+    <span class="grow"><strong>You've changed this doc.</strong> Propose your edits to <code>dudgeon/duo</code>?</span>
+    <span class="ed-pr">Submit PR</span>
+    <span class="x">✕</span>
+  </div>
+  <div class="ed-doc"><div class="h"></div><div class="ln w1 ch"></div><div class="ln w2"></div><div class="ln w3 ch"></div></div>
+</div>
+<p class="occ"><span class="ok">Zero toolbar impact</span> — all 20 buttons + Save pill untouched. Cost: a full-width strip pushes the doc down, and top banners read like an alert/error; needs a dismiss, and once dismissed it needs a fallback home.</p>
+
+<div class="ed-cap">C · <span class="sub">status chip in the tab strip → popover (the chip rides next to the tab, not the toolbar)</span></div>
+<div class="ed ed-pop">
+  <div class="ed-tabs">
+    <div class="ed-tab active">
+      <svg class="ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
+      <span class="fname">roadmap.md</span>
+    </div>
+    <span class="ed-chip">● 2 vs upstream ▾</span>
+    <div class="grow"></div>
+    <div class="ed-newcluster"><span class="vsep"></span><span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span><span class="vsep"></span><span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="1.5"/><line x1="14" y1="5" x2="14" y2="19"/></svg></span></div>
+  </div>
+  <div class="ed-tb clip">
+    <span class="ed-sel">Paragraph ▾</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn bld">B</span><span class="ed-btn itl">I</span><span class="ed-btn und">U</span><span class="ed-btn stk">S</span><span class="ed-btn mono">&lt;/&gt;</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn">•</span><span class="ed-btn sm">1.</span><span class="ed-btn sm">☐</span><span class="ed-btn sm">❝</span><span class="ed-btn mono">{}</span><span class="ed-btn sm">—</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn sm">↶</span><span class="ed-btn sm">↷</span>
+    <span class="ed-spring"></span>
+    <div class="ed-right"><span class="ed-save saved">Saved</span></div>
+  </div>
+  <div class="ed-popbox">
+    <div class="files">roadmap.md · <span style="color:var(--pass);font-weight:600">+2</span> <span style="color:var(--fail);font-weight:600">−1</span> vs <code>dudgeon/duo</code> @ main</div>
+    <div class="row"><span>No push access — will fork &amp; open a PR</span><span class="ed-pr">Submit PR</span></div>
+  </div>
+  <div class="ed-doc" style="padding-top:8px;"><div class="ln w1 ch"></div><div class="ln w2"></div><div class="ln w3 ch"></div></div>
+</div>
+<p class="occ"><span class="ok">No toolbar-button impact</span> (the chip lives in the tab strip), and it mirrors the git-status overlay (ENH-152). But the popover overlays the top of the doc, the chip is easy to miss for a first-timer, and it's the most IDE-flavored option — the opposite of the "effortless, Google-Docs" goal.</p>
+
+<div class="ed-cap">D · <span class="sub">footer "propose" bar — a strip at the bottom of the editor, below the doc</span></div>
+<div class="ed">
+  <div class="ed-tabs">
+    <div class="ed-tab active">
+      <svg class="ticon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
+      <span class="fname">roadmap.md</span>
+    </div>
+    <div class="grow"></div>
+    <div class="ed-newcluster"><span class="vsep"></span><span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span><span class="vsep"></span><span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 2.5 15 0 18M12 3c-2.5 2.5-2.5 15 0 18"/></svg></span><span class="vsep"></span><span class="ed-icbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="1.5"/><line x1="14" y1="5" x2="14" y2="19"/></svg></span></div>
+  </div>
+  <div class="ed-tb clip">
+    <span class="ed-sel">Paragraph ▾</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn bld">B</span><span class="ed-btn itl">I</span><span class="ed-btn und">U</span><span class="ed-btn stk">S</span><span class="ed-btn mono">&lt;/&gt;</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn">•</span><span class="ed-btn sm">1.</span><span class="ed-btn sm">☐</span><span class="ed-btn sm">❝</span><span class="ed-btn mono">{}</span><span class="ed-btn sm">—</span>
+    <span class="ed-vsep"></span>
+    <span class="ed-btn sm">↶</span><span class="ed-btn sm">↷</span>
+    <span class="ed-spring"></span>
+    <div class="ed-right"><span class="ed-save saved">Saved</span></div>
+  </div>
+  <div class="ed-doc"><div class="h"></div><div class="ln w1"></div><div class="ln w1 ch"></div><div class="ln w2"></div><div class="ln w3 ch"></div></div>
+  <div class="ed-footer">
+    <span class="grow"><strong>2 changes</strong> not yet proposed · <code>dudgeon/duo</code></span>
+    <span class="ed-pr"><span class="glyph">⇪</span>Submit PR</span>
+  </div>
+</div>
+<p class="occ"><span class="ok">Zero impact on the toolbar's 20 buttons and the Save pill, and zero impact on the tab strip.</span> Appears only on divergence; unmissable; the natural home to morph into "View PR / Update PR." Cost: a little bottom vertical space (parallels Google Docs' bottom "Suggesting" strip).</p>
+
+<section class="decision-card">
+  <div class="q-title">Decision 1</div>
+  <h3 class="q-prompt">Where should the "Submit PR" affordance live?</h3>
+  <p class="q-context">It should be invisible until the doc diverges from the
+  fetched baseline (your "button appears when local differs" rule), discoverable
+  without hunting, and — per the mockups — not crowd the already-full toolbar
+  (which ends in the Save pill and horizontal-scrolls when narrow).</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d1" value="D-footer-bar">
+      <div class="q-option-body">
+        <div class="q-option-title">D · Footer "propose" bar <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">The only option with <em>zero</em> impact on the toolbar buttons, the Save pill, and the tab strip — it's a separate strip below the doc that appears only on divergence. Reads like Google Docs' bottom "Suggesting" bar, is unmissable, and is the natural place to morph into "View PR / Update PR" (Decision 4). Cost is a little bottom vertical space.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d1" value="A-toolbar-button">
+      <div class="q-option-body">
+        <div class="q-option-title">A · Toolbar button (right cluster)</div>
+        <div class="q-option-rationale">Lives where a Share button would, but the mockup shows it must share the right edge with the existing Save pill, and on a narrow canvas the 20-button bar already overflow-scrolls — so "Submit PR" ends up in the scroll tail, past the formatting buttons, where a non-developer won't look. Highest crowding risk.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d1" value="B-banner">
+      <div class="q-option-body">
+        <div class="q-option-title">B · Slide-in banner (under the toolbar)</div>
+        <div class="q-option-rationale">Strongest nudge and no toolbar crowding, but a full-width strip above the content reads like an alert/error, pushes the doc down, and needs a dismiss + a fallback home once dismissed.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d1" value="C-status-chip">
+      <div class="q-option-body">
+        <div class="q-option-title">C · Status chip in the tab strip → popover</div>
+        <div class="q-option-rationale">No toolbar-button impact (it rides in the tab strip) and mirrors the git-status overlay (ENH-152), but the popover overlays the doc, the chip is easy to miss, and it's the most IDE-flavored option — against the "effortless" goal.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d1" placeholder="Notes / a hybrid (e.g. 'footer bar on divergence + a persistent View-PR chip in the tab strip after first submit')…"></textarea>
+</section>
+
+<h2>Decision 2 · What the button says</h2>
+<p class="legend">Duo's audience spans non-developers. "PR" is GitHub jargon;
+"propose / suggest changes" is the Google-Docs vocabulary. The confirm sheet can
+still say "pull request" explicitly once you're in it.</p>
+
+<section class="decision-card">
+  <div class="q-title">Decision 2</div>
+  <h3 class="q-prompt">What label goes on the affordance?</h3>
+  <p class="q-context">The PRD currently writes "Submit PR" throughout. Worth
+  deciding before it hardens into copy across UI + CLI + skill.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d2" value="propose-changes">
+      <div class="q-option-body">
+        <div class="q-option-title">"Propose changes" <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Friendly, accurate, no jargon — matches the "feels like Google Docs" goal. The word "pull request" appears only in the confirm sheet + post-state ("View PR"), where the user has opted in. CLI verb stays the precise <code>duo pr create</code>.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d2" value="submit-pr">
+      <div class="q-option-body">
+        <div class="q-option-title">"Submit PR" (keep PRD wording)</div>
+        <div class="q-option-rationale">Precise and unambiguous for the GitHub-literate; one fewer term to map. But "PR" is exactly the IDE-flavored jargon the feature is trying to soften.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d2" value="suggest-changes">
+      <div class="q-option-body">
+        <div class="q-option-title">"Suggest changes"</div>
+        <div class="q-option-rationale">Closest to Google Docs' literal wording. Slight risk: in Duo "suggestion" already means CriticMarkup tracked-changes inside the editor (ENH-208/D10), so this could collide conceptually.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d2" value="share-changes">
+      <div class="q-option-body">
+        <div class="q-option-title">"Share changes"</div>
+        <div class="q-option-rationale">Warm and casual, echoes the Share button. But "share" overloads with link-sharing/permissions in most apps, so it's slightly ambiguous about what actually happens.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d2" placeholder="Notes…"></textarea>
+</section>
+
+<h2>Decision 3 · The confirm sheet (D7) — how much to show</h2>
+<p class="legend">D7 already locked "prefilled, one-tap, editable." Open sub-question:
+does the sheet show a <em>diff preview</em> of what's about to go up, or just the
+metadata? Mockup shows the richest version.</p>
+
+<div class="sheet-wrap">
+  <div class="sheet">
+    <div class="s-head">⇪ Propose changes <span class="repo">→ dudgeon/duo</span></div>
+    <div class="s-body">
+      <div class="field">
+        <label>Title</label>
+        <div class="val">Clarify the Stage 21 distribution status</div>
+      </div>
+      <div class="field">
+        <label>Branch</label>
+        <div class="val muted">duo/roadmap-stage21-a1b2c3</div>
+        <p class="fork-note">⚠ No push access — Duo will fork <code>dudgeon/duo</code> to your account and open the PR from there.</p>
+      </div>
+      <div class="field">
+        <label>Changes · roadmap.md (+2 −1)</label>
+        <div class="diffbox">
+          <div class="dl ctx">  ## Stage 21 — Distribution</div>
+          <div class="dl del">- Status: in progress</div>
+          <div class="dl add">+ Status: shipped (signed + notarized DMG)</div>
+          <div class="dl add">+ Auto-update verified on 0.10.x.</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Description (optional)</label>
+        <div class="val" style="color:var(--ink-mute)">Opened from Duo · roadmap.md</div>
+      </div>
+    </div>
+    <div class="s-foot">
+      <span class="cancel">Cancel</span>
+      <button class="pr-btn">Open pull request</button>
+    </div>
+  </div>
+</div>
+
+<section class="decision-card">
+  <div class="q-title">Decision 3</div>
+  <h3 class="q-prompt">How much does the confirm sheet show before you ship?</h3>
+  <p class="q-context">More preview = more confidence the right thing goes up
+  (and a place to catch "oops, didn't mean to change that"); less = faster, more
+  Google-Docs-casual.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d3" value="full-diff">
+      <div class="q-option-body">
+        <div class="q-option-title">Title + branch + fork-note + inline diff <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Shows exactly what's about to be proposed (as mocked). The diff is the reviewable artifact; the fork-note makes the auto-fork (D3) honest rather than hidden. Still one tap if you don't read it.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d3" value="counts-only">
+      <div class="q-option-body">
+        <div class="q-option-title">Title + branch + change-counts only (no diff)</div>
+        <div class="q-option-rationale">Lighter sheet ("roadmap.md +2 −1"). Faster, but you're trusting the editor — no last look at the actual lines before they're public.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d3" value="title-only">
+      <div class="q-option-body">
+        <div class="q-option-title">Title only, everything else collapsed</div>
+        <div class="q-option-rationale">Maximally casual — one field, one button; branch/fork/diff tucked behind a "details" disclosure. Closest to Google Docs, but hides the fork step, which can surprise.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d3" placeholder="Notes…"></textarea>
+</section>
+
+<h2>Decision 4 · After the PR is open</h2>
+<p class="legend">Once a PR exists, the affordance has a job to do on the next
+edit. PRD P7 says subsequent saves update the same PR.</p>
+
+<section class="decision-card">
+  <div class="q-title">Decision 4</div>
+  <h3 class="q-prompt">What does the affordance become after a PR is open?</h3>
+  <p class="q-context">There's now a live PR; you keep editing. The control needs
+  to both link to the PR and let further edits flow to it.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d4" value="morph-in-place">
+      <div class="q-option-body">
+        <div class="q-option-title">Same affordance morphs: "View PR" + "Update PR" on re-divergence <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">The footer bar (or chosen home) becomes "Proposed · View PR ↗"; when you edit again it shows "Update PR" to push the new changes to the same branch. One place, full lifecycle — no new chrome.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d4" value="persistent-chip">
+      <div class="q-option-body">
+        <div class="q-option-title">A persistent PR chip near the title + the affordance returns to idle</div>
+        <div class="q-option-rationale">A small "PR #123 ↗" chip stays by the doc title as a permanent anchor; the divergence affordance independently reappears for new edits. Clear separation of "the PR exists" vs "you have new un-pushed edits," but two surfaces to learn.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d4" value="link-only">
+      <div class="q-option-body">
+        <div class="q-option-title">Just a "View PR" link; updates are manual / CLI-only in v1</div>
+        <div class="q-option-rationale">Smallest build: open the PR, show its link, done. Re-editing doesn't auto-offer to update (you'd re-trigger via the affordance or <code>duo pr create</code>). Defers the update-lifecycle UX.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d4" placeholder="Notes…"></textarea>
+</section>
+
+<details class="deferred">
+  <summary>Out of scope for this study (tracked elsewhere)</summary>
+  <div class="deferred-body">
+    These are PRD open-questions, not UI-treatment picks — answer them in the PRD,
+    not here:
+    <ul>
+      <li><span class="tag">OQ-2</span> push rejection / upstream moved after checkout (conflict surfacing).</li>
+      <li><span class="tag">OQ-3</span> multiple files edited in one checkout → one PR scoped to the checkout.</li>
+      <li><span class="tag">OQ-5</span> fork reuse + branch-naming convention (<code>duo/&lt;slug&gt;-&lt;short&gt;</code>).</li>
+      <li><span class="tag">OQ-6</span> managed-checkout garbage collection.</li>
+    </ul>
+    Modality-1 (local-file open → focus folder) needs no new affordance — it's the
+    existing open path; this study is only the remote round-trip's "ship it" control.
+  </div>
+</details>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 4 decisions answered</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+  const DECISIONS = [
+    { name: 'd1', title: 'D1 · Affordance location' },
+    { name: 'd2', title: 'D2 · Button label' },
+    { name: 'd3', title: 'D3 · Confirm-sheet depth' },
+    { name: 'd4', title: 'D4 · Post-PR state' },
+  ];
+
+  function answeredCount() {
+    return DECISIONS.filter(d => document.querySelector(`input[name="${d.name}"]:checked`)).length;
+  }
+  function refresh() {
+    document.getElementById('answered-count').textContent = answeredCount();
+  }
+  document.addEventListener('change', refresh);
+
+  function buildPayload() {
+    const lines = ['ENH-224 · "Submit PR" affordance — UI treatment decisions', ''];
+    for (const d of DECISIONS) {
+      const checked = document.querySelector(`input[name="${d.name}"]:checked`);
+      const notes = document.querySelector(`textarea[data-decision="${d.name}"]`);
+      const val = checked ? checked.value : '(unanswered)';
+      lines.push(`[${val}] ${d.title}`);
+      if (notes && notes.value.trim()) {
+        notes.value.trim().split('\n').forEach(l => lines.push('    ' + l));
+      }
+      lines.push('');
+    }
+    return lines.join('\n').trim() + '\n';
+  }
+
+  document.getElementById('copy-btn').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    try {
+      await navigator.clipboard.writeText(buildPayload());
+      btn.textContent = 'Copied ✓';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy decisions'; btn.classList.remove('copied'); }, 1800);
+    } catch (err) {
+      // Fallback for restricted clipboard contexts
+      const ta = document.createElement('textarea');
+      ta.value = buildPayload();
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch (_) {}
+      document.body.removeChild(ta);
+      btn.textContent = 'Copied ✓'; btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy decisions'; btn.classList.remove('copied'); }, 1800);
+    }
+  });
+
+  refresh();
+</script>
+
+</body>
+</html>

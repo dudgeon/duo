@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ENH-224 · Merged Open + Clone surface</title>
+<style>
+/* ===== Atelier kernel (inlined) ===== */
+:root{
+  --paper:#fbf8f1;--paper-deep:#f3ede0;--paper-edge:#e8e0cb;--paper-rule:#d9cea8;
+  --ink:#2b2620;--ink-soft:#4a4238;--ink-mute:#6f6557;--ink-ghost:#9a9080;
+  --accent:#c46a1c;--accent-soft:#f4d9b6;--pass:#4a7d3e;--fail:#b13e3a;--warn:#b07527;
+  --code-bg:#2b2823;--code-ink:#e8e0cb;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:-apple-system,"SF Pro Text","Segoe UI",system-ui,sans-serif;font-size:14px;line-height:1.55;}
+body{padding:32px 40px 96px;max-width:960px;margin:0 auto;}
+header.page-head{border-bottom:1px solid var(--paper-rule);padding-bottom:16px;margin-bottom:24px;}
+header.page-head h1{font-family:"New York","Iowan Old Style",Georgia,serif;font-style:italic;font-weight:500;margin:0 0 4px;font-size:24px;}
+header.page-head .meta{color:var(--ink-mute);font-size:13px;}
+header.page-head .meta .pill{display:inline-block;padding:2px 8px;border-radius:10px;background:var(--accent-soft);color:var(--accent);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;margin-right:6px;}
+.intro{background:var(--paper-deep);border:1px solid var(--paper-rule);border-radius:6px;padding:14px 18px;margin-bottom:28px;font-size:13.5px;color:var(--ink-soft);}
+.intro strong{color:var(--ink);font-weight:600;}
+h2{font-family:"New York","Iowan Old Style",Georgia,serif;font-weight:600;margin:36px 0 12px;font-size:19px;border-bottom:1px solid var(--paper-rule);padding-bottom:6px;}
+h3{font-weight:600;margin:22px 0 8px;font-size:15px;}
+p{margin:8px 0;}ul{margin:8px 0;padding-left:22px;}li{margin:4px 0;}
+code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12.5px;background:var(--paper-deep);padding:1px 5px;border-radius:3px;}
+.decision-card{background:var(--paper-deep);border:1.5px solid var(--paper-rule);border-radius:6px;padding:16px 18px;margin:18px 0;}
+.decision-card .q-title{font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:0.05em;color:var(--accent);margin:0 0 6px;}
+.decision-card .q-prompt{font-family:"New York","Iowan Old Style",Georgia,serif;font-weight:500;font-size:17px;color:var(--ink);margin:0 0 12px;line-height:1.35;}
+.decision-card .q-context{font-size:13px;color:var(--ink-mute);margin:0 0 14px;}
+.q-options{display:grid;grid-template-columns:1fr;gap:10px;margin:0 0 12px;}
+.q-option{display:block;background:var(--paper);border:1.5px solid var(--paper-rule);border-radius:5px;padding:10px 12px;cursor:pointer;transition:border-color .12s,background .12s;}
+.q-option:hover{border-color:var(--ink-ghost);}
+.q-option input[type=radio]{margin-right:8px;cursor:pointer;accent-color:var(--accent);}
+.q-option:has(input[type=radio]:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 6%,var(--paper));}
+.q-option-body{display:inline-block;vertical-align:top;width:calc(100% - 22px);}
+.q-option-title{font-weight:600;font-size:13.5px;color:var(--ink);margin:0 0 3px;}
+.q-option-title .recommend-tag{font-size:10px;background:var(--accent-soft);color:var(--accent);text-transform:uppercase;font-weight:700;letter-spacing:0.04em;padding:1px 6px;border-radius:8px;margin-left:6px;}
+.q-option-rationale{font-size:12px;color:var(--ink-soft);line-height:1.45;margin:3px 0 0;}
+.q-notes{width:100%;background:var(--paper);border:1px solid var(--paper-rule);border-radius:4px;padding:8px 10px;font-family:inherit;font-size:12.5px;color:var(--ink);resize:vertical;min-height:50px;}
+.q-notes:focus{outline:1.5px solid var(--accent);}
+.copy-bar{position:sticky;bottom:0;margin:32px -40px -96px;padding:16px 40px;background:color-mix(in srgb,var(--paper-deep) 96%,transparent);border-top:1.5px solid var(--paper-rule);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;justify-content:space-between;align-items:center;gap:16px;}
+.copy-bar .copy-meta{font-size:12.5px;color:var(--ink-soft);}
+.copy-bar #answered-count{color:var(--accent);font-weight:700;}
+.copy-bar button{background:var(--accent);color:#fff;border:none;border-radius:5px;padding:9px 18px;font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;transition:background .12s;}
+.copy-bar button:hover{background:color-mix(in srgb,black 8%,var(--accent));}
+.copy-bar button.copied{background:var(--pass);}
+
+/* ===== merged Open/Clone surface mock ===== */
+.statecap{font-size:12px;font-weight:700;color:var(--ink-soft);margin:24px 0 4px;}
+.statecap .n{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;margin-right:7px;}
+.statecap .sub{font-weight:500;color:var(--ink-mute);}
+.flowdown{text-align:center;color:var(--ink-ghost);font-size:15px;margin:2px 0;}
+
+.obar{max-width:600px;margin:8px auto;border:1px solid var(--paper-edge);border-radius:12px;background:var(--paper);box-shadow:0 12px 34px rgba(0,0,0,.15);overflow:hidden;}
+.obar .ofield{display:flex;align-items:center;gap:9px;padding:13px 15px;border-bottom:1px solid var(--paper-edge);}
+.obar .ofield .lead{color:var(--ink-ghost);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;}
+.obar .ofield .typed{flex:1;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:var(--ink);}
+.obar .ofield .ph{flex:1;font-size:13px;color:var(--ink-ghost);}
+.obar .ofield .caret{width:1.5px;height:16px;background:var(--accent);display:inline-block;}
+.obar .odetect{padding:7px 15px;font-size:11.5px;color:#34602b;background:color-mix(in srgb,var(--pass) 9%,var(--paper));border-bottom:1px solid var(--paper-edge);}
+.obar .odetect.amber{color:#8a5a16;background:color-mix(in srgb,var(--warn) 13%,var(--paper));}
+
+/* recents launcher */
+.osection{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-ghost);padding:9px 15px 3px;}
+.orow{display:flex;align-items:center;gap:10px;padding:7px 15px;font-size:12.5px;color:var(--ink-soft);}
+.orow.sel{background:color-mix(in srgb,var(--accent) 7%,var(--paper));}
+.orow .ic{width:15px;text-align:center;color:var(--ink-ghost);}
+.orow .lbl{flex:1;color:var(--ink);}
+.orow .meta{font-size:10px;color:var(--ink-ghost);font-family:ui-monospace,Menlo,monospace;}
+
+/* file-vs-repo choice */
+.ochoices{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:13px 15px;}
+@media(max-width:560px){.ochoices{grid-template-columns:1fr;}}
+.ochoice{border:1.5px solid var(--paper-rule);border-radius:10px;padding:12px 13px;background:var(--paper);}
+.ochoice .ct{font-weight:700;font-size:13px;color:var(--ink);display:flex;align-items:center;gap:7px;}
+.ochoice .cd{font-size:11px;color:var(--ink-soft);margin-top:5px;line-height:1.45;}
+.ochoice .sub{font-size:10px;color:var(--ink-mute);margin-top:6px;font-family:ui-monospace,Menlo,monospace;}
+.badge{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:1px 6px;border-radius:7px;}
+.badge.new{background:var(--accent-soft);color:var(--accent);}
+.badge.exist{background:color-mix(in srgb,var(--pass) 16%,var(--paper));color:#34602b;}
+
+/* inline clone confirm */
+.oclone{padding:13px 15px;}
+.ofieldset{margin-bottom:11px;}
+.ofieldset label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-ghost);font-weight:700;margin-bottom:4px;}
+.oinput{border:1px solid var(--paper-rule);border-radius:6px;padding:7px 10px;background:var(--paper);font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--ink);display:flex;align-items:center;gap:6px;}
+.oinput .folder{color:var(--ink-ghost);}
+.oderived{font-size:11px;color:var(--ink-mute);margin-top:5px;}
+.oderived b{color:var(--ink);font-family:ui-monospace,Menlo,monospace;}
+.obanner{display:flex;gap:7px;align-items:flex-start;font-size:11px;border-radius:7px;padding:8px 10px;margin-bottom:11px;}
+.obanner.auth{background:color-mix(in srgb,var(--warn) 13%,var(--paper));color:#7a5214;}
+.obanner.collide{background:color-mix(in srgb,var(--warn) 14%,var(--paper));color:#8a5414;}
+.ocheck{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--ink-soft);margin-top:3px;}
+
+/* progress + success */
+.oprogress{padding:22px 15px;text-align:center;}
+.oring{width:30px;height:30px;border-radius:50%;border:3px solid var(--paper-rule);border-top-color:var(--accent);display:inline-block;margin-bottom:10px;animation:spin 0.9s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.oprogress .msg{font-size:13px;color:var(--ink);font-weight:600;}
+.oprogress .sub{font-size:11px;color:var(--ink-mute);margin-top:3px;font-family:ui-monospace,Menlo,monospace;}
+.osuccess{padding:18px 15px 16px;text-align:center;}
+.osuccess .check{width:36px;height:36px;border-radius:50%;background:color-mix(in srgb,var(--pass) 18%,var(--paper));color:var(--pass);display:inline-flex;align-items:center;justify-content:center;font-size:19px;margin-bottom:9px;}
+.osuccess .msg{font-size:14.5px;color:var(--ink);font-weight:700;}
+.osuccess .sub{font-size:11.5px;color:var(--ink-mute);margin-top:4px;}
+.osuccess .sub code{font-size:11px;}
+
+/* footer / actions */
+.ofoot{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 15px;border-top:1px solid var(--paper-edge);background:var(--paper-deep);}
+.ofoot .left{font-size:11px;color:var(--ink-mute);display:flex;align-items:center;gap:7px;}
+.ofoot .right{display:flex;align-items:center;gap:9px;}
+.obtn{height:31px;padding:0 16px;border-radius:7px;font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--paper-rule);background:var(--paper);color:var(--ink-soft);white-space:nowrap;}
+.obtn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+.obtn.ghost{background:transparent;}
+.obtn.link{border:none;background:transparent;color:var(--ink-mute);text-decoration:underline;font-weight:500;font-size:11px;padding:0;height:auto;}
+.ofield .obtn{height:26px;padding:0 11px;font-size:12px;}
+.oinput .obtn{height:24px;padding:0 10px;font-size:11px;}
+kbd{font-family:ui-monospace,Menlo,monospace;background:var(--paper);border:1px solid var(--paper-rule);border-radius:4px;padding:0 5px;font-size:10px;}
+.chkbox{width:13px;height:13px;border:1.5px solid var(--ink-ghost);border-radius:3px;display:inline-block;}
+
+/* before/after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:14px 0;align-items:start;}
+@media(max-width:680px){.ba{grid-template-columns:1fr;}}
+.ba .lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin:0 0 6px;}
+.ba .lbl.bad{color:var(--fail);}
+.ba .lbl.good{color:#34602b;}
+.note{font-size:12px;color:var(--ink-mute);padding-left:12px;border-left:2px solid var(--paper-rule);margin:6px 0;}
+.rec{border-left:3px solid var(--pass);background:color-mix(in srgb,var(--pass) 8%,var(--paper));padding:11px 14px;border-radius:0 7px 7px 0;margin:14px 0;font-size:13px;}
+.rec b{color:#34602b;}
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Merged Open + Clone surface</h1>
+  <div class="meta">
+    <span class="pill">ENH-224</span>
+    <span class="pill">DR3 / DR5</span>
+    2026-06-20 · the merged-UI you asked to see · pairs with the flow map
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> You asked to see what "merging the flows" actually
+  looks like — one ⌘O surface that handles <em>open a doc</em> and <em>clone a
+  repo</em> as a single progressive flow, instead of bouncing to a separate Clone
+  modal. Below is that surface state-by-state. It also fixes the clone
+  <strong>success screen</strong>: today the hero button is "Clone another"
+  (optimizing the rare case) — replaced with a clear success message and an
+  <strong>Open</strong> / <strong>Done</strong> hero, with "clone another" demoted
+  to a quiet link. And per your note, the paste field stays primary but gains a
+  <strong>Browse…</strong> button that opens the native OS picker so local files
+  <em>and</em> folders can be chosen with the mouse.
+</div>
+
+<h2>1 · One surface, progressive states</h2>
+<p>It's the same overlay throughout — only the body changes as Duo learns what you
+pasted. No modal hand-off.</p>
+
+<div class="statecap"><span class="n">1</span>Launcher <span class="sub">— paste primary; Browse… opens the native picker; Open Recent (D14) below</span></div>
+<div class="obar">
+  <div class="ofield"><span class="lead">Open</span><span class="ph">Paste a path or a GitHub link…</span><span class="caret"></span><span class="obtn ghost">📁 Browse…</span></div>
+  <div class="osection">Recent</div>
+  <div class="orow sel"><span class="ic">📄</span><span class="lbl">roadmap.md</span><span class="meta">~/duo/docs</span></div>
+  <div class="orow"><span class="ic">🐙</span><span class="lbl">dudgeon/duo › README.md</span><span class="meta">github · doc</span></div>
+  <div class="orow"><span class="ic">📦</span><span class="lbl">vercel/next.js</span><span class="meta">github · repo</span></div>
+  <div class="ofoot"><span class="left"><kbd>↑↓</kbd> pick · <kbd>↵</kbd> open</span><span class="right"><span class="obtn link">Clear recent</span></span></div>
+</div>
+<p class="note"><b>Browse…</b> opens the standard macOS open dialog with both file
+<em>and</em> folder selection enabled. Pick a <b>file</b> → it opens in its viewer
+(routed through the same resolver as a typed path). Pick a <b>folder</b> → it
+becomes the navigator root (focus the folder, like opening a project). Same
+result as typing the path — just by mouse.</p>
+
+<div class="flowdown">▼ &nbsp;you paste a GitHub <b>file</b> URL&nbsp; ▼</div>
+
+<div class="statecap"><span class="n">2</span>Fork in the road <span class="sub">— a file URL is ambiguous, so the surface asks</span></div>
+<div class="obar">
+  <div class="ofield"><span class="lead">Open</span><span class="typed">github.com/dudgeon/duo/blob/main/docs/roadmap.md</span></div>
+  <div class="odetect">✓ A markdown file in <code>dudgeon/duo</code> @ main. How do you want to work with it?</div>
+  <div class="ochoices">
+    <div class="ochoice">
+      <div class="ct">📄 Open just this document <span class="badge new">fast</span></div>
+      <div class="cd">Pulls only what's needed into a hidden working copy, opens it like a local file. Edit → "Propose changes" ships a PR back.</div>
+      <div class="sub">nothing added to your navigator</div>
+    </div>
+    <div class="ochoice">
+      <div class="ct">📦 Clone the whole repo <span class="badge exist">project</span></div>
+      <div class="cd">Clones the repo to a folder you pick, adds it to the navigator, opens this file — full git, branches, terminals.</div>
+      <div class="sub">continues below ↓</div>
+    </div>
+  </div>
+  <div class="ofoot"><span class="left"><span class="chkbox"></span> Remember for <code>dudgeon/duo</code></span><span class="right"><span>Press <kbd>Esc</kbd> to cancel</span></span></div>
+</div>
+
+<div class="flowdown">▼ &nbsp;you choose <b>Clone the whole repo</b> — the SAME surface continues&nbsp; ▼</div>
+
+<div class="statecap"><span class="n">3</span>Clone confirm — inline <span class="sub">— the old CloneModal's fields, now in the Open surface</span></div>
+<div class="obar">
+  <div class="ofield"><span class="lead">Clone</span><span class="typed">github.com/dudgeon/duo</span></div>
+  <div class="oclone">
+    <div class="ofieldset">
+      <label>Clone into</label>
+      <div class="oinput"><span class="folder">📁</span> ~/Documents<span class="caret"></span><span style="flex:1"></span><span class="obtn ghost">Browse…</span></div>
+      <div class="oderived">→ <b>~/Documents/duo</b></div>
+    </div>
+    <div class="ocheck"><span style="color:var(--pass)">✓</span> Destination is free — no collision.</div>
+  </div>
+  <div class="ofoot">
+    <span class="left"><span class="chkbox" style="background:var(--accent);border-color:var(--accent)"></span> Open <code>roadmap.md</code> after cloning</span>
+    <span class="right"><span class="obtn ghost">Back</span><span class="obtn primary">Clone</span></span>
+  </div>
+</div>
+
+<details style="margin:10px 0;font-size:12px;color:var(--ink-mute);"><summary style="cursor:pointer;font-weight:600;">Edge states the inline confirm still carries (from the shipped modal)</summary>
+<div style="margin-top:10px;">
+  <div class="note"><b>Collision</b> — if <code>~/Documents/duo</code> exists, the surface shows an amber "<span style="color:#8a5414">that folder already exists — pick another or rename</span>" and disables Clone (today's ENH-162 check, preserved).</div>
+  <div class="note"><b>Auth</b> — if <code>gh</code> isn't authenticated, an amber banner: "<span style="color:#7a5214">Private repos need <code>gh auth login</code> in a terminal. Public repos still clone.</span>" (today's behavior, preserved).</div>
+</div></details>
+
+<div class="flowdown">▼ &nbsp;Clone&nbsp; ▼</div>
+
+<div class="statecap"><span class="n">4</span>Cloning…</div>
+<div class="obar">
+  <div class="ofield"><span class="lead">Clone</span><span class="typed">github.com/dudgeon/duo</span></div>
+  <div class="oprogress">
+    <span class="oring"></span>
+    <div class="msg">Cloning <code>dudgeon/duo</code>…</div>
+    <div class="sub">→ ~/Documents/duo · this can take a few seconds</div>
+  </div>
+</div>
+
+<div class="flowdown">▼ &nbsp;done&nbsp; ▼</div>
+
+<div class="statecap"><span class="n">5</span>Success — redesigned <span class="sub">— success message + Open/Done hero, not "Clone another"</span></div>
+<div class="obar">
+  <div class="osuccess">
+    <div class="check">✓</div>
+    <div class="msg">Cloned <code>dudgeon/duo</code></div>
+    <div class="sub">in <code>~/Documents/duo</code> · now in your navigator</div>
+  </div>
+  <div class="ofoot">
+    <span class="left"><span class="obtn link">Clone another repo</span></span>
+    <span class="right"><span class="obtn ghost">Done</span><span class="obtn primary">Open roadmap.md</span></span>
+  </div>
+</div>
+<p class="note">Context-aware hero: you came from <code>roadmap.md</code>, so the
+primary action opens it. From a bare repo URL (no target file) the hero becomes
+<b>Done</b> (the navigator's already focused there) — see DR2.</p>
+
+<h2>2 · The success-screen fix, side by side</h2>
+<p>Your specific critique — cloning more than one repo at a time is an edge case,
+so it shouldn't own the hero button.</p>
+
+<div class="ba">
+  <div>
+    <div class="lbl bad">Today (shipped)</div>
+    <div class="obar" style="box-shadow:0 4px 14px rgba(0,0,0,.1);">
+      <div class="osuccess" style="text-align:left;padding:14px 15px;">
+        <div style="display:flex;align-items:center;gap:8px;"><span style="color:var(--pass);font-size:16px;">✓</span><span class="msg" style="font-size:13px;">Cloned via gh</span></div>
+        <div class="sub" style="text-align:left;margin-top:6px;"><code>~/Documents/duo</code></div>
+        <div style="font-size:11px;color:var(--ink-mute);margin-top:8px;line-height:1.5;">Navigator is now showing the new folder. You can: click files · right-click "Open terminal here" · press ⌘O for jump-to-file.</div>
+      </div>
+      <div class="ofoot"><span class="left"></span><span class="right"><span class="obtn ghost">Done</span><span class="obtn primary">Clone another</span></span></div>
+    </div>
+    <p class="note"><b>Clone another</b> is the orange hero; the helpful next-steps are a wall of small text; "Done" is the quiet one.</p>
+  </div>
+  <div>
+    <div class="lbl good">Proposed</div>
+    <div class="obar" style="box-shadow:0 4px 14px rgba(0,0,0,.1);">
+      <div class="osuccess">
+        <div class="check">✓</div>
+        <div class="msg">Cloned <code>dudgeon/duo</code></div>
+        <div class="sub">in <code>~/Documents/duo</code> · now in your navigator</div>
+      </div>
+      <div class="ofoot"><span class="left"><span class="obtn link">Clone another</span></span><span class="right"><span class="obtn ghost">Done</span><span class="obtn primary">Open roadmap.md</span></span></div>
+    </div>
+    <p class="note"><b>Open</b> is the hero (or <b>Done</b> when there's nothing specific to open); the message is one clean line; "Clone another" survives as a quiet link for the rare case.</p>
+  </div>
+</div>
+
+<div class="rec">
+  <b>Net of the merge.</b> One surface from paste → choice → clone → success, so the
+  user never context-switches to a modal; the inline confirm still carries the
+  shipped modal's destination picker + collision + auth checks (nothing lost); and
+  the success screen finally points at the thing you were trying to reach. The cost
+  vs. the lighter "hand off to the existing modal" path is real — see DR1.
+</div>
+
+<h2>3 · Decisions</h2>
+
+<section class="decision-card">
+  <div class="q-title">Decision DM1</div>
+  <h3 class="q-prompt">How merged should it actually be?</h3>
+  <p class="q-context">The mockup shows the <em>full</em> inline merge. The lighter alternative (my earlier DR3 rec) keeps the shipped modal and just opens it prefilled — less build, slightly less seamless.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="dm1" value="full-inline">
+      <div class="q-option-body"><div class="q-option-title">Full inline merge — clone confirm lives in the Open surface <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">As mocked: one continuous overlay, no modal. Cleanest "it's all one thing" feel and it's where the success-screen fix lands naturally. More renderer work (port the modal's fields/checks into the Open surface) — but it retires a separate component rather than maintaining two.</div></div></label>
+    <label class="q-option"><input type="radio" name="dm1" value="prefilled-modal">
+      <div class="q-option-body"><div class="q-option-title">Lighter — Open bar opens the existing CloneModal, prefilled</div>
+      <div class="q-option-rationale">The ⌘O "clone" choice pops today's CloneModal with the URL filled in. Much less work, ships fastest, still one logical flow — but it's a visible surface switch (overlay → modal), and the success-screen fix has to be made in the modal instead.</div></div></label>
+    <label class="q-option"><input type="radio" name="dm1" value="phased">
+      <div class="q-option-body"><div class="q-option-title">Phased — ship prefilled-modal first, inline-merge later</div>
+      <div class="q-option-rationale">Get the convergence + success fix out via the modal now; port to the fully inline surface as a fast-follow once the Open bar exists. Lowest risk, two steps.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="dm1" placeholder="Notes…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision DM2</div>
+  <h3 class="q-prompt">The success hero — Open or Done?</h3>
+  <p class="q-context">You said make the hero "Done" or "Open" (not "Clone another"). When does each win?</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="dm2" value="context-aware">
+      <div class="q-option-body"><div class="q-option-title">Context-aware: "Open &lt;file&gt;" when you came from a file, else "Done" <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">From a file URL → hero opens that file (the thing you wanted). From a bare repo URL → nothing specific to open, navigator's already focused, so "Done" is the hero. "Clone another" is a quiet link in both.</div></div></label>
+    <label class="q-option"><input type="radio" name="dm2" value="always-open">
+      <div class="q-option-body"><div class="q-option-title">Always "Open" (opens the repo root / README)</div>
+      <div class="q-option-rationale">Consistent single hero; for a bare repo it opens the folder or the README. Predictable, but "Open" on a repo you just cloned is a slightly fuzzy action.</div></div></label>
+    <label class="q-option"><input type="radio" name="dm2" value="always-done">
+      <div class="q-option-body"><div class="q-option-title">Always "Done" (dismiss; navigator is the destination)</div>
+      <div class="q-option-rationale">Simplest — the clone already focused the navigator, so "Done" just closes. But it drops the file you started from when you came from a file URL.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="dm2" placeholder="Notes…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision DM3</div>
+  <h3 class="q-prompt">The native picker — one button or two?</h3>
+  <p class="q-context">Paste stays primary; Browse… is the mouse path. On macOS a single open dialog can allow selecting either a file or a folder. Picking a file opens it in its viewer; picking a folder roots the navigator there.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="dm3" value="combined">
+      <div class="q-option-body"><div class="q-option-title">One "Browse…" → combined file-or-folder dialog <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Matches "either files or folders" literally and keeps the launcher clean — one button. macOS supports a dialog with both <code>openFile</code> + <code>openDirectory</code>, so the user just selects whatever they want and hits Open.</div></div></label>
+    <label class="q-option"><input type="radio" name="dm3" value="two-buttons">
+      <div class="q-option-body"><div class="q-option-title">Two buttons: "Open File…" and "Open Folder…"</div>
+      <div class="q-option-rationale">Unambiguous about what you'll get, and avoids the slightly unusual combined dialog. Costs more chrome in the launcher and forces the user to decide file-vs-folder before they see the filesystem.</div></div></label>
+    <label class="q-option"><input type="radio" name="dm3" value="file-only">
+      <div class="q-option-body"><div class="q-option-title">"Browse…" → files only (folders by typing/drag)</div>
+      <div class="q-option-rationale">Simplest dialog, but it drops the mouse path for folders — exactly half of what you asked for. Not recommended.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="dm3" placeholder="Notes…"></textarea>
+</section>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 3 decisions answered</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+  const DECISIONS=[
+    {name:'dm1',title:'DM1 · Merge depth'},
+    {name:'dm2',title:'DM2 · Success hero'},
+    {name:'dm3',title:'DM3 · Native picker (one vs two buttons)'},
+  ];
+  function answered(){return DECISIONS.filter(d=>document.querySelector('input[name="'+d.name+'"]:checked')).length;}
+  function refresh(){document.getElementById('answered-count').textContent=answered();}
+  document.addEventListener('change',refresh);
+  function payload(){
+    const out=['ENH-224 · Merged Open + Clone surface — decisions',''];
+    for(const d of DECISIONS){
+      const c=document.querySelector('input[name="'+d.name+'"]:checked');
+      const n=document.querySelector('textarea[data-decision="'+d.name+'"]');
+      out.push('['+(c?c.value:'(unanswered)')+'] '+d.title);
+      if(n&&n.value.trim())n.value.trim().split('\n').forEach(l=>out.push('    '+l));
+      out.push('');
+    }
+    return out.join('\n').trim()+'\n';
+  }
+  document.getElementById('copy-btn').addEventListener('click',async e=>{
+    const b=e.currentTarget;
+    try{await navigator.clipboard.writeText(payload());}
+    catch(_){const t=document.createElement('textarea');t.value=payload();document.body.appendChild(t);t.select();try{document.execCommand('copy');}catch(_){}document.body.removeChild(t);}
+    b.textContent='Copied ✓';b.classList.add('copied');
+    setTimeout(()=>{b.textContent='Copy decisions';b.classList.remove('copied');},1800);
+  });
+  refresh();
+</script>
+
+</body>
+</html>

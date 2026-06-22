@@ -57,9 +57,16 @@ const VERBS: VerbSpec[] = [
   {
     name: 'open',
     group: 'Browser & tabs',
-    args: '<path-or-url> [--canvas] [--reveal]',
+    args: '<path-or-url> [--canvas] [--reveal] [--checkout]',
     summary:
-      'Open a local file or URL. HTML defaults to the browser pane (scripts run, interactive) — use this to show the user a generated explainer / playground. Non-HTML routes to its natural surface (.md → editor, image → viewer). --canvas forces canvas mode (source-editable, scripts blocked); --reveal expands the working pane.'
+      'Open a local file or URL. HTML defaults to the browser pane (scripts run, interactive) — use this to show the user a generated explainer / playground. Non-HTML routes to its natural surface (.md → editor, image → viewer). A GitHub *file* URL (github.com/<o>/<r>/blob/<ref>/<path>, /raw/, or raw.githubusercontent.com): if you already have that repo cloned in a navigator project (D6), it opens YOUR real file from the clone (reports the path); otherwise it is pulled into an opaque managed checkout under ~/.claude/duo/checkouts/ and opened like a local file (the Open bar\'s "open just this doc"). --checkout forces the managed checkout even when a local clone exists. A bare repo or other GitHub URL still opens in the browser pane. --canvas forces canvas mode (source-editable, scripts blocked); --reveal expands the working pane. Successful opens are recorded in Open Recent (see "recent").'
+  },
+  {
+    name: 'recent',
+    group: 'Browser & tabs',
+    args: '[--json]',
+    summary:
+      'List the last ~10 Open-bar targets (local paths + GitHub URLs) — the CLI twin of File ▸ Open Recent + the empty ⌘O Open bar. Reopen one by re-passing its target to "open". --json prints the raw RecentEntry[] array.'
   },
   {
     name: 'reload',
@@ -496,6 +503,12 @@ const VERBS: VerbSpec[] = [
     name: 'gh-auth',
     group: 'Repo & git',
     summary: 'Probe "gh auth status". Prints JSON { ghInstalled, authenticated, host, user, ghNotFound } so agents can decide whether "duo clone" will work on private repos before trying.'
+  },
+  {
+    name: 'pr',
+    group: 'Repo & git',
+    args: 'create [<path>] --yes [--title …] [--body …] [--branch …] [--draft] | status|view [<path>] | export <path> <dest> [--json]',
+    summary: 'Share-back: propose the diverged doc inside a managed checkout (a file opened via "duo open <github-url>") as a GitHub pull request — the CLI twin of the "Propose changes" affordance. "create" (requires --yes — it pushes + opens a PR under your GitHub identity) branches/commits/pushes/opens the PR, committing ALL changes in the checkout (not just one file), AUTO-FORKING when you lack push access (cross-fork PR). Defaults are prefilled (branch duo/<slug>-<short>, title from the doc\'s first heading); --title/--body/--branch/--draft override. Works for any editable text format (.md/.json/.yaml/.html — D8). "status" prints JSON { context, divergence, pr }; "view" prints the open PR (or null). "export <path> <dest>" saves a real local copy of the checkout doc outside the opaque home (the D4 escape hatch). <path> defaults to the cwd; it must resolve inside ~/.claude/duo/checkouts/. Unauthenticated bounces to `gh auth login`.'
   },
   {
     name: 'worktree',
@@ -957,14 +970,49 @@ async function main(): Promise<void> {
         // consulted by this verb — verb name decides surface.
         const reveal = rest.includes('--reveal')
         const canvasOverride = rest.includes('--canvas')
-        const positional = rest.find(a => !a.startsWith('--')) ?? die('Usage: duo open <path-or-url> [--canvas] [--reveal]')
+        // ENH-224 Phase 3 (D6) — `--checkout` forces the opaque managed checkout
+        // for a github-file URL even when the repo is already cloned locally
+        // (the default prefers your existing clone + reports its path).
+        const forceCheckout = rest.includes('--checkout')
+        const positional = rest.find(a => !a.startsWith('--')) ?? die('Usage: duo open <path-or-url> [--canvas] [--reveal] [--checkout]')
         const resolved = resolveOpenTarget(positional)
         const payload: Record<string, unknown> = {
           url: resolved,
-          mode: canvasOverride ? 'canvas' : 'browser'
+          mode: canvasOverride ? 'canvas' : 'browser',
+          // ENH-224 D14 — pass the original positional so record-on-open
+          // stores the human-friendly target (~/x.md) not the file:// URL.
+          origin: positional
         }
         if (reveal) payload['reveal'] = true
+        if (forceCheckout) payload['checkout'] = true
         out(await send('open', payload))
+        break
+      }
+      case 'recent': {
+        // ENH-224 D14 — list the Open Recent store (the CLI twin of File ▸
+        // Open Recent + the empty Open bar). `--json` prints the raw array;
+        // default prints a friendly aligned list. Reopen by re-passing a
+        // target to `duo open`.
+        const asJson = rest.includes('--json')
+        // send() resolves with res.result directly — the RecentEntry[] array.
+        const res = await send('recent')
+        const recents = (Array.isArray(res) ? res : []) as Array<{
+          target: string; label: string; kind: string; lastOpenedAt: number
+        }>
+        if (asJson) {
+          out(recents)
+          break
+        }
+        if (!Array.isArray(recents) || recents.length === 0) {
+          console.log('No recent files. Open one with `duo open <path-or-url>`.')
+          break
+        }
+        const kindGlyph: Record<string, string> = {
+          local: '📄', 'github-file': '🐙', 'github-repo': '📦', url: '🔗'
+        }
+        for (const r of recents) {
+          console.log(`${kindGlyph[r.kind] ?? '•'}  ${r.label}\n    ${r.target}`)
+        }
         break
       }
       case 'reload': {
@@ -2283,6 +2331,90 @@ async function main(): Promise<void> {
         }
         break
       }
+      case 'pr': {
+        // ENH-224 Phase 2 — share-back. `duo pr <create|status|view> [<path>]`.
+        //   create → branch/commit/push/PR (auto-fork, D3) for the diverged
+        //            managed-checkout doc; --title/--body/--branch/--draft
+        //            override the D7 prefill.
+        //   status → JSON { context, divergence, pr } (visibility-cluster).
+        //   view   → the open PR for the checkout's branch (or none).
+        // <path> defaults to the cwd; main resolves it → its managed checkout.
+        const sub = rest.find(a => !a.startsWith('--'))
+        if (sub !== 'create' && sub !== 'status' && sub !== 'view' && sub !== 'export') {
+          die('Usage: duo pr <create|status|view|export> [<path>] [<dest> for export] [--title …] [--body …] [--branch …] [--draft] [--json]')
+        }
+        const afterSub = rest.slice(rest.indexOf(sub) + 1)
+        const positionals = afterSub.filter(a => !a.startsWith('--'))
+        const pathArg = positionals[0]
+        const absPath = pathArg
+          ? (path.isAbsolute(pathArg) ? pathArg : path.resolve(process.cwd(), pathArg))
+          : process.cwd()
+        const asJson = rest.includes('--json')
+
+        if (sub === 'export') {
+          // ENH-224 Phase 4 (D4 escape hatch) — copy the open checkout doc to a
+          // real local path: `duo pr export <path> <dest>`.
+          const destArg = positionals[1]
+          if (!destArg) die('Usage: duo pr export <path> <dest>')
+          const destAbs = path.isAbsolute(destArg) ? destArg : path.resolve(process.cwd(), destArg)
+          const res = (await send('pr', { sub, path: absPath, dest: destAbs })) as {
+            ok: boolean; dest?: string; error?: string
+          }
+          if (asJson) { out(JSON.stringify(res, null, 2)); break }
+          if (res.ok) out(`Saved a copy → ${res.dest}`)
+          else die(`pr export failed: ${res.error ?? 'unknown'}`)
+          break
+        }
+
+        if (sub === 'create') {
+          // ENH-224 — creating a PR forks/pushes/opens it under the user's GitHub
+          // identity. Require an explicit `--yes` so an agent can't propose
+          // silently; the engine enforces this too (errorKind 'needs-confirmation').
+          if (!rest.includes('--yes')) {
+            die('Refusing to open a PR without confirmation. Re-run with --yes:\n  duo pr create [<path>] --yes [--draft] [--title …] [--body …] [--branch …]')
+          }
+          const payload: Record<string, unknown> = { sub, path: absPath, yes: true, draft: rest.includes('--draft') }
+          const title = flagValue(rest, '--title'); if (title) payload['title'] = title
+          const body = flagValue(rest, '--body'); if (body) payload['body'] = body
+          const branch = flagValue(rest, '--branch'); if (branch) payload['branch'] = branch
+          const res = (await send('pr', payload)) as {
+            ok: boolean
+            pr?: { url: string; number: number }
+            pushedTo?: string
+            forked?: boolean
+            action?: string
+            errorKind?: string
+            error?: string
+          }
+          if (asJson) { out(JSON.stringify(res, null, 2)); break }
+          if (res.ok && res.pr) {
+            const verb = res.action === 'updated' ? 'Updated' : 'Opened'
+            const fork = res.forked ? ` (via your fork ${res.pushedTo})` : ''
+            out(`${verb} PR #${res.pr.number}${fork}\n${res.pr.url}`)
+          } else {
+            die(`pr create failed (${res.errorKind ?? 'unknown'}): ${res.error ?? 'no detail'}`)
+          }
+          break
+        }
+
+        if (sub === 'status') {
+          // JSON-first (visibility-cluster) — agents read divergence + PR state.
+          out(JSON.stringify(await send('pr', { sub, path: absPath }), null, 2))
+          break
+        }
+
+        // view
+        const res = (await send('pr', { sub, path: absPath })) as {
+          ok: boolean
+          pr?: { url: string; number: number; state: string } | null
+          error?: string
+        }
+        if (asJson) { out(JSON.stringify(res, null, 2)); break }
+        if (res.ok === false) die(`pr view failed: ${res.error ?? 'not a managed checkout'}`)
+        if (res.pr) out(`PR #${res.pr.number} (${res.pr.state})\n${res.pr.url}`)
+        else out('No open PR for this checkout. Propose one with `duo pr create`.')
+        break
+      }
       case 'gh-auth': {
         // ENH-151 — `gh auth status` probe. JSON-only output; used by
         // the Clone modal + future Doctor panel.
@@ -2927,6 +3059,14 @@ function resolveFilePath(input: string): string {
 //     file paths, then become `file://` URLs with proper encoding.
 function resolveOpenTarget(target: string): string {
   if (/^[a-z][a-z0-9+.-]*:/i.test(target)) return target   // already a URL
+  // ENH-224 — a scheme-less GitHub host pasted from the address bar
+  // (github.com/o/r/blob/…, raw.githubusercontent.com/…) is a web URL, not a
+  // local path: prefix https:// so the socket handler's resolver classifies it
+  // as github-file/-repo instead of file://-ifying it against cwd. Mirrors core
+  // open-resolve's BARE_GITHUB_RE.
+  if (/^(www\.)?(github\.com|raw\.githubusercontent\.com)\//i.test(target)) {
+    return 'https://' + target
+  }
   let absolute: string
   if (target.startsWith('~/') || target === '~') {
     absolute = path.resolve(target.replace(/^~/, os.homedir()))

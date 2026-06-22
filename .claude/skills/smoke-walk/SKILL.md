@@ -121,6 +121,67 @@ description: Generate an interactive HTML smoke-walk page for the user to valida
 
 ---
 
+## HARD RULE — the Copy-results button must NEVER silently fail
+
+> **The programmatic clipboard (`navigator.clipboard.writeText` AND the
+> legacy `execCommand('copy')`) can no-op SILENTLY in the split-view aux
+> WebContentsView — reporting success while writing nothing.** The user
+> clicks "Copied!", pastes an empty string, and the walk is lost. This
+> has recurred MULTIPLE times.
+>
+> Two-part defense (both already implemented — do not regress them):
+> 1. **The generator ALWAYS surfaces a pre-selected `<textarea>` modal**
+>    (`#copy-modal .copy-modal-ta`) when "Copy results" is clicked, with
+>    the full result text selected, so the user can `⌘C` it reliably. The
+>    programmatic copy is a bonus, never the only path. (`worksheet/
+>    generate.mjs` `showCopyModal`; regression tests in `generate.test.ts`
+>    "copy reliability".)
+> 2. **The pre-handoff check verifies the MODAL appears, not just a
+>    stubbed payload.** Stubbing `writeText` to capture the text MASKS the
+>    real failure (the stub always "succeeds"). After clicking copy, you
+>    MUST confirm `#copy-modal .copy-modal-ta` exists and holds the result
+>    block (see § 5b item 3). If you ever "fix" the generator to trust the
+>    clipboard alone, you are reintroducing this bug.
+>
+> Owner directive that produced this rule (2026-06-21, v0.11.2 ENH-224
+> walk): *"you have yet again produced a smoke walk sheet with broken copy
+> functionality … implement a fix to avoid this in the future."*
+
+## HARD RULE — run the mechanical fixture guard before EVERY handoff
+
+> **After generating a manifest and BEFORE pinning it in the aux, you MUST
+> run `node .claude/skills/smoke-walk/verify-fixtures.mjs <manifest.json>`
+> and it MUST exit 0.** The guard extracts every backtick-wrapped
+> `duo open|edit <target>` from the manifest and actually runs it against
+> the live app, asserting each returns `ok:true`. If any fixture is
+> file-missing, no-extension, wrong-repo, or an unsupported kind, the guard
+> exits non-zero and names it — fix the manifest, regenerate, re-run. **A
+> sheet whose guard hasn't passed does not get handed off.**
+>
+> This guard exists because the prose rule below kept getting skipped: the
+> agent shipped a bad fixture (`…/blob/master/README` with no extension,
+> then a non-existent `…/.github/FUNDING.yml`) on *consecutive* walks, the
+> second one literally one commit after writing the rule. A script that
+> fails loudly is enforcement; a paragraph is a suggestion. The guard's
+> parsing is unit-tested (`verify-fixtures.test.ts`); a leading `~/` in a
+> fixture path is expanded the way the owner's shell would.
+>
+> **The underlying invariant** (what the guard mechanizes): every fixture a
+> step tells the owner to open must be a file Duo can actually open — a real
+> recognized extension (`.md` / `.json` / `.yaml` / `.html` / image / pdf …),
+> a path/URL that exists, and — for the share-back footer specifically — the
+> right *verb*: the footer mounts only on EDITABLE surfaces, so an HTML
+> fixture needs `duo edit` (canvas), NOT `duo open` (browser mode, no
+> footer). For a remote file, the URL path must end in a real extension
+> (`…/blob/main/README.md`, not `…/blob/master/README`).
+>
+> Owner directive (2026-06-21, v0.11.2 ENH-224 walks 1–2): items FAILed with
+> *"README has no extension so Duo cannot open it"* and *"File not in
+> checkout: .github/FUNDING.yml"* — both agent fixture defects, not feature
+> bugs, both now caught mechanically before handoff.
+
+---
+
 ## Procedure
 
 ### 1. Identify items to validate
@@ -226,6 +287,19 @@ node .claude/skills/smoke-walk/generate.mjs \
 The generator embeds the items into a self-contained HTML page
 (Atelier styling, Copy + Send-to-Claude buttons, localStorage
 persistence) and writes the output file.
+
+### 3b. Run the mechanical fixture guard (MUST pass)
+
+```bash
+node .claude/skills/smoke-walk/verify-fixtures.mjs \
+  docs/dev/smoke-walks/v<VERSION>.json
+```
+
+Per the HARD RULE above, this runs every `duo open|edit` the manifest
+tells the owner to run and asserts each opens. Exit 0 → proceed. Exit 1 →
+it names the broken fixture(s); fix the manifest, regenerate (step 3),
+re-run this. Do NOT continue to handoff with a non-zero guard. (The dev
+must be up — if not, do step 4 first, then this.)
 
 ### 4. Bring up the dev — YOU restart it, never the user
 
@@ -439,20 +513,25 @@ Quick-pass version:
 2. `duo nav-state` returns OK.
 3. **Exercise the worksheet primitive itself** — via `duo eval`
    (it targets the aux walk sheet, per § 5): select a radio, then
-   click the **"Copy results"** button — NOT a per-step
-   backtick-command Copy button (those also render as "Copy"; match
-   `textContent === "Copy results"`) — and confirm the captured
-   payload is the `[PASS]/[FAIL]` block. Eval-context
-   `navigator.clipboard.writeText` throws *"Document is not
-   focused"*, so STUB it to capture the payload
-   (`navigator.clipboard.writeText = t => { captured = t; return Promise.resolve(); }`).
+   click the **"Copy results"** button (match `textContent ===
+   "Copy results"`, NOT a per-step backtick-command Copy). TWO things
+   to verify — payload AND the guaranteed-paste-back fallback:
+   - **Payload:** stub the clipboard to capture the text
+     (`navigator.clipboard.writeText = t => { captured = t; return Promise.resolve(); }`)
+     and confirm `captured` is the `[PASS]/[FAIL]/[SKIP]` block.
+   - **Guaranteed fallback (the durable fix — do NOT skip):** after the
+     click, confirm a `#copy-modal` overlay exists whose
+     `.copy-modal-ta` textarea contains the result text. The generator
+     ALWAYS surfaces this pre-selected textarea so the owner can ⌘C even
+     when the programmatic copy silently no-ops in the aux
+     WebContentsView. **A stub-only check is NOT enough — it MASKS the
+     real failure** (stubbing makes the copy "succeed" while the owner's
+     real click writes nothing). See the HARD RULE below.
    Then verify the localStorage round-trip — the per-version key is
-   `worksheet:smoke-walk-v<VERSION>`; confirm it's DISTINCT from any
-   older walk's key (the BUG-110 collision guard) and that the write
-   landed (it's debounced ~1s, so read after a short delay). Reset to
-   fresh (uncheck + `localStorage.removeItem`) so the owner walks
-   clean. Catches localStorage-key collisions, clipboard permission
-   failures, secure-context drift.
+   `worksheet:smoke-walk-v<VERSION>` (or `…-<slug>` when the manifest
+   filename carries a slug); confirm it's DISTINCT from any older walk's
+   key (the BUG-110 collision guard). Reset to fresh (uncheck +
+   `localStorage.removeItem`) so the owner walks clean.
 4. **Walk EVERY CLI-testable step in the manifest.** Per the HARD
    RULE at the top of this skill — if a step can be run via `duo
    <verb>`, the agent runs it before handoff. Capture the actual

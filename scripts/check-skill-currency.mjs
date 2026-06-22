@@ -178,6 +178,8 @@ const SUBCOMMANDS = {
   project: ['list', 'focus', 'pin', 'unpin', 'close'],
   pack: ['list', 'uninstall'],
   packs: ['list'],
+  // ENH-224 Phase 2 — share-back PR round-trip.
+  pr: ['create', 'status', 'view', 'export'],
   // ENH-191 P5a (S3c) — `duo window new` opens a second window.
   window: ['new'],
   // ENH-212 (Home) — re-entry surface + terminal-tab switching.

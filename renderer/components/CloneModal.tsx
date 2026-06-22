@@ -27,11 +27,21 @@ interface CloneModalProps {
    *  modal falls back to ~/Documents. App.tsx supplies the
    *  right-click context path OR the Navigator's current cwd. */
   defaultParent?: string | null
+  /** ENH-224 D15 — pre-populate the repo URL (the Open bar routes a GitHub
+   *  repo / file URL here). null/undefined → empty field (manual clone). */
+  defaultUrl?: string | null
+  /** ENH-224 D16 — when the clone came from a GitHub *file* URL, the path to
+   *  that file within the repo. On success the hero becomes "Open <file>"
+   *  and opens `<clonedTo>/<openAfterRelPath>`. null → the plain "Done" hero. */
+  openAfterRelPath?: string | null
   onClose: () => void
   /** Called with the cloned-folder absolute path on success. Parent
    *  decides whether to navigate the file tree there (recommended) or
    *  leave the modal-side "Open in Duo" button as the action. */
   onCloned: (clonedTo: string) => void
+  /** ENH-224 D16 — open the post-clone target file (absolute path). Wired by
+   *  the "Open <file>" success hero when openAfterRelPath is set. */
+  onOpenAfter?: (absPath: string) => void
 }
 
 /** Fallback target-dir parent when neither right-click context nor
@@ -52,7 +62,7 @@ function deriveRepoName(url: string): string {
   return name
 }
 
-export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModalProps) {
+export function CloneModal({ open, defaultParent, defaultUrl, openAfterRelPath, onClose, onCloned, onOpenAfter }: CloneModalProps) {
   const [url, setUrl] = useState('')
   const [targetParent, setTargetParent] = useState(defaultParent ?? DEFAULT_PARENT)
   const [repoName, setRepoName] = useState('')
@@ -79,7 +89,8 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
   // is to scope the reset to open-transitions only.
   useEffect(() => {
     if (!open) return
-    setUrl('')
+    // ENH-224 D15 — prefill the URL when the Open bar routed a GitHub URL in.
+    setUrl(defaultUrl ?? '')
     setTargetParent(defaultParent ?? DEFAULT_PARENT)
     setRepoName('')
     setResult(null)
@@ -166,6 +177,16 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
   // unstick the button.
   const canClone = !busy && !!url.trim() && !!repoName && collisionState !== 'exists'
 
+  // ENH-224 D16 — context-aware success hero. When the clone came from a
+  // GitHub *file* URL, the hero opens that file after cloning (clonedTo + the
+  // in-repo path); otherwise it's a plain "Done". The label name lives here
+  // so the JSX can render it without re-deriving.
+  const heroOpenPath =
+    result?.ok && result.clonedTo && openAfterRelPath
+      ? `${result.clonedTo.replace(/\/+$/, '')}/${openAfterRelPath.replace(/^\/+/, '')}`
+      : null
+  const heroOpenName = openAfterRelPath ? openAfterRelPath.split('/').pop() : null
+
   // ENH-162 — recognize the "destination path already exists" stderr
   // class so we can render a clearer error than the raw gh/git output.
   const isCollisionError = !!(result && !result.ok && result.error &&
@@ -209,21 +230,49 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
     }
   }
 
+  // D16 — reset the form for another clone WITHOUT closing the modal (the
+  // demoted "Clone another" link). The prior code re-ran handleClone() on
+  // the same URL, which just collided; this clears url/result/collision so
+  // the user genuinely starts a fresh clone, and re-focuses the URL field.
+  const resetForAnother = () => {
+    setUrl('')
+    setRepoName('')
+    setResult(null)
+    setCollisionState(null)
+    setCollisionAbsPath('')
+    setTimeout(() => urlInputRef.current?.focus(), 0)
+  }
+
+  // ENH-224 FU1 — native folder picker for the clone destination. Opens an
+  // openDirectory + createDirectory dialog; the absolute pick replaces the
+  // (type-able) parent-directory field. `?.` tolerates a stale preload.
+  const handleChooseDir = async () => {
+    try {
+      const dir = await window.electron.open?.pickDirectory?.()
+      if (dir) setTargetParent(dir)
+    } catch {
+      // Cancelled / failed picker — leave the typed value as-is.
+    }
+  }
+
   // Auth-missing banner: shown when gh isn't authenticated AND we
   // know it (auth probe completed). Doesn't block submitting (git
   // clone may still work for public repos), just sets expectations.
   const showAuthBanner = auth && !auth.authenticated
 
   return (
+    // ENH-224 FU2 — match the Open bar's geometry (top-anchored ~96px,
+    // ~640px wide) so the Open bar → Clone hand-off reads as one surface
+    // morphing rather than a jump in size + position.
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-black/40"
       onClick={(e) => {
         // Click outside the modal body dismisses (when not busy).
         if (e.target === e.currentTarget && !busy) onClose()
       }}
     >
       <div
-        className="bg-surface-0 border border-border rounded-lg shadow-xl w-[480px] max-w-[90vw] p-5 text-ink"
+        className="bg-surface-0 border border-border rounded-lg shadow-xl w-[640px] max-w-[92vw] p-5 text-ink"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">
@@ -290,16 +339,27 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
         <label className="block text-xs text-ink-mute mb-1" htmlFor="clone-target">
           Parent directory (final path: {targetDir || <em className="opacity-50">enter a URL first</em>})
         </label>
-        <input
-          id="clone-target"
-          type="text"
-          value={targetParent}
-          onChange={(e) => setTargetParent(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="~/Documents"
-          disabled={busy}
-          className="w-full px-2 py-1 mb-3 bg-paper-deep border border-border rounded text-sm font-mono text-ink placeholder-ink-ghost focus:outline-accent"
-        />
+        {/* ENH-224 FU1 — type a path OR pick one with the native folder picker. */}
+        <div className="flex gap-2 mb-3">
+          <input
+            id="clone-target"
+            type="text"
+            value={targetParent}
+            onChange={(e) => setTargetParent(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="~/Documents"
+            disabled={busy}
+            className="flex-1 min-w-0 px-2 py-1 bg-paper-deep border border-border rounded text-sm font-mono text-ink placeholder-ink-ghost focus:outline-accent"
+          />
+          <button
+            type="button"
+            onClick={() => void handleChooseDir()}
+            disabled={busy}
+            className="px-3 py-1 text-sm border border-border rounded text-ink-soft hover:bg-accent/10 disabled:opacity-50 whitespace-nowrap"
+          >
+            Choose…
+          </button>
+        </div>
 
         {busy && (
           // FOLLOWUP-025 v2 walk-rev3 — owner: "the 'cloning' status
@@ -342,39 +402,26 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
           </div>
         )}
         {result && result.ok && (
-          // FOLLOWUP-025 v2 walk-rev3 — owner: "cloning a repo can seem
-          // mysterious, so I think the clone process deserves some more
-          // feedback to the user and a message, post success, about
-          // what they should/can do next; not too heavy, but also not
-          // completely opaque." Replaced the 1-liner with a clearer
-          // confirmation + next-step suggestions. Navigator is already
-          // navigated to the new folder by App.tsx's onCloned handler.
+          // ENH-224 D16 — success-screen redesign. The prior panel led with
+          // a wall of next-step prose; the owner's note: "cloning >1 repo at
+          // a time is an edge case — show a success message and make the hero
+          // either Done or Open." So: one clean confirmation line; the action
+          // moves to the footer (Open / Done hero, "Clone another" demoted).
+          // (Rebase 2026-06-21: adopts main's duo-banner-ok/duo-text-ok theme.)
           <div className="mb-3 px-4 py-3 rounded border duo-banner-ok">
             <div className="flex items-start gap-2">
               <span className="duo-text-ok text-base leading-none" aria-hidden="true">✓</span>
               <div className="flex-1 min-w-0">
                 <div className="duo-text-ok font-semibold text-sm">
-                  Cloned via {result.via}
+                  Cloned {repoName || 'repository'}
                 </div>
                 <div className="duo-text-ok text-xs mt-1 font-mono break-all">
                   {result.clonedTo}
                 </div>
+                <div className="duo-text-ok opacity-80 text-xs mt-1">
+                  It’s now in your navigator.
+                </div>
               </div>
-            </div>
-            <div className="duo-text-ok text-xs mt-3 leading-relaxed">
-              <strong className="duo-text-ok">Navigator is now showing the new folder.</strong>{' '}
-              You can:
-              <ul className="mt-1 ml-4 list-disc duo-text-ok space-y-0.5">
-                <li>Click any file in the navigator to open it.</li>
-                <li>
-                  Right-click the repo folder → <em>Open terminal here</em>{' '}
-                  for a shell at the repo root.
-                </li>
-                <li>
-                  Press <kbd className="font-mono duo-banner-ok px-1 rounded">⌘O</kbd>{' '}
-                  to jump to any file by name.
-                </li>
-              </ul>
             </div>
           </div>
         )}
@@ -414,24 +461,58 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
           </div>
         )}
 
-        <div className="flex gap-2 justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={busy}
-            className="px-3 py-1 text-sm border border-border rounded text-ink hover:bg-accent/10 disabled:opacity-50"
-          >
-            {result?.ok ? 'Done' : 'Cancel'}
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleClone()}
-            disabled={!canClone}
-            className="px-3 py-1 text-sm bg-accent text-white rounded hover:bg-accent/90 disabled:opacity-50"
-          >
-            {busy ? 'Cloning…' : result?.ok ? 'Clone another' : 'Clone'}
-          </button>
-        </div>
+        {result?.ok ? (
+          // D16 — success footer. Hero is "Done" for a bare-repo clone
+          // (File ▸ Clone… / FileTree / duo clone), OR "Open <file>" when the
+          // merged Open flow routed a GitHub *file* URL into clone (ENH-224
+          // D19 live path — openAfterRelPath set). "Clone another" is the
+          // demoted quiet link (multi-clone is the edge case, per owner).
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={resetForAnother}
+              className="text-xs text-ink-mute hover:text-ink underline"
+            >
+              Clone another
+            </button>
+            {heroOpenPath ? (
+              <button
+                type="button"
+                onClick={() => { onOpenAfter?.(heroOpenPath); onClose() }}
+                className="px-4 py-1 text-sm bg-accent text-white rounded hover:bg-accent/90"
+              >
+                Open {heroOpenName}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-1 text-sm bg-accent text-white rounded hover:bg-accent/90"
+              >
+                Done
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="flex gap-2 justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={busy}
+              className="px-3 py-1 text-sm border border-border rounded text-ink hover:bg-accent/10 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleClone()}
+              disabled={!canClone}
+              className="px-3 py-1 text-sm bg-accent text-white rounded hover:bg-accent/90 disabled:opacity-50"
+            >
+              {busy ? 'Cloning…' : 'Clone'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

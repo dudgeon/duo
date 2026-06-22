@@ -30,6 +30,9 @@ import type {
   SessionState,
   CronJobView,
   TabAttentionPush,
+  RecentEntry, BrowseResult,
+  CheckoutTarget, CheckoutResult, LocalCloneMatch,
+  ShareBackStatus, ShareBackDiff, ShareBackResult, ShareBackCreateOpts,
 } from './types'
 
 // ── Electron preload API surface ─────────────────────────────────────────────
@@ -348,6 +351,13 @@ export interface ElectronNavAPI {
    *  opens the New Vault dialog (OKF the default format — D2). Mirrors
    *  onOpenCloneModal's menu-driven pattern. */
   onOpenNewVaultModal: (cb: () => void) => () => void
+  /** ENH-224 D1/D18 — File → Open… menu trigger. Renderer opens the
+   *  merged Open bar (the same surface ⌘O opens). */
+  onOpenBar: (cb: () => void) => () => void
+  /** ENH-224 D14 — File → Open Recent ▸ <target> click. Renderer
+   *  re-resolves `target` through the Open-bar open path (local →
+   *  openFileSmart, url → browser, github → clone). */
+  onOpenBarReopen: (cb: (target: string) => void) => () => void
   /** FOLLOWUP-025 v2 — renderer-initiated request to open the Clone
    *  modal (Navigator right-click → "Clone GitHub repo here…"). The
    *  main process echoes back via NAV_OPEN_CLONE_MODAL so all
@@ -1121,6 +1131,57 @@ export interface ElectronAPI {
   // palette · silent-stub type-picker). Main runs the same core/vault
   // code paths as the `duo vault` CLI verbs.
   vault: ElectronVaultAPI
+  // ENH-224 D17 — native Browse… file/folder picker behind the Open bar.
+  open: ElectronOpenAPI
+  // ENH-224 D14 — Open Recent store (list/record/clear), shared with the
+  // `duo recent` CLI + `duo open` record-on-open.
+  recents: ElectronRecentsAPI
+  // ENH-224 Phase 2 — share-back: the "Propose changes" footer affordance
+  // (D10–D13) drives status/diff/create over IPC against core/git/share-back.
+  pr: ElectronPrAPI
+}
+
+// ENH-224 D17 — native file/folder picker. ONE dialog with both openFile +
+// openDirectory enabled; resolves to the picked path + its kind (file → open
+// in viewer; directory → root the navigator), or null on cancel.
+export interface ElectronOpenAPI {
+  browse(): Promise<BrowseResult | null>
+  /** ENH-224 FU1 — native FOLDER-only picker (openDirectory +
+   *  createDirectory). Returns the picked directory path, or null on cancel.
+   *  Backs the CloneModal's "Choose…" destination button. */
+  pickDirectory(): Promise<string | null>
+  /** ENH-224 Phase 1 — "open just this doc": main runs the managed checkout
+   *  (depth-1 clone at the ref into the opaque home) and returns the pointer.
+   *  The renderer opens pointer.fileAbsPath + focuses checkoutDir on success;
+   *  on auth-missing it shows the gh-auth bounce. */
+  githubFile(target: CheckoutTarget): Promise<CheckoutResult>
+  /** ENH-224 Phase 3 (D6) — does the user already have a local clone of this
+   *  github-file's repo that contains the file? Returns the match (the Open bar
+   *  offers "open from your clone") or null (→ managed checkout). */
+  matchLocalClone(target: CheckoutTarget): Promise<LocalCloneMatch | null>
+}
+
+// ENH-224 D14 — Open Recent store. Pointers only (§12); resolved live on
+// reopen. Backed by a main-process OpenRecentsService singleton shared with
+// the `duo open` socket handler so CLI + UI opens land in one list.
+export interface ElectronRecentsAPI {
+  list(): Promise<RecentEntry[]>
+  /** Record an open; returns the new (deduped, capped) list. */
+  record(entry: Omit<RecentEntry, 'lastOpenedAt'>): Promise<RecentEntry[]>
+  clear(): Promise<void>
+}
+
+// ENH-224 Phase 2 — the "Propose changes" footer affordance (D10–D13) talks to
+// main over these. `docPath` is the open doc; main resolves it → its managed
+// checkout (inert no-divergence snapshot when the path isn't in a checkout) and
+// reuses core/git/share-back — the SAME engine as the `duo pr` CLI.
+export interface ElectronPrAPI {
+  /** Divergence + open-PR snapshot — gates the affordance + its morph (D13). */
+  status(docPath: string): Promise<ShareBackStatus>
+  /** The working-tree diff for the confirm-sheet inline view (D12). */
+  diff(docPath: string): Promise<ShareBackDiff>
+  /** Run the full share-back: branch/commit/push/PR, auto-fork as needed (D3). */
+  create(docPath: string, opts?: ShareBackCreateOpts): Promise<ShareBackResult>
 }
 
 // ENH-216 (VAULT MODE) — at-rest serializer for a vault. ONE graph model,
