@@ -147,26 +147,38 @@ description: Generate an interactive HTML smoke-walk page for the user to valida
 > walk): *"you have yet again produced a smoke walk sheet with broken copy
 > functionality … implement a fix to avoid this in the future."*
 
-## HARD RULE — manifest fixtures must be OPENABLE files
+## HARD RULE — run the mechanical fixture guard before EVERY handoff
 
-> **Every fixture path a manifest step tells the owner to open MUST be a
-> file Duo's classifier can actually open — i.e. it has an extension the
-> classifier recognizes (`.md` / `.json` / `.yaml` / `.html` / image /
-> pdf …).** A bare `README` (no extension) cannot be opened as an editor
-> doc, so the owner gets a dead step and FAILs an item that was never
-> about the feature.
+> **After generating a manifest and BEFORE pinning it in the aux, you MUST
+> run `node .claude/skills/smoke-walk/verify-fixtures.mjs <manifest.json>`
+> and it MUST exit 0.** The guard extracts every backtick-wrapped
+> `duo open|edit <target>` from the manifest and actually runs it against
+> the live app, asserting each returns `ok:true`. If any fixture is
+> file-missing, no-extension, wrong-repo, or an unsupported kind, the guard
+> exits non-zero and names it — fix the manifest, regenerate, re-run. **A
+> sheet whose guard hasn't passed does not get handed off.**
 >
-> - When a step opens a remote/GitHub file, pick a URL whose path ends in
->   a real extension (e.g. `…/blob/main/README.md`, not `…/blob/master/
->   README`).
-> - **Walk the fixture open yourself before handoff** (`duo open <fixture>`
->   then `duo layout` to confirm it mounted as the expected `kind`). Per
->   the "walk every CLI-testable step" rule, a fixture that won't open is
->   an agent-catchable failure — fix the manifest, don't ship it.
+> This guard exists because the prose rule below kept getting skipped: the
+> agent shipped a bad fixture (`…/blob/master/README` with no extension,
+> then a non-existent `…/.github/FUNDING.yml`) on *consecutive* walks, the
+> second one literally one commit after writing the rule. A script that
+> fails loudly is enforcement; a paragraph is a suggestion. The guard's
+> parsing is unit-tested (`verify-fixtures.test.ts`); a leading `~/` in a
+> fixture path is expanded the way the owner's shell would.
 >
-> Owner directive (2026-06-21, v0.11.2 ENH-224 walk): two items FAILed
-> with *"README has no extension so Duo cannot open it"* / *"cannot edit
-> file; see prior step."*
+> **The underlying invariant** (what the guard mechanizes): every fixture a
+> step tells the owner to open must be a file Duo can actually open — a real
+> recognized extension (`.md` / `.json` / `.yaml` / `.html` / image / pdf …),
+> a path/URL that exists, and — for the share-back footer specifically — the
+> right *verb*: the footer mounts only on EDITABLE surfaces, so an HTML
+> fixture needs `duo edit` (canvas), NOT `duo open` (browser mode, no
+> footer). For a remote file, the URL path must end in a real extension
+> (`…/blob/main/README.md`, not `…/blob/master/README`).
+>
+> Owner directive (2026-06-21, v0.11.2 ENH-224 walks 1–2): items FAILed with
+> *"README has no extension so Duo cannot open it"* and *"File not in
+> checkout: .github/FUNDING.yml"* — both agent fixture defects, not feature
+> bugs, both now caught mechanically before handoff.
 
 ---
 
@@ -275,6 +287,19 @@ node .claude/skills/smoke-walk/generate.mjs \
 The generator embeds the items into a self-contained HTML page
 (Atelier styling, Copy + Send-to-Claude buttons, localStorage
 persistence) and writes the output file.
+
+### 3b. Run the mechanical fixture guard (MUST pass)
+
+```bash
+node .claude/skills/smoke-walk/verify-fixtures.mjs \
+  docs/dev/smoke-walks/v<VERSION>.json
+```
+
+Per the HARD RULE above, this runs every `duo open|edit` the manifest
+tells the owner to run and asserts each opens. Exit 0 → proceed. Exit 1 →
+it names the broken fixture(s); fix the manifest, regenerate (step 3),
+re-run this. Do NOT continue to handoff with a non-zero guard. (The dev
+must be up — if not, do step 4 first, then this.)
 
 ### 4. Bring up the dev — YOU restart it, never the user
 

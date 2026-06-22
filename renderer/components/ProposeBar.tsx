@@ -25,13 +25,11 @@ interface Props {
 }
 
 function openExternal(url: string): void {
-  // The browser pane's window-open handler routes this; refined during the
-  // live walk if it needs an explicit IPC.
-  try {
-    window.open(url, '_blank', 'noopener')
-  } catch {
-    /* no-op — the URL is also shown in the bar as text */
-  }
+  // BUG-132 path — route through main's shell.openExternal (scheme-guarded),
+  // the SAME mechanism FileTree uses. Renderer window.open silently no-ops in
+  // this WebContentsView, which is why the old "View PR" button did nothing
+  // (ENH-227, owner-reported on the v0.11.2 walk).
+  void window.electron?.files?.openExternalUrl(url).catch(() => null)
 }
 
 export function ProposeBar({ path, active, refreshKey }: Props): JSX.Element | null {
@@ -117,21 +115,29 @@ export function ProposeBar({ path, active, refreshKey }: Props): JSX.Element | n
   return (
     <>
       <div className="flex items-center justify-between gap-3 px-3 py-1.5 text-xs border-t border-paper-rule bg-paper-deep text-ink shrink-0">
-        <span className="truncate text-ink-soft">
+        <span className="truncate">
           {effectivePr && !diverged
-            ? <>Proposed · <span className="text-ink">{status?.context?.owner}/{status?.context?.repo}</span></>
+            ? (
+              // ENH-227 — explicit success affordance (duo-text-ok is legible in
+              // both themes) + the PR number, so a successful create reads as
+              // success instead of a muted "Proposed".
+              <span className="duo-text-ok font-medium">
+                ✓ PR #{effectivePr.number} opened · {status?.context?.owner}/{status?.context?.repo}
+              </span>
+            )
             : effectivePr
-              ? <>Edited since proposing · <span className="text-ink">{status?.context?.owner}/{status?.context?.repo}</span></>
-              : <>This doc differs from <span className="text-ink">{status?.context?.owner}/{status?.context?.repo}</span></>}
+              ? <span className="text-ink-soft">Edited since proposing · <span className="text-ink">{status?.context?.owner}/{status?.context?.repo}</span></span>
+              : <span className="text-ink-soft">This doc differs from <span className="text-ink">{status?.context?.owner}/{status?.context?.repo}</span></span>}
         </span>
         <div className="flex items-center gap-2 shrink-0">
           {effectivePr && (
             <button
               type="button"
               onClick={() => openExternal(effectivePr.url)}
+              title={effectivePr.url}
               className="px-2.5 py-1 rounded border border-paper-rule text-ink hover:bg-accent/10"
             >
-              View PR ↗
+              View PR #{effectivePr.number} ↗
             </button>
           )}
           {diverged && (
