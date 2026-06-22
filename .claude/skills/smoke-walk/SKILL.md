@@ -121,6 +121,55 @@ description: Generate an interactive HTML smoke-walk page for the user to valida
 
 ---
 
+## HARD RULE — the Copy-results button must NEVER silently fail
+
+> **The programmatic clipboard (`navigator.clipboard.writeText` AND the
+> legacy `execCommand('copy')`) can no-op SILENTLY in the split-view aux
+> WebContentsView — reporting success while writing nothing.** The user
+> clicks "Copied!", pastes an empty string, and the walk is lost. This
+> has recurred MULTIPLE times.
+>
+> Two-part defense (both already implemented — do not regress them):
+> 1. **The generator ALWAYS surfaces a pre-selected `<textarea>` modal**
+>    (`#copy-modal .copy-modal-ta`) when "Copy results" is clicked, with
+>    the full result text selected, so the user can `⌘C` it reliably. The
+>    programmatic copy is a bonus, never the only path. (`worksheet/
+>    generate.mjs` `showCopyModal`; regression tests in `generate.test.ts`
+>    "copy reliability".)
+> 2. **The pre-handoff check verifies the MODAL appears, not just a
+>    stubbed payload.** Stubbing `writeText` to capture the text MASKS the
+>    real failure (the stub always "succeeds"). After clicking copy, you
+>    MUST confirm `#copy-modal .copy-modal-ta` exists and holds the result
+>    block (see § 5b item 3). If you ever "fix" the generator to trust the
+>    clipboard alone, you are reintroducing this bug.
+>
+> Owner directive that produced this rule (2026-06-21, v0.11.2 ENH-224
+> walk): *"you have yet again produced a smoke walk sheet with broken copy
+> functionality … implement a fix to avoid this in the future."*
+
+## HARD RULE — manifest fixtures must be OPENABLE files
+
+> **Every fixture path a manifest step tells the owner to open MUST be a
+> file Duo's classifier can actually open — i.e. it has an extension the
+> classifier recognizes (`.md` / `.json` / `.yaml` / `.html` / image /
+> pdf …).** A bare `README` (no extension) cannot be opened as an editor
+> doc, so the owner gets a dead step and FAILs an item that was never
+> about the feature.
+>
+> - When a step opens a remote/GitHub file, pick a URL whose path ends in
+>   a real extension (e.g. `…/blob/main/README.md`, not `…/blob/master/
+>   README`).
+> - **Walk the fixture open yourself before handoff** (`duo open <fixture>`
+>   then `duo layout` to confirm it mounted as the expected `kind`). Per
+>   the "walk every CLI-testable step" rule, a fixture that won't open is
+>   an agent-catchable failure — fix the manifest, don't ship it.
+>
+> Owner directive (2026-06-21, v0.11.2 ENH-224 walk): two items FAILed
+> with *"README has no extension so Duo cannot open it"* / *"cannot edit
+> file; see prior step."*
+
+---
+
 ## Procedure
 
 ### 1. Identify items to validate
@@ -439,20 +488,25 @@ Quick-pass version:
 2. `duo nav-state` returns OK.
 3. **Exercise the worksheet primitive itself** — via `duo eval`
    (it targets the aux walk sheet, per § 5): select a radio, then
-   click the **"Copy results"** button — NOT a per-step
-   backtick-command Copy button (those also render as "Copy"; match
-   `textContent === "Copy results"`) — and confirm the captured
-   payload is the `[PASS]/[FAIL]` block. Eval-context
-   `navigator.clipboard.writeText` throws *"Document is not
-   focused"*, so STUB it to capture the payload
-   (`navigator.clipboard.writeText = t => { captured = t; return Promise.resolve(); }`).
+   click the **"Copy results"** button (match `textContent ===
+   "Copy results"`, NOT a per-step backtick-command Copy). TWO things
+   to verify — payload AND the guaranteed-paste-back fallback:
+   - **Payload:** stub the clipboard to capture the text
+     (`navigator.clipboard.writeText = t => { captured = t; return Promise.resolve(); }`)
+     and confirm `captured` is the `[PASS]/[FAIL]/[SKIP]` block.
+   - **Guaranteed fallback (the durable fix — do NOT skip):** after the
+     click, confirm a `#copy-modal` overlay exists whose
+     `.copy-modal-ta` textarea contains the result text. The generator
+     ALWAYS surfaces this pre-selected textarea so the owner can ⌘C even
+     when the programmatic copy silently no-ops in the aux
+     WebContentsView. **A stub-only check is NOT enough — it MASKS the
+     real failure** (stubbing makes the copy "succeed" while the owner's
+     real click writes nothing). See the HARD RULE below.
    Then verify the localStorage round-trip — the per-version key is
-   `worksheet:smoke-walk-v<VERSION>`; confirm it's DISTINCT from any
-   older walk's key (the BUG-110 collision guard) and that the write
-   landed (it's debounced ~1s, so read after a short delay). Reset to
-   fresh (uncheck + `localStorage.removeItem`) so the owner walks
-   clean. Catches localStorage-key collisions, clipboard permission
-   failures, secure-context drift.
+   `worksheet:smoke-walk-v<VERSION>` (or `…-<slug>` when the manifest
+   filename carries a slug); confirm it's DISTINCT from any older walk's
+   key (the BUG-110 collision guard). Reset to fresh (uncheck +
+   `localStorage.removeItem`) so the owner walks clean.
 4. **Walk EVERY CLI-testable step in the manifest.** Per the HARD
    RULE at the top of this skill — if a step can be run via `duo
    <verb>`, the agent runs it before handoff. Capture the actual

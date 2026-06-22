@@ -622,6 +622,29 @@ ${optionColorRules}
     border-color: var(--pass);
     color: white;
   }
+  /* Guaranteed-paste-back modal (the programmatic clipboard no-ops silently in
+     the aux WebContentsView — this textarea is the reliable ⌘C path). */
+  .copy-modal-overlay {
+    position: fixed; inset: 0; z-index: 10000;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+  }
+  .copy-modal-panel {
+    background: var(--paper, #fff); color: var(--ink, #111);
+    border: 1px solid var(--paper-deep, #ccc); border-radius: 10px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+    width: min(680px, 92vw); max-height: 80vh;
+    display: flex; flex-direction: column; gap: 10px; padding: 16px;
+  }
+  .copy-modal-head { font-size: 13px; font-weight: 600; line-height: 1.4; }
+  .copy-modal-ta {
+    flex: 1; min-height: 220px; width: 100%; box-sizing: border-box;
+    font-family: ui-monospace, Menlo, monospace; font-size: 12px;
+    background: var(--paper-deep, #f3f3f3); color: var(--ink, #111);
+    border: 1px solid var(--paper-deep, #ccc); border-radius: 6px;
+    padding: 10px; resize: vertical;
+  }
+  .copy-modal-foot { display: flex; justify-content: flex-end; }
 </style>
 </head>
 <body>
@@ -811,23 +834,13 @@ ${miscHtml}
         target.classList.remove('is-copied');
       }, 1200);
     } catch {
-      try {
-        const ta = document.createElement('textarea');
-        ta.value = cmd;
-        ta.setAttribute('readonly', '');
-        ta.style.position = 'absolute';
-        ta.style.left = '-9999px';
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-        target.textContent = 'Copied';
-        target.classList.add('is-copied');
-        setTimeout(() => { target.textContent = 'Copy'; target.classList.remove('is-copied'); }, 1200);
-      } catch {
-        target.textContent = 'Copy failed';
-        setTimeout(() => { target.textContent = 'Copy'; }, 1500);
-      }
+      // Async clipboard rejected (aux pane / not the focused frame). Don't
+      // trust the execCommand-then-claim-success path (it can no-op silently
+      // in a WebContentsView) — surface the command in a pre-selected textarea
+      // so the user can ⌘C it reliably.
+      showCopyModal(cmd, false);
+      target.textContent = '⌘C from box';
+      setTimeout(() => { target.textContent = 'Copy'; target.classList.remove('is-copied'); }, 1800);
     }
   });
 
@@ -888,59 +901,55 @@ ${miscHtml}
     return lines.join('\\n');
   }
 
+  // GUARANTEED paste-back. The async clipboard API AND execCommand can both
+  // silently no-op in the split-view aux WebContentsView (it isn't the focused
+  // frame) — reporting success while writing nothing, so the user clicks
+  // "Copied!" and pastes an empty string. Recurring failure. The only reliable
+  // path is to ALWAYS surface a pre-selected textarea the user can ⌘C; the
+  // programmatic copy is attempted as a bonus. A smoke-walk copy happens once,
+  // so a small confirm box is a fine cost for never-broken paste-back.
+  function showCopyModal(text, autoCopied) {
+    const existing = document.getElementById('copy-modal');
+    if (existing) existing.remove();
+    const ov = document.createElement('div');
+    ov.id = 'copy-modal';
+    ov.className = 'copy-modal-overlay';
+    ov.innerHTML =
+      '<div class="copy-modal-panel">' +
+      '<div class="copy-modal-head"></div>' +
+      '<textarea class="copy-modal-ta" readonly></textarea>' +
+      '<div class="copy-modal-foot"><button class="btn" id="copy-modal-close" type="button">Close</button></div>' +
+      '</div>';
+    ov.querySelector('.copy-modal-head').textContent = autoCopied
+      ? 'Results copied ✓ — if your paste comes up empty, ⌘C the box below.'
+      : 'Select-all is done — press ⌘C to copy, then paste back to Claude.';
+    const ta = ov.querySelector('.copy-modal-ta');
+    ta.value = text;
+    const dismiss = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
+    const onKey = (e) => { if (e.key === 'Escape') dismiss(); };
+    ov.querySelector('#copy-modal-close').addEventListener('click', dismiss);
+    ov.addEventListener('click', (e) => { if (e.target === ov) dismiss(); });
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(ov);
+    ta.focus();
+    ta.select();
+  }
+
   copyBtn.addEventListener('click', async () => {
     const text = buildResultText();
-    try {
-      await navigator.clipboard.writeText(text);
+    let copied = false;
+    try { await navigator.clipboard.writeText(text); copied = true; } catch { copied = false; }
+    if (copied) {
       copyBtn.textContent = 'Copied! Paste back to Claude →';
       copyBtn.classList.add('is-copied');
       setTimeout(() => {
         copyBtn.textContent = 'Copy results';
         copyBtn.classList.remove('is-copied');
       }, 4000);
-    } catch {
-      // navigator.clipboard rejected — common in the split-view aux pane,
-      // whose WebContentsView isn't the focused frame ("Document is not
-      // focused"), or on a file:// page. Fall back to the legacy synchronous
-      // copy, which works on a user gesture without the focus/secure-context
-      // requirements the async API enforces (mirrors the per-command handler).
-      let ok = false;
-      try {
-        const ta = document.createElement('textarea');
-        ta.value = text;
-        ta.setAttribute('readonly', '');
-        ta.style.position = 'absolute';
-        ta.style.left = '-9999px';
-        document.body.appendChild(ta);
-        ta.select();
-        ok = document.execCommand('copy');
-        document.body.removeChild(ta);
-      } catch { ok = false; }
-      if (ok) {
-        copyBtn.textContent = 'Copied! Paste back to Claude →';
-        copyBtn.classList.add('is-copied');
-        setTimeout(() => {
-          copyBtn.textContent = 'Copy results';
-          copyBtn.classList.remove('is-copied');
-        }, 4000);
-      } else {
-        // Last resort — surface a textarea for a manual ⌘C.
-        const ta = document.createElement('textarea');
-        ta.value = text;
-        ta.style.position = 'fixed';
-        ta.style.left = '50%';
-        ta.style.top = '50%';
-        ta.style.transform = 'translate(-50%, -50%)';
-        ta.style.width = '600px';
-        ta.style.height = '300px';
-        ta.style.zIndex = '9999';
-        ta.style.padding = '12px';
-        document.body.appendChild(ta);
-        ta.focus();
-        ta.select();
-        copyBtn.textContent = "Couldn't auto-copy — ⌘C from textarea";
-      }
     }
+    // ALWAYS show the textarea — guarantees paste-back even if the programmatic
+    // copy above silently no-op'd. When copied===true it's just a confirmation.
+    showCopyModal(text, copied);
   });
 
   // Send-to-Claude — pushes the result text directly into the active
