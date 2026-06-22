@@ -1488,17 +1488,17 @@ html.dark {
 
 /* Dark-mode parity for the markdown comment-anchor styling. The
    canvas iframe stylesheet handles its own `prefers-color-scheme`
-   media query; the parent renderer flips via the `data-theme="dark"`
-   attribute on `<html>`, which takes precedence over OS preference
+   media query; the parent renderer flips via the `dark` class on
+   `<html>` (`html.dark`), which takes precedence over OS preference
    when the user has chosen a Duo theme. */
-[data-theme="dark"] .ProseMirror [data-duo-comment-id] {
+html.dark .ProseMirror [data-duo-comment-id] {
   background: rgba(224, 143, 74, 0.12);
   border-bottom-color: rgba(224, 143, 74, 0.55);
 }
-[data-theme="dark"] .ProseMirror [data-duo-comment-id]:hover {
+html.dark .ProseMirror [data-duo-comment-id]:hover {
   background: rgba(224, 143, 74, 0.22);
 }
-[data-theme="dark"] .ProseMirror [data-duo-comment-id][data-duo-comment-active="1"] {
+html.dark .ProseMirror [data-duo-comment-id][data-duo-comment-active="1"] {
   /* BUG-083 markdown side / v0.7.2 polish — dark-mode parity with
      the light-mode bump. 0.32 → 0.52 + matching outline pop. */
   background: rgba(224, 143, 74, 0.52);
@@ -1543,16 +1543,16 @@ html.dark {
 }
 
 /* Dark-mode parity */
-[data-theme="dark"] .ProseMirror [data-duo-insertion] {
+html.dark .ProseMirror [data-duo-insertion] {
   background: rgba(110, 184, 92, 0.16);
   color: #b9e0a4;
   border-bottom-color: rgba(110, 184, 92, 0.55);
 }
-[data-theme="dark"] .ProseMirror [data-duo-deletion] {
+html.dark .ProseMirror [data-duo-deletion] {
   background: rgba(217, 90, 86, 0.16);
   color: #e9b1ae;
 }
-[data-theme="dark"] .ProseMirror [data-duo-highlight] {
+html.dark .ProseMirror [data-duo-highlight] {
   background: rgba(224, 143, 74, 0.28);
 }
 
@@ -1563,8 +1563,8 @@ html.dark {
    in dark mode). */
 .history-legend-add { color: #2c5524; }
 .history-legend-del { color: #7d2622; text-decoration: line-through; }
-[data-theme="dark"] .history-legend-add { color: #b9e0a4; }
-[data-theme="dark"] .history-legend-del { color: #e9b1ae; }
+html.dark .history-legend-add { color: #b9e0a4; }
+html.dark .history-legend-del { color: #e9b1ae; }
 
 /* Theme-aware status banners + colored text (repo-wide legibility fix).
    The previous dark-only pattern (bg-{c}-950/30 + text-{c}-200) went
@@ -1577,19 +1577,19 @@ html.dark {
 .duo-banner-error { background: color-mix(in srgb, #dc2626 10%, transparent); border-color: color-mix(in srgb, #dc2626 42%, transparent); color: #991b1b; }
 .duo-banner-warn  { background: color-mix(in srgb, #d97706 12%, transparent); border-color: color-mix(in srgb, #d97706 42%, transparent); color: #8a4b06; }
 .duo-banner-ok    { background: color-mix(in srgb, #059669 12%, transparent); border-color: color-mix(in srgb, #059669 42%, transparent); color: #065f46; }
-[data-theme="dark"] .duo-banner-error { background: color-mix(in srgb, #f87171 16%, transparent); border-color: color-mix(in srgb, #f87171 42%, transparent); color: #fca5a5; }
-[data-theme="dark"] .duo-banner-warn  { background: color-mix(in srgb, #fbbf24 16%, transparent); border-color: color-mix(in srgb, #fbbf24 42%, transparent); color: #fcd34d; }
-[data-theme="dark"] .duo-banner-ok    { background: color-mix(in srgb, #34d399 16%, transparent); border-color: color-mix(in srgb, #34d399 42%, transparent); color: #6ee7b7; }
+html.dark .duo-banner-error { background: color-mix(in srgb, #f87171 16%, transparent); border-color: color-mix(in srgb, #f87171 42%, transparent); color: #fca5a5; }
+html.dark .duo-banner-warn  { background: color-mix(in srgb, #fbbf24 16%, transparent); border-color: color-mix(in srgb, #fbbf24 42%, transparent); color: #fcd34d; }
+html.dark .duo-banner-ok    { background: color-mix(in srgb, #34d399 16%, transparent); border-color: color-mix(in srgb, #34d399 42%, transparent); color: #6ee7b7; }
 .duo-banner-info  { background: color-mix(in srgb, #0284c7 12%, transparent); border-color: color-mix(in srgb, #0284c7 42%, transparent); color: #075985; }
-[data-theme="dark"] .duo-banner-info  { background: color-mix(in srgb, #38bdf8 16%, transparent); border-color: color-mix(in srgb, #38bdf8 42%, transparent); color: #7dd3fc; }
+html.dark .duo-banner-info  { background: color-mix(in srgb, #38bdf8 16%, transparent); border-color: color-mix(in srgb, #38bdf8 42%, transparent); color: #7dd3fc; }
 .duo-text-error { color: #b91c1c; }
 .duo-text-warn  { color: #b45309; }
 .duo-text-ok    { color: #047857; }
 .duo-text-info  { color: #0369a1; }
-[data-theme="dark"] .duo-text-error { color: #fca5a5; }
-[data-theme="dark"] .duo-text-warn  { color: #fcd34d; }
-[data-theme="dark"] .duo-text-ok    { color: #6ee7b7; }
-[data-theme="dark"] .duo-text-info  { color: #7dd3fc; }
+html.dark .duo-text-error { color: #fca5a5; }
+html.dark .duo-text-warn  { color: #fcd34d; }
+html.dark .duo-text-ok    { color: #6ee7b7; }
+html.dark .duo-text-info  { color: #7dd3fc; }
 
 /* Sprint 11 — SuggestionPopover (`[[` wikilink, `@` mention).
    Mounted via React Portal to <body>; absolute-positioned via
@@ -1648,20 +1648,20 @@ html.dark {
   margin-top: 4px;
 }
 
-[data-theme="dark"] .duo-suggestion-popover {
+html.dark .duo-suggestion-popover {
   background: #2b2823;
   border-color: #44403a;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
-[data-theme="dark"] .duo-suggestion-item { color: #e8e0cb; }
-[data-theme="dark"] .duo-suggestion-item:hover,
-[data-theme="dark"] .duo-suggestion-item.is-active {
+html.dark .duo-suggestion-item { color: #e8e0cb; }
+html.dark .duo-suggestion-item:hover,
+html.dark .duo-suggestion-item.is-active {
   background: #44403a;
 }
-[data-theme="dark"] .duo-suggestion-relpath { color: #9a9080; }
-[data-theme="dark"] .duo-suggestion-empty,
-[data-theme="dark"] .duo-suggestion-more { color: #9a9080; }
-[data-theme="dark"] .duo-suggestion-more { border-top-color: #44403a; }
+html.dark .duo-suggestion-relpath { color: #9a9080; }
+html.dark .duo-suggestion-empty,
+html.dark .duo-suggestion-more { color: #9a9080; }
+html.dark .duo-suggestion-more { border-top-color: #44403a; }
 
 /* Sprint 11 ENH-096 B.4 — VaultQuickSwitcher (⌘O overlay).
    Mirrors TabSearchPalette's visual register but sources from the
@@ -1749,20 +1749,20 @@ html.dark {
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
 }
 
-[data-theme="dark"] .duo-qs-shell {
+html.dark .duo-qs-shell {
   background: #2b2823;
   border-color: #44403a;
 }
-[data-theme="dark"] .duo-qs-header,
-[data-theme="dark"] .duo-qs-footer { border-color: #44403a; }
-[data-theme="dark"] .duo-qs-input { color: #e8e0cb; }
-[data-theme="dark"] .duo-qs-input::placeholder { color: #9a9080; }
-[data-theme="dark"] .duo-qs-item { color: #e8e0cb; }
-[data-theme="dark"] .duo-qs-item:hover,
-[data-theme="dark"] .duo-qs-item.is-active { background: #44403a; }
-[data-theme="dark"] .duo-qs-relpath,
-[data-theme="dark"] .duo-qs-empty,
-[data-theme="dark"] .duo-qs-footer { color: #9a9080; }
+html.dark .duo-qs-header,
+html.dark .duo-qs-footer { border-color: #44403a; }
+html.dark .duo-qs-input { color: #e8e0cb; }
+html.dark .duo-qs-input::placeholder { color: #9a9080; }
+html.dark .duo-qs-item { color: #e8e0cb; }
+html.dark .duo-qs-item:hover,
+html.dark .duo-qs-item.is-active { background: #44403a; }
+html.dark .duo-qs-relpath,
+html.dark .duo-qs-empty,
+html.dark .duo-qs-footer { color: #9a9080; }
 
 /* ENH-224 — the merged Open bar (duo-ob-*) extends the duo-qs shell. */
 .duo-ob-header {
@@ -1869,20 +1869,20 @@ html.dark {
 }
 .duo-ob-clear:hover { color: var(--ink, #2b2620); }
 
-[data-theme="dark"] .duo-ob-browse {
+html.dark .duo-ob-browse {
   background: #2b2823;
   border-color: #44403a;
   color: #e8e0cb;
 }
-[data-theme="dark"] .duo-ob-hint,
-[data-theme="dark"] .duo-ob-choice-desc { color: #b8ae9c; }
-[data-theme="dark"] .duo-ob-choice {
+html.dark .duo-ob-hint,
+html.dark .duo-ob-choice-desc { color: #b8ae9c; }
+html.dark .duo-ob-choice {
   background: #322e28;
   border-color: #44403a;
 }
-[data-theme="dark"] .duo-ob-choice-title { color: #e8e0cb; }
-[data-theme="dark"] .duo-ob-clear { color: #9a9080; }
-[data-theme="dark"] .duo-ob-clear:hover { color: #e8e0cb; }
+html.dark .duo-ob-choice-title { color: #e8e0cb; }
+html.dark .duo-ob-clear { color: #9a9080; }
+html.dark .duo-ob-clear:hover { color: #e8e0cb; }
 
 /* ENH-224 Phase 1 — the "open just this doc" checkout progress / error panel. */
 .duo-ob-checkout {
@@ -1928,9 +1928,9 @@ html.dark {
   animation: duo-ob-spin 0.8s linear infinite;
 }
 @keyframes duo-ob-spin { to { transform: rotate(360deg); } }
-[data-theme="dark"] .duo-ob-checkout { color: #e8e0cb; }
-[data-theme="dark"] .duo-ob-checkout code { background: #1f1c18; }
-[data-theme="dark"] .duo-ob-checkout-msg { color: #b8ae9c; }
+html.dark .duo-ob-checkout { color: #e8e0cb; }
+html.dark .duo-ob-checkout code { background: #1f1c18; }
+html.dark .duo-ob-checkout-msg { color: #b8ae9c; }
 
 /* ─────────────────────────────────────────────────────────────────────
    ENH-210 — faint "you-are-here" pill on the active surface's project
