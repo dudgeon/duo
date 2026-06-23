@@ -19,7 +19,15 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.12.0 cut 2026-06-23.
+> Empty — v0.12.1 cut 2026-06-23.
+
+## [0.12.1] — 2026-06-23 — Expressive in-vault OKF listings (the `listing:` spec)
+
+### Added
+- **Expressive in-vault OKF listings — the `listing:` frontmatter spec (ENH-230).** An OKF vault's root `index.md` can carry a `listing:` base spec in its frontmatter (same schema as a `.base` — `filters` / `formulas` / `views`); on `duo vault publish` the index body renders through the **same rollup engine** the `.base` / `duo rollup` paths use — grouping, filters, `if()`/date formula chips, summaries, and rel-md entity links (each row links the note it rolls up) — instead of the flat group-by-`type` default. Opt-in and back-compatible: no `listing:` key → byte-identical default; the spec lives in frontmatter (byte-preserved on publish), so the `okf_version` marker is untouched.
+
+### Changed
+- **`duo vault publish` now reports why a `listing:` spec was ignored.** An *authored* but unusable spec falls back to the group-by-`type` default AND says so — a `warnings[]` field on the JSON result plus a `duo: warning — …` line on stderr — instead of failing silently. A bad *expression* inside a usable spec still degrades to a ⚠ cell (warn-and-render), never a failed publish.
 
 ## [0.12.0] — 2026-06-23 — Vault rollups: Markdown or HTML, entity links, change summaries
 

@@ -1038,7 +1038,7 @@
   <div>
     <h3>Set up a vault and capture notes into it</h3>
     <p class="why">Spin up a ready-to-use vault in one command — Claude scaffolds <code>.obsidian/</code>, starter templates for the everyday types (person, initiative, milestone, meeting, theme — each with its filing rule baked in), an <code>inbox/</code>, a processing dashboard, and a README. Then capture is friction-free: a thought becomes a timestamped note in the inbox (untyped by default — a later processing pass files and links it), or a templated note when you name the type. The whole thing is just files: it opens in Obsidian, syncs over git, and survives Duo entirely.</p>
-    <p class="how"><strong>CLI / agent</strong><code>duo vault init ~/work/notes --format=okf</code> scaffolds it (<code>--format</code> is required on the CLI; the fresh vault becomes your default unless <code>--no-default</code>); <code>duo vault capture --text "note from the pricing sync…"</code> drops an inbox note (add <code>--template meeting</code> to stamp a type, <code>--open</code> to open it). For an OKF vault, <code>duo vault publish</code> (re)generates static <code>index.md</code>/<code>log.md</code> listings, and <code>duo vault promote</code> splits a <code>## section</code> into its own typed entity. <strong>UI</strong>File ▸ <strong>New Vault…</strong> (OKF default) scaffolds with a dialog; press <strong>⇧⌘N</strong> for quick-capture into your default vault (Settings → Default Vault; falls back to the active file's vault), opened + focused.</p>
+    <p class="how"><strong>CLI / agent</strong><code>duo vault init ~/work/notes --format=okf</code> scaffolds it (<code>--format</code> is required on the CLI; the fresh vault becomes your default unless <code>--no-default</code>); <code>duo vault capture --text "note from the pricing sync…"</code> drops an inbox note (add <code>--template meeting</code> to stamp a type, <code>--open</code> to open it). For an OKF vault, <code>duo vault publish</code> (re)generates static <code>index.md</code>/<code>log.md</code> listings — add a <code>listing:</code> base spec to the root <code>index.md</code> frontmatter (ENH-230) to drive that index through the rollup engine instead (grouping, filter chips, each row linking its note) — and <code>duo vault promote</code> splits a <code>## section</code> into its own typed entity. <strong>UI</strong>File ▸ <strong>New Vault…</strong> (OKF default) scaffolds with a dialog; press <strong>⇧⌘N</strong> for quick-capture into your default vault (Settings → Default Vault; falls back to the active file's vault), opened + focused.</p>
   </div>
 </article>
 
@@ -1324,7 +1324,7 @@
 </article>
 
 <footer>
-  <p>This is Duo v0.12.0. Last updated 2026-06-23. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
+  <p>This is Duo v0.12.1. Last updated 2026-06-23. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
   <p style="margin-top:6px; color: var(--ink-ghost); font-size: 11px;">Find an item that should be here? Tell Claude — the cut-version skill updates this file with each release.</p>
 </footer>
 

@@ -3,6 +3,22 @@
 > Closed entries (✅ shipped / ❌ won't-do / 🟢 done) split out of [`tasks.md`](tasks.md) on 2026-05-31 (ENH-191 / D1) to keep the live backlog lean. **Open work lives in [tasks.md](tasks.md).** Section headers mirror the original; the cut-version skill appends newly-closed entries here.
 
 
+## v0.12.1 — Expressive in-vault OKF listings (shipped 2026-06-23)
+
+### ENH-230: OKF in-vault listing convergence — `index.md` driven by the base engine (opt-in `listing:` spec)
+
+**Status:** ✅ Shipped v0.12.1 (2026-06-23) — PR [#107](https://github.com/dudgeon/duo/pull/107) (`d8e4f9f`). **Priority:** P2 (closes the in-vault arm of ENH-229's problem statement). **Effort:** M. **PRD:** [docs/prd/enh-230-okf-listing-convergence.md](docs/prd/enh-230-okf-listing-convergence.md). **Depends on / extends:** ENH-229 (portable `duo rollup` artifact), ENH-216 D8 (OKF static listings).
+
+**Provenance.** Owner (2026-06-23), reviewing the Obsidian-vs-OKF rollup asymmetry: *"the rollup mechanism for obsidian vs OKF vaults is different… is this true? What are some pragmatic options that reduce overall complexity (and don't just move it)… optimize for vaults being expressive, flexible, and non-brittle."* Investigation confirmed the asymmetry is **not** in querying — `core/vault/engine.ts` + `render.ts` are format-agnostic and `parseLinkish` already folds OKF rel-md links — but in `core/vault/listings.ts`, a **parallel, less-expressive** generator (`generateIndex` groups by `type` only) that shares nothing with the engine. The intrinsic split is *live-at-rest (Obsidian, via its app) vs materialized-at-rest (OKF, plain md)*; Obsidian's `.base` gives Duo a *file convention*, not rendering infra (Duo wrote `engine.ts` from scratch).
+
+**The change.** Made the OKF root `index.md` listing **query-driven through the one shared engine**, opt-in and back-compatible:
+- An OKF root `index.md` may carry a **`listing:` base spec in its frontmatter** (same schema as a `.base`: `filters` / `formulas` / `views`). When present, `duo vault publish` evaluates it via `evaluateBaseDef` + serializes through the existing `render-markdown.ts` (`engineIndexBody` in `listings.ts`), splicing the markdown below the `<!-- duo:listing -->` fence — grouping, filters, formula chips, rel-md entity links.
+- **No `listing:` spec → unchanged.** Falls back to `generateIndex` (group-by-`type` bullets) byte-for-byte. The frontmatter byte-preserve splice contract is untouched, so existing vaults publish identically until someone authors a spec.
+- `log.md` stays bespoke (date-grouped by mtime). The generated stamp gained a `· regenerate: duo vault publish` hint.
+- Malformed `listing:` spec → **warn-and-render**: a bad expression degrades to ⚠ cells (never throws); an authored-but-unusable spec falls back to `generateIndex` AND now reports *why* via a `warnings[]` field on the `writeListings` result + a `duo: warning — …` stderr line (review-pass hardening — was silent).
+
+**Review-pass hardening (this cut).** The original PR landed the feature; the review added the non-silent `warnings[]` channel, +4 tests (engine-path idempotence, warn-and-render ⚠ cell, authored-unusable warns, no-key default silent), synced the additive `warnings[]` output field across the three CLI-surface doc tables (`CLI-COVERAGE.md` / `agents/duo.md` / `cli-reference.md`), and realigned `package-lock.json` 0.11.2→0.12.1. An independent 4-lens adversarial panel returned unanimous merge / 0 blockers. 233 vault tests / 1934 total green; typecheck clean; `check:skill-currency` PASS (no new verb); verified end-to-end through the rebuilt `cli/duo`.
+
 ## v0.11.2 — File history + worktree UX + scheduled sessions + GitHub round-trip (shipped 2026-06-22)
 
 ### ENH-221: Durable file version history (undo/save-state safety net independent of autosave)
