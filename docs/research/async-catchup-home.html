@@ -80,6 +80,12 @@ details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(
 
 /* ── Per-playground styles ───────────────────────────────────────────── */
 
+/* Locked-decisions banner */
+.lockbar { background: color-mix(in srgb,var(--pass) 9%,var(--paper)); border: 1.5px solid color-mix(in srgb,var(--pass) 35%,var(--paper-rule)); border-radius: 6px; padding: 12px 16px; margin: 0 0 22px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.6; }
+.lockbar strong { color: var(--pass); }
+.lockbar .lk { display: block; margin-top: 3px; }
+.lockbar .lk b { color: var(--ink); font-weight: 600; }
+
 /* The prototype "app frame" — a dark-edged surface that reads as the
    running app, distinct from the cream research paper around it. */
 .proto-frame {
@@ -250,6 +256,15 @@ details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(
   opens.</strong>
 </div>
 
+<div class="lockbar">
+  <strong>Decisions locked — 2026-06-23.</strong>
+  <span class="lk"><b>Direction:</b> build as a sibling Home mode (toggle Projects ↔ Catch-up).</span>
+  <span class="lk"><b>v1 fields:</b> goal + your-last-instruction · next-steps (todos) · files · artifact chips.</span>
+  <span class="lk"><b>Narrative:</b> agent self-narration (<code>duo session note/next</code>) + snippet fallback.</span>
+  <span class="lk"><b>Hydration:</b> materialize the digest on the Stop hook.</span>
+  <span class="lk">Tracked as <b>ENH-231</b> → PRD <code>docs/prd/enh-231-async-catchup-home.md</code>.</span>
+</div>
+
 <!-- ════════════════════════ THE PROTOTYPE ════════════════════════ -->
 <h2>The prototype — a commingled catch-up timeline</h2>
 <p>Interactive mock with eight sessions across four repos, interleaved by last activity. Click the
@@ -297,7 +312,7 @@ under discussion, not final visual design.</p>
           <span class="scard-age">14m ago</span>
         </div>
         <div class="scard-body">
-          <div class="line"><span class="lbl">Last said</span><span class="val">“Migrate the events, but keep v1 emitting in parallel.”</span></div>
+          <div class="line"><span class="lbl">You asked</span><span class="val">“Migrate the events, but keep v1 emitting in parallel.”</span></div>
           <div class="line"><span class="lbl">Waiting</span><span class="val"><span class="q">Q: Should deprecated <code>page_view</code> events map to <code>screen.viewed</code> or be dropped? I paused before touching 40 call-sites.</span></span></div>
           <div class="line"><span class="lbl">Files</span><span class="val"><span class="file-chip">events/schema.ts</span><span class="file-chip">events/emit.ts</span><span class="file-chip">+3</span></span></div>
         </div>
@@ -319,7 +334,7 @@ under discussion, not final visual design.</p>
           <span class="scard-age">2m ago</span>
         </div>
         <div class="scard-body">
-          <div class="line"><span class="lbl">Last said</span><span class="val">“Find the race and make it deterministic — no arbitrary sleeps.”</span></div>
+          <div class="line"><span class="lbl">You asked</span><span class="val">“Find the race and make it deterministic — no arbitrary sleeps.”</span></div>
           <div class="line"><span class="lbl">Doing now</span><span class="val">Running the suite 50× to confirm the fix holds…</span></div>
           <div class="line"><span class="lbl">Next</span>
             <ul class="todos val">
@@ -347,7 +362,7 @@ under discussion, not final visual design.</p>
           <span class="scard-age">6m ago</span>
         </div>
         <div class="scard-body">
-          <div class="line"><span class="lbl">Last said</span><span class="val">“Rotate on every refresh and revoke the old token.”</span></div>
+          <div class="line"><span class="lbl">You asked</span><span class="val">“Rotate on every refresh and revoke the old token.”</span></div>
           <div class="line"><span class="lbl">Result</span><span class="val">Implemented rotation + revocation, added 7 tests (all green), opened <b>PR&nbsp;#214</b>.</span></div>
           <div class="line"><span class="lbl">Files</span><span class="val"><span class="file-chip">tokens/rotate.ts</span><span class="file-chip">tokens/revoke.ts</span><span class="file-chip">tokens/rotate.test.ts</span></span></div>
           <div class="line"><span class="lbl">Next</span><span class="val">Review PR&nbsp;#214 · CI passed</span></div>
@@ -370,7 +385,7 @@ under discussion, not final visual design.</p>
           <span class="scard-age">8m ago</span>
         </div>
         <div class="scard-body">
-          <div class="line"><span class="lbl">Last said</span><span class="val">“Heap grows ~20MB/hr in prod — find what's retained.”</span></div>
+          <div class="line"><span class="lbl">You asked</span><span class="val">“Heap grows ~20MB/hr in prod — find what's retained.”</span></div>
           <div class="line"><span class="lbl">Doing now</span><span class="val">Diffing two heap snapshots; suspects an unbounded listener map.</span></div>
           <div class="line"><span class="lbl">Files</span><span class="val"><span class="file-chip">pool/scheduler.ts</span><span class="file-chip">pool/events.ts</span></span></div>
         </div>
@@ -388,7 +403,7 @@ under discussion, not final visual design.</p>
           <span class="scard-age">52m ago</span>
         </div>
         <div class="scard-body">
-          <div class="line"><span class="lbl">Last said</span><span class="val">“Bump React and fix whatever breaks.”</span></div>
+          <div class="line"><span class="lbl">You asked</span><span class="val">“Bump React and fix whatever breaks.”</span></div>
           <div class="line"><span class="lbl">Stopped on</span><span class="val"><span class="q">Build fails: <code>react-beautiful-dnd</code> is incompatible and unmaintained. Needs a decision — swap library or pin React 18.</span></span></div>
           <div class="line"><span class="lbl">Files</span><span class="val"><span class="file-chip">package.json</span><span class="file-chip"><span class="conflict">⚠</span> Board.tsx</span></span></div>
         </div>
@@ -485,7 +500,7 @@ you were out. The surface is your <em>standup</em>. These are the features that 
 <h3>B · The session briefing card</h3>
 <div class="feat-grid">
   <div class="feat"><h4><span class="ix">B1</span> Goal line</h4><p>The original ask, one line — "what was this session <em>for</em>?" The top-of-mind reminder the persona names first.</p><p class="needs"><b>Needs:</b> the session's first instruction.</p></div>
-  <div class="feat"><h4><span class="ix">B2</span> Most-recent instruction</h4><p>"What did I last tell it?" — distinct from the goal; the latest steer.</p><p class="needs"><b>Needs:</b> the last human turn.</p></div>
+  <div class="feat"><h4><span class="ix">B2</span> Your most-recent instruction</h4><p>"What did <em>I</em> last tell it?" — distinct from the goal; the latest steer, attributed to you (the card labels it <em>"You asked"</em> so it's never confused with the agent's own line).</p><p class="needs"><b>Needs:</b> the last human turn.</p></div>
   <div class="feat"><h4><span class="ix">B3</span> File(s) in flight</h4><p>What the session is touching right now — the persona's literal ask. Chips, basename only.</p><p class="needs"><b>Needs:</b> the set of files edited this session.</p></div>
   <div class="feat"><h4><span class="ix">B4</span> Next steps</h4><p>The agent's own plan for what's left — the single most valuable re-entry cue.</p><p class="needs"><b>Needs:</b> the agent's todo list / stated plan.</p></div>
   <div class="feat"><h4><span class="ix">B5</span> "What happened" narrative</h4><p>One sentence of story: what it actually did since you left. The hardest field — pure summarization.</p><p class="needs"><b>Needs:</b> a written summary (inference).</p></div>
