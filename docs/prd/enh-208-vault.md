@@ -138,7 +138,7 @@ Each verb: 4-surface sync + CLI-COVERAGE row + what-duo-does entry (owner direct
 
 **A step-by-step, illustrated guide covering every primitive end-to-end** — the owner-mandated artifact for learning and reference, built **in Phase 1**(not after), because the skill-first slice succeeds only if the habit forms.
 
-- **Form:** one scrolling Atelier HTML page, `docs/guide/vault-guide.html`(duo-openable; linked from `what-duo-does.html`). Visual language reuses the intent playground's proven components: anatomy diagrams (`pre.diagram`), actor-coded lifecycle lanes (YOU / CLAUDE / SCRIPT / FILES), 3-step flow mocks, rendered-rollup mocks.
+- **Form:** one scrolling Atelier HTML page, `skill/references/vault-guide.html` (moved here from `docs/guide/` in ENH-228 so it ships in the DMG with the skill; duo-openable at `~/.claude/skills/duo/references/vault-guide.html`; linked from `what-duo-does.html`). Visual language reuses the intent playground's proven components: anatomy diagrams (`pre.diagram`), actor-coded lifecycle lanes (YOU / CLAUDE / SCRIPT / FILES), 3-step flow mocks, rendered-rollup mocks.
 - **Chapters (one per primitive, each = steps × actors + at least one visual):**
    1. What a vault is — anatomy diagram (P1)
    2. Establishing a vault & setting the default — init lifecycle lanes (P1)

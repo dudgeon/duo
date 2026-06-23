@@ -407,10 +407,37 @@ it a <em>transclusion</em>) — reversible by inlining the embed. It's a skill c
 <!-- ── 9 ───────────────────────────────────────────── -->
 <section id="ch9">
 <h2><span class="chno">9</span>Generating a rollup</h2>
-<p>A <strong>rollup</strong> is a view computed from frontmatter — "open milestones for this
-initiative, grouped by owner, with a due chip." Duo uses plain Obsidian
-<a href="https://help.obsidian.md/bases">Bases</a> (<code>.base</code> files + embedded blocks), so the
-same view renders in Obsidian too.</p>
+<p>A <strong>rollup</strong> is a view computed from frontmatter — "open tasks for this
+initiative, grouped by status, with an owner + due chip." <strong>How you build one depends on
+your vault's mode</strong> (chapter 3): the two formats surface rollups <em>differently</em>, so the
+first step is always to check which mode you're in — <code>duo vault list</code> /
+<code>duo vault schema</code>. <strong>Both ship today</strong>; don't reach for one mechanism in the
+other format's vault.</p>
+<div class="option-cards">
+  <div class="option-card"><h4>OKF mode — the default</h4>
+    <p><strong>There are no <code>.base</code> files in an OKF vault.</strong> Rollups are
+    <strong>generated static listings</strong>: <code>duo vault publish</code> rebuilds the root
+    <code>index.md</code> (a section per <code>type</code>, then <code>* [Title](rel) — description</code>
+    bullets) and <code>log.md</code> (dated, newest-first) straight from your notes' frontmatter — and
+    they render natively on GitHub. Re-run it whenever notes change; <code>--dir</code> adds per-folder
+    indexes. This is the right answer for "list every note of <code>type: task</code>."</p>
+    <p class="verb">duo vault publish --open</p></div>
+  <div class="option-card"><h4>Obsidian mode</h4>
+    <p>Rollups are live <a href="https://help.obsidian.md/bases">Bases</a> (<code>.base</code> files +
+    embedded blocks) rendered to a stamped HTML artifact via <code>duo base render</code> — the loop
+    below. The same view also opens in Obsidian.</p>
+    <p class="verb">duo base render &lt;note&gt; --open</p></div>
+</div>
+<div class="takeaway"><strong>Need a richer computed view in an OKF vault?</strong> — grouped by an
+arbitrary field, status chips, or a per-entity <code>… == this</code> filter (things the static
+listings don't do) — you can still author a <code>.base</code> and <code>duo base render</code> it: the
+renderer is <em>not</em> mode-gated, so it produces a stamped HTML artifact in <code>out/</code> even in
+an OKF vault. That artifact just isn't the GitHub-native listing (it's HTML in <code>out/</code>, not
+markdown). Use <code>duo vault publish</code> for the portable listing; add a rendered <code>.base</code>
+when you need the computed extras. <strong>Either way the vault IS Duo-ready — no separate
+"integration" to set up.</strong></div>
+<p>The lifecycle below is the <strong>Obsidian-mode <code>.base</code></strong> path (and the OKF
+<code>.base</code>-for-extras path above):</p>
 <div class="lifecycle">
   <div class="lstep"><span class="who you">YOU</span><div class="what">describe the view in prose</div></div>
   <div class="larrow">↓</div>
@@ -485,12 +512,14 @@ the same property that lets it run unattended on a schedule later.</div>
 
 <footer>
   The Vault Guide · ENH-208 Phases 1–2 + ENH-216 OKF mode. Built alongside the verbs and the
-  <code>references/vault.md</code> skill, from one source of truth. Open it any time with
-  <code>duo open docs/guide/vault-guide.html</code>. Phase 2 shipped the capture UX (Settings →
+  <code>references/vault.md</code> skill, from one source of truth. It ships with the skill — open it
+  any time with <code>duo open ~/.claude/skills/duo/references/vault-guide.html</code>. Phase 2 shipped the capture UX (Settings →
   Default Vault, ⇧⌘N quick-capture, <code>@today</code> tokens, ⌘⇧F search, the type-picker);
   ENH-216 added <strong>OKF mode</strong> (chapter 3) — a second at-rest serializer over the same
   graph, writing GitHub-portable markdown links + slug filenames, with auto-relink on vault open.
-  Phase 3 brings rollups rendered inside the app.
+  <strong>Rollups ship today</strong> — OKF static listings via <code>duo vault publish</code> and
+  Obsidian <code>.base</code> views via <code>duo base render</code> (chapter 9); Phase 3 adds in-app
+  <em>live</em> re-rendering on focus, not rollups themselves.
 </footer>
 
 </body>

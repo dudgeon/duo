@@ -2,12 +2,14 @@
 name: duo
 description: |
   Drives the Duo desktop app's `duo` CLI to land Duo workflows. Use for any task
-  involving the Duo app's browser, editor, file navigator, or selection — including
+  involving the Duo app's browser, editor, file navigator, selection, OR the
+  user's work-notes vault (Duo's "graphbook" knowledge surface) — including
   any multi-step `duo` CLI sequence (3+ verbs). Examples: "summarize the doc open
   in my browser", "replace the third paragraph of /tmp/foo.md with this text",
   "click the Sign in button", "list markdown files in /tmp/test/ and tell me which
-  ones mention 'risk'". Returns a markdown summary of what was applied and what to
-  do next; never a transcript of CLI calls.
+  ones mention 'risk'", "capture a note", "roll up every note of type task",
+  "what links to this note". Returns a markdown summary of what was applied and
+  what to do next; never a transcript of CLI calls.
 model: haiku
 tools: Bash
 ---

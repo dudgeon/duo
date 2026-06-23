@@ -1,6 +1,6 @@
 ---
 name: duo
-description: Work with whatever is open in Duo — the browser pane, the markdown editor and the user's selection, the file navigator, the HTML canvas — by driving the `duo` CLI. Use when the user references Duo's surfaces, asks to read or transform what's open or selected, open a local file, drive Google Docs / Sheets / Figma / Notion live, or build an interactive page or playground.
+description: Work with whatever is open in Duo — the browser pane, the markdown editor and the user's selection, the file navigator, the HTML canvas — and the user's work-notes vault (Duo's "graphbook" knowledge surface) — by driving the `duo` CLI. Use when the user references Duo's surfaces, asks to read or transform what's open or selected, open a local file, drive Google Docs / Sheets / Figma / Notion live, build an interactive page or playground, OR work with their knowledge vault / notes — capturing notes, filing or linking by type, querying the link graph (backlinks / orphans), or building rollup views (a saved query over note frontmatter — e.g. "roll up all my open tasks", "list every note of type X", "what links here").
 ---
 
 # duo — driving Duo's live surfaces from a terminal
@@ -13,6 +13,14 @@ the **HTML canvas**. When the user says "summarize the doc open in my
 browser", "shorten the selected paragraph", "add a bullet to the risks
 section", "open this PRD", "show me a quick prototype" — reach for `duo`.
 It is the only tool that touches those live surfaces.
+
+It also drives the user's **work-notes vault** — a folder of markdown +
+frontmatter notes that Duo treats as a typed knowledge graph (the product
+name is **"graphbook"**; the internal/CLI name is **"vault"**). When the
+user says "capture a note", "file this under type X", "what links to this
+note", or **"roll up all my open tasks"** — that's the vault, driven by the
+`duo vault` / `graph` / `base` verbs. See [Working with the vault
+(graphbook)](#working-with-the-vault-graphbook) below.
 
 This file is a **router**: the short, always-read hub. The full verb
 inventory and the deep workflow patterns live one level deep under
@@ -29,6 +37,7 @@ inventory and the deep workflow patterns live one level deep under
 - [Most-used verbs](#most-used-verbs)
 - [open vs edit — the verb cheat sheet](#open-vs-edit--the-verb-cheat-sheet)
 - [Always --reveal after you CREATE something](#always---reveal-after-you-create-something)
+- [Working with the vault (graphbook)](#working-with-the-vault-graphbook)
 - [Going deeper](#going-deeper)
 - [Version](#version)
 
@@ -195,6 +204,69 @@ reasonable ratio) — cheap to over-use, expensive to forget. **Default for
 any "make me X" request:** scaffold the file, then open with `--reveal`.
 The user shouldn't have to ask "where did it go?"
 
+## Working with the vault (graphbook)
+
+The user's **vault** is a folder of markdown notes with YAML frontmatter,
+treated as a typed link graph. Product name: **graphbook**. CLI/internal
+name: **vault**. What you can do from the CLI (all verbs read the
+filesystem directly — no running app needed):
+
+| Want to… | Verb |
+|---|---|
+| see the live schema (types, entities, props, enums) | `duo vault schema` |
+| drop an inbox note | `duo vault capture [--template t] [--text …]` |
+| create a typed entity | `duo vault stub <type> <name>` |
+| full-text search | `duo vault search <query>` |
+| find what links to a note / dangling notes | `duo graph backlinks <note>` · `duo graph orphans` |
+| **build a rollup view** (a saved query over frontmatter) | `duo base lint` + `duo base render` (Obsidian mode) · `duo vault publish` (OKF mode) |
+| move/rename a note without breaking links | `duo vault mv <from> <to>` |
+
+**Vocabulary — read this first (it's the usual stumbling block):**
+- The typing key is **`type:`** in frontmatter, **not `class:`**. "Notes of
+  class task" means notes with `type: task`. A rollup of tasks filters
+  `type == "task"`.
+- A **rollup** is a saved view computed from frontmatter. There are **two
+  mechanisms, chosen by the vault's format** (run `duo vault list` /
+  `duo vault schema` to see which you're in):
+  - **Obsidian mode** → live **`.base`** files (Obsidian Bases YAML),
+    rendered with `duo base render`.
+  - **OKF mode** → **static listings** (`index.md` / `log.md`)
+    (re)generated with `duo vault publish`. OKF vaults have **no `.base`
+    files** — don't author one there.
+
+### Authoring a rollup — the loop
+
+A **rollup** is a view computed from frontmatter. The loop:
+
+1. **Understand the ask** in prose ("open tasks for this initiative, grouped
+   by owner, with a due chip").
+2. **Get the corpus**: `duo vault schema`. It tells you the real type names,
+   entity names, and observed enum values — write the view against *those*,
+   not guesses. (This is also where you confirm the typing key is `type:`.)
+3. **In Obsidian mode — write the `.base`** (Obsidian Bases YAML):
+   - vault-wide → a file in `bases/`.
+   - per-entity → an embedded ` ```base ` block in the **type template**
+     with a `… == this` filter (e.g. `initiative == this`), so **every**
+     entity of that type inherits the rollup with zero per-note setup — the
+     headline pattern.
+4. **Lint until clean**: `duo base lint <file>` (or `--all`) — flags bad
+   types, unresolved `[[entities]]`, off-enum values, unknown functions,
+   each with a "did you mean". Advisory, never blocks; fix, then render.
+5. **Render**: `duo base render <file|note> --open` evaluates it over live
+   frontmatter and opens the result as a tab.
+
+**In OKF mode there are no `.base` files** — instead `duo vault publish`
+(re)generates the static `index.md` (a section per type) + `log.md` from the
+corpus. Same intent ("show me all the X"), different mechanism.
+
+The render engine is a **locked subset** of Obsidian Bases (filters,
+`if()`, link `== this`, date math, `groupBy`, summaries, child→parent
+backlink rollups); stay inside what `duo base lint` accepts. Presentation
+(table/cards/list) is Duo-owned — shape a cell only via `html()` / `icon()`
+formulas, never hand-authored HTML. Full detail, the OKF/Obsidian format
+differences, filing rules, and the processing pass are in
+[references/vault.md](references/vault.md).
+
 ## Going deeper
 
 Each pointer loads a complete file — open the one that matches your task.
@@ -250,7 +322,8 @@ Each pointer loads a complete file — open the one that matches your task.
   (re)generates the static
   `index.md` + `log.md` listings; `duo vault promote` splits a section into
   its own entity, leaving a markdown link. The end-user walkthrough with
-  diagrams is `docs/guide/vault-guide.html` (`duo open` it).
+  diagrams ships with this skill — open it with `duo open
+  ~/.claude/skills/duo/references/vault-guide.html`.
 
 **Install, environment & house style**
 - [references/install-troubleshooting.md](references/install-troubleshooting.md)
