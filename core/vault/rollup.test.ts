@@ -34,6 +34,14 @@ describe('ENH-229 rollup core — snapshot + summary embedding', () => {
     expect(extractSnapshot('no markers here')).toBeNull()
   })
 
+  it('embedded comment survives values containing --> / </style> (no early termination)', () => {
+    const s = snap([{ key: 'notes/x.md', title: 'danger --> here </style> <b>' }])
+    const comment = snapshotComment(s)
+    // the ONLY "-->" is the real terminator at the very end
+    expect(comment.indexOf('-->')).toBe(comment.length - 3)
+    expect(extractSnapshot('body ' + comment + ' tail')).toEqual(s)
+  })
+
   it('prependSummary is newest-first and capped', () => {
     let log = [] as { date: string; text: string }[]
     for (let i = 0; i < 15; i++) log = prependSummary(log, { date: 'd' + i, text: 't' + i })

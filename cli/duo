@@ -4297,11 +4297,14 @@ var SNAPSHOT_OPEN = "<!--duo:rollup-snapshot ";
 var SUMMARY_OPEN = "<!--duo:rollup-summary ";
 var CLOSE = "-->";
 var HISTORY_CAP = 12;
+function commentSafeJson(obj) {
+  return JSON.stringify(obj).replace(/</g, "\\u003c").replace(/>/g, "\\u003e");
+}
 function snapshotComment(snap) {
-  return SNAPSHOT_OPEN + JSON.stringify(snap) + CLOSE;
+  return SNAPSHOT_OPEN + commentSafeJson(snap) + CLOSE;
 }
 function summaryLogComment(log) {
-  return SUMMARY_OPEN + JSON.stringify(log) + CLOSE;
+  return SUMMARY_OPEN + commentSafeJson(log) + CLOSE;
 }
 function extractJson(content, open) {
   const start = content.indexOf(open);

@@ -49,13 +49,21 @@ const SUMMARY_OPEN = '<!--duo:rollup-summary '
 const CLOSE = '-->'
 const HISTORY_CAP = 12
 
+/** JSON for embedding inside an HTML comment: escape `<`/`>` to their `\uXXXX`
+ *  forms (still valid JSON, decoded back by JSON.parse) so a cell value or
+ *  summary containing `-->` or `</script>` can't terminate the comment early
+ *  and corrupt the artifact + the next diff. */
+function commentSafeJson(obj: unknown): string {
+  return JSON.stringify(obj).replace(/</g, '\\u003c').replace(/>/g, '\\u003e')
+}
+
 /** Serialize the embedded snapshot comment (goes at the end of the artifact). */
 export function snapshotComment(snap: RollupSnapshot): string {
-  return SNAPSHOT_OPEN + JSON.stringify(snap) + CLOSE
+  return SNAPSHOT_OPEN + commentSafeJson(snap) + CLOSE
 }
 /** Serialize the embedded summary-log comment. */
 export function summaryLogComment(log: SummaryEntry[]): string {
-  return SUMMARY_OPEN + JSON.stringify(log) + CLOSE
+  return SUMMARY_OPEN + commentSafeJson(log) + CLOSE
 }
 
 function extractJson<T>(content: string, open: string): T | null {
