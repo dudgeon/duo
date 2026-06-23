@@ -24,7 +24,7 @@
 
 ### ENH-229: Mature OKF rollups — a rollup skill that renders MD or HTML, with entity links
 
-**Status:** 🚧 Design + artifact 2026-06-22 (PRD + template artifact this pass; code build to follow). **Priority:** P2 (owner-requested maturation of a shipped feature). **Effort:** L. **PRD:** [docs/prd/enh-229-rollup-maturity.md](docs/prd/enh-229-rollup-maturity.md). **Depends on:** ENH-228 (discoverability + shipped guide). **Ticket note:** allocated above this worktree's committed max (ENH-228); siblings ≤ ENH-228 — renumber on collision.
+**Status:** 🚧 **Phase 1 built + reviewed 2026-06-22** (MD/HTML variants + entity links + `duo rollup render`; commits `3d246ad`, `b4c2188`). 203/203 vault tests, typecheck clean, 4-reviewer adversarial pass applied, live-verified (OKF rel-md links resolve). **Phase 2 (change-summary + watch) staged** — not built. Not cut/merged. **Priority:** P2 (owner-requested maturation of a shipped feature). **Effort:** L. **PRD:** [docs/prd/enh-229-rollup-maturity.md](docs/prd/enh-229-rollup-maturity.md). **Depends on:** ENH-228 (discoverability + shipped guide). **Ticket note:** allocated above this worktree's committed max (ENH-228); siblings ≤ ENH-228 — renumber on collision.
 
 **Provenance.** Owner (2026-06-22), after the [ENH-228](#enh-228) live verification proved rollups work but OKF's native path is impoverished (groups by `type` only): *"I want to mature rollups."* Requirements (variant correction + change-summary added 2026-06-22):
 1. An OKF vault **rollup skill that ships with Duo**.
