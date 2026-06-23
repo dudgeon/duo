@@ -44,6 +44,21 @@ export interface RollupDiff {
   firstRun: boolean
 }
 
+/** An agent-visible HTML comment at the top of every rollup artifact, so a
+ *  fresh agent that opens the file understands what it is + how to regenerate
+ *  it (and not to hand-edit it). `>` is stripped from the target so it can't
+ *  terminate the comment. */
+export function rollupDocComment(target: string): string {
+  const t = String(target).replace(/[<>]/g, '')
+  return (
+    '<!-- Duo rollup (generated · ENH-229) — a view computed over this vault\'s note ' +
+    'frontmatter, NOT a hand-authored note. Regenerate with `duo rollup render ' +
+    t +
+    '` (do not hand-edit). The duo:rollup-snapshot / duo:rollup-summary comments below are ' +
+    'machine state for change-diffing (`duo rollup diff`). Docs: ~/.claude/skills/duo/references/rollup.md -->'
+  )
+}
+
 const SNAPSHOT_OPEN = '<!--duo:rollup-snapshot '
 const SUMMARY_OPEN = '<!--duo:rollup-summary '
 const CLOSE = '-->'

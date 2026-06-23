@@ -207,4 +207,47 @@ describe('ENH-229 phase 2 — snapshot + summary + style (render wiring)', () =>
       fs.rmSync(root, { recursive: true, force: true })
     }
   })
+
+  it('rollup artifacts carry the agent-visible doc comment in both formats', () => {
+    const root = mk()
+    try {
+      const r = renderTarget(root, 'bases/t.base', { asOf: AS_OF, embedSnapshot: true })
+      expect(r.md).toContain('Duo rollup (generated')
+      expect(r.html).toContain('Duo rollup (generated')
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('HTML Refresh carries a JSON-object data-payload {base} (parseActionFromAttrs requires JSON)', () => {
+    const root = mk()
+    try {
+      const r = renderTarget(root, 'bases/t.base', { asOf: AS_OF, embedSnapshot: true })
+      expect(r.html).toContain('data-payload="{&quot;base&quot;:&quot;bases/t.base&quot;}"')
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('MD rollup carries the duo:// refresh action link (url-encoded base)', () => {
+    const root = mk()
+    try {
+      const r = renderTarget(root, 'bases/t.base', { asOf: AS_OF, embedSnapshot: true })
+      expect(r.md).toContain('(duo://rollup/refresh?base=bases%2Ft.base)')
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('a non-rollup render (no embedSnapshot, i.e. base render) has no toolbar or doc comment', () => {
+    const root = mk()
+    try {
+      const r = renderTarget(root, 'bases/t.base', { asOf: AS_OF })
+      expect(r.html).not.toContain('data-rollup-copy')
+      expect(r.html).not.toContain('Duo rollup (generated')
+      expect(r.md).not.toContain('Duo rollup (generated')
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
 })

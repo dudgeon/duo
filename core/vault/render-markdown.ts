@@ -17,7 +17,7 @@ import {
   type EvaluatedView,
   type LinkCtx,
 } from './render'
-import { type SummaryEntry } from './rollup'
+import { rollupDocComment, type SummaryEntry } from './rollup'
 
 type Formulas = Record<string, unknown>
 type PropCfg = Record<string, { displayName?: string }>
@@ -238,6 +238,7 @@ export function assembleMarkdownPage(
     noteCount: number
     baseCount: number
     target: string
+    rollup?: boolean
     summaryLog?: SummaryEntry[]
     embedded?: string
   },
@@ -253,8 +254,13 @@ export function assembleMarkdownPage(
     '---',
     '',
   ].join('\n')
+  // ENH-229 — a refresh action link (inert outside Duo; clicked in Duo's editor
+  // it emits rollup:refresh). Only for rollups.
+  const refresh = meta.rollup ? '[↻ Refresh](duo://rollup/refresh?base=' + encodeURIComponent(meta.target) + ') · ' : ''
   const stamp =
-    '> **Build artifact** — regenerate: `duo rollup render ' +
+    '> **Build artifact** — ' +
+    refresh +
+    'regenerate: `duo rollup render ' +
     meta.target +
     ' --md` · source-hash `' +
     meta.sourceHash +
@@ -265,8 +271,10 @@ export function assembleMarkdownPage(
     ' notes, ' +
     meta.baseCount +
     ' base(s).'
+  // Agent-visible explainer at the top (after frontmatter so YAML still parses).
+  const doc = meta.rollup ? rollupDocComment(meta.target) + '\n\n' : ''
   const summary = summarySectionMd(meta.summaryLog ?? [])
-  const body = (summary ? summary + '\n\n' : '') + sections.join('\n\n') + '\n\n' + stamp
+  const body = doc + (summary ? summary + '\n\n' : '') + sections.join('\n\n') + '\n\n' + stamp
   const tail = meta.embedded ? '\n\n' + meta.embedded : ''
   return frontmatter + body + tail + '\n'
 }

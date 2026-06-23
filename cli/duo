@@ -2766,7 +2766,7 @@ function serializeWikilink(srcAbs, tgtAbs, display) {
 }
 
 // core/vault/parse.ts
-var SKIP_DIRS = /* @__PURE__ */ new Set([".obsidian", ".trash", "out", "templates"]);
+var SKIP_DIRS = /* @__PURE__ */ new Set([".obsidian", ".trash", "out", "rollups", "templates"]);
 function walk(dir, skip = SKIP_DIRS) {
   const acc = [];
   let entries;
@@ -4158,6 +4158,93 @@ function defaultAsOf() {
   return /* @__PURE__ */ new Date();
 }
 
+// core/vault/rollup.ts
+function rollupDocComment(target) {
+  const t = String(target).replace(/[<>]/g, "");
+  return "<!-- Duo rollup (generated \xB7 ENH-229) \u2014 a view computed over this vault's note frontmatter, NOT a hand-authored note. Regenerate with `duo rollup render " + t + "` (do not hand-edit). The duo:rollup-snapshot / duo:rollup-summary comments below are machine state for change-diffing (`duo rollup diff`). Docs: ~/.claude/skills/duo/references/rollup.md -->";
+}
+var SNAPSHOT_OPEN = "<!--duo:rollup-snapshot ";
+var SUMMARY_OPEN = "<!--duo:rollup-summary ";
+var CLOSE = "-->";
+var HISTORY_CAP = 12;
+function commentSafeJson(obj) {
+  return JSON.stringify(obj).replace(/</g, "\\u003c").replace(/>/g, "\\u003e");
+}
+function snapshotComment(snap) {
+  return SNAPSHOT_OPEN + commentSafeJson(snap) + CLOSE;
+}
+function summaryLogComment(log) {
+  return SUMMARY_OPEN + commentSafeJson(log) + CLOSE;
+}
+function extractJson(content, open) {
+  const start = content.indexOf(open);
+  if (start === -1) return null;
+  const from = start + open.length;
+  const end = content.indexOf(CLOSE, from);
+  if (end === -1) return null;
+  try {
+    return JSON.parse(content.slice(from, end).trim());
+  } catch {
+    return null;
+  }
+}
+function extractSnapshot(content) {
+  const snap = extractJson(content, SNAPSHOT_OPEN);
+  if (!snap || snap.v !== 1 || !Array.isArray(snap.views)) return null;
+  return snap;
+}
+function extractSummaryLog(content) {
+  const log = extractJson(content, SUMMARY_OPEN);
+  return Array.isArray(log) ? log.filter((e) => e && typeof e.text === "string") : [];
+}
+function prependSummary(log, entry) {
+  return [entry, ...log].slice(0, HISTORY_CAP);
+}
+function diffSnapshots(prior, current) {
+  if (prior == null) return { views: [], totals: { added: 0, removed: 0, changed: 0 }, firstRun: true };
+  const views = [];
+  let tAdded = 0;
+  let tRemoved = 0;
+  let tChanged = 0;
+  const priorByView = new Map(prior.views.map((v) => [v.name, v]));
+  const currentNames = new Set(current.views.map((v) => v.name));
+  for (const cv of current.views) {
+    const pv = priorByView.get(cv.name);
+    const priorRows = new Map((pv?.rows ?? []).map((r) => [r.key, r]));
+    const added = [];
+    const changed = [];
+    const seen = /* @__PURE__ */ new Set();
+    for (const row of cv.rows) {
+      if (seen.has(row.key)) continue;
+      seen.add(row.key);
+      const pr = priorRows.get(row.key);
+      if (!pr) {
+        added.push(row);
+        continue;
+      }
+      const fields = [];
+      const cols = /* @__PURE__ */ new Set([...Object.keys(pr.cells), ...Object.keys(row.cells)]);
+      for (const col of cols) {
+        const from = pr.cells[col] ?? "";
+        const to = row.cells[col] ?? "";
+        if (from !== to) fields.push({ col, from, to });
+      }
+      if (fields.length) changed.push({ key: row.key, fields });
+    }
+    const removed = (pv?.rows ?? []).filter((r) => !seen.has(r.key));
+    tAdded += added.length;
+    tRemoved += removed.length;
+    tChanged += changed.length;
+    views.push({ name: cv.name, added, removed, changed });
+  }
+  for (const pv of prior.views) {
+    if (currentNames.has(pv.name)) continue;
+    tRemoved += pv.rows.length;
+    views.push({ name: pv.name, added: [], removed: pv.rows, changed: [] });
+  }
+  return { views, totals: { added: tAdded, removed: tRemoved, changed: tChanged }, firstRun: false };
+}
+
 // core/vault/render-markdown.ts
 function mdText(s) {
   return s.replace(/\r?\n+/g, " ").replace(/\|/g, "\\|").trim();
@@ -4285,94 +4372,13 @@ function assembleMarkdownPage(sections, meta) {
     "---",
     ""
   ].join("\n");
-  const stamp = "> **Build artifact** \u2014 regenerate: `duo rollup render " + meta.target + " --md` \xB7 source-hash `" + meta.sourceHash + "` \xB7 as-of " + meta.asOfLabel + " \xB7 " + meta.noteCount + " notes, " + meta.baseCount + " base(s).";
+  const refresh = meta.rollup ? "[\u21BB Refresh](duo://rollup/refresh?base=" + encodeURIComponent(meta.target) + ") \xB7 " : "";
+  const stamp = "> **Build artifact** \u2014 " + refresh + "regenerate: `duo rollup render " + meta.target + " --md` \xB7 source-hash `" + meta.sourceHash + "` \xB7 as-of " + meta.asOfLabel + " \xB7 " + meta.noteCount + " notes, " + meta.baseCount + " base(s).";
+  const doc = meta.rollup ? rollupDocComment(meta.target) + "\n\n" : "";
   const summary = summarySectionMd(meta.summaryLog ?? []);
-  const body = (summary ? summary + "\n\n" : "") + sections.join("\n\n") + "\n\n" + stamp;
+  const body = doc + (summary ? summary + "\n\n" : "") + sections.join("\n\n") + "\n\n" + stamp;
   const tail = meta.embedded ? "\n\n" + meta.embedded : "";
   return frontmatter + body + tail + "\n";
-}
-
-// core/vault/rollup.ts
-var SNAPSHOT_OPEN = "<!--duo:rollup-snapshot ";
-var SUMMARY_OPEN = "<!--duo:rollup-summary ";
-var CLOSE = "-->";
-var HISTORY_CAP = 12;
-function commentSafeJson(obj) {
-  return JSON.stringify(obj).replace(/</g, "\\u003c").replace(/>/g, "\\u003e");
-}
-function snapshotComment(snap) {
-  return SNAPSHOT_OPEN + commentSafeJson(snap) + CLOSE;
-}
-function summaryLogComment(log) {
-  return SUMMARY_OPEN + commentSafeJson(log) + CLOSE;
-}
-function extractJson(content, open) {
-  const start = content.indexOf(open);
-  if (start === -1) return null;
-  const from = start + open.length;
-  const end = content.indexOf(CLOSE, from);
-  if (end === -1) return null;
-  try {
-    return JSON.parse(content.slice(from, end).trim());
-  } catch {
-    return null;
-  }
-}
-function extractSnapshot(content) {
-  const snap = extractJson(content, SNAPSHOT_OPEN);
-  if (!snap || snap.v !== 1 || !Array.isArray(snap.views)) return null;
-  return snap;
-}
-function extractSummaryLog(content) {
-  const log = extractJson(content, SUMMARY_OPEN);
-  return Array.isArray(log) ? log.filter((e) => e && typeof e.text === "string") : [];
-}
-function prependSummary(log, entry) {
-  return [entry, ...log].slice(0, HISTORY_CAP);
-}
-function diffSnapshots(prior, current) {
-  if (prior == null) return { views: [], totals: { added: 0, removed: 0, changed: 0 }, firstRun: true };
-  const views = [];
-  let tAdded = 0;
-  let tRemoved = 0;
-  let tChanged = 0;
-  const priorByView = new Map(prior.views.map((v) => [v.name, v]));
-  const currentNames = new Set(current.views.map((v) => v.name));
-  for (const cv of current.views) {
-    const pv = priorByView.get(cv.name);
-    const priorRows = new Map((pv?.rows ?? []).map((r) => [r.key, r]));
-    const added = [];
-    const changed = [];
-    const seen = /* @__PURE__ */ new Set();
-    for (const row of cv.rows) {
-      if (seen.has(row.key)) continue;
-      seen.add(row.key);
-      const pr = priorRows.get(row.key);
-      if (!pr) {
-        added.push(row);
-        continue;
-      }
-      const fields = [];
-      const cols = /* @__PURE__ */ new Set([...Object.keys(pr.cells), ...Object.keys(row.cells)]);
-      for (const col of cols) {
-        const from = pr.cells[col] ?? "";
-        const to = row.cells[col] ?? "";
-        if (from !== to) fields.push({ col, from, to });
-      }
-      if (fields.length) changed.push({ key: row.key, fields });
-    }
-    const removed = (pv?.rows ?? []).filter((r) => !seen.has(r.key));
-    tAdded += added.length;
-    tRemoved += removed.length;
-    tChanged += changed.length;
-    views.push({ name: cv.name, added, removed, changed });
-  }
-  for (const pv of prior.views) {
-    if (currentNames.has(pv.name)) continue;
-    tRemoved += pv.rows.length;
-    views.push({ name: pv.name, added: [], removed: pv.rows, changed: [] });
-  }
-  return { views, totals: { added: tAdded, removed: tRemoved, changed: tChanged }, firstRun: false };
 }
 
 // core/vault/render.ts
@@ -4562,7 +4568,7 @@ function renderBaseSection(evaluated, thisFile, label, asOf, linkCtx) {
 function sourceHash(root) {
   const all = [];
   const stack = [root];
-  const SKIP = /* @__PURE__ */ new Set([".obsidian", ".trash", "out", ".git", "node_modules"]);
+  const SKIP = /* @__PURE__ */ new Set([".obsidian", ".trash", "out", "rollups", ".git", "node_modules"]);
   const GENERATED = /* @__PURE__ */ new Set(["index.md", "log.md"]);
   while (stack.length) {
     const dir = stack.pop();
@@ -4664,6 +4670,7 @@ function renderTarget(root, target, opts = {}) {
     noteCount: notes.length,
     baseCount: bases.length,
     target,
+    rollup: !!opts.embedSnapshot,
     summaryLog,
     embedded
   });
@@ -4674,6 +4681,7 @@ function renderTarget(root, target, opts = {}) {
     noteCount: notes.length,
     baseCount: bases.length,
     target,
+    rollup: !!opts.embedSnapshot,
     styleCss: opts.styleCss,
     summaryHtml: summarySectionHtml(summaryLog),
     markdownSource: md,
@@ -4733,15 +4741,13 @@ footer { margin-top:40px; border-top:1px solid var(--paper-rule); padding-top:12
 ${meta.styleCss ? "<style>\n" + meta.styleCss.replace(/<\//g, "<\\/") + "\n</style>" : ""}
 </head>
 <body>
+${meta.rollup ? rollupDocComment(meta.target) : ""}
 <h1>Vault rollup \u2014 ${esc(meta.target)}</h1>
 <div class="stamp"><strong>BUILD ARTIFACT</strong> \u2014 regenerate: duo rollup render ${esc(meta.target)} \xB7
 generated ${esc(meta.generatedAt)} \xB7 source hash <strong>${esc(meta.sourceHash)}</strong> \xB7
 date-relative formulas as of ${esc(meta.asOfLabel)} \xB7
 ${meta.noteCount} notes, ${meta.baseCount} rendered base(s)</div>
-<div class="rl-toolbar">
-<button class="rl-btn" type="button" data-rollup-copy>Copy as Markdown</button>
-<button class="rl-btn" type="button" data-duo-action="duo:event" data-event="rollup:refresh" data-payload="${esc(meta.target)}" title="Requests a refresh \u2014 a watching Claude (duo events --follow) regenerates + summarizes">Refresh</button>
-</div>
+${meta.rollup ? '<div class="rl-toolbar">\n<button class="rl-btn" type="button" data-rollup-copy>Copy as Markdown</button>\n<button class="rl-btn" type="button" data-duo-action="duo:event" data-event="rollup:refresh" data-payload="' + esc(JSON.stringify({ base: meta.target })).replace(/"/g, "&quot;") + '" title="Requests a refresh \u2014 a watching Claude (duo events --follow) regenerates + summarizes">Refresh</button>\n</div>' : ""}
 ${meta.summaryHtml ?? ""}
 ${sections.join("\n")}
 <footer>Duo-owned rollup render (ENH-208). Implements the locked Bases
@@ -4750,10 +4756,7 @@ date math, if(), html(), icon(), backlink chains, groupBy, summaries).
 file.name is extension-less; child\u2192parent backlink rollups always resolve
 here. Re-render to refresh; the source hash above detects staleness.</footer>
 ${meta.embedded ?? ""}
-<script>window.__rollupMd = ${JSON.stringify(meta.markdownSource ?? "").replace(/</g, "\\u003c")};</script>
-<script>
-(function(){var b=document.querySelector('[data-rollup-copy]');if(!b)return;b.addEventListener('click',function(){navigator.clipboard.writeText(window.__rollupMd||'').then(function(){var o=b.textContent;b.textContent='Copied';setTimeout(function(){b.textContent=o},1300)}).catch(function(){b.textContent='Copy failed (focus the page)'})})})();
-</script>
+${meta.rollup ? "<script>window.__rollupMd = " + JSON.stringify(meta.markdownSource ?? "").replace(/</g, "\\u003c") + ";</script>\n<script>(function(){var b=document.querySelector('[data-rollup-copy]');if(!b)return;b.addEventListener('click',function(){navigator.clipboard.writeText(window.__rollupMd||'').then(function(){var o=b.textContent;b.textContent='Copied';setTimeout(function(){b.textContent=o},1300)}).catch(function(){b.textContent='Copy failed (focus the page)'})})})();</script>" : ""}
 </body>
 </html>
 `;
@@ -7753,7 +7756,7 @@ ${res.pr.url}`);
           let outPath;
           if (outFlag) outPath = path15.resolve(process.cwd(), outFlag);
           else if (open) outPath = path15.join(os3.tmpdir(), `duo-rollup-${stem}-${Date.now()}${ext}`);
-          else outPath = path15.join(root, "out", `${stem}${ext}`);
+          else outPath = path15.join(root, "rollups", `${stem}${ext}`);
           const styleFlag = flagValue(subRest, "--style");
           let styleCss;
           if (styleFlag && styleFlag !== "atelier") {
@@ -7770,7 +7773,7 @@ ${res.pr.url}`);
           const summaryText = flagValue(subRest, "--summary");
           if (summaryText !== void 0 && summaryText.startsWith("--"))
             die(`duo rollup render: --summary needs a text argument (got the flag "${summaryText}")`);
-          const priorCandidates = outFlag ? [outPath] : [path15.join(root, "out", `${stem}.md`), path15.join(root, "out", `${stem}.html`)];
+          const priorCandidates = outFlag ? [outPath] : [path15.join(root, "rollups", `${stem}.md`), path15.join(root, "rollups", `${stem}.html`)];
           const priorPath = newestExisting(priorCandidates);
           const priorContent = priorPath ? fs14.readFileSync(priorPath, "utf8") : "";
           let summaryLog = noSummary ? [] : extractSummaryLog(priorContent);
@@ -7825,7 +7828,7 @@ ${res.pr.url}`);
             if (!fs14.existsSync(priorPath))
               die(`duo rollup diff: --against path does not exist: ${priorPath} (resolved relative to cwd)`);
           } else {
-            priorPath = newestExisting([path15.join(root, "out", `${stem}.md`), path15.join(root, "out", `${stem}.html`)]);
+            priorPath = newestExisting([path15.join(root, "rollups", `${stem}.md`), path15.join(root, "rollups", `${stem}.html`)]);
           }
           const priorContent = priorPath ? fs14.readFileSync(priorPath, "utf8") : "";
           const prior = priorContent ? extractSnapshot(priorContent) : null;

@@ -3067,7 +3067,7 @@ async function main(): Promise<void> {
           let outPath: string
           if (outFlag) outPath = path.resolve(process.cwd(), outFlag)
           else if (open) outPath = path.join(os.tmpdir(), `duo-rollup-${stem}-${Date.now()}${ext}`)
-          else outPath = path.join(root, 'out', `${stem}${ext}`)
+          else outPath = path.join(root, 'rollups', `${stem}${ext}`) // ENH-229 — rollups live in rollups/
 
           // --style (req #3): a LOCAL CSS file, layered over the Atelier base so
           // a partial sheet still leaves the artifact usable. HTML only.
@@ -3096,7 +3096,7 @@ async function main(): Promise<void> {
           // rollup across BOTH formats, so history survives an --md↔--html switch.
           const priorCandidates = outFlag
             ? [outPath]
-            : [path.join(root, 'out', `${stem}.md`), path.join(root, 'out', `${stem}.html`)]
+            : [path.join(root, 'rollups', `${stem}.md`), path.join(root, 'rollups', `${stem}.html`)]
           const priorPath = newestExisting(priorCandidates)
           const priorContent = priorPath ? fs.readFileSync(priorPath, 'utf8') : ''
           let summaryLog = noSummary ? [] : vault.extractSummaryLog(priorContent)
@@ -3160,7 +3160,7 @@ async function main(): Promise<void> {
           } else {
             // Newest of the two formats, so a diff right after `render --html`
             // reads the fresh .html rather than a stale .md.
-            priorPath = newestExisting([path.join(root, 'out', `${stem}.md`), path.join(root, 'out', `${stem}.html`)])
+            priorPath = newestExisting([path.join(root, 'rollups', `${stem}.md`), path.join(root, 'rollups', `${stem}.html`)])
           }
           const priorContent = priorPath ? fs.readFileSync(priorPath, 'utf8') : ''
           const prior = priorContent ? vault.extractSnapshot(priorContent) : null

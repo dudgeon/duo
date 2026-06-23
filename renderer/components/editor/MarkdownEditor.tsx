@@ -71,6 +71,7 @@ import { useVaultIndex, rankVaultFiles } from './vaultIndex'
 // handled by the WikilinkDecorations plugin; this covers the `[ ](rel.md)`
 // link-mark case so both serializers' links are navigable.
 import { resolveMdLinkInVault } from './wikilinkResolver'
+import { parseRollupRefreshUri } from './rollupRefreshLink'
 // ENH-216 (U7) — okfLinkInsert builds the markdown relative link the
 // stub-create placeholder rewrite (D3) splices into the BODY. (Frontmatter
 // `[[ ]]` persists AS `[[ ]]` per FOLLOWUP-051 — no rewrite.)
@@ -544,6 +545,9 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       Underline,
       Link.configure({
         openOnClick: false,
+        // ENH-229 — allow the `duo:` scheme so a `duo://rollup/refresh?…`
+        // action link survives sanitization (handleClickOn routes it).
+        protocols: ['duo'],
         // ENH-174 (2026-05-23) — autolink OFF. Bare URL-shaped text
         // (`prd.md`, `example.com`, `foo.org/path`) no longer gets
         // auto-converted to a link mark on parse. Closes the disk-
@@ -756,7 +760,6 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       // The `[[ ]]` wikilink cmd+click stays owned by WikilinkDecorations.
       handleClickOn: (_view, _pos, _node, _nodePos, event, _direct) => {
         const me = event as MouseEvent
-        if (!(me.metaKey || me.ctrlKey)) return false
         // Walk up from the click target to the anchor carrying the href.
         const targetEl = me.target instanceof Element
           ? me.target
@@ -764,6 +767,22 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         const anchor = targetEl?.closest?.('a[href]') as HTMLAnchorElement | null
         const href = anchor?.getAttribute('href')
         if (!href) return false
+        // ENH-229 — a rollup-refresh action link fires on a PLAIN click (it's an
+        // affordance, not navigation): emit the same `rollup:refresh` event the
+        // HTML Refresh button emits. A watching Claude (`duo events --follow`)
+        // regenerates + summarizes. Inert outside Duo.
+        const refresh = parseRollupRefreshUri(href)
+        if (refresh) {
+          event.preventDefault()
+          try {
+            window.electron.events.emit({ source: 'editor', name: 'rollup:refresh', payload: { base: refresh.base } })
+          } catch {
+            /* older build / no bridge — leave inert */
+          }
+          return true
+        }
+        // Navigation links (vault md rel-links) follow on cmd/ctrl+click.
+        if (!(me.metaKey || me.ctrlKey)) return false
         const resolved = resolveMdLinkInVault(href, pathRef.current)
         if (!resolved) return false   // external / anchor-only — leave inert
         window.dispatchEvent(

@@ -17,7 +17,7 @@ import type { VaultFile } from './types'
 import { readNotes, parseFile } from './parse'
 import { targetKey } from '../markdown/vaultLinks'
 import { renderBaseMarkdown, assembleMarkdownPage } from './render-markdown'
-import { snapshotComment, summaryLogComment, type RollupSnapshot, type SummaryEntry } from './rollup'
+import { snapshotComment, summaryLogComment, rollupDocComment, type RollupSnapshot, type SummaryEntry } from './rollup'
 import {
   buildEngineFiles,
   evalExpr,
@@ -426,7 +426,7 @@ export interface RenderTargetResult {
 export function sourceHash(root: string): string {
   const all: string[] = []
   const stack = [root]
-  const SKIP = new Set(['.obsidian', '.trash', 'out', '.git', 'node_modules'])
+  const SKIP = new Set(['.obsidian', '.trash', 'out', 'rollups', '.git', 'node_modules'])
   // Generated OKF listings (root + per-dir index.md, root log.md) are build
   // artifacts derived FROM the corpus — hashing them would make the hash
   // depend on its own previous output (a feedback loop), so they're skipped.
@@ -567,6 +567,7 @@ export function renderTarget(
     noteCount: notes.length,
     baseCount: bases.length,
     target,
+    rollup: !!opts.embedSnapshot,
     summaryLog,
     embedded,
   })
@@ -577,6 +578,7 @@ export function renderTarget(
     noteCount: notes.length,
     baseCount: bases.length,
     target,
+    rollup: !!opts.embedSnapshot,
     styleCss: opts.styleCss,
     summaryHtml: summarySectionHtml(summaryLog),
     markdownSource: md,
@@ -594,6 +596,7 @@ function assemblePage(
     noteCount: number
     baseCount: number
     target: string
+    rollup?: boolean
     styleCss?: string
     summaryHtml?: string
     markdownSource?: string
@@ -651,15 +654,22 @@ footer { margin-top:40px; border-top:1px solid var(--paper-rule); padding-top:12
 ${meta.styleCss ? '<style>\n' + meta.styleCss.replace(/<\//g, '<\\/') + '\n</style>' : ''}
 </head>
 <body>
+${meta.rollup ? rollupDocComment(meta.target) : ''}
 <h1>Vault rollup — ${esc(meta.target)}</h1>
 <div class="stamp"><strong>BUILD ARTIFACT</strong> — regenerate: duo rollup render ${esc(meta.target)} ·
 generated ${esc(meta.generatedAt)} · source hash <strong>${esc(meta.sourceHash)}</strong> ·
 date-relative formulas as of ${esc(meta.asOfLabel)} ·
 ${meta.noteCount} notes, ${meta.baseCount} rendered base(s)</div>
-<div class="rl-toolbar">
-<button class="rl-btn" type="button" data-rollup-copy>Copy as Markdown</button>
-<button class="rl-btn" type="button" data-duo-action="duo:event" data-event="rollup:refresh" data-payload="${esc(meta.target)}" title="Requests a refresh — a watching Claude (duo events --follow) regenerates + summarizes">Refresh</button>
-</div>
+${
+  meta.rollup
+    ? '<div class="rl-toolbar">\n' +
+      '<button class="rl-btn" type="button" data-rollup-copy>Copy as Markdown</button>\n' +
+      '<button class="rl-btn" type="button" data-duo-action="duo:event" data-event="rollup:refresh" data-payload="' +
+      esc(JSON.stringify({ base: meta.target })).replace(/"/g, '&quot;') +
+      '" title="Requests a refresh — a watching Claude (duo events --follow) regenerates + summarizes">Refresh</button>\n' +
+      '</div>'
+    : ''
+}
 ${meta.summaryHtml ?? ''}
 ${sections.join('\n')}
 <footer>Duo-owned rollup render (ENH-208). Implements the locked Bases
@@ -668,10 +678,14 @@ date math, if(), html(), icon(), backlink chains, groupBy, summaries).
 file.name is extension-less; child→parent backlink rollups always resolve
 here. Re-render to refresh; the source hash above detects staleness.</footer>
 ${meta.embedded ?? ''}
-<script>window.__rollupMd = ${JSON.stringify(meta.markdownSource ?? '').replace(/</g, '\\u003c')};</script>
-<script>
-(function(){var b=document.querySelector('[data-rollup-copy]');if(!b)return;b.addEventListener('click',function(){navigator.clipboard.writeText(window.__rollupMd||'').then(function(){var o=b.textContent;b.textContent='Copied';setTimeout(function(){b.textContent=o},1300)}).catch(function(){b.textContent='Copy failed (focus the page)'})})})();
-</script>
+${
+  meta.rollup
+    ? '<script>window.__rollupMd = ' +
+      JSON.stringify(meta.markdownSource ?? '').replace(/</g, '\\u003c') +
+      ';</script>\n' +
+      "<script>(function(){var b=document.querySelector('[data-rollup-copy]');if(!b)return;b.addEventListener('click',function(){navigator.clipboard.writeText(window.__rollupMd||'').then(function(){var o=b.textContent;b.textContent='Copied';setTimeout(function(){b.textContent=o},1300)}).catch(function(){b.textContent='Copy failed (focus the page)'})})})();</script>"
+    : ''
+}
 </body>
 </html>
 `

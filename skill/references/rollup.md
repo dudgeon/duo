@@ -23,7 +23,12 @@ duo rollup render <note|base> --html   # a stamped, Atelier-styled HTML artifact
 ```
 
 Mutually exclusive — one file per call (never one file with a toggle). Default
-is `--md`. `--out <path>` writes elsewhere; `--open` surfaces it as a tab.
+is `--md`. Rollups default to **`<vault>/rollups/`** (`--out <path>` writes
+elsewhere); `--open` surfaces it as a tab. Every artifact opens with an
+agent-visible HTML comment explaining it's a generated rollup + how to
+regenerate it — so a fresh agent that finds the file isn't confused. The
+`rollups/` (and `out/`) folders are excluded from the corpus, so a rollup never
+rolls up into itself.
 
 **Authoring the rollup** is the same loop as a base (derive the corpus with
 `duo vault schema`, write a `.base` or an embedded ` ```base ` block, `duo base
@@ -68,14 +73,16 @@ On regenerate, you diff against that snapshot and add a narrative.
    into a collapsible history. `--no-summary` turns the whole feature off.
 4. If a tab is open on the artifact, it reloads on the rewrite.
 
-**Reacting to a Refresh button.** An HTML rollup's Refresh button emits a
-`rollup:refresh` event. Subscribe and run the loop above:
+**Reacting to a Refresh.** Both the HTML rollup's Refresh button AND the
+Markdown rollup's `[↻ Refresh](duo://rollup/refresh?base=…)` link (clicked in
+Duo's editor) emit the same `rollup:refresh` event with payload `{ base }`.
+Subscribe and run the loop above:
 
 ```bash
 duo events --follow | while IFS= read -r line; do
   case "$(jq -r '.name // empty' <<< "$line")" in
     rollup:refresh)
-      target=$(jq -r '.payload' <<< "$line")
+      target=$(jq -r '.payload.base' <<< "$line")
       diff=$(duo rollup diff "$target")
       # …read $diff, compose a narrative + notables…
       duo rollup render "$target" --md --summary "$summary"
@@ -85,8 +92,9 @@ done
 ```
 
 "The user just accepts" — you regenerate + summarize; the artifact reloads with
-the new summary. No blocking approval. (Refresh-from-Markdown via a `duo://`
-link is a fast-follow; for now MD regenerates from the terminal.)
+the new summary. No blocking approval. The MD refresh link fires on a plain
+click in Duo's editor (it's an action affordance, not navigation); on GitHub or
+any other viewer the `duo:` link is simply inert.
 
 ## Sample prompt (how a user invokes this skill)
 
