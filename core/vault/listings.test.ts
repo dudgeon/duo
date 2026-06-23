@@ -167,6 +167,65 @@ describe('engine-driven index (ENH-230 — `listing:` base spec)', () => {
     writeListings(root)
     expect(read('index.md')).toContain('regenerate: duo vault publish')
   })
+
+  it('is idempotent on the engine path: re-publishing an unchanged listing writes nothing', () => {
+    makeOkfVaultWithListing()
+    expect(writeListings(root).written).toContain('index.md')
+    // The spec carries no time-relative formulas, so the engine output is fully
+    // deterministic; the byte-guard (writeIfChanged) writes nothing on the
+    // second pass — no git churn / reconcile banner over an open index.md.
+    expect(writeListings(root).written).toEqual([])
+  })
+
+  it('renders ⚠ cells for a bad formula expression but still publishes — engine warn-and-render (D4)', () => {
+    write(
+      'index.md',
+      [
+        '---',
+        'okf_version: 1',
+        'title: V',
+        'type: index',
+        'listing:',
+        '  formulas:',
+        "    boom: '__no_such_fn__()'", // unknown ident → null() → TypeError → trapped to a ⚠ cell
+        '  views:',
+        '    - type: table',
+        '      name: People',
+        '      order:',
+        '        - file.name',
+        '        - formula.boom',
+        '      filters:',
+        '        and:',
+        '          - type == "person"',
+        '---',
+        LISTING_FENCE,
+        '',
+      ].join('\n'),
+    )
+    write('people/alice.md', '---\ntype: person\ntitle: Alice Park\n---\nAlice.\n')
+    const r = writeListings(root)
+    expect(r.written).toContain('index.md') // publish SUCCEEDED (never threw)
+    const idx = read('index.md')
+    expect(idx).toContain('### People (1)') // the ENGINE path ran (not the default)
+    expect(idx).toContain('⚠') // the bad expression degraded to a warn cell, didn't throw
+    // A usable spec with a bad EXPRESSION is not a fallback — it renders, so no
+    // publish-level warning is raised (the ⚠ lives in the body).
+    expect(r.warnings).toEqual([])
+  })
+
+  it('warns (not silently) when an authored `listing:` is unusable, but still publishes (D4)', () => {
+    write('index.md', `---\nokf_version: 1\ntitle: V\ntype: index\nlisting: nonsense\n---\n${LISTING_FENCE}\n`)
+    write('people/alice.md', '---\ntype: person\ntitle: Alice Park\n---\nAlice.\n')
+    const r = writeListings(root)
+    expect(read('index.md')).toContain('## Person') // fell back to the default
+    expect(r.warnings.length).toBeGreaterThan(0) // ...but NOT silently (the review fix)
+    expect(r.warnings[0]).toContain('listing:')
+  })
+
+  it('does NOT warn when there is no `listing:` key — silence is correct for the default', () => {
+    makeOkfVault() // no `listing:` authored → the common default, not a misconfiguration
+    expect(writeListings(root).warnings).toEqual([])
+  })
 })
 
 describe('generateLog (OKF section-7, D8)', () => {

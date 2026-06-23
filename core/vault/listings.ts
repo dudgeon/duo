@@ -132,12 +132,33 @@ export function generateIndex(root: string, dir = ''): string {
  *  isn't a views-bearing object returns null → the default. The spec lives in
  *  the frontmatter, which `spliceRootIndex` preserves byte-identically, so the
  *  splice contract is unchanged (D2). Entity links resolve relative to the
- *  vault root, where `index.md` lives (D5). */
-export function engineIndexBody(root: string, frontmatter: Record<string, unknown>): string | null {
+ *  vault root, where `index.md` lives (D5).
+ *
+ *  When an *authored* spec is unusable (or the engine throws), `warn` is
+ *  invoked with a one-line reason so the fallback isn't SILENT — a reader who
+ *  wrote a `listing:` and got the default back would otherwise have no signal
+ *  (the CLI surfaces these to stderr). The no-`listing:`-key case is the common
+ *  default and stays silent — it isn't a misconfiguration. */
+export function engineIndexBody(
+  root: string,
+  frontmatter: Record<string, unknown>,
+  warn: (reason: string) => void = () => {},
+): string | null {
   const spec = frontmatter.listing
-  if (!spec || typeof spec !== 'object' || Array.isArray(spec)) return null
+  // No `listing:` key at all → the group-by-type default, SILENTLY: this is the
+  // common case for every vault that hasn't opted in, not a misconfiguration.
+  if (spec === undefined) return null
+  // An authored-but-unusable spec falls back too, but WARNS (D4): the user
+  // clearly intended a custom listing, so a silent default would be confusing.
+  if (!spec || typeof spec !== 'object' || Array.isArray(spec)) {
+    warn('the root `index.md` `listing:` is not a YAML mapping with a `views:` list — using the group-by-type default')
+    return null
+  }
   const def = spec as BaseDef
-  if (!Array.isArray(def.views) || def.views.length === 0) return null
+  if (!Array.isArray(def.views) || def.views.length === 0) {
+    warn('the root `index.md` `listing:` has no `views:` — using the group-by-type default')
+    return null
+  }
   try {
     const asOf = defaultAsOf()
     // Same corpus the group-by-type default sees: real notes only (the
@@ -148,9 +169,12 @@ export function engineIndexBody(root: string, frontmatter: Record<string, unknow
     const evaluated = evaluateBaseDef(def, files, null, asOf)
     const title = typeof frontmatter.title === 'string' && frontmatter.title.trim() ? frontmatter.title.trim() : 'Index'
     return renderBaseMarkdown(evaluated, null, title, asOf, linkCtx)
-  } catch {
+  } catch (err) {
     // A defensive backstop: any unexpected engine failure falls back to the
-    // default rather than breaking `duo vault publish` (D4).
+    // default rather than breaking `duo vault publish` (D4). A bad *expression*
+    // never reaches here (it degrades to a ⚠ cell inside the engine); this
+    // catches only a structural surprise, so it's worth a (non-silent) warning.
+    warn('the root `index.md` `listing:` spec threw while evaluating (' + (err instanceof Error ? err.message : String(err)) + ') — using the group-by-type default')
     return null
   }
 }
@@ -248,6 +272,12 @@ export interface WriteListingsResult {
   mode: VaultMode
   /** Vault-relative paths written. */
   written: string[]
+  /** ENH-230 — non-fatal advisories surfaced to the CLI (stderr), e.g. an
+   *  *authored* but unusable root-`index.md` `listing:` spec that fell back to
+   *  the group-by-type default. Publish still succeeds; empty in the common
+   *  case (no `listing:` key, or a usable one). A bad *expression* inside a
+   *  usable spec does NOT warn here — it degrades to a ⚠ cell in the body. */
+  warnings: string[]
 }
 
 /** Splice a freshly generated body into a ROOT index.md, preserving the
@@ -285,6 +315,7 @@ export function writeListings(root: string, opts: WriteListingsOptions = {}): Wr
   const wantIndex = scope !== 'log'
   const wantLog = scope !== 'index'
   const written: string[] = []
+  const warnings: string[] = []
 
   // Root index.md — preserve its okf_version frontmatter byte-identically.
   // Skipped entirely under `--log-only` so the file is left byte-identical
@@ -297,7 +328,7 @@ export function writeListings(root: string, opts: WriteListingsOptions = {}): Wr
     // ENH-230 — a `listing:` base spec in the frontmatter drives the body
     // through the shared engine; otherwise the group-by-type default (D3).
     const fm = splitFrontmatter(existing).frontmatter
-    const indexBody = engineIndexBody(root, fm) ?? generateIndex(root, '')
+    const indexBody = engineIndexBody(root, fm, (reason) => warnings.push(reason)) ?? generateIndex(root, '')
     const indexStamp = generatedStamp(root, 'index', 'corpus')
     if (writeIfChanged(rootIndexAbs, spliceRootIndex(existing, indexStamp, indexBody))) {
       written.push('index.md')
@@ -332,7 +363,7 @@ export function writeListings(root: string, opts: WriteListingsOptions = {}): Wr
     }
   }
 
-  return { mode, written }
+  return { mode, written, warnings }
 }
 
 // ── promoteSection (D9) ───────────────────────────────────────────────────────

@@ -5010,11 +5010,19 @@ function generateIndex(root, dir = "") {
   if (!sections.length) return "_No notes yet._";
   return sections.join("\n\n");
 }
-function engineIndexBody(root, frontmatter) {
+function engineIndexBody(root, frontmatter, warn = () => {
+}) {
   const spec = frontmatter.listing;
-  if (!spec || typeof spec !== "object" || Array.isArray(spec)) return null;
+  if (spec === void 0) return null;
+  if (!spec || typeof spec !== "object" || Array.isArray(spec)) {
+    warn("the root `index.md` `listing:` is not a YAML mapping with a `views:` list \u2014 using the group-by-type default");
+    return null;
+  }
   const def = spec;
-  if (!Array.isArray(def.views) || def.views.length === 0) return null;
+  if (!Array.isArray(def.views) || def.views.length === 0) {
+    warn("the root `index.md` `listing:` has no `views:` \u2014 using the group-by-type default");
+    return null;
+  }
   try {
     const asOf = defaultAsOf();
     const notes = readNotes(root).filter((n) => !isGeneratedListing(n.relPath));
@@ -5023,7 +5031,8 @@ function engineIndexBody(root, frontmatter) {
     const evaluated = evaluateBaseDef(def, files, null, asOf);
     const title = typeof frontmatter.title === "string" && frontmatter.title.trim() ? frontmatter.title.trim() : "Index";
     return renderBaseMarkdown(evaluated, null, title, asOf, linkCtx);
-  } catch {
+  } catch (err) {
+    warn("the root `index.md` `listing:` spec threw while evaluating (" + (err instanceof Error ? err.message : String(err)) + ") \u2014 using the group-by-type default");
     return null;
   }
 }
@@ -5099,11 +5108,12 @@ function writeListings(root, opts = {}) {
   const wantIndex = scope !== "log";
   const wantLog = scope !== "index";
   const written = [];
+  const warnings = [];
   if (wantIndex) {
     const rootIndexAbs = import_node_path12.default.join(root, "index.md");
     const existing = import_node_fs12.default.readFileSync(rootIndexAbs, "utf8");
     const fm = splitFrontmatter(existing).frontmatter;
-    const indexBody = engineIndexBody(root, fm) ?? generateIndex(root, "");
+    const indexBody = engineIndexBody(root, fm, (reason) => warnings.push(reason)) ?? generateIndex(root, "");
     const indexStamp = generatedStamp(root, "index", "corpus");
     if (writeIfChanged(rootIndexAbs, spliceRootIndex(existing, indexStamp, indexBody))) {
       written.push("index.md");
@@ -5138,7 +5148,7 @@ ${generateIndex(root, dir)}
       }
     }
   }
-  return { mode, written };
+  return { mode, written, warnings };
 }
 function findSection(body, heading) {
   const lines = body.split("\n");
@@ -7645,6 +7655,8 @@ ${res.pr.url}`);
           const root = resolveVaultOrDefault(process.cwd(), vaultFlag);
           const scope = subRest.includes("--index-only") ? "index" : subRest.includes("--log-only") ? "log" : "both";
           const result = writeListings(root, { perDir: subRest.includes("--dir"), scope });
+          for (const w of result.warnings) process.stderr.write(`duo: warning \u2014 ${w}
+`);
           let opened = null;
           if (subRest.includes("--open")) {
             const indexAbs = path15.join(root, "index.md");
