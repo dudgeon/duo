@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Async Catch-Up — Command Board (iteration 2)</title>
+<style>
+/* ── Atelier kernel (inlined per CLAUDE.md §11) ───────────────────────── */
+:root{
+  --paper:#fbf8f1; --paper-deep:#f3ede0; --paper-edge:#e8e0cb; --paper-rule:#d9cea8;
+  --ink:#2b2620; --ink-soft:#4a4238; --ink-mute:#6f6557; --ink-ghost:#9a9080;
+  --accent:#c46a1c; --accent-soft:#f4d9b6; --pass:#4a7d3e; --fail:#b13e3a; --warn:#b07527;
+  --code-bg:#2b2823; --code-ink:#e8e0cb;
+  --project-pine:#2E7D74; --project-harbor:#3C6E93; --project-iris:#5B57A6;
+  --project-plum:#87508F; --project-rose:#A4506A; --project-moss:#69763A;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:-apple-system,"SF Pro Text","Segoe UI",system-ui,sans-serif;font-size:14px;line-height:1.55;}
+body{padding:32px 40px 96px;max-width:1000px;margin:0 auto;}
+header.page-head{border-bottom:1px solid var(--paper-rule);padding-bottom:16px;margin-bottom:22px;}
+header.page-head h1{font-family:"New York","Iowan Old Style",Georgia,serif;font-style:italic;font-weight:500;margin:0 0 4px;font-size:24px;}
+header.page-head .meta{color:var(--ink-mute);font-size:13px;}
+header.page-head .meta .pill{display:inline-block;padding:2px 8px;border-radius:10px;background:var(--accent-soft);color:var(--accent);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin-right:6px;}
+.intro{background:var(--paper-deep);border:1px solid var(--paper-rule);border-radius:6px;padding:14px 18px;margin-bottom:20px;font-size:13.5px;color:var(--ink-soft);}
+.intro strong{color:var(--ink);font-weight:600;}
+h2{font-family:"New York","Iowan Old Style",Georgia,serif;font-weight:600;margin:38px 0 8px;font-size:20px;border-bottom:1px solid var(--paper-rule);padding-bottom:6px;}
+h3{font-weight:600;margin:20px 0 8px;font-size:15px;}
+p{margin:8px 0;} ul,ol{margin:8px 0;padding-left:22px;} li{margin:4px 0;}
+code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12px;background:var(--paper-deep);padding:1px 5px;border-radius:3px;}
+.decision-card{background:var(--paper-deep);border:1.5px solid var(--paper-rule);border-radius:6px;padding:16px 18px;margin:16px 0;}
+.decision-card .q-title{font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--accent);margin:0 0 6px;}
+.decision-card .q-prompt{font-family:"New York","Iowan Old Style",Georgia,serif;font-weight:500;font-size:17px;color:var(--ink);margin:0 0 12px;line-height:1.35;}
+.q-options{display:grid;grid-template-columns:1fr;gap:10px;margin:0 0 12px;}
+.q-option{display:block;background:var(--paper);border:1.5px solid var(--paper-rule);border-radius:5px;padding:10px 12px;cursor:pointer;transition:border-color .12s,background .12s;}
+.q-option:hover{border-color:var(--ink-ghost);}
+.q-option input{margin-right:8px;cursor:pointer;accent-color:var(--accent);}
+.q-option:has(input:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 6%,var(--paper));}
+.q-option-body{display:inline-block;vertical-align:top;width:calc(100% - 22px);}
+.q-option-title{font-weight:600;font-size:13.5px;color:var(--ink);margin:0 0 3px;}
+.q-option-title .recommend-tag{font-size:10px;background:var(--accent-soft);color:var(--accent);text-transform:uppercase;font-weight:700;letter-spacing:.04em;padding:1px 6px;border-radius:8px;margin-left:6px;}
+.q-option-rationale{font-size:12px;color:var(--ink-soft);line-height:1.45;margin:3px 0 0;}
+.q-notes{width:100%;background:var(--paper);border:1px solid var(--paper-rule);border-radius:4px;padding:8px 10px;font-family:inherit;font-size:12.5px;color:var(--ink);resize:vertical;min-height:50px;}
+.q-notes:focus{outline:1.5px solid var(--accent);}
+.copy-bar{position:sticky;bottom:0;margin:32px -40px -96px;padding:16px 40px;background:color-mix(in srgb,var(--paper-deep) 96%,transparent);border-top:1.5px solid var(--paper-rule);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;justify-content:space-between;align-items:center;gap:16px;}
+.copy-bar .copy-meta{font-size:12.5px;color:var(--ink-soft);}
+.copy-bar #answered-count{color:var(--accent);font-weight:700;}
+.copy-bar button{background:var(--accent);color:#fff;border:none;border-radius:5px;padding:9px 18px;font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;transition:background .12s;}
+.copy-bar button:hover{background:color-mix(in srgb,black 8%,var(--accent));}
+.copy-bar button.copied{background:var(--pass);}
+
+/* ── two-axis explainer ───────────────────────────────────────────────── */
+.axes{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0;}
+@media(max-width:640px){.axes{grid-template-columns:1fr;}}
+.axis{background:var(--paper-deep);border:1px solid var(--paper-rule);border-radius:6px;padding:12px 14px;}
+.axis h4{margin:0 0 5px;font-size:13.5px;}
+.axis .flow{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:var(--ink-mute);margin:4px 0 6px;}
+.axis p{margin:0;font-size:12px;color:var(--ink-soft);}
+.sig{width:100%;border-collapse:collapse;margin:10px 0;font-size:12.5px;}
+.sig th,.sig td{text-align:left;padding:6px 9px;border-bottom:1px solid var(--paper-rule);vertical-align:top;}
+.sig th{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-mute);font-weight:700;}
+.sig .st{font-weight:600;color:var(--ink);white-space:nowrap;}
+.conf{font-size:10px;font-weight:700;text-transform:uppercase;padding:1px 6px;border-radius:8px;}
+.conf-hi{background:color-mix(in srgb,var(--pass) 16%,var(--paper));color:var(--pass);}
+.conf-lo{background:var(--accent-soft);color:var(--accent);}
+
+/* ── prototype frame ──────────────────────────────────────────────────── */
+.proto-frame{background:var(--paper);border:1.5px solid var(--paper-rule);border-radius:10px;overflow:hidden;margin:10px 0;box-shadow:0 8px 28px -16px rgba(43,38,32,.45);}
+.proto-titlebar{background:var(--paper-deep);border-bottom:1px solid var(--paper-rule);padding:7px 14px;font-size:11.5px;color:var(--ink-mute);display:flex;align-items:center;gap:8px;}
+.proto-titlebar .dot{width:10px;height:10px;border-radius:50%;background:var(--paper-rule);}
+.proto-titlebar .dot:nth-child(1){background:#e0a0a0;}.proto-titlebar .dot:nth-child(2){background:#e8c98a;}.proto-titlebar .dot:nth-child(3){background:#a7c990;}
+.proto-titlebar .grow{flex:1;}
+
+/* board toolbar */
+.board-bar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--paper-rule);font-size:12px;color:var(--ink-mute);flex-wrap:wrap;}
+.board-bar .grp{display:inline-flex;border:1.5px solid var(--paper-rule);border-radius:6px;overflow:hidden;}
+.board-bar .grp button{border:none;background:var(--paper);padding:4px 11px;font-size:12px;font-family:inherit;color:var(--ink-soft);cursor:pointer;}
+.board-bar .grp button.on{background:var(--accent);color:#fff;font-weight:600;}
+.board-bar .digest{flex:1;min-width:160px;}
+.board-bar .digest b{color:var(--ink);}
+.board-bar .digest .need{color:var(--accent);font-weight:600;}
+
+/* ── atoms ────────────────────────────────────────────────────────────── */
+.pdot{width:8px;height:8px;border-radius:50%;display:inline-block;vertical-align:-1px;}
+.fchip{display:inline-block;background:var(--paper-deep);border:1px solid var(--paper-edge);border-radius:4px;padding:1px 6px;font-family:ui-monospace,Menlo,monospace;font-size:10px;color:var(--ink-soft);margin:0 3px 3px 0;}
+.achip{display:inline-block;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600;margin:0 4px 3px 0;}
+.achip-pr{background:color-mix(in srgb,var(--project-iris) 14%,var(--paper));color:var(--project-iris);}
+.achip-test{background:color-mix(in srgb,var(--pass) 14%,var(--paper));color:var(--pass);}
+.achip-file{background:var(--paper-deep);color:var(--ink-mute);border:1px solid var(--paper-edge);}
+.tag{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:9px;white-space:nowrap;}
+.tag-plan{background:color-mix(in srgb,var(--project-iris) 15%,var(--paper));color:var(--project-iris);}
+.tag-question{background:var(--accent-soft);color:var(--accent);}
+.tag-blocked{background:color-mix(in srgb,var(--fail) 14%,var(--paper));color:var(--fail);}
+.tag-planning{background:color-mix(in srgb,var(--project-iris) 13%,var(--paper));color:var(--project-iris);}
+.tag-executing{background:color-mix(in srgb,var(--project-harbor) 15%,var(--paper));color:var(--project-harbor);}
+.act{font-size:11.5px;border:1.5px solid var(--paper-rule);background:var(--paper);border-radius:5px;padding:4px 10px;cursor:pointer;color:var(--ink-soft);font-weight:500;font-family:inherit;width:100%;text-align:center;margin-top:8px;}
+.act:hover{border-color:var(--ink-ghost);}
+.act.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;}
+.act.primary:hover{background:color-mix(in srgb,black 8%,var(--accent));}
+
+/* ── board ────────────────────────────────────────────────────────────── */
+.board{display:flex;gap:12px;padding:14px;overflow-x:auto;align-items:flex-start;background:
+  repeating-linear-gradient(135deg,transparent,transparent 22px,color-mix(in srgb,var(--paper-deep) 50%,transparent) 22px,color-mix(in srgb,var(--paper-deep) 50%,transparent) 23px);}
+.bcol{flex:1;min-width:198px;background:var(--paper-deep);border:1px solid var(--paper-rule);border-radius:7px;padding:9px;}
+.bcol.attn-col{border-color:color-mix(in srgb,var(--accent) 45%,var(--paper-rule));background:color-mix(in srgb,var(--accent) 5%,var(--paper-deep));}
+.bcol-h{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:700;margin:2px 4px 9px;color:var(--ink);}
+.bcol-h .cnt{font-size:11px;color:var(--ink-ghost);font-weight:600;}
+.bcol.attn-col .bcol-h{color:var(--accent);}
+.bcard{background:var(--paper);border:1.5px solid var(--paper-rule);border-radius:6px;padding:9px 10px;margin-bottom:8px;border-top:3px solid var(--paper-rule);}
+.bcard.needs{border-left:3px solid var(--accent);}
+.bcard .bg{font-weight:600;font-size:12.5px;color:var(--ink);line-height:1.3;}
+.bcard .bmeta{font-size:10px;color:var(--ink-mute);margin:5px 0 6px;display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
+.bcard .live{width:7px;height:7px;border-radius:50%;background:var(--project-harbor);display:inline-block;animation:pulse 1.6s ease-in-out infinite;}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--project-harbor) 50%,transparent);}50%{box-shadow:0 0 0 4px transparent;}}
+.bcard .brow{font-size:11px;color:var(--ink-soft);margin:5px 0 0;}
+.bcard .brow .ql{color:var(--accent);}
+.bcard .brow .nx{color:var(--project-harbor);font-weight:600;}
+.bcard .chips{margin:6px 0 0;}
+.empty-col{font-size:11px;color:var(--ink-ghost);padding:8px 4px;text-align:center;}
+.legend{font-size:11px;color:var(--ink-mute);margin:8px 2px 0;display:flex;gap:14px;flex-wrap:wrap;}
+.legend span{display:inline-flex;align-items:center;gap:5px;}
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Async Catch-Up — Command Board, iteration 2</h1>
+  <div class="meta"><span class="pill">Prototype</span><span class="pill">ENH-231</span>
+    Resolving <em>blocked vs needs-you</em> and adding the <em>planning vs executing</em> signal · 2026-06-23</div>
+</header>
+
+<div class="intro">
+  <strong>Your two questions reshaped the board — they're the same insight.</strong> You couldn't tell
+  <em>blocked</em> from <em>needs-you</em>, and you wondered what <em>planning vs executing</em> gives us.
+  The fix is to recognize there are <strong>two independent axes</strong>, and my first board conflated
+  them: <strong>lifecycle phase</strong> (Planning → Executing → Done — what the agent is doing) and
+  <strong>attention</strong> (does it need you, and why). "Blocked" was never a phase — it's one
+  <em>reason</em> a session needs you. So: one <strong>Needs&nbsp;you</strong> column with reason chips,
+  and phase becomes its own axis you can group by. Toggle <b>Group by</b> in the board below to feel both.
+</div>
+
+<!-- ════════════ THE TWO AXES + SIGNALS ════════════ -->
+<h2>The two axes (and the deterministic signal behind each)</h2>
+<div class="axes">
+  <div class="axis">
+    <h4>① Lifecycle phase — <span style="color:var(--project-iris)">what it's doing</span></h4>
+    <div class="flow">Planning ──▶ Executing ──▶ Done</div>
+    <p>Where the session is in its arc. Claude Code's <b>plan mode</b> makes this readable: an
+    <code>ExitPlanMode</code> marker or research-only tools (Read/Grep, no Edits yet) = Planning;
+    Edit/Write/Bash calls = Executing; finished + todos complete = Done.</p>
+  </div>
+  <div class="axis">
+    <h4>② Attention — <span style="color:var(--accent)">does it need you</span></h4>
+    <div class="flow">(cross-cuts every phase)</div>
+    <p>An interrupt, not a phase — a session can need you while <em>planning</em> (a plan to approve) or
+    while <em>executing</em> (a mid-flight question, or a blocker). That's why "blocked" doesn't deserve
+    its own column: it's just one <b>reason</b> under Needs you.</p>
+  </div>
+</div>
+
+<table class="sig">
+  <thead><tr><th>State / reason</th><th>Axis</th><th>Deterministic signal in the transcript</th><th>Confidence</th></tr></thead>
+  <tbody>
+    <tr><td class="st">Planning</td><td>phase</td><td>plan mode active · research tools only (Read/Grep/Glob), no Edit/Write since the last user turn</td><td><span class="conf conf-hi">high</span></td></tr>
+    <tr><td class="st">Executing</td><td>phase</td><td>≥1 <code>Edit</code>/<code>Write</code>/<code>Bash</code> <code>tool_use</code> since the last user turn</td><td><span class="conf conf-hi">high</span></td></tr>
+    <tr><td class="st">Done</td><td>phase</td><td>no live process + latest <code>TodoWrite</code> all-complete (or session ended cleanly)</td><td><span class="conf conf-hi">high</span></td></tr>
+    <tr><td class="st">⏸ Needs you · plan to approve</td><td>attention</td><td>last tool call is <code>ExitPlanMode</code> with no following user approval — the crispest signal of all</td><td><span class="conf conf-hi">high</span></td></tr>
+    <tr><td class="st">⏸ Needs you · question</td><td>attention</td><td>ended on an assistant turn (no tool follows) + the ENH-225 Stop/Notification attention flag fired</td><td><span class="conf conf-hi">high</span></td></tr>
+    <tr><td class="st">⏸ Needs you · blocked</td><td>attention</td><td>last <code>tool_result</code> is an error, or the closing assistant text matches a stop-on-failure shape</td><td><span class="conf conf-lo">heuristic</span></td></tr>
+  </tbody>
+</table>
+<p style="font-size:12px;color:var(--ink-mute)">All six are extracted at the Stop-hook digest step — <strong>no inference</strong>. The one soft call
+is <em>blocked</em> vs <em>question</em>; since both resolve to "Needs you," a wrong guess only mislabels a
+reason chip, never the column — which is the real argument for merging them.</p>
+
+<!-- ════════════ THE BOARD ════════════ -->
+<h2>The board</h2>
+<p style="font-size:13px;color:var(--ink-soft)">Same nine sessions, grouped two ways. <b>By attention</b> = act / wait / review (the catch-up default).
+<b>By phase</b> = the lifecycle pipeline, with needs-you cards flagged amber wherever they sit.</p>
+<div class="proto-frame">
+  <div class="proto-titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="grow"></span><span>Duo — Home · Catch-up · Board</span><span class="grow"></span></div>
+  <div class="board-bar">
+    <div class="digest">8:00am batch — <b>9 sessions</b>: <span class="need">3 need you</span>, 2 working, 4 done.</div>
+    <span>Group by</span>
+    <span class="grp" id="grp">
+      <button data-g="attn" class="on">Attention</button>
+      <button data-g="phase">Phase</button>
+    </span>
+  </div>
+  <div class="board" id="board"></div>
+</div>
+<div class="legend">
+  <span><span class="tag tag-plan">📋 plan to approve</span></span>
+  <span><span class="tag tag-question">💬 question</span></span>
+  <span><span class="tag tag-blocked">⛔ blocked</span></span>
+  <span style="color:var(--ink-ghost)">|</span>
+  <span><span class="tag tag-planning">📋 planning</span></span>
+  <span><span class="tag tag-executing">⚙ executing</span></span>
+  <span><span class="live" style="position:static;display:inline-block"></span> live process</span>
+</div>
+
+<h3>What changed from iteration 1</h3>
+<ul style="font-size:13px;color:var(--ink-soft)">
+  <li><b>Blocked is gone as a column</b> — it's now a red <span class="tag tag-blocked">⛔ blocked</span> reason chip inside <b>Needs you</b>, beside <span class="tag tag-question">💬 question</span> and <span class="tag tag-plan">📋 plan to approve</span>. Three things that all mean "give input," one column.</li>
+  <li><b>Planning vs executing is a real signal</b> — surfaced as a phase chip on working cards, and as columns when you group by phase. The standout case: a session that's <em>planning</em> AND <em>needs you</em> (a plan awaiting approval) — the cleanest "needs you" of all, and previously invisible.</li>
+  <li><b>The two axes are separable</b> — the Group-by toggle proves it: attention and phase are orthogonal, so you choose which one organizes your morning.</li>
+</ul>
+
+<!-- ════════════ DECISIONS ════════════ -->
+<h2>Decisions</h2>
+<form id="decisions">
+<div class="decision-card" data-q="merge">
+  <p class="q-title">Q1 · Blocked</p>
+  <p class="q-prompt">Fold "blocked" into "Needs you" as a reason chip?</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="merge" value="merge"><span class="q-option-body"><span class="q-option-title">Yes — one Needs-you column, reason chips<span class="recommend-tag">Rec</span></span><span class="q-option-rationale">Blocked / question / plan-to-approve are all "give input." One column for attention; the chip says why. Matches the signal confidence (blocked-vs-question is the fuzzy bit).</span></span></label>
+    <label class="q-option"><input type="radio" name="merge" value="keep"><span class="q-option-body"><span class="q-option-title">No — keep Blocked its own column</span><span class="q-option-rationale">If a blocker feels categorically heavier than a question and deserves its own lane.</span></span></label>
+  </div>
+  <textarea class="q-notes" name="merge-notes" placeholder="Notes…"></textarea>
+</div>
+<div class="decision-card" data-q="phase">
+  <p class="q-title">Q2 · Planning vs executing</p>
+  <p class="q-prompt">How prominent should the phase signal be?</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="phase" value="toggle"><span class="q-option-body"><span class="q-option-title">A Group-by toggle (Attention ↔ Phase)<span class="recommend-tag">Rec</span></span><span class="q-option-rationale">Default to Attention; let phase be a one-click re-pivot. Both axes, no clutter — what's in the board above.</span></span></label>
+    <label class="q-option"><input type="radio" name="phase" value="chip"><span class="q-option-body"><span class="q-option-title">Just a chip on working cards</span><span class="q-option-rationale">Keep attention-grouping only; phase is a quiet 📋/⚙ chip. Simplest.</span></span></label>
+    <label class="q-option"><input type="radio" name="phase" value="columns"><span class="q-option-body"><span class="q-option-title">Phase IS the columns (Planning · Executing · Done)</span><span class="q-option-rationale">Lead with the lifecycle pipeline; needs-you becomes an amber flag overlaid on any card.</span></span></label>
+  </div>
+  <textarea class="q-notes" name="phase-notes" placeholder="Notes…"></textarea>
+</div>
+<div class="decision-card" data-q="default">
+  <p class="q-title">Q3 · Default grouping</p>
+  <p class="q-prompt">When Catch-up opens, which grouping shows first?</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="default" value="attn"><span class="q-option-body"><span class="q-option-title">By attention (act / wait / review)<span class="recommend-tag">Rec</span></span><span class="q-option-rationale">"What do I do?" is the catch-up question; needs-you first.</span></span></label>
+    <label class="q-option"><input type="radio" name="default" value="phase"><span class="q-option-body"><span class="q-option-title">By phase (the lifecycle pipeline)</span><span class="q-option-rationale">"Where is everything?" — the manager's pipeline view.</span></span></label>
+  </div>
+  <textarea class="q-notes" name="default-notes" placeholder="Notes…"></textarea>
+</div>
+</form>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 3 decided — round-trips to your clipboard</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+// ── data: 9 sessions covering the phase × attention matrix ───────────────
+// attn: null | {reason:'plan'|'question'|'blocked', text}
+// phase: 'planning' | 'executing' | 'done'
+const S=[
+  {id:1,goal:'Migrate analytics events to the v2 schema',repo:'web-app',hue:'--project-harbor',age:'14m',live:false,
+   phase:'executing',attn:{reason:'question',text:'page_view → screen.viewed, or drop it? Paused before 40 call-sites.'},
+   youAsked:'Keep v1 emitting in parallel.',next:'Migrate 40 call-sites',files:['events/schema.ts','+4'],artifacts:[],
+   primary:'Open session →'},
+  {id:2,goal:'Redesign the onboarding flow',repo:'web-app',hue:'--project-harbor',age:'20m',live:false,
+   phase:'planning',attn:{reason:'plan',text:'Proposed a 4-step plan (new welcome → progressive profiling). Approve to start?'},
+   youAsked:'Reduce drop-off on step 2.',next:'Awaiting your go-ahead',files:[],artifacts:[],
+   primary:'Review plan →'},
+  {id:3,goal:'Upgrade the app to React 19',repo:'web-app',hue:'--project-harbor',age:'52m',live:false,
+   phase:'executing',attn:{reason:'blocked',text:'react-beautiful-dnd is incompatible & unmaintained. Swap library or pin React 18?'},
+   youAsked:'Bump React and fix what breaks.',next:'Resolve dnd incompatibility',files:['package.json','Board.tsx'],artifacts:[],
+   primary:'Open session →'},
+  {id:4,goal:'Fix the flaky checkout E2E test',repo:'web-app',hue:'--project-harbor',age:'2m',live:true,
+   phase:'executing',attn:null,
+   youAsked:'Make it deterministic — no sleeps.',next:'Confirm over 50 runs',files:['e2e/checkout.spec.ts'],artifacts:[],
+   primary:'Open session →'},
+  {id:5,goal:'Investigate the worker-pool memory leak',repo:'worker',hue:'--project-moss',age:'8m',live:true,
+   phase:'planning',attn:null,
+   youAsked:'Heap grows ~20MB/hr — find what is retained.',next:'Diff retained sets',files:['pool/scheduler.ts'],artifacts:[],
+   primary:'Open session →'},
+  {id:6,goal:'Add OAuth refresh-token rotation',repo:'auth-service',hue:'--project-iris',age:'6m',live:false,
+   phase:'done',attn:null,
+   youAsked:'Rotate on refresh; revoke the old token.',next:null,files:['tokens/rotate.ts','tokens/revoke.ts'],
+   artifacts:[{label:'PR #214',kind:'pr'},{label:'7 tests green',kind:'test'}],primary:'Review PR #214 →'},
+  {id:7,goal:'Draft the Q3 reliability report',repo:'docs',hue:'--project-rose',age:'40m',live:false,
+   phase:'done',attn:null,
+   youAsked:'Pull incidents; draft for the team.',next:null,files:['q3-reliability.md'],
+   artifacts:[{label:'q3-reliability.md',kind:'file'}],primary:'Open report →'},
+  {id:8,goal:'Add rate-limiting to the public API',repo:'api-gateway',hue:'--project-pine',age:'1h',live:false,
+   phase:'done',attn:null,
+   youAsked:'Token-bucket, 100 req/min/key.',next:null,files:['mw/rateLimit.ts'],
+   artifacts:[{label:'PR #88',kind:'pr'}],primary:'Review PR #88 →'},
+  {id:9,goal:'Rename vault → graphbook in CLI help',repo:'duo',hue:'--project-plum',age:'2h',live:false,
+   phase:'done',attn:null,
+   youAsked:'User-facing help strings only.',next:null,files:['cli/help.ts'],
+   artifacts:[{label:'commit a1b2c3',kind:'file'}],primary:'View diff →'},
+];
+
+const REASON={plan:{cls:'tag-plan',label:'📋 plan to approve'},question:{cls:'tag-question',label:'💬 question'},blocked:{cls:'tag-blocked',label:'⛔ blocked'}};
+const PHASE={planning:{cls:'tag-planning',label:'📋 planning'},executing:{cls:'tag-executing',label:'⚙ executing'},done:{cls:'',label:''}};
+const esc=s=>(''+s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const dot=s=>`<span class="pdot" style="background:var(${s.hue})"></span>`;
+const artHtml=a=>a.map(x=>`<span class="achip achip-${x.kind}">${esc(x.label)}</span>`).join('');
+
+// attention column for a session
+const attnCol=s=>s.attn?'needs':(s.phase==='done'?'done':'working');
+
+function cardHtml(s,grouping){
+  const needs=!!s.attn;
+  // status row depends on what matters most for this card
+  let row='';
+  if(needs) row=`<div class="brow"><span class="ql">${esc(s.attn.text)}</span></div>`;
+  else if(s.phase==='done') row=`<div class="chips">${artHtml(s.artifacts)}</div>`;
+  else row=`<div class="brow"><span class="nx">Next:</span> ${esc(s.next)}</div>`;
+  // chips: in attention grouping show phase chip on working cards + reason chip on needs cards;
+  // in phase grouping show reason chip on needs cards (phase is the column already).
+  let chips='';
+  if(needs) chips+=`<span class="tag ${REASON[s.attn.reason].cls}">${REASON[s.attn.reason].label}</span> `;
+  if(s.phase!=='done' && (grouping==='attn') && !needs) chips+=`<span class="tag ${PHASE[s.phase].cls}">${PHASE[s.phase].label}</span> `;
+  if(needs && s.phase!=='done') chips+=`<span class="tag ${PHASE[s.phase].cls}">${PHASE[s.phase].label}</span> `;
+  return `<div class="bcard ${needs?'needs':''}" style="border-top-color:var(${s.hue})">
+    <div class="bg">${esc(s.goal)}</div>
+    <div class="bmeta">${s.live?'<span class="live"></span>':''}${dot(s)} ${esc(s.repo)} · ${s.age}</div>
+    ${chips?`<div class="chips">${chips}</div>`:''}
+    ${row}
+    <button class="act ${needs||s.phase==='done'?'primary':''}">${esc(s.primary)}</button>
+  </div>`;
+}
+
+function render(grouping){
+  let cols;
+  if(grouping==='attn'){
+    cols=[['needs','⏸ Needs you',true],['working','● Working',false],['done','✓ Done — review',false]];
+    var keyOf=attnCol;
+  }else{
+    cols=[['planning','📋 Planning',false],['executing','⚙ Executing',false],['done','✓ Done — review',false]];
+    keyOf=s=>s.phase;
+  }
+  const board=document.getElementById('board');
+  board.innerHTML=cols.map(([key,label,isAttn])=>{
+    const items=S.filter(s=>keyOf(s)===key);
+    return `<div class="bcol ${isAttn?'attn-col':''}">
+      <div class="bcol-h"><span>${label}</span><span class="cnt">${items.length}</span></div>
+      ${items.map(s=>cardHtml(s,grouping)).join('')||'<div class="empty-col">—</div>'}
+    </div>`;
+  }).join('');
+}
+let grouping='attn';
+document.getElementById('grp').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  grouping=b.dataset.g;
+  [...document.querySelectorAll('#grp button')].forEach(x=>x.classList.toggle('on',x===b));
+  render(grouping);
+});
+render(grouping);
+
+// ── decisions ────────────────────────────────────────────────────────────
+const form=document.getElementById('decisions'),countEl=document.getElementById('answered-count'),btn=document.getElementById('copy-btn');
+function read(){return [...form.querySelectorAll('.decision-card')].map(card=>{
+  const q=card.dataset.q,title=card.querySelector('.q-prompt').textContent.trim();
+  const r=card.querySelector('input:checked'),notes=(card.querySelector('.q-notes')?.value||'').trim();
+  return {q,title,answer:r?r.value:'',notes};});}
+function refresh(){countEl.textContent=read().filter(x=>x.answer||x.notes).length;}
+form.addEventListener('input',refresh);form.addEventListener('change',refresh);
+btn.addEventListener('click',()=>{
+  const lines=['# Async Catch-Up — Command Board decisions',''];
+  read().forEach(x=>{lines.push(`## ${x.q}: ${x.title}`);lines.push(`- Answer: ${x.answer||'(none)'}`);if(x.notes)lines.push(`- Notes: ${x.notes}`);lines.push('');});
+  navigator.clipboard.writeText(lines.join('\n')).then(()=>{btn.textContent='Copied ✓';btn.classList.add('copied');setTimeout(()=>{btn.textContent='Copy decisions';btn.classList.remove('copied');},1800);});
+});
+refresh();
+</script>
+</body>
+</html>

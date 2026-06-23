@@ -78,6 +78,28 @@ These stamp the session's digest; Home replays them verbatim. **Fallback when
 the agent didn't narrate:** show the deterministic last-assistant block (today's
 Home snippet). Never fabricate — the worst case is exactly what Home shows now.
 
+### D5 — Arrangement: the Command Board (owner 2026-06-23)
+Of four explored directions (Triage Inbox · Briefing · Command Board · Review
+Deck — `docs/research/async-catchup-home-directions.html`), the owner chose the
+**Command Board** (kanban columns), pure (no hybrid). Catch-up renders sessions
+as cards in state columns.
+
+### D6 — Two axes, not one (proposed; pending board decision card)
+Owner feedback on the first board surfaced that "blocked" and "needs you" were
+confusingly peer columns. Resolution: there are **two independent axes**, and the
+board must not conflate them:
+- **Lifecycle phase** — Planning → Executing → Done. Readable from Claude Code's
+  **plan mode** (an `ExitPlanMode` marker / research-only tools = Planning;
+  Edit/Write/Bash = Executing; finished + todos complete = Done). All deterministic.
+- **Attention** — a cross-cutting interrupt (does it need you, and why), NOT a
+  phase. "Blocked" is one *reason* under Needs you, beside "question" and "plan to
+  approve"; it is therefore a **reason chip, not a column**.
+The board groups by one axis at a time via a **Group-by toggle** (Attention ↔
+Phase), defaulting to Attention. `SessionDigest` gains `phase` and
+`attention: {reason} | null`, both extracted at the Stop hook. The board's open
+sub-decisions (fold blocked? phase prominence? default grouping?) live in
+`docs/research/async-catchup-board.html` — confirm before building.
+
 ### D4 — Hydration: materialize on the Stop hook
 Compute a per-session `SessionDigest` **incrementally, at turn boundaries while
 the session is live**, and cache it. Home reads cheap cached digests, never
