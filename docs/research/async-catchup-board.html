@@ -127,52 +127,47 @@ code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12px;backgroun
 <header class="page-head">
   <h1>Async Catch-Up — Command Board, iteration 2</h1>
   <div class="meta"><span class="pill">Prototype</span><span class="pill">ENH-231</span>
-    Resolving <em>blocked vs needs-you</em> and adding the <em>planning vs executing</em> signal · 2026-06-23</div>
+    <span class="pill" style="background:color-mix(in srgb,var(--pass) 18%,var(--paper));color:var(--pass)">Locked</span>
+    Attention columns · blocked merged as a reason chip · phase cut · 2026-06-23</div>
 </header>
 
 <div class="intro">
-  <strong>Your two questions reshaped the board — they're the same insight.</strong> You couldn't tell
-  <em>blocked</em> from <em>needs-you</em>, and you wondered what <em>planning vs executing</em> gives us.
-  The fix is to recognize there are <strong>two independent axes</strong>, and my first board conflated
-  them: <strong>lifecycle phase</strong> (Planning → Executing → Done — what the agent is doing) and
-  <strong>attention</strong> (does it need you, and why). "Blocked" was never a phase — it's one
-  <em>reason</em> a session needs you. So: one <strong>Needs&nbsp;you</strong> column with reason chips,
-  and phase becomes its own axis you can group by. Toggle <b>Group by</b> in the board below to feel both.
+  <strong>Converged: one axis — attention.</strong> We explored a second, <em>lifecycle phase</em>
+  (Planning → Executing → Done), but the owner's call is to <strong>cut phase and organize purely by
+  attention</strong> — the columns answer <em>"what do I do about this?"</em>:
+  <strong>Needs&nbsp;you</strong> (act) · <strong>Working</strong> (wait) · <strong>Done</strong> (review).
+  "Blocked" is not a column — it folds into Needs&nbsp;you as a <em>reason chip</em> beside "question" and
+  "plan to approve". The plan-mode signal survives only where it's genuinely attention (a plan awaiting
+  your approval), never as a phase label.
 </div>
 
 <!-- ════════════ THE TWO AXES + SIGNALS ════════════ -->
-<h2>The two axes (and the deterministic signal behind each)</h2>
-<div class="axes">
-  <div class="axis">
-    <h4>① Lifecycle phase — <span style="color:var(--project-iris)">what it's doing</span></h4>
-    <div class="flow">Planning ──▶ Executing ──▶ Done</div>
-    <p>Where the session is in its arc. Claude Code's <b>plan mode</b> makes this readable: an
-    <code>ExitPlanMode</code> marker or research-only tools (Read/Grep, no Edits yet) = Planning;
-    Edit/Write/Bash calls = Executing; finished + todos complete = Done.</p>
-  </div>
-  <div class="axis">
-    <h4>② Attention — <span style="color:var(--accent)">does it need you</span></h4>
-    <div class="flow">(cross-cuts every phase)</div>
-    <p>An interrupt, not a phase — a session can need you while <em>planning</em> (a plan to approve) or
-    while <em>executing</em> (a mid-flight question, or a blocker). That's why "blocked" doesn't deserve
-    its own column: it's just one <b>reason</b> under Needs you.</p>
-  </div>
-</div>
-
+<h2>The columns — and the deterministic signal behind each</h2>
+<p style="font-size:13px;color:var(--ink-soft)">Three columns, one axis: <strong>what you do about it</strong>. Every state is extracted at the Stop-hook
+digest step — <strong>no inference</strong>.</p>
 <table class="sig">
-  <thead><tr><th>State / reason</th><th>Axis</th><th>Deterministic signal in the transcript</th><th>Confidence</th></tr></thead>
+  <thead><tr><th>Column / reason</th><th>Deterministic signal in the transcript</th><th>Confidence</th></tr></thead>
   <tbody>
-    <tr><td class="st">Planning</td><td>phase</td><td>plan mode active · research tools only (Read/Grep/Glob), no Edit/Write since the last user turn</td><td><span class="conf conf-hi">high</span></td></tr>
-    <tr><td class="st">Executing</td><td>phase</td><td>≥1 <code>Edit</code>/<code>Write</code>/<code>Bash</code> <code>tool_use</code> since the last user turn</td><td><span class="conf conf-hi">high</span></td></tr>
-    <tr><td class="st">Done</td><td>phase</td><td>no live process + latest <code>TodoWrite</code> all-complete (or session ended cleanly)</td><td><span class="conf conf-hi">high</span></td></tr>
-    <tr><td class="st">⏸ Needs you · plan to approve</td><td>attention</td><td>last tool call is <code>ExitPlanMode</code> with no following user approval — the crispest signal of all</td><td><span class="conf conf-hi">high</span></td></tr>
-    <tr><td class="st">⏸ Needs you · question</td><td>attention</td><td>ended on an assistant turn (no tool follows) + the ENH-225 Stop/Notification attention flag fired</td><td><span class="conf conf-hi">high</span></td></tr>
-    <tr><td class="st">⏸ Needs you · blocked</td><td>attention</td><td>last <code>tool_result</code> is an error, or the closing assistant text matches a stop-on-failure shape</td><td><span class="conf conf-lo">heuristic</span></td></tr>
+    <tr><td class="st">● Working</td><td>a live <code>claude</code> process is attributed, or recent activity with no open question</td><td><span class="conf conf-hi">high</span></td></tr>
+    <tr><td class="st">✓ Done</td><td>no live process + latest <code>TodoWrite</code> all-complete (or session ended cleanly)</td><td><span class="conf conf-hi">high</span></td></tr>
+    <tr><td class="st">⏸ Needs you · plan to approve</td><td>last tool call is <code>ExitPlanMode</code> with no following user approval — the crispest signal of all</td><td><span class="conf conf-hi">high</span></td></tr>
+    <tr><td class="st">⏸ Needs you · question</td><td>ended on an assistant turn (no tool follows) + the ENH-225 Stop/Notification attention flag fired</td><td><span class="conf conf-hi">high</span></td></tr>
+    <tr><td class="st">⏸ Needs you · blocked</td><td>last <code>tool_result</code> is an error, or the closing assistant text matches a stop-on-failure shape</td><td><span class="conf conf-lo">heuristic</span></td></tr>
   </tbody>
 </table>
-<p style="font-size:12px;color:var(--ink-mute)">All six are extracted at the Stop-hook digest step — <strong>no inference</strong>. The one soft call
-is <em>blocked</em> vs <em>question</em>; since both resolve to "Needs you," a wrong guess only mislabels a
-reason chip, never the column — which is the real argument for merging them.</p>
+<p style="font-size:12px;color:var(--ink-mute)">The one soft call is <em>blocked</em> vs <em>question</em> — but since both land in <b>Needs you</b>, a
+wrong guess only mislabels a reason chip, never the column. That low blast-radius is exactly why merging
+blocked into Needs&nbsp;you (rather than giving it its own column) is the right call.</p>
+
+<details style="margin:14px 0;font-size:12.5px;color:var(--ink-soft)">
+  <summary style="cursor:pointer;font-weight:600;color:var(--ink-mute)">Why "planning vs executing" was cut (and what we kept)</summary>
+  <p style="margin-top:10px">We explored a second axis — lifecycle <em>phase</em> (Planning → Executing → Done), readable from plan-mode
+  signals. It's real and deterministic, but it competed with attention for the columns and added a chip most
+  catch-up moments don't need. The owner's call: <strong>cut it.</strong> The board organizes by attention
+  only. The one piece of plan-mode signal worth keeping is the <em>plan-to-approve</em> reason — which is
+  attention, not phase — so it stays as a Needs-you chip. The raw phase data still lives in the digest if a
+  future view wants it; it's just not surfaced here.</p>
+</details>
 
 <!-- ════════════ THE BOARD ════════════ -->
 <h2>The board</h2>
@@ -182,21 +177,15 @@ reason chip, never the column — which is the real argument for merging them.</
   <div class="proto-titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="grow"></span><span>Duo — Home · Catch-up · Board</span><span class="grow"></span></div>
   <div class="board-bar">
     <div class="digest">8:00am batch — <b>9 sessions</b>: <span class="need">3 need you</span>, 2 working, 4 done.</div>
-    <span>Group by</span>
-    <span class="grp" id="grp">
-      <button data-g="attn" class="on">Attention</button>
-      <button data-g="phase">Phase</button>
-    </span>
+    <span style="font-size:11px;color:var(--ink-ghost)">columns = what you do about it: act · wait · review</span>
   </div>
   <div class="board" id="board"></div>
 </div>
 <div class="legend">
+  <span style="color:var(--ink-soft);font-weight:600">Needs-you reasons:</span>
   <span><span class="tag tag-plan">📋 plan to approve</span></span>
   <span><span class="tag tag-question">💬 question</span></span>
   <span><span class="tag tag-blocked">⛔ blocked</span></span>
-  <span style="color:var(--ink-ghost)">|</span>
-  <span><span class="tag tag-planning">📋 planning</span></span>
-  <span><span class="tag tag-executing">⚙ executing</span></span>
   <span><span class="live" style="position:static;display:inline-block"></span> live process</span>
 </div>
 
@@ -216,37 +205,28 @@ exceptions and one principle:</p>
   canvas side by side (the core pairing), so "Open session" and "Open report" differ only in which one leads.</li>
 </ul>
 
-<h3>What changed from iteration 1</h3>
+<h3>The locked board, at a glance</h3>
 <ul style="font-size:13px;color:var(--ink-soft)">
-  <li><b>Blocked is gone as a column</b> — it's now a red <span class="tag tag-blocked">⛔ blocked</span> reason chip inside <b>Needs you</b>, beside <span class="tag tag-question">💬 question</span> and <span class="tag tag-plan">📋 plan to approve</span>. Three things that all mean "give input," one column.</li>
-  <li><b>Planning vs executing is a real signal</b> — surfaced as a phase chip on working cards, and as columns when you group by phase. The standout case: a session that's <em>planning</em> AND <em>needs you</em> (a plan awaiting approval) — the cleanest "needs you" of all, and previously invisible.</li>
-  <li><b>The two axes are separable</b> — the Group-by toggle proves it: attention and phase are orthogonal, so you choose which one organizes your morning.</li>
+  <li><b>Three attention columns</b> — <b>Needs you</b> (act) · <b>Working</b> (wait) · <b>Done</b> (review). No phase columns, no group-by toggle.</li>
+  <li><b>Blocked is a reason chip, not a column</b> — <span class="tag tag-blocked">⛔ blocked</span> sits inside Needs&nbsp;you beside <span class="tag tag-question">💬 question</span> and <span class="tag tag-plan">📋 plan to approve</span>. Three things that all mean "give input," one column.</li>
+  <li><b>Plan-to-approve is the standout Needs-you case</b> — a proposed plan awaiting your go-ahead (an <code>ExitPlanMode</code> with no approval after it). The crispest "needs you" signal of all, and it was invisible before.</li>
+  <li><b>Done leads with re-entry</b> — "Open session →" by default; md/html opens the artifact; PR/diff are secondary links (next section).</li>
 </ul>
 
 <!-- ════════════ DECISIONS ════════════ -->
 <h2>Decisions</h2>
+
+<div style="background:color-mix(in srgb,var(--pass) 9%,var(--paper));border:1.5px solid color-mix(in srgb,var(--pass) 35%,var(--paper-rule));border-radius:6px;padding:12px 16px;margin:0 0 16px;font-size:12.5px;color:var(--ink-soft);line-height:1.6;">
+  <strong style="color:var(--pass)">Locked 2026-06-23.</strong>
+  <span style="display:block;margin-top:3px;">Blocked → <b style="color:var(--ink)">merged</b> into Needs&nbsp;you as a reason chip.</span>
+  <span style="display:block;">Phase (planning/executing) → <b style="color:var(--ink)">cut</b> — attention is the only axis ("get rid of phase, stick to attention"). Plan-to-approve survives as a Needs-you reason.</span>
+  <span style="display:block;">Default grouping → <b style="color:var(--ink)">attention</b> (act · wait · review).</span>
+</div>
+
+<p style="font-size:13px;color:var(--ink-soft)">One open question remains — the rest of the design is settled.</p>
 <form id="decisions">
-<div class="decision-card" data-q="merge">
-  <p class="q-title">Q1 · Blocked</p>
-  <p class="q-prompt">Fold "blocked" into "Needs you" as a reason chip?</p>
-  <div class="q-options">
-    <label class="q-option"><input type="radio" name="merge" value="merge"><span class="q-option-body"><span class="q-option-title">Yes — one Needs-you column, reason chips<span class="recommend-tag">Rec</span></span><span class="q-option-rationale">Blocked / question / plan-to-approve are all "give input." One column for attention; the chip says why. Matches the signal confidence (blocked-vs-question is the fuzzy bit).</span></span></label>
-    <label class="q-option"><input type="radio" name="merge" value="keep"><span class="q-option-body"><span class="q-option-title">No — keep Blocked its own column</span><span class="q-option-rationale">If a blocker feels categorically heavier than a question and deserves its own lane.</span></span></label>
-  </div>
-  <textarea class="q-notes" name="merge-notes" placeholder="Notes…"></textarea>
-</div>
-<div class="decision-card" data-q="phase">
-  <p class="q-title">Q2 · Planning vs executing</p>
-  <p class="q-prompt">How prominent should the phase signal be?</p>
-  <div class="q-options">
-    <label class="q-option"><input type="radio" name="phase" value="toggle"><span class="q-option-body"><span class="q-option-title">A Group-by toggle (Attention ↔ Phase)<span class="recommend-tag">Rec</span></span><span class="q-option-rationale">Default to Attention; let phase be a one-click re-pivot. Both axes, no clutter — what's in the board above.</span></span></label>
-    <label class="q-option"><input type="radio" name="phase" value="chip"><span class="q-option-body"><span class="q-option-title">Just a chip on working cards</span><span class="q-option-rationale">Keep attention-grouping only; phase is a quiet 📋/⚙ chip. Simplest.</span></span></label>
-    <label class="q-option"><input type="radio" name="phase" value="columns"><span class="q-option-body"><span class="q-option-title">Phase IS the columns (Planning · Executing · Done)</span><span class="q-option-rationale">Lead with the lifecycle pipeline; needs-you becomes an amber flag overlaid on any card.</span></span></label>
-  </div>
-  <textarea class="q-notes" name="phase-notes" placeholder="Notes…"></textarea>
-</div>
 <div class="decision-card" data-q="done">
-  <p class="q-title">Q3 · Done-column primary action</p>
+  <p class="q-title">Q · Done-column primary action</p>
   <p class="q-prompt">What should the Done cards' primary button do?</p>
   <div class="q-options">
     <label class="q-option"><input type="radio" name="done" value="session-default"><span class="q-option-body"><span class="q-option-title">Open session by default; md/html opens the artifact<span class="recommend-tag">Rec</span></span><span class="q-option-rationale">Re-enter is the common case; only md/html leads with the artifact (canvas/playground). PR/diff are secondary links. (What's above.)</span></span></label>
@@ -255,19 +235,10 @@ exceptions and one principle:</p>
   </div>
   <textarea class="q-notes" name="done-notes" placeholder="Notes…"></textarea>
 </div>
-<div class="decision-card" data-q="default">
-  <p class="q-title">Q4 · Default grouping</p>
-  <p class="q-prompt">When Catch-up opens, which grouping shows first?</p>
-  <div class="q-options">
-    <label class="q-option"><input type="radio" name="default" value="attn"><span class="q-option-body"><span class="q-option-title">By attention (act / wait / review)<span class="recommend-tag">Rec</span></span><span class="q-option-rationale">"What do I do?" is the catch-up question; needs-you first.</span></span></label>
-    <label class="q-option"><input type="radio" name="default" value="phase"><span class="q-option-body"><span class="q-option-title">By phase (the lifecycle pipeline)</span><span class="q-option-rationale">"Where is everything?" — the manager's pipeline view.</span></span></label>
-  </div>
-  <textarea class="q-notes" name="default-notes" placeholder="Notes…"></textarea>
-</div>
 </form>
 
 <div class="copy-bar">
-  <div class="copy-meta"><span id="answered-count">0</span> / 4 decided — round-trips to your clipboard</div>
+  <div class="copy-meta"><span id="answered-count">0</span> / 1 decided — round-trips to your clipboard</div>
   <button id="copy-btn" type="button">Copy decisions</button>
 </div>
 
@@ -315,7 +286,6 @@ const S=[
 ];
 
 const REASON={plan:{cls:'tag-plan',label:'📋 plan to approve'},question:{cls:'tag-question',label:'💬 question'},blocked:{cls:'tag-blocked',label:'⛔ blocked'}};
-const PHASE={planning:{cls:'tag-planning',label:'📋 planning'},executing:{cls:'tag-executing',label:'⚙ executing'},done:{cls:'',label:''}};
 const esc=s=>(''+s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const dot=s=>`<span class="pdot" style="background:var(${s.hue})"></span>`;
 const artHtml=a=>a.map(x=>`<span class="achip achip-${x.kind}">${esc(x.label)}</span>`).join('');
@@ -323,19 +293,16 @@ const artHtml=a=>a.map(x=>`<span class="achip achip-${x.kind}">${esc(x.label)}</
 // attention column for a session
 const attnCol=s=>s.attn?'needs':(s.phase==='done'?'done':'working');
 
-function cardHtml(s,grouping){
+function cardHtml(s){
   const needs=!!s.attn;
   // status row depends on what matters most for this card
   let row='';
   if(needs) row=`<div class="brow"><span class="ql">${esc(s.attn.text)}</span></div>`;
   else if(s.phase==='done') row=`<div class="chips">${artHtml(s.artifacts)}</div>`;
   else row=`<div class="brow"><span class="nx">Next:</span> ${esc(s.next)}</div>`;
-  // chips: in attention grouping show phase chip on working cards + reason chip on needs cards;
-  // in phase grouping show reason chip on needs cards (phase is the column already).
+  // chips: a Needs-you card carries its reason chip (plan / question / blocked).
   let chips='';
   if(needs) chips+=`<span class="tag ${REASON[s.attn.reason].cls}">${REASON[s.attn.reason].label}</span> `;
-  if(s.phase!=='done' && (grouping==='attn') && !needs) chips+=`<span class="tag ${PHASE[s.phase].cls}">${PHASE[s.phase].label}</span> `;
-  if(needs && s.phase!=='done') chips+=`<span class="tag ${PHASE[s.phase].cls}">${PHASE[s.phase].label}</span> `;
   return `<div class="bcard ${needs?'needs':''}" style="border-top-color:var(${s.hue})">
     <div class="bg">${esc(s.goal)}</div>
     <div class="bmeta">${s.live?'<span class="live"></span>':''}${dot(s)} ${esc(s.repo)} · ${s.age}</div>
@@ -346,32 +313,18 @@ function cardHtml(s,grouping){
   </div>`;
 }
 
-function render(grouping){
-  let cols;
-  if(grouping==='attn'){
-    cols=[['needs','⏸ Needs you',true],['working','● Working',false],['done','✓ Done — review',false]];
-    var keyOf=attnCol;
-  }else{
-    cols=[['planning','📋 Planning',false],['executing','⚙ Executing',false],['done','✓ Done — review',false]];
-    keyOf=s=>s.phase;
-  }
+function render(){
+  const cols=[['needs','⏸ Needs you',true],['working','● Working',false],['done','✓ Done — review',false]];
   const board=document.getElementById('board');
   board.innerHTML=cols.map(([key,label,isAttn])=>{
-    const items=S.filter(s=>keyOf(s)===key);
+    const items=S.filter(s=>attnCol(s)===key);
     return `<div class="bcol ${isAttn?'attn-col':''}">
       <div class="bcol-h"><span>${label}</span><span class="cnt">${items.length}</span></div>
-      ${items.map(s=>cardHtml(s,grouping)).join('')||'<div class="empty-col">—</div>'}
+      ${items.map(s=>cardHtml(s)).join('')||'<div class="empty-col">—</div>'}
     </div>`;
   }).join('');
 }
-let grouping='attn';
-document.getElementById('grp').addEventListener('click',e=>{
-  const b=e.target.closest('button'); if(!b)return;
-  grouping=b.dataset.g;
-  [...document.querySelectorAll('#grp button')].forEach(x=>x.classList.toggle('on',x===b));
-  render(grouping);
-});
-render(grouping);
+render();
 
 // ── decisions ────────────────────────────────────────────────────────────
 const form=document.getElementById('decisions'),countEl=document.getElementById('answered-count'),btn=document.getElementById('copy-btn');

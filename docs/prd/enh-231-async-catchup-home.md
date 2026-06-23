@@ -84,21 +84,48 @@ Deck — `docs/research/async-catchup-home-directions.html`), the owner chose th
 **Command Board** (kanban columns), pure (no hybrid). Catch-up renders sessions
 as cards in state columns.
 
-### D6 — Two axes, not one (proposed; pending board decision card)
+### D6 — One axis: attention (owner 2026-06-23, board decision card)
 Owner feedback on the first board surfaced that "blocked" and "needs you" were
-confusingly peer columns. Resolution: there are **two independent axes**, and the
-board must not conflate them:
-- **Lifecycle phase** — Planning → Executing → Done. Readable from Claude Code's
-  **plan mode** (an `ExitPlanMode` marker / research-only tools = Planning;
-  Edit/Write/Bash = Executing; finished + todos complete = Done). All deterministic.
-- **Attention** — a cross-cutting interrupt (does it need you, and why), NOT a
-  phase. "Blocked" is one *reason* under Needs you, beside "question" and "plan to
-  approve"; it is therefore a **reason chip, not a column**.
-The board groups by one axis at a time via a **Group-by toggle** (Attention ↔
-Phase), defaulting to Attention. `SessionDigest` gains `phase` and
-`attention: {reason} | null`, both extracted at the Stop hook. The board's open
-sub-decisions (fold blocked? phase prominence? default grouping?) live in
-`docs/research/async-catchup-board.html` — confirm before building.
+confusingly peer columns. We explored a second *lifecycle phase* axis (Planning →
+Executing → Done, readable from Claude Code plan-mode signals), but the owner's
+call was decisive: *"get rid of phase, stick to attention."* The board organizes
+by **attention only** — three columns answering "what do I do about it?":
+- **Needs you** (act) · **Working** (wait) · **Done** (review).
+- **"Blocked" is a reason chip, not a column** — it folds into Needs you beside
+  *question* and *plan to approve*. (Confirmed: merge.)
+- **Phase is cut from the surface.** The one plan-mode signal kept is the
+  *plan-to-approve* Needs-you reason (the crispest attention signal — an
+  `ExitPlanMode` with no following approval); that is *attention*, not phase.
+- **Default grouping: attention** (confirmed).
+
+`SessionDigest` gains `attention: {reason: 'plan'|'question'|'blocked'} | null`,
+extracted at the Stop hook. The state→column signals + confidence are documented
+in `docs/research/async-catchup-board.html`. The raw phase signal may still be
+captured in the digest for a future view, but is **not surfaced** in v1.
+
+**Still open (one item):** the Done-column primary action default — recommended
+model is *Open session →* by default, *Open <artifact> →* for md/html (canvas/
+playground), PR/diff as secondary links (D7).
+
+### D7 — Done-column action: re-entry leads, artifact follows (owner-refined; default pending)
+Owner: a complete work product rarely means "view the artifact" — usually you want
+to **jump back into the session** (iterate / follow-up / read the closing message).
+So Done cards lead with **`Open session →`**; the work product is a quieter
+secondary link. Exceptions/principle:
+- **md / html products lead with the artifact** (`Open report →`) — opens/focuses
+  in Duo's canvas (md) or playground (html). The one case the artifact *is* the
+  thing to look at, and Duo's home turf.
+- **PR / diff are secondary links, not the headline** — PR-review is the
+  comparatively rare reach.
+- In Duo these aren't rivals: re-entering can surface terminal + canvas together,
+  so "Open session" vs "Open report" is only about which one *leads*.
+**Work-product signal strength** (feeds both the artifact chips and the secondary
+link, captured at the Stop hook — never inferred or looked up at open):
+PR opened (`gh pr create` / `mcp__github__create_pull_request`, URL returned in the
+result) = *very high, deep-links*; new output file (`Write` to .md/.html/…) = *high*;
+edited files on a known `gitBranch`, no PR → diff = *high*; tests/build = *medium*,
+a chip not a destination; answer-only (prose, no artifact) = the honest gap, primary
+stays `Open session →`. Precedence for the *secondary* link: PR > new doc > diff.
 
 ### D4 — Hydration: materialize on the Stop hook
 Compute a per-session `SessionDigest` **incrementally, at turn boundaries while
