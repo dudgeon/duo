@@ -498,12 +498,18 @@ export function renderTarget(
   const sections: string[] = []
   const mdSections: string[] = []
   const snapshot: RollupSnapshot = { v: 1, views: [] }
+  // Snapshot view names must be unique for the diff to match views 1:1, so a
+  // second view with the same name (e.g. two embedded base blocks both named
+  // "Tasks") is suffixed rather than colliding.
+  const viewNameCounts = new Map<string, number>()
 
   // Capture each view's rows as plain strings for the diff snapshot.
   const collect = (evaluated: EvaluatedBase, thisFile: EngineFile | null) => {
     for (const v of evaluated.views) {
+      const n = (viewNameCounts.get(v.name) ?? 0) + 1
+      viewNameCounts.set(v.name, n)
       snapshot.views.push({
-        name: v.name,
+        name: n === 1 ? v.name : `${v.name} (${n})`,
         rows: v.rows.map((f) => ({
           key: f.path,
           cells: Object.fromEntries(
@@ -551,17 +557,8 @@ export function renderTarget(
   const embedded = opts.embedSnapshot
     ? snapshotComment(snapshot) + (summaryLog.length ? '\n' + summaryLogComment(summaryLog) : '')
     : ''
-  const html = assemblePage(sections, {
-    sourceHash: hash,
-    generatedAt,
-    asOfLabel,
-    noteCount: notes.length,
-    baseCount: bases.length,
-    target,
-    styleCss: opts.styleCss,
-    summaryHtml: summarySectionHtml(summaryLog),
-    embedded,
-  })
+  // Build the Markdown first so the HTML artifact can embed it for its
+  // "Copy as Markdown" button (req #4).
   const md = assembleMarkdownPage(mdSections, {
     title: target,
     sourceHash: hash,
@@ -571,6 +568,18 @@ export function renderTarget(
     baseCount: bases.length,
     target,
     summaryLog,
+    embedded,
+  })
+  const html = assemblePage(sections, {
+    sourceHash: hash,
+    generatedAt,
+    asOfLabel,
+    noteCount: notes.length,
+    baseCount: bases.length,
+    target,
+    styleCss: opts.styleCss,
+    summaryHtml: summarySectionHtml(summaryLog),
+    markdownSource: md,
     embedded,
   })
   return { html, md, snapshot, bases, sourceHash: hash, generatedAt, asOfLabel }
@@ -587,6 +596,7 @@ function assemblePage(
     target: string
     styleCss?: string
     summaryHtml?: string
+    markdownSource?: string
     embedded?: string
   },
 ): string {
@@ -624,6 +634,9 @@ a.wikilink:hover { border-bottom-style:solid; }
 .changes-hist { margin-top:8px; font-size:12px; }
 .changes-hist summary { cursor:pointer; color:var(--ink-mute); }
 .changes-hist ul { margin:6px 0 0; padding-left:18px; color:var(--ink-mute); }
+.rl-toolbar { display:flex; gap:8px; margin:0 0 20px; }
+.rl-btn { font-size:12px; font-family:inherit; border:1px solid var(--paper-rule); background:var(--paper-deep); color:var(--ink-soft); border-radius:6px; padding:6px 11px; cursor:pointer; }
+.rl-btn:hover { border-color:var(--ink-ghost); }
 .empty { color:var(--ink-ghost); }
 .err { color:var(--fail); font-size:11px; }
 .baselist { margin:6px 0 14px; }
@@ -635,7 +648,7 @@ a.wikilink:hover { border-bottom-style:solid; }
 footer { margin-top:40px; border-top:1px solid var(--paper-rule); padding-top:12px;
   font-size:11.5px; color:var(--ink-mute); }
 </style>
-${meta.styleCss ? '<style>\n' + meta.styleCss + '\n</style>' : ''}
+${meta.styleCss ? '<style>\n' + meta.styleCss.replace(/<\//g, '<\\/') + '\n</style>' : ''}
 </head>
 <body>
 <h1>Vault rollup — ${esc(meta.target)}</h1>
@@ -643,6 +656,10 @@ ${meta.styleCss ? '<style>\n' + meta.styleCss + '\n</style>' : ''}
 generated ${esc(meta.generatedAt)} · source hash <strong>${esc(meta.sourceHash)}</strong> ·
 date-relative formulas as of ${esc(meta.asOfLabel)} ·
 ${meta.noteCount} notes, ${meta.baseCount} rendered base(s)</div>
+<div class="rl-toolbar">
+<button class="rl-btn" type="button" data-rollup-copy>Copy as Markdown</button>
+<button class="rl-btn" type="button" data-duo-action="duo:event" data-event="rollup:refresh" data-payload="${esc(meta.target)}" title="Requests a refresh — a watching Claude (duo events --follow) regenerates + summarizes">Refresh</button>
+</div>
 ${meta.summaryHtml ?? ''}
 ${sections.join('\n')}
 <footer>Duo-owned rollup render (ENH-208). Implements the locked Bases
@@ -651,6 +668,10 @@ date math, if(), html(), icon(), backlink chains, groupBy, summaries).
 file.name is extension-less; child→parent backlink rollups always resolve
 here. Re-render to refresh; the source hash above detects staleness.</footer>
 ${meta.embedded ?? ''}
+<script>window.__rollupMd = ${JSON.stringify(meta.markdownSource ?? '').replace(/</g, '\\u003c')};</script>
+<script>
+(function(){var b=document.querySelector('[data-rollup-copy]');if(!b)return;b.addEventListener('click',function(){navigator.clipboard.writeText(window.__rollupMd||'').then(function(){var o=b.textContent;b.textContent='Copied';setTimeout(function(){b.textContent=o},1300)}).catch(function(){b.textContent='Copy failed (focus the page)'})})})();
+</script>
 </body>
 </html>
 `

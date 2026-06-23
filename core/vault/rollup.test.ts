@@ -76,10 +76,35 @@ describe('ENH-229 rollup core — diff', () => {
     expect(v.changed).toEqual([{ key: 'notes/a.md', fields: [{ col: 'status', from: 'blocked', to: 'done' }] }])
   })
 
-  it('a renamed/new view shows its rows as all-added (no false changes)', () => {
+  it('a renamed view → old rows removed + new rows added (no false changes)', () => {
     const prior: RollupSnapshot = { v: 1, views: [{ name: 'Old', rows: [{ key: 'x', cells: { key: 'x' } }] }] }
     const current: RollupSnapshot = { v: 1, views: [{ name: 'New', rows: [{ key: 'x', cells: { key: 'x' } }] }] }
     const d = diffSnapshots(prior, current)
-    expect(d.totals).toEqual({ added: 1, removed: 0, changed: 0 })
+    expect(d.totals).toEqual({ added: 1, removed: 1, changed: 0 })
+  })
+
+  it('a view present in prior but gone from current reports its rows as removed', () => {
+    const prior: RollupSnapshot = {
+      v: 1,
+      views: [
+        { name: 'Tasks', rows: [{ key: 'a', cells: { key: 'a' } }] },
+        { name: 'Archive', rows: [{ key: 'b', cells: { key: 'b' } }, { key: 'c', cells: { key: 'c' } }] },
+      ],
+    }
+    const current: RollupSnapshot = { v: 1, views: [{ name: 'Tasks', rows: [{ key: 'a', cells: { key: 'a' } }] }] }
+    const d = diffSnapshots(prior, current)
+    expect(d.totals).toEqual({ added: 0, removed: 2, changed: 0 })
+    expect(d.views.find((v) => v.name === 'Archive')!.removed.map((r) => r.key)).toEqual(['b', 'c'])
+  })
+
+  it('duplicate row keys in current produce ONE diff entry, not many', () => {
+    const prior: RollupSnapshot = { v: 1, views: [{ name: 'T', rows: [{ key: 'a', cells: { status: 'x' } }] }] }
+    const current: RollupSnapshot = {
+      v: 1,
+      views: [{ name: 'T', rows: [{ key: 'a', cells: { status: 'y' } }, { key: 'a', cells: { status: 'y' } }] }],
+    }
+    const d = diffSnapshots(prior, current)
+    expect(d.totals.changed).toBe(1)
+    expect(d.views[0].changed.length).toBe(1)
   })
 })

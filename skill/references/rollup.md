@@ -104,7 +104,7 @@ You would: confirm the vault + corpus (`duo vault schema`), author/confirm a
 | Verb | Use it to |
 |---|---|
 | `duo rollup render <note\|base> --md\|--html [--style <css>] [--summary "<text>"\|--no-summary] [--out <p>] [--open]` | Emit one variant with entity links; `--summary` adds the latest "What changed" (history kept), `--no-summary` disables it, `--style` layers CSS (HTML only) |
-| `duo rollup diff <note\|base> [--against <prior-artifact>]` | Deterministic JSON delta vs the prior artifact's embedded snapshot — the material you turn into a narrative |
+| `duo rollup diff <note\|base> [--against <prior-artifact>] [--vault <path>]` | Deterministic JSON delta vs the prior artifact's embedded snapshot (newest of the two formats by default) — the material you turn into a narrative |
 
 Both read the filesystem directly (no running app); only `--open` reaches the
 app to surface a tab.

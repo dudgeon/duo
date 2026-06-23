@@ -170,11 +170,39 @@ describe('ENH-229 phase 2 — snapshot + summary + style (render wiring)', () =>
     }
   })
 
-  it('styleCss is layered into the HTML head (req #3)', () => {
+  it('styleCss is layered into the HTML head (req #3); </style> in CSS is neutralized', () => {
     const root = mk()
     try {
-      const r = renderTarget(root, 'bases/t.base', { asOf: AS_OF, styleCss: 'body{background:#abc}' })
+      const r = renderTarget(root, 'bases/t.base', { asOf: AS_OF, styleCss: 'body{background:#abc}</style><script>x' })
       expect(r.html).toContain('body{background:#abc}')
+      expect(r.html).not.toContain('</style><script>') // breakout neutralized
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('HTML artifact carries the Copy-as-Markdown + Refresh toolbar (req #4)', () => {
+    const root = mk()
+    try {
+      const r = renderTarget(root, 'bases/t.base', { asOf: AS_OF, embedSnapshot: true })
+      expect(r.html).toContain('data-rollup-copy')
+      expect(r.html).toContain('data-event="rollup:refresh"')
+      expect(r.html).toContain('window.__rollupMd')
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('two embedded base blocks with the same view name → disambiguated snapshot views', () => {
+    const root = tmpVault({
+      'notes/task-a.md': '---\ntype: task\n---\n',
+      'people/p.md': '---\ntype: person\n---\n',
+      'notes/dash.md':
+        '# Dash\n\n```base\nfilters:\n  and:\n    - type == "task"\nviews:\n  - type: table\n    name: Tasks\n    order: [file.name]\n```\n\n```base\nfilters:\n  and:\n    - type == "person"\nviews:\n  - type: table\n    name: Tasks\n    order: [file.name]\n```\n',
+    })
+    try {
+      const r = renderTarget(root, 'notes/dash.md', { asOf: AS_OF, embedSnapshot: true })
+      expect(r.snapshot.views.map((v) => v.name)).toEqual(['Tasks', 'Tasks (2)'])
     } finally {
       fs.rmSync(root, { recursive: true, force: true })
     }

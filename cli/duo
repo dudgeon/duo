@@ -4336,14 +4336,17 @@ function diffSnapshots(prior, current) {
   let tAdded = 0;
   let tRemoved = 0;
   let tChanged = 0;
-  const priorByView = new Map((prior?.views ?? []).map((v) => [v.name, v]));
+  const priorByView = new Map(prior.views.map((v) => [v.name, v]));
+  const currentNames = new Set(current.views.map((v) => v.name));
   for (const cv of current.views) {
     const pv = priorByView.get(cv.name);
     const priorRows = new Map((pv?.rows ?? []).map((r) => [r.key, r]));
-    const currentKeys = new Set(cv.rows.map((r) => r.key));
     const added = [];
     const changed = [];
+    const seen = /* @__PURE__ */ new Set();
     for (const row of cv.rows) {
+      if (seen.has(row.key)) continue;
+      seen.add(row.key);
       const pr = priorRows.get(row.key);
       if (!pr) {
         added.push(row);
@@ -4358,13 +4361,18 @@ function diffSnapshots(prior, current) {
       }
       if (fields.length) changed.push({ key: row.key, fields });
     }
-    const removed = (pv?.rows ?? []).filter((r) => !currentKeys.has(r.key));
+    const removed = (pv?.rows ?? []).filter((r) => !seen.has(r.key));
     tAdded += added.length;
     tRemoved += removed.length;
     tChanged += changed.length;
     views.push({ name: cv.name, added, removed, changed });
   }
-  return { views, totals: { added: tAdded, removed: tRemoved, changed: tChanged }, firstRun: prior == null };
+  for (const pv of prior.views) {
+    if (currentNames.has(pv.name)) continue;
+    tRemoved += pv.rows.length;
+    views.push({ name: pv.name, added: [], removed: pv.rows, changed: [] });
+  }
+  return { views, totals: { added: tAdded, removed: tRemoved, changed: tChanged }, firstRun: false };
 }
 
 // core/vault/render.ts
@@ -4599,10 +4607,13 @@ function renderTarget(root, target, opts = {}) {
   const sections = [];
   const mdSections = [];
   const snapshot = { v: 1, views: [] };
+  const viewNameCounts = /* @__PURE__ */ new Map();
   const collect = (evaluated, thisFile) => {
     for (const v of evaluated.views) {
+      const n = (viewNameCounts.get(v.name) ?? 0) + 1;
+      viewNameCounts.set(v.name, n);
       snapshot.views.push({
-        name: v.name,
+        name: n === 1 ? v.name : `${v.name} (${n})`,
         rows: v.rows.map((f) => ({
           key: f.path,
           cells: Object.fromEntries(
@@ -4645,17 +4656,6 @@ function renderTarget(root, target, opts = {}) {
   const asOfLabel = new DuoDate(asOf, asOf).format("YYYY-MMM-DD");
   const summaryLog = opts.summaryLog ?? [];
   const embedded = opts.embedSnapshot ? snapshotComment(snapshot) + (summaryLog.length ? "\n" + summaryLogComment(summaryLog) : "") : "";
-  const html = assemblePage(sections, {
-    sourceHash: hash,
-    generatedAt,
-    asOfLabel,
-    noteCount: notes.length,
-    baseCount: bases.length,
-    target,
-    styleCss: opts.styleCss,
-    summaryHtml: summarySectionHtml(summaryLog),
-    embedded
-  });
   const md = assembleMarkdownPage(mdSections, {
     title: target,
     sourceHash: hash,
@@ -4665,6 +4665,18 @@ function renderTarget(root, target, opts = {}) {
     baseCount: bases.length,
     target,
     summaryLog,
+    embedded
+  });
+  const html = assemblePage(sections, {
+    sourceHash: hash,
+    generatedAt,
+    asOfLabel,
+    noteCount: notes.length,
+    baseCount: bases.length,
+    target,
+    styleCss: opts.styleCss,
+    summaryHtml: summarySectionHtml(summaryLog),
+    markdownSource: md,
     embedded
   });
   return { html, md, snapshot, bases, sourceHash: hash, generatedAt, asOfLabel };
@@ -4704,6 +4716,9 @@ a.wikilink:hover { border-bottom-style:solid; }
 .changes-hist { margin-top:8px; font-size:12px; }
 .changes-hist summary { cursor:pointer; color:var(--ink-mute); }
 .changes-hist ul { margin:6px 0 0; padding-left:18px; color:var(--ink-mute); }
+.rl-toolbar { display:flex; gap:8px; margin:0 0 20px; }
+.rl-btn { font-size:12px; font-family:inherit; border:1px solid var(--paper-rule); background:var(--paper-deep); color:var(--ink-soft); border-radius:6px; padding:6px 11px; cursor:pointer; }
+.rl-btn:hover { border-color:var(--ink-ghost); }
 .empty { color:var(--ink-ghost); }
 .err { color:var(--fail); font-size:11px; }
 .baselist { margin:6px 0 14px; }
@@ -4715,7 +4730,7 @@ a.wikilink:hover { border-bottom-style:solid; }
 footer { margin-top:40px; border-top:1px solid var(--paper-rule); padding-top:12px;
   font-size:11.5px; color:var(--ink-mute); }
 </style>
-${meta.styleCss ? "<style>\n" + meta.styleCss + "\n</style>" : ""}
+${meta.styleCss ? "<style>\n" + meta.styleCss.replace(/<\//g, "<\\/") + "\n</style>" : ""}
 </head>
 <body>
 <h1>Vault rollup \u2014 ${esc(meta.target)}</h1>
@@ -4723,6 +4738,10 @@ ${meta.styleCss ? "<style>\n" + meta.styleCss + "\n</style>" : ""}
 generated ${esc(meta.generatedAt)} \xB7 source hash <strong>${esc(meta.sourceHash)}</strong> \xB7
 date-relative formulas as of ${esc(meta.asOfLabel)} \xB7
 ${meta.noteCount} notes, ${meta.baseCount} rendered base(s)</div>
+<div class="rl-toolbar">
+<button class="rl-btn" type="button" data-rollup-copy>Copy as Markdown</button>
+<button class="rl-btn" type="button" data-duo-action="duo:event" data-event="rollup:refresh" data-payload="${esc(meta.target)}" title="Requests a refresh \u2014 a watching Claude (duo events --follow) regenerates + summarizes">Refresh</button>
+</div>
 ${meta.summaryHtml ?? ""}
 ${sections.join("\n")}
 <footer>Duo-owned rollup render (ENH-208). Implements the locked Bases
@@ -4731,6 +4750,10 @@ date math, if(), html(), icon(), backlink chains, groupBy, summaries).
 file.name is extension-less; child\u2192parent backlink rollups always resolve
 here. Re-render to refresh; the source hash above detects staleness.</footer>
 ${meta.embedded ?? ""}
+<script>window.__rollupMd = ${JSON.stringify(meta.markdownSource ?? "").replace(/</g, "\\u003c")};</script>
+<script>
+(function(){var b=document.querySelector('[data-rollup-copy]');if(!b)return;b.addEventListener('click',function(){navigator.clipboard.writeText(window.__rollupMd||'').then(function(){var o=b.textContent;b.textContent='Copied';setTimeout(function(){b.textContent=o},1300)}).catch(function(){b.textContent='Copy failed (focus the page)'})})})();
+</script>
 </body>
 </html>
 `;
@@ -7700,6 +7723,21 @@ ${res.pr.url}`);
         const subRest = rest.slice(1);
         const vaultFlag = flagValue(subRest, "--vault");
         const USAGE = 'Usage: duo rollup <render|diff> <note|base> [--md|--html] [--style <css-file>] [--summary "<text>"|--no-summary] [--against <path>] [--out <path>] [--open] [--vault <path>]';
+        const newestExisting = (paths) => {
+          let best = null;
+          let bestM = -1;
+          for (const p of paths) {
+            try {
+              const m = fs14.statSync(p).mtimeMs;
+              if (m > bestM) {
+                bestM = m;
+                best = p;
+              }
+            } catch {
+            }
+          }
+          return best;
+        };
         if (sub === "render") {
           const target = positionalArgs(subRest, ["--vault", "--out", "--style", "--summary"])[0];
           if (!target) die(USAGE);
@@ -7730,7 +7768,11 @@ ${res.pr.url}`);
           }
           const noSummary = subRest.includes("--no-summary");
           const summaryText = flagValue(subRest, "--summary");
-          const priorContent = fs14.existsSync(outPath) ? fs14.readFileSync(outPath, "utf8") : "";
+          if (summaryText !== void 0 && summaryText.startsWith("--"))
+            die(`duo rollup render: --summary needs a text argument (got the flag "${summaryText}")`);
+          const priorCandidates = outFlag ? [outPath] : [path15.join(root, "out", `${stem}.md`), path15.join(root, "out", `${stem}.html`)];
+          const priorPath = newestExisting(priorCandidates);
+          const priorContent = priorPath ? fs14.readFileSync(priorPath, "utf8") : "";
           let summaryLog = noSummary ? [] : extractSummaryLog(priorContent);
           if (!noSummary && summaryText) {
             const today = new DuoDate(/* @__PURE__ */ new Date(), /* @__PURE__ */ new Date()).format("YYYY-MMM-DD");
@@ -7777,17 +7819,15 @@ ${res.pr.url}`);
           const root = resolveVaultOrDefault(process.cwd(), vaultFlag);
           const stem = path15.basename(target).replace(/\.(base|md)$/i, "") || "rollup";
           const against = flagValue(subRest, "--against");
-          let priorPath = against ? path15.resolve(process.cwd(), against) : null;
-          if (!priorPath) {
-            for (const e of [".md", ".html"]) {
-              const p = path15.join(root, "out", `${stem}${e}`);
-              if (fs14.existsSync(p)) {
-                priorPath = p;
-                break;
-              }
-            }
+          let priorPath;
+          if (against) {
+            priorPath = path15.resolve(process.cwd(), against);
+            if (!fs14.existsSync(priorPath))
+              die(`duo rollup diff: --against path does not exist: ${priorPath} (resolved relative to cwd)`);
+          } else {
+            priorPath = newestExisting([path15.join(root, "out", `${stem}.md`), path15.join(root, "out", `${stem}.html`)]);
           }
-          const priorContent = priorPath && fs14.existsSync(priorPath) ? fs14.readFileSync(priorPath, "utf8") : "";
+          const priorContent = priorPath ? fs14.readFileSync(priorPath, "utf8") : "";
           const prior = priorContent ? extractSnapshot(priorContent) : null;
           const current = renderTarget(root, target).snapshot;
           out({ priorArtifact: priorPath, diff: diffSnapshots(prior, current) });

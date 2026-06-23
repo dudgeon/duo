@@ -3034,6 +3034,24 @@ async function main(): Promise<void> {
         const vaultFlag = flagValue(subRest, '--vault')
         const USAGE =
           'Usage: duo rollup <render|diff> <note|base> [--md|--html] [--style <css-file>] [--summary "<text>"|--no-summary] [--against <path>] [--out <path>] [--open] [--vault <path>]'
+        // Newest existing path by mtime — so summary history + diff read the
+        // freshest artifact even after an --md↔--html switch.
+        const newestExisting = (paths: string[]): string | null => {
+          let best: string | null = null
+          let bestM = -1
+          for (const p of paths) {
+            try {
+              const m = fs.statSync(p).mtimeMs
+              if (m > bestM) {
+                bestM = m
+                best = p
+              }
+            } catch {
+              /* missing — skip */
+            }
+          }
+          return best
+        }
         if (sub === 'render') {
           const target = positionalArgs(subRest, ['--vault', '--out', '--style', '--summary'])[0]
           if (!target) die(USAGE)
@@ -3072,7 +3090,15 @@ async function main(): Promise<void> {
           // the artifact we're about to overwrite (no sidecar — §D9-clean).
           const noSummary = subRest.includes('--no-summary')
           const summaryText = flagValue(subRest, '--summary')
-          const priorContent = fs.existsSync(outPath) ? fs.readFileSync(outPath, 'utf8') : ''
+          if (summaryText !== undefined && summaryText.startsWith('--'))
+            die(`duo rollup render: --summary needs a text argument (got the flag "${summaryText}")`)
+          // Read the prior summary log from the NEWEST existing artifact for this
+          // rollup across BOTH formats, so history survives an --md↔--html switch.
+          const priorCandidates = outFlag
+            ? [outPath]
+            : [path.join(root, 'out', `${stem}.md`), path.join(root, 'out', `${stem}.html`)]
+          const priorPath = newestExisting(priorCandidates)
+          const priorContent = priorPath ? fs.readFileSync(priorPath, 'utf8') : ''
           let summaryLog = noSummary ? [] : vault.extractSummaryLog(priorContent)
           if (!noSummary && summaryText) {
             const today = new vault.DuoDate(new Date(), new Date()).format('YYYY-MMM-DD')
@@ -3126,17 +3152,17 @@ async function main(): Promise<void> {
           const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
           const stem = path.basename(target).replace(/\.(base|md)$/i, '') || 'rollup'
           const against = flagValue(subRest, '--against')
-          let priorPath: string | null = against ? path.resolve(process.cwd(), against) : null
-          if (!priorPath) {
-            for (const e of ['.md', '.html']) {
-              const p = path.join(root, 'out', `${stem}${e}`)
-              if (fs.existsSync(p)) {
-                priorPath = p
-                break
-              }
-            }
+          let priorPath: string | null
+          if (against) {
+            priorPath = path.resolve(process.cwd(), against)
+            if (!fs.existsSync(priorPath))
+              die(`duo rollup diff: --against path does not exist: ${priorPath} (resolved relative to cwd)`)
+          } else {
+            // Newest of the two formats, so a diff right after `render --html`
+            // reads the fresh .html rather than a stale .md.
+            priorPath = newestExisting([path.join(root, 'out', `${stem}.md`), path.join(root, 'out', `${stem}.html`)])
           }
-          const priorContent = priorPath && fs.existsSync(priorPath) ? fs.readFileSync(priorPath, 'utf8') : ''
+          const priorContent = priorPath ? fs.readFileSync(priorPath, 'utf8') : ''
           const prior = priorContent ? vault.extractSnapshot(priorContent) : null
           const current = vault.renderTarget(root, target).snapshot
           out({ priorArtifact: priorPath, diff: vault.diffSnapshots(prior, current) })

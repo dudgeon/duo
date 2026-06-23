@@ -107,14 +107,17 @@ export function diffSnapshots(prior: RollupSnapshot | null, current: RollupSnaps
   let tAdded = 0
   let tRemoved = 0
   let tChanged = 0
-  const priorByView = new Map((prior?.views ?? []).map((v) => [v.name, v]))
+  const priorByView = new Map(prior.views.map((v) => [v.name, v]))
+  const currentNames = new Set(current.views.map((v) => v.name))
   for (const cv of current.views) {
     const pv = priorByView.get(cv.name)
     const priorRows = new Map((pv?.rows ?? []).map((r) => [r.key, r]))
-    const currentKeys = new Set(cv.rows.map((r) => r.key))
     const added: RollupRow[] = []
     const changed: RollupDiff['views'][number]['changed'] = []
+    const seen = new Set<string>() // dedup current rows by key (one diff entry per key)
     for (const row of cv.rows) {
+      if (seen.has(row.key)) continue
+      seen.add(row.key)
       const pr = priorRows.get(row.key)
       if (!pr) {
         added.push(row)
@@ -129,11 +132,18 @@ export function diffSnapshots(prior: RollupSnapshot | null, current: RollupSnaps
       }
       if (fields.length) changed.push({ key: row.key, fields })
     }
-    const removed = (pv?.rows ?? []).filter((r) => !currentKeys.has(r.key))
+    const removed = (pv?.rows ?? []).filter((r) => !seen.has(r.key))
     tAdded += added.length
     tRemoved += removed.length
     tChanged += changed.length
     views.push({ name: cv.name, added, removed, changed })
   }
-  return { views, totals: { added: tAdded, removed: tRemoved, changed: tChanged }, firstRun: prior == null }
+  // A view present in prior but gone from current → all its rows are removed
+  // (e.g. a base edited to drop a view). Without this it'd vanish silently.
+  for (const pv of prior.views) {
+    if (currentNames.has(pv.name)) continue
+    tRemoved += pv.rows.length
+    views.push({ name: pv.name, added: [], removed: pv.rows, changed: [] })
+  }
+  return { views, totals: { added: tAdded, removed: tRemoved, changed: tChanged }, firstRun: false }
 }
