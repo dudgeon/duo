@@ -122,3 +122,61 @@ describe('ENH-229 — review fixes (escaping, OKF rel-md, YAML)', () => {
     }
   })
 })
+
+describe('ENH-229 phase 2 — snapshot + summary + style (render wiring)', () => {
+  const mk = () => tmpVault({ 'notes/a.md': '---\ntype: task\nstatus: blocked\n---\n', 'bases/t.base': TASK_BASE })
+
+  it('embedSnapshot writes a rows-snapshot comment in both formats + returns the snapshot', () => {
+    const root = mk()
+    try {
+      const r = renderTarget(root, 'bases/t.base', { asOf: AS_OF, embedSnapshot: true })
+      expect(r.md).toContain('<!--duo:rollup-snapshot ')
+      expect(r.html).toContain('<!--duo:rollup-snapshot ')
+      expect(r.snapshot.views[0].rows[0].key).toBe('notes/a.md')
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('summaryLog renders "What changed" (latest + collapsible history) + embeds the log', () => {
+    const root = mk()
+    try {
+      const log = [
+        { date: '2026-Jun-23', text: 'latest note' },
+        { date: '2026-Jun-20', text: 'older note' },
+      ]
+      const r = renderTarget(root, 'bases/t.base', { asOf: AS_OF, summaryLog: log, embedSnapshot: true })
+      expect(r.md).toContain('**What changed** · 2026-Jun-23 — latest note')
+      expect(r.md).toContain('Change history (1)')
+      expect(r.md).toContain('<!--duo:rollup-summary ')
+      expect(r.html).toContain('changes-lab')
+      expect(r.html).toContain('latest note')
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('no summaryLog → no "What changed" section', () => {
+    const root = mk()
+    try {
+      const r = renderTarget(root, 'bases/t.base', { asOf: AS_OF, embedSnapshot: true })
+      expect(r.md).not.toContain('What changed')
+      // 'changes-lab' appears in the CSS rules regardless; assert on the rendered
+      // section markup + text instead.
+      expect(r.html).not.toContain('<section class="changes">')
+      expect(r.html).not.toContain('What changed')
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('styleCss is layered into the HTML head (req #3)', () => {
+    const root = mk()
+    try {
+      const r = renderTarget(root, 'bases/t.base', { asOf: AS_OF, styleCss: 'body{background:#abc}' })
+      expect(r.html).toContain('body{background:#abc}')
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+})

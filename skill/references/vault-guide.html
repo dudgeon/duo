@@ -463,6 +463,52 @@ when you need the computed extras. <strong>Either way the vault IS Duo-ready —
 you've stepped outside it.</strong> The engine is a locked Bases subset (filters, <code>if()</code>,
 link <code>== this</code>, date math, <code>html()</code>/<code>icon()</code>, <code>groupBy</code>, summaries,
 child→parent backlink rollups). Anything else renders as a ⚠ cell rather than breaking.</div>
+
+<h3 style="margin-top:30px">The <code>duo rollup</code> verb — variant, links &amp; a change summary</h3>
+<p><strong>ENH-229</strong> adds a product verb on top of the loop above. It renders the same
+evaluation but lets you choose <strong>one variant per rollup</strong> (never a toggle) and adds two
+things the raw render doesn't — entity links and an optional change summary.</p>
+<div class="option-cards">
+  <div class="option-card"><h4>Markdown — <code>--md</code></h4>
+    <p>A GitHub-portable <code>.md</code> file (the OKF default): real GFM tables, links render
+    natively, diffs cleanly in git.</p>
+    <p class="verb">duo rollup render tasks --md --open</p></div>
+  <div class="option-card"><h4>HTML — <code>--html</code></h4>
+    <p>A stamped, Atelier-styled artifact; <code>--style ./theme.css</code> layers your own
+    stylesheet over the base.</p>
+    <p class="verb">duo rollup render tasks --html --open</p></div>
+</div>
+<div class="takeaway"><strong>Every row links the entities it rolls up</strong> — the note itself,
+its owner, its initiative, the group header — in both variants and in both vault modes (OKF
+standard-markdown refs resolve too, not just <code>[[wikilinks]]</code>). A rollup becomes a
+navigation surface into the graph, not a static table.</div>
+
+<p><strong>A change summary on regenerate.</strong> The artifact self-embeds a rows snapshot (an
+invisible HTML comment — no sidecar file). On regenerate, Claude diffs against it and writes a
+<em>narrative + notables</em> — what's worth attention since last time, good or bad:</p>
+<div class="lifecycle">
+  <div class="lstep"><span class="who you">YOU</span><div class="what">click <strong>Refresh</strong> on the rollup (or just ask Claude to refresh it)</div></div>
+  <div class="larrow">↓</div>
+  <div class="lstep"><span class="who script">SCRIPT</span><div class="what"><code>duo rollup diff &lt;rollup&gt;</code> → a deterministic delta (added / removed / changed rows, per field) vs the prior artifact's embedded snapshot</div></div>
+  <div class="larrow">↓</div>
+  <div class="lstep"><span class="who claude">CLAUDE</span><div class="what">writes a short narrative of the notables, then <code>duo rollup render &lt;rollup&gt; --summary "…"</code> — pinned at the top as <strong>"What changed,"</strong> prior summaries fall into a collapsible history</div></div>
+  <div class="loopnote">Interactive, not headless (<code>-p</code>) — you just accept the result; the artifact reloads. <code>--no-summary</code> turns it off per rollup.</div>
+</div>
+<div class="rollup-mock">
+  <h3>Tasks by initiative</h3>
+  <div class="rollup-sub"><strong>What changed · 2026-Jun-23</strong> — Legal review cleared (→ done); beta cohort still on track. ⚠ Kickoff deck slipped to Jul 20.</div>
+  <table>
+    <tr><th>Task</th><th>Status</th><th>Owner</th></tr>
+    <tr><td>Legal review</td><td><span class="status-chip done">done</span></td><td>Alice Park</td></tr>
+    <tr><td>Beta cohort</td><td><span class="status-chip ok">on-track</span></td><td>Sam Rivera</td></tr>
+  </table>
+  <div class="live-note">Each cell above is a link to its note in the real artifact; the "What changed" line is Claude-authored on refresh.</div>
+</div>
+<div class="takeaway"><strong>Sample prompt — how you invoke it:</strong> <em>"Roll up all my open
+tasks grouped by initiative as a markdown page — link each task and its owner — and whenever I
+refresh it, summarize what changed."</em> Claude confirms the corpus (<code>duo vault schema</code>),
+authors a <code>type == "task"</code> base grouped by initiative, runs <code>duo rollup render tasks
+--md --open</code>, then on each refresh runs the diff → summarize → re-render loop above.</div>
 </section>
 
 <!-- ── 10 ──────────────────────────────────────────── -->

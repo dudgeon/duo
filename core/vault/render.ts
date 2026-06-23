@@ -17,6 +17,7 @@ import type { VaultFile } from './types'
 import { readNotes, parseFile } from './parse'
 import { targetKey } from '../markdown/vaultLinks'
 import { renderBaseMarkdown, assembleMarkdownPage } from './render-markdown'
+import { snapshotComment, summaryLogComment, type RollupSnapshot, type SummaryEntry } from './rollup'
 import {
   buildEngineFiles,
   evalExpr,
@@ -168,6 +169,43 @@ function htmlCell(prop: string, f: EngineFile, value: unknown, linkCtx?: LinkCtx
     if (href) return '<a class="wikilink" href="' + esc(href) + '">' + esc(String(value)) + '</a>'
   }
   return cell(value, linkCtx)
+}
+
+/** A column value → a plain string for the diff snapshot (ENH-229 phase 2).
+ *  Format-neutral (no HTML/MD), so the diff is the same regardless of variant. */
+export function plainCell(v: unknown): string {
+  if (v == null || v === '') return ''
+  if (isEvalError(v)) return '⚠ ' + v.__error
+  if (typeof v === 'object' && v !== null && '__html' in v)
+    return String((v as { __html: string }).__html)
+      .replace(/<[^>]*>/g, '')
+      .trim()
+  if (v instanceof Link) return v.display
+  if (v instanceof DuoDate) return v.toString()
+  if (Array.isArray(v)) return v.map(plainCell).join(', ')
+  return String(v)
+}
+
+/** The "What changed" section (ENH-229 phase 2) — latest summary pinned, prior
+ *  entries in a collapsible history. Authored prose is HTML-escaped. */
+function summarySectionHtml(log: SummaryEntry[]): string {
+  if (!log.length) return ''
+  const [latest, ...rest] = log
+  let h =
+    '<section class="changes"><div class="changes-latest"><span class="changes-lab">What changed · ' +
+    esc(latest.date) +
+    '</span><p>' +
+    esc(latest.text) +
+    '</p></div>'
+  if (rest.length) {
+    h +=
+      '<details class="changes-hist"><summary>Change history (' +
+      rest.length +
+      ')</summary><ul>' +
+      rest.map((e) => '<li><strong>' + esc(e.date) + '</strong> — ' + esc(e.text) + '</li>').join('') +
+      '</ul></details>'
+  }
+  return h + '</section>'
 }
 
 export function colLabel(prop: string, propCfg?: Record<string, { displayName?: string }>): string {
@@ -363,8 +401,13 @@ export interface RenderTargetResult {
   /** The full stamped HTML page. */
   html: string
   /** The full stamped Markdown artifact (ENH-229 — the MD variant; same
-   *  evaluation, GitHub-portable). The CLI writes html OR md per the flag. */
+   *  evaluation, GitHub-portable). The CLI writes html OR md per the flag.
+   *  INVARIANT: both `html` and `md` are always generated regardless of the
+   *  intended output format — the CLI chooses which to write. */
   md: string
+  /** The freshly-built rows snapshot (ENH-229 phase 2) — `duo rollup diff`
+   *  compares this against a prior artifact's embedded snapshot. */
+  snapshot: RollupSnapshot
   /** Structured evaluation per rendered base (for tests / refresh checks). */
   bases: { label: string; evaluated: EvaluatedBase; thisFile: string | null }[]
   /** Source hash over the vault's md + base content (staleness key). */
@@ -432,7 +475,16 @@ function embeddedBaseDefs(note: VaultFile): BaseDef[] {
 export function renderTarget(
   root: string,
   target: string,
-  opts: { asOf?: Date; outDir?: string } = {},
+  opts: {
+    asOf?: Date
+    outDir?: string
+    /** Custom CSS to inline instead of the built-in Atelier style (ENH-229 req #3). */
+    styleCss?: string
+    /** The change-summary log (newest-first) to render + embed (ENH-229 phase 2). */
+    summaryLog?: SummaryEntry[]
+    /** Embed the rows snapshot + summary log as HTML comments for later diffing. */
+    embedSnapshot?: boolean
+  } = {},
 ): RenderTargetResult {
   const asOf = opts.asOf ?? defaultAsOf()
   const notes = readNotes(root)
@@ -445,6 +497,22 @@ export function renderTarget(
   const bases: RenderTargetResult['bases'] = []
   const sections: string[] = []
   const mdSections: string[] = []
+  const snapshot: RollupSnapshot = { v: 1, views: [] }
+
+  // Capture each view's rows as plain strings for the diff snapshot.
+  const collect = (evaluated: EvaluatedBase, thisFile: EngineFile | null) => {
+    for (const v of evaluated.views) {
+      snapshot.views.push({
+        name: v.name,
+        rows: v.rows.map((f) => ({
+          key: f.path,
+          cells: Object.fromEntries(
+            v.order.map((p) => [p, plainCell(readCol(p, f, thisFile, evaluated.formulas, asOf))]),
+          ),
+        })),
+      })
+    }
+  }
 
   const abs = path.isAbsolute(target) ? target : path.resolve(root, target)
   if (target.endsWith('.base')) {
@@ -454,6 +522,7 @@ export function renderTarget(
     bases.push({ label, evaluated, thisFile: null })
     sections.push(renderBaseSection(evaluated, null, label, asOf, linkCtx))
     mdSections.push(renderBaseMarkdown(evaluated, null, label, asOf, linkCtx))
+    collect(evaluated, null)
   } else {
     // Resolve a note: an existing path, else a basename in the vault.
     let note: VaultFile | undefined
@@ -471,12 +540,17 @@ export function renderTarget(
       bases.push({ label, evaluated, thisFile: note!.basename })
       sections.push(renderBaseSection(evaluated, thisFile, label, asOf, linkCtx))
       mdSections.push(renderBaseMarkdown(evaluated, thisFile, label, asOf, linkCtx))
+      collect(evaluated, thisFile)
     })
   }
 
   const hash = sourceHash(root)
   const generatedAt = new Date().toISOString()
   const asOfLabel = new DuoDate(asOf, asOf).format('YYYY-MMM-DD')
+  const summaryLog = opts.summaryLog ?? []
+  const embedded = opts.embedSnapshot
+    ? snapshotComment(snapshot) + (summaryLog.length ? '\n' + summaryLogComment(summaryLog) : '')
+    : ''
   const html = assemblePage(sections, {
     sourceHash: hash,
     generatedAt,
@@ -484,6 +558,9 @@ export function renderTarget(
     noteCount: notes.length,
     baseCount: bases.length,
     target,
+    styleCss: opts.styleCss,
+    summaryHtml: summarySectionHtml(summaryLog),
+    embedded,
   })
   const md = assembleMarkdownPage(mdSections, {
     title: target,
@@ -493,13 +570,25 @@ export function renderTarget(
     noteCount: notes.length,
     baseCount: bases.length,
     target,
+    summaryLog,
+    embedded,
   })
-  return { html, md, bases, sourceHash: hash, generatedAt, asOfLabel }
+  return { html, md, snapshot, bases, sourceHash: hash, generatedAt, asOfLabel }
 }
 
 function assemblePage(
   sections: string[],
-  meta: { sourceHash: string; generatedAt: string; asOfLabel: string; noteCount: number; baseCount: number; target: string },
+  meta: {
+    sourceHash: string
+    generatedAt: string
+    asOfLabel: string
+    noteCount: number
+    baseCount: number
+    target: string
+    styleCss?: string
+    summaryHtml?: string
+    embedded?: string
+  },
 ): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -529,6 +618,12 @@ tr.group td { background:var(--paper-deep); font-weight:600; font-size:12px; }
 .summary { font-weight:400; color:var(--ink-mute); font-size:11.5px; }
 .wikilink { color:var(--harbor); border-bottom:1px dotted var(--harbor); text-decoration:none; }
 a.wikilink:hover { border-bottom-style:solid; }
+.changes { background:#fcf6ec; border:1px solid var(--paper-rule); border-left:3px solid var(--accent); border-radius:0 6px 6px 0; padding:10px 14px; margin:0 0 24px; }
+.changes-lab { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--accent); font-weight:600; }
+.changes-latest p { margin:4px 0 0; color:var(--ink-soft); }
+.changes-hist { margin-top:8px; font-size:12px; }
+.changes-hist summary { cursor:pointer; color:var(--ink-mute); }
+.changes-hist ul { margin:6px 0 0; padding-left:18px; color:var(--ink-mute); }
 .empty { color:var(--ink-ghost); }
 .err { color:var(--fail); font-size:11px; }
 .baselist { margin:6px 0 14px; }
@@ -540,19 +635,22 @@ a.wikilink:hover { border-bottom-style:solid; }
 footer { margin-top:40px; border-top:1px solid var(--paper-rule); padding-top:12px;
   font-size:11.5px; color:var(--ink-mute); }
 </style>
+${meta.styleCss ? '<style>\n' + meta.styleCss + '\n</style>' : ''}
 </head>
 <body>
 <h1>Vault rollup — ${esc(meta.target)}</h1>
-<div class="stamp"><strong>BUILD ARTIFACT</strong> — regenerate: duo base render ${esc(meta.target)} ·
+<div class="stamp"><strong>BUILD ARTIFACT</strong> — regenerate: duo rollup render ${esc(meta.target)} ·
 generated ${esc(meta.generatedAt)} · source hash <strong>${esc(meta.sourceHash)}</strong> ·
 date-relative formulas as of ${esc(meta.asOfLabel)} ·
 ${meta.noteCount} notes, ${meta.baseCount} rendered base(s)</div>
+${meta.summaryHtml ?? ''}
 ${sections.join('\n')}
 <footer>Duo-owned rollup render (ENH-208). Implements the locked Bases
 expression subset (filters and/or/not, link equality vs <code>this</code>,
 date math, if(), html(), icon(), backlink chains, groupBy, summaries).
 file.name is extension-less; child→parent backlink rollups always resolve
 here. Re-render to refresh; the source hash above detects staleness.</footer>
+${meta.embedded ?? ''}
 </body>
 </html>
 `

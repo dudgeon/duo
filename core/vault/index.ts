@@ -58,6 +58,16 @@ export {
   type EvaluatedView,
   type BaseDef,
 } from './render'
+// ENH-229 phase 2 — rollup product layer (change-summary diff + embedding).
+export {
+  diffSnapshots,
+  extractSnapshot,
+  extractSummaryLog,
+  prependSummary,
+  type RollupSnapshot,
+  type SummaryEntry,
+  type RollupDiff,
+} from './rollup'
 export {
   lintVault,
   lintBaseDef,

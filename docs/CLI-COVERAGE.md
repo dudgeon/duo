@@ -231,7 +231,8 @@ shared with the renderer in Phase 3); the single node-free link helper is
 | `duo graph orphans [--vault p]` | Notes with no inbound and no outbound links (a processing work-list) | JSON `string[]` |
 | `duo base lint <file\|--all> [--vault p]` | Validate a base against the corpus (bad types / unresolved `[[entities]]` / off-enum / unknown fns), each with a "did you mean"; advisory, never blocks (D15) | JSON `[{source, findings[]}]` |
 | `duo base render <file\|note> [--out p] [--open]` | Evaluate filters/formulas over live frontmatter → a stamped Duo-owned HTML artifact (D13/D16); `--open` surfaces it as a tab | JSON `{path, sourceHash, bases[]}` |
-| `duo rollup render <note\|base> [--md\|--html] [--out p] [--open]` | **ENH-229** — one rollup variant per call: `--md` (GitHub-portable GFM, OKF default) OR `--html` (stamped artifact), mutually exclusive. Rows link the entities they roll up (note + owner/group, req #6). Change-summary + watch are a follow-up phase | JSON `{path, format, sourceHash, bases[]}` |
+| `duo rollup render <note\|base> [--md\|--html] [--style css] [--summary "t"\|--no-summary] [--out p] [--open]` | **ENH-229** — one variant per call: `--md` (GFM, OKF default) OR `--html` (stamped); mutually exclusive. Rows link the entities they roll up (note + owner/group, incl. OKF rel-md; req #6). `--style` layers CSS (HTML only). Change summary (req #7): self-embedded snapshot + summary log; `--summary` adds the latest "What changed", `--no-summary` clears | JSON `{path, format, sourceHash, summaries, bases[]}` |
+| `duo rollup diff <note\|base> [--against p]` | **ENH-229** — deterministic delta vs the prior artifact's embedded snapshot (added/removed/changed rows); the material Claude turns into a `--summary` | JSON `{priorArtifact, diff{}}` |
 
 The Phase-2 renderer layer shipped (2026-06-10) with UI↔verb twins
 throughout: the Settings → Default Vault picker ↔ `duo vault default`, the

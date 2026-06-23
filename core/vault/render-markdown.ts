@@ -17,6 +17,7 @@ import {
   type EvaluatedView,
   type LinkCtx,
 } from './render'
+import { type SummaryEntry } from './rollup'
 
 type Formulas = Record<string, unknown>
 type PropCfg = Record<string, { displayName?: string }>
@@ -203,9 +204,30 @@ export function renderBaseMarkdown(
   return blocks.join('\n\n')
 }
 
-/** Assemble the full Markdown artifact: YAML frontmatter (stamp + an optional
- *  embedded rows snapshot for change-diffing, set by the caller) + the base
- *  sections + a build-artifact stamp blockquote. GitHub-portable. */
+/** The "What changed" section for the Markdown variant (ENH-229 phase 2) —
+ *  latest summary pinned as a blockquote, prior entries in a collapsible
+ *  history. Authored prose is trusted (only newline-flattened to keep the
+ *  blockquote intact), not escaped. */
+function summarySectionMd(log: SummaryEntry[]): string {
+  if (!log.length) return ''
+  const flat = (t: string) => t.replace(/\r?\n+/g, ' ').trim()
+  const [latest, ...rest] = log
+  let m = '> **What changed** · ' + flat(latest.date) + ' — ' + flat(latest.text)
+  if (rest.length) {
+    m +=
+      '\n\n<details>\n<summary>Change history (' +
+      rest.length +
+      ')</summary>\n\n' +
+      rest.map((e) => '- **' + flat(e.date) + '** — ' + flat(e.text)).join('\n') +
+      '\n\n</details>'
+  }
+  return m
+}
+
+/** Assemble the full Markdown artifact: YAML frontmatter (stamp) + an optional
+ *  "What changed" section + the base sections + a build-artifact stamp + an
+ *  optional embedded rows-snapshot/summary-log comment for change-diffing.
+ *  GitHub-portable. */
 export function assembleMarkdownPage(
   sections: string[],
   meta: {
@@ -216,6 +238,8 @@ export function assembleMarkdownPage(
     noteCount: number
     baseCount: number
     target: string
+    summaryLog?: SummaryEntry[]
+    embedded?: string
   },
 ): string {
   // JSON.stringify yields a valid double-quoted YAML scalar, so a title with
@@ -241,5 +265,8 @@ export function assembleMarkdownPage(
     ' notes, ' +
     meta.baseCount +
     ' base(s).'
-  return frontmatter + sections.join('\n\n') + '\n\n' + stamp + '\n'
+  const summary = summarySectionMd(meta.summaryLog ?? [])
+  const body = (summary ? summary + '\n\n' : '') + sections.join('\n\n') + '\n\n' + stamp
+  const tail = meta.embedded ? '\n\n' + meta.embedded : ''
+  return frontmatter + body + tail + '\n'
 }

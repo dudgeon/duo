@@ -324,6 +324,12 @@ Each pointer loads a complete file — open the one that matches your task.
   its own entity, leaving a markdown link. The end-user walkthrough with
   diagrams ships with this skill — open it with `duo open
   ~/.claude/skills/duo/references/vault-guide.html`.
+- [references/rollup.md](references/rollup.md) — the `duo rollup` product verb
+  (ENH-229): render a rollup as **Markdown OR HTML** (one variant per call),
+  with **entity links** on every row, and a **change summary** on regenerate
+  (`duo rollup diff` → narrative+notables → `duo rollup render --summary`).
+  Reach for this when the user says "roll up my <type>" / "and tell me what
+  changed." Includes the sample prompt + the refresh loop.
 
 **Install, environment & house style**
 - [references/install-troubleshooting.md](references/install-troubleshooting.md)
