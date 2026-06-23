@@ -2975,7 +2975,6 @@ async function main(): Promise<void> {
           const target = positionalArgs(subRest, ['--vault', '--out'])[0]
           if (!target) die('Usage: duo base render <file|note> [--out <path>] [--open] [--vault <path>]')
           const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
-          const result = vault.renderTarget(root, target)
           const outFlag = flagValue(subRest, '--out')
           const open = subRest.includes('--open')
           const stem = path.basename(target).replace(/\.(base|md)$/i, '') || 'rollup'
@@ -2983,6 +2982,9 @@ async function main(): Promise<void> {
           if (outFlag) outPath = path.resolve(process.cwd(), outFlag)
           else if (open) outPath = path.join(os.tmpdir(), `duo-rollup-${stem}-${Date.now()}.html`)
           else outPath = path.join(root, 'out', `${stem}.html`)
+          // ENH-229 — outDir so entity-link hrefs resolve relative to where the
+          // artifact lands (not the vault root). Must be computed before render.
+          const result = vault.renderTarget(root, target, { outDir: path.dirname(outPath) })
           fs.mkdirSync(path.dirname(outPath), { recursive: true })
           fs.writeFileSync(outPath, result.html)
           // `--open` is the one vault verb that reaches the running app
@@ -3036,6 +3038,9 @@ async function main(): Promise<void> {
           const wantHtml = subRest.includes('--html')
           const wantMd = subRest.includes('--md')
           if (wantHtml && wantMd) die('duo rollup render: choose ONE of --md or --html, not both')
+          // --style is reserved for the change-summary phase; reject it now
+          // rather than accept-and-ignore (which would mislead).
+          if (subRest.includes('--style')) die('duo rollup render: --style is not yet implemented (planned for the next phase)')
           const format: 'html' | 'md' = wantHtml ? 'html' : 'md' // MD is the OKF-portable default (D3)
           const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
           const outFlag = flagValue(subRest, '--out')

@@ -26,32 +26,46 @@ function mdText(s: string): string {
   return s.replace(/\r?\n+/g, ' ').replace(/\|/g, '\\|').trim()
 }
 
+/** Inline text for link display / headings / free-text cells. Collapses
+ *  newlines, then backslash-escapes the GFM-active set — backslash, pipe,
+ *  backtick, []() — in ONE pass so each char gets exactly one backslash (a
+ *  compose-with-mdText would double-escape the pipe's own backslash). */
+function mdInline(s: string): string {
+  return s.replace(/\r?\n+/g, ' ').trim().replace(/([\\`|[\]()])/g, '\\$1')
+}
+
+/** A GFM link: escaped display + an angle-bracketed href, which stays valid
+ *  even when the href contains spaces, parens, or brackets (CommonMark §6.6). */
+function mdLink(display: string, href: string): string {
+  return '[' + mdInline(display) + '](<' + href + '>)'
+}
+
 /** A value → inline Markdown. Parallel to render.ts `cell()`: a resolved Link
  *  becomes `[display](rel)`; dates / arrays / errors / html() formulas
  *  normalize to text. Unresolved links stay plain text (never a fake target). */
 export function valueToMarkdown(v: unknown, linkCtx?: LinkCtx): string {
   if (v == null || v === '') return '—'
-  if (isEvalError(v)) return '⚠ ' + mdText(v.__error)
+  if (isEvalError(v)) return '⚠ ' + mdInline(v.__error)
   if (typeof v === 'object' && v !== null && '__html' in v) {
     // html()/icon() cell formulas are an HTML-presentation affordance; in
     // Markdown, fall back to their text content (tags stripped).
-    return mdText(String((v as { __html: string }).__html).replace(/<[^>]*>/g, ''))
+    return mdInline(String((v as { __html: string }).__html).replace(/<[^>]*>/g, ''))
   }
   if (v instanceof Link) {
     const href = linkCtx?.resolveLink(v)
-    return href ? '[' + mdText(v.display) + '](' + href + ')' : mdText(v.display)
+    return href ? mdLink(v.display, href) : mdInline(v.display)
   }
-  if (v instanceof DuoDate) return mdText(v.toString())
+  if (v instanceof DuoDate) return mdInline(v.toString())
   if (Array.isArray(v)) return v.map((x) => valueToMarkdown(x, linkCtx)).join(', ')
   if (typeof v === 'number') return String(v)
-  return mdText(String(v))
+  return mdInline(String(v))
 }
 
 /** One cell. The `file.name` / `file.link` column links the row's own note. */
 function mdCell(prop: string, f: EngineFile, value: unknown, linkCtx?: LinkCtx): string {
   if (linkCtx && (prop === 'file.name' || prop === 'file.link')) {
     const href = linkCtx.hrefFor(f.path)
-    if (href) return '[' + mdText(String(value)) + '](' + href + ')'
+    if (href) return mdLink(String(value), href)
   }
   return valueToMarkdown(value, linkCtx)
 }
@@ -87,7 +101,7 @@ function tableFor(
   asOf: Date,
   linkCtx?: LinkCtx,
 ): string {
-  const header = '| ' + order.map((p) => mdText(colLabel(p, propCfg))).join(' | ') + ' |'
+  const header = '| ' + order.map((p) => mdInline(colLabel(p, propCfg))).join(' | ') + ' |'
   const divider = '| ' + order.map(() => '---').join(' | ') + ' |'
   const body = rows
     .map((f) => '| ' + order.map((p) => mdCell(p, f, readCol(p, f, thisFile, formulas, asOf), linkCtx)).join(' | ') + ' |')
@@ -126,10 +140,10 @@ function renderTableMarkdown(
     .map((key) => {
       const gRows = groups.get(key)!
       const raw = groupRaw.get(key)
-      let label = mdText(key)
+      let label = mdInline(key)
       if (linkCtx && raw instanceof Link) {
         const href = linkCtx.resolveLink(raw)
-        if (href) label = '[' + mdText(key) + '](' + href + ')'
+        if (href) label = mdLink(key, href)
       }
       const sum = mdSummary(gRows, view, formulas, thisFile, asOf, linkCtx)
       const head = '#### ' + label + ' (' + gRows.length + ')' + (sum ? '\n' + sum : '')
@@ -163,7 +177,7 @@ function renderCardsMarkdown(
       const head = '#### ' + mdCell(title, f, readCol(title, f, thisFile, formulas, asOf), linkCtx)
       if (!rest.length) return head
       const body = rest
-        .map((p) => '- **' + mdText(colLabel(p)) + ':** ' + mdCell(p, f, readCol(p, f, thisFile, formulas, asOf), linkCtx))
+        .map((p) => '- **' + mdInline(colLabel(p)) + ':** ' + mdCell(p, f, readCol(p, f, thisFile, formulas, asOf), linkCtx))
         .join('\n')
       return head + '\n' + body
     })
@@ -179,9 +193,9 @@ export function renderBaseMarkdown(
   asOf: Date,
   linkCtx?: LinkCtx,
 ): string {
-  const blocks: string[] = ['## ' + mdText(label)]
+  const blocks: string[] = ['## ' + mdInline(label)]
   for (const view of evaluated.views) {
-    blocks.push('### ' + mdText(view.name) + ' (' + view.rows.length + ')')
+    blocks.push('### ' + mdInline(view.name) + ' (' + view.rows.length + ')')
     if (view.type === 'list') blocks.push(renderListMarkdown(view, evaluated.formulas, thisFile, asOf, linkCtx))
     else if (view.type === 'cards') blocks.push(renderCardsMarkdown(view, evaluated.formulas, thisFile, asOf, linkCtx))
     else blocks.push(renderTableMarkdown(view, evaluated.formulas, thisFile, evaluated.propCfg, asOf, linkCtx))
@@ -204,9 +218,11 @@ export function assembleMarkdownPage(
     target: string
   },
 ): string {
+  // JSON.stringify yields a valid double-quoted YAML scalar, so a title with
+  // `:`, `#`, `---`, or quotes can't corrupt the frontmatter block.
   const frontmatter = [
     '---',
-    'title: ' + meta.title,
+    'title: ' + JSON.stringify(meta.title),
     'generated: ' + meta.generatedAt,
     'source_hash: ' + meta.sourceHash,
     'as_of: ' + meta.asOfLabel,

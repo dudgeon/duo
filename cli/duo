@@ -3899,6 +3899,19 @@ function parseLinkish(v, asOf) {
   if (typeof v === "string") {
     const m = v.match(/^\[\[([^\]|]+)(?:\|([^\]]+))?\]\]$/);
     if (m) return new Link(m[1].trim(), m[2] && m[2].trim());
+    const md = v.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (md) {
+      const href = md[2].trim();
+      if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(href) && /\.md$/i.test(href)) {
+        const stem = href.split("/").pop().replace(/\.md$/i, "");
+        let target = stem;
+        try {
+          target = decodeURIComponent(stem);
+        } catch {
+        }
+        return new Link(target, md[1].trim());
+      }
+    }
     return v;
   }
   if (Array.isArray(v)) return v.map((x) => parseLinkish(x, asOf));
@@ -4149,25 +4162,31 @@ function defaultAsOf() {
 function mdText(s) {
   return s.replace(/\r?\n+/g, " ").replace(/\|/g, "\\|").trim();
 }
+function mdInline(s) {
+  return s.replace(/\r?\n+/g, " ").trim().replace(/([\\`|[\]()])/g, "\\$1");
+}
+function mdLink(display, href) {
+  return "[" + mdInline(display) + "](<" + href + ">)";
+}
 function valueToMarkdown(v, linkCtx) {
   if (v == null || v === "") return "\u2014";
-  if (isEvalError(v)) return "\u26A0 " + mdText(v.__error);
+  if (isEvalError(v)) return "\u26A0 " + mdInline(v.__error);
   if (typeof v === "object" && v !== null && "__html" in v) {
-    return mdText(String(v.__html).replace(/<[^>]*>/g, ""));
+    return mdInline(String(v.__html).replace(/<[^>]*>/g, ""));
   }
   if (v instanceof Link) {
     const href = linkCtx?.resolveLink(v);
-    return href ? "[" + mdText(v.display) + "](" + href + ")" : mdText(v.display);
+    return href ? mdLink(v.display, href) : mdInline(v.display);
   }
-  if (v instanceof DuoDate) return mdText(v.toString());
+  if (v instanceof DuoDate) return mdInline(v.toString());
   if (Array.isArray(v)) return v.map((x) => valueToMarkdown(x, linkCtx)).join(", ");
   if (typeof v === "number") return String(v);
-  return mdText(String(v));
+  return mdInline(String(v));
 }
 function mdCell(prop, f, value, linkCtx) {
   if (linkCtx && (prop === "file.name" || prop === "file.link")) {
     const href = linkCtx.hrefFor(f.path);
-    if (href) return "[" + mdText(String(value)) + "](" + href + ")";
+    if (href) return mdLink(String(value), href);
   }
   return valueToMarkdown(value, linkCtx);
 }
@@ -4186,7 +4205,7 @@ function mdSummary(rows, view, formulas, thisFile, asOf, linkCtx) {
   return parts.length ? "_" + parts.join(" \xB7 ") + "_" : "";
 }
 function tableFor(rows, order, formulas, thisFile, propCfg, asOf, linkCtx) {
-  const header = "| " + order.map((p) => mdText(colLabel(p, propCfg))).join(" | ") + " |";
+  const header = "| " + order.map((p) => mdInline(colLabel(p, propCfg))).join(" | ") + " |";
   const divider = "| " + order.map(() => "---").join(" | ") + " |";
   const body = rows.map((f) => "| " + order.map((p) => mdCell(p, f, readCol(p, f, thisFile, formulas, asOf), linkCtx)).join(" | ") + " |").join("\n");
   return header + "\n" + divider + (body ? "\n" + body : "");
@@ -4214,10 +4233,10 @@ function renderTableMarkdown(view, formulas, thisFile, propCfg, asOf, linkCtx) {
   return keys.map((key) => {
     const gRows = groups.get(key);
     const raw = groupRaw.get(key);
-    let label = mdText(key);
+    let label = mdInline(key);
     if (linkCtx && raw instanceof Link) {
       const href = linkCtx.resolveLink(raw);
-      if (href) label = "[" + mdText(key) + "](" + href + ")";
+      if (href) label = mdLink(key, href);
     }
     const sum = mdSummary(gRows, view, formulas, thisFile, asOf, linkCtx);
     const head = "#### " + label + " (" + gRows.length + ")" + (sum ? "\n" + sum : "");
@@ -4232,14 +4251,14 @@ function renderCardsMarkdown(view, formulas, thisFile, asOf, linkCtx) {
     const [title, ...rest] = view.order;
     const head = "#### " + mdCell(title, f, readCol(title, f, thisFile, formulas, asOf), linkCtx);
     if (!rest.length) return head;
-    const body = rest.map((p) => "- **" + mdText(colLabel(p)) + ":** " + mdCell(p, f, readCol(p, f, thisFile, formulas, asOf), linkCtx)).join("\n");
+    const body = rest.map((p) => "- **" + mdInline(colLabel(p)) + ":** " + mdCell(p, f, readCol(p, f, thisFile, formulas, asOf), linkCtx)).join("\n");
     return head + "\n" + body;
   }).join("\n\n");
 }
 function renderBaseMarkdown(evaluated, thisFile, label, asOf, linkCtx) {
-  const blocks = ["## " + mdText(label)];
+  const blocks = ["## " + mdInline(label)];
   for (const view of evaluated.views) {
-    blocks.push("### " + mdText(view.name) + " (" + view.rows.length + ")");
+    blocks.push("### " + mdInline(view.name) + " (" + view.rows.length + ")");
     if (view.type === "list") blocks.push(renderListMarkdown(view, evaluated.formulas, thisFile, asOf, linkCtx));
     else if (view.type === "cards") blocks.push(renderCardsMarkdown(view, evaluated.formulas, thisFile, asOf, linkCtx));
     else blocks.push(renderTableMarkdown(view, evaluated.formulas, thisFile, evaluated.propCfg, asOf, linkCtx));
@@ -4249,7 +4268,7 @@ function renderBaseMarkdown(evaluated, thisFile, label, asOf, linkCtx) {
 function assembleMarkdownPage(sections, meta) {
   const frontmatter = [
     "---",
-    "title: " + meta.title,
+    "title: " + JSON.stringify(meta.title),
     "generated: " + meta.generatedAt,
     "source_hash: " + meta.sourceHash,
     "as_of: " + meta.asOfLabel,
@@ -7499,7 +7518,6 @@ ${res.pr.url}`);
           const target = positionalArgs(subRest, ["--vault", "--out"])[0];
           if (!target) die("Usage: duo base render <file|note> [--out <path>] [--open] [--vault <path>]");
           const root = resolveVaultOrDefault(process.cwd(), vaultFlag);
-          const result = renderTarget(root, target);
           const outFlag = flagValue(subRest, "--out");
           const open = subRest.includes("--open");
           const stem = path15.basename(target).replace(/\.(base|md)$/i, "") || "rollup";
@@ -7507,6 +7525,7 @@ ${res.pr.url}`);
           if (outFlag) outPath = path15.resolve(process.cwd(), outFlag);
           else if (open) outPath = path15.join(os3.tmpdir(), `duo-rollup-${stem}-${Date.now()}.html`);
           else outPath = path15.join(root, "out", `${stem}.html`);
+          const result = renderTarget(root, target, { outDir: path15.dirname(outPath) });
           fs14.mkdirSync(path15.dirname(outPath), { recursive: true });
           fs14.writeFileSync(outPath, result.html);
           let opened = null;
@@ -7547,6 +7566,7 @@ ${res.pr.url}`);
           const wantHtml = subRest.includes("--html");
           const wantMd = subRest.includes("--md");
           if (wantHtml && wantMd) die("duo rollup render: choose ONE of --md or --html, not both");
+          if (subRest.includes("--style")) die("duo rollup render: --style is not yet implemented (planned for the next phase)");
           const format = wantHtml ? "html" : "md";
           const root = resolveVaultOrDefault(process.cwd(), vaultFlag);
           const outFlag = flagValue(subRest, "--out");
