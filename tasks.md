@@ -22,6 +22,34 @@
 - The **"View PR #N ↗"** button now shows the PR number, carries the URL as a `title` tooltip, and opens through the **verified `window.electron.files.openExternalUrl`** path (`FILES_OPEN_EXTERNAL_URL` → `shell.openExternal`, scheme-guarded — the same mechanism [FileTree.tsx](renderer/components/FileTree.tsx) uses, BUG-132). Removed the false "shown as text" comment.
 - **Live-verified (2026-06-21):** footer renders `✓ PR #40239 opened · octocat/Spoon-Knife` on a clean managed checkout; `openExternalUrl(<pr-url>)` returned `{ok:true, opened:…}` and opened the PR (the old `window.open` returned nothing). typecheck clean.
 
+### ENH-229: Mature OKF rollups — a rollup skill that renders MD or HTML, with entity links
+
+**Status:** 🚧 Design + artifact 2026-06-22 (PRD + template artifact this pass; code build to follow). **Priority:** P2 (owner-requested maturation of a shipped feature). **Effort:** L. **PRD:** [docs/prd/enh-229-rollup-maturity.md](docs/prd/enh-229-rollup-maturity.md). **Depends on:** ENH-228 (discoverability + shipped guide). **Ticket note:** allocated above this worktree's committed max (ENH-228); siblings ≤ ENH-228 — renumber on collision.
+
+**Provenance.** Owner (2026-06-22), after the [ENH-228](#enh-228) live verification proved rollups work but OKF's native path is impoverished (groups by `type` only): *"I want to mature rollups."* Five requirements:
+1. An OKF vault **rollup skill that ships with Duo**.
+2. Renders **either MD or HTML, user preference**.
+3. HTML style **defaults to Atelier**, but the user can point to a different reference style source.
+4. Rendered HTML rollups carry **template-defined features** — a "copy as markdown" button and a "refresh" button.
+5. **Refresh click re-renders** the rollup (bonus: also from MD — owner hypothesis: a link type intercepted by the Duo browser and routed to the terminal).
+6. **(added 2026-06-22, owner: "importantly")** Rollups **contain links to the entities they roll up** — each row's note + its linked entities (owner→person, group→initiative) are clickable links into the graph. Turns a rollup from a static table into a navigation surface.
+
+**Locked decisions (owner "yes" 2026-06-22 to the recommended options):**
+- **D1 — one evaluation, two serializers.** Reuse the existing `.base` render engine (`core/vault/render.ts` — already evaluates filter/group-by/chips for HTML) and add a **Markdown serializer** beside its HTML one. Mirrors the locked "one graph, two serializers" OKF/Obsidian pattern.
+- **D2 — packaging:** a `duo rollup` CLI verb + `skill/references/rollup.md` in the duo skill (ships via the ENH-228 install path; CLI-is-the-spec).
+- **D3 — default format:** MD for OKF vaults (GitHub-portable), `--html` opt-in; persisted preference (`duo rollup format md|html`).
+- **D4 — refresh transport:** ship **HTML refresh now** via existing `data-duo-action="duo:event"` (`rollup:refresh`) + a small `duo rollup watch` subscriber (no babysitting-Claude). **Defer MD refresh** (the `duo://rollup/refresh` `will-navigate` intercept) to a fast-follow — it's the only net-new Electron plumbing.
+- **D5 — entity links (NEW req #6):** every rendered row links its note (OKF rel-md `[Title](./notes/x.md)` → `<a>` in HTML); linked frontmatter values (owner, initiative) render as links to their entity notes; group headers link to the group entity. Duo opens rel-links via the existing open/edit routing.
+- **D6 — style source (req #3):** `--style atelier|<path|url>`, Atelier default, CSS **inlined** so the HTML stays a single portable stamped artifact (D13).
+
+**Build plan (staged):**
+1. ✅ **This pass:** PRD + the planned-template HTML artifact (`docs/research/okf-rollup-maturity-template.html`) — the concrete spec of what the skill emits, with entity links + copy/refresh.
+2. Engine MD serializer (`core/vault/render.ts` + tests) — `evaluate once → {html, md}`.
+3. `duo rollup <spec> [--html] [--style …] [--out …] [--open]` + `duo rollup watch` + `duo rollup format` (CLI-is-the-spec 4-surface sync).
+4. The HTML template (copy-as-md + refresh buttons wired to `duo:event`; entity links; inlined style).
+5. `skill/references/rollup.md` + skill/agent/CLI-COVERAGE sync.
+6. Fast-follow: MD `duo://rollup/refresh` `will-navigate` intercept (Electron).
+
 ### ENH-228: Make the vault/graphbook featureset discoverable to *using*-agents
 
 **Status:** 🚧 **Built + verified 2026-06-22** (docs/skill/agent only — no `cli/duo.ts`, no renderer; `check:skill-currency` PASS, `sync:claude` run, synced copies verified; flips ✅ on merge). **Priority:** P2 (a using-agent that can't find a shipped feature is a silent product regression). **Effort:** S. **Ticket note:** allocated above this worktree's committed max (ENH-227); siblings sit ≤ ENH-227 — renumber if a concurrent agent collides.

@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OKF rollup — planned template (ENH-229)</title>
+<style>
+:root{
+  --paper:#fbf8f1; --paper-deep:#f3ede0; --paper-edge:#e8e0cb; --paper-rule:#d9cea8;
+  --ink:#2b2620; --ink-soft:#4a4238; --ink-mute:#6f6557; --ink-ghost:#9a9080;
+  --accent:#c46a1c; --accent-soft:#f4d9b6; --pass:#4a7d3e; --fail:#b13e3a; --warn:#b07527;
+  --code-bg:#2b2823; --code-ink:#e8e0cb;
+  --font-sans:-apple-system,"SF Pro Text","Segoe UI",system-ui,sans-serif;
+  --font-serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --font-mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:var(--font-sans);line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:860px;margin:0 auto;padding:2.4rem 1.6rem 4rem}
+h1,h2,h3{font-family:var(--font-serif);font-weight:600;font-style:italic;color:var(--ink);line-height:1.25}
+h1{font-size:1.7rem;margin:0 0 .3rem}
+.sub{color:var(--ink-mute);font-size:.92rem;margin:0 0 1.6rem}
+a{color:var(--accent);text-decoration:none;border-bottom:1px solid var(--accent-soft)}
+a:hover{border-bottom-color:var(--accent)}
+.anno{background:var(--paper-deep);border:1px solid var(--paper-edge);border-left:3px solid var(--accent);border-radius:0 8px 8px 0;padding:.85rem 1.05rem;font-size:.9rem;color:var(--ink-soft);margin:0 0 1.8rem}
+.anno strong{color:var(--ink)}
+
+.rollup{background:#fff;border:1px solid var(--paper-edge);border-radius:12px;overflow:hidden;box-shadow:0 1px 0 var(--paper-edge)}
+.rl-bar{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:14px 16px;border-bottom:1px solid var(--paper-deep)}
+.rl-title{font-family:var(--font-serif);font-style:italic;font-size:1.18rem}
+.rl-stamp{font-family:var(--font-mono);font-size:.72rem;color:var(--ink-ghost);margin-top:2px}
+.rl-ctl{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--paper-edge);border-radius:7px;overflow:hidden}
+.seg button{border:0;background:transparent;padding:5px 11px;font-size:.82rem;cursor:pointer;color:var(--ink-soft);font-family:var(--font-sans)}
+.seg button.on{background:var(--accent);color:#fff}
+select,.btn{font-family:var(--font-sans);font-size:.82rem;border:1px solid var(--paper-edge);background:var(--paper);color:var(--ink-soft);border-radius:7px;padding:5px 10px;cursor:pointer}
+.btn:hover,select:hover{border-color:var(--ink-ghost)}
+.btn.act{border-color:var(--accent);color:var(--accent)}
+
+.grp{display:flex;align-items:center;gap:8px;padding:11px 16px 7px;font-family:var(--font-serif);font-style:italic;font-size:1.02rem;border-left:3px solid var(--accent)}
+.grp .cnt{font-family:var(--font-sans);font-style:normal;font-size:.74rem;color:var(--ink-ghost)}
+table.rl{width:100%;border-collapse:collapse}
+table.rl th{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-ghost);text-align:left;font-weight:500;padding:4px 16px}
+table.rl td{padding:8px 16px;border-top:1px solid var(--paper-deep);font-size:.9rem;vertical-align:middle}
+.chip{display:inline-block;font-size:.74rem;padding:2px 9px;border-radius:20px;font-weight:500}
+.chip.blocked{background:#f6e3e1;color:var(--fail)}
+.chip.ontrack{background:#e4efe0;color:var(--pass)}
+.chip.done{background:var(--paper-deep);color:var(--ink-mute)}
+.linkcol a{font-weight:500}
+.entity{font-size:.7rem;color:var(--ink-ghost);vertical-align:super;margin-left:2px}
+
+pre.md{margin:0;padding:16px;background:var(--code-bg);color:var(--code-ink);font-family:var(--font-mono);font-size:.78rem;line-height:1.55;white-space:pre-wrap;overflow-x:auto}
+pre.md a{color:#e0a566;border:0;text-decoration:underline}
+
+.rl-foot{padding:9px 16px;border-top:1px solid var(--paper-deep);background:var(--paper);font-family:var(--font-mono);font-size:.7rem;color:var(--ink-ghost);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.toast{display:none;padding:9px 16px;border-top:1px solid var(--paper-edge);background:var(--accent-soft);color:#7a3f0d;font-size:.82rem}
+.toast code{font-family:var(--font-mono);font-size:.76rem;background:rgba(0,0,0,.06);padding:1px 5px;border-radius:4px}
+
+h2{font-size:1.18rem;margin:2.4rem 0 .2rem;border-bottom:1px solid var(--paper-rule);padding-bottom:.3rem}
+.notes p{font-size:.92rem;color:var(--ink-soft);margin:.6rem 0}
+.flow{font-family:var(--font-mono);font-size:.76rem;color:var(--ink-mute);background:var(--paper-deep);border:1px solid var(--paper-edge);border-radius:8px;padding:11px 13px;margin:.5rem 0;white-space:pre-wrap;line-height:1.5}
+.k{display:inline-block;font-size:.7rem;background:var(--paper-deep);border:1px solid var(--paper-edge);border-radius:4px;padding:1px 6px;font-family:var(--font-mono);color:var(--ink-soft)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>OKF rollup — planned template</h1>
+<p class="sub">ENH-229 · the artifact the <span class="k">duo rollup</span> skill will emit. Try the controls — format toggle, style source, copy, refresh.</p>
+
+<div class="anno"><strong>This is a spec, not a live render.</strong> It shows the planned template the skill produces: an OKF rollup grouped by initiative, with status chips, a build stamp, and — the new requirement — <strong>every row linking to the entity it rolls up</strong> (the task note, its owner, its initiative). Links point at vault-relative note paths; in Duo they open the note via the existing open/edit routing.</p>
+
+<article class="rollup" id="rollup">
+  <div class="rl-bar">
+    <div>
+      <div class="rl-title">Tasks by initiative</div>
+      <div class="rl-stamp" id="stamp">generated 2026-06-22 14:30 · source-hash 8f3a2c · as-of 2026-jun-22</div>
+    </div>
+    <div class="rl-ctl">
+      <span class="seg"><button id="f-html" class="on">HTML</button><button id="f-md">Markdown</button></span>
+      <select id="style" aria-label="style source">
+        <option value="atelier">Style: Atelier</option>
+        <option value="minimal">Style: Minimal</option>
+        <option value="mono">Style: Mono</option>
+        <option value="custom">Style: Custom source…</option>
+      </select>
+      <button class="btn" id="copy">Copy as Markdown</button>
+      <button class="btn act" id="refresh" data-duo-action="duo:event" data-event="rollup:refresh" data-payload="tasks-by-initiative">Refresh</button>
+    </div>
+  </div>
+
+  <div id="view-html">
+    <div class="grp"><a href="./initiatives/q3-launch.md">Q3 launch</a><span class="cnt">3 tasks</span></div>
+    <table class="rl">
+      <tr><th style="width:40%">Task</th><th style="width:18%">Status</th><th style="width:26%">Owner</th><th style="width:16%">Due</th></tr>
+      <tr><td class="linkcol"><a href="./notes/legal-review.md">Legal review</a></td><td><span class="chip blocked">blocked</span></td><td><a href="./people/alice-park.md">Alice Park</a></td><td>jul 20</td></tr>
+      <tr><td class="linkcol"><a href="./notes/beta-cohort.md">Beta cohort</a></td><td><span class="chip ontrack">on-track</span></td><td><a href="./people/sam-rivera.md">Sam Rivera</a></td><td>jul 1</td></tr>
+      <tr><td class="linkcol"><a href="./notes/kickoff-deck.md">Kickoff deck</a></td><td><span class="chip done">done</span></td><td><a href="./people/jordan-lee.md">Jordan Lee</a></td><td>—</td></tr>
+    </table>
+    <div class="grp"><a href="./initiatives/platform-migration.md">Platform migration</a><span class="cnt">2 tasks</span></div>
+    <table class="rl">
+      <tr><th style="width:40%">Task</th><th style="width:18%">Status</th><th style="width:26%">Owner</th><th style="width:16%">Due</th></tr>
+      <tr><td class="linkcol"><a href="./notes/db-cutover-plan.md">DB cutover plan</a></td><td><span class="chip ontrack">on-track</span></td><td><a href="./people/priya-shah.md">Priya Shah</a></td><td>aug 5</td></tr>
+      <tr><td class="linkcol"><a href="./notes/rollback-runbook.md">Rollback runbook</a></td><td><span class="chip blocked">blocked</span></td><td><a href="./people/devin-cole.md">Devin Cole</a></td><td>jul 28</td></tr>
+    </table>
+  </div>
+
+  <div id="view-md" style="display:none"><pre class="md" id="md-pre"></pre></div>
+
+  <div class="toast" id="toast"></div>
+  <div class="rl-foot">
+    <span>BUILD ARTIFACT · regenerate: <span style="color:var(--accent)">duo rollup tasks-by-initiative</span></span>
+    <span id="foot-stamp">5 rows · 1 rollup · md + html</span>
+  </div>
+</article>
+
+<h2>How the two new bits work</h2>
+<div class="notes">
+<p><strong>Entity links (req #6).</strong> The serializer resolves each row to its source note and renders a link; linked frontmatter values (owner, initiative) resolve to their entity notes; group headers link to the group entity. Only resolved corpus entities link — unresolved values stay plain text (never a fabricated target).</p>
+<div class="flow">OKF (portable):  [Legal review](./notes/legal-review.md)   [Alice Park](./people/alice-park.md)
+HTML render:     &lt;a href="./notes/legal-review.md"&gt;Legal review&lt;/a&gt;   (Duo opens it on click)</div>
+
+<p><strong>Refresh (req #5).</strong> The button is declarative — <span class="k">data-duo-action="duo:event"</span> emitting <span class="k">rollup:refresh</span>. A tiny <span class="k">duo rollup watch</span> subscribes to the existing event bus, re-renders, and reloads. A button can't re-render itself — it requests; the watcher fulfills.</p>
+<div class="flow">HTML now:        Refresh → duo:event(rollup:refresh) → `duo rollup watch` → re-render → reload
+MD fast-follow:  [↻](duo://rollup/refresh?base=tasks) → will-navigate intercept → same event</div>
+</div>
+
+</div>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id)};
+  var md=[
+    '## Tasks by initiative',
+    '_generated 2026-06-22 14:30 · source-hash 8f3a2c · as-of 2026-jun-22_',
+    '',
+    '### [Q3 launch](./initiatives/q3-launch.md)',
+    '| Task | Status | Owner | Due |',
+    '| --- | --- | --- | --- |',
+    '| [Legal review](./notes/legal-review.md) | blocked | [Alice Park](./people/alice-park.md) | jul 20 |',
+    '| [Beta cohort](./notes/beta-cohort.md) | on-track | [Sam Rivera](./people/sam-rivera.md) | jul 1 |',
+    '| [Kickoff deck](./notes/kickoff-deck.md) | done | [Jordan Lee](./people/jordan-lee.md) | — |',
+    '',
+    '### [Platform migration](./initiatives/platform-migration.md)',
+    '| Task | Status | Owner | Due |',
+    '| --- | --- | --- | --- |',
+    '| [DB cutover plan](./notes/db-cutover-plan.md) | on-track | [Priya Shah](./people/priya-shah.md) | aug 5 |',
+    '| [Rollback runbook](./notes/rollback-runbook.md) | blocked | [Devin Cole](./people/devin-cole.md) | jul 28 |',
+    ''
+  ].join('\n');
+  $('md-pre').textContent=md;
+
+  function fmt(isMd){
+    $('view-md').style.display=isMd?'block':'none';
+    $('view-html').style.display=isMd?'none':'block';
+    $('f-md').classList.toggle('on',isMd);
+    $('f-html').classList.toggle('on',!isMd);
+  }
+  $('f-md').onclick=function(){fmt(true)};
+  $('f-html').onclick=function(){fmt(false)};
+
+  $('style').onchange=function(e){
+    var v=e.target.value, r=document.documentElement;
+    var accents={atelier:'#c46a1c',minimal:'#6f6557',mono:'#2E7D74',custom:'#5B57A6'};
+    r.style.setProperty('--accent',accents[v]||accents.atelier);
+    $('rollup').style.fontFamily=(v==='mono')?'var(--font-mono)':'var(--font-sans)';
+  };
+
+  $('copy').onclick=function(){
+    var b=this;
+    navigator.clipboard.writeText(md).then(function(){
+      b.textContent='Copied ✓';
+      setTimeout(function(){b.textContent='Copy as Markdown'},1400);
+    }).catch(function(){b.textContent='Copy blocked (focus the page)';setTimeout(function(){b.textContent='Copy as Markdown'},1800)});
+  };
+
+  var hashes=['a14e07','c92b15','3f88de','7b0c41'], i=0;
+  $('refresh').onclick=function(){
+    i=(i+1)%hashes.length;
+    var mm=31+i*7; if(mm>59)mm=59;
+    $('stamp').textContent='generated 2026-06-22 14:'+mm+' · source-hash '+hashes[i]+' · as-of 2026-jun-22';
+    var t=$('toast'); t.style.display='block';
+    t.innerHTML='Emitted <code>duo:event rollup:refresh</code> → <code>duo rollup watch</code> re-ran the render → 5 rows · reloaded.';
+  };
+})();
+</script>
+</body>
+</html>
