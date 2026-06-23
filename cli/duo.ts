@@ -2906,6 +2906,10 @@ async function main(): Promise<void> {
               ? 'log'
               : 'both'
           const result = vault.writeListings(root, { perDir: subRest.includes('--dir'), scope })
+          // ENH-230 — an authored-but-unusable root index.md `listing:` spec
+          // falls back to the group-by-type default; surface that on stderr so
+          // the fallback isn't silent (publish still succeeds).
+          for (const w of result.warnings) process.stderr.write(`duo: warning — ${w}\n`)
           let opened: unknown = null
           if (subRest.includes('--open')) {
             const indexAbs = path.join(root, 'index.md')
