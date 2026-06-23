@@ -114,3 +114,73 @@ listening Claude) fulfills it near-instantly. Honest framing in the skill: it's
   (defer the prose helper; start with the validated `.base` subset).
 - MD entity links in a *rendered* HTML artifact: keep the `<a>` pointing at the
   note's rel path so the single HTML file is portable AND navigable in Duo.
+
+## Update 2026-06-22 — owner feedback + grounded design
+
+Two owner corrections + one new feature, plus the code seams confirmed by the
+ENH-229 understand pass (workflow `wf_67f87f89-4fb`).
+
+### Correction 1 — two mutually-exclusive variants, NOT a toggle
+
+The prototype rendered one HTML artifact with an MD/HTML *view toggle* — owner:
+*"you've built something strange: an html rollup with markdown mode."* Fixed:
+`duo rollup render <note> --md | --html` produces **one** file (MD **or** HTML),
+chosen at generation. Mutually exclusive, enforced in code (`die` if both or
+neither). The template artifact is rebuilt to show the two variants side by
+side, not a toggle.
+
+### New feature (req #7) — change summary on regenerate
+
+On regenerate, the standard rollup has an **interactive** Claude write a
+**narrative + notables** (prose calling out the changes worth attention since
+the last render, positive or negative) and add it to the rollup.
+
+- **Interactive, not headless.** Authored by a real Claude (judgment), never
+  `claude -p`. Transport (from the map): the refresh button emits
+  `data-duo-action="duo:event"` → `rollup:refresh` on the event bus
+  (`core/event-bus.ts`); a `duo rollup watch` loop an interactive Claude runs
+  (`duo events --follow`) picks it up.
+- **"The user just accepts."** Low-friction — the interactive Claude regenerates
+  + summarizes and the artifact reloads; for the MD variant the summary may land
+  as a CriticMarkup suggestion (`duo doc insert`) accepted via the existing
+  SuggestingBanner. No blocking approval.
+- **Optional / disableable.** `duo rollup render --no-summary` (+ a persisted
+  per-rollup default) turns it off. Summaries are not required.
+- **Placement = both.** Latest summary pinned at the top; a collapsible history
+  of prior regenerations below.
+- **Diff source is §D9-clean (no sidecar).** The artifact self-embeds a
+  machine-readable rows snapshot (HTML comment / MD frontmatter). A regenerate
+  reads the prior artifact's snapshot; the CLI computes the deterministic diff
+  (added / removed / changed rows + fields); interactive Claude turns it into
+  prose. No separate snapshot cache to drift.
+
+### Grounded seams (from the understand pass)
+
+| Concern | Seam |
+|---|---|
+| MD serializer | new `core/vault/render-markdown.ts`; slot at the `evaluateBaseDef()`→serialize boundary in `renderTarget()` (`render.ts:351`); reuse `readCol` + `SUMMARY_FNS`; `valueToMarkdown()` parallels `cell()` |
+| Entity links (req #6) | emit in BOTH serializers at the value layer — `cell()` (HTML `<a>`) and `valueToMarkdown()` (MD `[disp](rel)`); `file.name` col links the note; `Link`-typed frontmatter values link their entity |
+| Refresh transport | `duo:event` bus (`rollup:refresh`) → `duo events --follow` subscriber; button injected only on `file://` pages (cdp-bridge PLAYGROUND_RUNTIME_IIFE) — `duo open` opens browser-mode file:// |
+| Interactive Claude | event → Claude in a Duo PTY (`DUO_SESSION`/`DUO_TAB`), `duo rollup watch` loop; interactive contract mirrors cron (no `-p`) |
+| Accept pattern | MD summary via CriticMarkup `duo doc insert` + SuggestingBanner; HTML summary rendered into the artifact directly |
+| Reload | rewrite the same out-path → `useDiskReconciliation` fires → canvas `reloadKey` remount (or `duo reload` for browser pane) |
+| CLI plumbing | new top-level `case 'rollup':` with `if (sub === …)` ladders (NOT nested switch — the currency checker counts `case` lines); one VERBS entry; `build:cli` + 4-surface sync |
+
+### CLI shape (revised)
+
+```
+duo rollup render <note|spec> (--md | --html) [--style atelier|<path|url>] [--out <p>] [--open] [--no-summary] [--vault <p>]
+duo rollup summary <note> --text "<prose>"   embed Claude's narrative into the latest slot + history
+duo rollup diff <note> [--vault <p>]         structured prior-vs-new diff (JSON) for Claude to summarize
+duo rollup watch [--vault <p>]               subscribe to rollup:refresh, regenerate + (Claude) summarize + reload
+duo rollup format [md|html]                  read/set the default variant
+```
+
+### Build order (revised)
+
+1. `core/vault/render-markdown.ts` (MD serializer) + entity links in both serializers + tests.
+2. Embedded rows-snapshot + `duo rollup diff` (deterministic) + tests.
+3. `duo rollup render` (`--md|--html` mutually exclusive, `--style`, `--out`, `--open`, `--no-summary`) + `summary` + `format` + `build:cli`.
+4. The HTML template (Atelier, entity links, copy-as-md + refresh `duo:event`, latest+history summary slots).
+5. `skill/references/rollup.md` (the watch+summarize loop) + 4-surface sync + `sync:claude`.
+6. `duo rollup watch` + fast-follow MD `duo://rollup/refresh` `will-navigate` intercept.

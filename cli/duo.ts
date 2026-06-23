@@ -560,6 +560,13 @@ const VERBS: VerbSpec[] = [
     args: '<lint <file|--all>|render <file|note>> [--out p] [--open] [--vault p]',
     summary:
       'Obsidian Bases rollups. lint <file|--all> [--vault p]: validate a .base file (or a note\'s embedded ```base blocks, or every base with --all) against the live corpus — bad types / unresolved [[entities]] / off-enum values / unknown functions, each with a "did you mean" (JSON; warn-and-render, never blocks). render <file|note> [--out p] [--open]: evaluate filters/formulas over live frontmatter and emit a stamped Duo-owned HTML artifact (generated-at · source-hash · as-of). Default writes to the vault\'s out/; --out writes elsewhere; --open also opens it as a tab in the running app.'
+  },
+  {
+    name: 'rollup',
+    group: 'Vault',
+    args: '<render <note|base>> [--md|--html] [--out p] [--open] [--vault p]',
+    summary:
+      'ENH-229 — rollup artifacts. render <note|base> [--md|--html]: evaluate a base/rollup over live frontmatter and emit ONE variant — Markdown (--md, the GitHub-portable OKF default) OR a stamped HTML artifact (--html). The two are mutually exclusive (errors if both given). Every row LINKS the entities it rolls up (the note itself, plus owner/group links resolved from frontmatter). Default writes to the vault out/; --out writes elsewhere; --open surfaces it as a tab. (Change-summary-on-regenerate + watch are a follow-up phase.)'
   }
 ]
 
@@ -3012,6 +3019,68 @@ async function main(): Promise<void> {
           })
         } else {
           die('Usage: duo base <lint <file|--all>|render <file|note>> [--out <path>] [--open] [--vault <path>]')
+        }
+        break
+      }
+      case 'rollup': {
+        // ENH-229 — rollup artifacts. One evaluation, two serializers: --md
+        // (GitHub-portable OKF default) OR --html (stamped artifact). Rows link
+        // the entities they roll up (req #6). Filesystem-direct like `base`;
+        // only --open reaches the running app to surface a tab.
+        const sub = rest[0]
+        const subRest = rest.slice(1)
+        const vaultFlag = flagValue(subRest, '--vault')
+        if (sub === 'render') {
+          const target = positionalArgs(subRest, ['--vault', '--out', '--style'])[0]
+          if (!target) die('Usage: duo rollup render <note|base> [--md|--html] [--out <path>] [--open] [--vault <path>]')
+          const wantHtml = subRest.includes('--html')
+          const wantMd = subRest.includes('--md')
+          if (wantHtml && wantMd) die('duo rollup render: choose ONE of --md or --html, not both')
+          const format: 'html' | 'md' = wantHtml ? 'html' : 'md' // MD is the OKF-portable default (D3)
+          const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
+          const outFlag = flagValue(subRest, '--out')
+          const open = subRest.includes('--open')
+          const stem = path.basename(target).replace(/\.(base|md)$/i, '') || 'rollup'
+          const ext = format === 'html' ? '.html' : '.md'
+          let outPath: string
+          if (outFlag) outPath = path.resolve(process.cwd(), outFlag)
+          else if (open) outPath = path.join(os.tmpdir(), `duo-rollup-${stem}-${Date.now()}${ext}`)
+          else outPath = path.join(root, 'out', `${stem}${ext}`)
+          // outDir makes the entity-link hrefs (req #6) relative to where the
+          // artifact lands, so the links resolve from the file's location.
+          const result = vault.renderTarget(root, target, { outDir: path.dirname(outPath) })
+          fs.mkdirSync(path.dirname(outPath), { recursive: true })
+          fs.writeFileSync(outPath, format === 'html' ? result.html : result.md)
+          let opened: unknown = null
+          if (open) {
+            try {
+              // Mirror `base render`: the IPC handler keys on `url`. For an
+              // .md artifact the open verb ignores `mode` and routes to the
+              // editor (ENH-156); for .html `browser` mode shows it interactive.
+              opened = await send('open', { url: resolveOpenTarget(outPath), mode: 'browser', reveal: true })
+            } catch (e) {
+              opened = { error: e instanceof Error ? e.message : String(e) }
+            }
+            if (opened && typeof opened === 'object' && 'error' in opened) {
+              process.stderr.write(
+                `duo: rollup render wrote ${outPath} but --open failed: ${(opened as { error: unknown }).error}\n`,
+              )
+            }
+          }
+          out({
+            path: outPath,
+            format,
+            sourceHash: result.sourceHash,
+            generatedAt: result.generatedAt,
+            asOf: result.asOfLabel,
+            bases: result.bases.map((b) => ({
+              label: b.label,
+              views: b.evaluated.views.map((v) => ({ name: v.name, type: v.type, rows: v.rows.length })),
+            })),
+            ...(open ? { opened } : {}),
+          })
+        } else {
+          die('Usage: duo rollup render <note|base> [--md|--html] [--out <path>] [--open] [--vault <path>]')
         }
         break
       }

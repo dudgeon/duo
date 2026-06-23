@@ -309,6 +309,7 @@ empty.
 | `duo graph orphans [--vault <path>]` | Notes with no inbound and no outbound links (a processing work-list). JSON `string[]`. |
 | `duo base lint <file\|--all> [--vault <path>]` | Validate a `.base` (or a note's embedded ` ```base ` blocks, or all with `--all`) against the corpus — bad types, unresolved `[[entities]]`, off-enum values, unknown functions/view-types, each with a "did you mean". Advisory, never blocks (D15). JSON `[{source, findings:[{severity, message, suggestion?}]}]`. |
 | `duo base render <file\|note> [--out p] [--open] [--vault <path>]` | Evaluate filters/formulas over live frontmatter → a stamped Duo-owned HTML artifact (generated-at · source-hash · as-of). A note renders its embedded ` ```base ` blocks with `this` = the note. Default writes to `out/`; `--open` opens it as a tab. JSON `{path, sourceHash, bases:[{label, views:[{name, rows}]}]}`. |
+| `duo rollup render <note\|base> [--md\|--html] [--out p] [--open] [--vault <path>]` | **ENH-229** — emit ONE rollup variant: `--md` (GitHub-portable GFM, the OKF default) OR `--html` (stamped artifact); mutually exclusive (errors if both given). Every row LINKS the entities it rolls up — the note (`file.name` col) + resolved owner/group Link values + the group header (req #6). Default writes to `out/`; `--open` surfaces it as a tab. JSON `{path, format, sourceHash, generatedAt, asOf, bases:[{label, views:[{name, type, rows}]}]}`. |
 
 For deeper detail, the Duo skill at `~/.claude/skills/duo/` is the
 source of truth — fetch sections from it rather than guessing:

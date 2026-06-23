@@ -26,13 +26,14 @@
 
 **Status:** 🚧 Design + artifact 2026-06-22 (PRD + template artifact this pass; code build to follow). **Priority:** P2 (owner-requested maturation of a shipped feature). **Effort:** L. **PRD:** [docs/prd/enh-229-rollup-maturity.md](docs/prd/enh-229-rollup-maturity.md). **Depends on:** ENH-228 (discoverability + shipped guide). **Ticket note:** allocated above this worktree's committed max (ENH-228); siblings ≤ ENH-228 — renumber on collision.
 
-**Provenance.** Owner (2026-06-22), after the [ENH-228](#enh-228) live verification proved rollups work but OKF's native path is impoverished (groups by `type` only): *"I want to mature rollups."* Five requirements:
+**Provenance.** Owner (2026-06-22), after the [ENH-228](#enh-228) live verification proved rollups work but OKF's native path is impoverished (groups by `type` only): *"I want to mature rollups."* Requirements (variant correction + change-summary added 2026-06-22):
 1. An OKF vault **rollup skill that ships with Duo**.
-2. Renders **either MD or HTML, user preference**.
+2. Each rollup is **one of two mutually-exclusive variants — HTML _or_ Markdown**, chosen at generation. **NOT one artifact with a runtime view-toggle** (owner correction 2026-06-22: *"you've built something strange: an html rollup with markdown mode"*).
 3. HTML style **defaults to Atelier**, but the user can point to a different reference style source.
 4. Rendered HTML rollups carry **template-defined features** — a "copy as markdown" button and a "refresh" button.
 5. **Refresh click re-renders** the rollup (bonus: also from MD — owner hypothesis: a link type intercepted by the Duo browser and routed to the terminal).
 6. **(added 2026-06-22, owner: "importantly")** Rollups **contain links to the entities they roll up** — each row's note + its linked entities (owner→person, group→initiative) are clickable links into the graph. Turns a rollup from a static table into a navigation surface.
+7. **(NEW 2026-06-22) Change summary on regenerate.** On refresh, the standard rollup drives an **interactive** Claude (NOT headless `-p`) to write a **narrative + notables** — a prose summary that calls out the changes worth attention (positive or negative) since the last render — and adds it to the rollup. Low-friction: the user just accepts. **Optional — summaries are not required and can be disabled** per rollup. Placement: **both** (latest summary pinned on top + a collapsible history of prior regenerations). [AUQ-confirmed 2026-06-22; "narrative and notables".]
 
 **Locked decisions (owner "yes" 2026-06-22 to the recommended options):**
 - **D1 — one evaluation, two serializers.** Reuse the existing `.base` render engine (`core/vault/render.ts` — already evaluates filter/group-by/chips for HTML) and add a **Markdown serializer** beside its HTML one. Mirrors the locked "one graph, two serializers" OKF/Obsidian pattern.
@@ -41,6 +42,7 @@
 - **D4 — refresh transport:** ship **HTML refresh now** via existing `data-duo-action="duo:event"` (`rollup:refresh`) + a small `duo rollup watch` subscriber (no babysitting-Claude). **Defer MD refresh** (the `duo://rollup/refresh` `will-navigate` intercept) to a fast-follow — it's the only net-new Electron plumbing.
 - **D5 — entity links (NEW req #6):** every rendered row links its note (OKF rel-md `[Title](./notes/x.md)` → `<a>` in HTML); linked frontmatter values (owner, initiative) render as links to their entity notes; group headers link to the group entity. Duo opens rel-links via the existing open/edit routing.
 - **D6 — style source (req #3):** `--style atelier|<path|url>`, Atelier default, CSS **inlined** so the HTML stays a single portable stamped artifact (D13).
+- **D7 — change summary (req #7), grounded in the code map:** the rendered artifact **self-embeds a machine-readable rows snapshot** (HTML comment / MD frontmatter) so a regenerate can diff prior-vs-new with **no sidecar** (§D9-clean). The CLI computes the deterministic diff (added / removed / changed rows); the **prose narrative is written by interactive Claude** (the LLM step — not deterministic code), then embedded via `duo rollup summary <note> --text "<prose>"`. Transport: the refresh button emits `data-duo-action="duo:event"` `rollup:refresh`; a `duo rollup watch` loop (run by an interactive Claude, `duo events --follow`) regenerates + summarizes + reloads. `--no-summary` disables it. Reload reuses the existing watcher path (rewrite same out-path → `useDiskReconciliation` reloads). **Variant correction:** `duo rollup render --md | --html` is mutually-exclusive (one file per rollup), NOT one artifact with a runtime toggle.
 
 **Build plan (staged):**
 1. ✅ **This pass:** PRD + the planned-template HTML artifact (`docs/research/okf-rollup-maturity-template.html`) — the concrete spec of what the skill emits, with entity links + copy/refresh.
