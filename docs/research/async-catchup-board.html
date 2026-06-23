@@ -96,6 +96,8 @@ code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12px;backgroun
 .act:hover{border-color:var(--ink-ghost);}
 .act.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;}
 .act.primary:hover{background:color-mix(in srgb,black 8%,var(--accent));}
+.act.sec{width:auto;display:inline-block;border:none;background:none;color:var(--ink-mute);text-decoration:underline;text-decoration-color:var(--paper-rule);padding:5px 2px 0;font-size:11px;margin-top:3px;}
+.act.sec:hover{color:var(--accent);}
 
 /* ── board ────────────────────────────────────────────────────────────── */
 .board{display:flex;gap:12px;padding:14px;overflow-x:auto;align-items:flex-start;background:
@@ -198,6 +200,22 @@ reason chip, never the column — which is the real argument for merging them.</
   <span><span class="live" style="position:static;display:inline-block"></span> live process</span>
 </div>
 
+<h3>The Done column's action model (owner refinement)</h3>
+<p style="font-size:13px;color:var(--ink-soft)">A complete work product does <em>not</em> mean "view the artifact" is the action you want. In most cases
+you'll want to <b>jump back into the session</b> — to iterate, ask a follow-up, or read the closing message.
+So the Done cards lead with <b>Open session →</b>, with the work product as a quieter secondary link. Two
+exceptions and one principle:</p>
+<ul style="font-size:13px;color:var(--ink-soft)">
+  <li><b>md / html products lead with the artifact</b> — <b>Open report →</b> opens/focuses it in Duo's
+  canvas (md, source-editable) or playground (html, rendered). This is the one case where the artifact
+  <em>is</em> the thing to look at, and it's Duo's home turf. (Card 3 above.)</li>
+  <li><b>PRs are a secondary link, not the headline</b> — viewing a PR is the comparatively rare reach, so
+  <span style="color:var(--ink-mute);text-decoration:underline;text-decoration-color:var(--paper-rule)">Review PR #214</span>
+  sits under the primary, never as it.</li>
+  <li><b>In Duo these aren't rivals</b> — re-entering a session can bring up the terminal <em>and</em> its
+  canvas side by side (the core pairing), so "Open session" and "Open report" differ only in which one leads.</li>
+</ul>
+
 <h3>What changed from iteration 1</h3>
 <ul style="font-size:13px;color:var(--ink-soft)">
   <li><b>Blocked is gone as a column</b> — it's now a red <span class="tag tag-blocked">⛔ blocked</span> reason chip inside <b>Needs you</b>, beside <span class="tag tag-question">💬 question</span> and <span class="tag tag-plan">📋 plan to approve</span>. Three things that all mean "give input," one column.</li>
@@ -227,8 +245,18 @@ reason chip, never the column — which is the real argument for merging them.</
   </div>
   <textarea class="q-notes" name="phase-notes" placeholder="Notes…"></textarea>
 </div>
+<div class="decision-card" data-q="done">
+  <p class="q-title">Q3 · Done-column primary action</p>
+  <p class="q-prompt">What should the Done cards' primary button do?</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="done" value="session-default"><span class="q-option-body"><span class="q-option-title">Open session by default; md/html opens the artifact<span class="recommend-tag">Rec</span></span><span class="q-option-rationale">Re-enter is the common case; only md/html leads with the artifact (canvas/playground). PR/diff are secondary links. (What's above.)</span></span></label>
+    <label class="q-option"><input type="radio" name="done" value="artifact-default"><span class="q-option-body"><span class="q-option-title">Open the work product by default</span><span class="q-option-rationale">Lead with the artifact (PR/file/diff) everywhere; "Open session" becomes the secondary.</span></span></label>
+    <label class="q-option"><input type="radio" name="done" value="both"><span class="q-option-body"><span class="q-option-title">Always open both (session + artifact, paired)</span><span class="q-option-rationale">Lean all the way into Duo's pairing — re-enter the terminal and surface the artifact in the canvas together, every time.</span></span></label>
+  </div>
+  <textarea class="q-notes" name="done-notes" placeholder="Notes…"></textarea>
+</div>
 <div class="decision-card" data-q="default">
-  <p class="q-title">Q3 · Default grouping</p>
+  <p class="q-title">Q4 · Default grouping</p>
   <p class="q-prompt">When Catch-up opens, which grouping shows first?</p>
   <div class="q-options">
     <label class="q-option"><input type="radio" name="default" value="attn"><span class="q-option-body"><span class="q-option-title">By attention (act / wait / review)<span class="recommend-tag">Rec</span></span><span class="q-option-rationale">"What do I do?" is the catch-up question; needs-you first.</span></span></label>
@@ -239,7 +267,7 @@ reason chip, never the column — which is the real argument for merging them.</
 </form>
 
 <div class="copy-bar">
-  <div class="copy-meta"><span id="answered-count">0</span> / 3 decided — round-trips to your clipboard</div>
+  <div class="copy-meta"><span id="answered-count">0</span> / 4 decided — round-trips to your clipboard</div>
   <button id="copy-btn" type="button">Copy decisions</button>
 </div>
 
@@ -271,19 +299,19 @@ const S=[
   {id:6,goal:'Add OAuth refresh-token rotation',repo:'auth-service',hue:'--project-iris',age:'6m',live:false,
    phase:'done',attn:null,
    youAsked:'Rotate on refresh; revoke the old token.',next:null,files:['tokens/rotate.ts','tokens/revoke.ts'],
-   artifacts:[{label:'PR #214',kind:'pr'},{label:'7 tests green',kind:'test'}],primary:'Review PR #214 →'},
+   artifacts:[{label:'PR #214',kind:'pr'},{label:'7 tests green',kind:'test'}],primary:'Open session →',secondary:'Review PR #214'},
   {id:7,goal:'Draft the Q3 reliability report',repo:'docs',hue:'--project-rose',age:'40m',live:false,
    phase:'done',attn:null,
    youAsked:'Pull incidents; draft for the team.',next:null,files:['q3-reliability.md'],
-   artifacts:[{label:'q3-reliability.md',kind:'file'}],primary:'Open report →'},
+   artifacts:[{label:'q3-reliability.md',kind:'file'}],primary:'Open report →',secondary:'Open session',artifactOpen:true},
   {id:8,goal:'Add rate-limiting to the public API',repo:'api-gateway',hue:'--project-pine',age:'1h',live:false,
    phase:'done',attn:null,
    youAsked:'Token-bucket, 100 req/min/key.',next:null,files:['mw/rateLimit.ts'],
-   artifacts:[{label:'PR #88',kind:'pr'}],primary:'Review PR #88 →'},
+   artifacts:[{label:'PR #88',kind:'pr'}],primary:'Open session →',secondary:'Review PR #88'},
   {id:9,goal:'Rename vault → graphbook in CLI help',repo:'duo',hue:'--project-plum',age:'2h',live:false,
    phase:'done',attn:null,
    youAsked:'User-facing help strings only.',next:null,files:['cli/help.ts'],
-   artifacts:[{label:'commit a1b2c3',kind:'file'}],primary:'View diff →'},
+   artifacts:[{label:'commit a1b2c3',kind:'file'}],primary:'Open session →',secondary:'View diff'},
 ];
 
 const REASON={plan:{cls:'tag-plan',label:'📋 plan to approve'},question:{cls:'tag-question',label:'💬 question'},blocked:{cls:'tag-blocked',label:'⛔ blocked'}};
@@ -314,6 +342,7 @@ function cardHtml(s,grouping){
     ${chips?`<div class="chips">${chips}</div>`:''}
     ${row}
     <button class="act ${needs||s.phase==='done'?'primary':''}">${esc(s.primary)}</button>
+    ${s.secondary?`<div style="text-align:center"><button class="act sec">${esc(s.secondary)} →</button></div>`:''}
   </div>`;
 }
 
