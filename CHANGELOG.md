@@ -19,7 +19,25 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.11.2 cut 2026-06-22.
+> Empty — v0.12.0 cut 2026-06-23.
+
+## [0.12.0] — 2026-06-23 — Vault rollups: Markdown or HTML, entity links, change summaries
+
+### Added
+- **`duo rollup` — vault rollups as shareable artifacts (ENH-229).** Render a base/rollup over live note frontmatter as ONE of two mutually-exclusive variants: GitHub-portable Markdown (`--md`, the OKF default) or a stamped Atelier HTML artifact (`--html`). Every row links the entities it rolls up — the note, its owner/initiative, the group header — in both formats and both vault modes (OKF standard-markdown refs resolve, not just `[[wikilinks]]`). Artifacts default to `<vault>/rollups/` and open with an agent-visible comment explaining what they are. `duo rollup render | diff`.
+- **Change summary on regenerate (ENH-229).** A rollup self-embeds a rows snapshot + summary log (HTML comments — no sidecar); `duo rollup diff` gives a deterministic delta and an interactive Claude writes a "What changed" narrative (latest pinned + a collapsible history) via `duo rollup render --summary`, or `--no-summary` to disable. A Refresh affordance — the HTML button, or a `duo://rollup/refresh` link in the Markdown variant clicked in Duo's editor — requests a refresh a watching Claude (`duo events --follow`) fulfills.
+- **Custom rollup style (ENH-229).** `duo rollup render --html --style <css-file>` layers a local stylesheet over the Atelier base.
+- **Graphbook/vault discoverability for using-agents (ENH-228).** The `duo` skill + subagent now trigger on vault / notes / rollups, the rollup authoring loop is in the skill body, the `class:`→`type:` + OKF-vs-Obsidian rollup mechanics are documented across `CLAUDE.md` / the glossary / a new path-scoped rule, and the illustrated Vault Guide now ships with the skill instead of living only in the repo.
+
+### Changed
+- **The Vault Guide ships in the DMG (ENH-228).** Moved `docs/guide/vault-guide.html` → `skill/references/vault-guide.html` (installed to `~/.claude/skills/duo/references/`); the DMG bundles `skill/`, not `docs/`, so every `duo open docs/guide/…` pointer was previously dead for installed users.
+- **Rollup rows link their entities (ENH-228/229).** Both `duo base render` and `duo rollup render` resolve entity-link hrefs relative to the artifact's output location.
+
+### Fixed
+- **OKF entity refs resolve as links (ENH-229).** Frontmatter refs stored as standard-markdown rel links (OKF's at-rest form) — not only `[[wikilinks]]` — now resolve in rollups.
+
+### Known issues
+- The Markdown-variant in-editor refresh link (click → `rollup:refresh`) shipped without a pre-cut smoke-walk (owner verifies on the work machine via the DMG); the CLI paths + the pure URL parser are unit-tested + verified.
 
 ## [0.11.2] — 2026-06-22 — File history, scheduled sessions, remote-doc → PR, worktree creation
 
@@ -2020,7 +2038,8 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.11.2...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/dudgeon/duo/compare/v0.11.2...v0.12.0
 [0.11.2]: https://github.com/dudgeon/duo/compare/v0.11.1...v0.11.2
 [0.11.1]: https://github.com/dudgeon/duo/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/dudgeon/duo/compare/v0.10.3...v0.11.0

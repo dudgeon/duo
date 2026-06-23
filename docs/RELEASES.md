@@ -21,7 +21,19 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.11.1 cut 2026-06-18)*
+> *(empty — v0.12.0 cut 2026-06-23)*
+
+---
+
+## v0.12.0 — 2026-06-23 — Vault rollups: Markdown or HTML, with entity links + change summaries
+
+Duo's rollups grow up. v0.11.x could already compute a base over note frontmatter; v0.12.0 turns that into a first-class **product** — `duo rollup` — that emits a shareable artifact, links into the graph, and tells you what changed since last time.
+
+**What's in it.** A rollup now renders as **one of two mutually-exclusive variants** — GitHub-portable **Markdown** (the default for OKF vaults) or a stamped, Atelier-styled **HTML** artifact — chosen at generation, never a toggle. Every row **links the entities it rolls up** (the note, its owner, its initiative, the group header), and those links resolve in OKF vaults too, where refs are stored as standard-markdown links rather than wikilinks. On regenerate, an **interactive Claude writes a "What changed" narrative** (latest pinned, prior summaries collapsed into a history) from a deterministic `duo rollup diff` — driven by a snapshot the artifact embeds in itself, so there's no sidecar to drift. Artifacts live in `<vault>/rollups/` and open with an agent-visible comment so a fresh agent that finds one understands it. Alongside the rollup work, **ENH-228** made the whole graphbook/vault featureset discoverable to *using*-agents (the trigger words, the authoring loop, and the illustrated Vault Guide now ship inside the skill) — the fix for a real failure where a capable agent declared the feature "doesn't exist" because the term appeared in zero Claude-facing surfaces.
+
+**Three decisions baked in.** (1) **One evaluation, two serializers** — the Markdown and HTML variants share the exact base-engine evaluation, mirroring the locked OKF/Obsidian "one graph, two serializers" pattern, so the two formats can't drift. (2) **The change summary is interactive, never headless** — the prose is authored by a real Claude (a judgment task), low-friction ("the user just accepts"), and disable-able per rollup; the refresh affordance only *requests* a regenerate that a watching Claude fulfills. (3) **Artifacts are self-describing + corpus-isolated** — the rows snapshot + summary log ride in HTML comments inside the artifact (escaped so a stray `-->` can't corrupt them), and `rollups/` is excluded from the corpus so a rollup never rolls up into itself.
+
+**What this is and isn't.** This is the rollup *authoring + change-tracking* surface, shipped CLI-first and skill-documented. It is **not** yet in-app live auto-refresh — re-render is on demand (a Refresh affordance + a watching `duo events --follow` Claude), with file-watcher / scheduled re-render still deferred by design. The Markdown in-editor refresh link shipped without a pre-cut smoke-walk (owner verifies via the work-machine DMG); its CLI paths and URL parser are unit-tested. Both phases were adversarially reviewed and the findings fixed before the cut.
 
 ---
 
