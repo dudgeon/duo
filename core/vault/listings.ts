@@ -33,7 +33,9 @@ import path from 'node:path'
 import { readNotes, parseFile, splitFrontmatter } from './parse'
 import { detectVaultMode } from './detect'
 import { createEntityStub, safeName } from './filing'
-import { sourceHash } from './render'
+import { sourceHash, evaluateBaseDef, buildLinkCtx, type BaseDef } from './render'
+import { renderBaseMarkdown } from './render-markdown'
+import { buildEngineFiles, defaultAsOf } from './engine'
 import { relLink, serializeOkfLink, serializeWikilink } from '../markdown/vaultLinks'
 import type { VaultFile, VaultMode } from './types'
 
@@ -118,6 +120,41 @@ export function generateIndex(root: string, dir = ''): string {
   return sections.join('\n\n')
 }
 
+// ── engine-driven index (ENH-230) ─────────────────────────────────────────────
+
+/** ENH-230 — when the root `index.md` frontmatter carries a `listing:` base
+ *  spec, render the index body through the SHARED engine (D1) instead of the
+ *  group-by-type default. Returns null when there is no usable spec, so the
+ *  caller falls back to {@link generateIndex} (D3 — byte-identical default).
+ *
+ *  Warn-and-render (D4): a malformed *expression* inside an otherwise-usable
+ *  spec degrades to ⚠ cells in the engine (never throws); a `listing:` that
+ *  isn't a views-bearing object returns null → the default. The spec lives in
+ *  the frontmatter, which `spliceRootIndex` preserves byte-identically, so the
+ *  splice contract is unchanged (D2). Entity links resolve relative to the
+ *  vault root, where `index.md` lives (D5). */
+export function engineIndexBody(root: string, frontmatter: Record<string, unknown>): string | null {
+  const spec = frontmatter.listing
+  if (!spec || typeof spec !== 'object' || Array.isArray(spec)) return null
+  const def = spec as BaseDef
+  if (!Array.isArray(def.views) || def.views.length === 0) return null
+  try {
+    const asOf = defaultAsOf()
+    // Same corpus the group-by-type default sees: real notes only (the
+    // generated listings exclude themselves, as generateIndex does).
+    const notes = readNotes(root).filter((n) => !isGeneratedListing(n.relPath))
+    const files = buildEngineFiles(notes, asOf)
+    const linkCtx = buildLinkCtx(files, root, root)
+    const evaluated = evaluateBaseDef(def, files, null, asOf)
+    const title = typeof frontmatter.title === 'string' && frontmatter.title.trim() ? frontmatter.title.trim() : 'Index'
+    return renderBaseMarkdown(evaluated, null, title, asOf, linkCtx)
+  } catch {
+    // A defensive backstop: any unexpected engine failure falls back to the
+    // default rather than breaking `duo vault publish` (D4).
+    return null
+  }
+}
+
 // ── log.md (OKF section-7) ────────────────────────────────────────────────────
 
 function ymd(ms: number): string {
@@ -171,7 +208,11 @@ export const LISTING_FENCE = '<!-- duo:listing -->'
  *  churning git / bannering an open index.md). Same corpus → same stamp. */
 function generatedStamp(root: string, kind: string, dateSource: string): string {
   const hash = sourceHash(root)
-  return `<!-- duo:generated ${kind} · source-hash ${hash} · dates from ${dateSource} -->`
+  // ENH-230 D6 — carry a regenerate hint (the markdown analog of the rollup
+  // artifact's "regenerate:" stamp), so a reader/agent who opens a generated
+  // listing knows how to refresh it. A one-time stamp-line rewrite on the next
+  // publish after upgrade; idempotent thereafter (deterministic on the hash).
+  return `<!-- duo:generated ${kind} · source-hash ${hash} · dates from ${dateSource} · regenerate: duo vault publish -->`
 }
 
 /** Write `content` to `abs` ONLY when it differs from what's already on disk,
@@ -253,7 +294,10 @@ export function writeListings(root: string, opts: WriteListingsOptions = {}): Wr
   if (wantIndex) {
     const rootIndexAbs = path.join(root, 'index.md')
     const existing = fs.readFileSync(rootIndexAbs, 'utf8') // OKF root always has it
-    const indexBody = generateIndex(root, '')
+    // ENH-230 — a `listing:` base spec in the frontmatter drives the body
+    // through the shared engine; otherwise the group-by-type default (D3).
+    const fm = splitFrontmatter(existing).frontmatter
+    const indexBody = engineIndexBody(root, fm) ?? generateIndex(root, '')
     const indexStamp = generatedStamp(root, 'index', 'corpus')
     if (writeIfChanged(rootIndexAbs, spliceRootIndex(existing, indexStamp, indexBody))) {
       written.push('index.md')

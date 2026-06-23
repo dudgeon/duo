@@ -83,6 +83,92 @@ describe('generateIndex (OKF section-6, D8)', () => {
   })
 })
 
+describe('engine-driven index (ENH-230 — `listing:` base spec)', () => {
+  /** An OKF vault whose root index.md frontmatter carries a `listing:` base
+   *  spec (People as a table, linking each note). */
+  function makeOkfVaultWithListing(): void {
+    write(
+      'index.md',
+      [
+        '---',
+        'okf_version: 1',
+        'title: My Vault',
+        'type: index',
+        'listing:',
+        '  views:',
+        '    - type: table',
+        '      name: People',
+        '      order:',
+        '        - file.name',
+        '        - title',
+        '      filters:',
+        '        and:',
+        '          - type == "person"',
+        '---',
+        LISTING_FENCE,
+        '',
+      ].join('\n'),
+    )
+    write('people/alice.md', '---\ntype: person\ntitle: Alice Park\n---\nAlice.\n')
+    write('people/bob.md', '---\ntype: person\ntitle: Bob Lee\n---\nBob.\n')
+    write('themes/growth.md', '---\ntype: theme\ntitle: Growth\n---\nGrowth.\n')
+  }
+
+  it('drives the index body through the engine when a `listing:` spec is present', () => {
+    makeOkfVaultWithListing()
+    writeListings(root)
+    const idx = read('index.md')
+    // Engine output: a `## <title>` section + a `### <view>` heading (the
+    // group-by-type default emits neither a `### ` heading nor the title).
+    expect(idx).toContain('## My Vault')
+    expect(idx).toContain('### People (2)')
+    // The theme note is filtered OUT by `type == "person"` (the default would
+    // have listed it under `## Theme`).
+    expect(idx).not.toContain('Growth')
+    expect(idx).not.toContain('## Theme')
+    // Rows link the notes they roll up (D5 — rel-md entity links).
+    expect(idx).toContain('Alice Park')
+    expect(idx).toContain('people/alice.md')
+  })
+
+  it('preserves the okf_version + listing frontmatter byte-identically (D2 splice unchanged)', () => {
+    makeOkfVaultWithListing()
+    const fmBefore = read('index.md').match(/^---\n[\s\S]*?\n---\n/)![0]
+    writeListings(root)
+    expect(read('index.md').startsWith(fmBefore)).toBe(true)
+  })
+
+  it('falls back to the group-by-type default when `listing:` is not a usable spec (D3/D4)', () => {
+    makeOkfVault() // no `listing:` key at all
+    writeListings(root)
+    const idx = read('index.md')
+    expect(idx).toContain('## Person') // generateIndex default
+    expect(idx).not.toContain('### ') // never the engine's view headings
+  })
+
+  it('a `listing:` with no views falls back to the default (D4)', () => {
+    write('index.md', `---\nokf_version: 1\ntitle: V\ntype: index\nlisting:\n  filters:\n    - type == "person"\n---\n${LISTING_FENCE}\n`)
+    write('people/alice.md', '---\ntype: person\ntitle: Alice Park\n---\nAlice.\n')
+    writeListings(root)
+    const idx = read('index.md')
+    expect(idx).toContain('## Person')
+    expect(idx).not.toContain('### ')
+  })
+
+  it('a scalar `listing:` value falls back to the default (D4)', () => {
+    write('index.md', `---\nokf_version: 1\ntitle: V\ntype: index\nlisting: nonsense\n---\n${LISTING_FENCE}\n`)
+    write('people/alice.md', '---\ntype: person\ntitle: Alice Park\n---\nAlice.\n')
+    writeListings(root)
+    expect(read('index.md')).toContain('## Person')
+  })
+
+  it('carries the regenerate hint in the stamp (D6)', () => {
+    makeOkfVault()
+    writeListings(root)
+    expect(read('index.md')).toContain('regenerate: duo vault publish')
+  })
+})
+
 describe('generateLog (OKF section-7, D8)', () => {
   it('groups by day, newest first', () => {
     makeOkfVault()

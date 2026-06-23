@@ -66,7 +66,7 @@ fields, no invented syntax, regardless of format. Then, per format:
 | `duo vault search <query>` | full-text search (the ⌘⇧F palette's twin) |
 | `duo vault mv <from> <to>` | **move a note + rewrite inbound links** (the D5 clean path — see *Moving a note* below). Prefer over `duo file rename` for OKF vault notes |
 | `duo vault relink [--dry-run]` | **repair links broken by an out-of-band move** (Finder/git) — re-resolve by stable `id:` → slug, rewrite the unambiguous, report ambiguous + broken |
-| `duo vault publish [--index-only\|--log-only] [--dir] [--open]` | (re)generate the OKF static listings (`index.md` + `log.md`) from the corpus (D8; OKF-mode only) |
+| `duo vault publish [--index-only\|--log-only] [--dir] [--open]` | (re)generate the OKF static listings (`index.md` + `log.md`) from the corpus (D8; OKF-mode only). By default the root `index.md` groups by `type`; add a **`listing:` base spec to its frontmatter** (ENH-230) to drive the body through the rollup engine instead — grouping, filters, chips, entity links — same schema as a `.base` |
 | `duo vault promote <note> --heading "<h>" --type <t>` | split a `## section` into its own typed entity, leaving a link behind (D9 — see *Running docs & promote*) |
 | `duo graph backlinks <note>` | who links to a note (wikilinks basename-resolved AND markdown rel links; scans frontmatter + body) |
 | `duo graph orphans` | notes with no links in or out (a tidy-up list) |
@@ -202,6 +202,42 @@ artifact. `--index-only` / `--log-only` narrow the write; `--dir` also writes a
 per-folder `index.md`; `--open` surfaces the root `index.md` as a tab. Publish
 is OKF-mode-gated (it throws in an Obsidian vault — Obsidian stays
 byte-identical).
+
+**Expressive in-vault listings — the `listing:` frontmatter spec (ENH-230).**
+The default `index.md` body groups by `type` and emits flat bullets. To make it
+as expressive as an Obsidian rollup *without leaving the vault*, put a base
+spec (same schema as a `.base` — `filters` / `formulas` / `views`) under a
+**`listing:` key in the root `index.md` frontmatter**. On the next `duo vault
+publish`, the body is rendered through the **same rollup engine** the `.base` /
+`duo rollup` paths use — grouping, filters, `if()`/date formulas, summaries,
+and rel-md **entity links** (each row links the note it rolls up). The spec
+lives in the frontmatter, which publish preserves byte-identically, so the
+`okf_version` marker is untouched and the body below the `<!-- duo:listing -->`
+fence is regenerated. Authoring rules:
+
+- **Opt-in + non-breaking.** No `listing:` key → the group-by-`type` default,
+  byte-identical to before. A `listing:` that isn't a `views`-bearing object →
+  silent fallback to the default. A bad *expression* inside it → ⚠ cells
+  (warn-and-render, never a failed publish).
+- **Filters take the `and:`/`or:`/`not:` group form** (or a bare string), not a
+  top-level YAML list — mirror the `.base` / `templates/*.md` style.
+- Example frontmatter:
+  ```yaml
+  listing:
+    formulas:
+      due_chip: 'if(due, due.format("MMM D") + " · " + due.relative(), "—")'
+    views:
+      - type: table
+        name: Open milestones by initiative
+        order: [file.name, status, formula.due_chip]
+        groupBy: { property: initiative }
+        filters:
+          and:
+            - type == "milestone"
+            - status != "done"
+  ```
+- `log.md` stays the bespoke date-grouped listing (not engine-driven). The
+  generated stamp now carries a `regenerate: duo vault publish` hint.
 
 ## Running docs & promote (P6)
 

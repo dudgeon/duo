@@ -21,7 +21,7 @@ depends on the vault's format. The format marker is the source of truth:
 
 | Format | Marker | Links at rest | Rollups |
 |---|---|---|---|
-| **OKF** | root `index.md` with `okf_version:` frontmatter | standard markdown rel links `[Display](./<note>.md)` | static `index.md` / `log.md` listings via `duo vault publish` |
+| **OKF** | root `index.md` with `okf_version:` frontmatter | standard markdown rel links `[Display](./<note>.md)` | static `index.md` / `log.md` listings via `duo vault publish` (ENH-230: a `listing:` base spec in `index.md` frontmatter drives the index body through the SHARED engine — same `evaluateBaseDef` + `render-markdown.ts` as the `.base` path) |
 | **Obsidian** | a `.obsidian/` directory | `[[wikilinks]]` | live `.base` files via `duo base render` |
 
 `okf_version` wins if both markers are present (D4). The `[[Name]]` GESTURE
