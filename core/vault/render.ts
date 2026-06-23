@@ -15,6 +15,9 @@ import crypto from 'node:crypto'
 import { load as yamlLoad } from 'js-yaml'
 import type { VaultFile } from './types'
 import { readNotes, parseFile } from './parse'
+import { targetKey } from '../markdown/vaultLinks'
+import { renderBaseMarkdown, assembleMarkdownPage } from './render-markdown'
+import { snapshotComment, summaryLogComment, rollupDocComment, type RollupSnapshot, type SummaryEntry } from './rollup'
 import {
   buildEngineFiles,
   evalExpr,
@@ -104,26 +107,113 @@ export function evaluateBaseDef(
 
 // ── HTML emitter (Duo-owned) ────────────────────────────────────────────────
 
-const esc = (s: unknown): string =>
+export const esc = (s: unknown): string =>
   String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
-function cell(v: unknown): string {
+/** ENH-229 (D5 / req #6) — resolves entity links so a rollup row links the
+ *  notes it rolls up. Built per-render from the file set + the artifact's
+ *  output dir; an href is the POSIX path from the artifact to the target note
+ *  (standard markdown rel link, GitHub-portable). Returns null when a value
+ *  doesn't resolve to a real corpus note — unresolved values stay plain text,
+ *  never a fabricated target. Shared by the HTML and Markdown serializers. */
+export interface LinkCtx {
+  /** Rel href from the artifact to a vault-relative note path (always defined
+   *  for a non-empty path; null for empty). */
+  hrefFor(noteRelPath: string): string | null
+  /** Resolve a Link value to its target note's rel href, or null if the target
+   *  isn't a note in the corpus. */
+  resolveLink(link: Link): string | null
+}
+
+/** Build a {@link LinkCtx} for one render. `outDir` is where the artifact will
+ *  be written (hrefs are relative to it); defaults to the vault root. */
+export function buildLinkCtx(files: EngineFile[], root: string, outDir: string): LinkCtx {
+  const byKey = new Map(files.map((f) => [targetKey(f.name, 'wikilink'), f]))
+  const rel = (noteRelPath: string): string => {
+    const abs = path.resolve(root, noteRelPath)
+    let r = path.relative(outDir, abs).split(path.sep).join('/')
+    if (!r.startsWith('.') && !r.startsWith('/')) r = './' + r
+    return r
+  }
+  return {
+    hrefFor: (noteRelPath) => (noteRelPath ? rel(noteRelPath) : null),
+    resolveLink: (link) => {
+      const f = byKey.get(targetKey(link.target, 'wikilink'))
+      return f ? rel(f.path) : null
+    },
+  }
+}
+
+function cell(v: unknown, linkCtx?: LinkCtx): string {
   if (v == null || v === '') return '<span class="empty">—</span>'
   if (isEvalError(v)) return '<span class="err" title="' + esc(v.__expr) + '">⚠ ' + esc(v.__error) + '</span>'
   if (typeof v === 'object' && v !== null && '__html' in v) return (v as { __html: string }).__html
-  if (v instanceof Link) return '<span class="wikilink">' + esc(v.display) + '</span>'
+  if (v instanceof Link) {
+    const href = linkCtx?.resolveLink(v)
+    return href
+      ? '<a class="wikilink" href="' + esc(href) + '">' + esc(v.display) + '</a>'
+      : '<span class="wikilink">' + esc(v.display) + '</span>'
+  }
   if (v instanceof DuoDate) return esc(v.toString())
-  if (Array.isArray(v)) return v.map(cell).join(', ')
+  if (Array.isArray(v)) return v.map((x) => cell(x, linkCtx)).join(', ')
   if (typeof v === 'number') return String(v)
   return esc(String(v))
 }
 
-function colLabel(prop: string, propCfg?: Record<string, { displayName?: string }>): string {
+/** A table/list/card cell. The `file.name` / `file.link` column links the
+ *  row's own note (req #6); other columns delegate to {@link cell} (which links
+ *  resolved Link values). */
+function htmlCell(prop: string, f: EngineFile, value: unknown, linkCtx?: LinkCtx): string {
+  if (linkCtx && (prop === 'file.name' || prop === 'file.link')) {
+    const href = linkCtx.hrefFor(f.path)
+    if (href) return '<a class="wikilink" href="' + esc(href) + '">' + esc(String(value)) + '</a>'
+  }
+  return cell(value, linkCtx)
+}
+
+/** A column value → a plain string for the diff snapshot (ENH-229 phase 2).
+ *  Format-neutral (no HTML/MD), so the diff is the same regardless of variant. */
+export function plainCell(v: unknown): string {
+  if (v == null || v === '') return ''
+  if (isEvalError(v)) return '⚠ ' + v.__error
+  if (typeof v === 'object' && v !== null && '__html' in v)
+    return String((v as { __html: string }).__html)
+      .replace(/<[^>]*>/g, '')
+      .trim()
+  if (v instanceof Link) return v.display
+  if (v instanceof DuoDate) return v.toString()
+  if (Array.isArray(v)) return v.map(plainCell).join(', ')
+  return String(v)
+}
+
+/** The "What changed" section (ENH-229 phase 2) — latest summary pinned, prior
+ *  entries in a collapsible history. Authored prose is HTML-escaped. */
+function summarySectionHtml(log: SummaryEntry[]): string {
+  if (!log.length) return ''
+  const [latest, ...rest] = log
+  let h =
+    '<section class="changes"><div class="changes-latest"><span class="changes-lab">What changed · ' +
+    esc(latest.date) +
+    '</span><p>' +
+    esc(latest.text) +
+    '</p></div>'
+  if (rest.length) {
+    h +=
+      '<details class="changes-hist"><summary>Change history (' +
+      rest.length +
+      ')</summary><ul>' +
+      rest.map((e) => '<li><strong>' + esc(e.date) + '</strong> — ' + esc(e.text) + '</li>').join('') +
+      '</ul></details>'
+  }
+  return h + '</section>'
+}
+
+export function colLabel(prop: string, propCfg?: Record<string, { displayName?: string }>): string {
   if (propCfg && propCfg[prop] && propCfg[prop].displayName) return propCfg[prop].displayName!
   return prop.replace(/^(note|file|formula)\./, '')
 }
 
-const SUMMARY_FNS: Record<string, (vals: unknown[]) => unknown> = {
+export const SUMMARY_FNS: Record<string, (vals: unknown[]) => unknown> = {
   Earliest: (vals) => {
     const ds = vals.filter((v): v is DuoDate => v instanceof DuoDate)
     return ds.length ? ds.reduce((a, b) => (a.valueOf() < b.valueOf() ? a : b)) : null
@@ -148,6 +238,7 @@ function summaryInline(
   formulas: Record<string, unknown>,
   thisFile: EngineFile | null,
   asOf: Date,
+  linkCtx?: LinkCtx,
 ): string {
   if (!view.summaries) return ''
   const parts: string[] = []
@@ -158,7 +249,7 @@ function summaryInline(
       continue
     }
     const vals = rows.map((f) => readCol(prop, f, thisFile, formulas, asOf))
-    parts.push(esc(colLabel(prop)) + ' ' + esc(fnName).toLowerCase() + ': ' + cell(fn(vals)))
+    parts.push(esc(colLabel(prop)) + ' ' + esc(fnName).toLowerCase() + ': ' + cell(fn(vals), linkCtx))
   }
   return ' <span class="summary">' + parts.join(' · ') + '</span>'
 }
@@ -169,15 +260,20 @@ function renderTable(
   thisFile: EngineFile | null,
   propCfg: Record<string, { displayName?: string }>,
   asOf: Date,
+  linkCtx?: LinkCtx,
 ): string {
   const order = view.order
   const head = '<tr>' + order.map((p) => '<th>' + esc(colLabel(p, propCfg)) + '</th>').join('') + '</tr>'
   const groups = new Map<string | null, EngineFile[]>()
+  const groupRaw = new Map<string | null, unknown>()
   if (view.groupBy) {
     for (const f of view.rows) {
       const v = readCol(view.groupBy.property, f, thisFile, formulas, asOf)
       const key = v == null ? '—' : String(v instanceof Link ? v.display : v)
-      if (!groups.has(key)) groups.set(key, [])
+      if (!groups.has(key)) {
+        groups.set(key, [])
+        groupRaw.set(key, v)
+      }
       groups.get(key)!.push(f)
     }
   } else {
@@ -190,19 +286,30 @@ function renderTable(
   for (const key of keys) {
     const gRows = groups.get(key)!
     if (key !== null) {
+      // ENH-229 req #6 — link the group header to its entity note when the
+      // grouped value is a Link that resolves to a corpus note.
+      const raw = groupRaw.get(key)
+      let label = esc(key)
+      if (linkCtx && raw instanceof Link) {
+        const href = linkCtx.resolveLink(raw)
+        if (href) label = '<a class="wikilink" href="' + esc(href) + '">' + esc(key) + '</a>'
+      }
       html +=
         '<tr class="group"><td colspan="' +
         order.length +
         '">' +
-        esc(key) +
+        label +
         ' <span class="count">(' +
         gRows.length +
         ')</span>' +
-        summaryInline(gRows, view, formulas, thisFile, asOf) +
+        summaryInline(gRows, view, formulas, thisFile, asOf, linkCtx) +
         '</td></tr>'
     }
     for (const f of gRows) {
-      html += '<tr>' + order.map((p) => '<td>' + cell(readCol(p, f, thisFile, formulas, asOf)) + '</td>').join('') + '</tr>'
+      html +=
+        '<tr>' +
+        order.map((p) => '<td>' + htmlCell(p, f, readCol(p, f, thisFile, formulas, asOf), linkCtx) + '</td>').join('') +
+        '</tr>'
     }
   }
   if (!view.groupBy && view.summaries) {
@@ -210,7 +317,7 @@ function renderTable(
       '<tr class="group"><td colspan="' +
       order.length +
       '">' +
-      summaryInline(view.rows, view, formulas, thisFile, asOf) +
+      summaryInline(view.rows, view, formulas, thisFile, asOf, linkCtx) +
       '</td></tr>'
   }
   return html + '</table>'
@@ -221,10 +328,16 @@ function renderList(
   formulas: Record<string, unknown>,
   thisFile: EngineFile | null,
   asOf: Date,
+  linkCtx?: LinkCtx,
 ): string {
   return (
     '<ul class="baselist">' +
-    view.rows.map((f) => '<li>' + view.order.map((p) => cell(readCol(p, f, thisFile, formulas, asOf))).join(' ') + '</li>').join('') +
+    view.rows
+      .map(
+        (f) =>
+          '<li>' + view.order.map((p) => htmlCell(p, f, readCol(p, f, thisFile, formulas, asOf), linkCtx)).join(' ') + '</li>',
+      )
+      .join('') +
     '</ul>'
   )
 }
@@ -234,6 +347,7 @@ function renderCards(
   formulas: Record<string, unknown>,
   thisFile: EngineFile | null,
   asOf: Date,
+  linkCtx?: LinkCtx,
 ): string {
   return (
     '<div class="cards">' +
@@ -242,7 +356,7 @@ function renderCards(
         const [title, ...rest] = view.order
         return (
           '<div class="card"><div class="card-title">' +
-          cell(readCol(title, f, thisFile, formulas, asOf)) +
+          htmlCell(title, f, readCol(title, f, thisFile, formulas, asOf), linkCtx) +
           '</div>' +
           rest
             .map(
@@ -250,7 +364,7 @@ function renderCards(
                 '<div class="card-row"><span class="card-k">' +
                 esc(colLabel(p)) +
                 '</span> ' +
-                cell(readCol(p, f, thisFile, formulas, asOf)) +
+                htmlCell(p, f, readCol(p, f, thisFile, formulas, asOf), linkCtx) +
                 '</div>',
             )
             .join('') +
@@ -262,19 +376,21 @@ function renderCards(
   )
 }
 
-/** Render one evaluated base to an HTML section. */
+/** Render one evaluated base to an HTML section. `linkCtx` (ENH-229) makes rows
+ *  link the notes they roll up; omit it for link-free output. */
 export function renderBaseSection(
   evaluated: EvaluatedBase,
   thisFile: EngineFile | null,
   label: string,
   asOf: Date,
+  linkCtx?: LinkCtx,
 ): string {
   let html = '<section class="base"><h2>' + esc(label) + '</h2>'
   for (const view of evaluated.views) {
     html += '<h3>' + esc(view.name) + ' <span class="count">' + view.rows.length + ' rows</span></h3>'
-    if (view.type === 'list') html += renderList(view, evaluated.formulas, thisFile, asOf)
-    else if (view.type === 'cards') html += renderCards(view, evaluated.formulas, thisFile, asOf)
-    else html += renderTable(view, evaluated.formulas, thisFile, evaluated.propCfg, asOf)
+    if (view.type === 'list') html += renderList(view, evaluated.formulas, thisFile, asOf, linkCtx)
+    else if (view.type === 'cards') html += renderCards(view, evaluated.formulas, thisFile, asOf, linkCtx)
+    else html += renderTable(view, evaluated.formulas, thisFile, evaluated.propCfg, asOf, linkCtx)
   }
   return html + '</section>'
 }
@@ -284,6 +400,14 @@ export function renderBaseSection(
 export interface RenderTargetResult {
   /** The full stamped HTML page. */
   html: string
+  /** The full stamped Markdown artifact (ENH-229 — the MD variant; same
+   *  evaluation, GitHub-portable). The CLI writes html OR md per the flag.
+   *  INVARIANT: both `html` and `md` are always generated regardless of the
+   *  intended output format — the CLI chooses which to write. */
+  md: string
+  /** The freshly-built rows snapshot (ENH-229 phase 2) — `duo rollup diff`
+   *  compares this against a prior artifact's embedded snapshot. */
+  snapshot: RollupSnapshot
   /** Structured evaluation per rendered base (for tests / refresh checks). */
   bases: { label: string; evaluated: EvaluatedBase; thisFile: string | null }[]
   /** Source hash over the vault's md + base content (staleness key). */
@@ -302,7 +426,7 @@ export interface RenderTargetResult {
 export function sourceHash(root: string): string {
   const all: string[] = []
   const stack = [root]
-  const SKIP = new Set(['.obsidian', '.trash', 'out', '.git', 'node_modules'])
+  const SKIP = new Set(['.obsidian', '.trash', 'out', 'rollups', '.git', 'node_modules'])
   // Generated OKF listings (root + per-dir index.md, root log.md) are build
   // artifacts derived FROM the corpus — hashing them would make the hash
   // depend on its own previous output (a feedback loop), so they're skipped.
@@ -351,15 +475,50 @@ function embeddedBaseDefs(note: VaultFile): BaseDef[] {
 export function renderTarget(
   root: string,
   target: string,
-  opts: { asOf?: Date } = {},
+  opts: {
+    asOf?: Date
+    outDir?: string
+    /** Custom CSS to inline instead of the built-in Atelier style (ENH-229 req #3). */
+    styleCss?: string
+    /** The change-summary log (newest-first) to render + embed (ENH-229 phase 2). */
+    summaryLog?: SummaryEntry[]
+    /** Embed the rows snapshot + summary log as HTML comments for later diffing. */
+    embedSnapshot?: boolean
+  } = {},
 ): RenderTargetResult {
   const asOf = opts.asOf ?? defaultAsOf()
   const notes = readNotes(root)
   const files = buildEngineFiles(notes, asOf)
   const byName = new Map(files.map((f) => [f.name, f]))
+  // ENH-229 — hrefs are relative to where the artifact will be written
+  // (defaults to the vault root). Both serializers share this resolver.
+  const linkCtx = buildLinkCtx(files, root, opts.outDir ?? root)
 
   const bases: RenderTargetResult['bases'] = []
   const sections: string[] = []
+  const mdSections: string[] = []
+  const snapshot: RollupSnapshot = { v: 1, views: [] }
+  // Snapshot view names must be unique for the diff to match views 1:1, so a
+  // second view with the same name (e.g. two embedded base blocks both named
+  // "Tasks") is suffixed rather than colliding.
+  const viewNameCounts = new Map<string, number>()
+
+  // Capture each view's rows as plain strings for the diff snapshot.
+  const collect = (evaluated: EvaluatedBase, thisFile: EngineFile | null) => {
+    for (const v of evaluated.views) {
+      const n = (viewNameCounts.get(v.name) ?? 0) + 1
+      viewNameCounts.set(v.name, n)
+      snapshot.views.push({
+        name: n === 1 ? v.name : `${v.name} (${n})`,
+        rows: v.rows.map((f) => ({
+          key: f.path,
+          cells: Object.fromEntries(
+            v.order.map((p) => [p, plainCell(readCol(p, f, thisFile, evaluated.formulas, asOf))]),
+          ),
+        })),
+      })
+    }
+  }
 
   const abs = path.isAbsolute(target) ? target : path.resolve(root, target)
   if (target.endsWith('.base')) {
@@ -367,7 +526,9 @@ export function renderTarget(
     const label = path.relative(root, abs).split(path.sep).join('/')
     const evaluated = evaluateBaseDef(def, files, null, asOf)
     bases.push({ label, evaluated, thisFile: null })
-    sections.push(renderBaseSection(evaluated, null, label, asOf))
+    sections.push(renderBaseSection(evaluated, null, label, asOf, linkCtx))
+    mdSections.push(renderBaseMarkdown(evaluated, null, label, asOf, linkCtx))
+    collect(evaluated, null)
   } else {
     // Resolve a note: an existing path, else a basename in the vault.
     let note: VaultFile | undefined
@@ -383,13 +544,33 @@ export function renderTarget(
       const label = `${note!.relPath}${defs.length > 1 ? ` [block ${i + 1}]` : ''}  (this = ${note!.basename})`
       const evaluated = evaluateBaseDef(def, files, thisFile, asOf)
       bases.push({ label, evaluated, thisFile: note!.basename })
-      sections.push(renderBaseSection(evaluated, thisFile, label, asOf))
+      sections.push(renderBaseSection(evaluated, thisFile, label, asOf, linkCtx))
+      mdSections.push(renderBaseMarkdown(evaluated, thisFile, label, asOf, linkCtx))
+      collect(evaluated, thisFile)
     })
   }
 
   const hash = sourceHash(root)
   const generatedAt = new Date().toISOString()
   const asOfLabel = new DuoDate(asOf, asOf).format('YYYY-MMM-DD')
+  const summaryLog = opts.summaryLog ?? []
+  const embedded = opts.embedSnapshot
+    ? snapshotComment(snapshot) + (summaryLog.length ? '\n' + summaryLogComment(summaryLog) : '')
+    : ''
+  // Build the Markdown first so the HTML artifact can embed it for its
+  // "Copy as Markdown" button (req #4).
+  const md = assembleMarkdownPage(mdSections, {
+    title: target,
+    sourceHash: hash,
+    generatedAt,
+    asOfLabel,
+    noteCount: notes.length,
+    baseCount: bases.length,
+    target,
+    rollup: !!opts.embedSnapshot,
+    summaryLog,
+    embedded,
+  })
   const html = assemblePage(sections, {
     sourceHash: hash,
     generatedAt,
@@ -397,13 +578,30 @@ export function renderTarget(
     noteCount: notes.length,
     baseCount: bases.length,
     target,
+    rollup: !!opts.embedSnapshot,
+    styleCss: opts.styleCss,
+    summaryHtml: summarySectionHtml(summaryLog),
+    markdownSource: md,
+    embedded,
   })
-  return { html, bases, sourceHash: hash, generatedAt, asOfLabel }
+  return { html, md, snapshot, bases, sourceHash: hash, generatedAt, asOfLabel }
 }
 
 function assemblePage(
   sections: string[],
-  meta: { sourceHash: string; generatedAt: string; asOfLabel: string; noteCount: number; baseCount: number; target: string },
+  meta: {
+    sourceHash: string
+    generatedAt: string
+    asOfLabel: string
+    noteCount: number
+    baseCount: number
+    target: string
+    rollup?: boolean
+    styleCss?: string
+    summaryHtml?: string
+    markdownSource?: string
+    embedded?: string
+  },
 ): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -431,7 +629,17 @@ th,td { border-bottom:1px solid var(--paper-rule); padding:6px 8px; text-align:l
 th { font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:var(--ink-mute); }
 tr.group td { background:var(--paper-deep); font-weight:600; font-size:12px; }
 .summary { font-weight:400; color:var(--ink-mute); font-size:11.5px; }
-.wikilink { color:var(--harbor); border-bottom:1px dotted var(--harbor); }
+.wikilink { color:var(--harbor); border-bottom:1px dotted var(--harbor); text-decoration:none; }
+a.wikilink:hover { border-bottom-style:solid; }
+.changes { background:#fcf6ec; border:1px solid var(--paper-rule); border-left:3px solid var(--accent); border-radius:0 6px 6px 0; padding:10px 14px; margin:0 0 24px; }
+.changes-lab { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--accent); font-weight:600; }
+.changes-latest p { margin:4px 0 0; color:var(--ink-soft); }
+.changes-hist { margin-top:8px; font-size:12px; }
+.changes-hist summary { cursor:pointer; color:var(--ink-mute); }
+.changes-hist ul { margin:6px 0 0; padding-left:18px; color:var(--ink-mute); }
+.rl-toolbar { display:flex; gap:8px; margin:0 0 20px; }
+.rl-btn { font-size:12px; font-family:inherit; border:1px solid var(--paper-rule); background:var(--paper-deep); color:var(--ink-soft); border-radius:6px; padding:6px 11px; cursor:pointer; }
+.rl-btn:hover { border-color:var(--ink-ghost); }
 .empty { color:var(--ink-ghost); }
 .err { color:var(--fail); font-size:11px; }
 .baselist { margin:6px 0 14px; }
@@ -443,19 +651,41 @@ tr.group td { background:var(--paper-deep); font-weight:600; font-size:12px; }
 footer { margin-top:40px; border-top:1px solid var(--paper-rule); padding-top:12px;
   font-size:11.5px; color:var(--ink-mute); }
 </style>
+${meta.styleCss ? '<style>\n' + meta.styleCss.replace(/<\//g, '<\\/') + '\n</style>' : ''}
 </head>
 <body>
+${meta.rollup ? rollupDocComment(meta.target) : ''}
 <h1>Vault rollup — ${esc(meta.target)}</h1>
-<div class="stamp"><strong>BUILD ARTIFACT</strong> — regenerate: duo base render ${esc(meta.target)} ·
+<div class="stamp"><strong>BUILD ARTIFACT</strong> — regenerate: duo rollup render ${esc(meta.target)} ·
 generated ${esc(meta.generatedAt)} · source hash <strong>${esc(meta.sourceHash)}</strong> ·
 date-relative formulas as of ${esc(meta.asOfLabel)} ·
 ${meta.noteCount} notes, ${meta.baseCount} rendered base(s)</div>
+${
+  meta.rollup
+    ? '<div class="rl-toolbar">\n' +
+      '<button class="rl-btn" type="button" data-rollup-copy>Copy as Markdown</button>\n' +
+      '<button class="rl-btn" type="button" data-duo-action="duo:event" data-event="rollup:refresh" data-payload="' +
+      esc(JSON.stringify({ base: meta.target })).replace(/"/g, '&quot;') +
+      '" title="Requests a refresh — a watching Claude (duo events --follow) regenerates + summarizes">Refresh</button>\n' +
+      '</div>'
+    : ''
+}
+${meta.summaryHtml ?? ''}
 ${sections.join('\n')}
 <footer>Duo-owned rollup render (ENH-208). Implements the locked Bases
 expression subset (filters and/or/not, link equality vs <code>this</code>,
 date math, if(), html(), icon(), backlink chains, groupBy, summaries).
 file.name is extension-less; child→parent backlink rollups always resolve
 here. Re-render to refresh; the source hash above detects staleness.</footer>
+${meta.embedded ?? ''}
+${
+  meta.rollup
+    ? '<script>window.__rollupMd = ' +
+      JSON.stringify(meta.markdownSource ?? '').replace(/</g, '\\u003c') +
+      ';</script>\n' +
+      "<script>(function(){var b=document.querySelector('[data-rollup-copy]');if(!b)return;b.addEventListener('click',function(){navigator.clipboard.writeText(window.__rollupMd||'').then(function(){var o=b.textContent;b.textContent='Copied';setTimeout(function(){b.textContent=o},1300)}).catch(function(){b.textContent='Copy failed (focus the page)'})})})();</script>"
+    : ''
+}
 </body>
 </html>
 `

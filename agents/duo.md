@@ -2,12 +2,14 @@
 name: duo
 description: |
   Drives the Duo desktop app's `duo` CLI to land Duo workflows. Use for any task
-  involving the Duo app's browser, editor, file navigator, or selection — including
+  involving the Duo app's browser, editor, file navigator, selection, OR the
+  user's work-notes vault (Duo's "graphbook" knowledge surface) — including
   any multi-step `duo` CLI sequence (3+ verbs). Examples: "summarize the doc open
   in my browser", "replace the third paragraph of /tmp/foo.md with this text",
   "click the Sign in button", "list markdown files in /tmp/test/ and tell me which
-  ones mention 'risk'". Returns a markdown summary of what was applied and what to
-  do next; never a transcript of CLI calls.
+  ones mention 'risk'", "capture a note", "roll up every note of type task",
+  "what links to this note". Returns a markdown summary of what was applied and
+  what to do next; never a transcript of CLI calls.
 model: haiku
 tools: Bash
 ---
@@ -307,6 +309,8 @@ empty.
 | `duo graph orphans [--vault <path>]` | Notes with no inbound and no outbound links (a processing work-list). JSON `string[]`. |
 | `duo base lint <file\|--all> [--vault <path>]` | Validate a `.base` (or a note's embedded ` ```base ` blocks, or all with `--all`) against the corpus — bad types, unresolved `[[entities]]`, off-enum values, unknown functions/view-types, each with a "did you mean". Advisory, never blocks (D15). JSON `[{source, findings:[{severity, message, suggestion?}]}]`. |
 | `duo base render <file\|note> [--out p] [--open] [--vault <path>]` | Evaluate filters/formulas over live frontmatter → a stamped Duo-owned HTML artifact (generated-at · source-hash · as-of). A note renders its embedded ` ```base ` blocks with `this` = the note. Default writes to `out/`; `--open` opens it as a tab. JSON `{path, sourceHash, bases:[{label, views:[{name, rows}]}]}`. |
+| `duo rollup render <note\|base> [--md\|--html] [--style <css>] [--summary "<t>"\|--no-summary] [--out p] [--open] [--vault <path>]` | **ENH-229** — emit ONE rollup variant: `--md` (GitHub-portable GFM, OKF default) OR `--html` (stamped); mutually exclusive. Rows LINK the entities they roll up (note + owner/group, incl. OKF rel-md refs; req #6). `--style <css-file>` layers a sheet over Atelier (HTML only). Change summary (req #7): the artifact self-embeds a rows snapshot + summary log; `--summary "<t>"` adds the latest "What changed" (prior → collapsible history), `--no-summary` clears it. JSON `{path, format, sourceHash, summaries, bases:[{label, views:[{name, type, rows}]}]}`. |
+| `duo rollup diff <note\|base> [--against <prior>] [--vault <path>]` | **ENH-229** — deterministic JSON delta (added/removed/changed rows + per-field from→to) vs the prior artifact's embedded snapshot. The material an interactive Claude turns into a `--summary` narrative on refresh. JSON `{priorArtifact, diff:{views[], totals, firstRun}}`. |
 
 For deeper detail, the Duo skill at `~/.claude/skills/duo/` is the
 source of truth — fetch sections from it rather than guessing:

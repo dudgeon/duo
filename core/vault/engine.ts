@@ -82,6 +82,25 @@ function parseLinkish(v: unknown, asOf: Date): unknown {
   if (typeof v === 'string') {
     const m = v.match(/^\[\[([^\]|]+)(?:\|([^\]]+))?\]\]$/)
     if (m) return new Link(m[1].trim(), m[2] && m[2].trim())
+    // ENH-229 — OKF stores entity refs as standard-markdown rel links
+    // `[Display](./people/alice-park.md)` (D7), not wikilinks. Fold a LOCAL
+    // .md rel link into a Link so it resolves + renders like a wikilink
+    // (link target = the filename stem; targetKey folds it move-proof).
+    // External/non-.md links stay plain strings (no regression).
+    const md = v.match(/^\[([^\]]+)\]\(([^)]+)\)$/)
+    if (md) {
+      const href = md[2].trim()
+      if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(href) && /\.md$/i.test(href)) {
+        const stem = href.split('/').pop()!.replace(/\.md$/i, '')
+        let target = stem
+        try {
+          target = decodeURIComponent(stem)
+        } catch {
+          /* keep raw stem if it isn't valid percent-encoding */
+        }
+        return new Link(target, md[1].trim())
+      }
+    }
     return v
   }
   if (Array.isArray(v)) return v.map((x) => parseLinkish(x, asOf))

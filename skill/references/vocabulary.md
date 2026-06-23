@@ -101,4 +101,5 @@ anywhere user-facing (D17).
 | **processing** | The agent pass: file inbox notes, link entities, fix frontmatter, author rollups, propose archiving — via CriticMarkup suggestions + a dated report note. Always proposes, never acts silently. |
 
 **Build / operate a vault:** `~/.claude/skills/duo/references/vault.md` ·
-**end-user walkthrough:** `docs/guide/vault-guide.html`.
+**end-user walkthrough:** `~/.claude/skills/duo/references/vault-guide.html`
+(`duo open` it).

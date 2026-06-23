@@ -15,7 +15,10 @@ import type { VaultFile } from './types'
  *  `out/` holds rendered artifacts; `.obsidian`/`.trash` are Obsidian
  *  internals. `archive/` is NOT skipped here — bases opt in/out per view
  *  (D20), so the walk surfaces it and filters decide. */
-export const SKIP_DIRS = new Set(['.obsidian', '.trash', 'out', 'templates'])
+// `out/` (base render) and `rollups/` (ENH-229 rollup artifacts) hold GENERATED
+// views, not source notes — skip them so artifacts never pollute the corpus or
+// roll up into themselves.
+export const SKIP_DIRS = new Set(['.obsidian', '.trash', 'out', 'rollups', 'templates'])
 
 /** Recursively list files under `dir`, skipping {@link SKIP_DIRS}. Returns
  *  absolute paths. Symlinks are not followed (withFileTypes). */

@@ -2766,7 +2766,7 @@ function serializeWikilink(srcAbs, tgtAbs, display) {
 }
 
 // core/vault/parse.ts
-var SKIP_DIRS = /* @__PURE__ */ new Set([".obsidian", ".trash", "out", "templates"]);
+var SKIP_DIRS = /* @__PURE__ */ new Set([".obsidian", ".trash", "out", "rollups", "templates"]);
 function walk(dir, skip = SKIP_DIRS) {
   const acc = [];
   let entries;
@@ -3899,6 +3899,19 @@ function parseLinkish(v, asOf) {
   if (typeof v === "string") {
     const m = v.match(/^\[\[([^\]|]+)(?:\|([^\]]+))?\]\]$/);
     if (m) return new Link(m[1].trim(), m[2] && m[2].trim());
+    const md = v.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (md) {
+      const href = md[2].trim();
+      if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(href) && /\.md$/i.test(href)) {
+        const stem = href.split("/").pop().replace(/\.md$/i, "");
+        let target = stem;
+        try {
+          target = decodeURIComponent(stem);
+        } catch {
+        }
+        return new Link(target, md[1].trim());
+      }
+    }
     return v;
   }
   if (Array.isArray(v)) return v.map((x) => parseLinkish(x, asOf));
@@ -4145,6 +4158,229 @@ function defaultAsOf() {
   return /* @__PURE__ */ new Date();
 }
 
+// core/vault/rollup.ts
+function rollupDocComment(target) {
+  const t = String(target).replace(/[<>]/g, "");
+  return "<!-- Duo rollup (generated \xB7 ENH-229) \u2014 a view computed over this vault's note frontmatter, NOT a hand-authored note. Regenerate with `duo rollup render " + t + "` (do not hand-edit). The duo:rollup-snapshot / duo:rollup-summary comments below are machine state for change-diffing (`duo rollup diff`). Docs: ~/.claude/skills/duo/references/rollup.md -->";
+}
+var SNAPSHOT_OPEN = "<!--duo:rollup-snapshot ";
+var SUMMARY_OPEN = "<!--duo:rollup-summary ";
+var CLOSE = "-->";
+var HISTORY_CAP = 12;
+function commentSafeJson(obj) {
+  return JSON.stringify(obj).replace(/</g, "\\u003c").replace(/>/g, "\\u003e");
+}
+function snapshotComment(snap) {
+  return SNAPSHOT_OPEN + commentSafeJson(snap) + CLOSE;
+}
+function summaryLogComment(log) {
+  return SUMMARY_OPEN + commentSafeJson(log) + CLOSE;
+}
+function extractJson(content, open) {
+  const start = content.indexOf(open);
+  if (start === -1) return null;
+  const from = start + open.length;
+  const end = content.indexOf(CLOSE, from);
+  if (end === -1) return null;
+  try {
+    return JSON.parse(content.slice(from, end).trim());
+  } catch {
+    return null;
+  }
+}
+function extractSnapshot(content) {
+  const snap = extractJson(content, SNAPSHOT_OPEN);
+  if (!snap || snap.v !== 1 || !Array.isArray(snap.views)) return null;
+  return snap;
+}
+function extractSummaryLog(content) {
+  const log = extractJson(content, SUMMARY_OPEN);
+  return Array.isArray(log) ? log.filter((e) => e && typeof e.text === "string") : [];
+}
+function prependSummary(log, entry) {
+  return [entry, ...log].slice(0, HISTORY_CAP);
+}
+function diffSnapshots(prior, current) {
+  if (prior == null) return { views: [], totals: { added: 0, removed: 0, changed: 0 }, firstRun: true };
+  const views = [];
+  let tAdded = 0;
+  let tRemoved = 0;
+  let tChanged = 0;
+  const priorByView = new Map(prior.views.map((v) => [v.name, v]));
+  const currentNames = new Set(current.views.map((v) => v.name));
+  for (const cv of current.views) {
+    const pv = priorByView.get(cv.name);
+    const priorRows = new Map((pv?.rows ?? []).map((r) => [r.key, r]));
+    const added = [];
+    const changed = [];
+    const seen = /* @__PURE__ */ new Set();
+    for (const row of cv.rows) {
+      if (seen.has(row.key)) continue;
+      seen.add(row.key);
+      const pr = priorRows.get(row.key);
+      if (!pr) {
+        added.push(row);
+        continue;
+      }
+      const fields = [];
+      const cols = /* @__PURE__ */ new Set([...Object.keys(pr.cells), ...Object.keys(row.cells)]);
+      for (const col of cols) {
+        const from = pr.cells[col] ?? "";
+        const to = row.cells[col] ?? "";
+        if (from !== to) fields.push({ col, from, to });
+      }
+      if (fields.length) changed.push({ key: row.key, fields });
+    }
+    const removed = (pv?.rows ?? []).filter((r) => !seen.has(r.key));
+    tAdded += added.length;
+    tRemoved += removed.length;
+    tChanged += changed.length;
+    views.push({ name: cv.name, added, removed, changed });
+  }
+  for (const pv of prior.views) {
+    if (currentNames.has(pv.name)) continue;
+    tRemoved += pv.rows.length;
+    views.push({ name: pv.name, added: [], removed: pv.rows, changed: [] });
+  }
+  return { views, totals: { added: tAdded, removed: tRemoved, changed: tChanged }, firstRun: false };
+}
+
+// core/vault/render-markdown.ts
+function mdText(s) {
+  return s.replace(/\r?\n+/g, " ").replace(/\|/g, "\\|").trim();
+}
+function mdInline(s) {
+  return s.replace(/\r?\n+/g, " ").trim().replace(/([\\`|[\]()])/g, "\\$1");
+}
+function mdLink(display, href) {
+  return "[" + mdInline(display) + "](<" + href + ">)";
+}
+function valueToMarkdown(v, linkCtx) {
+  if (v == null || v === "") return "\u2014";
+  if (isEvalError(v)) return "\u26A0 " + mdInline(v.__error);
+  if (typeof v === "object" && v !== null && "__html" in v) {
+    return mdInline(String(v.__html).replace(/<[^>]*>/g, ""));
+  }
+  if (v instanceof Link) {
+    const href = linkCtx?.resolveLink(v);
+    return href ? mdLink(v.display, href) : mdInline(v.display);
+  }
+  if (v instanceof DuoDate) return mdInline(v.toString());
+  if (Array.isArray(v)) return v.map((x) => valueToMarkdown(x, linkCtx)).join(", ");
+  if (typeof v === "number") return String(v);
+  return mdInline(String(v));
+}
+function mdCell(prop, f, value, linkCtx) {
+  if (linkCtx && (prop === "file.name" || prop === "file.link")) {
+    const href = linkCtx.hrefFor(f.path);
+    if (href) return mdLink(String(value), href);
+  }
+  return valueToMarkdown(value, linkCtx);
+}
+function mdSummary(rows, view, formulas, thisFile, asOf, linkCtx) {
+  if (!view.summaries) return "";
+  const parts = [];
+  for (const [prop, fnName] of Object.entries(view.summaries)) {
+    const fn = SUMMARY_FNS[fnName];
+    if (!fn) {
+      parts.push(mdText(fnName) + ": ?");
+      continue;
+    }
+    const vals = rows.map((f) => readCol(prop, f, thisFile, formulas, asOf));
+    parts.push(colLabel(prop) + " " + fnName.toLowerCase() + ": " + valueToMarkdown(fn(vals), linkCtx));
+  }
+  return parts.length ? "_" + parts.join(" \xB7 ") + "_" : "";
+}
+function tableFor(rows, order, formulas, thisFile, propCfg, asOf, linkCtx) {
+  const header = "| " + order.map((p) => mdInline(colLabel(p, propCfg))).join(" | ") + " |";
+  const divider = "| " + order.map(() => "---").join(" | ") + " |";
+  const body = rows.map((f) => "| " + order.map((p) => mdCell(p, f, readCol(p, f, thisFile, formulas, asOf), linkCtx)).join(" | ") + " |").join("\n");
+  return header + "\n" + divider + (body ? "\n" + body : "");
+}
+function renderTableMarkdown(view, formulas, thisFile, propCfg, asOf, linkCtx) {
+  const order = view.order;
+  if (!view.groupBy) {
+    const sum = mdSummary(view.rows, view, formulas, thisFile, asOf, linkCtx);
+    const table = tableFor(view.rows, order, formulas, thisFile, propCfg, asOf, linkCtx);
+    return sum ? table + "\n\n" + sum : table;
+  }
+  const groups = /* @__PURE__ */ new Map();
+  const groupRaw = /* @__PURE__ */ new Map();
+  for (const f of view.rows) {
+    const v = readCol(view.groupBy.property, f, thisFile, formulas, asOf);
+    const key = v == null ? "\u2014" : String(v instanceof Link ? v.display : v);
+    if (!groups.has(key)) {
+      groups.set(key, []);
+      groupRaw.set(key, v);
+    }
+    groups.get(key).push(f);
+  }
+  const keys = [...groups.keys()].sort((a, b) => a.localeCompare(b));
+  if (String(view.groupBy.direction).toUpperCase() === "DESC") keys.reverse();
+  return keys.map((key) => {
+    const gRows = groups.get(key);
+    const raw = groupRaw.get(key);
+    let label = mdInline(key);
+    if (linkCtx && raw instanceof Link) {
+      const href = linkCtx.resolveLink(raw);
+      if (href) label = mdLink(key, href);
+    }
+    const sum = mdSummary(gRows, view, formulas, thisFile, asOf, linkCtx);
+    const head = "#### " + label + " (" + gRows.length + ")" + (sum ? "\n" + sum : "");
+    return head + "\n\n" + tableFor(gRows, order, formulas, thisFile, propCfg, asOf, linkCtx);
+  }).join("\n\n");
+}
+function renderListMarkdown(view, formulas, thisFile, asOf, linkCtx) {
+  return view.rows.map((f) => "- " + view.order.map((p) => mdCell(p, f, readCol(p, f, thisFile, formulas, asOf), linkCtx)).join(" \xB7 ")).join("\n");
+}
+function renderCardsMarkdown(view, formulas, thisFile, asOf, linkCtx) {
+  return view.rows.map((f) => {
+    const [title, ...rest] = view.order;
+    const head = "#### " + mdCell(title, f, readCol(title, f, thisFile, formulas, asOf), linkCtx);
+    if (!rest.length) return head;
+    const body = rest.map((p) => "- **" + mdInline(colLabel(p)) + ":** " + mdCell(p, f, readCol(p, f, thisFile, formulas, asOf), linkCtx)).join("\n");
+    return head + "\n" + body;
+  }).join("\n\n");
+}
+function renderBaseMarkdown(evaluated, thisFile, label, asOf, linkCtx) {
+  const blocks = ["## " + mdInline(label)];
+  for (const view of evaluated.views) {
+    blocks.push("### " + mdInline(view.name) + " (" + view.rows.length + ")");
+    if (view.type === "list") blocks.push(renderListMarkdown(view, evaluated.formulas, thisFile, asOf, linkCtx));
+    else if (view.type === "cards") blocks.push(renderCardsMarkdown(view, evaluated.formulas, thisFile, asOf, linkCtx));
+    else blocks.push(renderTableMarkdown(view, evaluated.formulas, thisFile, evaluated.propCfg, asOf, linkCtx));
+  }
+  return blocks.join("\n\n");
+}
+function summarySectionMd(log) {
+  if (!log.length) return "";
+  const flat = (t) => t.replace(/\r?\n+/g, " ").trim();
+  const [latest, ...rest] = log;
+  let m = "> **What changed** \xB7 " + flat(latest.date) + " \u2014 " + flat(latest.text);
+  if (rest.length) {
+    m += "\n\n<details>\n<summary>Change history (" + rest.length + ")</summary>\n\n" + rest.map((e) => "- **" + flat(e.date) + "** \u2014 " + flat(e.text)).join("\n") + "\n\n</details>";
+  }
+  return m;
+}
+function assembleMarkdownPage(sections, meta) {
+  const frontmatter = [
+    "---",
+    "title: " + JSON.stringify(meta.title),
+    "generated: " + meta.generatedAt,
+    "source_hash: " + meta.sourceHash,
+    "as_of: " + meta.asOfLabel,
+    "---",
+    ""
+  ].join("\n");
+  const refresh = meta.rollup ? "[\u21BB Refresh](duo://rollup/refresh?base=" + encodeURIComponent(meta.target) + ") \xB7 " : "";
+  const stamp = "> **Build artifact** \u2014 " + refresh + "regenerate: `duo rollup render " + meta.target + " --md` \xB7 source-hash `" + meta.sourceHash + "` \xB7 as-of " + meta.asOfLabel + " \xB7 " + meta.noteCount + " notes, " + meta.baseCount + " base(s).";
+  const doc = meta.rollup ? rollupDocComment(meta.target) + "\n\n" : "";
+  const summary = summarySectionMd(meta.summaryLog ?? []);
+  const body = doc + (summary ? summary + "\n\n" : "") + sections.join("\n\n") + "\n\n" + stamp;
+  const tail = meta.embedded ? "\n\n" + meta.embedded : "";
+  return frontmatter + body + tail + "\n";
+}
+
 // core/vault/render.ts
 function readCol(prop, file, thisFile, formulas, asOf) {
   if (prop.startsWith("formula.")) {
@@ -4174,15 +4410,60 @@ function evaluateBaseDef(def, files, thisFile, asOf) {
   return { formulas, propCfg, views };
 }
 var esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-function cell(v) {
+function buildLinkCtx(files, root, outDir) {
+  const byKey = new Map(files.map((f) => [targetKey(f.name, "wikilink"), f]));
+  const rel = (noteRelPath) => {
+    const abs = import_node_path10.default.resolve(root, noteRelPath);
+    let r = import_node_path10.default.relative(outDir, abs).split(import_node_path10.default.sep).join("/");
+    if (!r.startsWith(".") && !r.startsWith("/")) r = "./" + r;
+    return r;
+  };
+  return {
+    hrefFor: (noteRelPath) => noteRelPath ? rel(noteRelPath) : null,
+    resolveLink: (link) => {
+      const f = byKey.get(targetKey(link.target, "wikilink"));
+      return f ? rel(f.path) : null;
+    }
+  };
+}
+function cell(v, linkCtx) {
   if (v == null || v === "") return '<span class="empty">\u2014</span>';
   if (isEvalError(v)) return '<span class="err" title="' + esc(v.__expr) + '">\u26A0 ' + esc(v.__error) + "</span>";
   if (typeof v === "object" && v !== null && "__html" in v) return v.__html;
-  if (v instanceof Link) return '<span class="wikilink">' + esc(v.display) + "</span>";
+  if (v instanceof Link) {
+    const href = linkCtx?.resolveLink(v);
+    return href ? '<a class="wikilink" href="' + esc(href) + '">' + esc(v.display) + "</a>" : '<span class="wikilink">' + esc(v.display) + "</span>";
+  }
   if (v instanceof DuoDate) return esc(v.toString());
-  if (Array.isArray(v)) return v.map(cell).join(", ");
+  if (Array.isArray(v)) return v.map((x) => cell(x, linkCtx)).join(", ");
   if (typeof v === "number") return String(v);
   return esc(String(v));
+}
+function htmlCell(prop, f, value, linkCtx) {
+  if (linkCtx && (prop === "file.name" || prop === "file.link")) {
+    const href = linkCtx.hrefFor(f.path);
+    if (href) return '<a class="wikilink" href="' + esc(href) + '">' + esc(String(value)) + "</a>";
+  }
+  return cell(value, linkCtx);
+}
+function plainCell(v) {
+  if (v == null || v === "") return "";
+  if (isEvalError(v)) return "\u26A0 " + v.__error;
+  if (typeof v === "object" && v !== null && "__html" in v)
+    return String(v.__html).replace(/<[^>]*>/g, "").trim();
+  if (v instanceof Link) return v.display;
+  if (v instanceof DuoDate) return v.toString();
+  if (Array.isArray(v)) return v.map(plainCell).join(", ");
+  return String(v);
+}
+function summarySectionHtml(log) {
+  if (!log.length) return "";
+  const [latest, ...rest] = log;
+  let h = '<section class="changes"><div class="changes-latest"><span class="changes-lab">What changed \xB7 ' + esc(latest.date) + "</span><p>" + esc(latest.text) + "</p></div>";
+  if (rest.length) {
+    h += '<details class="changes-hist"><summary>Change history (' + rest.length + ")</summary><ul>" + rest.map((e) => "<li><strong>" + esc(e.date) + "</strong> \u2014 " + esc(e.text) + "</li>").join("") + "</ul></details>";
+  }
+  return h + "</section>";
 }
 function colLabel(prop, propCfg) {
   if (propCfg && propCfg[prop] && propCfg[prop].displayName) return propCfg[prop].displayName;
@@ -4206,7 +4487,7 @@ var SUMMARY_FNS = {
   },
   Unique: (vals) => new Set(vals.map((v) => String(v))).size
 };
-function summaryInline(rows, view, formulas, thisFile, asOf) {
+function summaryInline(rows, view, formulas, thisFile, asOf, linkCtx) {
   if (!view.summaries) return "";
   const parts = [];
   for (const [prop, fnName] of Object.entries(view.summaries)) {
@@ -4216,19 +4497,23 @@ function summaryInline(rows, view, formulas, thisFile, asOf) {
       continue;
     }
     const vals = rows.map((f) => readCol(prop, f, thisFile, formulas, asOf));
-    parts.push(esc(colLabel(prop)) + " " + esc(fnName).toLowerCase() + ": " + cell(fn(vals)));
+    parts.push(esc(colLabel(prop)) + " " + esc(fnName).toLowerCase() + ": " + cell(fn(vals), linkCtx));
   }
   return ' <span class="summary">' + parts.join(" \xB7 ") + "</span>";
 }
-function renderTable(view, formulas, thisFile, propCfg, asOf) {
+function renderTable(view, formulas, thisFile, propCfg, asOf, linkCtx) {
   const order = view.order;
   const head = "<tr>" + order.map((p) => "<th>" + esc(colLabel(p, propCfg)) + "</th>").join("") + "</tr>";
   const groups = /* @__PURE__ */ new Map();
+  const groupRaw = /* @__PURE__ */ new Map();
   if (view.groupBy) {
     for (const f of view.rows) {
       const v = readCol(view.groupBy.property, f, thisFile, formulas, asOf);
       const key = v == null ? "\u2014" : String(v instanceof Link ? v.display : v);
-      if (!groups.has(key)) groups.set(key, []);
+      if (!groups.has(key)) {
+        groups.set(key, []);
+        groupRaw.set(key, v);
+      }
       groups.get(key).push(f);
     }
   } else {
@@ -4240,42 +4525,50 @@ function renderTable(view, formulas, thisFile, propCfg, asOf) {
   for (const key of keys) {
     const gRows = groups.get(key);
     if (key !== null) {
-      html += '<tr class="group"><td colspan="' + order.length + '">' + esc(key) + ' <span class="count">(' + gRows.length + ")</span>" + summaryInline(gRows, view, formulas, thisFile, asOf) + "</td></tr>";
+      const raw = groupRaw.get(key);
+      let label = esc(key);
+      if (linkCtx && raw instanceof Link) {
+        const href = linkCtx.resolveLink(raw);
+        if (href) label = '<a class="wikilink" href="' + esc(href) + '">' + esc(key) + "</a>";
+      }
+      html += '<tr class="group"><td colspan="' + order.length + '">' + label + ' <span class="count">(' + gRows.length + ")</span>" + summaryInline(gRows, view, formulas, thisFile, asOf, linkCtx) + "</td></tr>";
     }
     for (const f of gRows) {
-      html += "<tr>" + order.map((p) => "<td>" + cell(readCol(p, f, thisFile, formulas, asOf)) + "</td>").join("") + "</tr>";
+      html += "<tr>" + order.map((p) => "<td>" + htmlCell(p, f, readCol(p, f, thisFile, formulas, asOf), linkCtx) + "</td>").join("") + "</tr>";
     }
   }
   if (!view.groupBy && view.summaries) {
-    html += '<tr class="group"><td colspan="' + order.length + '">' + summaryInline(view.rows, view, formulas, thisFile, asOf) + "</td></tr>";
+    html += '<tr class="group"><td colspan="' + order.length + '">' + summaryInline(view.rows, view, formulas, thisFile, asOf, linkCtx) + "</td></tr>";
   }
   return html + "</table>";
 }
-function renderList(view, formulas, thisFile, asOf) {
-  return '<ul class="baselist">' + view.rows.map((f) => "<li>" + view.order.map((p) => cell(readCol(p, f, thisFile, formulas, asOf))).join(" ") + "</li>").join("") + "</ul>";
+function renderList(view, formulas, thisFile, asOf, linkCtx) {
+  return '<ul class="baselist">' + view.rows.map(
+    (f) => "<li>" + view.order.map((p) => htmlCell(p, f, readCol(p, f, thisFile, formulas, asOf), linkCtx)).join(" ") + "</li>"
+  ).join("") + "</ul>";
 }
-function renderCards(view, formulas, thisFile, asOf) {
+function renderCards(view, formulas, thisFile, asOf, linkCtx) {
   return '<div class="cards">' + view.rows.map((f) => {
     const [title, ...rest] = view.order;
-    return '<div class="card"><div class="card-title">' + cell(readCol(title, f, thisFile, formulas, asOf)) + "</div>" + rest.map(
-      (p) => '<div class="card-row"><span class="card-k">' + esc(colLabel(p)) + "</span> " + cell(readCol(p, f, thisFile, formulas, asOf)) + "</div>"
+    return '<div class="card"><div class="card-title">' + htmlCell(title, f, readCol(title, f, thisFile, formulas, asOf), linkCtx) + "</div>" + rest.map(
+      (p) => '<div class="card-row"><span class="card-k">' + esc(colLabel(p)) + "</span> " + htmlCell(p, f, readCol(p, f, thisFile, formulas, asOf), linkCtx) + "</div>"
     ).join("") + "</div>";
   }).join("") + "</div>";
 }
-function renderBaseSection(evaluated, thisFile, label, asOf) {
+function renderBaseSection(evaluated, thisFile, label, asOf, linkCtx) {
   let html = '<section class="base"><h2>' + esc(label) + "</h2>";
   for (const view of evaluated.views) {
     html += "<h3>" + esc(view.name) + ' <span class="count">' + view.rows.length + " rows</span></h3>";
-    if (view.type === "list") html += renderList(view, evaluated.formulas, thisFile, asOf);
-    else if (view.type === "cards") html += renderCards(view, evaluated.formulas, thisFile, asOf);
-    else html += renderTable(view, evaluated.formulas, thisFile, evaluated.propCfg, asOf);
+    if (view.type === "list") html += renderList(view, evaluated.formulas, thisFile, asOf, linkCtx);
+    else if (view.type === "cards") html += renderCards(view, evaluated.formulas, thisFile, asOf, linkCtx);
+    else html += renderTable(view, evaluated.formulas, thisFile, evaluated.propCfg, asOf, linkCtx);
   }
   return html + "</section>";
 }
 function sourceHash(root) {
   const all = [];
   const stack = [root];
-  const SKIP = /* @__PURE__ */ new Set([".obsidian", ".trash", "out", ".git", "node_modules"]);
+  const SKIP = /* @__PURE__ */ new Set([".obsidian", ".trash", "out", "rollups", ".git", "node_modules"]);
   const GENERATED = /* @__PURE__ */ new Set(["index.md", "log.md"]);
   while (stack.length) {
     const dir = stack.pop();
@@ -4315,15 +4608,36 @@ function renderTarget(root, target, opts = {}) {
   const notes = readNotes(root);
   const files = buildEngineFiles(notes, asOf);
   const byName = new Map(files.map((f) => [f.name, f]));
+  const linkCtx = buildLinkCtx(files, root, opts.outDir ?? root);
   const bases = [];
   const sections = [];
+  const mdSections = [];
+  const snapshot = { v: 1, views: [] };
+  const viewNameCounts = /* @__PURE__ */ new Map();
+  const collect = (evaluated, thisFile) => {
+    for (const v of evaluated.views) {
+      const n = (viewNameCounts.get(v.name) ?? 0) + 1;
+      viewNameCounts.set(v.name, n);
+      snapshot.views.push({
+        name: n === 1 ? v.name : `${v.name} (${n})`,
+        rows: v.rows.map((f) => ({
+          key: f.path,
+          cells: Object.fromEntries(
+            v.order.map((p) => [p, plainCell(readCol(p, f, thisFile, evaluated.formulas, asOf))])
+          )
+        }))
+      });
+    }
+  };
   const abs = import_node_path10.default.isAbsolute(target) ? target : import_node_path10.default.resolve(root, target);
   if (target.endsWith(".base")) {
     const def = load(import_node_fs10.default.readFileSync(abs, "utf8"));
     const label = import_node_path10.default.relative(root, abs).split(import_node_path10.default.sep).join("/");
     const evaluated = evaluateBaseDef(def, files, null, asOf);
     bases.push({ label, evaluated, thisFile: null });
-    sections.push(renderBaseSection(evaluated, null, label, asOf));
+    sections.push(renderBaseSection(evaluated, null, label, asOf, linkCtx));
+    mdSections.push(renderBaseMarkdown(evaluated, null, label, asOf, linkCtx));
+    collect(evaluated, null);
   } else {
     let note;
     if (import_node_fs10.default.existsSync(abs) && abs.endsWith(".md")) note = parseFile(abs, root);
@@ -4338,21 +4652,42 @@ function renderTarget(root, target, opts = {}) {
       const label = `${note.relPath}${defs.length > 1 ? ` [block ${i + 1}]` : ""}  (this = ${note.basename})`;
       const evaluated = evaluateBaseDef(def, files, thisFile, asOf);
       bases.push({ label, evaluated, thisFile: note.basename });
-      sections.push(renderBaseSection(evaluated, thisFile, label, asOf));
+      sections.push(renderBaseSection(evaluated, thisFile, label, asOf, linkCtx));
+      mdSections.push(renderBaseMarkdown(evaluated, thisFile, label, asOf, linkCtx));
+      collect(evaluated, thisFile);
     });
   }
   const hash = sourceHash(root);
   const generatedAt = (/* @__PURE__ */ new Date()).toISOString();
   const asOfLabel = new DuoDate(asOf, asOf).format("YYYY-MMM-DD");
+  const summaryLog = opts.summaryLog ?? [];
+  const embedded = opts.embedSnapshot ? snapshotComment(snapshot) + (summaryLog.length ? "\n" + summaryLogComment(summaryLog) : "") : "";
+  const md = assembleMarkdownPage(mdSections, {
+    title: target,
+    sourceHash: hash,
+    generatedAt,
+    asOfLabel,
+    noteCount: notes.length,
+    baseCount: bases.length,
+    target,
+    rollup: !!opts.embedSnapshot,
+    summaryLog,
+    embedded
+  });
   const html = assemblePage(sections, {
     sourceHash: hash,
     generatedAt,
     asOfLabel,
     noteCount: notes.length,
     baseCount: bases.length,
-    target
+    target,
+    rollup: !!opts.embedSnapshot,
+    styleCss: opts.styleCss,
+    summaryHtml: summarySectionHtml(summaryLog),
+    markdownSource: md,
+    embedded
   });
-  return { html, bases, sourceHash: hash, generatedAt, asOfLabel };
+  return { html, md, snapshot, bases, sourceHash: hash, generatedAt, asOfLabel };
 }
 function assemblePage(sections, meta) {
   return `<!DOCTYPE html>
@@ -4381,7 +4716,17 @@ th,td { border-bottom:1px solid var(--paper-rule); padding:6px 8px; text-align:l
 th { font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:var(--ink-mute); }
 tr.group td { background:var(--paper-deep); font-weight:600; font-size:12px; }
 .summary { font-weight:400; color:var(--ink-mute); font-size:11.5px; }
-.wikilink { color:var(--harbor); border-bottom:1px dotted var(--harbor); }
+.wikilink { color:var(--harbor); border-bottom:1px dotted var(--harbor); text-decoration:none; }
+a.wikilink:hover { border-bottom-style:solid; }
+.changes { background:#fcf6ec; border:1px solid var(--paper-rule); border-left:3px solid var(--accent); border-radius:0 6px 6px 0; padding:10px 14px; margin:0 0 24px; }
+.changes-lab { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--accent); font-weight:600; }
+.changes-latest p { margin:4px 0 0; color:var(--ink-soft); }
+.changes-hist { margin-top:8px; font-size:12px; }
+.changes-hist summary { cursor:pointer; color:var(--ink-mute); }
+.changes-hist ul { margin:6px 0 0; padding-left:18px; color:var(--ink-mute); }
+.rl-toolbar { display:flex; gap:8px; margin:0 0 20px; }
+.rl-btn { font-size:12px; font-family:inherit; border:1px solid var(--paper-rule); background:var(--paper-deep); color:var(--ink-soft); border-radius:6px; padding:6px 11px; cursor:pointer; }
+.rl-btn:hover { border-color:var(--ink-ghost); }
 .empty { color:var(--ink-ghost); }
 .err { color:var(--fail); font-size:11px; }
 .baselist { margin:6px 0 14px; }
@@ -4393,19 +4738,25 @@ tr.group td { background:var(--paper-deep); font-weight:600; font-size:12px; }
 footer { margin-top:40px; border-top:1px solid var(--paper-rule); padding-top:12px;
   font-size:11.5px; color:var(--ink-mute); }
 </style>
+${meta.styleCss ? "<style>\n" + meta.styleCss.replace(/<\//g, "<\\/") + "\n</style>" : ""}
 </head>
 <body>
+${meta.rollup ? rollupDocComment(meta.target) : ""}
 <h1>Vault rollup \u2014 ${esc(meta.target)}</h1>
-<div class="stamp"><strong>BUILD ARTIFACT</strong> \u2014 regenerate: duo base render ${esc(meta.target)} \xB7
+<div class="stamp"><strong>BUILD ARTIFACT</strong> \u2014 regenerate: duo rollup render ${esc(meta.target)} \xB7
 generated ${esc(meta.generatedAt)} \xB7 source hash <strong>${esc(meta.sourceHash)}</strong> \xB7
 date-relative formulas as of ${esc(meta.asOfLabel)} \xB7
 ${meta.noteCount} notes, ${meta.baseCount} rendered base(s)</div>
+${meta.rollup ? '<div class="rl-toolbar">\n<button class="rl-btn" type="button" data-rollup-copy>Copy as Markdown</button>\n<button class="rl-btn" type="button" data-duo-action="duo:event" data-event="rollup:refresh" data-payload="' + esc(JSON.stringify({ base: meta.target })).replace(/"/g, "&quot;") + '" title="Requests a refresh \u2014 a watching Claude (duo events --follow) regenerates + summarizes">Refresh</button>\n</div>' : ""}
+${meta.summaryHtml ?? ""}
 ${sections.join("\n")}
 <footer>Duo-owned rollup render (ENH-208). Implements the locked Bases
 expression subset (filters and/or/not, link equality vs <code>this</code>,
 date math, if(), html(), icon(), backlink chains, groupBy, summaries).
 file.name is extension-less; child\u2192parent backlink rollups always resolve
 here. Re-render to refresh; the source hash above detects staleness.</footer>
+${meta.embedded ?? ""}
+${meta.rollup ? "<script>window.__rollupMd = " + JSON.stringify(meta.markdownSource ?? "").replace(/</g, "\\u003c") + ";</script>\n<script>(function(){var b=document.querySelector('[data-rollup-copy]');if(!b)return;b.addEventListener('click',function(){navigator.clipboard.writeText(window.__rollupMd||'').then(function(){var o=b.textContent;b.textContent='Copied';setTimeout(function(){b.textContent=o},1300)}).catch(function(){b.textContent='Copy failed (focus the page)'})})})();</script>" : ""}
 </body>
 </html>
 `;
@@ -5072,7 +5423,7 @@ async function removeWorktree(worktreePath, opts = {}) {
 }
 
 // cli/duo.ts
-var VERSION = true ? "0.11.2" : "0.0.0-dev";
+var VERSION = true ? "0.12.1" : "0.0.0-dev";
 var VERBS = [
   // ── Browser & tabs ──
   {
@@ -5547,6 +5898,12 @@ var VERBS = [
     group: "Vault",
     args: "<lint <file|--all>|render <file|note>> [--out p] [--open] [--vault p]",
     summary: "Obsidian Bases rollups. lint <file|--all> [--vault p]: validate a .base file (or a note's embedded ```base blocks, or every base with --all) against the live corpus \u2014 bad types / unresolved [[entities]] / off-enum values / unknown functions, each with a \"did you mean\" (JSON; warn-and-render, never blocks). render <file|note> [--out p] [--open]: evaluate filters/formulas over live frontmatter and emit a stamped Duo-owned HTML artifact (generated-at \xB7 source-hash \xB7 as-of). Default writes to the vault's out/; --out writes elsewhere; --open also opens it as a tab in the running app."
+  },
+  {
+    name: "rollup",
+    group: "Vault",
+    args: '<render <note|base>|diff <note|base>> [--md|--html] [--style css] [--summary "t"|--no-summary] [--against p] [--out p] [--open] [--vault p]',
+    summary: 'ENH-229 \u2014 rollup artifacts. render <note|base> [--md|--html]: emit ONE variant \u2014 Markdown (--md, the GitHub-portable OKF default) OR a stamped HTML artifact (--html); mutually exclusive. Every row LINKS the entities it rolls up (the note + owner/group links resolved from frontmatter, incl. OKF rel-md). --style <css-file> layers a custom stylesheet over the Atelier base (HTML only). Change summary (req #7): the artifact self-embeds a rows snapshot + a summary log (HTML comments \u2014 \xA7D9-clean, no sidecar); --summary "<text>" adds a new latest "What changed" entry (an interactive Claude writes the narrative+notables from `duo rollup diff`), prior entries drop into a collapsible history; --no-summary clears it. diff <note|base> [--against <prior>]: deterministic JSON delta (added/removed/changed rows) vs the prior artifact\'s embedded snapshot \u2014 the material Claude summarizes. Default writes to the vault out/; --out writes elsewhere; --open surfaces it as a tab.'
   }
 ];
 var SOCKET_PATH = process.env.DUO_SOCKET ?? path15.join(os3.homedir(), "Library", "Application Support", "duo", "duo.sock");
@@ -7326,7 +7683,6 @@ ${res.pr.url}`);
           const target = positionalArgs(subRest, ["--vault", "--out"])[0];
           if (!target) die("Usage: duo base render <file|note> [--out <path>] [--open] [--vault <path>]");
           const root = resolveVaultOrDefault(process.cwd(), vaultFlag);
-          const result = renderTarget(root, target);
           const outFlag = flagValue(subRest, "--out");
           const open = subRest.includes("--open");
           const stem = path15.basename(target).replace(/\.(base|md)$/i, "") || "rollup";
@@ -7334,6 +7690,7 @@ ${res.pr.url}`);
           if (outFlag) outPath = path15.resolve(process.cwd(), outFlag);
           else if (open) outPath = path15.join(os3.tmpdir(), `duo-rollup-${stem}-${Date.now()}.html`);
           else outPath = path15.join(root, "out", `${stem}.html`);
+          const result = renderTarget(root, target, { outDir: path15.dirname(outPath) });
           fs14.mkdirSync(path15.dirname(outPath), { recursive: true });
           fs14.writeFileSync(outPath, result.html);
           let opened = null;
@@ -7361,6 +7718,124 @@ ${res.pr.url}`);
           });
         } else {
           die("Usage: duo base <lint <file|--all>|render <file|note>> [--out <path>] [--open] [--vault <path>]");
+        }
+        break;
+      }
+      case "rollup": {
+        const sub = rest[0];
+        const subRest = rest.slice(1);
+        const vaultFlag = flagValue(subRest, "--vault");
+        const USAGE = 'Usage: duo rollup <render|diff> <note|base> [--md|--html] [--style <css-file>] [--summary "<text>"|--no-summary] [--against <path>] [--out <path>] [--open] [--vault <path>]';
+        const newestExisting = (paths) => {
+          let best = null;
+          let bestM = -1;
+          for (const p of paths) {
+            try {
+              const m = fs14.statSync(p).mtimeMs;
+              if (m > bestM) {
+                bestM = m;
+                best = p;
+              }
+            } catch {
+            }
+          }
+          return best;
+        };
+        if (sub === "render") {
+          const target = positionalArgs(subRest, ["--vault", "--out", "--style", "--summary"])[0];
+          if (!target) die(USAGE);
+          const wantHtml = subRest.includes("--html");
+          const wantMd = subRest.includes("--md");
+          if (wantHtml && wantMd) die("duo rollup render: choose ONE of --md or --html, not both");
+          const format = wantHtml ? "html" : "md";
+          const root = resolveVaultOrDefault(process.cwd(), vaultFlag);
+          const outFlag = flagValue(subRest, "--out");
+          const open = subRest.includes("--open");
+          const stem = path15.basename(target).replace(/\.(base|md)$/i, "") || "rollup";
+          const ext = format === "html" ? ".html" : ".md";
+          let outPath;
+          if (outFlag) outPath = path15.resolve(process.cwd(), outFlag);
+          else if (open) outPath = path15.join(os3.tmpdir(), `duo-rollup-${stem}-${Date.now()}${ext}`);
+          else outPath = path15.join(root, "rollups", `${stem}${ext}`);
+          const styleFlag = flagValue(subRest, "--style");
+          let styleCss;
+          if (styleFlag && styleFlag !== "atelier") {
+            if (format === "md") die("duo rollup render: --style applies to --html only (Markdown has no stylesheet)");
+            if (/^[a-z][a-z0-9+.-]*:\/\//i.test(styleFlag))
+              die("duo rollup render: --style takes a local CSS file path (remote URLs are not fetched)");
+            try {
+              styleCss = fs14.readFileSync(path15.resolve(process.cwd(), styleFlag), "utf8");
+            } catch (e) {
+              die(`duo rollup render: cannot read --style file ${styleFlag}: ${e instanceof Error ? e.message : String(e)}`);
+            }
+          }
+          const noSummary = subRest.includes("--no-summary");
+          const summaryText = flagValue(subRest, "--summary");
+          if (summaryText !== void 0 && summaryText.startsWith("--"))
+            die(`duo rollup render: --summary needs a text argument (got the flag "${summaryText}")`);
+          const priorCandidates = outFlag ? [outPath] : [path15.join(root, "rollups", `${stem}.md`), path15.join(root, "rollups", `${stem}.html`)];
+          const priorPath = newestExisting(priorCandidates);
+          const priorContent = priorPath ? fs14.readFileSync(priorPath, "utf8") : "";
+          let summaryLog = noSummary ? [] : extractSummaryLog(priorContent);
+          if (!noSummary && summaryText) {
+            const today = new DuoDate(/* @__PURE__ */ new Date(), /* @__PURE__ */ new Date()).format("YYYY-MMM-DD");
+            summaryLog = prependSummary(summaryLog, { date: today, text: summaryText });
+          }
+          const result = renderTarget(root, target, {
+            outDir: path15.dirname(outPath),
+            styleCss,
+            summaryLog,
+            embedSnapshot: true
+          });
+          fs14.mkdirSync(path15.dirname(outPath), { recursive: true });
+          fs14.writeFileSync(outPath, format === "html" ? result.html : result.md);
+          let opened = null;
+          if (open) {
+            try {
+              opened = await send("open", { url: resolveOpenTarget(outPath), mode: "browser", reveal: true });
+            } catch (e) {
+              opened = { error: e instanceof Error ? e.message : String(e) };
+            }
+            if (opened && typeof opened === "object" && "error" in opened) {
+              process.stderr.write(
+                `duo: rollup render wrote ${outPath} but --open failed: ${opened.error}
+`
+              );
+            }
+          }
+          out({
+            path: outPath,
+            format,
+            sourceHash: result.sourceHash,
+            generatedAt: result.generatedAt,
+            asOf: result.asOfLabel,
+            summaries: summaryLog.length,
+            bases: result.bases.map((b) => ({
+              label: b.label,
+              views: b.evaluated.views.map((v) => ({ name: v.name, type: v.type, rows: v.rows.length }))
+            })),
+            ...open ? { opened } : {}
+          });
+        } else if (sub === "diff") {
+          const target = positionalArgs(subRest, ["--vault", "--against"])[0];
+          if (!target) die("Usage: duo rollup diff <note|base> [--against <prior-artifact>] [--vault <path>]");
+          const root = resolveVaultOrDefault(process.cwd(), vaultFlag);
+          const stem = path15.basename(target).replace(/\.(base|md)$/i, "") || "rollup";
+          const against = flagValue(subRest, "--against");
+          let priorPath;
+          if (against) {
+            priorPath = path15.resolve(process.cwd(), against);
+            if (!fs14.existsSync(priorPath))
+              die(`duo rollup diff: --against path does not exist: ${priorPath} (resolved relative to cwd)`);
+          } else {
+            priorPath = newestExisting([path15.join(root, "rollups", `${stem}.md`), path15.join(root, "rollups", `${stem}.html`)]);
+          }
+          const priorContent = priorPath ? fs14.readFileSync(priorPath, "utf8") : "";
+          const prior = priorContent ? extractSnapshot(priorContent) : null;
+          const current = renderTarget(root, target).snapshot;
+          out({ priorArtifact: priorPath, diff: diffSnapshots(prior, current) });
+        } else {
+          die(USAGE);
         }
         break;
       }

@@ -3,7 +3,7 @@
      too long gets ignored. Situational/procedural detail lives in two places:
        • Path-scoped rules in `.claude/rules/*.md` (load only when matching
          files are read/edited): cli-plumbing.md, ui-verification.md,
-         renderer-surfaces.md.
+         renderer-surfaces.md, vault.md.
        • Load-on-demand docs linked under § Where to look.
      Before adding anything here, ask: is it always relevant? If it only
      matters when touching certain files, it belongs in a path-scoped rule.
@@ -81,6 +81,17 @@ the lowest-id "primary" window, by identity — never focus).
   UI work). Atelier CSS kernel + class library:
   [`skill/references/atelier-css.md`](skill/references/atelier-css.md).
 - **`docs/VISION.md`** — product north star.
+- **The vault / "graphbook" (ENH-208 · ENH-216)** — Duo's typed work-notes
+  knowledge graph (product name **graphbook**; internal/CLI name **vault**).
+  Core in `core/vault/**`; CLI verbs `duo vault` / `graph` / `base`. Start
+  with [`skill/references/vault.md`](skill/references/vault.md) (agent ops +
+  the rollup authoring loop), then
+  [`skill/references/vault-guide.html`](skill/references/vault-guide.html)
+  (the human walkthrough — ships with the skill so installed users get it;
+  `duo open` it), `docs/prd/enh-208-vault.md` (the PRD), and
+  `docs/research/graphbook-intent.html` (the product intent). **The typing
+  key is `type:` (not `class:`); rollups are `.base` views in Obsidian mode
+  vs static listings via `duo vault publish` in OKF mode.**
 - **`distro-pack-builder/`** — repo-only workshop for first-time distro-pack
   builders (does NOT ship to end users).
 - **`docs/research/duo-as-chrome-extension/`** — Chrome-extension exploration
@@ -100,6 +111,11 @@ the lowest-id "primary" window, by identity — never focus).
 - **`.claude/rules/renderer-surfaces.md`** — editor/canvas parity rule; new
   WorkingPane tab-type checklist + global-keystroke-escape patterns. Loads for
   `renderer/components/**`.
+- **`.claude/rules/vault.md`** — the graphbook/vault model (one graph, two
+  serializers: OKF vs Obsidian); `type:` not `class:`; rollups = `.base`
+  (Obsidian) vs static listings (OKF); the corpus-is-the-schema / no-sidecar
+  invariant. Loads for `core/vault/**`, `core/markdown/vaultLinks.ts`,
+  `skill/references/vault.md`.
 
 ## Glossary — internal-name mapping for contributors
 
@@ -127,6 +143,9 @@ is the contributor-facing map from those terms to the codebase.
 | **a scheduled (cron) job** | `CronJob` / `CronService` (`core/cron-*.ts`); store `~/.claude/duo/cron-jobs.json`; UI `renderer/components/Home/CronSection.tsx` |
 | **the attention badge** ("waiting on you" tab dot) | a transient per-tab `needsAttention` flag; set via `duo attention` (Duo-managed Claude Stop hook), keyed on `DUO_TAB` |
 | **file version history** | `FileHistoryService` (`core/file-history-service.ts`); `HistoryModal` (`renderer/components/editor/`); `duo history` |
+| **the graphbook** (the product name) | **the vault** — `core/vault/**`; CLI `duo vault` / `graph` / `base`. Same thing; "graphbook" is user-facing, "vault" is internal. |
+| **a note's type / "class"** | the **`type:`** YAML frontmatter key (`core/vault/corpus.ts`). There is no `class:` field — "class:task" means `type: task`. |
+| **a rollup / rollup view** | a saved query over note frontmatter. **Obsidian mode:** a live **`.base`** file (`duo base render`). **OKF mode:** static `index.md`/`log.md` listings (`duo vault publish`) — no `.base` files. |
 
 **Modality is verb-driven (ENH-156, 2026-05-16).** The same HTML file flips
 surface by verb: `duo open <path>` → **browser mode** (`kind: 'browser'`,

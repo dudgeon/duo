@@ -560,6 +560,13 @@ const VERBS: VerbSpec[] = [
     args: '<lint <file|--all>|render <file|note>> [--out p] [--open] [--vault p]',
     summary:
       'Obsidian Bases rollups. lint <file|--all> [--vault p]: validate a .base file (or a note\'s embedded ```base blocks, or every base with --all) against the live corpus — bad types / unresolved [[entities]] / off-enum values / unknown functions, each with a "did you mean" (JSON; warn-and-render, never blocks). render <file|note> [--out p] [--open]: evaluate filters/formulas over live frontmatter and emit a stamped Duo-owned HTML artifact (generated-at · source-hash · as-of). Default writes to the vault\'s out/; --out writes elsewhere; --open also opens it as a tab in the running app.'
+  },
+  {
+    name: 'rollup',
+    group: 'Vault',
+    args: '<render <note|base>|diff <note|base>> [--md|--html] [--style css] [--summary "t"|--no-summary] [--against p] [--out p] [--open] [--vault p]',
+    summary:
+      'ENH-229 — rollup artifacts. render <note|base> [--md|--html]: emit ONE variant — Markdown (--md, the GitHub-portable OKF default) OR a stamped HTML artifact (--html); mutually exclusive. Every row LINKS the entities it rolls up (the note + owner/group links resolved from frontmatter, incl. OKF rel-md). --style <css-file> layers a custom stylesheet over the Atelier base (HTML only). Change summary (req #7): the artifact self-embeds a rows snapshot + a summary log (HTML comments — §D9-clean, no sidecar); --summary "<text>" adds a new latest "What changed" entry (an interactive Claude writes the narrative+notables from `duo rollup diff`), prior entries drop into a collapsible history; --no-summary clears it. diff <note|base> [--against <prior>]: deterministic JSON delta (added/removed/changed rows) vs the prior artifact\'s embedded snapshot — the material Claude summarizes. Default writes to the vault out/; --out writes elsewhere; --open surfaces it as a tab.'
   }
 ]
 
@@ -2968,7 +2975,6 @@ async function main(): Promise<void> {
           const target = positionalArgs(subRest, ['--vault', '--out'])[0]
           if (!target) die('Usage: duo base render <file|note> [--out <path>] [--open] [--vault <path>]')
           const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
-          const result = vault.renderTarget(root, target)
           const outFlag = flagValue(subRest, '--out')
           const open = subRest.includes('--open')
           const stem = path.basename(target).replace(/\.(base|md)$/i, '') || 'rollup'
@@ -2976,6 +2982,9 @@ async function main(): Promise<void> {
           if (outFlag) outPath = path.resolve(process.cwd(), outFlag)
           else if (open) outPath = path.join(os.tmpdir(), `duo-rollup-${stem}-${Date.now()}.html`)
           else outPath = path.join(root, 'out', `${stem}.html`)
+          // ENH-229 — outDir so entity-link hrefs resolve relative to where the
+          // artifact lands (not the vault root). Must be computed before render.
+          const result = vault.renderTarget(root, target, { outDir: path.dirname(outPath) })
           fs.mkdirSync(path.dirname(outPath), { recursive: true })
           fs.writeFileSync(outPath, result.html)
           // `--open` is the one vault verb that reaches the running app
@@ -3012,6 +3021,153 @@ async function main(): Promise<void> {
           })
         } else {
           die('Usage: duo base <lint <file|--all>|render <file|note>> [--out <path>] [--open] [--vault <path>]')
+        }
+        break
+      }
+      case 'rollup': {
+        // ENH-229 — rollup artifacts. One evaluation, two serializers: --md
+        // (GitHub-portable OKF default) OR --html (stamped artifact). Rows link
+        // the entities they roll up (req #6). Filesystem-direct like `base`;
+        // only --open reaches the running app to surface a tab.
+        const sub = rest[0]
+        const subRest = rest.slice(1)
+        const vaultFlag = flagValue(subRest, '--vault')
+        const USAGE =
+          'Usage: duo rollup <render|diff> <note|base> [--md|--html] [--style <css-file>] [--summary "<text>"|--no-summary] [--against <path>] [--out <path>] [--open] [--vault <path>]'
+        // Newest existing path by mtime — so summary history + diff read the
+        // freshest artifact even after an --md↔--html switch.
+        const newestExisting = (paths: string[]): string | null => {
+          let best: string | null = null
+          let bestM = -1
+          for (const p of paths) {
+            try {
+              const m = fs.statSync(p).mtimeMs
+              if (m > bestM) {
+                bestM = m
+                best = p
+              }
+            } catch {
+              /* missing — skip */
+            }
+          }
+          return best
+        }
+        if (sub === 'render') {
+          const target = positionalArgs(subRest, ['--vault', '--out', '--style', '--summary'])[0]
+          if (!target) die(USAGE)
+          const wantHtml = subRest.includes('--html')
+          const wantMd = subRest.includes('--md')
+          if (wantHtml && wantMd) die('duo rollup render: choose ONE of --md or --html, not both')
+          const format: 'html' | 'md' = wantHtml ? 'html' : 'md' // MD is the OKF-portable default (D3)
+          const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
+          const outFlag = flagValue(subRest, '--out')
+          const open = subRest.includes('--open')
+          const stem = path.basename(target).replace(/\.(base|md)$/i, '') || 'rollup'
+          const ext = format === 'html' ? '.html' : '.md'
+          let outPath: string
+          if (outFlag) outPath = path.resolve(process.cwd(), outFlag)
+          else if (open) outPath = path.join(os.tmpdir(), `duo-rollup-${stem}-${Date.now()}${ext}`)
+          else outPath = path.join(root, 'rollups', `${stem}${ext}`) // ENH-229 — rollups live in rollups/
+
+          // --style (req #3): a LOCAL CSS file, layered over the Atelier base so
+          // a partial sheet still leaves the artifact usable. HTML only.
+          const styleFlag = flagValue(subRest, '--style')
+          let styleCss: string | undefined
+          if (styleFlag && styleFlag !== 'atelier') {
+            if (format === 'md') die('duo rollup render: --style applies to --html only (Markdown has no stylesheet)')
+            if (/^[a-z][a-z0-9+.-]*:\/\//i.test(styleFlag))
+              die('duo rollup render: --style takes a local CSS file path (remote URLs are not fetched)')
+            try {
+              styleCss = fs.readFileSync(path.resolve(process.cwd(), styleFlag), 'utf8')
+            } catch (e) {
+              die(`duo rollup render: cannot read --style file ${styleFlag}: ${e instanceof Error ? e.message : String(e)}`)
+            }
+          }
+
+          // Change summary (req #7): carry prior history forward; --summary adds
+          // a new latest entry (interactive Claude writes the prose, narrative +
+          // notables); --no-summary clears it. The prior log is read back from
+          // the artifact we're about to overwrite (no sidecar — §D9-clean).
+          const noSummary = subRest.includes('--no-summary')
+          const summaryText = flagValue(subRest, '--summary')
+          if (summaryText !== undefined && summaryText.startsWith('--'))
+            die(`duo rollup render: --summary needs a text argument (got the flag "${summaryText}")`)
+          // Read the prior summary log from the NEWEST existing artifact for this
+          // rollup across BOTH formats, so history survives an --md↔--html switch.
+          const priorCandidates = outFlag
+            ? [outPath]
+            : [path.join(root, 'rollups', `${stem}.md`), path.join(root, 'rollups', `${stem}.html`)]
+          const priorPath = newestExisting(priorCandidates)
+          const priorContent = priorPath ? fs.readFileSync(priorPath, 'utf8') : ''
+          let summaryLog = noSummary ? [] : vault.extractSummaryLog(priorContent)
+          if (!noSummary && summaryText) {
+            const today = new vault.DuoDate(new Date(), new Date()).format('YYYY-MMM-DD')
+            summaryLog = vault.prependSummary(summaryLog, { date: today, text: summaryText })
+          }
+
+          // outDir makes the entity-link hrefs (req #6) relative to the artifact.
+          const result = vault.renderTarget(root, target, {
+            outDir: path.dirname(outPath),
+            styleCss,
+            summaryLog,
+            embedSnapshot: true,
+          })
+          fs.mkdirSync(path.dirname(outPath), { recursive: true })
+          fs.writeFileSync(outPath, format === 'html' ? result.html : result.md)
+          let opened: unknown = null
+          if (open) {
+            try {
+              // Mirror `base render`: the IPC handler keys on `url`. For an .md
+              // artifact the open verb ignores `mode` and routes to the editor
+              // (ENH-156); for .html `browser` mode shows it interactive.
+              opened = await send('open', { url: resolveOpenTarget(outPath), mode: 'browser', reveal: true })
+            } catch (e) {
+              opened = { error: e instanceof Error ? e.message : String(e) }
+            }
+            if (opened && typeof opened === 'object' && 'error' in opened) {
+              process.stderr.write(
+                `duo: rollup render wrote ${outPath} but --open failed: ${(opened as { error: unknown }).error}\n`,
+              )
+            }
+          }
+          out({
+            path: outPath,
+            format,
+            sourceHash: result.sourceHash,
+            generatedAt: result.generatedAt,
+            asOf: result.asOfLabel,
+            summaries: summaryLog.length,
+            bases: result.bases.map((b) => ({
+              label: b.label,
+              views: b.evaluated.views.map((v) => ({ name: v.name, type: v.type, rows: v.rows.length })),
+            })),
+            ...(open ? { opened } : {}),
+          })
+        } else if (sub === 'diff') {
+          // Deterministic diff vs a prior artifact's embedded snapshot — the
+          // material an interactive Claude turns into a narrative+notables
+          // summary, then re-renders with `duo rollup render --summary`.
+          const target = positionalArgs(subRest, ['--vault', '--against'])[0]
+          if (!target) die('Usage: duo rollup diff <note|base> [--against <prior-artifact>] [--vault <path>]')
+          const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
+          const stem = path.basename(target).replace(/\.(base|md)$/i, '') || 'rollup'
+          const against = flagValue(subRest, '--against')
+          let priorPath: string | null
+          if (against) {
+            priorPath = path.resolve(process.cwd(), against)
+            if (!fs.existsSync(priorPath))
+              die(`duo rollup diff: --against path does not exist: ${priorPath} (resolved relative to cwd)`)
+          } else {
+            // Newest of the two formats, so a diff right after `render --html`
+            // reads the fresh .html rather than a stale .md.
+            priorPath = newestExisting([path.join(root, 'rollups', `${stem}.md`), path.join(root, 'rollups', `${stem}.html`)])
+          }
+          const priorContent = priorPath ? fs.readFileSync(priorPath, 'utf8') : ''
+          const prior = priorContent ? vault.extractSnapshot(priorContent) : null
+          const current = vault.renderTarget(root, target).snapshot
+          out({ priorArtifact: priorPath, diff: vault.diffSnapshots(prior, current) })
+        } else {
+          die(USAGE)
         }
         break
       }
