@@ -1,0 +1,105 @@
+{
+  "kind": "parity-audit",
+  "name": "enh-231-home-parity",
+  "version": "ENH-231",
+  "date": "2026-06-24",
+  "title": "Catch-up ⟷ Projects Home — parity audit",
+  "intro_html": "<p><strong>Already carried into Catch-up</strong> (no action needed): project <em>hue + age</em>, the <em>last-response snippet</em>, the <em>click-to-focus / fork / resume</em> contract + its fork-confirm &amp; error modals, the <em>30s active-only poll</em> (BUG-046), and the <em>scheduled</em> cron badge. By design, project <em>grouping</em> → attention <em>columns</em>, and hero/spine → <em>full/compact</em> tiers.</p><p>Below are the <strong>gaps and bugs</strong> from your walk. Rate each: <strong>P0</strong> = carry in before merge · <strong>P1</strong> = next · <strong>P2</strong> = later/backlog · <strong>Skip</strong> = don't carry. 🐞 = broken behavior, ❌ = missing, ⚠️ = partial.</p>",
+  "controls": {
+    "primary": {
+      "kind": "radio",
+      "name": "priority",
+      "options": [
+        { "value": "P0", "label": "P0 · now", "color": "#b13e3a" },
+        { "value": "P1", "label": "P1 · next", "color": "#c46a1c" },
+        { "value": "P2", "label": "P2 · later", "color": "#4a7d3e" },
+        { "value": "SKIP", "label": "Skip", "color": "#6f6557" }
+      ]
+    },
+    "secondary": { "kind": "textarea", "name": "notes", "placeholder": "Notes / how you'd want it…", "rows": 2 },
+    "mark_all": { "label": "Mark all P1", "value": "P1" }
+  },
+  "result_format": {
+    "header_template": "ENH-231 HOME PARITY — priorities ({date})",
+    "summary_label": "TOTAL"
+  },
+  "items": [
+    {
+      "id": "BUG-running",
+      "title": "Live / running indicator on cards",
+      "subtitle": "🐞 broken — prior Home showed a green 'open' pill / amber 'running' pill",
+      "what_fixes": "Prior Home put a green 'open' pill (running in a Duo terminal) or amber 'running' pill (external) on every live session, with a tooltip. Catch-up has only a faint pulse dot you said you can't read as 'this is live'. Bring back the explicit pill + tooltip. (Same-affordance principle across both Home views.)"
+    },
+    {
+      "id": "BUG-focus",
+      "title": "Click a live session → FOCUS it, never fork",
+      "subtitle": "🐞 bug — a running session offered to fork instead of focusing",
+      "what_fixes": "Prior Home focuses a Duo-hosted live session on click. In catch-up, clicking a running one offered to FORK — the liveness join is attributing it as external (or not seeing the Duo tab). The focus-not-fork contract has to hold here too."
+    },
+    {
+      "id": "BUG-worktree",
+      "title": "Re-enter a session whose worktree was deleted",
+      "subtitle": "🐞 broken — `claude --resume` fails 'No conversation found'",
+      "what_fixes": "Many Done sessions ran in worktrees since removed. Clicking cd's to the gone worktree, falls back to its parent, and `claude --resume <uuid>` fails (the transcript lives under the worktree's encoded project dir, unreachable from the parent). Needs a different approach: resume from the correct project dir, OR open the transcript read-only, OR suppress re-entry when the cwd is gone and offer 'view transcript'."
+    },
+    {
+      "id": "GAP-fileopen",
+      "title": "Click a file chip → open the file",
+      "subtitle": "❌ missing — files shown but inert",
+      "what_fixes": "Prior Home's recent-file chips open the file in Duo on click. Catch-up renders files-in-flight chips but they don't respond to clicks. Wire them to open in the editor / canvas (the same `duo-home-open-file` path)."
+    },
+    {
+      "id": "GAP-expand",
+      "title": "Expand a compact (stalled) row into a full card",
+      "subtitle": "❌ missing — you requested this",
+      "what_fixes": "Compact rows under Done are one-liners with no way to see detail. You want them to expand into the same card anatomy (goal · You asked · todos · files · actions) — a disclosure toggle, or click-to-expand-in-place."
+    },
+    {
+      "id": "GAP-donebadge",
+      "title": "Explicit 'done' indicator on finished items",
+      "subtitle": "❌ missing — you requested this",
+      "what_fixes": "A finished session reads as done only by which column it's in. You want an explicit ✓ 'done' badge on the card (and especially on compact rows) so the state is unambiguous at a glance."
+    },
+    {
+      "id": "GAP-greeting",
+      "title": "Greeting / orientation line",
+      "subtitle": "❌ missing",
+      "what_fixes": "Prior Home opens with 'Good morning, Geoff — N sessions open' and a clickable freshest-session. Catch-up jumps straight to the board with no greeting or 'here's where you are' line."
+    },
+    {
+      "id": "GAP-title",
+      "title": "Use the session's TITLE (your /rename · Haiku) as the heading",
+      "subtitle": "⚠️ partial — catch-up uses the goal text",
+      "what_fixes": "Prior Home titles a session via the ladder: custom-title (/rename) → ai-title (Haiku) → first prompt. Catch-up uses the cleaned first prompt ('goal') and ignores a /rename or Claude's auto-title. Decide: keep 'goal', or prefer the title ladder (or show both)."
+    },
+    {
+      "id": "GAP-cron",
+      "title": "Cron job management (run · pause · edit · rm · + Schedule)",
+      "subtitle": "❌ missing — only a 'scheduled' badge",
+      "what_fixes": "Prior Home nests cron jobs under their project with full controls + a per-project '+ Schedule', plus an aggregated 'Scheduled' section for unsurfaced jobs. Catch-up only badges a cron-minted SESSION; there's no way to manage the jobs themselves from here."
+    },
+    {
+      "id": "GAP-worktreebadge",
+      "title": "Worktree / subpath badge on a card",
+      "subtitle": "⚠️ partial — repo label only",
+      "what_fixes": "Prior Home tags a session with its worktree/subpath so two worktrees of one repo are distinguishable. Catch-up shows the cwd basename only — and (per BUG-worktree) doesn't flag a worktree that's gone."
+    },
+    {
+      "id": "GAP-empty",
+      "title": "Overall empty state",
+      "subtitle": "⚠️ partial — bare '—' per column",
+      "what_fixes": "Prior Home has a friendly 'No projects yet — open a folder…' empty state. Catch-up shows a bare '—' in each column when there's nothing at all."
+    },
+    {
+      "id": "DEC-dismiss",
+      "title": "Dismiss / mark-reviewed — drop a session off the board",
+      "subtitle": "⏸ deferred (PRD D6b) — needs an SOR decision",
+      "what_fixes": "No native Claude 'done' flag: the CLI sessions-index has no status; Claude DESKTOP's per-session local_*.json has an `isArchived` boolean but only Desktop reads/writes it. Options for the source-of-record: (a) Duo-owned `dismissed` annotation in home-state.json — where review-state already lives per the §D9 ADR; (b) the Desktop `isArchived` sidecar — Claude-native-ish but round-trips with Desktop only, not the CLI; (c) a custom-title sentinel appended to the JSONL — true session-SOR but co-opts the title + a guarded append. Rate priority + note your SOR pick in the notes."
+    }
+  ],
+  "misc_notes": {
+    "title": "Anything else from the walk",
+    "help": "Other paper-cuts, or affordances I missed.",
+    "result_block_title": "OTHER NOTES"
+  }
+}
