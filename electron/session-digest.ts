@@ -4,13 +4,15 @@
 // is empty (`todos:[]`, `attention:null`) — NEVER guessed. Reuses the
 // claude-session-tracker JSONL primitives so parsing never diverges.
 //
-// SHAPE CAVEAT: the exact JSONL records for TodoWrite / ExitPlanMode /
-// create_pull_request were NOT present in this build environment's transcripts.
-// The scanners are modeled on the documented Claude Code tool-call shapes
-// (`{type:'tool_use', name, input}` blocks inside an assistant `message.content`
-// array; `toolUseResult` carried top-level on the following user record) and are
-// defensively coded + fixture-tested. Confirm against live transcripts on first
-// run (grep a real `~/.claude/projects/*/*.jsonl`).
+// SHAPE CONFIRMED (2026-06-23, against live ~/.claude/projects/*/*.jsonl):
+// TodoWrite input is `{todos:[{content,activeForm,status}]}`; ExitPlanMode is a
+// `{type:'tool_use', name:'ExitPlanMode'}` block; a created file surfaces as a
+// top-level `toolUseResult:{type:'create', filePath}`; a blocked tool surfaces
+// as a `toolUseResult` STRING starting `"Error:"` (and/or a `tool_result` block
+// with `is_error:true`); a PR URL matches /github.com/o/r/pull/N/. All scanners
+// below read those shapes. (`{type:'tool_use', name, input}` blocks live inside
+// an assistant `message.content` array; `toolUseResult` is carried top-level on
+// the following user record.)
 
 import { promises as fs } from 'fs'
 import {
