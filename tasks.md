@@ -5,13 +5,25 @@
 
 ### ENH-234: OKF rollup discoverability — reconcile the `.base` contradiction + propose a managed vault/rollup skill
 
-**Status:** 🚧 In-progress 2026-06-24 (Part A shipped in-branch; Part B = a decision playground awaiting owner walk). **Priority:** P1 (recurring agent failure — owner-reported with a photo). **Effort:** S (docs) + M (skill proposal). **Ticket note:** allocated above sibling worktree `vigorous-chandrasekhar-7d2fb6`'s uncommitted ENH-231/232/233 (collision rule) — renumber if another agent collides.
+**Status:** ✅ Decisions landed 2026-06-24 — shipping via PR [#110](https://github.com/dudgeon/duo/pull/110). **Priority:** P1 (recurring agent failure — owner-reported with a photo). **Effort:** S (docs) + M (skill proposal). **Ticket note:** allocated above sibling worktree `vigorous-chandrasekhar-7d2fb6`'s uncommitted ENH-231/232/233 (collision rule).
+
+**Owner decisions (2026-06-24, via the playground).** **Q1 = A** — strengthen vault/rollup *inside* the `duo` skill (no second skill: the failure was contradiction + triggering, not a missing skill; a second skill adds install plumbing + trigger ambiguity). **Q2/Q3 = N/A** (no new skill). **Q4 = yes** — file the `duo base new` scaffolder as its own ENH ([ENH-235](#enh-235)). "Ship it now." → Q1=A delta shipped: sharpened the skill `description` trigger so "make a rich HTML rollup/dashboard of my vault" routes to `duo rollup render` (was matching "build an interactive page/playground" → bespoke HTML). PR #110 merged to main; cut proposed.
 
 **Provenance.** Owner (2026-06-24) sent a photo of an Opus agent asked to *"make a rich html rollup of tasks and initiatives from this vault."* The agent hand-built a bespoke HTML dashboard, then (after correction) reasoned: *"OKF mode — `duo rollup` expects `.base` blocks, the views are hand-authored markdown without them, so `duo rollup render` won't work"* → reached for a bespoke playground. **The agent's CLI was fully capable** (repo `cli/duo` 0.12.1, `rollup` + ENH-230 `listing:` support); I verified empirically that `duo rollup render <base> --html` works in a throwaway OKF vault (2 rows, Refresh button, OKF entity links resolving). The failure was **contradictory guidance**: `rollup.md` says "author a `.base`, render works in both modes," while `SKILL.md`/`vault.md`/`.claude/rules/vault.md` said "OKF vaults have **no `.base` files** — authoring one there is a **no-op**." The agent believed the latter. ENH-230's `listing:` path also wasn't in the rollup guide.
 
 **Part A — docs reconciliation (this commit).** Fixed the over-broad "no `.base` / no-op" claims across `skill/references/rollup.md`, `skill/SKILL.md`, `skill/references/vault.md`, `.claude/rules/vault.md`: OKF doesn't *auto-render* `.base` at rest (Obsidian-live behavior), but a `.base` is just a **query** — `duo rollup render <base> --md|--html` evaluates it in BOTH modes and is the way to make a shareable HTML rollup from an OKF vault. Added an explicit "OKF vaults included — a `.base` is just the query" callout to rollup.md (the #1 fumble), and surfaced ENH-230's `listing:` in-vault path. `sync:claude` run (live agent unblocked); `check:skill-currency` PASS.
 
 **Part B — proposal: a dedicated managed vault/rollup skill (owner decision).** Owner asked to *"consider adding a new managed skill for vault management incl rollup management… think through the current rollup creation workflow, how a skill would be additive, how it would be deployed via the DMG."* Deliverable: a decision playground at `docs/research/okf-rollup-skill-proposal.html` (Atelier kernel + option cards + decision cards + Copy round-trip). **Review task: surfaces in every smoke-walk until the owner walks it.**
+
+### ENH-235: `duo base new` — scaffold a lint-clean `.base` so agents stop hand-writing rollup YAML
+
+**Status:** 🆕 Filed 2026-06-24 (owner-approved Q4 of ENH-234). **Priority:** P2 (removes the most error-prone step of the rollup workflow). **Effort:** S–M. **Ticket note:** allocated above ENH-234; sibling worktree `vigorous-chandrasekhar-7d2fb6` holds uncommitted ENH-231/232/233 — renumber on collision.
+
+**Why.** The ENH-234 photo showed the rollup workflow's friction: step 2 is hand-authoring a `.base` from scratch. Even with the guidance fixed, an agent (or the owner) still writes filters/views/groupBy/formula YAML by hand and lint-iterates. A scaffolder collapses "make a rollup" to two verbs in any vault and removes the hand-YAML step.
+
+**The change (proposed).** `duo base new --type <t> [--group <field>] [--cols a,b,c] [--filter '<expr>'] [--name "<view>"] [--out <path>] [--open]` → derives the corpus (`duo vault schema`), emits a `.base` (or ` ```base ` block) that's already lint-clean against the live types/fields/enums, and (with `--open`) hands straight to `duo rollup render`. New CLI verb → 4-surface sync (`cli/duo.ts`, `skill/SKILL.md` + `references/rollup.md`, `agents/duo.md`, `docs/CLI-COVERAGE.md`) + `build:cli` + `sync:claude`. Orthogonal to the Q1=A skill strengthening (helps every rollup path).
+
+### ENH-226: ⌘O Open bar — autofocus the URL/path entry field on open
 
 **Status:** 🆕 Filed 2026-06-21. **Priority:** P3 (small UX polish). **Effort:** S. **Ticket note:** allocated above this worktree's committed max (ENH-225); siblings sit ≤ ENH-206 — renumber if a concurrent agent collides.
 
