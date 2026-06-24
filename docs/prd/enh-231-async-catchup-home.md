@@ -111,6 +111,34 @@ extracted at the Stop hook. The state→column signals + confidence are document
 in `docs/research/async-catchup-board.html`. The raw phase signal may still be
 captured in the digest for a future view, but is **not surfaced** in v1.
 
+#### D6a — "Done" means FINISHED, not merely inactive (owner, 2026-06-24 live walk)
+First implementation derived Done as *"not live and not needs-you"* — pure
+inactivity — so every abandoned / half-finished session landed there, turning
+the review queue into a junk drawer. **Corrected:** the Done column splits by the
+two-tier mechanism into **finished** (full cards) vs **stalled** (compact rows,
+labeled *"Stalled · unfinished"*):
+- **Finished / reviewable (full)** = a crisp deliverable: opened a PR (an actual
+  `gh pr create` / `create_pull_request` whose URL is in the **tool result** — a
+  pull URL merely *mentioned* in prose does NOT count), OR a fully-complete
+  `TodoWrite` plan, OR a produced **document** (`.md`/`.html` — the D7 report case).
+- **Stalled (compact)** = closed with none of the above (code edits alone, an
+  unfinished plan, a bare exchange). These are the dismiss candidates (D6b).
+- Generic file edits and "tests ran" are deliberately **not** completion signals
+  — every coding session touches files, so they re-flood the column (live-data
+  finding, same class as the goal-machinery bug).
+
+#### D6b — Dismiss / "mark reviewed" — DEFERRED (open sub-decision)
+Owner wants a way to drop a reviewed/abandoned session off the board. Research
+(claude-code-guide, 2026-06-24) confirmed **Claude Code has no native
+done/archive flag** — the only session-metadata-native, round-trippable marker is
+`custom-title` (which co-opts the title + needs a guarded `.jsonl` append for
+closed sessions). The architectural counter-point: dismissal is a *reviewer-
+workflow* state Claude doesn't model, so it legitimately belongs in Duo-owned
+`home-state.json` (the §D9 ADR already blesses `reviewedAt` for exactly this).
+**Decision pending** — tracked in `tasks.md` ENH-231. The D6a Done-IA fix
+substantially reduces the urgency (stalled sessions are now de-emphasized as
+compact, and the 7-day window bounds the column).
+
 **Still open (one item):** the Done-column primary action default — recommended
 model is *Open session →* by default, *Open <artifact> →* for md/html (canvas/
 playground), PR/diff as secondary links (D7).
