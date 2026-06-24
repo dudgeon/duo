@@ -127,6 +127,35 @@ edited files on a known `gitBranch`, no PR → diff = *high*; tests/build = *med
 a chip not a destination; answer-only (prose, no artifact) = the honest gap, primary
 stays `Open session →`. Precedence for the *secondary* link: PR > new doc > diff.
 
+### D8 — Two Duo-owned stores; narrative is NOT in the rebuildable cache (adversarial review, 2026-06-23)
+Implementation-planning review found a contradiction in the naive D4 design: the
+agent-supplied narrative (`duo session note/next`) is **not** derivable from the
+transcript, so storing it in the "rebuildable cache" makes the §D9
+delete-cache→byte-identical-rebuild invariant a lie. Resolution — **two files**:
+- `~/.claude/duo/session-digests.json` — **transcript-derived only** (goal, youAsked,
+  todos, files, artifacts, attention, state, gitBranch, fallbackSnippet). This is the
+  cache the §D9 rebuild test gates.
+- `~/.claude/duo/home-state.json` — **Duo-owned, NOT rebuildable** (per-uuid
+  `{note?, next?, reviewedAt?}` + the "since you were away" watermark). §D9-exempt:
+  these are Duo concepts Claude Code never tracks. Narrative is captured at Stop-hook
+  time **keyed by uuid** so it survives after the session's tab closes (the Done-review
+  case). The rendered card = digest ⊕ annotation, merged at assembly.
+
+### v1 scope + remaining locked answers (owner, 2026-06-23)
+- **v1 = FULL build in one PR** (board + digest pipeline + Stop-hook + `duo home mode`
+  + `duo session note/next` + skill/agents teaching).
+- **Default mode = remember last used** (persisted app-global in `settings.json`,
+  fanned out to all windows).
+- **Session universe (two-tier):** all active/open sessions **and any session needing
+  you** render as **full cards**; the rest of the last-7-days (deduped) render as
+  **compact rows** beneath, within each attention column.
+- **Cron runs included, badged "scheduled."**
+- **Done-card primary** = `Open session →` (md/html leads with the artifact; PR/diff
+  secondary) — confirmed.
+
+**The full build playbook (phased, with file:line anchors and the 16 review fixes
+applied) lives in [enh-231-implementation-plan.md](enh-231-implementation-plan.md).**
+
 ### D4 — Hydration: materialize on the Stop hook
 Compute a per-session `SessionDigest` **incrementally, at turn boundaries while
 the session is live**, and cache it. Home reads cheap cached digests, never
