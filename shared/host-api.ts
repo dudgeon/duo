@@ -1567,6 +1567,20 @@ export interface ElectronHomeAPI {
    *  you" attention flag flips (set by the Stop/permission hook, cleared by the
    *  UserPromptSubmit hook). The renderer holds it keyed by tabId for the badge. */
   onTerminalTabAttention(cb: (p: TabAttentionPush) => void): () => void
+  /** ENH-231 — the Async Catch-Up Command Board (pre-hydrated digests ⊕ Duo-owned
+   *  annotations, assembled main-side; zero inference at open). */
+  catchup(): Promise<import('./types').CatchupSnapshot>
+  /** ENH-231 — read the app-global Home mode (projects ↔ catchup). */
+  getMode(): Promise<import('./types').HomeMode>
+  /** ENH-231 — persist the app-global Home mode; main fans it out to all windows. */
+  setMode(mode: import('./types').HomeMode): Promise<{ ok: boolean }>
+  /** ENH-231 — main → renderer push when the Home mode changes in ANY window.
+   *  The renderer sets local state idempotently (no catchup fetch — BUG-046).
+   *  Returns a cleanup function. */
+  onModeSet(cb: (mode: import('./types').HomeMode) => void): () => void
+  /** ENH-231 — materialize a tab's session digest (the renderer twin of the
+   *  Stop-hook `duo session digest`; e.g. a future "refresh this card"). */
+  sessionDigest(tabId: string, youAskedOnly?: boolean): Promise<{ ok: boolean; uuid?: string; error?: string }>
 }
 
 declare global {

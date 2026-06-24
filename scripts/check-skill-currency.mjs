@@ -174,7 +174,8 @@ const SUBCOMMANDS = {
   file: ['rename', 'trash'],
   workspace: ['save', 'open', 'list-recent', 'current', 'new'],
   // ENH-212 (Home) — `duo session open <uuid>` is the Home click contract.
-  session: ['list', 'resume', 'open'],
+  // ENH-231 — digest|note|next (Stop-hook pre-hydration + agent self-narration).
+  session: ['list', 'resume', 'open', 'digest', 'note', 'next'],
   project: ['list', 'focus', 'pin', 'unpin', 'close'],
   pack: ['list', 'uninstall'],
   packs: ['list'],
@@ -183,7 +184,8 @@ const SUBCOMMANDS = {
   // ENH-191 P5a (S3c) — `duo window new` opens a second window.
   window: ['new'],
   // ENH-212 (Home) — re-entry surface + terminal-tab switching.
-  home: ['show', 'state', 'refresh'],
+  // ENH-231 — mode (projects↔catchup) + catchup (the Command Board).
+  home: ['show', 'state', 'refresh', 'mode', 'catchup'],
   term: ['tabs', 'tab', 'close'],
   // ENH-223 — scheduled ("cron") Claude sessions.
   cron: ['list', 'add', 'edit', 'run', 'pause', 'resume', 'rm', 'show'],

@@ -1039,7 +1039,22 @@ const api: ElectronAPI = {
       const handler = (_e: unknown, payload: import('../shared/types').TabAttentionPush) => cb(payload)
       ipcRenderer.on(IPC.TERMINAL_TAB_ATTENTION, handler)
       return () => ipcRenderer.removeListener(IPC.TERMINAL_TAB_ATTENTION, handler)
-    }
+    },
+    // ENH-231 — Async Catch-Up board + app-global mode + digest materialize.
+    catchup: () =>
+      ipcRenderer.invoke(IPC.HOME_CATCHUP) as Promise<import('../shared/types').CatchupSnapshot>,
+    getMode: () => ipcRenderer.invoke(IPC.HOME_MODE_GET) as Promise<import('../shared/types').HomeMode>,
+    setMode: (mode: import('../shared/types').HomeMode) =>
+      ipcRenderer.invoke(IPC.HOME_MODE_SET, mode) as Promise<{ ok: boolean }>,
+    // main → renderer: the mode changed in some window. Subscription → teardown
+    // (mirror onTerminalTabAttention; leak risk if the removeListener is omitted).
+    onModeSet: (cb: (mode: import('../shared/types').HomeMode) => void) => {
+      const handler = (_e: unknown, mode: import('../shared/types').HomeMode) => cb(mode)
+      ipcRenderer.on(IPC.HOME_MODE_PUSH, handler)
+      return () => ipcRenderer.removeListener(IPC.HOME_MODE_PUSH, handler)
+    },
+    sessionDigest: (tabId: string, youAskedOnly?: boolean) =>
+      ipcRenderer.invoke(IPC.SESSION_DIGEST, { tabId, youAskedOnly }) as Promise<{ ok: boolean; uuid?: string; error?: string }>
   },
 
   // ENH-223 Tier 2 — scheduled ("cron") sessions on Home. One invoke channel

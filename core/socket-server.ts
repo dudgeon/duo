@@ -2235,9 +2235,28 @@ export class SocketServer {
             const r = await this.nav.sessionOpen(uuid, cwd, force)
             if (!r.ok) throw new Error(r.error ?? 'open failed')
             result = { ok: true, action: r.action }
+          } else if (op === 'digest') {
+            // ENH-231 — materialize the tab's digest into the rebuildable cache.
+            const tabId = args['tabId'] as string | undefined
+            if (!tabId) throw new Error('duo session digest requires <tab>')
+            const youAskedOnly = args['youAskedOnly'] === true || args['youAskedOnly'] === 'true'
+            result = await this.nav.sessionDigest(tabId, youAskedOnly)
+          } else if (op === 'note' || op === 'next') {
+            // ENH-231 — agent self-narration. No `text` ⇒ READ; with `text` ⇒ WRITE.
+            const tabId = args['tabId'] as string | undefined
+            if (!tabId) throw new Error(`duo session ${op} requires <tab>`)
+            const text = args['text'] as string | undefined
+            if (text === undefined) {
+              const value = op === 'note' ? await this.nav.getSessionNote(tabId) : await this.nav.getSessionNext(tabId)
+              result = { ok: true, [op]: value }
+            } else {
+              const r = op === 'note' ? await this.nav.setSessionNote(tabId, text) : await this.nav.setSessionNext(tabId, text)
+              if (!r.ok) throw new Error(r.error ?? `session ${op} failed`)
+              result = { ok: true, uuid: r.uuid }
+            }
           } else {
             // ENH-183 pared 2026-05-25 (Option A): rename + hydrate ops removed.
-            throw new Error(`Unknown session op: ${op}. Expected list|resume|open.`)
+            throw new Error(`Unknown session op: ${op}. Expected list|resume|open|digest|note|next.`)
           }
           break
         }
@@ -2256,8 +2275,23 @@ export class SocketServer {
             result = { ok: true }
           } else if (op === 'state') {
             result = await this.nav.getHomeState()
+          } else if (op === 'mode') {
+            // ENH-231 — read (no value) or set the app-global Home mode.
+            const value = args['value'] as string | undefined
+            if (value === undefined) {
+              result = { mode: this.nav.getHomeMode() }
+            } else if (value !== 'projects' && value !== 'catchup') {
+              throw new Error(`duo home mode: expected projects|catchup, got ${value}`)
+            } else {
+              const r = await this.nav.setHomeMode(value)
+              if (!r.ok) throw new Error(r.error ?? 'home mode failed')
+              result = { ok: true, mode: value }
+            }
+          } else if (op === 'catchup') {
+            // ENH-231 — the Async Catch-Up Command Board.
+            result = await this.nav.getCatchupBoard()
           } else {
-            throw new Error(`Unknown home op: ${op}. Expected show|state|refresh.`)
+            throw new Error(`Unknown home op: ${op}. Expected show|state|refresh|mode|catchup.`)
           }
           break
         }
