@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>OKF rollups — guidance fix + a dedicated vault/rollup skill? (ENH-234)</title>
+<style>
+:root {
+  --paper: #fbf8f1; --paper-deep: #f3ede0; --paper-edge: #e8e0cb; --paper-rule: #d9cea8;
+  --ink: #2b2620; --ink-soft: #4a4238; --ink-mute: #6f6557; --ink-ghost: #9a9080;
+  --accent: #c46a1c; --accent-soft: #f4d9b6; --pass: #4a7d3e; --fail: #b13e3a; --warn: #b07527;
+  --code-bg: #2b2823; --code-ink: #e8e0cb;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif; font-size: 14px; line-height: 1.55; }
+body { padding: 32px 40px 96px; max-width: 980px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px; }
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 6px; }
+.intro { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 14px 18px; margin-bottom: 28px; font-size: 13.5px; color: var(--ink-soft); }
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 600; margin: 36px 0 12px; font-size: 19px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px; }
+h3 { font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+h4 { margin: 16px 0 6px; font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; }
+p { margin: 8px 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; }
+ul, ol { margin: 8px 0; padding-left: 22px; } li { margin: 3px 0; }
+a { color: var(--accent); }
+.badge { display: inline-block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 10px; vertical-align: middle; }
+.badge.ok { background: #d9eccf; color: var(--pass); } .badge.warn { background: #f0e2c4; color: var(--warn); } .badge.bad { background: #f1d9d6; color: var(--fail); }
+
+.rc { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-left: 4px solid var(--accent); border-radius: 6px; padding: 14px 18px; margin: 14px 0 18px; }
+.rc .rc-cause { font-size: 14.5px; color: var(--ink); } .rc .rc-cause strong { color: var(--accent); }
+.verified { background: #f3f8ee; border: 1.5px solid #cfe3c0; border-left: 4px solid var(--pass); border-radius: 6px; padding: 12px 16px; margin: 14px 0; font-size: 13px; color: var(--ink-soft); }
+.verified .vt { font-weight: 700; color: var(--pass); text-transform: uppercase; letter-spacing: 0.04em; font-size: 11.5px; margin-bottom: 5px; }
+.verified code { font-size: 11.5px; }
+
+/* causal / workflow chain */
+.chain { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 12px 0; font-size: 12px; }
+.chain .step { background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 7px 11px; color: var(--ink-soft); max-width: 230px; }
+.chain .step.bad { border-color: var(--fail); color: var(--fail); background: #fdf0ef; font-weight: 600; }
+.chain .step.good { border-color: var(--pass); color: var(--pass); background: #f3f8ee; font-weight: 600; }
+.chain .step code { font-size: 11px; background: var(--paper-deep); }
+.chain .arrow { color: var(--ink-ghost); font-size: 16px; }
+.codeblock { background: var(--code-bg); color: var(--code-ink); border-radius: 6px; padding: 13px 15px; font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; line-height: 1.6; margin: 12px 0; overflow-x: auto; white-space: pre-wrap; }
+.codeblock .hl { color: #f4b860; font-weight: 700; } .codeblock .dim { color: #9a9080; }
+
+/* option cards */
+.option-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin: 12px 0 4px; }
+.option-card { background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 12px 15px; }
+.option-card.rec { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 5%, var(--paper)); }
+.option-card .oc-head { font-weight: 600; font-size: 14px; color: var(--ink); margin-bottom: 4px; }
+.option-card .oc-head .letter { display: inline-block; width: 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 5px; background: var(--accent); color: white; font-weight: 700; font-size: 12px; margin-right: 8px; }
+.option-card .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+.option-card .oc-effort { float: right; font-size: 11px; color: var(--ink-mute); font-weight: 600; }
+.option-card .oc-body { font-size: 12.5px; color: var(--ink-soft); margin: 4px 0; }
+.option-card .oc-trade { font-size: 12px; color: var(--ink-mute); margin-top: 4px; } .option-card .oc-trade strong { color: var(--ink-soft); }
+.option-card .oc-files { font-size: 11px; color: var(--ink-ghost); margin-top: 4px; } .option-card .oc-files code { font-size: 11px; }
+
+/* decision cards (Atelier kernel) */
+.decision-card { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 16px 18px; margin: 18px 0; }
+.decision-card .q-title { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px; }
+.decision-card .q-prompt { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 500; font-size: 17px; color: var(--ink); margin: 0 0 12px; line-height: 1.35; }
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option { display: block; background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 10px 12px; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes { width: 100%; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px; }
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+.copy-bar { position: sticky; bottom: 0; margin: 32px -40px -96px; padding: 16px 40px; background: color-mix(in srgb, var(--paper-deep) 96%, transparent); border-top: 1.5px solid var(--paper-rule); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button { background: var(--accent); color: white; border: none; border-radius: 5px; padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+.copy-bar button.copied { background: var(--pass); }
+.send-btn { background: var(--paper) !important; color: var(--accent) !important; border: 1.5px solid var(--accent) !important; }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>OKF rollups — guidance fix + a dedicated vault/rollup skill?</h1>
+  <div class="meta">
+    <span class="pill">Decision gate</span>
+    <span class="pill">4 questions</span>
+    ENH-234 · filed 2026-06-24 · owner-reported (photo) · Part A shipped in-branch
+  </div>
+</header>
+
+<div class="intro">
+  <strong>Owner report.</strong> A photo of an Opus agent asked to <em>"make a rich html rollup of tasks and initiatives from this vault."</em> The agent hand-built a bespoke HTML dashboard, then (after correction) reasoned: <em>"OKF mode — <code>duo rollup</code> expects <code>.base</code> blocks, the views are hand-authored markdown without them, so <code>duo rollup render</code> won't work"</em> → reached for a bespoke playground.
+  <br><br>
+  <strong>The ask.</strong> <em>"Reconcile the docs — and consider adding a new managed skill for vault management incl rollup management; think through the current rollup creation workflow, how a skill would be additive, how it would be deployed via the DMG."</em>
+  <br><br>
+  <strong>This page.</strong> The verified root cause, the current workflow, the deployment reality of shipping a new skill, and <strong>four decisions</strong> for you — radios + notes, then <em>Copy</em> (or <em>Send to Claude</em>) at the bottom.
+</div>
+
+<h2>Root cause — it wasn't a missing capability</h2>
+<div class="rc">
+  <div class="rc-cause"><strong>The agent's CLI was fully capable.</strong> It runs the repo <code>cli/duo</code> at v0.12.1 — <code>rollup</code> + the ENH-230 <code>listing:</code> support are both present. The failure was <strong>contradictory guidance</strong> that talked the agent out of the working path.</div>
+</div>
+
+<div class="chain">
+  <div class="step">"Make an HTML rollup of this OKF vault"</div>
+  <span class="arrow">→</span>
+  <div class="step bad">SKILL.md / vault.md said: <em>"OKF has <strong>no <code>.base</code> files</strong> — authoring one is a <strong>no-op</strong>"</em></div>
+  <span class="arrow">→</span>
+  <div class="step bad">agent: "so <code>rollup render</code> can't work here"</div>
+  <span class="arrow">→</span>
+  <div class="step bad">hand-builds bespoke HTML (no Refresh button, no stamp)</div>
+</div>
+<p style="font-size:12.5px;color:var(--ink-mute)">…while <code>references/rollup.md</code> simultaneously said "author a <code>.base</code>, render works in <strong>both</strong> modes." The two surfaces disagreed; the agent believed the scarier one.</p>
+
+<div class="verified">
+  <div class="vt">✓ Verified empirically (throwaway OKF vault)</div>
+  <code>duo rollup render tasks.base --html</code> in an OKF vault produced a valid artifact — <strong>2 task rows grouped by initiative, a working Refresh button, and the OKF entity link resolved</strong> (<code>href="./initiatives/graphbook.md"</code>). The "rich HTML rollup with a refresh button" the owner wanted <em>is exactly</em> what <code>rollup render --html</code> emits. The agent just never reached it.
+</div>
+
+<div class="rc" style="border-left-color: var(--pass); background:#f3f8ee;">
+  <div class="rc-cause"><strong style="color:var(--pass)">Part A — already shipped in this branch.</strong> The contradiction is reconciled across <code>rollup.md</code>, <code>SKILL.md</code>, <code>vault.md</code>, <code>.claude/rules/vault.md</code>: <em>OKF doesn't auto-render <code>.base</code> at rest (an Obsidian-live behavior), but a <code>.base</code> is just a query — <code>duo rollup render &lt;base&gt; --md|--html</code> works in both modes.</em> Synced to <code>~/.claude</code> (the live agent is unblocked). <strong>The open question below is Part B: does a dedicated skill add value on top of this?</strong></div>
+</div>
+
+<h2>The current rollup-creation workflow</h2>
+<p style="font-size:13px">What an agent must do today to satisfy "make me a rollup/dashboard from my vault":</p>
+<div class="codeblock"><span class="hl">1.</span> duo vault schema            <span class="dim"># learn the real type/field/enum names</span>
+<span class="hl">2.</span> author a .base (the query)  <span class="dim"># filters + views + groupBy + formula chips</span>
+<span class="hl">3.</span> duo base lint &lt;base&gt;        <span class="dim"># advisory; fix "did you mean" until clean</span>
+<span class="hl">4.</span> duo rollup render &lt;base&gt; --html --open   <span class="hl">← the artifact (works in OKF too)</span>
+   <span class="dim">— or, for the in-vault canonical index —</span>
+   duo vault publish            <span class="dim"># index.md; + a listing: frontmatter spec (ENH-230) for grouping</span>
+<span class="hl">5.</span> on refresh: duo rollup diff → write narrative → render --summary</div>
+<h4>Friction points the photo exposed</h4>
+<ul style="font-size:13px;color:var(--ink-soft)">
+  <li><strong>Triggering</strong> — the agent didn't consult the skill <em>at all</em> until corrected; it went straight to bespoke HTML. <span class="badge bad">unsolved by Part A</span></li>
+  <li><strong>The OKF/<code>.base</code> contradiction</strong> — talked it out of <code>rollup render</code>. <span class="badge ok">fixed (Part A)</span></li>
+  <li><strong>Three OKF paths blur together</strong> — <code>rollup render</code> (artifact) vs <code>vault publish</code> (index) vs <code>listing:</code> (expressive index). <span class="badge warn">clarified (Part A); still a lot to hold</span></li>
+  <li><strong>Step 2 is hand-authoring</strong> — no scaffold; the agent writes <code>.base</code> YAML from scratch each time. <span class="badge warn">open</span></li>
+</ul>
+
+<h2>Deployment reality — what a "managed skill" actually costs</h2>
+<p style="font-size:13px">How skills reach an installed (DMG) user today, from the code:</p>
+<ul style="font-size:13px;color:var(--ink-soft)">
+  <li><code>electron-builder.yml</code> ships the whole <code>skill/</code> tree into the app bundle (<code>extraResources</code>).</li>
+  <li><code>electron/install-service.ts</code> copies it to <code>~/.claude/skills/<strong>duo</strong>/</code> on first launch/upgrade — with <strong>hardcoded, per-file copies</strong> (SKILL.md, <code>references/</code>, <code>examples/</code>…), registered in <code>~/.claude/duo/installed.json</code> for upgrade + orphan cleanup. <strong>It does not iterate a skills manifest.</strong></li>
+  <li>Claude Code then <strong>auto-discovers</strong> any folder under <code>~/.claude/skills/*</code> by its SKILL.md <code>name</code> + <code>description</code>.</li>
+  <li><strong>Precedent:</strong> the <code>pack-builder</code> skill ships <em>only</em> via dev <code>sync:claude</code> — <strong>not</strong> by <code>install-service</code> — so installed users never get it. It's effectively a repo/dev-only skill.</li>
+</ul>
+<div class="rc" style="border-left-color: var(--warn);">
+  <div class="rc-cause">So a new <strong>managed</strong> <code>duo-vault</code> skill that reaches installed users is <strong>real plumbing</strong>, not a folder: a source dir, an <code>extraResources</code> entry, new hardcoded copy logic in <code>install-service.ts</code> + its <code>installed.json</code> provenance + orphan-map, an <code>install-service.test.ts</code> case, and the <code>sync:claude</code> update. Plus the SessionStart priming + the managed <code>CLAUDE.md</code> block currently name only the <code>duo</code> skill.</div>
+</div>
+
+<h2>The additivity tension</h2>
+<p style="font-size:13px">The <code>duo</code> skill's description <strong>already</strong> claims vault/rollup: <em>"…work with their knowledge vault / notes… building rollup views…"</em>, and it already has dedicated reference spokes (<code>references/vault.md</code>, <code>references/rollup.md</code>) — the depth exists. A second skill that <em>also</em> describes "vault/rollup/notes" gives Claude Code <strong>two overlapping triggers to disambiguate</strong> — the same unreliability the photo shows (the model picking wrong / not triggering). Separation-of-concerns has to beat that ambiguity cost to be worth it.</p>
+
+<h2>Options</h2>
+<div class="option-grid">
+  <div class="option-card rec">
+    <div class="oc-head"><span class="letter">A</span>Strengthen vault/rollup <em>inside</em> the <code>duo</code> skill<span class="recommend-tag">Recommended</span><span class="oc-effort">Effort: S</span></div>
+    <div class="oc-body">Part A is step one. Add a crisp, unmissable "make a rollup → <code>duo rollup render --html</code>" recipe to the hub, sharpen the skill <em>description</em> so "dashboard / rollup / roll up my vault" triggers reliably, and keep the depth in the existing <code>rollup.md</code>/<code>vault.md</code> spokes.</div>
+    <div class="oc-trade"><strong>For:</strong> zero new plumbing; no trigger ambiguity; uses the hub+spokes architecture already in place. <strong>Against:</strong> doesn't make vault/rollup independently distributable; relies on the omnibus skill triggering.</div>
+    <div class="oc-files">touches: <code>skill/SKILL.md</code> (description + recipe) · <code>references/rollup.md</code></div>
+  </div>
+  <div class="option-card">
+    <div class="oc-head"><span class="letter">B</span>Extract a dedicated managed <code>duo-vault</code> skill<span class="oc-effort">Effort: M–L</span></div>
+    <div class="oc-body">A first-class skill (<code>~/.claude/skills/duo-vault/</code>) owning capture · file · link/graph · rollup, shipped to installed users via the DMG.</div>
+    <div class="oc-trade"><strong>For:</strong> clean separation; room to go deep on the vault domain; independently versionable/distributable. <strong>Against:</strong> the install-service plumbing above; <strong>trigger ambiguity</strong> with the <code>duo</code> skill (both claim vault) unless their descriptions are carefully partitioned; two surfaces to keep in sync.</div>
+    <div class="oc-files">touches: new <code>skill-vault/</code> · <code>electron/install-service.ts</code> (+ test, installed.json map) · <code>electron-builder.yml</code> · <code>sync:claude</code> · the <code>duo</code> skill (hand off vault triggers)</div>
+  </div>
+  <div class="option-card">
+    <div class="oc-head"><span class="letter">C</span>Thin "rollup recipe" skill the hub defers to<span class="oc-effort">Effort: M</span></div>
+    <div class="oc-body">A narrow skill triggered <em>only</em> on "make/refresh a rollup or dashboard," that owns the author-a-base → <code>render --html</code> → diff/summarize loop. The <code>duo</code> skill keeps capture/file/link and defers rollup to it.</div>
+    <div class="oc-trade"><strong>For:</strong> narrow non-overlapping trigger (less ambiguity than B); isolates the exact thing agents fumble. <strong>Against:</strong> still needs the install-service plumbing; a third surface; "where does vault end and rollup begin" boundary to maintain.</div>
+    <div class="oc-files">touches: new <code>skill-rollup/</code> · <code>install-service.ts</code> (+ test) · <code>electron-builder.yml</code> · <code>sync:claude</code></div>
+  </div>
+  <div class="option-card">
+    <div class="oc-head"><span class="letter">D</span>Ship Part A, then watch before deciding<span class="oc-effort">Effort: 0</span></div>
+    <div class="oc-body">Part A may be enough. Cut it, watch whether agents now reliably reach <code>rollup render --html</code>, and only build a skill if they still fumble.</div>
+    <div class="oc-trade"><strong>For:</strong> avoids speculative plumbing; data-driven. <strong>Against:</strong> defers the owner's stated interest in a managed vault skill; needs a feedback loop to actually re-evaluate.</div>
+    <div class="oc-files">touches: nothing further (Part A already in-branch)</div>
+  </div>
+</div>
+
+<h4>One orthogonal idea worth a vote (independent of A–D)</h4>
+<p style="font-size:13px;color:var(--ink-soft)">The single highest-leverage <em>capability</em> fix to step 2 is a <strong>base scaffolder</strong> — e.g. <code>duo base new --type task --group initiative --cols status,owner</code> — so an agent (or you) gets a lint-clean <code>.base</code> without hand-writing YAML. It shrinks "make a rollup" to two verbs in any vault and removes the most error-prone step. That's a small feature, not a skill — Q4 asks whether to pursue it.</p>
+
+<h2>Decisions</h2>
+
+<div class="decision-card">
+  <div class="q-title">Q1 · Direction</div>
+  <div class="q-prompt">How should we close the OKF-rollup discoverability gap?</div>
+  <div class="q-context">Part A (the docs reconciliation) is already shipped in-branch and synced. This is about what (if anything) comes on top.</div>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="q1-direction" value="A"><span class="q-option-body"><div class="q-option-title">A · Strengthen within the <code>duo</code> skill <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">Sharper trigger + an unmissable rollup recipe in the hub; no new plumbing, no ambiguity.</div></span></label>
+    <label class="q-option"><input type="radio" name="q1-direction" value="B"><span class="q-option-body"><div class="q-option-title">B · Dedicated managed <code>duo-vault</code> skill</div><div class="q-option-rationale">First-class vault domain shipped via the DMG. Accepts the plumbing + ambiguity cost for separation.</div></span></label>
+    <label class="q-option"><input type="radio" name="q1-direction" value="C"><span class="q-option-body"><div class="q-option-title">C · Thin "rollup recipe" skill the hub defers to</div><div class="q-option-rationale">Narrow non-overlapping trigger on rollup/dashboard only.</div></span></label>
+    <label class="q-option"><input type="radio" name="q1-direction" value="D"><span class="q-option-body"><div class="q-option-title">D · Ship Part A, watch, then decide</div><div class="q-option-rationale">Data-driven; build a skill only if agents still fumble.</div></span></label>
+  </div>
+  <textarea class="q-notes" name="q1-notes" placeholder="Notes / a different shape..."></textarea>
+</div>
+
+<div class="decision-card">
+  <div class="q-title">Q2 · Scope (only if B or C)</div>
+  <div class="q-prompt">If we do build a new skill, what does it own?</div>
+  <div class="q-context">Bigger scope = more separation but more overlap with the <code>duo</code> skill's existing vault triggers.</div>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="q2-scope" value="rollup-only"><span class="q-option-body"><div class="q-option-title">Rollup/dashboard authoring only</div><div class="q-option-rationale">The base → render → diff/summarize loop. Narrowest trigger, least overlap.</div></span></label>
+    <label class="q-option"><input type="radio" name="q2-scope" value="vault-full"><span class="q-option-body"><div class="q-option-title">All vault management</div><div class="q-option-rationale">Capture · file · link/graph · publish · rollup. Most separation; most overlap to partition.</div></span></label>
+    <label class="q-option"><input type="radio" name="q2-scope" value="authoring"><span class="q-option-body"><div class="q-option-title">Vault <em>authoring</em> (schema + base + lint + render)</div><div class="q-option-rationale">The "build a view" half; leaves capture/file/link with the <code>duo</code> skill.</div></span></label>
+    <label class="q-option"><input type="radio" name="q2-scope" value="na"><span class="q-option-body"><div class="q-option-title">N/A — picked A or D</div><div class="q-option-rationale">No new skill.</div></span></label>
+  </div>
+  <textarea class="q-notes" name="q2-notes" placeholder="Notes..."></textarea>
+</div>
+
+<div class="decision-card">
+  <div class="q-title">Q3 · Deployment target (only if B or C)</div>
+  <div class="q-prompt">Who should the new skill reach?</div>
+  <div class="q-context">Recall: <code>install-service.ts</code> only installs the <code>duo</code> skill today; <code>pack-builder</code> is dev-only. Each target is a different amount of plumbing.</div>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="q3-deploy" value="dmg"><span class="q-option-body"><div class="q-option-title">Managed via the DMG (installed users)</div><div class="q-option-rationale">install-service copy logic + installed.json + orphan-map + test + extraResources. The full "managed skill" path.</div></span></label>
+    <label class="q-option"><input type="radio" name="q3-deploy" value="dev-only"><span class="q-option-body"><div class="q-option-title">Dev/repo-only via <code>sync:claude</code> (like pack-builder)</div><div class="q-option-rationale">Cheapest; only reaches contributors, not installed users.</div></span></label>
+    <label class="q-option"><input type="radio" name="q3-deploy" value="distro"><span class="q-option-body"><div class="q-option-title">Standalone distro pack / Claude Code plugin</div><div class="q-option-rationale">Independently installable via the pack pipeline; decoupled from the Duo DMG cadence.</div></span></label>
+    <label class="q-option"><input type="radio" name="q3-deploy" value="na"><span class="q-option-body"><div class="q-option-title">N/A — picked A or D</div><div class="q-option-rationale">No new skill.</div></span></label>
+  </div>
+  <textarea class="q-notes" name="q3-notes" placeholder="Notes..."></textarea>
+</div>
+
+<div class="decision-card">
+  <div class="q-title">Q4 · The base scaffolder (orthogonal)</div>
+  <div class="q-prompt">Pursue a <code>duo base new</code> scaffolder so agents stop hand-writing <code>.base</code> YAML?</div>
+  <div class="q-context">Independent of Q1–Q3 — it helps every option by removing the most error-prone authoring step. A small CLI feature.</div>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="q4-scaffolder" value="yes"><span class="q-option-body"><div class="q-option-title">Yes — file it as its own ENH <span class="recommend-tag">Lean yes</span></div><div class="q-option-rationale"><code>duo base new --type X --group Y --cols …</code> → a lint-clean base. Two-verb rollups in any vault.</div></span></label>
+    <label class="q-option"><input type="radio" name="q4-scaffolder" value="later"><span class="q-option-body"><div class="q-option-title">Later — backlog it</div><div class="q-option-rationale">Worth doing, not now; revisit at sprint-plan.</div></span></label>
+    <label class="q-option"><input type="radio" name="q4-scaffolder" value="no"><span class="q-option-body"><div class="q-option-title">No — the recipe is enough</div><div class="q-option-rationale">Authoring a base by hand is fine once the guidance is clear.</div></span></label>
+  </div>
+  <textarea class="q-notes" name="q4-notes" placeholder="Notes..."></textarea>
+</div>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0 / 4</span> decisions answered.</div>
+  <div style="display:flex;gap:10px;">
+    <button id="send-decisions" class="send-btn" type="button">Send to Claude</button>
+    <button id="copy-decisions" type="button">Copy decisions</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  var counter = document.getElementById('answered-count');
+  var copyBtn = document.getElementById('copy-decisions');
+  var sendBtn = document.getElementById('send-decisions');
+  var QS = [
+    { id: 'q1-direction', title: 'Q1 · Direction' },
+    { id: 'q2-scope', title: 'Q2 · Scope (if B/C)' },
+    { id: 'q3-deploy', title: 'Q3 · Deployment target (if B/C)' },
+    { id: 'q4-scaffolder', title: 'Q4 · base scaffolder (orthogonal)' }
+  ];
+  function refresh() {
+    var n = 0;
+    for (var i = 0; i < QS.length; i++) {
+      if (document.querySelector('input[name="' + QS[i].id + '"]:checked')) n++;
+    }
+    counter.textContent = n + ' / ' + QS.length;
+  }
+  document.addEventListener('change', refresh);
+  document.addEventListener('input', refresh);
+  refresh();
+  function buildPayload() {
+    var lines = [];
+    lines.push('OKF ROLLUP SKILL — DECISIONS (' + new Date().toISOString().slice(0, 10) + ')');
+    lines.push('ENH-234 Part B · docs/research/okf-rollup-skill-proposal.html');
+    lines.push('=================================================');
+    lines.push('');
+    for (var i = 0; i < QS.length; i++) {
+      var q = QS[i];
+      var checked = document.querySelector('input[name="' + q.id + '"]:checked');
+      var value = checked ? checked.value : '(no pick)';
+      var notesEl = document.querySelector('textarea[name="' + q.id.replace(/^(q\d+)-.+$/, '$1') + '-notes"]');
+      var notes = (notesEl && notesEl.value || '').trim();
+      lines.push('[' + value.toUpperCase() + '] ' + q.title);
+      if (notes) { var nl = notes.split('\n'); for (var j = 0; j < nl.length; j++) lines.push('    ' + nl[j]); }
+      lines.push('');
+    }
+    lines.push('---');
+    lines.push('Source: docs/research/okf-rollup-skill-proposal.html');
+    return lines.join('\n');
+  }
+  copyBtn.addEventListener('click', function () {
+    var payload = buildPayload();
+    navigator.clipboard.writeText(payload).then(function () {
+      copyBtn.textContent = 'Copied!'; copyBtn.classList.add('copied');
+      setTimeout(function () { copyBtn.textContent = 'Copy decisions'; copyBtn.classList.remove('copied'); }, 2000);
+    }).catch(function () { copyBtn.textContent = 'Copy failed (focus page)'; });
+  });
+  sendBtn.addEventListener('click', function () {
+    var payload = buildPayload();
+    if (typeof sendPrompt === 'function') {
+      sendPrompt('Here are my decisions on the OKF rollup skill proposal (ENH-234 Part B):\n\n' + payload);
+      sendBtn.textContent = 'Sent!'; setTimeout(function () { sendBtn.textContent = 'Send to Claude'; }, 2000);
+    } else {
+      navigator.clipboard.writeText(payload);
+      sendBtn.textContent = 'Copied (no Duo)'; setTimeout(function () { sendBtn.textContent = 'Send to Claude'; }, 2000);
+    }
+  });
+})();
+</script>
+</body>
+</html>
