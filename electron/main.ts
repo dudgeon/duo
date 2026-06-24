@@ -4525,9 +4525,9 @@ async function computeCatchupSnapshot(): Promise<CatchupSnapshot> {
 }
 
 /** P6 — session uuids minted by cron runs (badged `scheduled` on the board).
- *  Empty until P6 wires the cron lastSessionId set; non-cron boards unaffected. */
+ *  Empty before the cron service is ready; non-cron boards unaffected. */
 function collectCronSessionIds(): Set<string> {
-  return new Set<string>()
+  return new Set(cronService?.lastSessionIds() ?? [])
 }
 
 /**

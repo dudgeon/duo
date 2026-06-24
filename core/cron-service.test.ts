@@ -78,6 +78,17 @@ describe('CronService', () => {
     expect(job.lastRunState).toBe('ran')
   })
 
+  it('ENH-231 — lastSessionIds() collects fired jobs\' minted ids (for the scheduled badge)', async () => {
+    const { runner } = makeRunner()
+    const svc = new CronService({ store, runner, sessionExists: async () => false, headlessAllowed: false })
+    const fired = (await addJob(svc, { name: 'A', session: 'fresh' })) as { id: string }
+    await addJob(svc, { name: 'B', session: 'fresh' }) // never fired ⇒ no lastSessionId
+    await svc.fireJob(fired.id, { reason: 'manual' })
+
+    const ids = svc.lastSessionIds()
+    expect(ids).toEqual([store.getJob(fired.id)!.lastSessionId])
+  })
+
   it('a "same" job resumes when the prior session still exists', async () => {
     const { runner, calls } = makeRunner()
     const svc = new CronService({ store, runner, sessionExists: async () => true, headlessAllowed: false })

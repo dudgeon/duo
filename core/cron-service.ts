@@ -98,6 +98,17 @@ export class CronService {
     this.timer = null
   }
 
+  /** ENH-231 — the session uuids a cron run has minted (each job's
+   *  `lastSessionId`). The Catch-Up board badges these `scheduled`, so the
+   *  "work done while you were away" reads as scheduled, never inferred. */
+  lastSessionIds(): string[] {
+    const ids: string[] = []
+    for (const job of this.store.getJobs()) {
+      if (job.lastSessionId) ids.push(job.lastSessionId)
+    }
+    return ids
+  }
+
   // ── scheduling ────────────────────────────────────────────────────────────
 
   private scheduleAll(): void {
