@@ -36,12 +36,19 @@ import {
   readSessionTailMeta,
   type TopLevelSessionStat,
 } from './claude-session-tracker'
+import { extractSessionDigest, deriveState } from './session-digest'
+import type { SessionDigestStore } from '../core/session-digest-store'
+import type { HomeStateStore } from '../core/home-state-store'
 import type {
   GreetingData,
   HomeProject,
   HomeSession,
   HomeSessionOpen,
   HomeSnapshot,
+  SessionDigest,
+  CatchupCard,
+  CatchupColumn,
+  CatchupSnapshot,
 } from '../shared/types'
 
 /** Default sessions surfaced per project before the "all N sessions"
@@ -576,6 +583,152 @@ export async function buildHomeSnapshot(deps: BuildHomeSnapshotDeps = {}): Promi
     generatedAt: now,
     greeting,
     projects,
+  }
+}
+
+// ── ENH-231 — Async Catch-Up assembly (the Command Board) ────────────────
+//
+// Same enumerate → rollup spine as buildHomeSnapshot, but the unit of
+// attention is the SESSION, not the project. Each in-window session is
+// hydrated from its pre-materialized digest (the §D9 rebuildable cache) and
+// merged with its Duo-owned annotation (home-state.json) into a CatchupCard,
+// then bucketed by attention/liveness into the three board columns. ZERO
+// inference at open — every field comes from the cached digest or the
+// annotation; a cache miss re-extracts deterministically (and re-caches).
+
+const DAY_MS = 86_400_000
+const DEFAULT_CATCHUP_DAYS = 7
+
+/**
+ * The read-or-extract fast-path that backs the §D9 invariant at assembly time.
+ * Cache hit (cached digest at least as fresh as the JSONL) ⇒ return it; miss or
+ * stale (the transcript advanced past the cache) ⇒ re-extract deterministically
+ * and re-cache, so the board is identical whether the cache was warm or cold.
+ * Returns null only when extraction fails AND there is no cache to fall back to.
+ */
+async function readOrExtractDigest(
+  store: SessionDigestStore,
+  uuid: string,
+  jsonlPath: string,
+  mtimeMs: number,
+): Promise<SessionDigest | null> {
+  const cached = store.getDigest(uuid)
+  if (cached && cached.lastActivityAt >= mtimeMs) return cached
+  const fresh = await extractSessionDigest(jsonlPath, uuid)
+  if (fresh) {
+    await store.setDigest(uuid, fresh)
+    return fresh
+  }
+  return cached ?? null // I/O failure — prefer a stale cache over dropping the card
+}
+
+export interface BuildCatchupDeps {
+  /** Default ~/.claude/projects; injectable for tests. */
+  projectsRoot?: string
+  /** Rolling window (days) the board covers. Default 7. */
+  daysSince?: number
+  /** Clock injection for the window cutoff + generatedAt (tests). */
+  now?: number
+  /** The rebuildable digest cache (transcript-derived; §D9-gated). */
+  digestStore: SessionDigestStore
+  /** Duo-owned annotations + watermark (narrative / reviewedAt). */
+  homeStateStore: HomeStateStore
+  /** Process-primary liveness join (uuid → duo|external). Absent ⇒ all closed. */
+  openByUuid?: OpenByUuid
+  /** P6 — session uuids minted by a cron run (badged `scheduled`). */
+  cronSessionIds?: ReadonlySet<string>
+}
+
+function emptyColumn(): CatchupColumn {
+  return { full: [], compact: [] }
+}
+
+/**
+ * Assemble the Command Board. Deterministic with respect to its injected deps;
+ * the only ambient I/O is the seek-based, concurrency-limited transcript reads
+ * (cache misses only). The server is the authority — the renderer renders these
+ * columns verbatim.
+ *
+ * Column = re-derived `state` (attention ⇒ needs-you · live & no-attention ⇒
+ * working · else done). Tier (two-tier rule, review fix #8) = `full` when the
+ * session is LIVE or NEEDS YOU (a closed-but-awaiting-approval session is the
+ * highest-value Needs-you card and must stay full), else `compact`.
+ */
+export async function buildCatchupSnapshot(deps: BuildCatchupDeps): Promise<CatchupSnapshot> {
+  const projectsRoot = deps.projectsRoot ?? path.join(os.homedir(), '.claude', 'projects')
+  const daysSince = deps.daysSince ?? DEFAULT_CATCHUP_DAYS
+  const now = deps.now ?? Date.now()
+  const openByUuid: OpenByUuid = deps.openByUuid ?? new Map()
+  const cronSessionIds = deps.cronSessionIds ?? new Set<string>()
+  const since = now - daysSince * DAY_MS
+
+  const raw = await enumerateProjectDirs(projectsRoot)
+  const rolled = await rollupProjects(raw)
+
+  // Flatten to one entry per session within the window, deduped by uuid
+  // (keep the freshest stat — a resume-minted duplicate is a known v1 limit).
+  const byUuid = new Map<string, RolledSession>()
+  for (const proj of rolled) {
+    for (const rs of proj.sessions) {
+      if (rs.stat.mtimeMs < since) continue
+      const prev = byUuid.get(rs.stat.id)
+      if (!prev || rs.stat.mtimeMs > prev.stat.mtimeMs) byUuid.set(rs.stat.id, rs)
+    }
+  }
+  const entries = [...byUuid.values()]
+
+  const cards = (
+    await mapLimit(entries, READ_CONCURRENCY, async (rs): Promise<CatchupCard | null> => {
+      const uuid = rs.stat.id
+      const jsonlPath = path.join(rs.encodedDir, `${uuid}.jsonl`)
+      const digest = await readOrExtractDigest(deps.digestStore, uuid, jsonlPath, rs.stat.mtimeMs)
+      if (!digest) return null
+
+      const live = openByUuid.has(uuid)
+      const open = openByUuid.get(uuid)?.kind === 'duo'
+      const attention = digest.attention
+      const state = deriveState(live, attention?.reason ?? null)
+      const tier: CatchupCard['tier'] = live || attention ? 'full' : 'compact'
+      const ann = deps.homeStateStore.getAnnotation(uuid)
+      const narrative =
+        ann?.note || ann?.next
+          ? { ...(ann.note ? { note: ann.note } : {}), ...(ann.next ? { next: ann.next } : {}) }
+          : undefined
+
+      return {
+        ...digest,
+        state, // re-derived with REAL liveness (the cache stored not-live)
+        open,
+        live,
+        tier,
+        ...(narrative ? { narrative } : {}),
+        ...(ann?.reviewedAt ? { reviewedAt: ann.reviewedAt } : {}),
+        ...(cronSessionIds.has(uuid) ? { scheduled: true } : {}),
+      }
+    })
+  ).filter((c): c is CatchupCard => c !== null)
+
+  const columns = { needsYou: emptyColumn(), working: emptyColumn(), done: emptyColumn() }
+  for (const card of cards) {
+    const col =
+      card.state === 'needs-you'
+        ? columns.needsYou
+        : card.state === 'working'
+          ? columns.working
+          : columns.done
+    ;(card.tier === 'full' ? col.full : col.compact).push(card)
+  }
+  for (const col of [columns.needsYou, columns.working, columns.done]) {
+    col.full.sort((a, b) => b.lastActivityAt - a.lastActivityAt)
+    col.compact.sort((a, b) => b.lastActivityAt - a.lastActivityAt)
+  }
+
+  const watermarkAt = deps.homeStateStore.getWatermark()
+  return {
+    generatedAt: now,
+    mode: 'catchup',
+    columns,
+    ...(watermarkAt !== undefined ? { watermarkAt } : {}),
   }
 }
 

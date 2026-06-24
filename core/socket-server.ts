@@ -320,6 +320,29 @@ export interface NavBridge {
    *  always-fresh, no-cache pull pattern as `duo status` / `duo layout`.
    *  Returns null when Home hasn't fetched a snapshot yet. */
   getHomeState: () => Promise<unknown>
+  /** ENH-231 — `duo home catchup [--json]`. Build the Async Catch-Up Command
+   *  Board (the same coalesced snapshot the renderer's HOME_CATCHUP serves).
+   *  Pure read of the pre-hydrated digest cache + Duo-owned annotations. */
+  getCatchupBoard: () => Promise<import('../shared/types').CatchupSnapshot>
+  /** ENH-231 — `duo home mode` (read). The app-global Home mode. */
+  getHomeMode: () => import('../shared/types').HomeMode
+  /** ENH-231 — `duo home mode <projects|catchup>` (write). Persists app-global
+   *  and fans HOME_MODE_PUSH out to every window. */
+  setHomeMode: (mode: import('../shared/types').HomeMode) => Promise<{ ok: boolean; error?: string }>
+  /** ENH-231 — `duo session digest <tab> [--you-asked-only]`. Materialize the
+   *  tab's session digest into the rebuildable cache (the Stop-hook ping). */
+  sessionDigest: (tabId: string, youAskedOnly?: boolean) => Promise<{ ok: boolean; uuid?: string; error?: string }>
+  /** ENH-231 — `duo session note <tab>` (read). The agent's last self-narrated
+   *  status line for the tab's session, or null. */
+  getSessionNote: (tabId: string) => Promise<string | null>
+  /** ENH-231 — `duo session next <tab>` (read). The agent's last self-narrated
+   *  next-step recommendation, or null. */
+  getSessionNext: (tabId: string) => Promise<string | null>
+  /** ENH-231 — `duo session note <tab> "<text>"` (write). Stamps home-state.json
+   *  by uuid (survives the tab closing). */
+  setSessionNote: (tabId: string, text: string) => Promise<{ ok: boolean; uuid?: string; error?: string }>
+  /** ENH-231 — `duo session next <tab> "<text>"` (write). */
+  setSessionNext: (tabId: string, text: string) => Promise<{ ok: boolean; uuid?: string; error?: string }>
   /** ENH-212 — `duo term tabs`. Enumerate the addressed window's terminal
    *  tabs ([{id, kind, cwd, title, active}]) so `duo term tab <id>` can
    *  target one by its stable id (NOT a bare index). Reads the renderer's

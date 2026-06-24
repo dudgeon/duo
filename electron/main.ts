@@ -110,7 +110,10 @@ import { CronStore } from '../core/cron-store'
 import { CronService } from '../core/cron-service'
 import { deepestEnclosingRoot } from '../shared/projects'
 import { FEATURE_HEADLESS_CRON } from '../shared/feature-flags'
-import { buildHomeSnapshot, listHomeSessions, attributeOpenSessions, type OpenByUuid, type LiveCwdGroup } from './home-snapshot'
+import { buildHomeSnapshot, buildCatchupSnapshot, listHomeSessions, attributeOpenSessions, type OpenByUuid, type LiveCwdGroup } from './home-snapshot'
+import { extractSessionDigest } from './session-digest'
+import { SessionDigestStore } from '../core/session-digest-store'
+import { HomeStateStore } from '../core/home-state-store'
 import { BrowserHistoryService } from '../core/browser-history-service'
 import { ExternalDomainsService } from '../core/external-domains-service'
 import { EventBus, type DuoEventSource } from '../core/event-bus'
@@ -160,6 +163,8 @@ import type {
   HomeSession,
   HomeSessionAction,
   HomeSessionActionResult,
+  CatchupSnapshot,
+  HomeMode,
   RecentEntry,
   BrowseResult,
   CheckoutTarget
@@ -575,6 +580,11 @@ const sessionStateService = new SessionStateService()
 // ENH-191 P5a (S1/S3) — app settings (the multiWindow flag, default ON).
 // Loaded at boot; gates openNewWindow (the "New Window" menu + `duo window new`).
 const settingsService = new SettingsService()
+// ENH-231 — Async Catch-Up stores. `sessionDigestStore` is the rebuildable
+// transcript-derived cache (§D9-gated); `homeStateStore` holds Duo-owned
+// narrative / reviewedAt / watermark. Both loaded at boot (whenReady).
+const sessionDigestStore = new SessionDigestStore()
+const homeStateStore = new HomeStateStore()
 // ENH-167 — workspace-as-file singletons. workspaceFileService is
 // stateless (just save/load a .duo-workspace envelope);
 // workspaceHistoryService lazy-loads on first read;
@@ -1656,6 +1666,20 @@ app.whenReady().then(async () => {
     // ENH-212 (Home) — `duo home` + `duo term tabs|tab` CLI parity.
     showHome: showHomeForCli,
     getHomeState: getHomeStateForCli,
+    // ENH-231 — Async Catch-Up CLI parity. `getCatchupBoard` backs `duo home
+    // catchup`; mode get/set back `duo home mode`; the session methods back
+    // `duo session digest|note|next` (the Stop-hook + agent self-narration).
+    getCatchupBoard: () => computeCatchupSnapshot(),
+    getHomeMode: () => settingsService.get().homeMode,
+    setHomeMode: async (mode) => {
+      await setHomeModeAndBroadcast(mode)
+      return { ok: true }
+    },
+    sessionDigest: (tabId, youAskedOnly) => materializeDigestForTab(tabId, youAskedOnly),
+    getSessionNote: (tabId) => getSessionAnnotationField(tabId, 'note'),
+    getSessionNext: (tabId) => getSessionAnnotationField(tabId, 'next'),
+    setSessionNote: (tabId, text) => setSessionAnnotationField(tabId, 'note', text),
+    setSessionNext: (tabId, text) => setSessionAnnotationField(tabId, 'next', text),
     listTerminalTabs: listTerminalTabsForCli,
     activateTerminalTab: activateTerminalTabForCli,
     closeTerminalTabById: closeTerminalTabForCli,
@@ -1773,6 +1797,10 @@ app.whenReady().then(async () => {
   // then refresh the menu so the "Allow Multiple Windows" checkbox reflects the
   // saved value (the initial menu build at boot ran before this load).
   await settingsService.load()
+  // ENH-231 — load the Async Catch-Up stores before any HOME_CATCHUP /
+  // SESSION_DIGEST handler can run (both are best-effort: a missing/corrupt
+  // file starts empty).
+  await Promise.all([sessionDigestStore.load(), homeStateStore.load()])
   // ENH-208 — reflect CLI `duo vault default` writes in the Settings menu.
   installDefaultVaultPrefWatcher()
   void rebuildAppMenu()
@@ -3200,6 +3228,20 @@ function setupIPC(): void {
     return computeHomeSnapshot(args?.limitPerProject)
   })
 
+  // ENH-231 — Async Catch-Up. The board itself (coalesced), the app-global
+  // mode getter/setter (setter fans out HOME_MODE_PUSH to all windows), and the
+  // Stop-hook digest materializer (renderer path; the socket CLI path goes via
+  // the NavBridge sessionDigest method).
+  ipcMain.handle(IPC.HOME_CATCHUP, async (): Promise<CatchupSnapshot> => computeCatchupSnapshot())
+  ipcMain.handle(IPC.HOME_MODE_GET, (): HomeMode => settingsService.get().homeMode)
+  ipcMain.handle(IPC.HOME_MODE_SET, async (_event, mode: HomeMode): Promise<{ ok: boolean }> => {
+    await setHomeModeAndBroadcast(mode)
+    return { ok: true }
+  })
+  ipcMain.handle(IPC.SESSION_DIGEST, async (_event, args: { tabId: string; youAskedOnly?: boolean }) => {
+    return materializeDigestForTab(args.tabId, args.youAskedOnly)
+  })
+
   // ENH-223 Tier 2 — cron lifecycle from the Home surface. Delegates to the same
   // CronService.handleCli the socket CLI uses (list/add/run/pause/resume/rm/show).
   // Writes broadcast a fresh CronJobView[] via onJobsChanged (wired in whenReady),
@@ -4433,6 +4475,118 @@ async function computeHomeSnapshot(limitPerProject?: number): Promise<HomeSnapsh
   } finally {
     homeSnapshotInflight.delete(key)
   }
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// ENH-231 — Async Catch-Up (the Command Board): tab→uuid resolution, the
+// coalesced snapshot, the Stop-hook digest materializer, the app-global mode
+// fan-out, and the Duo-owned annotation read/write.
+// ───────────────────────────────────────────────────────────────────────
+
+/**
+ * Resolve a Duo terminal tab id to the Claude session it hosts. The tab→uuid
+ * primitive the Stop-hook digest + `duo session note/next` depend on: a tab's
+ * launch cwd → its ~/.claude/projects dir → the freshest `<uuid>.jsonl` (the
+ * session that just advanced). Resolvable only while the tab is live — exactly
+ * when these verbs fire. Closed sessions are reached by uuid at assembly, never
+ * by tab.
+ */
+async function sessionIdForTab(tabId: string): Promise<{ uuid: string; cwd: string; jsonlPath: string } | null> {
+  const cwd = ptyManager.getCwd(tabId)
+  if (!cwd) return null
+  const projectDir = join(homedir(), '.claude', 'projects', encodeProjectDir(cwd))
+  const sessions = await listTopLevelSessions(projectDir)
+  if (sessions.length === 0) return null
+  const newest = sessions.reduce((a, b) => (b.mtimeMs > a.mtimeMs ? b : a))
+  return { uuid: newest.id, cwd, jsonlPath: join(projectDir, `${newest.id}.jsonl`) }
+}
+
+// Coalesce concurrent HOME_CATCHUP calls (N windows × pollers) onto one
+// recompute — the same transient-promise pattern as homeSnapshotInflight (a
+// shared promise cleared on settle, NOT a cache; D9-clean).
+let catchupInflight: Promise<CatchupSnapshot> | null = null
+async function computeCatchupSnapshot(): Promise<CatchupSnapshot> {
+  if (catchupInflight) return catchupInflight
+  const work = (async () => {
+    const openJoin = await buildHomeOpenJoin()
+    return buildCatchupSnapshot({
+      digestStore: sessionDigestStore,
+      homeStateStore,
+      openByUuid: openJoin.openByUuid,
+      cronSessionIds: collectCronSessionIds(),
+    })
+  })()
+  catchupInflight = work
+  try {
+    return await work
+  } finally {
+    catchupInflight = null
+  }
+}
+
+/** P6 — session uuids minted by cron runs (badged `scheduled` on the board).
+ *  Empty until P6 wires the cron lastSessionId set; non-cron boards unaffected. */
+function collectCronSessionIds(): Set<string> {
+  return new Set<string>()
+}
+
+/**
+ * Materialize a tab's session digest into the rebuildable cache (the Stop-hook
+ * pre-hydration). `youAskedOnly` (the UserPromptSubmit refresh) keeps the prior
+ * turn's todos/files/state and updates only "You asked" — the new turn just
+ * started, so the rest of a freshly-extracted digest would be mid-turn.
+ */
+async function materializeDigestForTab(
+  tabId: string,
+  youAskedOnly?: boolean,
+): Promise<{ ok: boolean; uuid?: string; error?: string }> {
+  const resolved = await sessionIdForTab(tabId)
+  if (!resolved) return { ok: false, error: `no resolvable session for tab ${tabId}` }
+  const { uuid, jsonlPath } = resolved
+  const digest = await extractSessionDigest(jsonlPath, uuid)
+  if (!digest) return { ok: false, error: `digest extraction failed for ${uuid}` }
+  if (youAskedOnly) {
+    const prev = sessionDigestStore.getDigest(uuid)
+    if (prev) {
+      await sessionDigestStore.setDigest(uuid, {
+        ...prev,
+        youAsked: digest.youAsked,
+        lastActivityAt: digest.lastActivityAt,
+      })
+      return { ok: true, uuid }
+    }
+  }
+  await sessionDigestStore.setDigest(uuid, digest)
+  return { ok: true, uuid }
+}
+
+/** Persist the app-global Home mode and fan it out to EVERY window (review fix
+ *  #7 — an app-global pref is pointless if only the calling window hears it).
+ *  The renderer's onModeSet sets local state idempotently and does NOT fetch
+ *  (BUG-046 — only an active Home polls catchup). */
+async function setHomeModeAndBroadcast(mode: HomeMode): Promise<void> {
+  await settingsService.set({ homeMode: mode })
+  broadcastAll(registry, IPC.HOME_MODE_PUSH, mode)
+}
+
+/** Read a Duo-owned annotation field (`note`/`next`) for a tab's session. */
+async function getSessionAnnotationField(tabId: string, field: 'note' | 'next'): Promise<string | null> {
+  const resolved = await sessionIdForTab(tabId)
+  if (!resolved) return null
+  return homeStateStore.getAnnotation(resolved.uuid)?.[field] ?? null
+}
+
+/** Write a Duo-owned annotation field (`note`/`next`) for a tab's session. */
+async function setSessionAnnotationField(
+  tabId: string,
+  field: 'note' | 'next',
+  text: string,
+): Promise<{ ok: boolean; uuid?: string; error?: string }> {
+  const resolved = await sessionIdForTab(tabId)
+  if (!resolved) return { ok: false, error: `no resolvable session for tab ${tabId}` }
+  if (field === 'note') await homeStateStore.setNote(resolved.uuid, text)
+  else await homeStateStore.setNext(resolved.uuid, text)
+  return { ok: true, uuid: resolved.uuid }
 }
 
 // ENH-167 — apply a new SessionState to the running Duo without

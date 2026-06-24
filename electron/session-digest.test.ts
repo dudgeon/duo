@@ -1,9 +1,9 @@
-// ENH-231 — session-digest extractor tests. Fixtures are built from the
-// documented Claude Code JSONL shapes (the real TodoWrite/ExitPlanMode records
-// were absent from the build environment's transcripts — see the SHAPE CAVEAT
-// in session-digest.ts). Covers: every field, each attention reason in
-// isolation, the no-inference (no-clock) guarantee, and the §D9
-// delete-cache → byte-identical-rebuild invariant.
+// ENH-231 — session-digest extractor tests. Fixtures mirror the Claude Code
+// JSONL shapes confirmed against live ~/.claude/projects transcripts (TodoWrite
+// `{todos:[{content,activeForm,status}]}`, ExitPlanMode tool_use, top-level
+// `toolUseResult:{type:'create',filePath}`, error STRINGs, PR URLs). Covers:
+// every field, each attention reason in isolation, the no-inference (no-clock)
+// guarantee, and the §D9 delete-cache → byte-identical-rebuild invariant.
 
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import { promises as fs } from 'fs'
