@@ -3,7 +3,7 @@
 // presentational; colors come from --duo-* vars + the shared both-theme-legible
 // duo-banner-* classes (never a bare hex / dark: util).
 
-import type { CatchupCard, DigestTodo, AttentionReason } from '@shared/types'
+import type { CatchupCard, DigestTodo, AttentionReason, HomeSessionOpen } from '@shared/types'
 import { attentionChip } from './homeModel'
 
 /** The Needs-you reason chip (plan-to-approve / question / blocked). */
@@ -17,6 +17,40 @@ export function ScheduledBadge() {
   return <span className="duo-cu-chip duo-cu-scheduled">🕐 scheduled</span>
 }
 
+/** Liveness pill (parity with Projects Home's open/running pills): a Duo-hosted
+ *  session is "live · focus" (green — clicking focuses its tab); an external one
+ *  is "running" (amber — clicking forks a branch, behind the confirm). Absent ⇒
+ *  closed (no pill). */
+export function LivePill({ open }: { open?: HomeSessionOpen }) {
+  if (!open) return null
+  if (open.kind === 'duo') {
+    return (
+      <span className="duo-cu-pill duo-cu-pill-duo" title="Running in a Duo terminal — click to focus it">
+        ● live
+      </span>
+    )
+  }
+  return (
+    <span
+      className="duo-cu-pill duo-cu-pill-ext"
+      title="Running outside Duo (another terminal / the desktop app) — click to fork a new branch from it"
+    >
+      ● running
+    </span>
+  )
+}
+
+/** The finished / "done" badge (owner: an explicit done indicator, not just the
+ *  column). Only for closed-and-completed cards/rows. */
+export function DoneBadge() {
+  return <span className="duo-cu-pill duo-cu-pill-done" title="Finished — reviewable">✓ done</span>
+}
+
+/** The stalled badge — a closed session with no deliverable (the compact tier). */
+export function StalledBadge() {
+  return <span className="duo-cu-pill duo-cu-pill-stalled" title="Closed without a clear deliverable">⏸ stalled</span>
+}
+
 /** Basename of a path for a chip label. */
 function base(p: string): string {
   const t = p.replace(/\/+$/, '')
@@ -24,15 +58,22 @@ function base(p: string): string {
   return i < 0 ? t : t.slice(i + 1)
 }
 
-/** Files-in-flight chips (basename, deduped by the digest already). */
-export function FileChips({ files }: { files: CatchupCard['files'] }) {
+/** Files-in-flight chips (basename, deduped by the digest already). Clicking a
+ *  chip opens that file in Duo (parity with Projects Home's recent-file chips). */
+export function FileChips({ files, onOpen }: { files: CatchupCard['files']; onOpen: (path: string) => void }) {
   if (files.length === 0) return null
   return (
     <div className="duo-cu-chiprow">
       {files.slice(0, 6).map((f) => (
-        <span key={f.path} className="duo-cu-fchip" title={`${f.kind}: ${f.path}`}>
+        <button
+          key={f.path}
+          type="button"
+          className="duo-cu-fchip duo-cu-fchip-btn"
+          title={`${f.kind}: ${f.path} — click to open`}
+          onClick={() => onOpen(f.path)}
+        >
           {base(f.path)}
-        </span>
+        </button>
       ))}
       {files.length > 6 && <span className="duo-cu-fchip duo-cu-more">+{files.length - 6}</span>}
     </div>

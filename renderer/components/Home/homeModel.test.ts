@@ -403,10 +403,10 @@ describe('digestNextLine / digestNeedsLine', () => {
 })
 
 describe('compactDotClass', () => {
-  it('attention → attn, open → live, else done', () => {
+  it('attention → attn, open → live, else stalled (compact rows are stalled)', () => {
     expect(compactDotClass(card({ attention: { reason: 'blocked' } }))).toBe('duo-cu-dot-attn')
     expect(compactDotClass(card({ open: { kind: 'duo', windowId: 1, tabId: 't' } }))).toBe('duo-cu-dot-live')
-    expect(compactDotClass(card())).toBe('duo-cu-dot-done')
+    expect(compactDotClass(card())).toBe('duo-cu-dot-stalled')
   })
 })
 

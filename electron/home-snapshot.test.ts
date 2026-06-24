@@ -694,6 +694,20 @@ describe('buildCatchupSnapshot — columns, two-tier, dedup, §D9', () => {
     expect(card.reviewedAt).toBe(1234)
   })
 
+  it('flags cwdGone when the session cwd no longer exists (removed worktree)', async () => {
+    // projectsRoot exists on disk; the other cwd does not.
+    await writeRaw('enc-here', 'here1', projectsRoot, [])
+    await writeRaw('enc-gone', 'gone1', path.join(projectsRoot, 'removed-worktree-xyz'), [])
+    const board = await buildCatchupSnapshot({ projectsRoot, digestStore, homeStateStore: homeStore, now: Date.now() })
+    const all = [
+      ...board.columns.needsYou.full, ...board.columns.needsYou.compact,
+      ...board.columns.working.full, ...board.columns.working.compact,
+      ...board.columns.done.full, ...board.columns.done.compact,
+    ]
+    expect(all.find((c) => c.uuid === 'here1')?.cwdGone).toBeFalsy()
+    expect(all.find((c) => c.uuid === 'gone1')?.cwdGone).toBe(true)
+  })
+
   it('badges scheduled when the uuid is in cronSessionIds (never inferred)', async () => {
     await writeRaw('enc-c', 'cron1', '/proj/c', [])
     const board = await buildCatchupSnapshot({

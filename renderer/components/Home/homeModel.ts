@@ -276,11 +276,14 @@ export type DigestPrimary = { kind: 'session' | 'artifact'; label: string; path?
 export type DigestSecondary = { kind: 'session' | 'pr' | 'file' | 'diff'; label: string; value?: string }
 
 /** D7 — the card's PRIMARY action. A Done card whose work product is an md/html
- *  file leads with the artifact (Duo's canvas/playground home turf); every
- *  other case leads with re-entry ("Open session →"). */
+ *  file leads with the artifact (Duo's canvas/playground home turf). Otherwise
+ *  re-entry: a Duo-hosted live session FOCUSES (never forks); an external-live or
+ *  closed session opens/resumes (external opening forks, behind the confirm). The
+ *  worktree-gone case is handled by the caller (no re-entry — the cwd is gone). */
 export function digestPrimaryAction(card: CatchupCard): DigestPrimary {
   const doc = (card.artifacts.createdFiles ?? []).find(isDocFile)
   if (card.state === 'done' && doc) return { kind: 'artifact', label: `Open ${baseName(doc)} →`, path: doc }
+  if (card.open?.kind === 'duo') return { kind: 'session', label: 'Focus session →' }
   return { kind: 'session', label: 'Open session →' }
 }
 
@@ -310,11 +313,13 @@ export function digestNeedsLine(card: CatchupCard): string | null {
   return card.narrative?.note ?? card.fallbackSnippet ?? card.youAsked ?? null
 }
 
-/** CSS class for a compact row's state dot (theme-correct via --duo-* vars). */
+/** CSS class for a compact row's state dot. Compact rows are STALLED (closed,
+ *  no deliverable), so the default is the muted stalled dot; the attention/live
+ *  branches are defensive (a compact row in those states shouldn't occur). */
 export function compactDotClass(card: CatchupCard): string {
   if (card.attention) return 'duo-cu-dot-attn'
   if (card.open) return 'duo-cu-dot-live'
-  return 'duo-cu-dot-done'
+  return 'duo-cu-dot-stalled'
 }
 
 /** Flatten a markdown-bearing transcript line into a short plain-text preview

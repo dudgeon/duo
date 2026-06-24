@@ -4,6 +4,7 @@
 // authoritative for column + tier assignment; this component renders the
 // CatchupSnapshot verbatim.
 
+import { useState, useCallback } from 'react'
 import type { CatchupCard, CatchupColumn, CatchupSnapshot } from '@shared/types'
 import { SessionDigestCard } from './SessionDigestCard'
 import { CompactSessionRow } from './CompactSessionRow'
@@ -28,6 +29,16 @@ function columnCount(col: CatchupColumn): number {
 
 export function CatchupBoard({ snapshot, now, onOpenSession, onOpenFile, onOpenUrl }: CatchupBoardProps) {
   const { columns } = snapshot
+  // GAP-expand — which stalled compact rows are expanded into full cards in place.
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
+  const toggleExpand = useCallback((uuid: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(uuid)) next.delete(uuid)
+      else next.add(uuid)
+      return next
+    })
+  }, [])
   const total =
     columnCount(columns.needsYou) + columnCount(columns.working) + columnCount(columns.done)
 
@@ -73,9 +84,29 @@ export function CatchupBoard({ snapshot, now, onOpenSession, onOpenFile, onOpenU
                   <div className="duo-cu-compact-divider">
                     {key === 'done' ? 'Stalled · unfinished' : 'Earlier · last 7 days'}
                   </div>
-                  {col.compact.map((card) => (
-                    <CompactSessionRow key={card.uuid} card={card} now={now} onOpenSession={onOpenSession} />
-                  ))}
+                  {col.compact.map((card) =>
+                    expanded.has(card.uuid) ? (
+                      <div key={card.uuid} className="duo-cu-expanded">
+                        <button
+                          type="button"
+                          className="duo-cu-collapse"
+                          aria-expanded
+                          onClick={() => toggleExpand(card.uuid)}
+                        >
+                          ▾ collapse
+                        </button>
+                        <SessionDigestCard
+                          card={card}
+                          now={now}
+                          onOpenSession={onOpenSession}
+                          onOpenFile={onOpenFile}
+                          onOpenUrl={onOpenUrl}
+                        />
+                      </div>
+                    ) : (
+                      <CompactSessionRow key={card.uuid} card={card} now={now} onToggleExpand={toggleExpand} />
+                    ),
+                  )}
                 </>
               )}
 

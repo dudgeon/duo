@@ -1827,6 +1827,10 @@ export interface CatchupCard extends SessionDigest {
   reviewedAt?: number
   /** Cron-minted session (set by assembly, never inferred from transcript). */
   scheduled?: boolean
+  /** The session's recorded cwd no longer exists on disk (e.g. a removed git
+   *  worktree). Re-entry can't `claude --resume` there — the renderer strikes the
+   *  card through + suppresses re-entry. (Rich recovery is a tracked follow-up.) */
+  cwdGone?: boolean
   /** The live-process join — the SAME focusable shape as `HomeSession.open`
    *  (`kind:'duo'` ⇒ a Duo tab hosts it, focusable; `kind:'external'` ⇒ live
    *  outside Duo, fork-not-focus). ABSENT ⇒ no live `claude` process ⇒ closed.

@@ -684,6 +684,11 @@ export async function buildCatchupSnapshot(deps: BuildCatchupDeps): Promise<Catc
       const digest = await readOrExtractDigest(deps.digestStore, uuid, jsonlPath, rs.stat.mtimeMs)
       if (!digest) return null
 
+      // BUG-worktree — the session's recorded cwd may be a removed git worktree;
+      // `claude --resume` there fails. Flag it so the card strikes through +
+      // suppresses re-entry (cheap stat, bounded by the 7-day window).
+      const cwdGone = digest.cwd ? !(await fs.stat(digest.cwd).then(() => true).catch(() => false)) : false
+
       // The focusable join (kind duo|external); absent ⇒ closed. Liveness is
       // its presence (any live claude process), not just a Duo tab.
       const open = openByUuid.get(uuid)
@@ -721,6 +726,7 @@ export async function buildCatchupSnapshot(deps: BuildCatchupDeps): Promise<Catc
         ...(narrative ? { narrative } : {}),
         ...(ann?.reviewedAt ? { reviewedAt: ann.reviewedAt } : {}),
         ...(cronSessionIds.has(uuid) ? { scheduled: true } : {}),
+        ...(cwdGone ? { cwdGone: true } : {}),
       }
     })
   ).filter((c): c is CatchupCard => c !== null)

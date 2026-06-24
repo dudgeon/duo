@@ -109,12 +109,42 @@ describe('CatchupBoard', () => {
     expect(onOpenFile).toHaveBeenCalledWith('/Users/x/web-app/q3.md')
   })
 
-  it('a compact row click re-enters the session', () => {
+  it('a compact row EXPANDS into a full card on click; the card re-enters', () => {
     const onOpenSession = vi.fn()
     const c = card({ uuid: 'cr', state: 'done', tier: 'compact', goal: 'Compact goal' })
     renderBoard(snapshot({ done: { full: [], compact: [c] } }), { onOpenSession })
+    // collapsed: clicking the row expands it (does NOT immediately re-enter)
     fireEvent.click(screen.getByText('Compact goal'))
+    expect(onOpenSession).not.toHaveBeenCalled()
+    // now the full card is shown — its primary action re-enters the session
+    fireEvent.click(screen.getByText('Open session →'))
     expect(onOpenSession).toHaveBeenCalledWith(c)
+    // and a collapse control appears
+    expect(screen.getByText('▾ collapse')).toBeTruthy()
+  })
+
+  it('a Duo-hosted live session shows the green "live" pill + "Focus session →"', () => {
+    const c = card({ uuid: 'd', goal: 'Live one', open: { kind: 'duo', windowId: 1, tabId: 't1' } })
+    renderBoard(snapshot({ working: { full: [c], compact: [] } }))
+    expect(screen.getByText('● live')).toBeTruthy()
+    expect(screen.getByText('Focus session →')).toBeTruthy()
+  })
+
+  it('an external-live session shows the amber "running" pill + "Open session →" (forks)', () => {
+    const c = card({ uuid: 'e', goal: 'External one', open: { kind: 'external' } })
+    renderBoard(snapshot({ working: { full: [c], compact: [] } }))
+    expect(screen.getByText('● running')).toBeTruthy()
+    expect(screen.getByText('Open session →')).toBeTruthy()
+  })
+
+  it('a worktree-gone card is struck through + cannot resume', () => {
+    const onOpenSession = vi.fn()
+    const c = card({ uuid: 'g', goal: 'Gone one', state: 'done', tier: 'full', cwdGone: true })
+    renderBoard(snapshot({ done: { full: [c], compact: [] } }), { onOpenSession })
+    expect(screen.getByText("Worktree removed — can't resume")).toBeTruthy()
+    // the disabled control doesn't re-enter
+    fireEvent.click(screen.getByText("Worktree removed — can't resume"))
+    expect(onOpenSession).not.toHaveBeenCalled()
   })
 
   it('shows an empty marker for a column with no cards', () => {
