@@ -8,7 +8,7 @@
 import type { CatchupCard } from '@shared/types'
 import {
   cardHue,
-  repoLabel,
+  worktreeInfo,
   ageShort,
   digestPrimaryAction,
   digestSecondaryAction,
@@ -32,6 +32,11 @@ export function SessionDigestCard({ card, now, onOpenSession, onOpenFile, onOpen
   const isFinished = card.state === 'done' && card.tier === 'full'
   const isStalled = card.state === 'done' && card.tier === 'compact'
   const cwdGone = card.cwdGone === true
+  // `goal` is already the title ladder (custom-title /rename → ai-title Haiku →
+  // recap → command → first prompt — see extractGoal). The cwd resolves to a
+  // repo label + an optional worktree badge.
+  const heading = card.goal || '(untitled session)'
+  const { repo, worktree } = worktreeInfo(card.cwd)
   const primary = digestPrimaryAction(card)
   const secondary = digestSecondaryAction(card)
   // Plain-text, length-bounded previews — the raw snippet is full markdown
@@ -66,21 +71,22 @@ export function SessionDigestCard({ card, now, onOpenSession, onOpenFile, onOpen
         </div>
       )}
 
-      <div className={`duo-cu-goal${cwdGone ? ' duo-cu-gone' : ''}`}>{card.goal || '(untitled session)'}</div>
+      <div
+        className={`duo-cu-goal${cwdGone ? ' duo-cu-gone' : ''}`}
+        title={cwdGone ? `Worktree removed — ${card.cwd} no longer exists, so this session can't be resumed` : undefined}
+      >
+        {heading}
+      </div>
 
       <div className="duo-cu-meta">
         <LivePill open={card.open} />
         {!card.open && isFinished && <DoneBadge />}
         {!card.open && isStalled && <StalledBadge />}
         <span className="duo-cu-hue" style={{ background: hue }} />
-        <span className="duo-cu-repo">{repoLabel(card.cwd)}</span>
+        <span className="duo-cu-repo">{repo}</span>
+        {worktree && <span className="duo-cu-wt" title={`git worktree: ${worktree}`}>⑂ {worktree}</span>}
         <span aria-hidden>·</span>
         <span className="duo-cu-age">{ageShort(Math.max(0, now - card.lastActivityAt))}</span>
-        {cwdGone && (
-          <span className="duo-cu-gone-tag" title={`Worktree removed — ${card.cwd} no longer exists`}>
-            ⚠ worktree removed
-          </span>
-        )}
       </div>
 
       {needs && card.attention && (
@@ -108,13 +114,10 @@ export function SessionDigestCard({ card, now, onOpenSession, onOpenFile, onOpen
 
       {statusLine && <p className="duo-cu-status duo-cu-clamp">{statusLine}</p>}
 
-      {cwdGone ? (
-        // Re-entry can't resume (the worktree's gone) — don't offer a click that
-        // dead-ends in `No conversation found`. A PR link (URL-based) still works.
-        <button type="button" className="duo-cu-act" disabled title={`${card.cwd} no longer exists`}>
-          Worktree removed — can't resume
-        </button>
-      ) : (
+      {/* Worktree gone → no re-entry button (it would dead-end in `No conversation
+          found`); the struck-through heading + its hover tooltip carry the reason.
+          A URL-based PR link still works. */}
+      {!cwdGone && (
         <button type="button" className="duo-cu-act primary" onClick={runPrimary}>
           {primary.label}
         </button>

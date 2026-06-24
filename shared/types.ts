@@ -1792,7 +1792,9 @@ export interface DigestArtifacts {
 export interface SessionDigest {
   uuid: string
   cwd: string
-  /** First user message, cleaned (the session's goal). */
+  /** The card heading via the goal ladder (custom-title /rename → ai-title Haiku
+   *  → recap → command → first prompt) — see `extractGoal`. So a renamed or
+   *  Haiku-titled session already headlines with that title. */
   goal: string
   /** Most-recent user message (skip tool_result carriers + machinery). */
   youAsked: string

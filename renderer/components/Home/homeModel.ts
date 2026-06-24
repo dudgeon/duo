@@ -248,6 +248,16 @@ export function repoLabel(cwd: string): string {
   return baseName(cwd) || cwd || '—'
 }
 
+/** Split a session cwd into its repo label + an optional worktree slug so two
+ *  worktrees of one repo are distinguishable (parity with Projects Home's
+ *  subPath badge). Recognizes Duo's `.../<repo>/.claude/worktrees/<slug>`
+ *  convention; otherwise the cwd basename is the repo and there's no worktree. */
+export function worktreeInfo(cwd: string): { repo: string; worktree?: string } {
+  const m = cwd.match(/^(.*?)\/\.claude\/worktrees\/([^/]+)\/?$/)
+  if (m) return { repo: baseName(m[1]) || m[1], worktree: m[2] }
+  return { repo: baseName(cwd) || cwd || '—' }
+}
+
 /** Stable hue for a card, hashed off its cwd — the same palette the project
  *  rail + Home spine use, so a project reads as one color everywhere. */
 export function cardHue(cwd: string): string {

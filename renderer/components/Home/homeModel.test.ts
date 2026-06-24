@@ -327,6 +327,7 @@ import {
   digestNextLine,
   digestNeedsLine,
   compactDotClass,
+  worktreeInfo,
   toPlainPreview,
 } from './homeModel'
 import type { CatchupCard } from '@shared/types'
@@ -399,6 +400,14 @@ describe('digestNextLine / digestNeedsLine', () => {
     expect(digestNeedsLine(card({ narrative: { note: 'paused on the schema' } }))).toBe('paused on the schema')
     expect(digestNeedsLine(card({ fallbackSnippet: 'Should I use X or Y?' }))).toBe('Should I use X or Y?')
     expect(digestNeedsLine(card({ youAsked: 'the ask' }))).toBe('the ask')
+  })
+})
+
+describe('worktreeInfo', () => {
+  it('splits a Duo worktree cwd into repo + slug; a plain cwd has no worktree', () => {
+    expect(worktreeInfo('/Users/x/duo/.claude/worktrees/vigorous-7d2fb6')).toEqual({ repo: 'duo', worktree: 'vigorous-7d2fb6' })
+    expect(worktreeInfo('/Users/x/duo')).toEqual({ repo: 'duo' })
+    expect(worktreeInfo('/Users/x/duo/')).toEqual({ repo: 'duo' })
   })
 })
 

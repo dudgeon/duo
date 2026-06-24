@@ -1,11 +1,11 @@
 // ENH-231 — a compact catch-up row: a STALLED session (closed, no deliverable)
-// in the Done column. One line — expand caret · state dot · goal · scheduled ·
-// age. Clicking the row EXPANDS it into the full SessionDigestCard in place
-// (owner: collapsed rows need an expanded state that mirrors the cards); a gone
-// worktree is struck through.
+// in the Done column. One line — expand caret · state dot · title · worktree ·
+// scheduled · age. Clicking the row EXPANDS it into the full SessionDigestCard
+// in place (owner: collapsed rows need an expanded state that mirrors the
+// cards). A gone worktree is greyed + struck through, with the reason on hover.
 
 import type { CatchupCard } from '@shared/types'
-import { repoLabel, ageShort, compactDotClass } from './homeModel'
+import { worktreeInfo, ageShort, compactDotClass } from './homeModel'
 
 interface CompactSessionRowProps {
   card: CatchupCard
@@ -15,12 +15,14 @@ interface CompactSessionRowProps {
 
 export function CompactSessionRow({ card, now, onToggleExpand }: CompactSessionRowProps) {
   const cwdGone = card.cwdGone === true
+  const heading = card.goal || '(untitled session)' // already the title ladder (extractGoal)
+  const { repo, worktree } = worktreeInfo(card.cwd)
   return (
     <button
       type="button"
       className="duo-cu-crow"
       data-uuid={card.uuid}
-      title="Click to expand"
+      title={cwdGone ? `Worktree removed — ${card.cwd} no longer exists, so this session can't be resumed` : 'Click to expand'}
       aria-expanded={false}
       onClick={() => onToggleExpand(card.uuid)}
     >
@@ -28,19 +30,15 @@ export function CompactSessionRow({ card, now, onToggleExpand }: CompactSessionR
         ▸
       </span>
       <span className={`duo-cu-cdot ${compactDotClass(card)}`} />
-      <span className={`duo-cu-cgoal${cwdGone ? ' duo-cu-gone' : ''}`}>{card.goal || '(untitled session)'}</span>
+      <span className={`duo-cu-cgoal${cwdGone ? ' duo-cu-gone' : ''}`}>{heading}</span>
       {card.scheduled && (
         <span className="duo-cu-cclock" aria-label="scheduled">
           🕐
         </span>
       )}
-      {cwdGone && (
-        <span className="duo-cu-cgone" aria-label="worktree removed" title={`${card.cwd} no longer exists`}>
-          ⚠
-        </span>
-      )}
       <span className="duo-cu-cage">
-        {repoLabel(card.cwd)} · {ageShort(Math.max(0, now - card.lastActivityAt))}
+        {repo}
+        {worktree ? ` ⑂ ${worktree}` : ''} · {ageShort(Math.max(0, now - card.lastActivityAt))}
       </span>
     </button>
   )

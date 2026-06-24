@@ -175,7 +175,8 @@ export async function readBannerTitle(
 /** Rungs 1–3 of the D5 title ladder over an already-read set of JSONL
  *  lines. Shared by `readBannerTitle` (full read ladder) and
  *  `readSessionHeadMeta` (ENH-212 head-16KB read). Returns null when
- *  no rung fires — callers fall back to the short UUID. */
+ *  no rung fires — callers fall back to the short UUID. (The ENH-231 digest
+ *  has its OWN richer goal ladder, `extractGoal`, which also honors these.) */
 function titleFromLines(lines: string[]): BannerTitleResult | null {
   // Reverse scan for the latest custom-title entry.
   for (let i = lines.length - 1; i >= 0; i--) {

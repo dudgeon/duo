@@ -137,14 +137,22 @@ describe('CatchupBoard', () => {
     expect(screen.getByText('Open session →')).toBeTruthy()
   })
 
-  it('a worktree-gone card is struck through + cannot resume', () => {
-    const onOpenSession = vi.fn()
-    const c = card({ uuid: 'g', goal: 'Gone one', state: 'done', tier: 'full', cwdGone: true })
-    renderBoard(snapshot({ done: { full: [c], compact: [] } }), { onOpenSession })
-    expect(screen.getByText("Worktree removed — can't resume")).toBeTruthy()
-    // the disabled control doesn't re-enter
-    fireEvent.click(screen.getByText("Worktree removed — can't resume"))
-    expect(onOpenSession).not.toHaveBeenCalled()
+  it('a worktree-gone card is struck through + offers no re-entry (reason on hover)', () => {
+    const c = card({ uuid: 'g', goal: 'Gone one', cwd: '/Users/x/repo/.claude/worktrees/wt', state: 'done', tier: 'full', cwdGone: true })
+    renderBoard(snapshot({ done: { full: [c], compact: [] } }))
+    const goal = screen.getByText('Gone one')
+    expect(goal.className).toContain('duo-cu-gone') // grey + strikethrough
+    expect(goal.getAttribute('title')).toMatch(/Worktree removed/) // reason on hover
+    // no re-entry button (it would dead-end) + no scary flag
+    expect(screen.queryByText('Open session →')).toBeNull()
+    expect(screen.queryByText(/worktree removed/i)).toBeNull() // no visible ⚠ tag
+  })
+
+  it('shows a worktree subpath badge (⑂ slug) for a worktree session', () => {
+    const c = card({ uuid: 'wt', goal: 'WT one', cwd: '/Users/x/duo/.claude/worktrees/my-slug' })
+    renderBoard(snapshot({ done: { full: [c], compact: [] } }))
+    expect(screen.getByText('⑂ my-slug')).toBeTruthy()
+    expect(screen.getByText('duo')).toBeTruthy() // repo label, not the slug
   })
 
   it('shows an empty marker for a column with no cards', () => {

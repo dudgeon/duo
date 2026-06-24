@@ -15,7 +15,9 @@
 
 **ENH-231 dismiss (PRD D6b) → ENH-233.** Owner leans option (a) Duo-owned `dismissed` annotation in `home-state.json`, but wants it revisited as its own ENH (incl. the Desktop `isArchived` sidecar option from the flag research, and the concern that the annotation map bloats over time). Logged as ENH-233.
 
-**Remaining:** P1 carry-ins (title ladder · worktree subpath badge) → finish the owner walk → merge #108 → cut from main (branch is v0.12.1, main v0.12.2).
+**P1 carry-ins (2026-06-24).** **Title ladder** — already implemented: `extractGoal` (the digest heading) already runs custom-title(/rename) → ai-title(Haiku) → recap → command → first-prompt, so a renamed/Haiku-titled session already headlines with that title (verified live — headings like "open-flow-duo-build" are ai-titles). **Worktree subpath badge** — shipped: the cwd splits into a repo label + a `⑂ <slug>` badge (so two worktrees of one repo are distinguishable). **Worktree-gone softened** (owner: no scary flag) — dropped the ⚠ tag + dead-end button; now just grey + strikethrough on the heading with the reason on hover. Done-badge/stalled-badge shipped alongside.
+
+**Remaining:** finish the owner walk → merge #108 → cut from main (branch is v0.12.1, main v0.12.2). Deferred to follow-up ENHs: ENH-232 (rich worktree re-entry), ENH-233 (dismiss/mark-reviewed). P2: cron management. SKIP: greeting, empty-state.
 
 ---
 
