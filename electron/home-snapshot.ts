@@ -684,8 +684,10 @@ export async function buildCatchupSnapshot(deps: BuildCatchupDeps): Promise<Catc
       const digest = await readOrExtractDigest(deps.digestStore, uuid, jsonlPath, rs.stat.mtimeMs)
       if (!digest) return null
 
-      const live = openByUuid.has(uuid)
-      const open = openByUuid.get(uuid)?.kind === 'duo'
+      // The focusable join (kind duo|external); absent ⇒ closed. Liveness is
+      // its presence (any live claude process), not just a Duo tab.
+      const open = openByUuid.get(uuid)
+      const live = open != null
       const attention = digest.attention
       const state = deriveState(live, attention?.reason ?? null)
       const tier: CatchupCard['tier'] = live || attention ? 'full' : 'compact'
@@ -698,8 +700,7 @@ export async function buildCatchupSnapshot(deps: BuildCatchupDeps): Promise<Catc
       return {
         ...digest,
         state, // re-derived with REAL liveness (the cache stored not-live)
-        open,
-        live,
+        ...(open ? { open } : {}),
         tier,
         ...(narrative ? { narrative } : {}),
         ...(ann?.reviewedAt ? { reviewedAt: ann.reviewedAt } : {}),

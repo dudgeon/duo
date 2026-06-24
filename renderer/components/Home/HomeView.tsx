@@ -18,14 +18,17 @@
 // session.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { HomeSnapshot, HomeProject, HomeSession } from '@shared/types'
+import type { HomeSnapshot, HomeProject, HomeSession, HomeMode, CatchupSnapshot, CatchupCard } from '@shared/types'
 import { GreetingLine } from './GreetingLine'
 import { HeroPanel } from './HeroPanel'
 import { SpineRow } from './SpineRow'
 import { CronSection } from './CronSection'
+import { ModeToggle } from './ModeToggle'
+import { CatchupBoard } from './CatchupBoard'
 import { useCronJobs } from './CronJobRow'
 import { selectHeroes, selectSpine, foldSpine, freshestSession, assignCronJobs } from './homeModel'
 import './Home.css'
+import './Catchup.css'
 
 /** Heroes show their 3 most-recent sessions inline (§ 1); the snapshot's
  *  per-project cap. */
@@ -47,6 +50,12 @@ interface HomeViewProps {
 
 export function HomeView({ isActive, onSnapshotChange }: HomeViewProps) {
   const [snapshot, setSnapshot] = useState<HomeSnapshot | null>(null)
+  // ENH-231 — the app-global Home mode (Projects ↔ Catch-up) + the catch-up
+  // board snapshot. The mode is a display switch; it never triggers a fetch
+  // (BUG-046) — the board is polled by the isActive-gated effect below, so a
+  // toggle just changes which already-fetched view shows.
+  const [homeMode, setHomeModeState] = useState<HomeMode>('projects')
+  const [catchup, setCatchup] = useState<CatchupSnapshot | null>(null)
   const [spineExpanded, setSpineExpanded] = useState(false)
   // Round-2 #4 — which spine projects are expanded to reveal their sessions.
   const [expandedSpine, setExpandedSpine] = useState<Set<string>>(() => new Set())
@@ -89,6 +98,44 @@ export function HomeView({ isActive, onSnapshotChange }: HomeViewProps) {
     const id = setInterval(() => { void fetchSnapshot() }, SNAPSHOT_POLL_MS)
     return () => clearInterval(id)
   }, [isActive, fetchSnapshot])
+
+  // ENH-231 — the catch-up board. Same isActive gate (BUG-046): a hidden Home
+  // polls nothing. Deliberately NOT gated on `homeMode` — both views stay warm
+  // while Home is active, so flipping the mode is an instant display switch
+  // that fires ZERO fetches. Cross-stage parity with the projects effect above.
+  const fetchCatchup = useCallback(async () => {
+    try {
+      const next = await window.electron.home.catchup()
+      if (aliveRef.current) setCatchup(next)
+    } catch {
+      // Best-effort — keep the last-good board (D14-style degradation).
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isActive) return
+    void fetchCatchup()
+    const id = setInterval(() => { void fetchCatchup() }, SNAPSHOT_POLL_MS)
+    return () => clearInterval(id)
+  }, [isActive, fetchCatchup])
+
+  // ENH-231 — seed the mode once on mount (a cheap pref read, not a poll) and
+  // subscribe to HOME_MODE_PUSH so a toggle in ANOTHER window moves this one.
+  // The subscription sets state ONLY — it never fetches (the effects above own
+  // the data; the mode is display-state).
+  useEffect(() => {
+    let alive = true
+    void window.electron.home.getMode().then((m) => { if (alive) setHomeModeState(m) })
+    const off = window.electron.home.onModeSet((m) => setHomeModeState(m))
+    return () => { alive = false; off() }
+  }, [])
+
+  // The toggle: persist app-global (→ Settings → HOME_MODE_PUSH fan-out) AND set
+  // local state optimistically. No fetch (BUG-046) — the board is already warm.
+  const onChangeMode = useCallback((mode: HomeMode) => {
+    setHomeModeState(mode)
+    void window.electron.home.setMode(mode)
+  }, [])
 
   // `duo home` (HOME_SHOW push) — refresh the snapshot when main asks the
   // window to show Home. Only meaningful while active; the App-level
@@ -173,10 +220,104 @@ export function HomeView({ isActive, onSnapshotChange }: HomeViewProps) {
     window.dispatchEvent(new CustomEvent('duo-home-open-file', { detail: { path, name } }))
   }, [])
 
+  // ENH-231 — catch-up card actions. A card carries the SAME focusable `open`
+  // join as a HomeSession, so re-entry reuses the existing click contract
+  // verbatim (focus duo-tab / fork-confirm external / resume closed) by adapting
+  // the card to the minimal HomeSession shape onActivateSession consumes.
+  const onOpenCatchupSession = useCallback((card: CatchupCard) => {
+    const session: HomeSession = {
+      uuid: card.uuid,
+      title: card.goal || card.uuid.slice(0, 8),
+      titleSource: 'jsonl-firstmsg',
+      modifiedAt: card.lastActivityAt,
+      cwd: card.cwd,
+      ...(card.open ? { open: card.open } : {}),
+    }
+    onActivateSession(session)
+  }, [onActivateSession])
+
+  // A PR / external link opens in Duo's browser pane (a comparatively rare
+  // reach — D7); best-effort, like the recent-file open.
+  const onOpenUrl = useCallback((url: string) => {
+    void window.electron.browser.addTab(url)
+  }, [])
+
   // ── Render ──────────────────────────────────────────────────────────
+  // Shared modals (fork-confirm + error notice) — a catch-up card click can
+  // raise the same fork-confirm as a project session, so both modes render them.
+  const overlays = (
+    <>
+      {forkConfirm && (
+        <div className="duo-home-confirm-backdrop" role="dialog" aria-modal="true">
+          <div className="duo-home-confirm">
+            <p className="duo-home-confirm-title font-serif text-ink">Fork this session?</p>
+            <p className="duo-home-confirm-body text-ink-soft">
+              It’s already running outside Duo (another terminal or the Claude
+              desktop app), so Duo can’t focus it. Forking branches a{' '}
+              <strong>new session</strong> from its current state — your copy
+              runs independently and won’t disturb the original.
+            </p>
+            <div className="duo-home-confirm-actions">
+              <button type="button" className="duo-home-confirm-cancel" onClick={() => setForkConfirm(null)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="duo-home-confirm-go"
+                onClick={() => {
+                  const s = forkConfirm
+                  setForkConfirm(null)
+                  doResume(s, true)
+                }}
+              >
+                Fork session
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {notice && (
+        <div className="duo-home-confirm-backdrop" role="dialog" aria-modal="true">
+          <div className="duo-home-confirm">
+            <p className="duo-home-confirm-title font-serif text-ink">Couldn’t open the session</p>
+            <p className="duo-home-confirm-body text-ink-soft">{notice}</p>
+            <div className="duo-home-confirm-actions">
+              <button type="button" className="duo-home-confirm-go" onClick={() => setNotice(null)}>
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+
+  // ENH-231 — Catch-up mode renders independently of the projects snapshot
+  // (it works before / without a projects fetch). The toggle sits above both.
+  if (homeMode === 'catchup') {
+    return (
+      <div className="duo-home" data-duo-tab-kind="home">
+        <ModeToggle mode={homeMode} onChange={onChangeMode} />
+        {catchup ? (
+          <CatchupBoard
+            snapshot={catchup}
+            now={catchup.generatedAt}
+            onOpenSession={onOpenCatchupSession}
+            onOpenFile={onOpenFile}
+            onOpenUrl={onOpenUrl}
+          />
+        ) : (
+          <div className="duo-home-loading text-ink-mute">Loading your sessions…</div>
+        )}
+        {overlays}
+      </div>
+    )
+  }
+
   if (!snapshot) {
     return (
       <div className="duo-home" data-duo-tab-kind="home">
+        <ModeToggle mode={homeMode} onChange={onChangeMode} />
         <div className="duo-home-loading text-ink-mute">Loading your projects…</div>
       </div>
     )
@@ -195,6 +336,7 @@ export function HomeView({ isActive, onSnapshotChange }: HomeViewProps) {
 
   return (
     <div className="duo-home" data-duo-tab-kind="home">
+      <ModeToggle mode={homeMode} onChange={onChangeMode} />
       <GreetingLine
         greeting={snapshot.greeting}
         onClickFreshest={freshest ? () => onActivateSession(freshest.session) : undefined}
@@ -255,61 +397,7 @@ export function HomeView({ isActive, onSnapshotChange }: HomeViewProps) {
         </div>
       )}
 
-      {forkConfirm && (
-        <div className="duo-home-confirm-backdrop" role="dialog" aria-modal="true">
-          <div className="duo-home-confirm">
-            <p className="duo-home-confirm-title font-serif text-ink">
-              Fork this session?
-            </p>
-            <p className="duo-home-confirm-body text-ink-soft">
-              It’s already running outside Duo (another terminal or the Claude
-              desktop app), so Duo can’t focus it. Forking branches a{' '}
-              <strong>new session</strong> from its current state — your copy
-              runs independently and won’t disturb the original.
-            </p>
-            <div className="duo-home-confirm-actions">
-              <button
-                type="button"
-                className="duo-home-confirm-cancel"
-                onClick={() => setForkConfirm(null)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="duo-home-confirm-go"
-                onClick={() => {
-                  const s = forkConfirm
-                  setForkConfirm(null)
-                  doResume(s, true)
-                }}
-              >
-                Fork session
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {notice && (
-        <div className="duo-home-confirm-backdrop" role="dialog" aria-modal="true">
-          <div className="duo-home-confirm">
-            <p className="duo-home-confirm-title font-serif text-ink">
-              Couldn’t open the session
-            </p>
-            <p className="duo-home-confirm-body text-ink-soft">{notice}</p>
-            <div className="duo-home-confirm-actions">
-              <button
-                type="button"
-                className="duo-home-confirm-go"
-                onClick={() => setNotice(null)}
-              >
-                Got it
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {overlays}
     </div>
   )
 }

@@ -1827,11 +1827,13 @@ export interface CatchupCard extends SessionDigest {
   reviewedAt?: number
   /** Cron-minted session (set by assembly, never inferred from transcript). */
   scheduled?: boolean
-  /** A Duo terminal tab is open for this session. */
-  open: boolean
-  /** A live `claude` process is attributed to this session. */
-  live: boolean
-  /** Two-tier rule: `full` if (open || attention); else `compact`. */
+  /** The live-process join — the SAME focusable shape as `HomeSession.open`
+   *  (`kind:'duo'` ⇒ a Duo tab hosts it, focusable; `kind:'external'` ⇒ live
+   *  outside Duo, fork-not-focus). ABSENT ⇒ no live `claude` process ⇒ closed.
+   *  Liveness is therefore `open != null`; "open in Duo" is `open?.kind==='duo'`. */
+  open?: HomeSessionOpen
+  /** Two-tier rule: `full` if (live OR attention); else `compact`. A closed
+   *  session that needs you stays full (review fix #8). */
   tier: 'full' | 'compact'
 }
 

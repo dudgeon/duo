@@ -1,0 +1,119 @@
+/* ENH-231 — Async Catch-Up Command Board styles. Theme-legible by construction:
+   colors are ONLY var(--duo-*) tokens (which flip per [data-theme]) + the shared
+   duo-banner-* classes, plus color-mix against --duo-* / transparent. No bare
+   hex, no Tailwind color utilities, no `dark:` — a grep test (Catchup.css.test.ts)
+   enforces this so the board can't regress to one-theme-only colors. */
+
+/* ── mode toggle ─────────────────────────────────────────────────────────── */
+.duo-cu-mode-row { display: flex; align-items: center; gap: 10px; padding: 4px 2px 14px; }
+.duo-cu-mode-label { font-size: 12px; color: var(--duo-ink-mute); font-weight: 600; }
+.duo-cu-mode-seg { display: inline-flex; border: 1.5px solid var(--duo-paper-rule); border-radius: 6px; overflow: hidden; }
+.duo-cu-mode-btn {
+  border: none; background: var(--duo-paper); padding: 4px 13px; font-size: 12px;
+  font-family: inherit; color: var(--duo-ink-soft); cursor: pointer;
+}
+.duo-cu-mode-btn:hover { background: color-mix(in srgb, var(--duo-accent) 8%, transparent); }
+.duo-cu-mode-btn.on { background: var(--duo-accent); color: var(--duo-paper); font-weight: 600; }
+.duo-cu-mode-hint { font-size: 11px; color: var(--duo-ink-ghost); }
+
+/* ── board bar ───────────────────────────────────────────────────────────── */
+.duo-cu-board-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex-wrap: wrap; padding: 9px 2px; border-top: 1px solid var(--duo-paper-rule);
+  border-bottom: 1px solid var(--duo-paper-rule); font-size: 12px; color: var(--duo-ink-mute);
+}
+.duo-cu-digest b { color: var(--duo-ink); }
+.duo-cu-need { color: var(--duo-accent); font-weight: 600; }
+.duo-cu-bar-hint { font-size: 11px; color: var(--duo-ink-ghost); }
+
+/* ── board + columns ─────────────────────────────────────────────────────── */
+.duo-cu-board { display: flex; gap: 16px; padding: 14px 0; overflow-x: auto; align-items: flex-start; }
+.duo-cu-col { flex: 1; min-width: 210px; padding: 0 2px; }
+.duo-cu-col-h {
+  display: flex; justify-content: space-between; align-items: center; font-size: 12px;
+  font-weight: 700; margin: 2px 2px 10px; color: var(--duo-ink);
+  border-bottom: 1px solid var(--duo-paper-rule); padding-bottom: 7px;
+}
+.duo-cu-col-cnt { font-size: 11px; color: var(--duo-ink-ghost); font-weight: 600; }
+.duo-cu-col.attn .duo-cu-col-h { color: var(--duo-accent); border-bottom-color: color-mix(in srgb, var(--duo-accent) 35%, var(--duo-paper-rule)); }
+.duo-cu-empty { font-size: 11px; color: var(--duo-ink-ghost); padding: 8px 4px; text-align: center; }
+
+/* ── full card ───────────────────────────────────────────────────────────── */
+.duo-cu-card {
+  background: var(--duo-paper); border: 1.5px solid var(--duo-paper-rule); border-radius: 6px;
+  padding: 9px 10px; margin-bottom: 8px; border-top: 3px solid var(--duo-paper-rule);
+}
+.duo-cu-card.needs { border-left: 3px solid var(--duo-accent); }
+.duo-cu-card-sched { margin-bottom: 5px; }
+.duo-cu-goal { font-weight: 600; font-size: 12.5px; color: var(--duo-ink); line-height: 1.3; }
+.duo-cu-meta {
+  font-size: 10px; color: var(--duo-ink-mute); margin: 5px 0 6px;
+  display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
+}
+.duo-cu-hue { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.duo-cu-live {
+  width: 7px; height: 7px; border-radius: 50%; display: inline-block;
+  background: var(--duo-project-harbor); animation: duo-cu-pulse 1.6s ease-in-out infinite;
+}
+@keyframes duo-cu-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--duo-project-harbor) 50%, transparent); }
+  50% { box-shadow: 0 0 0 4px transparent; }
+}
+
+/* ── lines (You asked / Next / status) ───────────────────────────────────── */
+.duo-cu-line { font-size: 11px; color: var(--duo-ink-soft); margin: 5px 0 0; line-height: 1.4; }
+.duo-cu-line-label { font-weight: 700; color: var(--duo-ink-mute); text-transform: uppercase; font-size: 9.5px; letter-spacing: .04em; }
+.duo-cu-next { color: var(--duo-ink-soft); }
+.duo-cu-next-label { color: var(--duo-project-harbor); }
+.duo-cu-status { font-size: 11px; color: var(--duo-ink-mute); margin: 6px 0 0; line-height: 1.4; font-style: italic; }
+
+/* ── chips ───────────────────────────────────────────────────────────────── */
+.duo-cu-chiprow { margin: 6px 0 0; }
+.duo-cu-chip { display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 9px; white-space: nowrap; border: 1px solid transparent; }
+.duo-cu-scheduled { background: color-mix(in srgb, var(--duo-project-plum) 16%, transparent); color: var(--duo-project-plum); }
+.duo-cu-fchip {
+  display: inline-block; background: var(--duo-paper-deep); border: 1px solid var(--duo-paper-edge);
+  border-radius: 4px; padding: 1px 6px; font-family: ui-monospace, Menlo, monospace;
+  font-size: 10px; color: var(--duo-ink-soft); margin: 0 3px 3px 0;
+}
+.duo-cu-achip { display: inline-block; border-radius: 4px; padding: 1px 7px; font-size: 10px; font-weight: 600; margin: 0 4px 3px 0; border: 1px solid transparent; }
+.duo-cu-achip-pr { background: color-mix(in srgb, var(--duo-project-iris) 14%, transparent); color: var(--duo-project-iris); }
+.duo-cu-achip-file { background: var(--duo-paper-deep); color: var(--duo-ink-mute); border-color: var(--duo-paper-edge); }
+.duo-cu-todo { display: inline-block; border-radius: 4px; padding: 1px 7px; font-size: 10.5px; margin: 0 4px 3px 0; background: var(--duo-paper-deep); color: var(--duo-ink-soft); border: 1px solid var(--duo-paper-edge); }
+.duo-cu-todo-completed { color: var(--duo-ink-ghost); text-decoration: line-through; }
+.duo-cu-todo-in_progress { border-color: color-mix(in srgb, var(--duo-accent) 45%, var(--duo-paper-rule)); color: var(--duo-accent); }
+.duo-cu-more { color: var(--duo-ink-ghost); font-weight: 600; }
+
+/* ── card actions ────────────────────────────────────────────────────────── */
+.duo-cu-act {
+  font-size: 11.5px; border: 1.5px solid var(--duo-paper-rule); background: var(--duo-paper);
+  border-radius: 5px; padding: 4px 10px; cursor: pointer; color: var(--duo-ink-soft);
+  font-weight: 500; font-family: inherit; width: 100%; text-align: center; margin-top: 8px;
+}
+.duo-cu-act:hover { border-color: var(--duo-ink-ghost); }
+.duo-cu-act.primary { background: var(--duo-accent); border-color: var(--duo-accent); color: var(--duo-paper); font-weight: 600; }
+.duo-cu-act.primary:hover { background: color-mix(in srgb, var(--duo-accent) 88%, transparent); }
+.duo-cu-act.sec {
+  border: none; background: none; color: var(--duo-ink-mute); text-decoration: underline;
+  text-decoration-color: var(--duo-paper-rule); width: auto; display: inline-block;
+  padding: 5px 2px 0; font-size: 11px; margin-top: 3px;
+}
+.duo-cu-act.sec:hover { color: var(--duo-accent); }
+
+/* ── compact tier ────────────────────────────────────────────────────────── */
+.duo-cu-compact-divider {
+  font-size: 9.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--duo-ink-ghost);
+  font-weight: 700; margin: 9px 4px 5px; border-top: 1px dashed var(--duo-paper-rule); padding-top: 7px;
+}
+.duo-cu-crow {
+  display: flex; align-items: center; gap: 7px; padding: 5px 7px; border-radius: 5px; cursor: pointer;
+  width: 100%; border: none; background: none; text-align: left; font-family: inherit;
+}
+.duo-cu-crow:hover { background: color-mix(in srgb, var(--duo-accent) 6%, transparent); }
+.duo-cu-cdot { flex: none; width: 7px; height: 7px; border-radius: 50%; }
+.duo-cu-dot-attn { background: var(--duo-accent); }
+.duo-cu-dot-live { background: var(--duo-project-harbor); }
+.duo-cu-dot-done { background: var(--duo-project-pine); }
+.duo-cu-cgoal { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--duo-ink-soft); font-size: 11.5px; }
+.duo-cu-cclock { flex: none; font-size: 10px; }
+.duo-cu-cage { flex: none; font-size: 10px; color: var(--duo-ink-ghost); white-space: nowrap; }

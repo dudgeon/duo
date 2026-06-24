@@ -627,7 +627,7 @@ describe('buildCatchupSnapshot — columns, two-tier, dedup, §D9', () => {
     expect(board.columns.needsYou.full.map((c) => c.uuid)).toEqual(['plan1'])
     expect(board.columns.needsYou.compact).toEqual([])
     expect(board.columns.needsYou.full[0].attention).toEqual({ reason: 'plan-to-approve' })
-    expect(board.columns.needsYou.full[0].live).toBe(false)
+    expect(board.columns.needsYou.full[0].open).toBeUndefined() // closed, yet full
   })
 
   it('dedups a uuid that appears in two encoded dirs (keep one card)', async () => {
