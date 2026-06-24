@@ -12,6 +12,7 @@ import os from 'os'
 import {
   extractSessionDigest,
   deriveState,
+  extractGoal,
 } from './session-digest'
 import { SessionDigestStore } from '../core/session-digest-store'
 
@@ -181,6 +182,67 @@ describe('extractAttentionReason — via the digest', () => {
     ])
     const d = await extractSessionDigest(file, 'u')
     expect(d!.attention).toBeNull()
+  })
+})
+
+describe('extractGoal — the title/summary → recap → command → first-prompt ladder', () => {
+  const customTitle = (t: string) => ({ type: 'custom-title', customTitle: t })
+  const aiTitle = (t: string) => ({ type: 'ai-title', aiTitle: t })
+  const compactSummary = (content: string) => ({
+    type: 'user',
+    message: { role: 'user', content },
+    isCompactSummary: true,
+  })
+  const commandMsg = (name: string, expansion: string) => ({
+    type: 'user',
+    message: { role: 'user', content: `<command-message>${name}</command-message>\n<command-name>${name}</command-name>\n${expansion}` },
+  })
+
+  it('prefers a custom-title (the user /rename) over everything', async () => {
+    const file = await writeJsonl([
+      commandMsg('review', 'You are an expert code reviewer. Follow these steps:'),
+      aiTitle('AI generated title'),
+      customTitle('cron-for-duo-local-build'),
+    ])
+    const d = await extractSessionDigest(file, 'u')
+    expect(d!.goal).toBe('cron-for-duo-local-build')
+  })
+
+  it('prefers the ai-title (Claude\'s summary) over the first prompt', async () => {
+    const file = await writeJsonl([
+      userMsg('You are an expert code reviewer. Follow these steps: 1. …'),
+      aiTitle('Code review of open PRs'),
+    ])
+    const d = await extractSessionDigest(file, 'u')
+    expect(d!.goal).toBe('Code review of open PRs')
+  })
+
+  it('uses the recap "Primary Request and Intent" for a compacted, untitled session', async () => {
+    const file = await writeJsonl([
+      compactSummary(
+        'This session is being continued from a previous conversation that ran out of context.\n\nSummary:\n1. Primary Request and Intent:\n   Build the rate-limiting middleware for the public API.\n\n2. Key Technical Concepts:\n   - token bucket',
+      ),
+      asstText('Continuing…'),
+    ])
+    const d = await extractSessionDigest(file, 'u')
+    expect(d!.goal).toBe('Build the rate-limiting middleware for the public API.')
+  })
+
+  it('falls back to the slash-command name when the opening turn is a command', async () => {
+    // no title, no recap → the <command-name> beats the expanded prompt
+    const file = await writeJsonl([
+      commandMsg('design-sync', 'Base directory for this skill: /tmp/skills/design-sync # Sync a design system…'),
+    ])
+    const d = await extractSessionDigest(file, 'u')
+    expect(d!.goal).toBe('/design-sync')
+  })
+
+  it('falls back to the first real prompt, skipping recap boilerplate', () => {
+    const lines = [
+      { isCompactSummary: true, type: 'user', message: { role: 'user', content: 'This session is being continued…' } },
+      { type: 'user', message: { role: 'user', content: 'Add OAuth refresh-token rotation' } },
+    ]
+    expect(extractGoal(lines, lines.map((l) => JSON.stringify(l)))).toBe('Add OAuth refresh-token rotation')
   })
 })
 

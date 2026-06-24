@@ -54,7 +54,15 @@ inversion without losing the project mental model.
 
 ### D2 — v1 card fields
 Each briefing card shows, in order:
-1. **Goal** — the session's first instruction (one line).
+1. **Goal** — the session's best available label (one line). **Ladder (owner,
+   2026-06-23 live walk): custom-title (`/rename`) → ai-title (Claude Code's
+   generated summary) → recap ("Primary Request and Intent" from a compacted
+   session's `isCompactSummary`) → slash-command name (`/review`, `/design-sync`
+   from a `<command-name>` opener) → first user prompt (cleaned).** The first
+   prompt is used ONLY when Claude generated no title/summary — earlier the raw
+   first prompt was always used, which surfaced command-expansions ("You are an
+   expert code reviewer…") and skill preambles ("Base directory for this skill:…")
+   as machinery instead of intent. (`extractGoal` in `electron/session-digest.ts`.)
 2. **"You asked"** — the most-recent human turn. The label is literally
    *"You asked"*, never "Last said" — the owner flagged that "last said" is
    ambiguous about *who* spoke; this line is always the human, and the agent's
@@ -171,7 +179,7 @@ Duo already does seek-based JSONL head/tail extraction
 
 | Field | Source in the transcript | Cost |
 |---|---|---|
-| Goal | first `type:"user"` message → `cleanAndTruncate` | free (today's title) |
+| Goal | title ladder: custom-title → ai-title → recap intent → `/command` → first `type:"user"` message (cleaned) — D2 | free (reuses the title rungs) |
 | You asked | **last** `type:"user"` message (skip tool-results + machinery wrappers) | free (reverse of the first-msg scan) |
 | Files in flight | scan `tool_use` blocks for `Edit`/`Write`/`NotebookEdit` → `file_path` set | free (param scan) |
 | Next steps | latest `TodoWrite` `tool_use` → its `todos[]` (with statuses) | **free — the unlock** |

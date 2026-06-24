@@ -70,6 +70,106 @@ function clampLine(s: string, max = YOU_ASKED_MAX): string {
   return t.length > max ? `${t.slice(0, max).trimEnd()}…` : t
 }
 
+// ── goal ladder (ENH-231 owner directive 2026-06-23) ────────────────────────
+// The goal is the session's BEST available label, not the raw first prompt: a
+// command-expansion or skill preamble as the goal reads as machinery, not
+// intent. Ladder (highest first), mirroring + extending the ENH-212 title
+// ladder so a session reads the same in Projects and Catch-up:
+//   1. custom-title  — the user's `/rename`.
+//   2. ai-title      — Claude Code's generated summary/title.
+//   3. recap         — a compacted session's "Primary Request and Intent".
+//   4. command       — `/<name>` when the first turn is a slash-command/skill
+//                      invocation (a `<command-name>` wrapper).
+//   5. first prompt  — the first real user message (skipping recap boilerplate),
+//                      cleaned. The owner-accepted fallback when nothing better.
+
+const RECAP_INTENT_RE = /Primary Request and Intent:\s*([\s\S]+?)(?:\n\s*\n|\n\s*\d+\.\s)/
+const COMMAND_NAME_RE = /<command-name>\s*\/?([^<\s][^<]*?)\s*<\/command-name>/
+
+/** Rungs 1–2: the latest custom-title, else the latest ai-title. */
+function scanTitle(parsedLines: (Rec | null)[]): string | null {
+  for (let i = parsedLines.length - 1; i >= 0; i--) {
+    const p = parsedLines[i]
+    if (p?.type === 'custom-title' && typeof p.customTitle === 'string' && p.customTitle.trim()) {
+      return p.customTitle.trim()
+    }
+  }
+  for (let i = parsedLines.length - 1; i >= 0; i--) {
+    const p = parsedLines[i]
+    if (p?.type === 'ai-title' && typeof p.aiTitle === 'string' && p.aiTitle.trim()) {
+      return p.aiTitle.trim()
+    }
+  }
+  return null
+}
+
+function isCompactSummary(p: Rec | null): boolean {
+  return !!p && (p.isCompactSummary === true || p.isCompactSummary === 'True')
+}
+
+/** Rung 3: a compacted session's recap distills the prior arc; its "Primary
+ *  Request and Intent" is the real goal (the continuation boilerplate is not). */
+function scanRecapIntent(parsedLines: (Rec | null)[]): string | null {
+  for (const p of parsedLines) {
+    if (!isCompactSummary(p)) continue
+    const text = extractUserMessageText(p)
+    if (!text) continue
+    const m = RECAP_INTENT_RE.exec(text)
+    if (m) {
+      const intent = m[1].replace(/\*\*/g, '').replace(/^[-•\s"]+/, '').trim()
+      const firstSentence = intent.split(/(?<=[.:])\s/)[0] ?? intent
+      const cleaned = cleanAndTruncate(firstSentence)
+      if (cleaned) return cleaned
+    }
+  }
+  return null
+}
+
+/** Rung 4: when the opening turn is a slash-command / skill invocation, the
+ *  command name (`/review`, `/design-sync`) is a far better goal than its
+ *  expanded prompt. Reads the raw line so the `<command-name>` wrapper is
+ *  visible even when `extractUserMessageText` would surface the expansion. */
+function scanCommandName(rawLines: string[]): string | null {
+  for (const line of rawLines.slice(0, 12)) {
+    if (!line.includes('<command-name>')) continue
+    const m = COMMAND_NAME_RE.exec(line)
+    if (m && m[1].trim()) return `/${m[1].trim()}`
+  }
+  return null
+}
+
+/** Rung 5: the first real user message, skipping recap boilerplate. */
+function firstPromptGoal(parsedLines: (Rec | null)[]): string {
+  for (const p of parsedLines) {
+    if (isCompactSummary(p)) continue
+    const t = extractUserMessageText(p)
+    if (t) {
+      const cleaned = cleanAndTruncate(t)
+      if (cleaned) return cleaned
+    }
+  }
+  // Last resort: even recap boilerplate beats an empty goal.
+  for (const p of parsedLines) {
+    const t = extractUserMessageText(p)
+    if (t) {
+      const cleaned = cleanAndTruncate(t)
+      if (cleaned) return cleaned
+    }
+  }
+  return ''
+}
+
+/** The session goal — Claude's title/summary if it generated one, else the
+ *  recap, else the slash-command, else the first prompt (owner ladder). */
+export function extractGoal(parsedLines: (Rec | null)[], rawLines: string[]): string {
+  return (
+    scanTitle(parsedLines) ??
+    scanRecapIntent(parsedLines) ??
+    scanCommandName(rawLines) ??
+    firstPromptGoal(parsedLines)
+  )
+}
+
 // ── Scanners (each a deterministic pass; exported for unit tests) ────────────
 
 /** Latest `TodoWrite` tool call → its `todos[]`. Empty when none — never
@@ -286,17 +386,9 @@ export async function extractSessionDigest(
     }
   }
 
-  let goal = ''
-  for (const p of parsedLines) {
-    const t = extractUserMessageText(p)
-    if (t) {
-      const cleaned = cleanAndTruncate(t)
-      if (cleaned) {
-        goal = cleaned
-        break
-      }
-    }
-  }
+  // ENH-231 — goal ladder: Claude's title/summary → recap → command → first
+  // prompt (the owner directive — never machinery when a real label exists).
+  const goal = extractGoal(parsedLines, rawLines)
 
   let youAsked = ''
   for (let i = parsedLines.length - 1; i >= 0; i--) {
