@@ -78,6 +78,20 @@ Let the user drop a reviewed/abandoned session off the Catch-up board. **Owner l
 
 **The change (proposed).** `duo base new --type <t> [--group <field>] [--cols a,b,c] [--filter '<expr>'] [--name "<view>"] [--out <path>] [--open]` → derives the corpus (`duo vault schema`), emits a `.base` (or ` ```base ` block) that's already lint-clean against the live types/fields/enums, and (with `--open`) hands straight to `duo rollup render`. New CLI verb → 4-surface sync (`cli/duo.ts`, `skill/SKILL.md` + `references/rollup.md`, `agents/duo.md`, `docs/CLI-COVERAGE.md`) + `build:cli` + `sync:claude`. Orthogonal to the Q1=A skill strengthening (helps every rollup path).
 
+### ENH-228: Vault inbox + rollups view — a top-level vault surface beside Home
+
+**Status:** 🟡 Awaiting-decision — design playground built, 6 owner decisions pending. **Priority:** TBD (owner-requested). **Effort:** M (view) + S–M (rollup-lifecycle change, per D1). **Filed** 2026-06-24. **Playground:** [`docs/research/vault-inbox-rollups-view.html`](docs/research/vault-inbox-rollups-view.html) (decision artifact, rule 11). **PRD:** owed once decisions land (new user-visible surface → rule 13 requires one).
+
+**Ask (owner).** A new top-level **Vault** view sitting next to the Home tab, shown when a vault is selected: lists the vault's **inbox** items + a capture button, and the vault's **rollups** with view-links + a create button. Owner flagged the hard part up front: *"I don't know if we specify where rollups are supposed to live, so discovery may be challenging"* — and asked for rollup-lifecycle recommendations to make the view reliable.
+
+**Key finding (research, 2 Explore agents).** Confirmed the owner's intuition: **"rollup" is three uncoordinated mechanisms with no registry** — (1) Obsidian `.base` files in `bases/` + embedded ```` ```base ```` blocks in notes/templates → `out/*.html` (`duo base render`); (2) OKF static listings in `index.md`/`log.md` (`duo vault publish`); (3) ENH-229 rollup artifacts in `rollups/*.{md,html}` with embedded snapshot/diff history (`duo rollup render`). **No `type: rollup`, no index, no named handle** — "list the rollups for this vault" is unanswerable without scanning + de-duping several scattered locations. The inbox half, by contrast, is well-defined (`inbox/` folder + `captured:` frontmatter; stale = >1wk per `processing.base`).
+
+**Recommended lifecycle change (D1=B in the playground).** Promote a rollup from "an output file" to a **first-class typed note** (`type: rollup` in `rollups/`) carrying `spec:` (a `.base` path / inline ```` ```base ```` / `listing:` spec), `last_render:`, `last_source_hash:`, `rendered_at:`. Discovery then becomes a `type == rollup` corpus query (no scan, no sidecar — §D9-clean), unifies OKF + Obsidian, is backward-compatible (a rollup note can reference an existing `.base`), and keeps the rendered artifact a pure regenerable build-output. Render verbs stamp `last_*` back into the note. Rejected alternatives: A (convention+scan — fragile, no handle), C (`rollups/index.json` manifest — a sidecar, violates §12/D9).
+
+**Architecture (cheap UI side).** Follows the Home pattern: add `'vault'` to `WorkingTabType` (`shared/types.ts`); synthesize a pinned `type:'vault'` tab after Home; dispatch a new `<VaultView>` in `renderer/components/WorkingPane.tsx`; data via existing `window.electron.vault.*` IPC (+ two new read verbs: list inbox, list rollups). No app-level "selected vault" state exists today → D2 proposes anchoring on the default vault (`duo vault default`).
+
+**Decisions pending (see playground):** D1 discovery model · D2 selected-vault anchor · D3 tab placement/trigger · D4 create-rollup mechanism · D5 inbox scope · D6 first-slice scope. Next: owner walks the playground → lock decisions → write PRD → build.
+
 ### ENH-226: ⌘O Open bar — autofocus the URL/path entry field on open
 
 **Status:** 🆕 Filed 2026-06-21. **Priority:** P3 (small UX polish). **Effort:** S. **Ticket note:** allocated above this worktree's committed max (ENH-225); siblings sit ≤ ENH-206 — renumber if a concurrent agent collides.
