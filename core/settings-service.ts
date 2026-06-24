@@ -19,16 +19,23 @@ import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
 import { uniqueTmpPath } from './write-queue'
+import type { HomeMode } from '../shared/types'
 
 export interface DuoSettings {
   /** ENH-191 P5a — multi-window opening. Default ON (owner decision). Gates
    *  ONLY the "New Window" menu item + `duo window new`; never the
    *  byte-identical-at-N=1 registry / windowId resolution. */
   multiWindow: boolean
+  /** ENH-231 — which Home mode shows: today's project aggregation
+   *  (`projects`) or the async catch-up Command Board (`catchup`). App-global,
+   *  "remember last used"; fanned out to every window on change. Default
+   *  `projects` (least disruptive; Catch-up is opt-in). */
+  homeMode: HomeMode
 }
 
 export const DEFAULT_SETTINGS: DuoSettings = {
   multiWindow: true,
+  homeMode: 'projects',
 }
 
 const SETTINGS_DIR = path.join(os.homedir(), '.claude', 'duo')
@@ -56,6 +63,10 @@ export class SettingsService {
       this.cache = {
         multiWindow:
           typeof parsed.multiWindow === 'boolean' ? parsed.multiWindow : DEFAULT_SETTINGS.multiWindow,
+        homeMode:
+          parsed.homeMode === 'projects' || parsed.homeMode === 'catchup'
+            ? parsed.homeMode
+            : DEFAULT_SETTINGS.homeMode,
       }
     } catch {
       // ENOENT first launch (the common path) or a corrupt file → defaults.
