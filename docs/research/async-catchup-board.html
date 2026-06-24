@@ -120,6 +120,23 @@ code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12px;backgroun
 .empty-col{font-size:11px;color:var(--ink-ghost);padding:8px 4px;text-align:center;}
 .legend{font-size:11px;color:var(--ink-mute);margin:8px 2px 0;display:flex;gap:14px;flex-wrap:wrap;}
 .legend span{display:inline-flex;align-items:center;gap:5px;}
+/* sibling-mode toggle */
+.mode-row{display:flex;align-items:center;gap:10px;padding:10px 14px 0;}
+.mode-label{font-size:12px;color:var(--ink-mute);font-weight:600;}
+.mode-seg{display:inline-flex;border:1.5px solid var(--paper-rule);border-radius:6px;overflow:hidden;}
+.mode-seg button{border:none;background:var(--paper);padding:4px 13px;font-size:12px;font-family:inherit;color:var(--ink-soft);cursor:pointer;}
+.mode-seg button.on{background:var(--accent);color:#fff;font-weight:600;}
+.mode-hint{font-size:11px;color:var(--ink-ghost);}
+.proj-placeholder{padding:48px 16px;text-align:center;color:var(--ink-ghost);font-size:13px;font-style:italic;}
+/* two-tier: compact rows beneath the full cards */
+.compact-divider{font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-ghost);font-weight:700;margin:9px 4px 5px;border-top:1px dashed var(--paper-rule);padding-top:7px;}
+.crow{display:flex;align-items:center;gap:7px;padding:5px 7px;border-radius:5px;cursor:pointer;}
+.crow:hover{background:color-mix(in srgb,var(--accent) 6%,transparent);}
+.crow .cdot{flex:none;width:7px;height:7px;border-radius:50%;}
+.crow .cg{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-soft);font-size:11.5px;}
+.crow .cage{flex:none;font-size:10px;color:var(--ink-ghost);white-space:nowrap;}
+.tag-scheduled{background:color-mix(in srgb,var(--project-plum) 16%,var(--paper));color:var(--project-plum);}
+.bcard .sched{margin-bottom:5px;}
 </style>
 </head>
 <body>
@@ -127,8 +144,8 @@ code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12px;backgroun
 <header class="page-head">
   <h1>Async Catch-Up — Command Board, iteration 2</h1>
   <div class="meta"><span class="pill">Prototype</span><span class="pill">ENH-231</span>
-    <span class="pill" style="background:color-mix(in srgb,var(--pass) 18%,var(--paper));color:var(--pass)">Locked</span>
-    Attention columns · blocked merged as a reason chip · phase cut · 2026-06-23</div>
+    <span class="pill" style="background:color-mix(in srgb,var(--pass) 18%,var(--paper));color:var(--pass)">Planned UI</span>
+    Sibling mode · two-tier columns · scheduled cron · attention-only · 2026-06-23</div>
 </header>
 
 <div class="intro">
@@ -175,9 +192,17 @@ blocked into Needs&nbsp;you (rather than giving it its own column) is the right 
 <b>By phase</b> = the lifecycle pipeline, with needs-you cards flagged amber wherever they sit.</p>
 <div class="proto-frame">
   <div class="proto-titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="grow"></span><span>Duo — Home · Catch-up · Board</span><span class="grow"></span></div>
+  <div class="mode-row">
+    <span class="mode-label">Home</span>
+    <span class="mode-seg" id="modeSeg">
+      <button data-mode="projects">Projects</button>
+      <button data-mode="catchup" class="on">Catch-up</button>
+    </span>
+    <span class="mode-hint">sibling mode · remembers your last choice</span>
+  </div>
   <div class="board-bar">
-    <div class="digest">8:00am batch — <b>9 sessions</b>: <span class="need">3 need you</span>, 2 working, 4 done.</div>
-    <span style="font-size:11px;color:var(--ink-ghost)">columns = what you do about it: act · wait · review</span>
+    <div class="digest">8:00am batch — <b>11 sessions</b>: <span class="need">4 need you</span>, 2 working, 5 done.</div>
+    <span style="font-size:11px;color:var(--ink-ghost)">full cards = open or needs-you · compact = earlier (last 7d)</span>
   </div>
   <div class="board" id="board"></div>
 </div>
@@ -186,8 +211,12 @@ blocked into Needs&nbsp;you (rather than giving it its own column) is the right 
   <span><span class="tag tag-plan">📋 plan to approve</span></span>
   <span><span class="tag tag-question">💬 question</span></span>
   <span><span class="tag tag-blocked">⛔ blocked</span></span>
+  <span><span class="tag tag-scheduled">🕐 scheduled</span> cron run</span>
   <span><span class="live" style="position:static;display:inline-block"></span> live process</span>
 </div>
+<p style="font-size:11.5px;color:var(--ink-mute);margin-top:6px">Toggle <b>Projects ↔ Catch-up</b> at the top (the sibling mode). Within each column,
+<b>full cards</b> are sessions with an open terminal tab <em>or</em> needing you; the
+<b>compact rows beneath</b> are the rest of the last 7 days — click any to re-enter.</p>
 
 <h3>The Done column's action model (owner refinement)</h3>
 <p style="font-size:13px;color:var(--ink-soft)">A complete work product does <em>not</em> mean "view the artifact" is the action you want. In most cases
@@ -205,8 +234,11 @@ exceptions and one principle:</p>
   canvas side by side (the core pairing), so "Open session" and "Open report" differ only in which one leads.</li>
 </ul>
 
-<h3>The locked board, at a glance</h3>
+<h3>The planned UI, at a glance</h3>
 <ul style="font-size:13px;color:var(--ink-soft)">
+  <li><b>Sibling mode toggle</b> — Projects ↔ Catch-up at the top; the app <b>remembers your last choice</b> (persisted app-global, fanned out to every window).</li>
+  <li><b>Two-tier columns</b> — sessions with an <b>open terminal tab</b> or <b>needing you</b> render as <b>full cards</b>; the rest of the <b>last 7 days</b> (deduped) render as <b>compact rows</b> beneath. A closed session that needs you (e.g. a plan awaiting approval) stays a full card — never demoted to a one-liner.</li>
+  <li><b>Cron runs are first-class</b>, badged <span class="tag tag-scheduled">🕐 scheduled</span> — the canonical "work done while you were away" (a scheduled triage run can even land in Needs you).</li>
   <li><b>Three attention columns</b> — <b>Needs you</b> (act) · <b>Working</b> (wait) · <b>Done</b> (review). No phase columns, no group-by toggle.</li>
   <li><b>Blocked is a reason chip, not a column</b> — <span class="tag tag-blocked">⛔ blocked</span> sits inside Needs&nbsp;you beside <span class="tag tag-question">💬 question</span> and <span class="tag tag-plan">📋 plan to approve</span>. Three things that all mean "give input," one column.</li>
   <li><b>Plan-to-approve is the standout Needs-you case</b> — a proposed plan awaiting your go-ahead (an <code>ExitPlanMode</code> with no approval after it). The crispest "needs you" signal of all, and it was invisible before.</li>
@@ -243,73 +275,74 @@ exceptions and one principle:</p>
 </div>
 
 <script>
-// ── data: 9 sessions covering the phase × attention matrix ───────────────
-// attn: null | {reason:'plan'|'question'|'blocked', text}
-// phase: 'planning' | 'executing' | 'done'
+// ── data: 11 sessions ────────────────────────────────────────────────────
+// open: a Duo terminal tab is open for it · live: claude is actively running
+// attn: null | {reason:'plan'|'question'|'blocked', text} · scheduled: cron run
+// TIER (owner spec): full card if (open || attn); else compact row (last 7d).
+// COLUMN: attn -> needs you ; else live -> working ; else -> done.
 const S=[
-  {id:1,goal:'Migrate analytics events to the v2 schema',repo:'web-app',hue:'--project-harbor',age:'14m',live:false,
-   phase:'executing',attn:{reason:'question',text:'page_view → screen.viewed, or drop it? Paused before 40 call-sites.'},
-   youAsked:'Keep v1 emitting in parallel.',next:'Migrate 40 call-sites',files:['events/schema.ts','+4'],artifacts:[],
-   primary:'Open session →'},
-  {id:2,goal:'Redesign the onboarding flow',repo:'web-app',hue:'--project-harbor',age:'20m',live:false,
-   phase:'planning',attn:{reason:'plan',text:'Proposed a 4-step plan (new welcome → progressive profiling). Approve to start?'},
-   youAsked:'Reduce drop-off on step 2.',next:'Awaiting your go-ahead',files:[],artifacts:[],
-   primary:'Review plan →'},
-  {id:3,goal:'Upgrade the app to React 19',repo:'web-app',hue:'--project-harbor',age:'52m',live:false,
-   phase:'executing',attn:{reason:'blocked',text:'react-beautiful-dnd is incompatible & unmaintained. Swap library or pin React 18?'},
-   youAsked:'Bump React and fix what breaks.',next:'Resolve dnd incompatibility',files:['package.json','Board.tsx'],artifacts:[],
-   primary:'Open session →'},
-  {id:4,goal:'Fix the flaky checkout E2E test',repo:'web-app',hue:'--project-harbor',age:'2m',live:true,
-   phase:'executing',attn:null,
-   youAsked:'Make it deterministic — no sleeps.',next:'Confirm over 50 runs',files:['e2e/checkout.spec.ts'],artifacts:[],
-   primary:'Open session →'},
-  {id:5,goal:'Investigate the worker-pool memory leak',repo:'worker',hue:'--project-moss',age:'8m',live:true,
-   phase:'planning',attn:null,
-   youAsked:'Heap grows ~20MB/hr — find what is retained.',next:'Diff retained sets',files:['pool/scheduler.ts'],artifacts:[],
-   primary:'Open session →'},
-  {id:6,goal:'Add OAuth refresh-token rotation',repo:'auth-service',hue:'--project-iris',age:'6m',live:false,
-   phase:'done',attn:null,
-   youAsked:'Rotate on refresh; revoke the old token.',next:null,files:['tokens/rotate.ts','tokens/revoke.ts'],
+  {id:1,goal:'Migrate analytics events to the v2 schema',repo:'web-app',hue:'--project-harbor',age:'14m',open:true,live:false,
+   attn:{reason:'question',text:'page_view → screen.viewed, or drop it? Paused before 40 call-sites.'},
+   next:'Migrate 40 call-sites',primary:'Open session →'},
+  {id:2,goal:'Redesign the onboarding flow',repo:'web-app',hue:'--project-harbor',age:'20m',open:false,live:false,
+   attn:{reason:'plan',text:'Proposed a 4-step plan (new welcome → progressive profiling). Approve to start?'},
+   next:'Awaiting your go-ahead',primary:'Open session →'},
+  {id:3,goal:'Upgrade the app to React 19',repo:'web-app',hue:'--project-harbor',age:'52m',open:false,live:false,
+   attn:{reason:'blocked',text:'react-beautiful-dnd is incompatible & unmaintained. Swap library or pin React 18?'},
+   next:'Resolve dnd incompatibility',primary:'Open session →'},
+  {id:11,goal:'Triage incoming GitHub issues',repo:'duo',hue:'--project-plum',age:'3h',open:false,live:false,scheduled:true,
+   attn:{reason:'question',text:'3 new issues look like duplicates of #210 — close them?'},
+   next:'Awaiting your call',primary:'Open session →'},
+  {id:4,goal:'Fix the flaky checkout E2E test',repo:'web-app',hue:'--project-harbor',age:'2m',open:true,live:true,attn:null,
+   next:'Confirm over 50 runs',primary:'Open session →'},
+  {id:5,goal:'Investigate the worker-pool memory leak',repo:'worker',hue:'--project-moss',age:'8m',open:true,live:true,attn:null,
+   next:'Diff retained sets',primary:'Open session →'},
+  {id:6,goal:'Add OAuth refresh-token rotation',repo:'auth-service',hue:'--project-iris',age:'6m',open:true,live:false,attn:null,
    artifacts:[{label:'PR #214',kind:'pr'},{label:'7 tests green',kind:'test'}],primary:'Open session →',secondary:'Review PR #214'},
-  {id:7,goal:'Draft the Q3 reliability report',repo:'docs',hue:'--project-rose',age:'40m',live:false,
-   phase:'done',attn:null,
-   youAsked:'Pull incidents; draft for the team.',next:null,files:['q3-reliability.md'],
-   artifacts:[{label:'q3-reliability.md',kind:'file'}],primary:'Open report →',secondary:'Open session',artifactOpen:true},
-  {id:8,goal:'Add rate-limiting to the public API',repo:'api-gateway',hue:'--project-pine',age:'1h',live:false,
-   phase:'done',attn:null,
-   youAsked:'Token-bucket, 100 req/min/key.',next:null,files:['mw/rateLimit.ts'],
+  {id:7,goal:'Draft the Q3 reliability report',repo:'docs',hue:'--project-rose',age:'40m',open:false,live:false,attn:null,
+   artifacts:[{label:'q3-reliability.md',kind:'file'}],primary:'Open report →',secondary:'Open session'},
+  {id:8,goal:'Add rate-limiting to the public API',repo:'api-gateway',hue:'--project-pine',age:'1h',open:false,live:false,attn:null,
    artifacts:[{label:'PR #88',kind:'pr'}],primary:'Open session →',secondary:'Review PR #88'},
-  {id:9,goal:'Rename vault → graphbook in CLI help',repo:'duo',hue:'--project-plum',age:'2h',live:false,
-   phase:'done',attn:null,
-   youAsked:'User-facing help strings only.',next:null,files:['cli/help.ts'],
+  {id:9,goal:'Rename vault → graphbook in CLI help',repo:'duo',hue:'--project-plum',age:'2h',open:false,live:false,attn:null,
    artifacts:[{label:'commit a1b2c3',kind:'file'}],primary:'Open session →',secondary:'View diff'},
+  {id:10,goal:'Nightly dependency audit',repo:'worker',hue:'--project-moss',age:'6h',open:false,live:false,scheduled:true,attn:null,
+   artifacts:[{label:'2 advisories',kind:'file'}],primary:'Open session →',secondary:'View report'},
 ];
 
 const REASON={plan:{cls:'tag-plan',label:'📋 plan to approve'},question:{cls:'tag-question',label:'💬 question'},blocked:{cls:'tag-blocked',label:'⛔ blocked'}};
 const esc=s=>(''+s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const dot=s=>`<span class="pdot" style="background:var(${s.hue})"></span>`;
-const artHtml=a=>a.map(x=>`<span class="achip achip-${x.kind}">${esc(x.label)}</span>`).join('');
+const artHtml=a=>(a||[]).map(x=>`<span class="achip achip-${x.kind}">${esc(x.label)}</span>`).join('');
 
-// attention column for a session
-const attnCol=s=>s.attn?'needs':(s.phase==='done'?'done':'working');
+const column=s=>s.attn?'needs':(s.live?'working':'done');     // attention axis
+const tier=s=>(s.open||s.attn)?'full':'compact';             // owner two-tier rule
+const stateColor=s=>s.attn?'var(--accent)':(s.live?'var(--project-harbor)':'var(--pass)');
 
 function cardHtml(s){
-  const needs=!!s.attn;
-  // status row depends on what matters most for this card
+  const needs=!!s.attn, done=column(s)==='done';
   let row='';
   if(needs) row=`<div class="brow"><span class="ql">${esc(s.attn.text)}</span></div>`;
-  else if(s.phase==='done') row=`<div class="chips">${artHtml(s.artifacts)}</div>`;
+  else if(done) row=`<div class="chips">${artHtml(s.artifacts)}</div>`;
   else row=`<div class="brow"><span class="nx">Next:</span> ${esc(s.next)}</div>`;
-  // chips: a Needs-you card carries its reason chip (plan / question / blocked).
   let chips='';
   if(needs) chips+=`<span class="tag ${REASON[s.attn.reason].cls}">${REASON[s.attn.reason].label}</span> `;
   return `<div class="bcard ${needs?'needs':''}" style="border-top-color:var(${s.hue})">
+    ${s.scheduled?'<div class="sched"><span class="tag tag-scheduled">🕐 scheduled</span></div>':''}
     <div class="bg">${esc(s.goal)}</div>
     <div class="bmeta">${s.live?'<span class="live"></span>':''}${dot(s)} ${esc(s.repo)} · ${s.age}</div>
     ${chips?`<div class="chips">${chips}</div>`:''}
     ${row}
-    <button class="act ${needs||s.phase==='done'?'primary':''}">${esc(s.primary)}</button>
+    <button class="act ${needs||done?'primary':''}">${esc(s.primary)}</button>
     ${s.secondary?`<div style="text-align:center"><button class="act sec">${esc(s.secondary)} →</button></div>`:''}
+  </div>`;
+}
+
+function compactRow(s){
+  return `<div class="crow" title="Open session →">
+    <span class="cdot" style="background:${stateColor(s)}"></span>
+    <span class="cg">${esc(s.goal)}</span>
+    ${s.scheduled?'<span class="tag tag-scheduled">🕐</span>':''}
+    <span class="cage">${esc(s.repo)} · ${s.age}</span>
   </div>`;
 }
 
@@ -317,13 +350,25 @@ function render(){
   const cols=[['needs','⏸ Needs you',true],['working','● Working',false],['done','✓ Done — review',false]];
   const board=document.getElementById('board');
   board.innerHTML=cols.map(([key,label,isAttn])=>{
-    const items=S.filter(s=>attnCol(s)===key);
+    const items=S.filter(s=>column(s)===key);
+    const full=items.filter(s=>tier(s)==='full'), compact=items.filter(s=>tier(s)==='compact');
     return `<div class="bcol ${isAttn?'attn-col':''}">
       <div class="bcol-h"><span>${label}</span><span class="cnt">${items.length}</span></div>
-      ${items.map(s=>cardHtml(s)).join('')||'<div class="empty-col">—</div>'}
+      ${full.map(cardHtml).join('')}
+      ${compact.length?`<div class="compact-divider">Earlier · last 7 days</div>${compact.map(compactRow).join('')}`:''}
+      ${items.length?'':'<div class="empty-col">—</div>'}
     </div>`;
   }).join('');
 }
+
+// Sibling-mode toggle (Projects <-> Catch-up; remembers last used in the real app).
+const modeSeg=document.getElementById('modeSeg');
+modeSeg.addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  [...modeSeg.querySelectorAll('button')].forEach(x=>x.classList.toggle('on',x===b));
+  if(b.dataset.mode==='catchup') render();
+  else document.getElementById('board').innerHTML="<div class=\"proj-placeholder\">Projects view — today’s project-aggregated Home (not shown in this prototype).</div>";
+});
 render();
 
 // ── decisions ────────────────────────────────────────────────────────────
