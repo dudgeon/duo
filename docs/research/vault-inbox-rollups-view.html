@@ -415,13 +415,13 @@ Open milestones across all initiatives, grouped by owner, with a due chip.</code
   }
   document.querySelectorAll('input[type=radio]').forEach(r => r.addEventListener('change', refresh));
   document.getElementById('copy-btn').addEventListener('click', () => {
-    let out = 'VAULT INBOX + ROLLUPS VIEW — decisions\\n\\n';
+    let out = 'VAULT INBOX + ROLLUPS VIEW — decisions\n\n';
     for (const k of Object.keys(TITLES)) {
       const sel = document.querySelector('input[name="'+k+'"]:checked');
       const note = document.querySelector('.q-notes[data-decision="'+k+'"]').value.trim();
-      out += '[' + (sel ? sel.value : '—') + '] ' + TITLES[k] + '\\n';
-      if (note) out += '    ' + note.replace(/\\n/g, '\\n    ') + '\\n';
-      out += '\\n';
+      out += '[' + (sel ? sel.value : '—') + '] ' + TITLES[k] + '\n';
+      if (note) out += '    ' + note.replace(/\n/g, '\n    ') + '\n';
+      out += '\n';
     }
     navigator.clipboard.writeText(out).then(() => {
       const b = document.getElementById('copy-btn');
