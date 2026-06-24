@@ -80,7 +80,7 @@ describe('HomeView catch-up — BUG-046 fetch gating', () => {
     homeApi.getMode.mockResolvedValueOnce('catchup')
     render(<HomeView isActive={true} />)
     // getMode flips it to catchup → the board (its bar) renders
-    await waitFor(() => expect(screen.getByText(/full = open or needs you/)).toBeTruthy())
+    await waitFor(() => expect(screen.getByText(/compact = stalled/)).toBeTruthy())
     expect(homeApi.catchup).toHaveBeenCalled()
   })
 })

@@ -237,18 +237,35 @@ function createdPaths(parsedLines: (Rec | null)[]): Set<string> {
   return set
 }
 
+const PR_CREATE_CMD_RE = /\bgh\s+pr\s+create\b/
+
 /** Detected work products. PR captured with its URL (deep-link, no open-time
  *  lookup). Tests are a coarse pass/fail heuristic. */
 export function scanArtifacts(parsedLines: (Rec | null)[], rawLines: string[]): DigestArtifacts {
   const art: DigestArtifacts = {}
 
-  // PR — newest URL across all raw lines (covers `gh pr create` stdout in a
-  // toolUseResult string AND an mcp create_pull_request result object).
-  for (let i = rawLines.length - 1; i >= 0; i--) {
-    const m = PR_URL_RE.exec(rawLines[i])
-    if (m) {
-      art.pr = { number: Number(m[1]), url: m[0] }
-      break
+  // PR — ONLY when this session actually OPENED one: a `gh pr create` Bash
+  // command or an `…create_pull_request` (mcp) tool call, with the URL captured
+  // from a TOOL RESULT (the command's output), NOT from assistant prose. A pull
+  // URL merely *mentioned* in a message (reviewing/referencing a PR) is NOT a
+  // created artifact — that loose "any pull URL anywhere" match wrongly flagged
+  // nearly every session as having produced a PR (live-data finding).
+  const openedPr = parsedLines
+    .flatMap((p) => toolUsesOf(p))
+    .some(
+      (tu) =>
+        /create_pull_request/.test(tu.name) ||
+        (tu.name === 'Bash' && typeof tu.input.command === 'string' && PR_CREATE_CMD_RE.test(tu.input.command)),
+    )
+  if (openedPr) {
+    for (let i = parsedLines.length - 1; i >= 0; i--) {
+      const r = parsedLines[i]?.toolUseResult
+      const text = typeof r === 'string' ? r : r && typeof r === 'object' ? JSON.stringify(r) : ''
+      const m = text ? PR_URL_RE.exec(text) : null
+      if (m) {
+        art.pr = { number: Number(m[1]), url: m[0] }
+        break
+      }
     }
   }
 

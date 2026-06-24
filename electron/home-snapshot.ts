@@ -690,7 +690,23 @@ export async function buildCatchupSnapshot(deps: BuildCatchupDeps): Promise<Catc
       const live = open != null
       const attention = digest.attention
       const state = deriveState(live, attention?.reason ?? null)
-      const tier: CatchupCard['tier'] = live || attention ? 'full' : 'compact'
+      // FULL (prominent) ⇔ live, needs-you, OR FINISHED reviewable work — a
+      // produced artifact (PR / created files / tests) or a fully-checked-off
+      // TodoWrite plan. A closed session with NEITHER is STALLED (unfinished, no
+      // deliverable) → a compact row beneath the finished Done cards (owner: the
+      // Done column must mean "done — review", not merely "inactive").
+      // "Finished/reviewable" needs a CRISP deliverable, not just "touched
+      // files" (every coding session creates files — too loose, it re-floods
+      // the column): opened a PR, finished its TodoWrite plan, or produced a
+      // DOCUMENT (the D7 .md/.html report case). Code edits alone with no PR and
+      // no completed plan = STALLED.
+      const art = digest.artifacts
+      const createdDoc = (art.createdFiles ?? []).some((f) => /\.(md|markdown|html?)$/i.test(f))
+      const completed =
+        !!art.pr ||
+        createdDoc ||
+        (digest.todos.length > 0 && digest.todos.every((t) => t.status === 'completed'))
+      const tier: CatchupCard['tier'] = live || attention || completed ? 'full' : 'compact'
       const ann = deps.homeStateStore.getAnnotation(uuid)
       const narrative =
         ann?.note || ann?.next

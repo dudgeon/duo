@@ -43,7 +43,7 @@ export function CatchupBoard({ snapshot, now, onOpenSession, onOpenFile, onOpenU
             </>
           )}
         </span>
-        <span className="duo-cu-bar-hint">full = open or needs you · compact = earlier (last 7d)</span>
+        <span className="duo-cu-bar-hint">full = needs you · working · finished · compact = stalled (unfinished)</span>
       </div>
 
       <div className="duo-cu-board">
@@ -70,7 +70,9 @@ export function CatchupBoard({ snapshot, now, onOpenSession, onOpenFile, onOpenU
 
               {col.compact.length > 0 && (
                 <>
-                  <div className="duo-cu-compact-divider">Earlier · last 7 days</div>
+                  <div className="duo-cu-compact-divider">
+                    {key === 'done' ? 'Stalled · unfinished' : 'Earlier · last 7 days'}
+                  </div>
                   {col.compact.map((card) => (
                     <CompactSessionRow key={card.uuid} card={card} now={now} onOpenSession={onOpenSession} />
                   ))}

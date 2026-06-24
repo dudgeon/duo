@@ -1832,7 +1832,10 @@ export interface CatchupCard extends SessionDigest {
    *  outside Duo, fork-not-focus). ABSENT ⇒ no live `claude` process ⇒ closed.
    *  Liveness is therefore `open != null`; "open in Duo" is `open?.kind==='duo'`. */
   open?: HomeSessionOpen
-  /** Two-tier rule: `full` if (live OR attention); else `compact`. A closed
+  /** Two-tier rule: `full` if live OR needs-you OR **finished** (a produced
+   *  artifact, or a fully-complete TodoWrite plan); else `compact`. So in the
+   *  Done column, full cards are completed/reviewable work and the compact rows
+   *  beneath are STALLED sessions (closed, unfinished, no deliverable). A closed
    *  session that needs you stays full (review fix #8). */
   tier: 'full' | 'compact'
 }

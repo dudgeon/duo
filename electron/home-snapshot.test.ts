@@ -620,6 +620,51 @@ describe('buildCatchupSnapshot — columns, two-tier, dedup, §D9', () => {
     expect(board.columns.done.full).toEqual([])
   })
 
+  it('Done column: FINISHED sessions are full cards, STALLED ones are compact (owner IA fix)', async () => {
+    const todoWriteEntry = (todos: object[], cwd: string): object => ({
+      parentUuid: 'p', isSidechain: false, type: 'assistant',
+      message: { role: 'assistant', content: [{ type: 'tool_use', id: 'tw', name: 'TodoWrite', input: { todos } }] },
+      uuid: 'a', timestamp: '2026-06-10T01:10:00.000Z', cwd, sessionId: 's', gitBranch: 'main',
+    })
+    const bashEntry = (command: string, cwd: string): object => ({
+      type: 'assistant',
+      message: { role: 'assistant', content: [{ type: 'tool_use', id: 'b1', name: 'Bash', input: { command } }] },
+      uuid: 'a', timestamp: '2026-06-10T01:10:00.000Z', cwd, sessionId: 's', gitBranch: 'main',
+    })
+    const toolResult = (cwd: string, toolUseResult: unknown): object => ({
+      type: 'user',
+      message: { content: [{ type: 'tool_result', tool_use_id: 'b1', content: 'ok' }] },
+      toolUseResult, cwd, uuid: 'r', timestamp: '2026-06-10T01:11:00.000Z',
+    })
+    // All sessions END ON A USER/tool-result TURN so the attention heuristic stays null (→ Done column).
+    // finished — a fully-complete TodoWrite plan.
+    await writeRaw('enc-fin1', 'fin1', '/proj/f1', [
+      todoWriteEntry([{ content: 'ship it', status: 'completed' }], '/proj/f1'),
+      userEntry('thanks', '/proj/f1'),
+    ])
+    // finished — actually OPENED a PR (gh pr create → URL in the tool result).
+    await writeRaw('enc-fin2', 'fin2', '/proj/f2', [
+      bashEntry('gh pr create --fill', '/proj/f2'),
+      toolResult('/proj/f2', 'https://github.com/o/r/pull/9\n'),
+    ])
+    // finished — produced a DOCUMENT (.md), the D7 report case.
+    await writeRaw('enc-fin3', 'fin3', '/proj/f3', [
+      toolResult('/proj/f3', { type: 'create', filePath: '/proj/f3/report.md' }),
+    ])
+    // stalled — a half-done plan, no deliverable.
+    await writeRaw('enc-stall', 'stall1', '/proj/s', [
+      todoWriteEntry([{ content: 'a', status: 'completed' }, { content: 'b', status: 'pending' }], '/proj/s'),
+      userEntry('hold on', '/proj/s'),
+    ])
+    // stalled — only CODE files touched (no PR, no completed plan, no doc).
+    await writeRaw('enc-stall2', 'stall2', '/proj/s2', [
+      toolResult('/proj/s2', { type: 'create', filePath: '/proj/s2/util.ts' }),
+    ])
+    const board = await buildCatchupSnapshot({ projectsRoot, digestStore, homeStateStore: homeStore, now: Date.now() })
+    expect(board.columns.done.full.map((c) => c.uuid).sort()).toEqual(['fin1', 'fin2', 'fin3'])
+    expect(board.columns.done.compact.map((c) => c.uuid).sort()).toEqual(['stall1', 'stall2'])
+  })
+
   it('keeps a CLOSED needs-you (plan-to-approve) session as a FULL card (review fix #8)', async () => {
     await writeRaw('enc-plan', 'plan1', '/proj/p', [exitPlanEntry('/proj/p')])
     const board = await buildCatchupSnapshot({ projectsRoot, digestStore, homeStateStore: homeStore, now: Date.now() })

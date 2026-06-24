@@ -70,8 +70,8 @@ describe('CatchupBoard', () => {
     expect(within(screen.getByRole('region', { name: 'Working' })).getByText('Working goal')).toBeTruthy()
     const doneCol = screen.getByRole('region', { name: 'Done — review' })
     expect(within(doneCol).getByText('Done full')).toBeTruthy()
-    // compact row sits under the "Earlier" divider
-    expect(within(doneCol).getByText('Earlier · last 7 days')).toBeTruthy()
+    // compact rows in the Done column are the STALLED sessions
+    expect(within(doneCol).getByText('Stalled · unfinished')).toBeTruthy()
     expect(within(doneCol).getByText('Done compact')).toBeTruthy()
   })
 

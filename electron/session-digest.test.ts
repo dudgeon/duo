@@ -110,6 +110,30 @@ describe('extractSessionDigest — deterministic field extraction', () => {
     expect(d!.artifacts.pr).toEqual({ number: 214, url: 'https://github.com/dudgeon/duo/pull/214' })
   })
 
+  it('does NOT flag a PR merely MENTIONED in prose (no gh pr create / create_pull_request)', async () => {
+    const file = await writeJsonl([
+      userMsg('review the open PRs'),
+      asstText('I looked at https://github.com/dudgeon/duo/pull/108 — it needs a rebase.'),
+      userMsg('thanks'),
+    ])
+    const d = await extractSessionDigest(file, 'u')
+    expect(d!.artifacts.pr).toBeUndefined() // referencing a PR ≠ opening one
+  })
+
+  it('captures a PR from an mcp create_pull_request result', async () => {
+    const file = await writeJsonl([
+      userMsg('open a PR'),
+      asstTool('mcp__github__create_pull_request', { title: 'x' }, 'm1'),
+      {
+        type: 'user',
+        message: { content: [{ type: 'tool_result', tool_use_id: 'm1', content: 'ok' }] },
+        toolUseResult: { url: 'https://github.com/dudgeon/duo/pull/321', number: 321 },
+      },
+    ])
+    const d = await extractSessionDigest(file, 'u')
+    expect(d!.artifacts.pr).toEqual({ number: 321, url: 'https://github.com/dudgeon/duo/pull/321' })
+  })
+
   it('returns empty todos (never inferred) when no TodoWrite ran', async () => {
     const file = await writeJsonl([userMsg('hi'), asstText('hello')])
     const d = await extractSessionDigest(file, 'u')
