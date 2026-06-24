@@ -327,6 +327,7 @@ import {
   digestNextLine,
   digestNeedsLine,
   compactDotClass,
+  toPlainPreview,
 } from './homeModel'
 import type { CatchupCard } from '@shared/types'
 
@@ -406,5 +407,28 @@ describe('compactDotClass', () => {
     expect(compactDotClass(card({ attention: { reason: 'blocked' } }))).toBe('duo-cu-dot-attn')
     expect(compactDotClass(card({ open: { kind: 'duo', windowId: 1, tabId: 't' } }))).toBe('duo-cu-dot-live')
     expect(compactDotClass(card())).toBe('duo-cu-dot-done')
+  })
+})
+
+describe('toPlainPreview — markdown-stripped, length-bounded card preview', () => {
+  it('drops fenced code blocks (the bash noise) and unwraps inline markdown', () => {
+    const raw =
+      'The command runs from the **main repo root**. From the repo (`/Users/x/duo`): ```bash\ngit worktree remove --force .claude/worktrees/x\n``` Done.'
+    const out = toPlainPreview(raw, 200)
+    expect(out).not.toContain('```')
+    expect(out).not.toContain('**')
+    expect(out).toContain('main repo root')
+    expect(out).toContain('/Users/x/duo')
+    expect(out).not.toContain('git worktree remove') // fenced block dropped
+  })
+
+  it('collapses whitespace and truncates with an ellipsis', () => {
+    const out = toPlainPreview('a'.repeat(300), 180)
+    expect(out.length).toBe(181) // 180 + the ellipsis char
+    expect(out.endsWith('…')).toBe(true)
+  })
+
+  it('unwraps links to their text and strips headings/bullets', () => {
+    expect(toPlainPreview('# Title\n- see [the PR](https://x/pull/1) now')).toBe('Title see the PR now')
   })
 })

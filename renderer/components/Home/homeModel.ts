@@ -316,3 +316,25 @@ export function compactDotClass(card: CatchupCard): string {
   if (card.open) return 'duo-cu-dot-live'
   return 'duo-cu-dot-done'
 }
+
+/** Flatten a markdown-bearing transcript line into a short plain-text preview
+ *  for a card (the raw last-assistant block is full markdown — fenced code,
+ *  bold, links — which reads as machinery on a card). Drops fenced code blocks
+ *  entirely, unwraps inline code / emphasis / links, collapses whitespace, and
+ *  truncates. The card additionally CSS-line-clamps, so this is the upper bound
+ *  on payload, not the visible height. */
+export function toPlainPreview(text: string, max = 180): string {
+  const flat = text
+    .replace(/```[\s\S]*?```/g, ' ') // drop fenced code blocks (the bash noise)
+    .replace(/~~~[\s\S]*?~~~/g, ' ')
+    .replace(/`([^`]+)`/g, '$1') // unwrap inline code
+    .replace(/\*\*([^*]+)\*\*/g, '$1') // unbold
+    .replace(/(^|\s)\*([^*\n]+)\*/g, '$1$2') // unitalic
+    .replace(/(^|\s)_([^_\n]+)_/g, '$1$2')
+    .replace(/^#{1,6}\s+/gm, '') // headings
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // links → text
+    .replace(/^\s*[-*+]\s+/gm, '') // list bullets
+    .replace(/\s+/g, ' ')
+    .trim()
+  return flat.length > max ? `${flat.slice(0, max).trimEnd()}…` : flat
+}

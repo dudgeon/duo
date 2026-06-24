@@ -12,6 +12,7 @@ import {
   ageShort,
   digestPrimaryAction,
   digestSecondaryAction,
+  toPlainPreview,
 } from './homeModel'
 import { AttentionChip, ScheduledBadge, FileChips, ArtifactChips, TodoChips } from './CatchupChips'
 
@@ -28,8 +29,13 @@ export function SessionDigestCard({ card, now, onOpenSession, onOpenFile, onOpen
   const hue = cardHue(card.cwd)
   const primary = digestPrimaryAction(card)
   const secondary = digestSecondaryAction(card)
-  const statusLine = card.narrative?.note ?? card.fallbackSnippet ?? null
-  const nextLine = card.narrative?.next ?? null
+  // Plain-text, length-bounded previews — the raw snippet is full markdown
+  // (fenced code, bold, paths) and the whole last turn; the card shows a clamped
+  // 2-line gist (CSS also line-clamps, so this is belt-and-suspenders).
+  const rawStatus = card.narrative?.note ?? card.fallbackSnippet ?? null
+  const statusLine = rawStatus ? toPlainPreview(rawStatus, 200) : null
+  const youAsked = card.youAsked ? toPlainPreview(card.youAsked, 160) : null
+  const nextLine = card.narrative?.next ? toPlainPreview(card.narrative.next, 140) : null
 
   const runPrimary = () => {
     if (primary.kind === 'artifact' && primary.path) onOpenFile(primary.path)
@@ -71,16 +77,16 @@ export function SessionDigestCard({ card, now, onOpenSession, onOpenFile, onOpen
         </div>
       )}
 
-      {card.youAsked && (
-        <p className="duo-cu-line">
-          <span className="duo-cu-line-label">You asked</span> {card.youAsked}
+      {youAsked && (
+        <p className="duo-cu-line duo-cu-clamp">
+          <span className="duo-cu-line-label">You asked</span> {youAsked}
         </p>
       )}
 
       <TodoChips todos={card.todos} />
 
       {nextLine && (
-        <p className="duo-cu-line duo-cu-next">
+        <p className="duo-cu-line duo-cu-next duo-cu-clamp">
           <span className="duo-cu-line-label duo-cu-next-label">Next</span> {nextLine}
         </p>
       )}
@@ -88,7 +94,7 @@ export function SessionDigestCard({ card, now, onOpenSession, onOpenFile, onOpen
       <FileChips files={card.files} />
       <ArtifactChips artifacts={card.artifacts} />
 
-      {statusLine && <p className="duo-cu-status">{statusLine}</p>}
+      {statusLine && <p className="duo-cu-status duo-cu-clamp">{statusLine}</p>}
 
       <button type="button" className="duo-cu-act primary" onClick={runPrimary}>
         {primary.label}

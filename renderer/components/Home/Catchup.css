@@ -45,7 +45,7 @@
 }
 .duo-cu-card.needs { border-left: 3px solid var(--duo-accent); }
 .duo-cu-card-sched { margin-bottom: 5px; }
-.duo-cu-goal { font-weight: 600; font-size: 12.5px; color: var(--duo-ink); line-height: 1.3; }
+.duo-cu-goal { font-weight: 600; font-size: 12.5px; color: var(--duo-ink); line-height: 1.3; overflow-wrap: anywhere; }
 .duo-cu-meta {
   font-size: 10px; color: var(--duo-ink-mute); margin: 5px 0 6px;
   display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
@@ -61,11 +61,14 @@
 }
 
 /* ── lines (You asked / Next / status) ───────────────────────────────────── */
-.duo-cu-line { font-size: 11px; color: var(--duo-ink-soft); margin: 5px 0 0; line-height: 1.4; }
+.duo-cu-line { font-size: 11px; color: var(--duo-ink-soft); margin: 5px 0 0; line-height: 1.4; overflow-wrap: anywhere; }
 .duo-cu-line-label { font-weight: 700; color: var(--duo-ink-mute); text-transform: uppercase; font-size: 9.5px; letter-spacing: .04em; }
 .duo-cu-next { color: var(--duo-ink-soft); }
 .duo-cu-next-label { color: var(--duo-project-harbor); }
-.duo-cu-status { font-size: 11px; color: var(--duo-ink-mute); margin: 6px 0 0; line-height: 1.4; font-style: italic; }
+.duo-cu-status { font-size: 11px; color: var(--duo-ink-mute); margin: 6px 0 0; line-height: 1.4; font-style: italic; overflow-wrap: anywhere; }
+/* Clamp prose previews to 2 lines (a long path / wall of prose never dominates
+   the card — the gist shows; the full text lives in the session). */
+.duo-cu-clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
 
 /* ── chips ───────────────────────────────────────────────────────────────── */
 .duo-cu-chiprow { margin: 6px 0 0; }
