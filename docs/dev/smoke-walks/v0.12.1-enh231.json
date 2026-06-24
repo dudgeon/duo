@@ -1,0 +1,107 @@
+{
+  "version": "0.12.1",
+  "date": "2026-06-24",
+  "title": "Smoke walk · ENH-231 Async Catch-Up (P0+P1 parity)",
+  "intro_html": "<p><strong>Agent-verified at the DOM level — skim these, they're covered:</strong> the pills / done+stalled badges / worktree badges render; a file-chip click dispatches the open event; compact rows expand into cards; gone cards are grey + struck through; 2026 unit/component tests pass. The items below need your <strong>eyes + hands</strong>. <strong>CU-FOCUS is the one I genuinely couldn't test</strong> — my session runs OUTSIDE Duo (so it correctly shows as external/forks), so only you can confirm that a session running <em>in a Duo terminal</em> shows the green pill and <em>focuses</em> (not forks). First switch Home to <strong>Catch-up</strong> (the toggle at the top).</p>",
+  "items": [
+    {
+      "id": "CU-FOCUS",
+      "title": "A Duo-hosted live session shows green ● live and FOCUSES (never forks)",
+      "what_fixes": "The reported 'clicking a running session offered to fork it' was because that session ran OUTSIDE Duo. The fix: catch-up now shows green ● live (Duo-hosted → focus) vs amber ● running (external → fork), matching Projects Home. This step confirms the Duo-hosted path actually focuses.",
+      "steps": [
+        "Have a `claude` session running in a DUO terminal tab (start one if needed; let it idle).",
+        "Switch Home to Catch-up. Find that session — it should be in the **Working** column with a green **● live** pill.",
+        "Click its **Focus session →** button.",
+        "PASS if it focuses/raises that terminal tab (no fork dialog). FAIL if it offers to fork or does nothing."
+      ]
+    },
+    {
+      "id": "CU-DONE-IA",
+      "title": "Done column = finished work (full) vs stalled (compact) — matches your mental model",
+      "what_fixes": "Done used to mean 'merely inactive' (a junk drawer). Now full cards = a real deliverable (opened a PR, completed its TodoWrite plan, or produced a .md/.html doc) badged ✓ done; the compact 'Stalled · unfinished' rows beneath = closed with no deliverable, badged ⏸ stalled when expanded.",
+      "steps": [
+        "In Catch-up, look at the **Done — review** column.",
+        "Confirm the full cards are sessions that actually finished something (PR / doc / completed todos), each with a **✓ done** badge.",
+        "Confirm the **Stalled · unfinished** compact rows beneath are sessions that just stopped (no PR/doc).",
+        "PASS if that split reads correctly to you; FAIL + note any card that's in the wrong tier."
+      ]
+    },
+    {
+      "id": "CU-WORKTREE-GONE",
+      "title": "A removed-worktree session is grey + struck through, reason on hover, no scary flag",
+      "what_fixes": "Sessions from deleted worktrees can't resume (claude --resume dead-ends). Now the heading is just grey + struck through (no ⚠ flag, no dead-end button); hovering shows 'Worktree removed — <path> no longer exists'.",
+      "steps": [
+        "In the Done column, find a card whose heading is grey + struck through (you have ~10).",
+        "Hover the struck heading — a tooltip should explain the worktree was removed.",
+        "Confirm there's NO loud ⚠ warning and NO re-entry button on it.",
+        "PASS if it reads as a quiet 'unavailable', not an alarm."
+      ]
+    },
+    {
+      "id": "CU-FILEOPEN",
+      "title": "Clicking a file chip opens that file in Duo",
+      "what_fixes": "Files-in-flight chips were inert; now they're buttons that open the file (parity with Projects Home's recent-file chips).",
+      "steps": [
+        "Find a card with file chips (monospace filename chips under the todos).",
+        "Click one.",
+        "PASS if that file opens in Duo (editor/canvas); FAIL if nothing happens or the wrong file opens."
+      ]
+    },
+    {
+      "id": "CU-EXPAND",
+      "title": "A compact (stalled) row expands into the full card, and collapses back",
+      "what_fixes": "Owner request: collapsed rows need an expanded state mirroring the cards.",
+      "steps": [
+        "Click a **Stalled · unfinished** compact row (under the Done column).",
+        "It should expand in place into the full card (goal · You asked · files · actions) with a **▾ collapse** control + a **⏸ stalled** badge.",
+        "Click **▾ collapse** — it returns to the one-line row.",
+        "PASS if expand + collapse both work."
+      ]
+    },
+    {
+      "id": "CU-TEXT",
+      "title": "Card previews are a clean 2-line gist — no raw markdown, no wall of text",
+      "what_fixes": "The status / 'You asked' lines were dumping ```bash fences + the whole last turn. Now they're markdown-stripped + clamped to ~2 lines.",
+      "steps": [
+        "Scan several cards' 'You asked' line and the italic status line.",
+        "Confirm no literal ``` fences / `**bold**` markers, and nothing runs past ~2 lines.",
+        "PASS if the previews read as clean gists."
+      ]
+    },
+    {
+      "id": "CU-WTBADGE",
+      "title": "A worktree session shows the repo + ⑂ slug badge",
+      "what_fixes": "Two worktrees of one repo were indistinguishable (both showed the bare slug as the 'repo'). Now: repo label + a ⑂ <slug> badge.",
+      "steps": [
+        "Find a card from a `.claude/worktrees/<slug>` session (most of yours).",
+        "Confirm the meta line shows the repo name (e.g. **duo**) AND a **⑂ <slug>** badge.",
+        "PASS if you can tell the repo from the worktree."
+      ]
+    },
+    {
+      "id": "CU-DARK",
+      "title": "Dark theme — pills, badges, chips, gone-text all stay legible",
+      "what_fixes": "Catch-up uses only var(--duo-*) tokens + the shared duo-banner-* classes, so it should flip cleanly. Theme-legibility is a recurring bug class — worth an eyes-on check in BOTH tones.",
+      "steps": [
+        "Toggle Duo to dark mode (View ▸ Appearance, or `duo theme dark`).",
+        "Re-scan the board: the green/amber pills, ✓ done / ⏸ stalled badges, attention chips (question/blocked), file/todo chips, and the grey struck-through gone text.",
+        "PASS if everything is readable (no dark-on-dark / light-on-light); FAIL + name any illegible element. Then `duo theme light` to revert."
+      ]
+    },
+    {
+      "id": "CU-MODE",
+      "title": "Projects ↔ Catch-up toggle persists across a Home reopen",
+      "what_fixes": "App-global mode, remembered last-used, fanned out to all windows.",
+      "steps": [
+        "Toggle to Catch-up, then click away to another tab and back to Home — it should still be on Catch-up.",
+        "Toggle to Projects — the old project view returns unchanged.",
+        "PASS if the choice sticks and both views render."
+      ]
+    }
+  ],
+  "misc_notes": {
+    "title": "Anything else from the walk",
+    "help": "Other paper-cuts or polish for ENH-231.",
+    "result_block_title": "OTHER NOTES"
+  }
+}
