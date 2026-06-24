@@ -35,6 +35,21 @@ rolls up into itself.
 lint` until clean). Then render it with `duo rollup render` instead of `base
 render` to get the variant choice + the features below.
 
+**OKF vaults included — a `.base` is just the query.** The common agent
+mistake: *"this is an OKF vault, it has no `.base` files, so `duo rollup render`
+won't work — I'll hand-build the HTML."* **Wrong, and it's the #1 way agents
+fumble this.** OKF doesn't *auto-render* `.base` files at rest (that's an
+Obsidian-live behavior; OKF's at-rest listings are `index.md`/`log.md` via
+`duo vault publish`) — but a `.base` is just a **query definition**, and
+`duo rollup render <base> --md|--html` evaluates it over the corpus in **both**
+modes (entity links resolve to OKF rel-md paths — verified). So when the user
+asks for a *"rich HTML rollup / dashboard"* of an OKF vault: author a `.base`,
+then `duo rollup render <base> --html --open`. **Never hand-build the HTML** —
+the rendered artifact already carries the Refresh button + the staleness stamp.
+(For an expressive *in-vault* `index.md` instead — the canonical listing a
+reader opens — give it a `listing:` spec and `duo vault publish`; see
+[vault.md](vault.md).)
+
 ## Entity links (always on)
 
 Every row links the entities it rolls up: the row's own note (the `file.name`
