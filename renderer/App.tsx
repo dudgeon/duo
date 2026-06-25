@@ -555,18 +555,9 @@ export function App() {
       window.removeEventListener('duo-vault-default-changed', onChanged)
     }
   }, [])
-  // Reconcile the Vault tab's presence to `hasDefaultVault` (idempotent — the
-  // syncVaultTab helper returns the same array reference when nothing changes,
-  // so this never churns). If the tab is removed while it was the active
-  // surface, fall back to Home.
-  useEffect(() => {
-    setFileTabs(prev => syncVaultTab(prev, hasDefaultVault))
-    if (!hasDefaultVault) {
-      setActiveWorking(prev =>
-        prev.kind === 'file' && prev.id === VAULT_TAB_ID ? { kind: 'file', id: HOME_TAB_ID } : prev
-      )
-    }
-  }, [hasDefaultVault])
+  // (The Vault-tab presence reconciliation lives BELOW the session-restore
+  // state — it must re-run after restore settles, see the effect near
+  // `sessionHydrated`, or restore's wholesale setFileTabs clobbers the tab.)
 
   // ENH-080 — `⌘⇧A` opens a fuzzy search palette over open tabs.
   // The palette is a renderer overlay; we set its `open` state from
@@ -661,6 +652,23 @@ export function App() {
   const [sessionHydrated, setSessionHydrated] = useState(false)
   const sessionLoadStartedRef = useRef(false)
   const [browserTabs, setBrowserTabs] = useState<BrowserTab[]>([])
+
+  // ENH-228 — reconcile the Vault tab's presence to whether a default vault is
+  // set (D4). Gated on `sessionHydrated` so it re-runs AFTER restore's wholesale
+  // setFileTabs lands: otherwise a getDefault that resolves before restore adds
+  // the tab and restore clobbers it (the boot-time-spawn-before-restore-settled
+  // failure class — same lineage as the cron D5 catch-up). Idempotent: the
+  // syncVaultTab helper returns the same array reference when nothing changes.
+  // If the tab is removed while it was the active surface, fall back to Home.
+  useEffect(() => {
+    if (!sessionHydrated) return
+    setFileTabs(prev => syncVaultTab(prev, hasDefaultVault))
+    if (!hasDefaultVault) {
+      setActiveWorking(prev =>
+        prev.kind === 'file' && prev.id === VAULT_TAB_ID ? { kind: 'file', id: HOME_TAB_ID } : prev
+      )
+    }
+  }, [hasDefaultVault, sessionHydrated])
 
   // ENH-179 (Sprint 20 / v0.7.7) — recently-closed-tabs LIFO ring for
   // ⌘Z reopen. Three kinds (file / browser / terminal); the chord
