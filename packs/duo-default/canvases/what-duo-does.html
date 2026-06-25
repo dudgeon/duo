@@ -726,6 +726,15 @@
   </div>
 </article>
 
+<article class="item" data-keys="home catch-up async command board sessions needs you in progress done briefing card digest todo files artifact pr live closed worktree mode toggle projects re-entry enh-231">
+  <div class="num">129</div>
+  <div>
+    <h3>Catch up on background sessions with the Command Board</h3>
+    <p class="why">Home has a second <strong>mode</strong>. Toggle from Projects to <strong>Catch-up</strong> and Home flips its unit of attention from <em>project</em> to <em>session</em> — a Command Board for the "I spun up several jobs, walked away, and want to pick them back up" moment. Recent Claude sessions sort into three columns — <strong>Needs you</strong> (waiting on a plan approval, a question, or blocked), <strong>In progress</strong> (live sessions, plus a collapsed tier of closed-but-resumable ones), and <strong>Done</strong> (opened a PR, produced a doc, or finished its plan). Each card is a briefing built entirely from the session's own trail — goal, what you last asked, todo/file/artifact chips, live/closed/done badges — with <strong>no guessing</strong>: every field is either read straight from the transcript or narrated by the agent while it worked. Re-entry honors the focus-don't-fork rule: a live Duo session focuses its tab.</p>
+    <p class="how"><strong>UI</strong>The Projects ↔ Catch-up toggle sits at the top of Home (app-global, remembers your last choice); click a card to re-enter the session. <strong>CLI</strong><code>duo home mode [projects|catchup]</code> reads/sets the mode; <code>duo home catchup</code> prints the board; <code>duo session digest|note|next</code> are how a working agent feeds its card.</p>
+  </div>
+</article>
+
 <article class="item" data-keys="terminal tab switch activate cli id enumerate term tabs term tab focus parity cmd 1-9 click strip not browser number space enh-212">
   <div class="num">121</div>
   <div>
@@ -1069,6 +1078,15 @@
   </div>
 </article>
 
+<article class="item" data-keys="vault view inbox rollups tab pinned beside home default vault switcher capture freshness stale type rollup note provenance new rollup authoring session enh-228">
+  <div class="num">128</div>
+  <div>
+    <h3>See your vault's inbox and rollups in one place</h3>
+    <p class="why">The <strong>Vault</strong> tab is a pinned surface beside Home (it appears whenever a default vault is set) that gives the vault two columns. <strong>Inbox</strong> lists your <code>inbox/</code> captures newest-first with a "stale" chip past a week, plus a <strong>+ Capture</strong> button. <strong>Rollups</strong> lists every rollup with a freshness chip ("fresh" / "stale" / "not rendered"), a <strong>View</strong> link that opens the rendered HTML artifact, and a <strong>+ New rollup</strong> button that spins up a guided Claude session to author one. A header switcher re-points the default vault among the ones Duo knows. Under the hood a rollup is now a first-class <code>type: rollup</code> note that owns its query <em>and</em> its render provenance, so the list is a clean <code>type == rollup</code> lookup — no scanning, no sidecar.</p>
+    <p class="how"><strong>UI</strong>The Vault tab sits right after Home; click <strong>+ Capture</strong>, <strong>View</strong>, or <strong>+ New rollup</strong>; use the header dropdown to switch vaults. <strong>CLI</strong><code>duo rollup list</code> prints the same rollup inventory with freshness; <code>duo rollup render &lt;note&gt;</code> renders it (HTML-first for a rollup note) and stamps provenance back into the note.</p>
+  </div>
+</article>
+
 <h2 class="cat">Workspace setup</h2>
 <p class="cat-tagline">Pin tabs you want always-available; install Duo's skill + agent + CLI in one click.</p>
 
@@ -1324,7 +1342,7 @@
 </article>
 
 <footer>
-  <p>This is Duo v0.12.1. Last updated 2026-06-23. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
+  <p>This is Duo v0.12.2. Last updated 2026-06-25. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
   <p style="margin-top:6px; color: var(--ink-ghost); font-size: 11px;">Find an item that should be here? Tell Claude — the cut-version skill updates this file with each release.</p>
 </footer>
 

@@ -21,7 +21,17 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.12.1 cut 2026-06-23)*
+> *(empty — v0.12.2 cut 2026-06-25)*
+
+---
+
+## v0.12.2 — 2026-06-25 — Two new top-level surfaces: Async Catch-Up + the Vault view
+
+After a chapter of CLI-first vault/rollup plumbing (v0.12.0–v0.12.1), v0.12.2 gives that work — and the multi-session catch-up problem — real **surfaces beside Home**. **Async Catch-Up (ENH-231)** is a second Home mode: a Command Board of your recent Claude sessions bucketed into Needs-you / In-progress / Done, so "I spun up N jobs and walked away" becomes a glanceable re-entry screen. **The Vault view (ENH-228)** is a pinned tab over your default vault — an Inbox column with capture, and a Rollups column that renders and opens HTML artifacts — backed by the load-bearing model change that **a rollup is now a first-class `type: rollup` note** owning its spec and provenance. **ENH-234** closes the discoverability gap that made all of this invisible to working agents in OKF vaults.
+
+**Three decisions baked in.** (1) **Zero inference at open** — Catch-up has no general-purpose inference API at render time, so every card field is either a deterministic JSONL extraction or agent self-narration captured *while the session ran* (the Stop-hook digest), never guessed. (2) **A rollup is a typed note, not a found file** — discovery is a `type == rollup` corpus query, the note records its own build provenance (§D9-clean, no sidecar), and `rollups/` is excluded from the corpus so a rollup never rolls up into itself. (3) **HTML-first, canonical-only provenance** — a rollup note renders HTML by default, and only its canonical-format render stamps `out:`/freshness, so an ad-hoc `--md` side artifact can't repoint the note.
+
+**What this is and isn't.** Two genuinely new surfaces, both shipped on top of the existing IPC/CLI spine and both adversarially reviewed with the findings fixed before merge — the catch-up extractor's test-result scoping + "You asked" cleanup; the rollup provenance guard + vault-path containment. ENH-231 passed two owner smoke-walks; ENH-228's final v0.12.2 walk paste-back was waived by the owner-directed merge (live-verified via DOM probes + a screenshot). It is **not** in-app live auto-refresh — catch-up and the vault columns poll on a 30s, isActive-gated cadence — and the catch-up re-entry for removed-worktree sessions stays a stopgap (struck + collapsed) pending ENH-232. Suite 2049 green, typecheck clean.
 
 ---
 

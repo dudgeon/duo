@@ -19,7 +19,22 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.12.1 cut 2026-06-23.
+> Empty — v0.12.2 cut 2026-06-25.
+
+## [0.12.2] — 2026-06-25 — Async Catch-Up + the Vault view: two new top-level surfaces
+
+### Added
+- **Async Catch-Up — a second Home mode (ENH-231).** Toggle Home between Projects and Catch-up (app-global, remembers last used). Catch-up renders a Command Board of recent Claude sessions in three columns — Needs you / In progress / Done — each a briefing card built entirely from the agent's own structured exhaust (deterministic JSONL extraction + self-narration captured while the session ran): goal, "You asked", todo/file/artifact chips, live/closed/done badges, re-entry that focuses a live Duo tab (never forks). Zero inference at open. `duo home mode | catchup`, `duo session digest | note | next` (#108).
+- **Vault view — inbox + rollups, a top-level surface beside Home (ENH-228).** A pinned Vault tab (present when a default vault is set): an Inbox column (captures newest-first, stale-after-1wk chip, + Capture) and a Rollups column (freshness chip, View the rendered HTML artifact, + New rollup → a seeded Claude authoring session), with a header vault-switcher that re-points the default. New `duo rollup list` + vault read IPC (#109).
+- **Rollups are now first-class `type: rollup` notes (ENH-228).** A rollup owns its spec (an embedded base block or a `spec:` path) and its render provenance (`out` / `last_generated` / `last_hash`, stamped surgically into the note); discovery is a `type == rollup` corpus query — no scan, no sidecar (#109).
+
+### Changed
+- **HTML-first rollup rendering (ENH-228 D2).** `duo rollup render <note>` defaults to HTML for a `type: rollup` note (flips ENH-229's MD default); `--md` still emits the GitHub-portable variant. Provenance stamps only on the note's canonical-format render — an ad-hoc `--md`/`--html` is a side artifact and never repoints `out:` (#109).
+- **OKF rollup discoverability (ENH-234).** Reconciled the `.base`-in-OKF documentation contradiction across the skill + the path-scoped vault rule, and added a managed vault/rollup skill proposal — fixing a recurring failure where an agent couldn't find or use rollups in an OKF vault (#110).
+
+### Known issues
+- ENH-228's owner v0.12.2 smoke-walk paste-back was waived at merge (owner-directed); the Vault surfaces were live-verified via cold-boot DOM probes + an eyes-on screenshot during development. ENH-231 passed two owner smoke-walks.
+- Catch-up follow-ups deferred: ENH-232 (rich re-entry for removed-worktree sessions) and ENH-233 (dismiss / mark-reviewed).
 
 ## [0.12.1] — 2026-06-23 — Expressive in-vault OKF listings (the `listing:` spec)
 
@@ -2046,7 +2061,9 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.12.2...HEAD
+[0.12.2]: https://github.com/dudgeon/duo/compare/v0.12.1...v0.12.2
+[0.12.1]: https://github.com/dudgeon/duo/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/dudgeon/duo/compare/v0.11.2...v0.12.0
 [0.11.2]: https://github.com/dudgeon/duo/compare/v0.11.1...v0.11.2
 [0.11.1]: https://github.com/dudgeon/duo/compare/v0.11.0...v0.11.1

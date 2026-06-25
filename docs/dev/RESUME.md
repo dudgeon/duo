@@ -112,29 +112,29 @@
 > under `.claude/rules/`.
 
 ## Version state
-- **Latest released:** **v0.12.1**. `main` is bumped to **v0.12.2** for the next
-  sprint (ENH-228/229 vault rollups shipped v0.12.0; ENH-230 OKF listing in #107).
-- **This branch** (`claude/async-catchup-home-view-657v0x`, PR #108) forked at
-  v0.12.1 (`d8e4f9f`); its `package.json` reads 0.12.1. The cut will bump from
-  here (rebase onto `main`'s 0.12.2 first, or bump directly — confirm at cut time).
+- **Latest released:** **v0.12.2** (cut 2026-06-25 — Async Catch-Up #108 + the Vault
+  view #109 + OKF rollup discoverability #110). `main` bumps to **v0.12.3** for the
+  next sprint.
 
-## In flight / next move — ENH-231 Async Catch-Up (PR #108)
-- **Built P0–P7** on this branch. A sibling Home **mode** (Projects ↔ Catch-up):
-  Catch-up renders a **Command Board** — three attention columns (Needs you ·
-  Working · Done), full cards for live/needs-you sessions + a compact last-7-days
-  tier. Each card is a pre-hydrated **digest** (goal · "You asked" · todos · files
-  · artifacts · attention) materialized at the Stop hook — **zero inference at
-  open**. Agent self-narration via `duo session note|next`; CLI parity via
-  `duo home mode|catchup`.
-- **Verified headlessly:** typecheck clean; 2008 tests green incl. the **§D9
-  delete-cache→byte-identical-rebuild** gate, the **BUG-046** hidden-Home/toggle
-  no-fetch gate, and the theme grep (board CSS is `--duo-*`-only). JSONL shapes
-  confirmed against live transcripts.
-- **Next move:** **live smoke-walk** (the running app — real digests, both themes,
-  the toggle fan-out, the Stop hook firing — needs `install-service.run()` so the
-  updated `duo-attention.sh` lands in `~/.claude/duo/hooks/`), then **cut**. Run
-  `/smoke-walk` via the Skill tool, wait for the owner's pasted results, then
-  `cut-version`. Flip the `tasks.md` ENH-231 Status to ✅ the moment #108 merges.
+## Just shipped (v0.12.2) — Async Catch-Up + the Vault view
+- **ENH-231** (#108) — Async Catch-Up, a second Home **mode** (Projects ↔ Catch-up):
+  a Command Board of recent sessions in Needs-you / In-progress / Done columns, each
+  card a pre-hydrated **digest** (goal · "You asked" · todos · files · artifacts ·
+  attention) materialized at the Stop hook — **zero inference at open**. Agent
+  self-narration via `duo session note|next`; CLI parity via `duo home mode|catchup`.
+- **ENH-228** (#109) — the Vault view, a pinned tab beside Home (inbox + rollups +
+  header vault-switcher), backed by the `type: rollup` typed-note model
+  (`duo rollup list`; HTML-first `duo rollup render`, canonical-only provenance
+  stamp; `out:` confined to the vault).
+- **ENH-234** (#110) — OKF rollup discoverability (docs + a managed-skill proposal).
+
+## Next move
+- **Triage the next sprint.** Open catch-up follow-ups: **ENH-232** (rich re-entry for
+  removed-worktree sessions, P1) and **ENH-233** (dismiss / mark-reviewed, P1); plus
+  **ENH-235** (`duo base new` scaffolder) and the standing Vault/Home backlog.
+- **Archive debt (cleanup pass):** ~10 older ✅/🟢/❌ entries (ENH-227/207/204/203,
+  BUG-191–194, ENH-027) are still ✅-in-place in `tasks.md` — sweep them to
+  `tasks-archive.md`. Not swept during the v0.12.2 cut to avoid scope creep.
 
 ## Locked designs — don't re-derive these (full ADRs in `docs/DECISIONS.md`)
 - **Async Catch-Up uses TWO Duo-owned stores** (ENH-231): `session-digests.json`
