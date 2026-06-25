@@ -5451,7 +5451,7 @@ async function removeWorktree(worktreePath, opts = {}) {
 }
 
 // cli/duo.ts
-var VERSION = true ? "0.12.1" : "0.0.0-dev";
+var VERSION = true ? "0.12.2" : "0.0.0-dev";
 var VERBS = [
   // ── Browser & tabs ──
   {

@@ -21,7 +21,17 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.12.0 cut 2026-06-23)*
+> *(empty — v0.12.1 cut 2026-06-23)*
+
+---
+
+## v0.12.1 — 2026-06-23 — Expressive OKF listings: the index your readers open, driven by the rollup engine
+
+v0.12.0 made rollups a shareable *artifact* (`duo rollup`). v0.12.1 closes the other half of the same asymmetry: the **canonical, in-vault** listing — the root `index.md` a reader actually opens — was still produced by a separate, less-expressive generator (group-by-`type`, flat bullets). Now an OKF `index.md` can carry a `listing:` base spec in its frontmatter, and `duo vault publish` renders its body through the *same* engine the `.base` and `duo rollup` paths use. The owner's real shape — "tasks grouped by initiative, status chips, each row links its note" — is finally expressible in-vault, not just in a portable `rollups/` artifact.
+
+**Three decisions baked in.** (1) **One engine, two sinks** — `listings.ts` *calls* `evaluateBaseDef` + `render-markdown.ts` rather than growing a second grouping DSL, so the in-vault and artifact paths can't drift. (2) **The spec lives in `index.md` frontmatter**, which publish already byte-preserves, so the splice contract and the `okf_version` marker are untouched and existing vaults publish identically until they opt in. (3) **Warn-and-render, never break publish** — a bad expression degrades to a ⚠ cell; an authored-but-unusable spec falls back to the default and now says *why* (a `warnings[]` field on the result + a stderr line) instead of silently. The review that hardened this also realigned `package-lock.json` to `0.12.1` (it had lagged `package.json` since the v0.12.0 cut) and synced the additive `warnings[]` output field across the three CLI-surface doc tables.
+
+**What this is and isn't.** It's the in-vault arm of the rollup convergence — opt-in, back-compatible, no forced migration. It is *not* a converged `log.md` (still date-grouped by mtime), not a live file-watcher (the materialized listing stays an explicit `duo vault publish` build artifact), and not per-directory expressiveness (sub-folder `index.md` files keep the default). Verified end-to-end through the rebuilt CLI binary and an independent adversarial review panel (unanimous merge, 0 blockers); 233 vault tests / 1934 total green. Queued next: staleness surfacing (an editor banner when an open `index.md`'s embedded source-hash drifts from the live corpus).
 
 ---
 

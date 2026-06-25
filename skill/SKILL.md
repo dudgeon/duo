@@ -1,6 +1,6 @@
 ---
 name: duo
-description: Work with whatever is open in Duo — the browser pane, the markdown editor and the user's selection, the file navigator, the HTML canvas — and the user's work-notes vault (Duo's "graphbook" knowledge surface) — by driving the `duo` CLI. Use when the user references Duo's surfaces, asks to read or transform what's open or selected, open a local file, drive Google Docs / Sheets / Figma / Notion live, build an interactive page or playground, OR work with their knowledge vault / notes — capturing notes, filing or linking by type, querying the link graph (backlinks / orphans), or building rollup views (a saved query over note frontmatter — e.g. "roll up all my open tasks", "list every note of type X", "what links here").
+description: Work with whatever is open in Duo — the browser pane, the markdown editor and the user's selection, the file navigator, the HTML canvas — and the user's work-notes vault (Duo's "graphbook" knowledge surface) — by driving the `duo` CLI. Use when the user references Duo's surfaces, asks to read or transform what's open or selected, open a local file, drive Google Docs / Sheets / Figma / Notion live, build an interactive page or playground, OR work with their knowledge vault / notes — capturing notes, filing or linking by type, querying the link graph (backlinks / orphans), or building rollup views / dashboards over note frontmatter — "roll up all my open tasks", "make a rich HTML rollup or dashboard of my initiatives", "list every note of type X", "what links here". A vault rollup/dashboard renders via `duo rollup render --html|--md` (works in OKF too) — NEVER a hand-built HTML page.
 ---
 
 # duo — driving Duo's live surfaces from a terminal
@@ -228,7 +228,7 @@ filesystem directly — no running app needed):
 | create a typed entity | `duo vault stub <type> <name>` |
 | full-text search | `duo vault search <query>` |
 | find what links to a note / dangling notes | `duo graph backlinks <note>` · `duo graph orphans` |
-| **build a rollup view** (a saved query over frontmatter) | `duo base lint` + `duo base render` (Obsidian mode) · `duo vault publish` (OKF mode) |
+| **build a rollup view** (a saved query over frontmatter) | shareable artifact (HTML/MD, **either** mode): author a `.base` → `duo rollup render <base> --html\|--md` · in-vault canonical index (OKF): `duo vault publish` (+ a `listing:` spec for a grouped body) · live `.base` (Obsidian): `duo base render` |
 | move/rename a note without breaking links | `duo vault mv <from> <to>` |
 
 **Vocabulary — read this first (it's the usual stumbling block):**
@@ -240,9 +240,12 @@ filesystem directly — no running app needed):
   `duo vault schema` to see which you're in):
   - **Obsidian mode** → live **`.base`** files (Obsidian Bases YAML),
     rendered with `duo base render`.
-  - **OKF mode** → **static listings** (`index.md` / `log.md`)
-    (re)generated with `duo vault publish`. OKF vaults have **no `.base`
-    files** — don't author one there.
+  - **OKF mode** → at-rest **static listings** (`index.md` / `log.md`)
+    via `duo vault publish` (the root `index.md` can carry a `listing:` spec
+    for a grouped, engine-driven body — ENH-230). OKF doesn't *auto-render*
+    `.base` files like Obsidian — but you still **author a `.base` as a query
+    and render on demand** with `duo rollup render <base> --md|--html` (both
+    modes) for a shareable artifact.
 
 ### Authoring a rollup — the loop
 
@@ -253,7 +256,8 @@ A **rollup** is a view computed from frontmatter. The loop:
 2. **Get the corpus**: `duo vault schema`. It tells you the real type names,
    entity names, and observed enum values — write the view against *those*,
    not guesses. (This is also where you confirm the typing key is `type:`.)
-3. **In Obsidian mode — write the `.base`** (Obsidian Bases YAML):
+3. **Write the `.base`** (the query — Obsidian Bases YAML; authored the same
+   way in **either** mode — in OKF it feeds `duo rollup render`, not a live view):
    - vault-wide → a file in `bases/`.
    - per-entity → an embedded ` ```base ` block in the **type template**
      with a `… == this` filter (e.g. `initiative == this`), so **every**
@@ -265,9 +269,14 @@ A **rollup** is a view computed from frontmatter. The loop:
 5. **Render**: `duo base render <file|note> --open` evaluates it over live
    frontmatter and opens the result as a tab.
 
-**In OKF mode there are no `.base` files** — instead `duo vault publish`
-(re)generates the static `index.md` (a section per type) + `log.md` from the
-corpus. Same intent ("show me all the X"), different mechanism.
+**In OKF mode, the at-rest listings are `index.md` / `log.md`** — `duo vault
+publish` (re)generates them from the corpus (the root `index.md` can carry a
+`listing:` spec for a grouped, engine-driven body — ENH-230). OKF doesn't
+auto-render `.base` files like Obsidian, but **authoring a `.base` (or a
+` ```base ` block) as a query and running `duo rollup render <base> --md|--html`
+works the same in OKF** — that's how you produce a shareable rollup *artifact*
+(an HTML dashboard with a Refresh button, or portable Markdown) from an OKF
+vault. Don't hand-build the HTML.
 
 The render engine is a **locked subset** of Obsidian Bases (filters,
 `if()`, link `== this`, date math, `groupBy`, summaries, child→parent
