@@ -550,6 +550,7 @@ export type WorkingTabType =
   | 'pdf'
   | 'json'               // ENH-110 — JSON / YAML viewer-editor (Tier 3 tree + raw-text toggle). Format (json|yaml) is implicit from the path extension.
   | 'home'               // ENH-212 — permanent re-entry surface; sentinel path 'duo://home', constant id 'f:home'. Never persisted, non-closable.
+  | 'vault'              // ENH-228 — the Vault view (inbox + rollups); sentinel path 'duo://vault', constant id 'f:vault'. Pinned after Home, present only when a default vault is set. Never persisted.
   | 'unknown'
 
 export interface WorkingTab {
@@ -2211,6 +2212,12 @@ export const IPC = {
   // marker as the source of truth (D4) and returns 'okf' | 'obsidian'
   // | null.
   VAULT_DETECT: 'vault:detect',
+  // ENH-228 — the Vault view read verbs + default-vault get/set. Same core
+  // code paths as `duo rollup list` / `vault.listInbox` / `duo vault default`.
+  VAULT_LIST_INBOX: 'vault:list-inbox',
+  VAULT_LIST_ROLLUPS: 'vault:list-rollups',
+  VAULT_GET_DEFAULT: 'vault:get-default',
+  VAULT_SET_DEFAULT: 'vault:set-default',
 
   // Stage 24 — pinned WorkingPane tabs persisted to ~/.claude/duo/pins.json.
   PINS_LIST: 'pins:list',

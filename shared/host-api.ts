@@ -1213,6 +1213,44 @@ export interface VaultSearchHitDto {
   isTemplate: boolean
 }
 
+/** ENH-228 — one inbox capture note for the Vault view's Inbox column.
+ *  Mirrors core/vault `InboxEntry`. */
+export interface VaultInboxEntryDto {
+  /** Vault-relative POSIX path to the note. */
+  note: string
+  /** Absolute path — what a row click opens. */
+  absPath: string
+  /** Display title (frontmatter `title:`, else first body line, else stem). */
+  title: string
+  /** The `captured:` date (`YYYY-MM-DD`), or null when absent. */
+  captured: string | null
+  /** True when older than 1 week (the processing "stale inbox" rule). */
+  stale: boolean
+  /** File mtime (epoch ms) — newest-first tiebreaker. */
+  mtimeMs: number
+}
+
+/** ENH-228 — one rollup for the Vault view's Rollups column. Mirrors
+ *  core/vault `RollupListing` (the `duo rollup list` shape). */
+export interface VaultRollupDto {
+  /** Vault-relative POSIX path to the rollup NOTE. */
+  note: string
+  /** Absolute path to the rollup note. */
+  absPath: string
+  /** Display title. */
+  title: string
+  /** Vault-relative artifact path (`out:`), or null when never rendered. */
+  out: string | null
+  /** Output format — `html` (default) or `md`. */
+  format: string
+  /** ISO timestamp of the last render, or null. */
+  last_generated: string | null
+  /** Source hash at the last render, or null. */
+  last_hash: string | null
+  /** True when never rendered OR the live source hash differs (out of date). */
+  stale: boolean
+}
+
 export interface ElectronVaultAPI {
   /** ⇧⌘N — create an untyped inbox note in the UI-resolved vault
    *  (default vault first, else the active file's vault — D11). Same
@@ -1292,6 +1330,29 @@ export interface ElectronVaultAPI {
    *  if both are present. Resolves to null when `vaultRoot` is not a
    *  recognizable vault. */
   detect: (opts: { vaultRoot: string }) => Promise<VaultFormat | null>
+  /** ENH-228 — the Vault view's Inbox column: the vault's `inbox/` captures,
+   *  newest-first, stale > 1wk flagged. Same core read as `vault.listInbox` /
+   *  the processing "stale inbox" rule. `vaultRoot` is the resolved subject
+   *  (the default vault); falls back to the UI-resolved vault when absent. */
+  listInbox: (opts: { vaultRoot?: string }) => Promise<
+    { ok: true; root: string; items: VaultInboxEntryDto[] } | { ok: false; error: string }
+  >
+  /** ENH-228 — the Vault view's Rollups column: every `type: rollup` note
+   *  with its render provenance + freshness. Same core query as
+   *  `duo rollup list` (a `type == rollup` corpus query, no scan/sidecar). */
+  listRollups: (opts: { vaultRoot?: string }) => Promise<
+    { ok: true; root: string; rollups: VaultRollupDto[] } | { ok: false; error: string }
+  >
+  /** ENH-228 (D3) — read the default vault + the known-vaults set: the
+   *  present-when-default tab gate and the header switcher's candidate list.
+   *  Same source as `duo vault default` / Settings → Default Vault. */
+  getDefault: () => Promise<{ defaultVault: string | null; knownVaults: string[] }>
+  /** ENH-228 (D3) — re-point the default vault (the header switcher).
+   *  Validates the target is a real vault; same write as
+   *  `duo vault default <path>` (reflects live via the pref-file watcher). */
+  setDefault: (opts: { root: string }) => Promise<
+    { ok: true; defaultVault: string } | { ok: false; error: string }
+  >
 }
 
 export interface ElectronProjectsAPI {

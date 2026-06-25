@@ -368,11 +368,11 @@ export function WorkingTabStrip({
               void handleClose(tab)
             }}
             onContextMenu={(e) => { void handleContextMenu(e, tab) }}
-            // ENH-212 — Home is non-closable (the single slot-0 guard);
-            // never render its close glyph. closeFileTab also hard-refuses
-            // f:home, but suppressing the affordance keeps the contract
-            // visible to the user.
-            canClose={tabs.length > 1 && tab.type !== 'home'}
+            // ENH-212/ENH-228 — Home AND the Vault tab are non-closable
+            // permanent slots; never render their close glyph. closeFileTab
+            // also hard-refuses f:home / f:vault, but suppressing the
+            // affordance keeps the contract visible to the user.
+            canClose={tabs.length > 1 && tab.type !== 'home' && tab.type !== 'vault'}
             // ENH-024 — only the active tab gets the ref so the
             // useEffect above can scroll it into view.
             buttonRef={tab.isActive ? activeTabRef : undefined}
@@ -617,6 +617,8 @@ function tabLabel(tab: WorkingTab): string {
   // ENH-212 — Home's title falls back to "Home" so a synthesized tab with
   // no explicit title still reads correctly.
   if (tab.type === 'home') return tab.title || 'Home'
+  // ENH-228 — same for the synthesized Vault tab.
+  if (tab.type === 'vault') return tab.title || 'Vault'
   return tab.title
 }
 
@@ -670,6 +672,10 @@ function buildTabMenuTemplate(opts: {
   // restore. (Move-tab-left/right is suppressed too — Home always sorts
   // leftmost, so reordering it is meaningless.)
   if (tab?.type === 'home') return items
+  // ENH-228 — the Vault tab gets the same EMPTY context menu: its sentinel
+  // `path: 'duo://vault'` is a non-file, and pinning / moving-to-split would
+  // persist the sentinel and break restore.
+  if (tab?.type === 'vault') return items
 
   if (path) {
     if (onRevealInNavigator) {
@@ -832,6 +838,14 @@ function TypeIcon({ type, active }: { type: WorkingTabType; active: boolean }) {
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
             <path d="M1.4 5L5 1.6 8.6 5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
             <path d="M2.4 4.4V8.3h5.2V4.4" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )
+      case 'vault':
+        // ENH-228 — open-book glyph for the Vault tab.
+        return (
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+            <path d="M5 2.4C4.2 1.9 2.9 1.7 1.5 1.9V7.7c1.4-.2 2.7 0 3.5.5.8-.5 2.1-.7 3.5-.5V1.9C7.1 1.7 5.8 1.9 5 2.4Z" stroke="currentColor" strokeWidth="0.9" strokeLinejoin="round" />
+            <path d="M5 2.4V8.2" stroke="currentColor" strokeWidth="0.9" strokeLinecap="round" />
           </svg>
         )
       case 'image':

@@ -2490,6 +2490,58 @@ function setupIPC(): void {
     }
   })
 
+  // ENH-228 — the Vault view's two read columns + default-vault get/set. Each
+  // runs the SAME core/vault code path as its CLI twin (`duo rollup list`,
+  // `vault.listInbox`, `duo vault default`). The subject vault is the provided
+  // `vaultRoot` (the view's resolved default) when it's a real vault, else the
+  // UI-resolved default — so a stale/absent arg degrades to the default rather
+  // than erroring.
+  const resolveSubjectVault = (vaultRoot?: string): string | null =>
+    vaultRoot && vaultCore.isVaultRoot(vaultRoot) ? vaultRoot : vaultCore.resolveVaultForUi(null)
+
+  ipcMain.handle(IPC.VAULT_LIST_INBOX, (_event, { vaultRoot }: { vaultRoot?: string } = {}) => {
+    try {
+      const root = resolveSubjectVault(vaultRoot)
+      if (!root) return { ok: false, error: NO_VAULT_ERROR }
+      return { ok: true, root, items: vaultCore.listInbox(root) }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
+  ipcMain.handle(IPC.VAULT_LIST_ROLLUPS, (_event, { vaultRoot }: { vaultRoot?: string } = {}) => {
+    try {
+      const root = resolveSubjectVault(vaultRoot)
+      if (!root) return { ok: false, error: NO_VAULT_ERROR }
+      return { ok: true, root, rollups: vaultCore.listRollups(root) }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
+  // Read the default vault + the known-vaults set (D3): the present-when-default
+  // tab gate + the header switcher's candidate list. Self-healing — both are
+  // filtered to live vault roots (no stale pointers).
+  ipcMain.handle(IPC.VAULT_GET_DEFAULT, () => {
+    try {
+      return { defaultVault: vaultCore.readDefaultVault(), knownVaults: vaultCore.listKnownVaults() }
+    } catch {
+      return { defaultVault: null, knownVaults: [] }
+    }
+  })
+
+  // Re-point the default vault (the header switcher). Validates the target via
+  // setDefaultVault (refuses a non-vault); the pref-file write reflects live and
+  // fires the watcher → menu rebuild, exactly like `duo vault default <path>`.
+  ipcMain.handle(IPC.VAULT_SET_DEFAULT, (_event, { root }: { root: string }) => {
+    try {
+      const abs = vaultCore.setDefaultVault(root)
+      return { ok: true, defaultVault: abs }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
   // ENH-224 D17 — native Browse… picker behind the Open bar. ONE dialog with
   // both openFile + openDirectory enabled (a picked file opens in its viewer;
   // a picked folder roots the navigator). Parented on the SENDER window (the

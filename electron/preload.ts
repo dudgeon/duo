@@ -347,7 +347,13 @@ const api: ElectronAPI = {
     // `duo vault init` CLI verb.
     create: (opts) => ipcRenderer.invoke(IPC.VAULT_CREATE, opts),
     pickDir: () => ipcRenderer.invoke(IPC.VAULT_CREATE_PICK_DIR),
-    detect: (opts) => ipcRenderer.invoke(IPC.VAULT_DETECT, opts)
+    detect: (opts) => ipcRenderer.invoke(IPC.VAULT_DETECT, opts),
+    // ENH-228 — the Vault view read verbs + default-vault get/set. Same core
+    // code paths as `duo rollup list` / `vault.listInbox` / `duo vault default`.
+    listInbox: (opts) => ipcRenderer.invoke(IPC.VAULT_LIST_INBOX, opts ?? {}),
+    listRollups: (opts) => ipcRenderer.invoke(IPC.VAULT_LIST_ROLLUPS, opts ?? {}),
+    getDefault: () => ipcRenderer.invoke(IPC.VAULT_GET_DEFAULT),
+    setDefault: (opts) => ipcRenderer.invoke(IPC.VAULT_SET_DEFAULT, opts)
   },
 
   nav: {
