@@ -7,7 +7,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { initVault } from './scaffold'
-import { listRollups, resolveRollupNote, stampRollupProvenance } from './rollup-notes'
+import { listRollups, resolveRollupNote, stampRollupProvenance, provenanceStamp } from './rollup-notes'
 import { sourceHash } from './render'
 
 let root: string
@@ -75,6 +75,45 @@ describe('listRollups (ENH-228 D1 — a type query, not an artifact scan)', () =
     // so the note isn't its own artifact (no clobber).
     const r = listRollups(v).find((x) => x.title === 'MD')!
     expect(r.format).toBe('md')
+  })
+
+  it('drops an out: that escapes the vault → null (no out-of-vault open — review #2)', () => {
+    const v = initVault(path.join(root, 'v')).root
+    write(v, 'rollups/escape.md',
+      `---\ntype: rollup\ntitle: Escape\nformat: html\nout: ../../etc/evil.html\nlast_hash: "x"\n---\n`)
+    write(v, 'rollups/absolute.md',
+      `---\ntype: rollup\ntitle: Absolute\nformat: html\nout: /etc/passwd\nlast_hash: "x"\n---\n`)
+    write(v, 'rollups/ok.md',
+      `---\ntype: rollup\ntitle: OK\nformat: html\nout: rollups/ok.html\nlast_hash: "x"\n---\n`)
+    const list = listRollups(v)
+    expect(list.find((r) => r.title === 'Escape')!.out).toBeNull()
+    expect(list.find((r) => r.title === 'Absolute')!.out).toBeNull()
+    // a well-formed in-vault out: passes through unchanged
+    expect(list.find((r) => r.title === 'OK')!.out).toBe('rollups/ok.html')
+  })
+})
+
+describe('provenanceStamp (review #1 — only the canonical-format render stamps)', () => {
+  const rendered = (format: 'html' | 'md', outRel: string) => ({
+    format,
+    outRel,
+    generatedAt: '2026-06-25T00:00:00.000Z',
+    sourceHash: 'abc123',
+  })
+
+  it('stamps when the rendered format matches the note (the canonical artifact)', () => {
+    expect(provenanceStamp({ format: 'html' }, rendered('html', 'rollups/r.html'))).toEqual({
+      last_generated: '2026-06-25T00:00:00.000Z',
+      last_hash: 'abc123',
+      out: 'rollups/r.html',
+    })
+    expect(provenanceStamp({ format: 'md' }, rendered('md', 'rollups/r.md'))).not.toBeNull()
+  })
+
+  it('returns null for an ad-hoc override (side artifact) → out:/freshness untouched', () => {
+    // an html-canonical note rendered --md, or vice-versa, must NOT repoint out:
+    expect(provenanceStamp({ format: 'html' }, rendered('md', 'rollups/r.md'))).toBeNull()
+    expect(provenanceStamp({ format: 'md' }, rendered('html', 'rollups/r.html'))).toBeNull()
   })
 })
 

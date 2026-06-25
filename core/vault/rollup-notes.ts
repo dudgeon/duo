@@ -45,13 +45,28 @@ export interface RollupListing {
   last_generated: string | null
   /** Source hash at the last render, or null when never rendered. */
   last_hash: string | null
-  /** True when the rollup is out of date: never rendered, OR the vault's
-   *  current `sourceHash` differs from `last_hash`. */
+  /** True when the rollup is NOT up to date — i.e. never rendered (`last_hash`
+   *  is null) OR the vault's current `sourceHash` differs from `last_hash`.
+   *  This deliberately conflates two states: a consumer wanting to distinguish
+   *  "never rendered" from "rendered but out of date" checks `last_hash == null`
+   *  (the Vault view's RollupRow does exactly this for its freshness chip). */
   stale: boolean
 }
 
 function asString(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null
+}
+
+/** A vault-relative `out:` confined to the vault. Returns null when the value is
+ *  absent OR resolves OUTSIDE `root` (a `..` / absolute escape) — the Vault view
+ *  then hides "View" rather than opening a file outside the vault from a
+ *  malformed `out:` (review #2). A well-formed in-vault path passes unchanged. */
+function containedOut(outRel: string | null, root: string): string | null {
+  if (!outRel) return null
+  const abs = path.resolve(root, outRel)
+  const rootAbs = path.resolve(root)
+  if (abs !== rootAbs && !abs.startsWith(rootAbs + path.sep)) return null
+  return outRel
 }
 
 /** Read a frontmatter `format:` into the html|md domain (html default — D2). */
@@ -91,7 +106,7 @@ export function listRollups(root: string): RollupListing[] {
     // scan — it drops any rendered `.md` artifact that shares the folder
     // (artifacts carry no `type:`).
     if (note.frontmatter.type !== 'rollup') continue
-    const outRel = asString(note.frontmatter.out)
+    const outRel = containedOut(asString(note.frontmatter.out), root)
     const lastHash = asString(note.frontmatter.last_hash)
     out.push({
       note: note.relPath,
@@ -213,4 +228,20 @@ export function stampRollupProvenance(
   for (const [k, v] of Object.entries(remaining)) lines.push(`${k}: ${v}`)
   const body = raw.slice(m[0].length)
   fs.writeFileSync(noteAbs, `---\n${lines.join('\n')}\n---\n${body}`)
+}
+
+/** Decide what a render should stamp back into a rollup note. Provenance
+ *  (`out` / `last_generated` / `last_hash`) is recorded ONLY when the render
+ *  produced the note's CANONICAL artifact — the rendered format equals the
+ *  note's declared `format:`. An ad-hoc `--md` / `--html` override renders a
+ *  SIDE artifact, so it must NOT repoint `out:` (which would then mismatch the
+ *  declared `format:` on the next default render — writing, say, HTML bytes into
+ *  a `.md` path) nor mark the note fresh while the canonical artifact is stale
+ *  (review #1). Returns null when the caller should skip the stamp entirely. */
+export function provenanceStamp(
+  note: { format: 'html' | 'md' },
+  rendered: { format: 'html' | 'md'; outRel: string; generatedAt: string; sourceHash: string },
+): { last_generated: string; last_hash: string; out: string } | null {
+  if (rendered.format !== note.format) return null
+  return { last_generated: rendered.generatedAt, last_hash: rendered.sourceHash, out: rendered.outRel }
 }

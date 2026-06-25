@@ -566,7 +566,7 @@ const VERBS: VerbSpec[] = [
     group: 'Vault',
     args: '<render <note|base>|list|diff <note|base>> [--md|--html] [--style css] [--summary "t"|--no-summary] [--against p] [--out p] [--open] [--vault p]',
     summary:
-      'ENH-229/ENH-228 — rollups. A rollup is a first-class `type: rollup` NOTE (templates/rollup.md, filed in rollups/) that owns its spec (an embedded ```base block or a `spec:` .base path) + render provenance. render <note|base> [--md|--html]: render the spec and emit ONE variant — a stamped HTML artifact (--html; the DEFAULT for a rollup note — D2, HTML-first) OR Markdown (--md; GitHub-portable). For a `type: rollup` note the out path defaults to its `out:` (else rollups/<slug>.html) and `out`/`last_generated`/`last_hash` are stamped back into the note surgically (body untouched). A bare `.base`/non-rollup target keeps the legacy MD-default, no-stamp behavior. Every row LINKS the entities it rolls up (the note + owner/group links resolved from frontmatter, incl. OKF rel-md). --style <css-file> layers a custom stylesheet over the Atelier base (HTML only). list: the rollup inventory — every `type: rollup` note with {note,title,out,format,last_generated,last_hash,stale} (stale = last_hash !== the live source hash); a corpus query, no scan, no sidecar. Change summary (req #7): the artifact self-embeds a rows snapshot + a summary log (HTML comments — §D9-clean, no sidecar); --summary "<text>" adds a new latest "What changed" entry (an interactive Claude writes the narrative+notables from `duo rollup diff`), prior entries drop into a collapsible history; --no-summary clears it. diff <note|base> [--against <prior>]: deterministic JSON delta (added/removed/changed rows) vs the prior artifact\'s embedded snapshot — the material Claude summarizes. --out writes elsewhere; --open surfaces it as a tab.'
+      'ENH-229/ENH-228 — rollups. A rollup is a first-class `type: rollup` NOTE (templates/rollup.md, filed in rollups/) that owns its spec (an embedded ```base block or a `spec:` .base path) + render provenance. render <note|base> [--md|--html]: render the spec and emit ONE variant — a stamped HTML artifact (--html; the DEFAULT for a rollup note — D2, HTML-first) OR Markdown (--md; GitHub-portable). For a `type: rollup` note the out path defaults to its `out:` (else rollups/<slug>.html) and `out`/`last_generated`/`last_hash` are stamped back into the note surgically (body untouched) — but ONLY for the note\'s canonical format; an ad-hoc --md/--html override renders a side artifact and leaves the note\'s provenance untouched. A bare `.base`/non-rollup target keeps the legacy MD-default, no-stamp behavior. Every row LINKS the entities it rolls up (the note + owner/group links resolved from frontmatter, incl. OKF rel-md). --style <css-file> layers a custom stylesheet over the Atelier base (HTML only). list: the rollup inventory — every `type: rollup` note with {note,title,out,format,last_generated,last_hash,stale} (stale = last_hash !== the live source hash); a corpus query, no scan, no sidecar. Change summary (req #7): the artifact self-embeds a rows snapshot + a summary log (HTML comments — §D9-clean, no sidecar); --summary "<text>" adds a new latest "What changed" entry (an interactive Claude writes the narrative+notables from `duo rollup diff`), prior entries drop into a collapsible history; --no-summary clears it. diff <note|base> [--against <prior>]: deterministic JSON delta (added/removed/changed rows) vs the prior artifact\'s embedded snapshot — the material Claude summarizes. --out writes elsewhere; --open surfaces it as a tab.'
   }
 ]
 
@@ -3177,12 +3177,21 @@ async function main(): Promise<void> {
           // ENH-228 (D1) — stamp render provenance back into the rollup NOTE,
           // surgically (only out/last_generated/last_hash; body untouched), so
           // `duo rollup list` can report freshness without a scan or a sidecar.
+          // Only the note's CANONICAL-format render stamps: an ad-hoc --md/--html
+          // override is a side artifact and must not repoint out: / mark the note
+          // fresh (review #1 — provenanceStamp returns null to skip).
+          let stamped = false
           if (rollupNote) {
-            vault.stampRollupProvenance(rollupNote.noteAbs, {
-              last_generated: result.generatedAt,
-              last_hash: result.sourceHash,
-              out: path.relative(root, outPath).split(path.sep).join('/'),
+            const stamp = vault.provenanceStamp(rollupNote, {
+              format,
+              outRel: path.relative(root, outPath).split(path.sep).join('/'),
+              generatedAt: result.generatedAt,
+              sourceHash: result.sourceHash,
             })
+            if (stamp) {
+              vault.stampRollupProvenance(rollupNote.noteAbs, stamp)
+              stamped = true
+            }
           }
           let opened: unknown = null
           if (open) {
@@ -3203,7 +3212,7 @@ async function main(): Promise<void> {
           out({
             path: outPath,
             format,
-            ...(rollupNote ? { rollupNote: rollupNote.noteRel, stamped: true } : {}),
+            ...(rollupNote ? { rollupNote: rollupNote.noteRel, stamped } : {}),
             sourceHash: result.sourceHash,
             generatedAt: result.generatedAt,
             asOf: result.asOfLabel,

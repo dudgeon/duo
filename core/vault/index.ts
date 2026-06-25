@@ -74,6 +74,7 @@ export {
   listRollups,
   resolveRollupNote,
   stampRollupProvenance,
+  provenanceStamp,
   type RollupListing,
   type ResolvedRollupNote,
 } from './rollup-notes'
