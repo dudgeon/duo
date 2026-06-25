@@ -2,7 +2,7 @@
   "version": "0.12.1",
   "date": "2026-06-24",
   "title": "Smoke walk · ENH-231 Catch-Up · rev2 (Done-IA reframe)",
-  "intro_html": "<p>Re-walk of the 2 FAILs from walk-1, plus your 'project identifier' note. Walk-1 PASSes (focus, file-open, expand, text, worktree-badge, dark, mode) are NOT repeated. <strong>Agent-verified live:</strong> 3 columns (Needs you · In progress · Done), In progress = 2 live-full + 12 closed-compact (incl. struck 'gone' rows), Done = 3 finished-full; a closed row expands → card + 'closed' badge + Open-session resume; project rows render at card tops. The items below are your judgment calls. Switch Home to <strong>Catch-up</strong> first.</p>",
+  "intro_html": "<p>Re-walk of the 2 FAILs from walk-1, plus your 'project identifier' note. Walk-1 PASSes (focus, file-open, expand, text, worktree-badge, dark, mode) are NOT repeated. <strong>Agent-verified live:</strong> 3 columns (Needs you · In progress · Done); In progress = live (full) + a 'Closed · click to resume' tier; Done = finished (full) + a 'Worktree removed' tier of struck-through removed-worktree rows; a closed row expands → card + 'closed' badge + Open-session resume; project rows render at card tops. The items below are your judgment calls. Switch Home to <strong>Catch-up</strong> first.</p>",
   "items": [
     {
       "id": "CU-DONE-IA",
@@ -18,13 +18,13 @@
     },
     {
       "id": "CU-WORKTREE-GONE",
-      "title": "(walk-3) Removed-worktree sessions default COLLAPSED",
-      "what_fixes": "Walk-1: you wanted removed-worktree sessions collapsed by default (they can't resume). They now land in the In progress · Closed collapsed tier, grey + struck through, with the reason on hover — no full card, no scary flag.",
+      "title": "(walk-3) Removed-worktree sessions → DONE, collapsed + struck",
+      "what_fixes": "A deleted worktree means the work is over (can't resume), so it's assumed DONE. Removed-worktree sessions now sit in the **Done** column under a 'Worktree removed' divider, collapsed + grey + struck through, reason on hover — no full card, no scary flag.",
       "steps": [
-        "In the **In progress · Closed** collapsed list, find a grey + struck-through row (a removed worktree).",
-        "Confirm it defaults **collapsed** (a one-line row, not a full card).",
-        "Hover it — the tooltip explains the worktree was removed.",
-        "PASS if removed-worktree sessions are quietly collapsed."
+        "In the **Done** column, scroll past the finished cards to a **'Worktree removed'** divider.",
+        "Beneath it: grey + struck-through one-line rows (the removed-worktree sessions), defaulting collapsed.",
+        "Hover one — the tooltip explains the worktree was removed.",
+        "PASS if removed-worktree sessions read as quietly 'done & gone' in the Done column."
       ]
     },
     {

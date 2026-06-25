@@ -706,18 +706,17 @@ describe('buildCatchupSnapshot — columns, two-tier, dedup, §D9', () => {
     expect(card.reviewedAt).toBe(1234)
   })
 
-  it('flags cwdGone when the session cwd no longer exists (removed worktree)', async () => {
-    // projectsRoot exists on disk; the other cwd does not.
+  it('a removed-worktree session is flagged cwdGone and lands in DONE, collapsed (owner)', async () => {
+    // projectsRoot exists on disk; the other cwd does not. Real fs check (no stub).
     await writeRaw('enc-here', 'here1', projectsRoot, [])
     await writeRaw('enc-gone', 'gone1', path.join(projectsRoot, 'removed-worktree-xyz'), [])
     const board = await buildCatchupSnapshot({ projectsRoot, digestStore, homeStateStore: homeStore, now: Date.now() })
-    const all = [
-      ...board.columns.needsYou.full, ...board.columns.needsYou.compact,
-      ...board.columns.working.full, ...board.columns.working.compact,
-      ...board.columns.done.full, ...board.columns.done.compact,
-    ]
-    expect(all.find((c) => c.uuid === 'here1')?.cwdGone).toBeFalsy()
-    expect(all.find((c) => c.uuid === 'gone1')?.cwdGone).toBe(true)
+    // gone → Done column, compact tier (a deleted worktree = work is over = done)
+    expect(board.columns.done.compact.map((c) => c.uuid)).toEqual(['gone1'])
+    expect(board.columns.done.compact[0].cwdGone).toBe(true)
+    // here1 (cwd exists, no deliverable) → closed/In-progress compact, not gone
+    expect(board.columns.working.compact.map((c) => c.uuid)).toEqual(['here1'])
+    expect(board.columns.working.compact[0].cwdGone).toBeFalsy()
   })
 
   it('badges scheduled when the uuid is in cronSessionIds (never inferred)', async () => {

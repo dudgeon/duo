@@ -88,8 +88,10 @@ export function SessionDigestCard({ card, now, onOpenSession, onOpenFile, onOpen
 
       <div className="duo-cu-meta">
         <LivePill open={card.open} />
-        {!card.open && isFinished && <DoneBadge />}
-        {!card.open && isClosed && <ClosedBadge />}
+        {/* a gone card is struck through — the strikethrough + hover reason IS the
+            signal; a "✓ done" badge on it would read as contradictory. */}
+        {!card.open && isFinished && !cwdGone && <DoneBadge />}
+        {!card.open && isClosed && !cwdGone && <ClosedBadge />}
         <span className="duo-cu-age">{ageShort(Math.max(0, now - card.lastActivityAt))}</span>
       </div>
 

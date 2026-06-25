@@ -725,12 +725,13 @@ export async function buildCatchupSnapshot(deps: BuildCatchupDeps): Promise<Catc
       //                 is "closed" (resumable): the high-value pick-it-back-up
       //                 surface, collapsed beneath the live cards.
       //   Done        = a FINISHED deliverable           → full
-      //   Gone (removed worktree) → the closed/collapsed area, struck through (it
-      //                 can neither resume nor be reviewed).
+      //   Gone (removed worktree) → DONE, collapsed + struck (owner 2026-06-24:
+      //                 a deleted worktree means the work is over → assume done;
+      //                 it can't be resumed, so it belongs in Done, not "Closed").
       let state: DigestState
       let tier: CatchupCard['tier']
       if (cwdGone) {
-        state = 'working'
+        state = 'done'
         tier = 'compact'
       } else if (attention) {
         state = 'needs-you'

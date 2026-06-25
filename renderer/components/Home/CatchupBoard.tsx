@@ -82,7 +82,7 @@ export function CatchupBoard({ snapshot, now, onOpenSession, onOpenFile, onOpenU
               {col.compact.length > 0 && (
                 <>
                   <div className="duo-cu-compact-divider">
-                    {key === 'working' ? 'Closed · click to resume' : 'Earlier'}
+                    {key === 'working' ? 'Closed · click to resume' : 'Worktree removed'}
                   </div>
                   {col.compact.map((card) =>
                     expanded.has(card.uuid) ? (

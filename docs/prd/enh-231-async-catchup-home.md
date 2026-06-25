@@ -141,8 +141,10 @@ high-value surface, not finished work. **Revised columns (supersedes the D6
   "Closed" replaces "stalled".
 - **Done** — only **finished** work (a real deliverable: opened a PR, produced a
   .md/.html doc, or a fully-complete TodoWrite plan). Full cards.
-- **Removed-worktree** sessions → the Closed tier, **collapsed + struck through**
-  (can neither resume nor be reviewed), reason on hover, no scary flag (owner).
+- **Removed-worktree** sessions → **Done**, collapsed + struck through under a
+  "Worktree removed" divider (owner 2026-06-24: a deleted worktree means the work
+  is over → assume done; it can't be resumed, so it belongs in Done, not Closed).
+  Reason on hover, no scary flag, no badge (the strikethrough is the signal).
 - **Card top** carries a prominent **project / cwd identifier** (owner: it was
   only in the small meta line).
 - **7-day window applies to NON-OPEN sessions only** (owner) — an open (live)
