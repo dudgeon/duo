@@ -134,6 +134,53 @@ describe('extractSessionDigest — deterministic field extraction', () => {
     expect(d!.artifacts.pr).toEqual({ number: 321, url: 'https://github.com/dudgeon/duo/pull/321' })
   })
 
+  it('tests chip reads pass/fail from the runner RESULT, not from prose', async () => {
+    // "5 failed" appears ONLY in a user prompt + assistant prose; the actual
+    // runner result is a clean pass. The old whole-transcript scan read 'fail';
+    // the result-scoped scan correctly reads 'pass'.
+    const file = await writeJsonl([
+      userMsg('the deploy had 5 failed steps yesterday — can you run the tests?'),
+      asstTool('Bash', { command: 'npm test' }, 'b1'),
+      {
+        type: 'user',
+        message: { content: [{ type: 'tool_result', tool_use_id: 'b1', content: 'see stdout' }] },
+        toolUseResult: { stdout: 'Test Files  3 passed (3)\n Tests  12 passed (12)', stderr: '', interrupted: false, isImage: false },
+      },
+      asstText('Done — 12 passed; the 5 failed deploy steps were unrelated.'),
+    ])
+    const d = await extractSessionDigest(file, 'u')
+    expect(d!.artifacts.tests).toBe('pass')
+  })
+
+  it('tests chip = fail, reading a tool_result content block (no stdout field)', async () => {
+    // Some runs carry the runner output only as a tool_result content BLOCK
+    // (array of text), not a top-level stdout — exercise that branch of
+    // toolResultTexts. `failed` dominates `passed`, so "3 failed, 9 passed".
+    const file = await writeJsonl([
+      asstTool('Bash', { command: 'pytest -q' }, 'b1'),
+      {
+        type: 'user',
+        message: {
+          content: [{ type: 'tool_result', tool_use_id: 'b1', content: [{ type: 'text', text: '3 failed, 9 passed in 1.20s' }] }],
+        },
+      },
+    ])
+    const d = await extractSessionDigest(file, 'u')
+    expect(d!.artifacts.tests).toBe('fail')
+  })
+
+  it('youAsked surfaces "/command args", not the raw command wrapper', async () => {
+    const file = await writeJsonl([
+      userMsg('build the dashboard'),
+      asstText('on it'),
+      userMsg(
+        '<command-message>review</command-message>\n<command-name>/review</command-name>\n<command-args>pr 108</command-args>\n\nYou are an expert code reviewer. Follow these steps: 1. …',
+      ),
+    ])
+    const d = await extractSessionDigest(file, 'u')
+    expect(d!.youAsked).toBe('/review pr 108')
+  })
+
   it('returns empty todos (never inferred) when no TodoWrite ran', async () => {
     const file = await writeJsonl([userMsg('hi'), asstText('hello')])
     const d = await extractSessionDigest(file, 'u')

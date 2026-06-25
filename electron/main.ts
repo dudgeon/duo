@@ -4490,6 +4490,15 @@ async function computeHomeSnapshot(limitPerProject?: number): Promise<HomeSnapsh
  * session that just advanced). Resolvable only while the tab is live — exactly
  * when these verbs fire. Closed sessions are reached by uuid at assembly, never
  * by tab.
+ *
+ * KNOWN LIMIT (v1): two Duo tabs running `claude` in the SAME cwd both resolve
+ * to that cwd's freshest `<uuid>.jsonl`. For the Stop-hook digest the just-
+ * stopped tab IS the freshest, so it's correct in practice; but `note`/`next`
+ * (which WRITE Duo-owned state to home-state.json) could stamp the wrong session
+ * in that narrow race. The robust fix is to thread Claude Code's own
+ * `session_id` / `transcript_path` (both present on the hook's stdin) through
+ * `duo session …` instead of re-deriving from the cwd — tracked as an ENH-231
+ * follow-up in tasks.md.
  */
 async function sessionIdForTab(tabId: string): Promise<{ uuid: string; cwd: string; jsonlPath: string } | null> {
   const cwd = ptyManager.getCwd(tabId)

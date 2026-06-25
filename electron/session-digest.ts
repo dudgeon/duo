@@ -70,6 +70,21 @@ function clampLine(s: string, max = YOU_ASKED_MAX): string {
   return t.length > max ? `${t.slice(0, max).trimEnd()}…` : t
 }
 
+/** Clean a user message for the "You asked" line. A slash-command turn records
+ *  the `<command-name>` / `<command-args>` wrapper plus the expanded prompt; the
+ *  card should surface the human's intent ("/review pr 108"), not that machinery
+ *  (review finding). Non-command messages clamp as before. */
+function cleanUserAsk(raw: string): string {
+  if (raw.includes('<command-name>')) {
+    const name = COMMAND_NAME_RE.exec(raw)?.[1]?.trim()
+    if (name) {
+      const cmdArgs = COMMAND_ARGS_RE.exec(raw)?.[1]?.trim()
+      return clampLine(cmdArgs ? `/${name} ${cmdArgs}` : `/${name}`)
+    }
+  }
+  return clampLine(raw)
+}
+
 // ── goal ladder (ENH-231 owner directive 2026-06-23) ────────────────────────
 // The goal is the session's BEST available label, not the raw first prompt: a
 // command-expansion or skill preamble as the goal reads as machinery, not
@@ -85,6 +100,7 @@ function clampLine(s: string, max = YOU_ASKED_MAX): string {
 
 const RECAP_INTENT_RE = /Primary Request and Intent:\s*([\s\S]+?)(?:\n\s*\n|\n\s*\d+\.\s)/
 const COMMAND_NAME_RE = /<command-name>\s*\/?([^<\s][^<]*?)\s*<\/command-name>/
+const COMMAND_ARGS_RE = /<command-args>([\s\S]*?)<\/command-args>/
 
 /** Rungs 1–2: the latest custom-title, else the latest ai-title. */
 function scanTitle(parsedLines: (Rec | null)[]): string | null {
@@ -224,6 +240,39 @@ export function scanFiles(parsedLines: (Rec | null)[]): DigestFile[] {
   return out
 }
 
+/** All TOOL-RESULT text carried by these records — the top-level `toolUseResult`
+ *  (a string, or an object's stdout/stderr) plus any `tool_result` content
+ *  blocks. Scoping output scans (e.g. the test pass/fail heuristic) to actual
+ *  command results — never assistant prose or user prompts — keeps a transcript
+ *  that merely *discusses* failures from tripping them. */
+function toolResultTexts(parsedLines: (Rec | null)[]): string[] {
+  const out: string[] = []
+  for (const p of parsedLines) {
+    const r = p?.toolUseResult
+    if (typeof r === 'string') {
+      out.push(r)
+    } else if (r && typeof r === 'object') {
+      const ro = r as Rec
+      if (typeof ro.stdout === 'string') out.push(ro.stdout)
+      if (typeof ro.stderr === 'string') out.push(ro.stderr)
+    }
+    for (const b of contentBlocks(p)) {
+      if (!b || typeof b !== 'object' || (b as Rec).type !== 'tool_result') continue
+      const c = (b as Rec).content
+      if (typeof c === 'string') {
+        out.push(c)
+      } else if (Array.isArray(c)) {
+        for (const cb of c) {
+          if (cb && typeof cb === 'object' && (cb as Rec).type === 'text' && typeof (cb as Rec).text === 'string') {
+            out.push((cb as Rec).text as string)
+          }
+        }
+      }
+    }
+  }
+  return out
+}
+
 /** Paths a Write/create tool-result reported as newly created. */
 function createdPaths(parsedLines: (Rec | null)[]): Set<string> {
   const set = new Set<string>()
@@ -241,7 +290,7 @@ const PR_CREATE_CMD_RE = /\bgh\s+pr\s+create\b/
 
 /** Detected work products. PR captured with its URL (deep-link, no open-time
  *  lookup). Tests are a coarse pass/fail heuristic. */
-export function scanArtifacts(parsedLines: (Rec | null)[], rawLines: string[]): DigestArtifacts {
+export function scanArtifacts(parsedLines: (Rec | null)[]): DigestArtifacts {
   const art: DigestArtifacts = {}
 
   // PR — ONLY when this session actually OPENED one: a `gh pr create` Bash
@@ -273,19 +322,20 @@ export function scanArtifacts(parsedLines: (Rec | null)[], rawLines: string[]): 
   const created = [...createdPaths(parsedLines)]
   if (created.length) art.createdFiles = created
 
-  // Tests — coarse: did a test runner run, and did the output read pass/fail?
-  let ranTests = false
-  let failed = false
-  let passed = false
-  for (const tu of parsedLines.flatMap((p) => toolUsesOf(p))) {
-    if (tu.name === 'Bash' && typeof tu.input.command === 'string' && TEST_CMD_RE.test(tu.input.command)) {
-      ranTests = true
-    }
-  }
+  // Tests — coarse: did a test runner run, and did its OUTPUT read pass/fail?
+  // The pass/fail scan reads ONLY tool-result text (the runner's stdout/stderr),
+  // never assistant prose or user prompts, so a transcript that merely discusses
+  // failures can't trip it (review finding). Still coarse: it only sets the
+  // `tests` chip, never a column.
+  const ranTests = parsedLines
+    .flatMap((p) => toolUsesOf(p))
+    .some((tu) => tu.name === 'Bash' && typeof tu.input.command === 'string' && TEST_CMD_RE.test(tu.input.command))
   if (ranTests) {
-    for (const line of rawLines) {
-      if (/\b\d+ (?:failed|failing)\b|✗|FAIL\b/.test(line)) failed = true
-      else if (/\b\d+ (?:passed|passing)\b|✓ |\ball tests? pass/i.test(line)) passed = true
+    let failed = false
+    let passed = false
+    for (const text of toolResultTexts(parsedLines)) {
+      if (/\b\d+ (?:failed|failing)\b|✗|FAIL\b/.test(text)) failed = true
+      else if (/\b\d+ (?:passed|passing)\b|✓ |\ball tests? pass/i.test(text)) passed = true
     }
     art.tests = failed ? 'fail' : passed ? 'pass' : 'unknown'
   }
@@ -411,7 +461,7 @@ export async function extractSessionDigest(
   for (let i = parsedLines.length - 1; i >= 0; i--) {
     const t = extractUserMessageText(parsedLines[i])
     if (t) {
-      const cleaned = clampLine(t)
+      const cleaned = cleanUserAsk(t)
       if (cleaned) {
         youAsked = cleaned
         break
@@ -449,7 +499,7 @@ export async function extractSessionDigest(
     youAsked,
     todos: scanTodoWrite(parsedLines),
     files: scanFiles(parsedLines),
-    artifacts: scanArtifacts(parsedLines, rawLines),
+    artifacts: scanArtifacts(parsedLines),
     attention: reason ? { reason } : null,
     state: deriveState(false, reason),
     fallbackSnippet,
