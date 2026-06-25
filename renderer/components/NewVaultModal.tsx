@@ -141,6 +141,10 @@ export function NewVaultModal({ open, onClose, onCreated }: NewVaultModalProps) 
       })
       setResult(res)
       if (res.ok) {
+        // ENH-228 — vault.create makes the new vault the default; broadcast so
+        // App's present-when-default Vault tab appears immediately (without a
+        // restart) and any open VaultView re-points.
+        window.dispatchEvent(new CustomEvent('duo-vault-default-changed', { detail: { defaultVault: res.root } }))
         onCreated(res.root, res.openPath)
       }
     } catch (err) {
