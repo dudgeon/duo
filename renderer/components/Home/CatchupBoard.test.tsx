@@ -53,26 +53,25 @@ function renderBoard(snap: CatchupSnapshot, handlers: Partial<Parameters<typeof 
 }
 
 describe('CatchupBoard', () => {
-  it('places cards in the column the server assigned, full vs compact', () => {
+  it('places cards in the column the server assigned (In progress: live full + closed compact)', () => {
     const needs = card({ uuid: 'n', state: 'needs-you', attention: { reason: 'question' }, goal: 'Needs goal' })
-    const working = card({ uuid: 'w', state: 'working', goal: 'Working goal', open: { kind: 'duo', windowId: 1, tabId: 't' } })
-    const doneFull = card({ uuid: 'df', state: 'done', goal: 'Done full', open: { kind: 'duo', windowId: 1, tabId: 't2' } })
-    const doneCompact = card({ uuid: 'dc', state: 'done', tier: 'compact', goal: 'Done compact' })
+    const live = card({ uuid: 'w', state: 'working', goal: 'Live goal', open: { kind: 'duo', windowId: 1, tabId: 't' } })
+    const closed = card({ uuid: 'cl', state: 'working', tier: 'compact', goal: 'Closed goal' })
+    const done = card({ uuid: 'df', state: 'done', goal: 'Done goal' })
     renderBoard(
       snapshot({
         needsYou: { full: [needs], compact: [] },
-        working: { full: [working], compact: [] },
-        done: { full: [doneFull], compact: [doneCompact] },
+        working: { full: [live], compact: [closed] },
+        done: { full: [done], compact: [] },
       }),
     )
-    const needsCol = screen.getByRole('region', { name: 'Needs you' })
-    expect(within(needsCol).getByText('Needs goal')).toBeTruthy()
-    expect(within(screen.getByRole('region', { name: 'Working' })).getByText('Working goal')).toBeTruthy()
-    const doneCol = screen.getByRole('region', { name: 'Done — review' })
-    expect(within(doneCol).getByText('Done full')).toBeTruthy()
-    // compact rows in the Done column are the STALLED sessions
-    expect(within(doneCol).getByText('Stalled · unfinished')).toBeTruthy()
-    expect(within(doneCol).getByText('Done compact')).toBeTruthy()
+    expect(within(screen.getByRole('region', { name: 'Needs you' })).getByText('Needs goal')).toBeTruthy()
+    const inProgress = screen.getByRole('region', { name: 'In progress' })
+    expect(within(inProgress).getByText('Live goal')).toBeTruthy()
+    // closed sessions are the compact tier under In progress
+    expect(within(inProgress).getByText('Closed · click to resume')).toBeTruthy()
+    expect(within(inProgress).getByText('Closed goal')).toBeTruthy()
+    expect(within(screen.getByRole('region', { name: 'Done' })).getByText('Done goal')).toBeTruthy()
   })
 
   it('renders the attention chip with its reason class + label', () => {

@@ -323,13 +323,13 @@ export function digestNeedsLine(card: CatchupCard): string | null {
   return card.narrative?.note ?? card.fallbackSnippet ?? card.youAsked ?? null
 }
 
-/** CSS class for a compact row's state dot. Compact rows are STALLED (closed,
- *  no deliverable), so the default is the muted stalled dot; the attention/live
- *  branches are defensive (a compact row in those states shouldn't occur). */
+/** CSS class for a compact row's state dot. Compact rows are CLOSED (ended with
+ *  no deliverable; resumable), so the default is the muted closed dot; the
+ *  attention/live branches are defensive (shouldn't occur in a compact row). */
 export function compactDotClass(card: CatchupCard): string {
   if (card.attention) return 'duo-cu-dot-attn'
   if (card.open) return 'duo-cu-dot-live'
-  return 'duo-cu-dot-stalled'
+  return 'duo-cu-dot-closed'
 }
 
 /** Flatten a markdown-bearing transcript line into a short plain-text preview

@@ -590,6 +590,19 @@ describe('buildCatchupSnapshot — columns, two-tier, dedup, §D9', () => {
     return m
   }
 
+  // Default deps + cwdExists:()=>true so fixture cwds don't all read as removed
+  // worktrees. The cwdGone test overrides cwdExists with the real fs check.
+  type Deps = Parameters<typeof buildCatchupSnapshot>[0]
+  const build = (over: Partial<Deps> = {}) =>
+    buildCatchupSnapshot({
+      projectsRoot,
+      digestStore,
+      homeStateStore: homeStore,
+      cwdExists: async () => true,
+      now: Date.now(),
+      ...over,
+    })
+
   it('windows out sessions older than the rolling window (7d)', async () => {
     await writeRaw('enc-fresh', 'fresh1', '/proj/a', [assistantEntry('done', '/proj/a')], 60)
     await writeRaw('enc-old', 'old1', '/proj/b', [assistantEntry('done', '/proj/b')], 8 * 86400)
@@ -598,29 +611,26 @@ describe('buildCatchupSnapshot — columns, two-tier, dedup, §D9', () => {
     expect(all.map((c) => c.uuid)).toEqual(['fresh1'])
   })
 
-  it('assigns columns by attention/liveness and tiers full vs compact', async () => {
+  it('columns: needs-you (full) · In-progress = live full + closed compact · Done = finished full', async () => {
     // needs-you: ends on assistant text (→ question), not live → full (attention)
     await writeRaw('enc-q', 'q1', '/proj/q', [assistantEntry('Which option, X or Y?', '/proj/q')])
-    // working: ends on user text (no attention), LIVE → full (live)
+    // in-progress LIVE → working.full
     await writeRaw('enc-w', 'w1', '/proj/w', [])
-    // done: no attention, not live → compact
+    // closed: no attention, not live, no deliverable → working.compact (resumable)
     await writeRaw('enc-d', 'd1', '/proj/d', [])
 
-    const board = await buildCatchupSnapshot({
-      projectsRoot, digestStore, homeStateStore: homeStore,
-      openByUuid: liveDuo('w1'), now: Date.now(),
-    })
+    const board = await build({ openByUuid: liveDuo('w1') })
     expect(board.columns.needsYou.full.map((c) => c.uuid)).toEqual(['q1'])
     expect(board.columns.working.full.map((c) => c.uuid)).toEqual(['w1'])
-    expect(board.columns.done.compact.map((c) => c.uuid)).toEqual(['d1'])
-    // tier sanity
+    expect(board.columns.working.compact.map((c) => c.uuid)).toEqual(['d1']) // CLOSED, not Done
     expect(board.columns.needsYou.full[0].tier).toBe('full')
     expect(board.columns.working.full[0].tier).toBe('full')
-    expect(board.columns.done.compact[0].tier).toBe('compact')
-    expect(board.columns.done.full).toEqual([])
+    expect(board.columns.working.compact[0].tier).toBe('compact')
+    expect(board.columns.done.full).toEqual([]) // nothing finished
+    expect(board.columns.done.compact).toEqual([])
   })
 
-  it('Done column: FINISHED sessions are full cards, STALLED ones are compact (owner IA fix)', async () => {
+  it('Done = FINISHED (full); closed-no-deliverable → In-progress compact (owner reframe)', async () => {
     const todoWriteEntry = (todos: object[], cwd: string): object => ({
       parentUuid: 'p', isSidechain: false, type: 'assistant',
       message: { role: 'assistant', content: [{ type: 'tool_use', id: 'tw', name: 'TodoWrite', input: { todos } }] },
@@ -660,14 +670,16 @@ describe('buildCatchupSnapshot — columns, two-tier, dedup, §D9', () => {
     await writeRaw('enc-stall2', 'stall2', '/proj/s2', [
       toolResult('/proj/s2', { type: 'create', filePath: '/proj/s2/util.ts' }),
     ])
-    const board = await buildCatchupSnapshot({ projectsRoot, digestStore, homeStateStore: homeStore, now: Date.now() })
+    const board = await build()
     expect(board.columns.done.full.map((c) => c.uuid).sort()).toEqual(['fin1', 'fin2', 'fin3'])
-    expect(board.columns.done.compact.map((c) => c.uuid).sort()).toEqual(['stall1', 'stall2'])
+    // closed-no-deliverable now lives in the In-progress (working) compact tier
+    expect(board.columns.working.compact.map((c) => c.uuid).sort()).toEqual(['stall1', 'stall2'])
+    expect(board.columns.done.compact).toEqual([])
   })
 
   it('keeps a CLOSED needs-you (plan-to-approve) session as a FULL card (review fix #8)', async () => {
     await writeRaw('enc-plan', 'plan1', '/proj/p', [exitPlanEntry('/proj/p')])
-    const board = await buildCatchupSnapshot({ projectsRoot, digestStore, homeStateStore: homeStore, now: Date.now() })
+    const board = await build()
     // not live, but attention=plan-to-approve → needs-you AND full (not compact)
     expect(board.columns.needsYou.full.map((c) => c.uuid)).toEqual(['plan1'])
     expect(board.columns.needsYou.compact).toEqual([])
@@ -678,8 +690,8 @@ describe('buildCatchupSnapshot — columns, two-tier, dedup, §D9', () => {
   it('dedups a uuid that appears in two encoded dirs (keep one card)', async () => {
     await writeRaw('enc-1', 'dup', '/proj/x', [], 120)
     await writeRaw('enc-2', 'dup', '/proj/x', [], 60)
-    const board = await buildCatchupSnapshot({ projectsRoot, digestStore, homeStateStore: homeStore, now: Date.now() })
-    const all = [...board.columns.done.full, ...board.columns.done.compact]
+    const board = await build()
+    const all = [...board.columns.working.full, ...board.columns.working.compact, ...board.columns.done.full, ...board.columns.done.compact]
     expect(all.filter((c) => c.uuid === 'dup')).toHaveLength(1)
   })
 
@@ -688,7 +700,7 @@ describe('buildCatchupSnapshot — columns, two-tier, dedup, §D9', () => {
     await homeStore.setNote('note1', 'Shipped the token bucket')
     await homeStore.setNext('note1', 'Add the per-route override')
     await homeStore.markReviewed('note1', 1234)
-    const board = await buildCatchupSnapshot({ projectsRoot, digestStore, homeStateStore: homeStore, now: Date.now() })
+    const board = await build()
     const card = board.columns.needsYou.full.find((c) => c.uuid === 'note1')!
     expect(card.narrative).toEqual({ note: 'Shipped the token bucket', next: 'Add the per-route override' })
     expect(card.reviewedAt).toBe(1234)
@@ -709,13 +721,19 @@ describe('buildCatchupSnapshot — columns, two-tier, dedup, §D9', () => {
   })
 
   it('badges scheduled when the uuid is in cronSessionIds (never inferred)', async () => {
-    await writeRaw('enc-c', 'cron1', '/proj/c', [])
-    const board = await buildCatchupSnapshot({
-      projectsRoot, digestStore, homeStateStore: homeStore,
-      cronSessionIds: new Set(['cron1']), now: Date.now(),
-    })
-    const card = [...board.columns.done.compact].find((c) => c.uuid === 'cron1')!
+    await writeRaw('enc-c', 'cron1', '/proj/c', []) // closed → In-progress compact
+    const board = await build({ cronSessionIds: new Set(['cron1']) })
+    const card = board.columns.working.compact.find((c) => c.uuid === 'cron1')!
     expect(card.scheduled).toBe(true)
+  })
+
+  it('an OPEN session bypasses the 7-day window; a closed one is dropped', async () => {
+    // Both 10 days old; only the open one survives the window.
+    await writeRaw('enc-oldopen', 'oldopen', '/proj/o', [], 10 * 86400)
+    await writeRaw('enc-oldclosed', 'oldclosed', '/proj/cl', [], 10 * 86400)
+    const board = await build({ openByUuid: liveDuo('oldopen') })
+    const all = [...board.columns.working.full, ...board.columns.working.compact, ...board.columns.done.full, ...board.columns.done.compact, ...board.columns.needsYou.full]
+    expect(all.map((c) => c.uuid)).toEqual(['oldopen']) // open kept despite age; closed dropped
   })
 
   it('§D9 — a cold (cache-miss) board equals the warm (cache-hit) rebuild', async () => {
@@ -725,12 +743,12 @@ describe('buildCatchupSnapshot — columns, two-tier, dedup, §D9', () => {
     const open = liveDuo('b1')
 
     // Cold: empty store → extract + cache.
-    const cold = await buildCatchupSnapshot({ projectsRoot, digestStore, homeStateStore: homeStore, openByUuid: open, now })
+    const cold = await build({ openByUuid: open, now })
     await digestStore.whenIdle()
     expect(digestStore.snapshot().size).toBe(2) // both digests cached
 
     // Warm: same store, now serving cache hits → identical board.
-    const warm = await buildCatchupSnapshot({ projectsRoot, digestStore, homeStateStore: homeStore, openByUuid: open, now })
+    const warm = await build({ openByUuid: open, now })
     expect(warm).toEqual(cold)
   })
 })

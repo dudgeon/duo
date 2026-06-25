@@ -412,10 +412,10 @@ describe('worktreeInfo', () => {
 })
 
 describe('compactDotClass', () => {
-  it('attention → attn, open → live, else stalled (compact rows are stalled)', () => {
+  it('attention → attn, open → live, else closed (compact rows are closed/resumable)', () => {
     expect(compactDotClass(card({ attention: { reason: 'blocked' } }))).toBe('duo-cu-dot-attn')
     expect(compactDotClass(card({ open: { kind: 'duo', windowId: 1, tabId: 't' } }))).toBe('duo-cu-dot-live')
-    expect(compactDotClass(card())).toBe('duo-cu-dot-stalled')
+    expect(compactDotClass(card())).toBe('duo-cu-dot-closed')
   })
 })
 

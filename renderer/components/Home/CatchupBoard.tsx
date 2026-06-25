@@ -19,8 +19,8 @@ interface CatchupBoardProps {
 
 const COLUMNS: { key: keyof CatchupSnapshot['columns']; label: string; attn: boolean }[] = [
   { key: 'needsYou', label: 'Needs you', attn: true },
-  { key: 'working', label: 'Working', attn: false },
-  { key: 'done', label: 'Done — review', attn: false },
+  { key: 'working', label: 'In progress', attn: false },
+  { key: 'done', label: 'Done', attn: false },
 ]
 
 function columnCount(col: CatchupColumn): number {
@@ -82,7 +82,7 @@ export function CatchupBoard({ snapshot, now, onOpenSession, onOpenFile, onOpenU
               {col.compact.length > 0 && (
                 <>
                   <div className="duo-cu-compact-divider">
-                    {key === 'done' ? 'Stalled · unfinished' : 'Earlier · last 7 days'}
+                    {key === 'working' ? 'Closed · click to resume' : 'Earlier'}
                   </div>
                   {col.compact.map((card) =>
                     expanded.has(card.uuid) ? (

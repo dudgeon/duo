@@ -14,7 +14,7 @@ import {
   digestSecondaryAction,
   toPlainPreview,
 } from './homeModel'
-import { AttentionChip, ScheduledBadge, LivePill, DoneBadge, StalledBadge, FileChips, ArtifactChips, TodoChips } from './CatchupChips'
+import { AttentionChip, ScheduledBadge, LivePill, DoneBadge, ClosedBadge, FileChips, ArtifactChips, TodoChips } from './CatchupChips'
 
 interface SessionDigestCardProps {
   card: CatchupCard
@@ -27,10 +27,11 @@ interface SessionDigestCardProps {
 export function SessionDigestCard({ card, now, onOpenSession, onOpenFile, onOpenUrl }: SessionDigestCardProps) {
   const needs = card.attention != null
   const hue = cardHue(card.cwd)
-  // Finished = a closed (Done-column) card that earned a full tier via a real
-  // deliverable (PR / completed plan / doc). The stalled compact rows are not.
-  const isFinished = card.state === 'done' && card.tier === 'full'
-  const isStalled = card.state === 'done' && card.tier === 'compact'
+  // Badges: a finished session (Done) shows ✓ done; a CLOSED session (in the
+  // "In progress · Closed" tier — not live, no deliverable) shows 'closed'; a
+  // live session shows the LivePill instead.
+  const isFinished = card.state === 'done'
+  const isClosed = card.state === 'working' && !card.open
   const cwdGone = card.cwdGone === true
   // `goal` is already the title ladder (custom-title /rename → ai-title Haiku →
   // recap → command → first prompt — see extractGoal). The cwd resolves to a
@@ -71,6 +72,13 @@ export function SessionDigestCard({ card, now, onOpenSession, onOpenFile, onOpen
         </div>
       )}
 
+      {/* Prominent project / cwd identifier at the very top (owner request). */}
+      <div className="duo-cu-proj" title={card.cwd}>
+        <span className="duo-cu-proj-dot" style={{ background: hue }} />
+        <span className="duo-cu-proj-name">{repo}</span>
+        {worktree && <span className="duo-cu-wt" title={`git worktree: ${worktree}`}>⑂ {worktree}</span>}
+      </div>
+
       <div
         className={`duo-cu-goal${cwdGone ? ' duo-cu-gone' : ''}`}
         title={cwdGone ? `Worktree removed — ${card.cwd} no longer exists, so this session can't be resumed` : undefined}
@@ -81,11 +89,7 @@ export function SessionDigestCard({ card, now, onOpenSession, onOpenFile, onOpen
       <div className="duo-cu-meta">
         <LivePill open={card.open} />
         {!card.open && isFinished && <DoneBadge />}
-        {!card.open && isStalled && <StalledBadge />}
-        <span className="duo-cu-hue" style={{ background: hue }} />
-        <span className="duo-cu-repo">{repo}</span>
-        {worktree && <span className="duo-cu-wt" title={`git worktree: ${worktree}`}>⑂ {worktree}</span>}
-        <span aria-hidden>·</span>
+        {!card.open && isClosed && <ClosedBadge />}
         <span className="duo-cu-age">{ageShort(Math.max(0, now - card.lastActivityAt))}</span>
       </div>
 

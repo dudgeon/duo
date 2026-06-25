@@ -46,9 +46,10 @@ export function DoneBadge() {
   return <span className="duo-cu-pill duo-cu-pill-done" title="Finished — reviewable">✓ done</span>
 }
 
-/** The stalled badge — a closed session with no deliverable (the compact tier). */
-export function StalledBadge() {
-  return <span className="duo-cu-pill duo-cu-pill-stalled" title="Closed without a clear deliverable">⏸ stalled</span>
+/** The closed badge — a session that ended with no deliverable; resumable (the
+ *  "In progress · Closed" collapsed tier). */
+export function ClosedBadge() {
+  return <span className="duo-cu-pill duo-cu-pill-closed" title="Closed — ended without a deliverable; click Open session to resume">closed</span>
 }
 
 /** Basename of a path for a chip label. */

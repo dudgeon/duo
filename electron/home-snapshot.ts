@@ -36,7 +36,7 @@ import {
   readSessionTailMeta,
   type TopLevelSessionStat,
 } from './claude-session-tracker'
-import { extractSessionDigest, deriveState } from './session-digest'
+import { extractSessionDigest } from './session-digest'
 import type { SessionDigestStore } from '../core/session-digest-store'
 import type { HomeStateStore } from '../core/home-state-store'
 import type {
@@ -46,6 +46,7 @@ import type {
   HomeSessionOpen,
   HomeSnapshot,
   SessionDigest,
+  DigestState,
   CatchupCard,
   CatchupColumn,
   CatchupSnapshot,
@@ -637,6 +638,14 @@ export interface BuildCatchupDeps {
   openByUuid?: OpenByUuid
   /** P6 — session uuids minted by a cron run (badged `scheduled`). */
   cronSessionIds?: ReadonlySet<string>
+  /** Does a session cwd still exist on disk? Default: a real `fs.stat`. Injected
+   *  by tests so fixture cwds don't all read as removed worktrees. */
+  cwdExists?: (cwd: string) => Promise<boolean>
+}
+
+/** Default cwd-existence probe (a removed git worktree → false). */
+function cwdExistsOnDisk(cwd: string): Promise<boolean> {
+  return cwd ? fs.stat(cwd).then(() => true).catch(() => false) : Promise.resolve(true)
 }
 
 function emptyColumn(): CatchupColumn {
@@ -649,10 +658,10 @@ function emptyColumn(): CatchupColumn {
  * (cache misses only). The server is the authority — the renderer renders these
  * columns verbatim.
  *
- * Column = re-derived `state` (attention ⇒ needs-you · live & no-attention ⇒
- * working · else done). Tier (two-tier rule, review fix #8) = `full` when the
- * session is LIVE or NEEDS YOU (a closed-but-awaiting-approval session is the
- * highest-value Needs-you card and must stay full), else `compact`.
+ * Column + tier (owner reframe 2026-06-24): Needs you = attention (full); the
+ * `working` column = "In progress" = live (full) + closed-resumable (compact);
+ * Done = a finished deliverable (full). Removed-worktree sessions land in the
+ * closed/collapsed area, struck through. See the per-card block below.
  */
 export async function buildCatchupSnapshot(deps: BuildCatchupDeps): Promise<CatchupSnapshot> {
   const projectsRoot = deps.projectsRoot ?? path.join(os.homedir(), '.claude', 'projects')
@@ -660,17 +669,21 @@ export async function buildCatchupSnapshot(deps: BuildCatchupDeps): Promise<Catc
   const now = deps.now ?? Date.now()
   const openByUuid: OpenByUuid = deps.openByUuid ?? new Map()
   const cronSessionIds = deps.cronSessionIds ?? new Set<string>()
+  const cwdExists = deps.cwdExists ?? cwdExistsOnDisk
   const since = now - daysSince * DAY_MS
 
   const raw = await enumerateProjectDirs(projectsRoot)
   const rolled = await rollupProjects(raw)
 
-  // Flatten to one entry per session within the window, deduped by uuid
-  // (keep the freshest stat — a resume-minted duplicate is a known v1 limit).
+  // Flatten to one entry per session, deduped by uuid (keep the freshest stat —
+  // a resume-minted duplicate is a known v1 limit). The 7-day window applies
+  // ONLY to NON-OPEN sessions (owner 2026-06-24): an OPEN session (a live claude
+  // process attributed) always shows regardless of age; a closed one drops past
+  // the window.
   const byUuid = new Map<string, RolledSession>()
   for (const proj of rolled) {
     for (const rs of proj.sessions) {
-      if (rs.stat.mtimeMs < since) continue
+      if (rs.stat.mtimeMs < since && !openByUuid.has(rs.stat.id)) continue
       const prev = byUuid.get(rs.stat.id)
       if (!prev || rs.stat.mtimeMs > prev.stat.mtimeMs) byUuid.set(rs.stat.id, rs)
     }
@@ -686,32 +699,52 @@ export async function buildCatchupSnapshot(deps: BuildCatchupDeps): Promise<Catc
 
       // BUG-worktree — the session's recorded cwd may be a removed git worktree;
       // `claude --resume` there fails. Flag it so the card strikes through +
-      // suppresses re-entry (cheap stat, bounded by the 7-day window).
-      const cwdGone = digest.cwd ? !(await fs.stat(digest.cwd).then(() => true).catch(() => false)) : false
+      // collapses (cheap stat, bounded by the window).
+      const cwdGone = digest.cwd ? !(await cwdExists(digest.cwd)) : false
 
       // The focusable join (kind duo|external); absent ⇒ closed. Liveness is
       // its presence (any live claude process), not just a Duo tab.
       const open = openByUuid.get(uuid)
       const live = open != null
       const attention = digest.attention
-      const state = deriveState(live, attention?.reason ?? null)
-      // FULL (prominent) ⇔ live, needs-you, OR FINISHED reviewable work — a
-      // produced artifact (PR / created files / tests) or a fully-checked-off
-      // TodoWrite plan. A closed session with NEITHER is STALLED (unfinished, no
-      // deliverable) → a compact row beneath the finished Done cards (owner: the
-      // Done column must mean "done — review", not merely "inactive").
-      // "Finished/reviewable" needs a CRISP deliverable, not just "touched
-      // files" (every coding session creates files — too loose, it re-floods
-      // the column): opened a PR, finished its TodoWrite plan, or produced a
-      // DOCUMENT (the D7 .md/.html report case). Code edits alone with no PR and
-      // no completed plan = STALLED.
+      // FINISHED = a CRISP deliverable (not just "touched files" — every coding
+      // session creates files): opened a PR, produced a DOCUMENT (.md/.html), or
+      // fully checked off its TodoWrite plan.
       const art = digest.artifacts
       const createdDoc = (art.createdFiles ?? []).some((f) => /\.(md|markdown|html?)$/i.test(f))
       const completed =
         !!art.pr ||
         createdDoc ||
         (digest.todos.length > 0 && digest.todos.every((t) => t.status === 'completed'))
-      const tier: CatchupCard['tier'] = live || attention || completed ? 'full' : 'compact'
+
+      // Column + tier (owner reframe 2026-06-24 — supersedes the old "Done = any
+      // inactive" model; D6 revision):
+      //   Needs you   = attention                       → full
+      //   In progress = live (full) OR closed-resumable (compact) — the `working`
+      //                 column key. A closed session that produced no deliverable
+      //                 is "closed" (resumable): the high-value pick-it-back-up
+      //                 surface, collapsed beneath the live cards.
+      //   Done        = a FINISHED deliverable           → full
+      //   Gone (removed worktree) → the closed/collapsed area, struck through (it
+      //                 can neither resume nor be reviewed).
+      let state: DigestState
+      let tier: CatchupCard['tier']
+      if (cwdGone) {
+        state = 'working'
+        tier = 'compact'
+      } else if (attention) {
+        state = 'needs-you'
+        tier = 'full'
+      } else if (live) {
+        state = 'working'
+        tier = 'full'
+      } else if (completed) {
+        state = 'done'
+        tier = 'full'
+      } else {
+        state = 'working' // closed, resumable
+        tier = 'compact'
+      }
       const ann = deps.homeStateStore.getAnnotation(uuid)
       const narrative =
         ann?.note || ann?.next

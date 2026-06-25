@@ -127,6 +127,27 @@ labeled *"Stalled · unfinished"*):
   — every coding session touches files, so they re-flood the column (live-data
   finding, same class as the goal-machinery bug).
 
+#### D6c — Reframe: "In progress" holds live + closed; Done = finished only (owner, 2026-06-24 walk #3)
+Walk #3 rejected the D6a finished/stalled split inside Done: *"doesn't fit my
+mental model … unfinished should be easier to resume … 'stalled' is the wrong
+word … let's call these 'closed' and show in the middle tier as collapsed."* The
+whole point of catch-up is *picking work back up*, so resumable work is the
+high-value surface, not finished work. **Revised columns (supersedes the D6
+"3 attention columns" lock):**
+- **Needs you** (act) — attention. Full cards.
+- **In progress** (the `working` column, renamed) — **live** sessions as full
+  cards (wait / focus) + a collapsed **"Closed"** tier beneath: sessions that
+  ended with **no deliverable** but are **resumable** (click → expand → resume).
+  "Closed" replaces "stalled".
+- **Done** — only **finished** work (a real deliverable: opened a PR, produced a
+  .md/.html doc, or a fully-complete TodoWrite plan). Full cards.
+- **Removed-worktree** sessions → the Closed tier, **collapsed + struck through**
+  (can neither resume nor be reviewed), reason on hover, no scary flag (owner).
+- **Card top** carries a prominent **project / cwd identifier** (owner: it was
+  only in the small meta line).
+- **7-day window applies to NON-OPEN sessions only** (owner) — an open (live)
+  session always shows regardless of age; a closed one drops past the window.
+
 #### D6b — Dismiss / "mark reviewed" — DEFERRED (open sub-decision)
 Owner wants a way to drop a reviewed/abandoned session off the board. Research
 (claude-code-guide, 2026-06-24) confirmed **Claude Code has no native

@@ -17,7 +17,14 @@
 
 **P1 carry-ins (2026-06-24).** **Title ladder** — already implemented: `extractGoal` (the digest heading) already runs custom-title(/rename) → ai-title(Haiku) → recap → command → first-prompt, so a renamed/Haiku-titled session already headlines with that title (verified live — headings like "open-flow-duo-build" are ai-titles). **Worktree subpath badge** — shipped: the cwd splits into a repo label + a `⑂ <slug>` badge (so two worktrees of one repo are distinguishable). **Worktree-gone softened** (owner: no scary flag) — dropped the ⚠ tag + dead-end button; now just grey + strikethrough on the heading with the reason on hover. Done-badge/stalled-badge shipped alongside.
 
-**Remaining:** finish the owner walk → merge #108 → cut from main (branch is v0.12.1, main v0.12.2). Deferred to follow-up ENHs: ENH-232 (rich worktree re-entry), ENH-233 (dismiss/mark-reviewed). P2: cron management. SKIP: greeting, empty-state.
+**Smoke walk v0.12.1-enh231 (2026-06-24): 7/9 PASS.** PASS: CU-FOCUS (green ● live + focus-not-fork on a real Duo session — the agent-untestable one), CU-FILEOPEN, CU-EXPAND, CU-TEXT, CU-WTBADGE, CU-DARK, CU-MODE. **2 FAIL, both in the Done/compact area:**
+- **CU-DONE-IA (design rethink, not a bug).** Owner: *"doesn't fit my mental model … unfinished should be easier to resume (expanded) … what is the category of sessions in this tier? 'stalled' feels like the wrong word … we need to talk more."* The compact tier = closed sessions with NO deliverable (no PR/completed-plan/doc) = work stopped mid-stream. Owner's reframe: these UNFINISHED/resumable sessions are the high-value catch-up surface and should be PROMINENT (full, resume-focused), not buried — inverting the finished=full / unfinished=compact model. Open: column/tier structure + terminology. **Blocks merge — design discussion in progress.**
+- **CU-WORKTREE-GONE:** removed-worktree sessions should **default collapsed** (they can't resume). Clear fix — fold into the CU-DONE-IA pass (same surface).
+- **OTHER NOTE:** cards need a **prominent project/CWD identifier at the top** (currently only in the small meta line). Clear fix.
+
+**CU-DONE-IA reframe shipped (walk #3, 2026-06-24 — PRD D6c).** Columns are now **Needs you · In progress · Done**: In progress = live (full) + a collapsed **"Closed"** tier (resumable, ex-"stalled"); Done = **finished only**; removed-worktree → Closed/collapsed/struck; prominent **project label at card top**; the 7-day window applies to **non-open** sessions only (open always shows). Verified live (2 live-full / 12 closed-compact / 3 finished; closed rows expand → card + "closed" badge + Open-session resume). Suite 2027 green.
+
+**Remaining:** re-walk the 2 FAILs (CU-DONE-IA + CU-WORKTREE-GONE, now fixed) → merge #108 → cut. Deferred ENHs: ENH-232 (rich worktree re-entry), ENH-233 (dismiss/mark-reviewed). P2: cron management. SKIP: greeting, empty-state.
 
 ---
 
