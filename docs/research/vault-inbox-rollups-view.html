@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>Vault inbox + rollups view — design & rollup-lifecycle proposal</title>
+<style>
+  /* ===== Atelier kernel (inlined verbatim from skill/references/duo-atelier.css) ===== */
+  :root {
+    --paper: #fbf8f1;
+    --paper-deep: #f3ede0;
+    --paper-edge: #e8e0cb;
+    --paper-rule: #d9cea8;
+    --ink: #2b2620;
+    --ink-soft: #4a4238;
+    --ink-mute: #6f6557;
+    --ink-ghost: #9a9080;
+    --accent: #c46a1c;
+    --accent-soft: #f4d9b6;
+    --pass: #4a7d3e;
+    --fail: #b13e3a;
+    --warn: #b07527;
+    --code-bg: #2b2823;
+    --code-ink: #e8e0cb;
+    --project-pine:   #2E7D74;
+    --project-harbor: #3C6E93;
+    --project-iris:   #5B57A6;
+    --project-plum:   #87508F;
+    --project-rose:   #A4506A;
+    --project-moss:   #69763A;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--paper); color: var(--ink);
+    font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    font-size: 14px; line-height: 1.55;
+  }
+  body { padding: 32px 40px 96px; max-width: 920px; margin: 0 auto; }
+  header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+  header.page-head h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px; }
+  header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+  header.page-head .meta .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 6px; }
+  .intro { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 14px 18px; margin-bottom: 28px; font-size: 13.5px; color: var(--ink-soft); }
+  .intro strong { color: var(--ink); font-weight: 600; }
+  h2 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 600; margin: 36px 0 12px; font-size: 19px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px; }
+  h3 { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+  h4 { margin: 16px 0 6px; font-size: 13.5px; }
+  p { margin: 8px 0; }
+  ul, ol { margin: 8px 0; padding-left: 24px; }
+  li { margin: 4px 0; }
+  code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; }
+  pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; line-height: 1.5; background: var(--code-bg); color: var(--code-ink); padding: 14px 16px; border-radius: 6px; overflow-x: auto; }
+  pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+  .decision-card { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 16px 18px; margin: 18px 0; }
+  .decision-card .q-title { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px; }
+  .decision-card .q-prompt { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 500; font-size: 17px; color: var(--ink); margin: 0 0 12px; line-height: 1.35; }
+  .decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+  .q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+  .q-option { display: block; background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 10px 12px; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+  .q-option:hover { border-color: var(--ink-ghost); }
+  .q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+  .q-option:has(input[type="radio"]:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+  .q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+  .q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+  .q-option-title .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+  .q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+  .q-notes { width: 100%; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px; }
+  .q-notes:focus { outline: 1.5px solid var(--accent); }
+  details.deferred { margin: 22px 0; padding: 12px 16px; background: var(--paper-deep); border: 1px dashed var(--paper-rule); border-radius: 6px; }
+  details.deferred summary { cursor: pointer; font-weight: 600; color: var(--ink-soft); font-size: 13.5px; }
+  details.deferred[open] summary { color: var(--ink); }
+  details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(--ink-soft); }
+  .copy-bar { position: sticky; bottom: 0; margin: 32px -40px -96px; padding: 16px 40px; background: color-mix(in srgb, var(--paper-deep) 96%, transparent); border-top: 1.5px solid var(--paper-rule); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+  .copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+  .copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+  .copy-bar button { background: var(--accent); color: white; border: none; border-radius: 5px; padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background 0.12s; }
+  .copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+  .copy-bar button.copied { background: var(--pass); }
+
+  /* ===== Per-playground patterns ===== */
+  table.ops { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 12.5px; }
+  table.ops th, table.ops td { border: 1px solid var(--paper-rule); padding: 7px 10px; text-align: left; vertical-align: top; }
+  table.ops th { background: var(--paper-deep); font-weight: 600; }
+  table.ops td code { font-size: 11.5px; }
+  .tag-yes { color: var(--pass); font-weight: 700; }
+  .tag-no  { color: var(--fail); font-weight: 700; }
+  .tag-part { color: var(--warn); font-weight: 700; }
+
+  /* Mockup of the proposed view */
+  .mockup { border: 1.5px solid var(--paper-rule); border-radius: 8px; overflow: hidden; margin: 16px 0 8px; background: var(--paper); box-shadow: 0 1px 0 var(--paper-edge); }
+  .mockup .tabstrip { display: flex; gap: 2px; background: var(--paper-deep); padding: 6px 8px 0; border-bottom: 1px solid var(--paper-rule); }
+  .mockup .tabstrip .tab { padding: 6px 14px; font-size: 12.5px; border-radius: 6px 6px 0 0; color: var(--ink-mute); border: 1px solid transparent; border-bottom: none; }
+  .mockup .tabstrip .tab.active { background: var(--paper); color: var(--ink); font-weight: 600; border-color: var(--paper-rule); }
+  .mockup .tabstrip .tab .dot { display: inline-block; width: 7px; height: 7px; border-radius: 2px; background: var(--project-iris); margin-right: 6px; vertical-align: middle; }
+  .mockup .body { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  .mockup .col { padding: 14px 16px; }
+  .mockup .col + .col { border-left: 1px solid var(--paper-rule); }
+  .mockup .col h5 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-mute); display: flex; justify-content: space-between; align-items: center; }
+  .mockup .col h5 .addbtn { font-size: 11px; text-transform: none; letter-spacing: 0; background: var(--accent); color: #fff; border-radius: 4px; padding: 2px 9px; font-weight: 600; }
+  .mockup .row { display: flex; justify-content: space-between; align-items: baseline; padding: 7px 0; border-bottom: 1px dashed var(--paper-edge); font-size: 12.5px; }
+  .mockup .row .lead { color: var(--ink); }
+  .mockup .row .meta2 { color: var(--ink-ghost); font-size: 11px; white-space: nowrap; margin-left: 10px; }
+  .mockup .row .link { color: var(--accent); }
+  .mockup .row.stale .meta2 { color: var(--warn); }
+  .mockup .chip { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 8px; background: var(--paper-deep); color: var(--ink-mute); margin-left: 6px; }
+  .mockup .chip.fresh { background: color-mix(in srgb, var(--pass) 15%, var(--paper)); color: var(--pass); }
+  .mockup .chip.staleC { background: color-mix(in srgb, var(--warn) 18%, var(--paper)); color: var(--warn); }
+  .figcap { font-size: 11.5px; color: var(--ink-ghost); margin: 0 0 22px; font-style: italic; }
+
+  .pipeline { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; margin: 14px 0; }
+  .pipeline .stage { flex: 1; min-width: 150px; background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 10px 12px; font-size: 12px; }
+  .pipeline .stage b { display: block; font-size: 12.5px; margin-bottom: 4px; color: var(--ink); }
+  .pipeline .stage .v { color: var(--ink-mute); }
+  .pipeline .arrow { align-self: center; color: var(--ink-ghost); font-size: 18px; }
+
+  .callout { border-left: 3px solid var(--accent); background: var(--paper-deep); padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 14px 0; font-size: 13px; color: var(--ink-soft); }
+  .callout strong { color: var(--ink); }
+  .gap { color: var(--fail); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Vault inbox &amp; rollups view — design + rollup-lifecycle proposal</h1>
+  <div class="meta">
+    <span class="pill">Research</span>
+    <span class="pill">Decisions locked</span>
+    2026-06-24 · feature spike for a new top-level vault surface
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> A design proposal for a new top-level
+  <strong>Vault</strong> view that sits beside the Home tab and is shown when a
+  vault is selected. It lists the vault's <strong>inbox</strong> (with a capture
+  button) and its <strong>rollups</strong> (with view links + a create button).
+  The hard part isn't the UI — it's that <strong>rollups have no canonical home
+  or registry today</strong>, so "list the rollups for this vault" is currently
+  unanswerable. This page proposes a rollup-lifecycle change that makes the view
+  reliable, and asks you to lock six decisions before any code is written.
+</div>
+
+<div class="callout" style="border-left-color: var(--pass);">
+  <strong>Decisions FINAL 2026-06-24 (owner playground submission).</strong> The
+  owner selected the recommended option on every card. Locked:
+  <strong>D1 = rollup is a first-class <code>type: rollup</code> note</strong>
+  (discovery = <code>type == rollup</code> corpus query, no scan/sidecar) ·
+  <strong>HTML-first</strong> rollups (owner: "the rollups I'm most interested in
+  producing are HTML based, not MD") · <strong>D2 = anchor on the default
+  vault</strong> (+ header switcher) · D3 = pinned tab beside Home when a vault is
+  selected · D4 = prefilled Claude session · D5 = all-inbox-flag-stale · D6 = full
+  slice incl. the typed-note lifecycle change. Full record:
+  <code>docs/prd/enh-228-vault-view.md</code>.
+</div>
+
+<h2>1 · The proposed view (mockup)</h2>
+<div class="mockup">
+  <div class="tabstrip">
+    <div class="tab">Home</div>
+    <div class="tab active"><span class="dot"></span>Vault · Work</div>
+    <div class="tab">readme.md</div>
+    <div class="tab">+</div>
+  </div>
+  <div class="body">
+    <div class="col">
+      <h5>Inbox · 4 unfiled <span class="addbtn">+ Capture</span></h5>
+      <div class="row"><span class="lead">Pricing sync — Alice wants fee model</span><span class="meta2">2h ago</span></div>
+      <div class="row"><span class="lead">Idea: weekly digest email</span><span class="meta2">yesterday</span></div>
+      <div class="row stale"><span class="lead">call notes — vendor switch?</span><span class="meta2">9d · stale</span></div>
+      <div class="row stale"><span class="lead">untitled capture</span><span class="meta2">12d · stale</span></div>
+    </div>
+    <div class="col">
+      <h5>Rollups · 3 <span class="addbtn">+ New rollup</span></h5>
+      <div class="row"><span class="lead link">Open milestones by initiative</span><span class="meta2"><span class="chip fresh">fresh</span></span></div>
+      <div class="row stale"><span class="lead link">Processing work-list</span><span class="meta2"><span class="chip staleC">stale · re-render</span></span></div>
+      <div class="row"><span class="lead link">People &amp; themes index</span><span class="meta2"><span class="chip fresh">fresh</span></span></div>
+    </div>
+  </div>
+</div>
+<p class="figcap">A pinned "Vault · &lt;name&gt;" tab beside Home. Left: inbox notes (newest first, stale ones flagged), <code>+ Capture</code> runs <code>duo vault capture</code>. Right: the vault's rollups, each a link that opens its freshest rendered artifact; freshness chip compares the artifact's embedded source-hash to the live corpus; <code>+ New rollup</code> creates one.</p>
+
+<h2>2 · How it slots into the app (architecture)</h2>
+<p>
+  This is cheap on the UI side — it follows the <strong>Home</strong> pattern
+  exactly. Home is a synthesized, never-persisted, pinned slot-0 tab
+  (<code>type: 'home'</code>, pseudo-path <code>duo://home</code>) dispatched in
+  <code>renderer/components/WorkingPane.tsx</code>. The Vault view is a sibling:
+</p>
+<ul>
+  <li>Add <code>'vault'</code> to <code>WorkingTabType</code> in <code>shared/types.ts</code>.</li>
+  <li>Synthesize a pinned <code>type:'vault'</code> tab (<code>duo://vault/&lt;root&gt;</code>) right after Home when a vault is active; dispatch to a new <code>&lt;VaultView&gt;</code> in <code>WorkingPane.renderFileTab()</code>.</li>
+  <li>Data comes through the existing <code>window.electron.vault.*</code> IPC bridge (<code>electron/preload.ts</code> → <code>ipcMain.handle</code> in <code>electron/main.ts</code> → <code>core/vault</code>, the same code paths the <code>duo vault</code> CLI uses). We add two read verbs: <strong>list inbox</strong> and <strong>list rollups</strong> (see §4).</li>
+</ul>
+<div class="callout">
+  The <strong>inbox half is already well-defined</strong>: capture notes always
+  land in <code>inbox/</code> with a <code>captured:</code> frontmatter date
+  (<code>core/vault/scaffold.ts</code>), and stale = <code>captured &lt; today − 1 week</code>
+  (the existing <code>processing.base</code> rule). The view just reads
+  <code>inbox/</code> and the <code>+ Capture</code> button calls
+  <code>duo vault capture</code>. <strong>The rollups half is the unsolved part.</strong>
+</div>
+
+<h2>3 · The rollup-lifecycle problem (the core finding)</h2>
+<p>
+  "Rollup" is not one thing in the codebase today — it's <strong>three different
+  mechanisms</strong>, none of which records that it <em>exists</em> anywhere a
+  view could enumerate. There is <span class="gap">no registry, no index, no
+  <code>type: rollup</code></span> — discovery would mean scanning several
+  scattered locations and de-duplicating by hand.
+</p>
+
+<table class="ops">
+  <thead><tr><th>Mechanism</th><th>Source lives at</th><th>Rendered to</th><th>Diff history?</th><th>Discoverable how?</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>Obsidian <code>.base</code></b><br>(<code>duo base render</code>)</td>
+      <td><code>bases/*.base</code> files, <em>and</em> embedded <code>```base</code> blocks inside type templates / notes</td>
+      <td><code>out/*.html</code> (transient)</td>
+      <td><span class="tag-no">no</span></td>
+      <td>scan <code>bases/</code> + regex every note body for <code>```base</code></td>
+    </tr>
+    <tr>
+      <td><b>OKF static listings</b><br>(<code>duo vault publish</code>)</td>
+      <td><code>index.md</code> frontmatter <code>listing:</code> spec (or the default group-by-type)</td>
+      <td><code>index.md</code> / <code>log.md</code> bodies</td>
+      <td><span class="tag-no">no</span></td>
+      <td>the root <code>index.md</code> itself (singular, fixed)</td>
+    </tr>
+    <tr>
+      <td><b>Rollup artifacts</b> (ENH-229)<br>(<code>duo rollup render</code>)</td>
+      <td>points at a note or a <code>.base</code> — no durable source object of its own</td>
+      <td><code>rollups/*.{md,html}</code> (stamped)</td>
+      <td><span class="tag-yes">yes</span> — embedded snapshot + summary log</td>
+      <td>scan <code>rollups/</code> for artifacts (no link back to a named source)</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  The richest mechanism (ENH-229 rollup artifacts, with embedded snapshot/diff
+  history and source-hash staleness) is exactly what the view wants to surface —
+  but the artifact in <code>rollups/</code> is an <em>output</em>, not a
+  <em>handle</em>. There's no object that says "this rollup is called X, here's
+  its query, here's where it last rendered, here's whether it's stale." Two
+  authors rendering the same view in two formats produce two artifacts the view
+  can't tell are the same rollup. <strong>That gap is what makes a reliable
+  rollups list impossible today.</strong>
+</p>
+
+<h2>4 · Proposed lifecycle change — make a rollup a first-class typed note</h2>
+<p>
+  The fix that's most aligned with the vault's own philosophy
+  (<em>the corpus is the schema; no sidecar; state lives where it belongs</em>):
+  promote the rollup from "an output file" to <strong>a typed note</strong> —
+  <code>type: rollup</code>, living in <code>rollups/</code> — that is the durable
+  handle. Everything else (the <code>.base</code>, the rendered HTML) hangs off it.
+</p>
+
+<pre><code>rollups/open-milestones.md
+---
+type: rollup
+id: rl-7f3a9c
+title: Open milestones by initiative
+spec: bases/open-milestones.base   # or an inline ```base block, or a listing: spec
+last_render: rollups/open-milestones.html
+last_source_hash: 9c1ad4e2f0b7    # stamped at render; staleness = (≠ live corpus hash)
+rendered_at: 2026-06-24
+---
+Open milestones across all initiatives, grouped by owner, with a due chip.</code></pre>
+
+<div class="pipeline">
+  <div class="stage"><b>Create</b><span class="v">stub a <code>type:rollup</code> note (existing <code>duo vault stub</code> machinery) — or a Claude session authors its spec</span></div>
+  <div class="arrow">→</div>
+  <div class="stage"><b>Render</b><span class="v">existing engine renders the note's spec to its artifact; stamps <code>last_*</code> back into the note frontmatter</span></div>
+  <div class="arrow">→</div>
+  <div class="stage"><b>Discover</b><span class="v"><code>type == rollup</code> — the corpus already indexes this. <code>duo rollup list</code> = one query, no scan</span></div>
+  <div class="arrow">→</div>
+  <div class="stage"><b>Surface</b><span class="v">the view lists rollup notes; freshness = <code>last_source_hash</code> vs live corpus hash; "view" opens the artifact</span></div>
+</div>
+
+<p>Why this is the right shape:</p>
+<ul>
+  <li><strong>Discovery becomes a corpus query.</strong> "List the rollups" = "notes where <code>type == rollup</code>" — the exact machinery <code>duo vault schema</code> already runs live, every call, no cache (§D9-clean). No new registry, no sidecar, no scan-and-dedupe.</li>
+  <li><strong>It unifies the three mechanisms.</strong> The rollup note's <code>spec:</code> can point at an existing <code>.base</code>, carry an inline <code>```base</code> block, or hold a <code>listing:</code>-style spec — so OKF and Obsidian vaults both get one durable rollup object, even though the render <em>sink</em> differs.</li>
+  <li><strong>Backward-compatible + incremental.</strong> Existing <code>bases/*.base</code> files keep working; a rollup note just references one (<code>spec: bases/foo.base</code>). No migration is forced — you wrap a base in a note when you want it to show up in the view.</li>
+  <li><strong>The artifact stays a pure build-output.</strong> The note is the source of truth; the HTML in <code>rollups/</code> remains regenerable + stamped (the existing ENH-229 snapshot/diff history rides along untouched).</li>
+</ul>
+
+<details class="deferred">
+  <summary>Alternatives considered (and why they're weaker)</summary>
+  <div class="deferred-body">
+    <p><strong>A · Convention + scan only</strong> — designate <code>rollups/</code> as canonical, add <code>duo rollup list</code> that scans <code>bases/</code> + every note for <code>```base</code> + the <code>rollups/</code> dir, and de-dupes by mtime. Ships fastest, no model change — but discovery stays a fragile multi-source scan, embedded bases are invisible until rendered, and there's still no named handle (the dedupe problem persists). Good <em>fallback</em> if you want v1 with zero lifecycle change.</p>
+    <p><strong>C · A manifest file</strong> — <code>rollups/index.json</code> listing every rollup + metadata. Simple to read, but it's a textbook <strong>sidecar</strong> (CLAUDE.md §12 / D9): it drifts from the real <code>.base</code>/artifact state the moment anything is edited out-of-band, and the project has an explicit invariant against exactly this. Rejected on principle.</p>
+    <p><strong>B (recommended)</strong> avoids both: no scan (it's a corpus query) and no sidecar (the note <em>is</em> the corpus). It costs a new <code>type: rollup</code> template + teaching the render verbs to stamp <code>last_*</code> back into the note.</p>
+  </div>
+</details>
+
+<h2>5 · Decisions to lock</h2>
+
+<section class="decision-card">
+  <div class="q-title">Decision 1</div>
+  <h3 class="q-prompt">Rollup discovery model — how does the view know what rollups exist?</h3>
+  <p class="q-context">This is the load-bearing decision; everything else follows from it. See §3–§4.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d1" value="typed-note">
+      <div class="q-option-body"><div class="q-option-title">B · Rollup = first-class typed note <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Discovery is a <code>type == rollup</code> corpus query; no scan, no sidecar; unifies OKF + Obsidian; backward-compatible. Costs a new template + render verbs stamping <code>last_*</code> back into the note.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="scan">
+      <div class="q-option-body"><div class="q-option-title">A · Convention + scan (no lifecycle change)</div>
+      <div class="q-option-rationale">Ships fastest; add <code>duo rollup list</code> that scans <code>bases/</code> + note bodies + <code>rollups/</code>. Fragile, no named handle, embedded bases invisible until rendered.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="manifest">
+      <div class="q-option-body"><div class="q-option-title">C · A <code>rollups/index.json</code> manifest</div>
+      <div class="q-option-rationale">Easy to read, but a sidecar that drifts (violates CLAUDE.md §12 / the no-sidecar D9 invariant). Listed for completeness.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d1" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 2</div>
+  <h3 class="q-prompt">What does "the selected vault" mean for this view?</h3>
+  <p class="q-context">There's no app-level "selected vault" state today — vault is derived per-op from the active file's enclosing folder, and there's a separate machine-global <em>default vault</em> (Settings → Default Vault / <code>duo vault default</code>).</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d2" value="default">
+      <div class="q-option-body"><div class="q-option-title">Anchor on the default vault <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">The view shows the default vault; the tab appears whenever a default is set. Reuses an existing, persisted, single-source concept. A small vault-switcher in the view header can re-point it (and set the default).</div></div></label>
+    <label class="q-option"><input type="radio" name="d2" value="active-file">
+      <div class="q-option-body"><div class="q-option-title">Follow the active file's enclosing vault</div>
+      <div class="q-option-rationale">Contextual, but the tab would appear/disappear/retarget as you click around files — surprising for a pinned top-level surface.</div></div></label>
+    <label class="q-option"><input type="radio" name="d2" value="explicit">
+      <div class="q-option-body"><div class="q-option-title">A new explicit per-window vault selection</div>
+      <div class="q-option-rationale">Most flexible, but adds a new piece of window state to persist + migrate. Heavier than the feature needs for v1.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d2" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 3</div>
+  <h3 class="q-prompt">When does the Vault tab appear, and where?</h3>
+  <p class="q-context">Home is a pinned slot-0 tab. The Vault view would be its sibling.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d3" value="pinned-when-vault">
+      <div class="q-option-body"><div class="q-option-title">Pinned tab beside Home, shown only when a vault is selected <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Matches your ask exactly. No clutter when you don't use vaults; always there when you do.</div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="always">
+      <div class="q-option-body"><div class="q-option-title">Always pinned (shows an empty/"pick a vault" state when none)</div>
+      <div class="q-option-rationale">Discoverable for new users, but adds a permanent tab even for people who never touch vaults.</div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="home-section">
+      <div class="q-option-body"><div class="q-option-title">A section inside the existing Home view instead of its own tab</div>
+      <div class="q-option-rationale">Lower-ceremony (reuses Home's section pattern, like CronSection), but you asked for a view <em>next to</em> Home — this folds it in instead.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d3" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 4</div>
+  <h3 class="q-prompt">"Create new rollup" — what does the button do?</h3>
+  <p class="q-context">You floated both a prefilled Claude session and another mechanism. Authoring a good rollup spec needs the live corpus (real type/enum names), which is Claude's strength.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d4" value="claude-session">
+      <div class="q-option-body"><div class="q-option-title">Spawn a Claude session with a prefilled authoring prompt <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">"Author a rollup for this vault: &lt;describe in prose&gt;" → Claude runs <code>duo vault schema</code>, writes the <code>type:rollup</code> note + spec, lints, renders. Matches the vault's agent-layer design; zero new form UI. Best v1.</div></div></label>
+    <label class="q-option"><input type="radio" name="d4" value="stub-then-edit">
+      <div class="q-option-body"><div class="q-option-title">Stub an empty rollup note + open it for editing</div>
+      <div class="q-option-rationale">Pure-mechanical (<code>duo vault stub rollup</code>), no Claude — but leaves the user to hand-author Bases YAML, which is the part that needs the corpus.</div></div></label>
+    <label class="q-option"><input type="radio" name="d4" value="both">
+      <div class="q-option-body"><div class="q-option-title">Both — a small menu (guided-by-Claude vs blank note)</div>
+      <div class="q-option-rationale">Most complete, slightly more to build. Reasonable as a fast-follow once the Claude path proves out.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d4" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 5</div>
+  <h3 class="q-prompt">Inbox list — scope and "view this item" behavior</h3>
+  <p class="q-context">Inbox = notes in <code>inbox/</code>. The <code>+ Capture</code> button calls <code>duo vault capture</code> (the ⇧⌘N twin) and opens the new note.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d5" value="all-flag-stale">
+      <div class="q-option-body"><div class="q-option-title">Show all inbox notes, flag stale (&gt;1 week) <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Newest-first; stale ones (the existing <code>processing.base</code> threshold) get an amber flag. Clicking a row opens the note in the editor.</div></div></label>
+    <label class="q-option"><input type="radio" name="d5" value="stale-only">
+      <div class="q-option-body"><div class="q-option-title">Show only the processing work-list (stale + untyped + missing fields)</div>
+      <div class="q-option-rationale">More action-oriented (mirrors the processing pass), but hides fresh captures you may want to see land.</div></div></label>
+    <label class="q-option"><input type="radio" name="d5" value="all-plus-process">
+      <div class="q-option-body"><div class="q-option-title">All inbox notes + a "Process inbox" button (hand to Claude)</div>
+      <div class="q-option-rationale">Option 1 plus a one-click entry into the processing pass. A natural pairing with D4's Claude path.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d5" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 6</div>
+  <h3 class="q-prompt">Scope of the first slice</h3>
+  <p class="q-context">How much to build before calling it shippable.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d6" value="full">
+      <div class="q-option-body"><div class="q-option-title">Full slice: view + inbox + rollups + lifecycle change (D1=B) <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Do the typed-note lifecycle change so the rollups list is reliable from day one. One PRD, one ENH, one coherent feature.</div></div></label>
+    <label class="q-option"><input type="radio" name="d6" value="inbox-first">
+      <div class="q-option-body"><div class="q-option-title">Inbox-first: ship the view + inbox now, rollups list as a fast-follow</div>
+      <div class="q-option-rationale">The inbox half is well-defined and ready; defers the lifecycle decision. Gets a usable surface out sooner.</div></div></label>
+    <label class="q-option"><input type="radio" name="d6" value="scan-v1">
+      <div class="q-option-body"><div class="q-option-title">Whole view now with scan-based discovery (D1=A), upgrade later</div>
+      <div class="q-option-rationale">Ships the complete view fastest; accepts fragile rollup discovery as v1 debt, migrate to typed-notes later.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d6" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 6 decisions answered</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+  const TITLES = {
+    d1: 'Rollup discovery model',
+    d2: 'Selected-vault anchor',
+    d3: 'When/where the Vault tab appears',
+    d4: 'Create-new-rollup mechanism',
+    d5: 'Inbox list scope',
+    d6: 'First-slice scope',
+  };
+  function answered() {
+    return Object.keys(TITLES).filter(k => document.querySelector('input[name="'+k+'"]:checked'));
+  }
+  function refresh() {
+    document.getElementById('answered-count').textContent = answered().length;
+  }
+  document.querySelectorAll('input[type=radio]').forEach(r => r.addEventListener('change', refresh));
+  document.getElementById('copy-btn').addEventListener('click', () => {
+    let out = 'VAULT INBOX + ROLLUPS VIEW — decisions\n\n';
+    for (const k of Object.keys(TITLES)) {
+      const sel = document.querySelector('input[name="'+k+'"]:checked');
+      const note = document.querySelector('.q-notes[data-decision="'+k+'"]').value.trim();
+      out += '[' + (sel ? sel.value : '—') + '] ' + TITLES[k] + '\n';
+      if (note) out += '    ' + note.replace(/\n/g, '\n    ') + '\n';
+      out += '\n';
+    }
+    navigator.clipboard.writeText(out).then(() => {
+      const b = document.getElementById('copy-btn');
+      b.classList.add('copied'); b.textContent = 'Copied ✓';
+      setTimeout(() => { b.classList.remove('copied'); b.textContent = 'Copy decisions'; }, 2000);
+    });
+  });
+  refresh();
+</script>
+
+</body>
+</html>

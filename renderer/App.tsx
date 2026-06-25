@@ -26,6 +26,7 @@ import {
   seedHomeFirst,
   isHomeTab
 } from './components/Home/homeTab'
+import { VAULT_TAB_ID, isVaultTab, syncVaultTab } from './components/Vault/vaultTab'
 import { classifyFile } from './components/fileClassifier'
 import { absolutizeOpenPath } from './components/openPathResolve'
 import { FilesPane, type FilesPaneHandle } from './components/FilesPane'
@@ -244,6 +245,20 @@ function makeTab(cwd: string, kind: TerminalTabKind, home: string, lastClaudeSes
     ...(lastClaudeSession ? { lastClaudeSession } : {})
   }
 }
+
+// ENH-228 (D5) — the seed prompt for the "+ New rollup" Claude session. The new
+// tab's cwd IS the vault, so `duo vault schema` / `duo rollup render` resolve to
+// it. Double-quoted (not a template literal) so the triple-backtick + the
+// `duo …` backticks stay literal (the no-backticks-in-template-literals trap).
+const ROLLUP_AUTHORING_PROMPT =
+  "Help me author a new rollup for this vault (this terminal's working directory is the vault). " +
+  "Follow the duo skill's rollup-authoring loop: " +
+  "(1) run `duo vault schema` to get the corpus — the real type names, fields, and observed enum values; " +
+  "(2) ask me what the rollup should show (which type, how to group it, which columns) if it isn't obvious; " +
+  "(3) write a `type: rollup` note at rollups/<slug>.md with the query in an embedded ```base block and `format: html`; " +
+  "(4) run `duo base lint <note>` until it's clean; " +
+  "(5) run `duo rollup render <note> --html --open` to render the HTML artifact and stamp its provenance. " +
+  "Keep the spec inside the locked Bases subset (filters, groupBy, formulas, summaries)."
 
 /**
  * A terminal's persisted launch cwd may have been deleted between
@@ -516,6 +531,34 @@ export function App() {
   const [dirtyPaths, setDirtyPaths] = useState<Set<string>>(() => new Set())
   const [activeWorking, setActiveWorking] = useState<ActiveWorking>({ kind: 'browser' })
 
+  // ENH-228 — the Vault tab is present-when-default (D4). Track whether a
+  // default vault is set; the tab is synthesized into fileTabs (after Home)
+  // whenever this is true, and removed otherwise. Fetched once at mount and
+  // re-read whenever any path broadcasts `duo-vault-default-changed` (the
+  // header switcher, Settings → Default Vault, `duo vault default`).
+  const [hasDefaultVault, setHasDefaultVault] = useState(false)
+  useEffect(() => {
+    let alive = true
+    const refresh = async () => {
+      try {
+        const r = await window.electron.vault.getDefault()
+        if (alive) setHasDefaultVault(!!r?.defaultVault)
+      } catch {
+        /* leave prior state — the tab persists across a transient IPC failure */
+      }
+    }
+    void refresh()
+    const onChanged = () => void refresh()
+    window.addEventListener('duo-vault-default-changed', onChanged)
+    return () => {
+      alive = false
+      window.removeEventListener('duo-vault-default-changed', onChanged)
+    }
+  }, [])
+  // (The Vault-tab presence reconciliation lives BELOW the session-restore
+  // state — it must re-run after restore settles, see the effect near
+  // `sessionHydrated`, or restore's wholesale setFileTabs clobbers the tab.)
+
   // ENH-080 — `⌘⇧A` opens a fuzzy search palette over open tabs.
   // The palette is a renderer overlay; we set its `open` state from
   // the `duo-open-tab-search` window event fired by useKeyboardShortcuts.
@@ -609,6 +652,23 @@ export function App() {
   const [sessionHydrated, setSessionHydrated] = useState(false)
   const sessionLoadStartedRef = useRef(false)
   const [browserTabs, setBrowserTabs] = useState<BrowserTab[]>([])
+
+  // ENH-228 — reconcile the Vault tab's presence to whether a default vault is
+  // set (D4). Gated on `sessionHydrated` so it re-runs AFTER restore's wholesale
+  // setFileTabs lands: otherwise a getDefault that resolves before restore adds
+  // the tab and restore clobbers it (the boot-time-spawn-before-restore-settled
+  // failure class — same lineage as the cron D5 catch-up). Idempotent: the
+  // syncVaultTab helper returns the same array reference when nothing changes.
+  // If the tab is removed while it was the active surface, fall back to Home.
+  useEffect(() => {
+    if (!sessionHydrated) return
+    setFileTabs(prev => syncVaultTab(prev, hasDefaultVault))
+    if (!hasDefaultVault) {
+      setActiveWorking(prev =>
+        prev.kind === 'file' && prev.id === VAULT_TAB_ID ? { kind: 'file', id: HOME_TAB_ID } : prev
+      )
+    }
+  }, [hasDefaultVault, sessionHydrated])
 
   // ENH-179 (Sprint 20 / v0.7.7) — recently-closed-tabs LIFO ring for
   // ⌘Z reopen. Three kinds (file / browser / terminal); the chord
@@ -911,8 +971,12 @@ export function App() {
       // ENH-212 — the synthesized Home tab (type 'home', sentinel
       // path 'duo://home') is never persisted: it is re-minted at mount
       // in every window (D9 / D11). Filter it out of the session envelope.
+      // ENH-228 — the synthesized Vault tab (type 'vault', sentinel path
+      // 'duo://vault') is also never persisted: it's re-synthesized from
+      // `vault.getDefault` at mount, present only when a default vault exists.
       fileTabs: filterPersistableFileTabs(fileTabs)
-        .map(f => ({ path: f.path, type: f.type as Exclude<typeof f.type, 'home'>, mime: f.mime })),
+        .filter(f => !isVaultTab(f))
+        .map(f => ({ path: f.path, type: f.type as Exclude<typeof f.type, 'home' | 'vault'>, mime: f.mime })),
       // ENH-212 — when Home is the active surface, persist `activeWorking:
       // null` rather than {kind:'file', path:'duo://home'}: the sentinel
       // must never reach disk (it would round-trip through the restore
@@ -2174,7 +2238,7 @@ export function App() {
     // the ONE guard: ⌘W, the strip's close glyph (suppressed in
     // WorkingTabStrip, but belt-and-braces), and `duo close` all route
     // through closeFileTab, so refusing here covers every close path.
-    if (id === HOME_TAB_ID) return
+    if (id === HOME_TAB_ID || id === VAULT_TAB_ID) return
     setFileTabs(prev => {
       const closedIdx = prev.findIndex(t => t.id === id)
       const closed = closedIdx >= 0 ? prev[closedIdx] : null
@@ -2562,6 +2626,44 @@ export function App() {
     window.addEventListener('duo-home-open-file', onOpen)
     return () => window.removeEventListener('duo-home-open-file', onOpen)
   }, [openFileSmart])
+
+  // ENH-228 — the Vault view routes its tab-opens + session-spawn through window
+  // CustomEvents (VaultView stays free of App props, the HomeView pattern). App
+  // owns the tab + terminal machinery:
+  //   - open-note   → open an inbox note / rollup source in the editor.
+  //   - open-rollup → openFileSmart the rendered HTML artifact (→ browser pane).
+  //   - new-rollup  → spawn a Claude session in the vault, seeded with the
+  //                   authoring-loop prompt (mirrors the `claude:spawn`
+  //                   playground action: makeTab + dispatchPostSpawnWrite).
+  useEffect(() => {
+    const onOpenNote = (e: Event) => {
+      const d = (e as CustomEvent<{ path: string; name: string }>).detail
+      if (d?.path) void openFileSmart(d.path, d.name)
+    }
+    const onOpenRollup = (e: Event) => {
+      const d = (e as CustomEvent<{ path: string; name: string }>).detail
+      if (d?.path) void openFileSmart(d.path, d.name) // .html → browser pane
+    }
+    const onNewRollup = (e: Event) => {
+      const d = (e as CustomEvent<{ vaultRoot: string }>).detail
+      if (!d?.vaultRoot) return
+      const tab = makeTab(d.vaultRoot, 'claude', home)
+      setTabs(prev => [...prev, tab])
+      setActiveTabId(tab.id)
+      setLastTabKind('claude')
+      saveLastTabKind('claude')
+      setFocusedColumn('terminal')
+      void dispatchPostSpawnWrite(tab.id, 'claude', ROLLUP_AUTHORING_PROMPT)
+    }
+    window.addEventListener('duo-vault-open-note', onOpenNote)
+    window.addEventListener('duo-vault-open-rollup', onOpenRollup)
+    window.addEventListener('duo-vault-new-rollup', onNewRollup)
+    return () => {
+      window.removeEventListener('duo-vault-open-note', onOpenNote)
+      window.removeEventListener('duo-vault-open-rollup', onOpenRollup)
+      window.removeEventListener('duo-vault-new-rollup', onNewRollup)
+    }
+  }, [openFileSmart, dispatchPostSpawnWrite, home, setFocusedColumn])
 
   // Stage 11 § D33a — \u2318N opens a new editor tab in the navigator's CWD.
   // Auto-pick `untitled.md`, fall back to `untitled-2.md`, etc., to dodge

@@ -228,7 +228,7 @@ filesystem directly — no running app needed):
 | create a typed entity | `duo vault stub <type> <name>` |
 | full-text search | `duo vault search <query>` |
 | find what links to a note / dangling notes | `duo graph backlinks <note>` · `duo graph orphans` |
-| **build a rollup view** (a saved query over frontmatter) | shareable artifact (HTML/MD, **either** mode): author a `.base` → `duo rollup render <base> --html\|--md` · in-vault canonical index (OKF): `duo vault publish` (+ a `listing:` spec for a grouped body) · live `.base` (Obsidian): `duo base render` |
+| **build a rollup view** (a saved query over frontmatter) | a first-class **`type: rollup` note** (ENH-228) → `duo rollup render <note> --html` (HTML by default — D2; stamps provenance back into the note). List them: `duo rollup list`. In-vault canonical index (OKF): `duo vault publish` (+ a `listing:` spec for a grouped body) · live `.base` (Obsidian): `duo base render` |
 | move/rename a note without breaking links | `duo vault mv <from> <to>` |
 
 **Vocabulary — read this first (it's the usual stumbling block):**
@@ -249,25 +249,28 @@ filesystem directly — no running app needed):
 
 ### Authoring a rollup — the loop
 
-A **rollup** is a view computed from frontmatter. The loop:
+A **rollup** is a first-class **`type: rollup` note** (ENH-228 D1) that owns its
+spec + its render provenance, so it's discoverable by `duo rollup list` and
+shows up in the Vault view's Rollups column. The loop:
 
 1. **Understand the ask** in prose ("open tasks for this initiative, grouped
    by owner, with a due chip").
 2. **Get the corpus**: `duo vault schema`. It tells you the real type names,
    entity names, and observed enum values — write the view against *those*,
    not guesses. (This is also where you confirm the typing key is `type:`.)
-3. **Write the `.base`** (the query — Obsidian Bases YAML; authored the same
-   way in **either** mode — in OKF it feeds `duo rollup render`, not a live view):
-   - vault-wide → a file in `bases/`.
-   - per-entity → an embedded ` ```base ` block in the **type template**
-     with a `… == this` filter (e.g. `initiative == this`), so **every**
-     entity of that type inherits the rollup with zero per-note setup — the
-     headline pattern.
-4. **Lint until clean**: `duo base lint <file>` (or `--all`) — flags bad
+3. **Write a `type: rollup` note** in `rollups/<slug>.md` (from
+   `templates/rollup.md`). Put the query (Obsidian Bases YAML) in an embedded
+   ` ```base ` block in the body, or set `spec:` to a `.base` path; keep
+   `format: html`. (The per-entity headline pattern still lives in a **type
+   template** — an embedded ` ```base ` block with `… == this`, e.g.
+   `initiative == this`, so every entity inherits the rollup.)
+4. **Lint until clean**: `duo base lint <note>` (or `--all`) — flags bad
    types, unresolved `[[entities]]`, off-enum values, unknown functions,
    each with a "did you mean". Advisory, never blocks; fix, then render.
-5. **Render**: `duo base render <file|note> --open` evaluates it over live
-   frontmatter and opens the result as a tab.
+5. **Render + stamp**: `duo rollup render <note> --html --open` evaluates it
+   over live frontmatter, writes the artifact (HTML by default — D2; `--md`
+   opt-in), and stamps `out`/`last_generated`/`last_hash` back into the note
+   surgically. (`duo base render` is the lower-level twin with no stamp.)
 
 **In OKF mode, the at-rest listings are `index.md` / `log.md`** — `duo vault
 publish` (re)generates them from the corpus (the root `index.md` can carry a
@@ -344,9 +347,11 @@ Each pointer loads a complete file — open the one that matches your task.
   diagrams ships with this skill — open it with `duo open
   ~/.claude/skills/duo/references/vault-guide.html`.
 - [references/rollup.md](references/rollup.md) — the `duo rollup` product verb
-  (ENH-229): render a rollup as **Markdown OR HTML** (one variant per call),
-  with **entity links** on every row, and a **change summary** on regenerate
-  (`duo rollup diff` → narrative+notables → `duo rollup render --summary`).
+  (ENH-229 · ENH-228): a rollup is a first-class **`type: rollup` note**;
+  render it as **HTML (default) or Markdown** (one variant per call) — the
+  render stamps provenance back into the note, `duo rollup list` is the
+  inventory — with **entity links** on every row, and a **change summary** on
+  regenerate (`duo rollup diff` → narrative+notables → `duo rollup render --summary`).
   Reach for this when the user says "roll up my <type>" / "and tell me what
   changed." Includes the sample prompt + the refresh loop.
 

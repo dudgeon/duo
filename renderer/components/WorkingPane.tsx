@@ -16,6 +16,7 @@ import { PdfPreview, UnknownFilePreview } from './FileRenderers'
 import { ImageView } from './ImageView'
 import { JsonView } from './Json/JsonView'
 import { HomeView } from './Home/HomeView'
+import { VaultView } from './Vault/VaultView'
 import { WorkingTabStrip } from './WorkingTabStrip'
 import { useBrowserState } from '../hooks/useBrowserState'
 import { classifyFile } from './fileClassifier'
@@ -391,11 +392,15 @@ export function WorkingPane({
   // unpinned zones so the tabOrder reorder logic never touches it (it has
   // no close affordance and no Move-left/right menu entry either).
   const homeTabs = unsortedTabs.filter(t => t.type === 'home')
-  const nonHomeTabs = unsortedTabs.filter(t => t.type !== 'home')
+  // ENH-228 — the Vault tab sorts right after Home, before pins (same
+  // permanent-slot treatment: excluded from the pinned/unpinned reorder zones).
+  const vaultTabs = unsortedTabs.filter(t => t.type === 'vault')
+  const otherTabs = unsortedTabs.filter(t => t.type !== 'home' && t.type !== 'vault')
   const mergedTabsAll: WorkingTab[] = [
     ...homeTabs,
-    ...nonHomeTabs.filter(t => t.pinned).sort(byOrder),
-    ...nonHomeTabs.filter(t => !t.pinned).sort(byOrder)
+    ...vaultTabs,
+    ...otherTabs.filter(t => t.pinned).sort(byOrder),
+    ...otherTabs.filter(t => !t.pinned).sort(byOrder)
   ]
   // ENH-182 Phase 2 + Phase 2b — visibility filter. When focus is
   // active, the host passes the set of file-tab ids AND browser-tab
@@ -405,8 +410,9 @@ export function WorkingPane({
   // below stay full-sized so editor state isn't lost for hidden tabs.
   const mergedTabs: WorkingTab[] = visibleFileTabIds
     ? mergedTabsAll.filter((t) => {
-        // ENH-212 — Home is permanent slot-0; never filtered by project focus.
-        if (t.type === 'home') return true
+        // ENH-212/ENH-228 — Home + the Vault tab are permanent slots; never
+        // filtered by project focus.
+        if (t.type === 'home' || t.type === 'vault') return true
         if (t.pinned) return true
         if (t.type === 'browser') {
           // Phase 2b: gate browser tabs by visibleBrowserTabIds when
@@ -643,6 +649,12 @@ export function WorkingPane({
       // hidden-mount tolerance): a Home tab kept mounted-but-hidden must not
       // poll. Branch placed AFTER editor/page (PR #75 merge posture).
       return <HomeView isActive={isFileActive(tab.id)} onSnapshotChange={onHomeSnapshot} />
+    }
+    if (tab.type === 'vault') {
+      // ENH-228 — the Vault view (slot 1, present-when-default). Same
+      // isActive-gated fetching discipline as Home; self-contained (talks to
+      // main directly + routes tab-opens through window CustomEvents App owns).
+      return <VaultView isActive={isFileActive(tab.id)} />
     }
     return <UnknownFilePreview tab={asWorkingTab(tab)} />
   }

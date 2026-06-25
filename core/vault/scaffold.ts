@@ -94,6 +94,40 @@ const INITIATIVE_TPL = [
   '',
 ].join('\n')
 
+// ENH-228 (D1) — the `type: rollup` template. A rollup is a first-class typed
+// note that owns its SPEC (an embedded base query OR a `spec:` path to a .base)
+// and its render PROVENANCE (`out`/`last_generated`/`last_hash`, stamped by
+// `duo rollup render`). Parentless type → files in its `rollups/` registry
+// folder (D19). HTML is the default output (D2 — owner is HTML-first). Shipped
+// in BOTH modes: a rollup spec is just a query, renderable on demand in OKF or
+// Obsidian (ENH-234). NO live embedded ```base block here — the body documents
+// the two spec mechanisms without a literal fenced block, so a stub never
+// inherits a phantom query and `loadTemplates` reads embeddedBase as null.
+const ROLLUP_TPL = [
+  '---',
+  'type: rollup',
+  'folder: rollups',
+  'spec:',
+  'format: html',
+  'out:',
+  'last_generated:',
+  'last_hash:',
+  '---',
+  '',
+  '<!-- A rollup is a saved query over your notes, rendered to a shareable',
+  '     artifact. Define the query ONE of two ways:',
+  '       1. a fenced `base` block in this note body (a vault-wide query), or',
+  '       2. a `spec:` path above, pointing to a .base file.',
+  '     Then render + auto-stamp provenance with:',
+  '         duo rollup render <this-note> --html --open',
+  '     HTML is the default (set by `format:` above); pass --md for a',
+  '     GitHub-portable Markdown artifact instead. `out`/`last_generated`/',
+  '     `last_hash` are stamped on each render — do not hand-edit them. -->',
+  '',
+  '## Spec',
+  '',
+].join('\n')
+
 // OKF initiative template — the SAME frontmatter + headings as the Obsidian
 // one but MINUS the embedded ```base rollup block (ENH-216: OKF has no
 // `.base` machinery; listings are static generated markdown, D8). The
@@ -281,6 +315,7 @@ export function initVault(
     writeFile('templates/initiative.md', INITIATIVE_TPL)
     writeFile('templates/milestone.md', MILESTONE_TPL)
     writeFile('templates/meeting.md', MEETING_TPL)
+    writeFile('templates/rollup.md', ROLLUP_TPL)
     writeFile('bases/processing.base', PROCESSING_BASE)
     writeFile('README.md', readmeText(path.basename(root)))
   } else {
@@ -300,6 +335,7 @@ export function initVault(
     writeFile('templates/initiative.md', INITIATIVE_TPL_OKF)
     writeFile('templates/milestone.md', MILESTONE_TPL)
     writeFile('templates/meeting.md', MEETING_TPL)
+    writeFile('templates/rollup.md', ROLLUP_TPL)
     // No README (D10: the root listing is index.md, not a frontmatter-less
     // README); no .obsidian/, no bases/.
   }

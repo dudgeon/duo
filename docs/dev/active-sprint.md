@@ -44,6 +44,23 @@
 > **Owner-flag (non-blocking):** DST spring-forward wall-times are silently skipped
 > (cron) — accept-or-special-case TBD (PRD §11d).
 
+## ENH-228 — Vault view (inbox + rollups) — 📋 PLANNED, decisions FINAL, build not started
+
+> **Branch `claude/vault-inbox-rollups-view-sufwhj` · PR #109 (draft, planning-only).**
+> A new top-level **Vault** view beside Home — an **inbox** column (lists `inbox/`,
+> +Capture) and a **rollups** column (lists the vault's rollups, view-link + +New).
+> Research confirmed rollup discovery is underspecified today (3 uncoordinated
+> mechanisms, no registry). **Owner playground decisions are FINAL** (recommended
+> option on every card): **D1 rollup = first-class `type: rollup` note** (discovery =
+> `type == rollup` corpus query, §D9-clean — no scan/sidecar) · **HTML-first** rollups
+> (owner note) · **D2 anchor = the default vault** + header switcher · D3 pinned tab
+> when a vault is selected · D4 +New = prefilled Claude session · D5 inbox = all,
+> stale flagged · D6 full slice incl. the typed-note lifecycle change. **PRD:**
+> [`docs/prd/enh-228-vault-view.md`](../prd/enh-228-vault-view.md) (§ B = phased build
+> order). **Extends ENH-229** (rollup family). **Next:** implement in a separate code
+> PR — `type: rollup` template + `duo rollup render` read-spec/stamp-provenance +
+> `duo rollup list` + IPC + `<VaultView>`.
+
 ## ENH-222 — worktree lifecycle UX (✅ MERGED (#105) — pending the v0.11.2 cut)
 
 > **Owner directive:** "keep advancing the worktree controller UI" → two enhancements:

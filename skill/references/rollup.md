@@ -1,12 +1,21 @@
-# Rollups — `duo rollup` (ENH-229)
+# Rollups — `duo rollup` (ENH-229 · ENH-228)
 
 A **rollup** is a view computed from vault frontmatter — "open tasks for each
 initiative, grouped by status, with an owner." This is the companion to
 `base lint` / `base render` (see [vault.md](vault.md) for the corpus + base
 authoring); `duo rollup` is the product verb that emits a **shareable
 artifact** with three things base render alone doesn't give you: a **format
-choice** (Markdown OR HTML), **entity links** on every row, and an optional
+choice** (HTML or Markdown), **entity links** on every row, and an optional
 **change summary** on regenerate.
+
+**A rollup is a first-class `type: rollup` NOTE (ENH-228 D1).** Don't think of a
+rollup as "a rendered file somewhere" — it's a typed note (from
+`templates/rollup.md`, filed in `rollups/`) that owns its **spec** (an embedded
+` ```base ` block OR a `spec:` frontmatter path to a `.base`) and its **render
+provenance** (`out`, `last_generated`, `last_hash`, stamped back on each
+render). That makes discovery a corpus query — `duo rollup list` — instead of a
+fragile scan, and powers the Vault view's Rollups column. **HTML is the default
+output** (D2 — the owner is HTML-first); `--md` is opt-in.
 
 ## When the user wants one
 
@@ -15,25 +24,47 @@ Triggers (any vault — OKF or Obsidian): *"roll up my tasks"*, *"make a
 open initiatives with a link to each"*, *"and tell me what changed since last
 time"*. Reach for `duo rollup`, not a hand-built table.
 
+## The authoring loop (ENH-228) — write the note, render HTML
+
+The headline path. The Vault view's **"+ New rollup"** button drops you into a
+seeded Claude session that runs exactly this:
+
+1. **Derive the corpus** — `duo vault schema` (real type names, entity names,
+   observed enum values). Write the spec against *those*, not guesses.
+2. **Write a `type: rollup` note** in `rollups/<slug>.md` (from
+   `templates/rollup.md`). Put the query in an embedded ` ```base ` block in the
+   body (or set `spec:` to a `.base` path), and leave `format: html`.
+3. **Lint** — `duo base lint <note>` until clean (advisory; fix what it flags).
+4. **Render + stamp** — `duo rollup render <note> --html --open`. HTML is the
+   default for a rollup note (D2); the render writes the artifact to the note's
+   `out:` (default `rollups/<slug>.html`) and stamps `out`/`last_generated`/
+   `last_hash` back into the note **surgically** (your spec + body are
+   untouched). The Vault view's Rollups column now lists it with a freshness
+   chip.
+
 ## The two variants (pick ONE per rollup)
 
 ```
-duo rollup render <note|base> --md     # GitHub-portable Markdown (the OKF default)
-duo rollup render <note|base> --html   # a stamped, Atelier-styled HTML artifact
+duo rollup render <note|base> --html   # a stamped, Atelier-styled HTML artifact (DEFAULT)
+duo rollup render <note|base> --md     # GitHub-portable Markdown (opt-in)
 ```
 
-Mutually exclusive — one file per call (never one file with a toggle). Default
-is `--md`. Rollups default to **`<vault>/rollups/`** (`--out <path>` writes
-elsewhere); `--open` surfaces it as a tab. Every artifact opens with an
+Mutually exclusive — one file per call (never one file with a toggle). **HTML is
+the default** (ENH-228 D2); a `type: rollup` note's own `format:` is honored
+when no flag is given. Rollups default to **`<vault>/rollups/`** (`--out <path>`
+writes elsewhere); `--open` surfaces it as a tab. Every artifact opens with an
 agent-visible HTML comment explaining it's a generated rollup + how to
 regenerate it — so a fresh agent that finds the file isn't confused. The
 `rollups/` (and `out/`) folders are excluded from the corpus, so a rollup never
-rolls up into itself.
+rolls up into itself (the rollup NOTES in `rollups/` are still discovered by
+`duo rollup list`, a `type == rollup` query — they're typed notes, not
+artifacts).
 
-**Authoring the rollup** is the same loop as a base (derive the corpus with
-`duo vault schema`, write a `.base` or an embedded ` ```base ` block, `duo base
-lint` until clean). Then render it with `duo rollup render` instead of `base
-render` to get the variant choice + the features below.
+**Rendering a bare `.base` (no note) still works** — the legacy ENH-229 path:
+author a `.base` (or an embedded ` ```base ` block in any note), `duo base lint`
+until clean, then `duo rollup render <base> --html`. You just don't get the
+typed-note discovery / provenance stamp unless the target is a `type: rollup`
+note.
 
 **OKF vaults included — a `.base` is just the query.** The common agent
 mistake: *"this is an OKF vault, it has no `.base` files, so `duo rollup render`
@@ -83,9 +114,11 @@ On regenerate, you diff against that snapshot and add a narrative.
 2. From that delta, write a short **narrative + notables** — what's worth
    attention, positive or negative (a slipped date, a cleared blocker). On
    `firstRun` (no prior), just say "initial rollup."
-3. `duo rollup render <note|base> --md --summary "<your prose>"` — embeds it as
-   the latest **"What changed"** (pinned at the top); the prior summary drops
-   into a collapsible history. `--no-summary` turns the whole feature off.
+3. `duo rollup render <note|base> --summary "<your prose>"` — embeds it as the
+   latest **"What changed"** (pinned at the top); the prior summary drops into a
+   collapsible history. `--no-summary` turns the whole feature off. (Format
+   follows the rollup note's `format:` / the HTML default; add `--md` for the
+   Markdown variant.)
 4. If a tab is open on the artifact, it reloads on the rewrite.
 
 **Reacting to a Refresh.** Both the HTML rollup's Refresh button AND the
@@ -100,7 +133,7 @@ duo events --follow | while IFS= read -r line; do
       target=$(jq -r '.payload.base' <<< "$line")
       diff=$(duo rollup diff "$target")
       # …read $diff, compose a narrative + notables…
-      duo rollup render "$target" --md --summary "$summary"
+      duo rollup render "$target" --summary "$summary"   # HTML default; add --md for Markdown
       ;;
   esac
 done
@@ -117,17 +150,20 @@ any other viewer the `duo:` link is simply inert.
 > each task and owner — and from now on, whenever I refresh it, summarize
 > what changed."**
 
-You would: confirm the vault + corpus (`duo vault schema`), author/confirm a
-`type == "task"` base grouped by `initiative` with `file.name`, `status`,
-`owner` columns, `duo rollup render tasks --md --open`, then watch
-`rollup:refresh` and run the diff→summarize→re-render loop on each refresh.
+You would: confirm the vault + corpus (`duo vault schema`), write a
+`type: rollup` note `rollups/tasks.md` with an embedded `type == "task"` base
+grouped by `initiative` (columns `file.name`, `status`, `owner`), `duo base lint`
+it, then `duo rollup render tasks --md --open` (the user asked for a *markdown*
+page — otherwise HTML is the default), then watch `rollup:refresh` and run the
+diff→summarize→re-render loop on each refresh.
 
 ## Verbs
 
 | Verb | Use it to |
 |---|---|
-| `duo rollup render <note\|base> --md\|--html [--style <css>] [--summary "<text>"\|--no-summary] [--out <p>] [--open]` | Emit one variant with entity links; `--summary` adds the latest "What changed" (history kept), `--no-summary` disables it, `--style` layers CSS (HTML only) |
+| `duo rollup render <note\|base> [--html\|--md] [--style <css>] [--summary "<text>"\|--no-summary] [--out <p>] [--open]` | Render the spec → one variant (HTML default — D2; `--md` opt-in) with entity links. For a `type: rollup` note: stamps `out`/`last_generated`/`last_hash` back surgically + defaults out to the note's `out:`. `--summary` adds the latest "What changed" (history kept), `--no-summary` disables it, `--style` layers CSS (HTML only) |
+| `duo rollup list [--vault <path>]` | The rollup inventory — every `type: rollup` note with `{note, title, out, format, last_generated, last_hash, stale}` (`stale = last_hash !== the live source hash`). A corpus query, no scan, no sidecar (D1) — the Vault view's Rollups column |
 | `duo rollup diff <note\|base> [--against <prior-artifact>] [--vault <path>]` | Deterministic JSON delta vs the prior artifact's embedded snapshot (newest of the two formats by default) — the material you turn into a narrative |
 
-Both read the filesystem directly (no running app); only `--open` reaches the
+All read the filesystem directly (no running app); only `--open` reaches the
 app to surface a tab.

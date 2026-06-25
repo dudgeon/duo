@@ -564,9 +564,9 @@ const VERBS: VerbSpec[] = [
   {
     name: 'rollup',
     group: 'Vault',
-    args: '<render <note|base>|diff <note|base>> [--md|--html] [--style css] [--summary "t"|--no-summary] [--against p] [--out p] [--open] [--vault p]',
+    args: '<render <note|base>|list|diff <note|base>> [--md|--html] [--style css] [--summary "t"|--no-summary] [--against p] [--out p] [--open] [--vault p]',
     summary:
-      'ENH-229 — rollup artifacts. render <note|base> [--md|--html]: emit ONE variant — Markdown (--md, the GitHub-portable OKF default) OR a stamped HTML artifact (--html); mutually exclusive. Every row LINKS the entities it rolls up (the note + owner/group links resolved from frontmatter, incl. OKF rel-md). --style <css-file> layers a custom stylesheet over the Atelier base (HTML only). Change summary (req #7): the artifact self-embeds a rows snapshot + a summary log (HTML comments — §D9-clean, no sidecar); --summary "<text>" adds a new latest "What changed" entry (an interactive Claude writes the narrative+notables from `duo rollup diff`), prior entries drop into a collapsible history; --no-summary clears it. diff <note|base> [--against <prior>]: deterministic JSON delta (added/removed/changed rows) vs the prior artifact\'s embedded snapshot — the material Claude summarizes. Default writes to the vault out/; --out writes elsewhere; --open surfaces it as a tab.'
+      'ENH-229/ENH-228 — rollups. A rollup is a first-class `type: rollup` NOTE (templates/rollup.md, filed in rollups/) that owns its spec (an embedded ```base block or a `spec:` .base path) + render provenance. render <note|base> [--md|--html]: render the spec and emit ONE variant — a stamped HTML artifact (--html; the DEFAULT for a rollup note — D2, HTML-first) OR Markdown (--md; GitHub-portable). For a `type: rollup` note the out path defaults to its `out:` (else rollups/<slug>.html) and `out`/`last_generated`/`last_hash` are stamped back into the note surgically (body untouched) — but ONLY for the note\'s canonical format; an ad-hoc --md/--html override renders a side artifact and leaves the note\'s provenance untouched. A bare `.base`/non-rollup target keeps the legacy MD-default, no-stamp behavior. Every row LINKS the entities it rolls up (the note + owner/group links resolved from frontmatter, incl. OKF rel-md). --style <css-file> layers a custom stylesheet over the Atelier base (HTML only). list: the rollup inventory — every `type: rollup` note with {note,title,out,format,last_generated,last_hash,stale} (stale = last_hash !== the live source hash); a corpus query, no scan, no sidecar. Change summary (req #7): the artifact self-embeds a rows snapshot + a summary log (HTML comments — §D9-clean, no sidecar); --summary "<text>" adds a new latest "What changed" entry (an interactive Claude writes the narrative+notables from `duo rollup diff`), prior entries drop into a collapsible history; --no-summary clears it. diff <note|base> [--against <prior>]: deterministic JSON delta (added/removed/changed rows) vs the prior artifact\'s embedded snapshot — the material Claude summarizes. --out writes elsewhere; --open surfaces it as a tab.'
   }
 ]
 
@@ -3069,7 +3069,7 @@ async function main(): Promise<void> {
         const subRest = rest.slice(1)
         const vaultFlag = flagValue(subRest, '--vault')
         const USAGE =
-          'Usage: duo rollup <render|diff> <note|base> [--md|--html] [--style <css-file>] [--summary "<text>"|--no-summary] [--against <path>] [--out <path>] [--open] [--vault <path>]'
+          'Usage: duo rollup <render|list|diff> <note|base> [--md|--html] [--style <css-file>] [--summary "<text>"|--no-summary] [--against <path>] [--out <path>] [--open] [--vault <path>]'
         // Newest existing path by mtime — so summary history + diff read the
         // freshest artifact even after an --md↔--html switch.
         const newestExisting = (paths: string[]): string | null => {
@@ -3094,16 +3094,40 @@ async function main(): Promise<void> {
           const wantHtml = subRest.includes('--html')
           const wantMd = subRest.includes('--md')
           if (wantHtml && wantMd) die('duo rollup render: choose ONE of --md or --html, not both')
-          const format: 'html' | 'md' = wantHtml ? 'html' : 'md' // MD is the OKF-portable default (D3)
           const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
+          // ENH-228 (D1/D2) — when the target is a `type: rollup` NOTE, render
+          // its spec and stamp render provenance back into the note. HTML is the
+          // note's default (D2 — owner is HTML-first); a --md/--html flag wins.
+          // A bare `.base` / non-rollup target keeps the legacy ENH-229 path
+          // (MD default, no stamp).
+          const rollupNote = vault.resolveRollupNote(root, target)
+          // Format precedence: an explicit flag wins; else a rollup note's
+          // declared `format:`; else HTML (ENH-228 D2 — owner is HTML-first;
+          // this flips ENH-229's old MD default — cross-noted in that PRD).
+          const format: 'html' | 'md' = wantHtml ? 'html' : wantMd ? 'md' : rollupNote ? rollupNote.format : 'html'
+          // What actually renders: a rollup note's `spec:` .base if set, else
+          // the note's own embedded ```base blocks (the note path), else the
+          // raw target (a `.base` file / a non-rollup note).
+          const renderTargetArg = rollupNote ? rollupNote.specPath ?? rollupNote.noteRel : target
           const outFlag = flagValue(subRest, '--out')
           const open = subRest.includes('--open')
-          const stem = path.basename(target).replace(/\.(base|md)$/i, '') || 'rollup'
+          const stem = (rollupNote ? rollupNote.slug : path.basename(target).replace(/\.(base|md)$/i, '')) || 'rollup'
           const ext = format === 'html' ? '.html' : '.md'
           let outPath: string
           if (outFlag) outPath = path.resolve(process.cwd(), outFlag)
           else if (open) outPath = path.join(os.tmpdir(), `duo-rollup-${stem}-${Date.now()}${ext}`)
+          // Honor the note's declared `out:` when no --md/--html flag flipped the
+          // format (a re-render lands where the note says); else rollups/<slug>.<ext>.
+          else if (rollupNote && rollupNote.outRel && !wantHtml && !wantMd)
+            outPath = path.join(root, rollupNote.outRel)
           else outPath = path.join(root, 'rollups', `${stem}${ext}`) // ENH-229 — rollups live in rollups/
+          // ENH-228 — never let the rendered artifact clobber the rollup NOTE
+          // itself (the MD variant of a note `rollups/<slug>.md` would collide).
+          if (rollupNote && path.resolve(outPath) === rollupNote.noteAbs)
+            die(
+              `duo rollup render: artifact path ${outPath} collides with the rollup note ${rollupNote.noteRel}. ` +
+                'Render --html, or set a distinct out:/--out.',
+            )
 
           // --style (req #3): a LOCAL CSS file, layered over the Atelier base so
           // a partial sheet still leaves the artifact usable. HTML only.
@@ -3132,7 +3156,7 @@ async function main(): Promise<void> {
           // rollup across BOTH formats, so history survives an --md↔--html switch.
           const priorCandidates = outFlag
             ? [outPath]
-            : [path.join(root, 'rollups', `${stem}.md`), path.join(root, 'rollups', `${stem}.html`)]
+            : [outPath, path.join(root, 'rollups', `${stem}.md`), path.join(root, 'rollups', `${stem}.html`)]
           const priorPath = newestExisting(priorCandidates)
           const priorContent = priorPath ? fs.readFileSync(priorPath, 'utf8') : ''
           let summaryLog = noSummary ? [] : vault.extractSummaryLog(priorContent)
@@ -3142,7 +3166,7 @@ async function main(): Promise<void> {
           }
 
           // outDir makes the entity-link hrefs (req #6) relative to the artifact.
-          const result = vault.renderTarget(root, target, {
+          const result = vault.renderTarget(root, renderTargetArg, {
             outDir: path.dirname(outPath),
             styleCss,
             summaryLog,
@@ -3150,6 +3174,25 @@ async function main(): Promise<void> {
           })
           fs.mkdirSync(path.dirname(outPath), { recursive: true })
           fs.writeFileSync(outPath, format === 'html' ? result.html : result.md)
+          // ENH-228 (D1) — stamp render provenance back into the rollup NOTE,
+          // surgically (only out/last_generated/last_hash; body untouched), so
+          // `duo rollup list` can report freshness without a scan or a sidecar.
+          // Only the note's CANONICAL-format render stamps: an ad-hoc --md/--html
+          // override is a side artifact and must not repoint out: / mark the note
+          // fresh (review #1 — provenanceStamp returns null to skip).
+          let stamped = false
+          if (rollupNote) {
+            const stamp = vault.provenanceStamp(rollupNote, {
+              format,
+              outRel: path.relative(root, outPath).split(path.sep).join('/'),
+              generatedAt: result.generatedAt,
+              sourceHash: result.sourceHash,
+            })
+            if (stamp) {
+              vault.stampRollupProvenance(rollupNote.noteAbs, stamp)
+              stamped = true
+            }
+          }
           let opened: unknown = null
           if (open) {
             try {
@@ -3169,6 +3212,7 @@ async function main(): Promise<void> {
           out({
             path: outPath,
             format,
+            ...(rollupNote ? { rollupNote: rollupNote.noteRel, stamped } : {}),
             sourceHash: result.sourceHash,
             generatedAt: result.generatedAt,
             asOf: result.asOfLabel,
@@ -3179,6 +3223,13 @@ async function main(): Promise<void> {
             })),
             ...(open ? { opened } : {}),
           })
+        } else if (sub === 'list') {
+          // ENH-228 (D1) — discovery is the corpus query `type == rollup`
+          // (scoped to rollups/ where rollup notes live), NOT an artifact scan
+          // and NOT a sidecar manifest. Each row carries its render provenance +
+          // a freshness flag (stale = last_hash !== the live source hash).
+          const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
+          out({ root, rollups: vault.listRollups(root) })
         } else if (sub === 'diff') {
           // Deterministic diff vs a prior artifact's embedded snapshot — the
           // material an interactive Claude turns into a narrative+notables
