@@ -147,8 +147,18 @@ read this file directly.
 
 The everyday dozen. For everything else — the browser-pane verbs, the
 canvas verbs, track-changes, workspaces, projects, sessions, the **Home**
-re-entry surface (`duo home` / `duo session open` / `duo term tab`) — see the
+re-entry surface (`duo home` / `duo session open` / `duo term tab`), the async
+**Catch-Up** board (`duo home mode catchup` · `duo home catchup`) — see the
 full inventory in [references/cli-reference.md](references/cli-reference.md).
+
+> **Catch-Up narration (ENH-231).** Duo's Catch-Up Home shows the user a card
+> per recent session — goal, "You asked", todos, files, and a one-line
+> narrative. The narrative is **yours to write**: at natural stopping points
+> (a turn that finishes a unit of work, hits a decision, or pauses for the
+> user) call `duo session note <tab> "<what just happened>"` and
+> `duo session next <tab> "<the single most useful next action>"`. They're
+> keyed by session and survive the tab closing, so a walk-away review reads
+> your words instead of the raw last message. `<tab>` is `$DUO_TAB`.
 
 | Verb | What it does |
 |---|---|

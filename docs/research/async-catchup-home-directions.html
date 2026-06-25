@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Async Catch-Up — four design directions</title>
+<style>
+/* ── Atelier kernel (inlined per CLAUDE.md §11) ───────────────────────── */
+:root{
+  --paper:#fbf8f1; --paper-deep:#f3ede0; --paper-edge:#e8e0cb; --paper-rule:#d9cea8;
+  --ink:#2b2620; --ink-soft:#4a4238; --ink-mute:#6f6557; --ink-ghost:#9a9080;
+  --accent:#c46a1c; --accent-soft:#f4d9b6; --pass:#4a7d3e; --fail:#b13e3a; --warn:#b07527;
+  --code-bg:#2b2823; --code-ink:#e8e0cb;
+  --project-pine:#2E7D74; --project-harbor:#3C6E93; --project-iris:#5B57A6;
+  --project-plum:#87508F; --project-rose:#A4506A; --project-moss:#69763A;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:-apple-system,"SF Pro Text","Segoe UI",system-ui,sans-serif;font-size:14px;line-height:1.55;}
+body{padding:32px 40px 96px;max-width:1000px;margin:0 auto;}
+header.page-head{border-bottom:1px solid var(--paper-rule);padding-bottom:16px;margin-bottom:24px;}
+header.page-head h1{font-family:"New York","Iowan Old Style",Georgia,serif;font-style:italic;font-weight:500;margin:0 0 4px;font-size:24px;}
+header.page-head .meta{color:var(--ink-mute);font-size:13px;}
+header.page-head .meta .pill{display:inline-block;padding:2px 8px;border-radius:10px;background:var(--accent-soft);color:var(--accent);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin-right:6px;}
+.intro{background:var(--paper-deep);border:1px solid var(--paper-rule);border-radius:6px;padding:14px 18px;margin-bottom:22px;font-size:13.5px;color:var(--ink-soft);}
+.intro strong{color:var(--ink);font-weight:600;}
+h2{font-family:"New York","Iowan Old Style",Georgia,serif;font-weight:600;margin:40px 0 6px;font-size:20px;border-bottom:1px solid var(--paper-rule);padding-bottom:6px;}
+h3{font-weight:600;margin:22px 0 8px;font-size:15px;}
+p{margin:8px 0;} ul,ol{margin:8px 0;padding-left:24px;} li{margin:4px 0;}
+code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12px;background:var(--paper-deep);padding:1px 5px;border-radius:3px;}
+.decision-card{background:var(--paper-deep);border:1.5px solid var(--paper-rule);border-radius:6px;padding:16px 18px;margin:18px 0;}
+.decision-card .q-title{font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--accent);margin:0 0 6px;}
+.decision-card .q-prompt{font-family:"New York","Iowan Old Style",Georgia,serif;font-weight:500;font-size:17px;color:var(--ink);margin:0 0 12px;line-height:1.35;}
+.q-options{display:grid;grid-template-columns:1fr;gap:10px;margin:0 0 12px;}
+.q-option{display:block;background:var(--paper);border:1.5px solid var(--paper-rule);border-radius:5px;padding:10px 12px;cursor:pointer;transition:border-color .12s,background .12s;}
+.q-option:hover{border-color:var(--ink-ghost);}
+.q-option input{margin-right:8px;cursor:pointer;accent-color:var(--accent);}
+.q-option:has(input:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 6%,var(--paper));}
+.q-option-body{display:inline-block;vertical-align:top;width:calc(100% - 22px);}
+.q-option-title{font-weight:600;font-size:13.5px;color:var(--ink);margin:0 0 3px;}
+.q-option-title .recommend-tag{font-size:10px;background:var(--accent-soft);color:var(--accent);text-transform:uppercase;font-weight:700;letter-spacing:.04em;padding:1px 6px;border-radius:8px;margin-left:6px;}
+.q-option-rationale{font-size:12px;color:var(--ink-soft);line-height:1.45;margin:3px 0 0;}
+.q-notes{width:100%;background:var(--paper);border:1px solid var(--paper-rule);border-radius:4px;padding:8px 10px;font-family:inherit;font-size:12.5px;color:var(--ink);resize:vertical;min-height:50px;}
+.q-notes:focus{outline:1.5px solid var(--accent);}
+.copy-bar{position:sticky;bottom:0;margin:32px -40px -96px;padding:16px 40px;background:color-mix(in srgb,var(--paper-deep) 96%,transparent);border-top:1.5px solid var(--paper-rule);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;justify-content:space-between;align-items:center;gap:16px;}
+.copy-bar .copy-meta{font-size:12.5px;color:var(--ink-soft);}
+.copy-bar #answered-count{color:var(--accent);font-weight:700;}
+.copy-bar button{background:var(--accent);color:#fff;border:none;border-radius:5px;padding:9px 18px;font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;transition:background .12s;}
+.copy-bar button:hover{background:color-mix(in srgb,black 8%,var(--accent));}
+.copy-bar button.copied{background:var(--pass);}
+
+/* ── Locked-decisions banner ──────────────────────────────────────────── */
+.lockbar{background:color-mix(in srgb,var(--pass) 9%,var(--paper));border:1.5px solid color-mix(in srgb,var(--pass) 35%,var(--paper-rule));border-radius:6px;padding:12px 16px;margin:0 0 22px;font-size:12.5px;color:var(--ink-soft);line-height:1.6;}
+.lockbar strong{color:var(--pass);}
+.lockbar .lk{display:block;margin-top:3px;}
+.lockbar .lk b{color:var(--ink);font-weight:600;}
+
+/* ── Direction frame + "the bet" caption ──────────────────────────────── */
+.dir-head{display:flex;align-items:baseline;gap:10px;margin:0 0 2px;}
+.dir-head .num{font-family:ui-monospace,Menlo,monospace;font-size:13px;font-weight:700;color:var(--accent);}
+.bet{font-size:12.5px;color:var(--ink-mute);margin:0 0 12px;}
+.bet b{color:var(--ink-soft);font-weight:600;}
+.proto-frame{background:var(--paper);border:1.5px solid var(--paper-rule);border-radius:10px;overflow:hidden;margin:8px 0 10px;box-shadow:0 8px 28px -16px rgba(43,38,32,.45);}
+.proto-titlebar{background:var(--paper-deep);border-bottom:1px solid var(--paper-rule);padding:7px 14px;font-size:11.5px;color:var(--ink-mute);display:flex;align-items:center;gap:8px;}
+.proto-titlebar .dot{width:10px;height:10px;border-radius:50%;background:var(--paper-rule);}
+.proto-titlebar .dot:nth-child(1){background:#e0a0a0;}.proto-titlebar .dot:nth-child(2){background:#e8c98a;}.proto-titlebar .dot:nth-child(3){background:#a7c990;}
+.proto-titlebar .grow{flex:1;}
+
+/* ── Shared session-atoms ─────────────────────────────────────────────── */
+.badge{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:9px;white-space:nowrap;display:inline-block;}
+.badge-needs{background:var(--accent-soft);color:var(--accent);}
+.badge-working{background:color-mix(in srgb,var(--project-harbor) 16%,var(--paper));color:var(--project-harbor);}
+.badge-blocked{background:color-mix(in srgb,var(--fail) 14%,var(--paper));color:var(--fail);}
+.badge-done{background:color-mix(in srgb,var(--pass) 15%,var(--paper));color:var(--pass);}
+.pdot{width:8px;height:8px;border-radius:50%;display:inline-block;vertical-align:-1px;}
+.fchip{display:inline-block;background:var(--paper-deep);border:1px solid var(--paper-edge);border-radius:4px;padding:1px 6px;font-family:ui-monospace,Menlo,monospace;font-size:10.5px;color:var(--ink-soft);margin:0 3px 3px 0;}
+.achip{display:inline-block;border-radius:4px;padding:1px 7px;font-size:10.5px;font-weight:600;margin:0 4px 3px 0;}
+.achip-pr{background:color-mix(in srgb,var(--project-iris) 14%,var(--paper));color:var(--project-iris);}
+.achip-test{background:color-mix(in srgb,var(--pass) 14%,var(--paper));color:var(--pass);}
+.achip-file{background:var(--paper-deep);color:var(--ink-mute);border:1px solid var(--paper-edge);}
+.todos{margin:3px 0 0;padding:0;list-style:none;}
+.todos li{display:flex;gap:6px;font-size:11.5px;color:var(--ink-soft);margin:2px 0;align-items:baseline;}
+.todos .bx{flex:none;width:12px;text-align:center;font-size:10px;}
+.todos .done .tx{color:var(--ink-mute);text-decoration:line-through;}.todos .done .bx{color:var(--pass);}
+.todos .doing{color:var(--project-harbor);font-weight:600;}.todos .pend .bx{color:var(--ink-ghost);}.todos .pend{color:var(--ink-ghost);}
+.hl-q{color:var(--accent);font-weight:600;}
+.act{font-size:12px;border:1.5px solid var(--paper-rule);background:var(--paper);border-radius:5px;padding:5px 11px;cursor:pointer;color:var(--ink-soft);font-weight:500;font-family:inherit;}
+.act:hover{border-color:var(--ink-ghost);}
+.act.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;}
+.act.primary:hover{background:color-mix(in srgb,black 8%,var(--accent));}
+.lbl{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-ghost);font-weight:600;}
+
+/* ── 1 · Triage Inbox ─────────────────────────────────────────────────── */
+.inbox{display:grid;grid-template-columns:248px 1fr;min-height:360px;}
+.inbox-lanes{border-right:1px solid var(--paper-rule);background:var(--paper-deep);padding:10px;}
+.lane{display:flex;justify-content:space-between;align-items:center;padding:6px 9px;border-radius:5px;font-size:12.5px;color:var(--ink-soft);cursor:pointer;margin-bottom:2px;}
+.lane:hover{background:color-mix(in srgb,var(--ink) 5%,transparent);}
+.lane.on{background:color-mix(in srgb,var(--accent) 12%,var(--paper));color:var(--ink);font-weight:600;}
+.lane .ln{font-size:11px;color:var(--ink-mute);font-weight:600;}
+.lane.on .ln{color:var(--accent);}
+.inbox-list{border-right:1px solid var(--paper-rule);overflow:hidden;}
+.irow{display:flex;gap:9px;align-items:center;padding:9px 12px;border-bottom:1px solid var(--paper-rule);cursor:pointer;font-size:13px;}
+.irow:hover{background:color-mix(in srgb,var(--accent) 4%,transparent);}
+.irow.sel{background:color-mix(in srgb,var(--accent) 9%,var(--paper));box-shadow:inset 3px 0 0 var(--accent);}
+.irow .sdot{flex:none;width:9px;height:9px;border-radius:50%;}
+.irow .ig{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;color:var(--ink);}
+.irow .iage{flex:none;font-size:11px;color:var(--ink-ghost);}
+.irow .ibang{flex:none;color:var(--accent);font-weight:700;}
+.inbox-detail{display:none;}
+@media(min-width:760px){.inbox-detail{display:block;}}
+.idetail{padding:16px 18px;}
+.idetail h3{margin:0 0 6px;font-size:16px;}
+.idetail .isub{font-size:11.5px;color:var(--ink-mute);margin:0 0 12px;}
+.drow{display:flex;gap:10px;margin:8px 0;font-size:12.5px;}
+.drow .dl{flex:none;width:74px;}
+.drow .dv{flex:1;color:var(--ink-soft);min-width:0;}
+.idetail .dacts{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;}
+.kbd{font-family:ui-monospace,Menlo,monospace;font-size:10px;background:var(--paper);border:1px solid var(--paper-rule);border-bottom-width:2px;border-radius:3px;padding:0 4px;color:var(--ink-mute);}
+
+/* ── 2 · Briefing ─────────────────────────────────────────────────────── */
+.brief{padding:24px 30px;max-width:680px;margin:0 auto;}
+.brief-digest{font-family:"New York",Georgia,serif;font-size:19px;line-height:1.5;color:var(--ink);margin:0 0 6px;}
+.brief-digest b{font-weight:600;}
+.brief-since{font-size:12px;color:var(--ink-mute);margin:0 0 20px;}
+.brief-sec{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-ghost);font-weight:700;margin:24px 0 8px;border-bottom:1px solid var(--paper-rule);padding-bottom:5px;}
+.brief-item{margin:0 0 16px;}
+.brief-item .bg{font-weight:600;font-size:14.5px;color:var(--ink);font-family:"New York",Georgia,serif;}
+.brief-item .bg .bp{font-size:10px;font-weight:600;color:var(--ink-ghost);font-family:-apple-system,system-ui;text-transform:none;letter-spacing:0;}
+.brief-item p{margin:3px 0 0;font-size:13px;color:var(--ink-soft);}
+.brief-item .bq{color:var(--accent);}
+.brief-item a.blink{color:var(--accent);font-weight:600;font-size:12.5px;text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--accent) 40%,transparent);}
+
+/* ── 3 · Command Board ────────────────────────────────────────────────── */
+.board{display:flex;gap:12px;padding:16px;overflow-x:auto;align-items:flex-start;}
+.bcol{flex:1;min-width:188px;background:var(--paper-deep);border:1px solid var(--paper-rule);border-radius:7px;padding:9px;}
+.bcol-h{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:700;margin:2px 4px 9px;}
+.bcol-h .cnt{font-size:11px;color:var(--ink-ghost);}
+.bcard{background:var(--paper);border:1.5px solid var(--paper-rule);border-radius:6px;padding:9px 10px;margin-bottom:8px;border-top:3px solid var(--paper-rule);}
+.bcard .bg{font-weight:600;font-size:12.5px;color:var(--ink);line-height:1.3;}
+.bcard .bmeta{font-size:10.5px;color:var(--ink-mute);margin:5px 0 0;display:flex;align-items:center;gap:5px;}
+.bcard .bnext{font-size:11px;color:var(--ink-soft);margin:6px 0 0;}
+.bcard .bnext .nx{color:var(--project-harbor);font-weight:600;}
+.bcard .bq{font-size:11px;color:var(--accent);margin:6px 0 0;}
+.bcard .act{margin-top:8px;width:100%;text-align:center;padding:4px;}
+
+/* ── 4 · Review Deck ──────────────────────────────────────────────────── */
+.deck{padding:18px 22px 22px;}
+.deck-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+.deck-count{font-size:12px;color:var(--ink-mute);font-weight:600;}
+.deck-dots{display:flex;gap:5px;}
+.deck-dots .dd{width:9px;height:9px;border-radius:50%;background:var(--paper-rule);cursor:pointer;}
+.deck-dots .dd.cur{transform:scale(1.25);}
+.deck-card{background:var(--paper);border:1.5px solid var(--paper-rule);border-left-width:4px;border-radius:8px;padding:18px 20px;min-height:230px;}
+.deck-card h3{margin:0 0 3px;font-size:18px;font-family:"New York",Georgia,serif;}
+.deck-card .dsub{font-size:11.5px;color:var(--ink-mute);margin:0 0 14px;}
+.deck-card .drow{margin:9px 0;}
+.deck-card .dl{width:84px;}
+.deck-nav{display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:10px;}
+.deck-nav .navbtns{display:flex;gap:8px;}
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Async Catch-Up — four design directions</h1>
+  <div class="meta">
+    <span class="pill">Prototype</span><span class="pill">ENH-231</span>
+    Same content model (settled), four genuinely different arrangements · 2026-06-23
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What's settled, and what this explores.</strong> The <em>nouns and verbs</em> are locked from
+  the prior round — each session reads as a briefing of <b>goal · "You asked" · next-steps · files ·
+  artifacts · state</b>, and every card's primary action is either <b>"Open session →"</b> (re-enter:
+  focus-if-live / resume-if-closed) or <b>open an artifact</b> (Review PR · Open report · View diff).
+  This artifact holds that constant and asks the next question: <strong>how should the view be
+  arranged?</strong> Below are four directions that diverge on real axes — density, time-vs-state
+  organization, prose-vs-structured, and parallel-vs-sequential review — not four skins of one timeline.
+  All four render from the <em>same eight sessions</em>. Pick one (or a hybrid) at the bottom.
+</div>
+
+<div class="lockbar">
+  <strong>Feedback folded in.</strong>
+  <span class="lk"><b>Sibling Home mode</b> (Projects ↔ Catch-up) · <b>"You asked"</b> labels the human turn, never "last said".</span>
+  <span class="lk"><b>One re-entry action</b> — the varied hero verbs collapsed to "Open session →"; only artifact-opening is a distinct primary.</span>
+  <span class="lk">Fields are pre-hydrated deterministically (Stop-hook digest); see <code>async-catchup-home.html</code> for the data architecture.</span>
+</div>
+
+<div style="font-size:12px;color:var(--ink-mute);margin:-6px 0 8px;">
+  <b style="color:var(--ink-soft)">Axes at a glance.</b>
+  ① Inbox = dense / process-fast · ② Briefing = sparse / read-once · ③ Board = spatial / state-first · ④ Deck = sequential / one-at-a-time.
+</div>
+
+<!-- ════════════ 1 · TRIAGE INBOX ════════════ -->
+<h2>Direction 1 — Triage Inbox</h2>
+<div class="dir-head"><span class="num">①</span><span></span></div>
+<p class="bet"><b>The bet:</b> catch-up is queue-processing. Two panes — a dense lane-filtered list on the
+left, the full briefing on the right — so you sweep top-to-bottom and clear each one. <b>Best for</b> many
+sessions + a power user. <b>Trade-off:</b> busiest, most "email client", least calm.</p>
+<div class="proto-frame">
+  <div class="proto-titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="grow"></span><span>Duo — Home · Catch-up · Inbox</span><span class="grow"></span></div>
+  <div class="inbox">
+    <div class="inbox-lanes" id="lanes"></div>
+    <div class="inbox-list" id="ilist"></div>
+    <div class="inbox-detail" id="idetail"></div>
+  </div>
+</div>
+<p style="font-size:11.5px;color:var(--ink-ghost);margin-top:4px;">Click lanes to filter · click a row to preview · <span class="kbd">J</span>/<span class="kbd">K</span> would move, <span class="kbd">E</span> mark-reviewed in the real thing.</p>
+
+<!-- ════════════ 2 · BRIEFING ════════════ -->
+<h2>Direction 2 — Briefing</h2>
+<div class="dir-head"><span class="num">②</span><span></span></div>
+<p class="bet"><b>The bet:</b> catch-up is a <em>read</em>, not a UI. A calm, prose-forward digest grouped by
+what-you-should-do — like a morning briefing your chief-of-staff left on your desk. <b>Best for</b> a
+handful of sessions + low cognitive load on re-entry. <b>Trade-off:</b> doesn't scale to 30 sessions; less
+actionable density.</p>
+<div class="proto-frame">
+  <div class="proto-titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="grow"></span><span>Duo — Home · Catch-up · Briefing</span><span class="grow"></span></div>
+  <div class="brief" id="brief"></div>
+</div>
+
+<!-- ════════════ 3 · COMMAND BOARD ════════════ -->
+<h2>Direction 3 — Command Board</h2>
+<div class="dir-head"><span class="num">③</span><span></span></div>
+<p class="bet"><b>The bet:</b> state is the primary axis. Kanban columns (Needs you · Working · Blocked ·
+Done) turn your delegated work into a pipeline you read at a glance — the height of each column tells you
+where attention is owed. <b>Best for</b> spatial thinkers + "what's my whole board look like". <b>Trade-off:</b>
+loses chronology; cards must stay terse.</p>
+<div class="proto-frame">
+  <div class="proto-titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="grow"></span><span>Duo — Home · Catch-up · Board</span><span class="grow"></span></div>
+  <div class="board" id="board"></div>
+</div>
+
+<!-- ════════════ 4 · REVIEW DECK ════════════ -->
+<h2>Direction 4 — Review Deck</h2>
+<div class="dir-head"><span class="num">④</span><span></span></div>
+<p class="bet"><b>The bet:</b> "review the work" taken literally — one session at a time, in priority order
+(blockers &amp; questions first). A guided pass with Prev / Next / Skip / Mark-reviewed, so nothing gets
+skipped and each session gets a beat of full attention. <b>Best for</b> deliberate review + small-screen.
+<b>Trade-off:</b> slowest to get the gestalt; hides the whole-picture.</p>
+<div class="proto-frame">
+  <div class="proto-titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="grow"></span><span>Duo — Home · Catch-up · Review</span><span class="grow"></span></div>
+  <div class="deck" id="deck"></div>
+</div>
+
+<!-- ════════════ DECISION ════════════ -->
+<h2>Which direction?</h2>
+<form id="decisions">
+<div class="decision-card" data-q="pick">
+  <p class="q-title">Q1 · Primary direction</p>
+  <p class="q-prompt">Which arrangement should the Catch-up mode use?</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="pick" value="inbox"><span class="q-option-body"><span class="q-option-title">① Triage Inbox</span><span class="q-option-rationale">Two-pane, dense, scales to many sessions. The power-user queue.</span></span></label>
+    <label class="q-option"><input type="radio" name="pick" value="briefing"><span class="q-option-body"><span class="q-option-title">② Briefing<span class="recommend-tag">leans to persona</span></span><span class="q-option-rationale">Calm prose digest. Closest to the "I forgot what I launched, re-orient me gently" persona — if session counts stay modest.</span></span></label>
+    <label class="q-option"><input type="radio" name="pick" value="board"><span class="q-option-body"><span class="q-option-title">③ Command Board</span><span class="q-option-rationale">Kanban by state. Whole-board glance; great for "where is attention owed".</span></span></label>
+    <label class="q-option"><input type="radio" name="pick" value="deck"><span class="q-option-body"><span class="q-option-title">④ Review Deck</span><span class="q-option-rationale">One-at-a-time guided pass. Most deliberate; literal "review the work".</span></span></label>
+  </div>
+  <textarea class="q-notes" name="pick-notes" placeholder="Why? Any hybrid you'd want (e.g. Briefing header atop an Inbox list, or Board that collapses to a Deck)…"></textarea>
+</div>
+<div class="decision-card" data-q="hybrid">
+  <p class="q-title">Q2 · Hybrid?</p>
+  <p class="q-prompt">Should any two combine?</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="hybrid" value="brief-inbox"><span class="q-option-body"><span class="q-option-title">Briefing digest + Inbox list</span><span class="q-option-rationale">A prose top-line summary, then the dense processable list under it. (My pick if forced.)</span></span></label>
+    <label class="q-option"><input type="radio" name="hybrid" value="board-deck"><span class="q-option-body"><span class="q-option-title">Board → Deck drill-in</span><span class="q-option-rationale">Board for the glance; click a column/card to enter a focused review deck.</span></span></label>
+    <label class="q-option"><input type="radio" name="hybrid" value="none"><span class="q-option-body"><span class="q-option-title">No — one pure direction</span><span class="q-option-rationale">Keep it simple; pick a single model for v1.</span></span></label>
+  </div>
+  <textarea class="q-notes" name="hybrid-notes" placeholder="Notes…"></textarea>
+</div>
+</form>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 2 decided — round-trips to your clipboard</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+// ── Shared mock data: the same eight sessions every direction renders ────
+const ST = {
+  needs:   {label:'Needs you', badge:'badge-needs',   dot:'var(--accent)',          sym:'⏸'},
+  working: {label:'Working',   badge:'badge-working', dot:'var(--project-harbor)',  sym:'●'},
+  blocked: {label:'Blocked',   badge:'badge-blocked', dot:'var(--fail)',            sym:'✕'},
+  done:    {label:'Done',      badge:'badge-done',     dot:'var(--pass)',            sym:'✓'},
+};
+const S = [
+  {id:1,state:'needs',goal:'Migrate analytics events to the v2 schema',repo:'web-app',hue:'--project-harbor',branch:'claude/analytics-v2',age:'14m',
+   youAsked:'Migrate the events, but keep v1 emitting in parallel.',hk:'q',
+   hl:'Should deprecated page_view events map to screen.viewed, or be dropped? I paused before touching 40 call-sites.',
+   todos:[{t:'Add v2 schema',s:'done'},{t:'Dual-emit v1 + v2',s:'doing'},{t:'Migrate 40 call-sites',s:'pend'}],
+   files:['events/schema.ts','events/emit.ts','+3'],artifacts:[],
+   primary:{label:'Open session →',kind:'session'}},
+  {id:2,state:'working',goal:'Fix the flaky checkout E2E test',repo:'web-app',hue:'--project-harbor',branch:'claude/flaky-checkout',age:'2m',
+   youAsked:'Find the race and make it deterministic — no arbitrary sleeps.',hk:'status',
+   hl:'Running the suite 50× to confirm the fix holds…',
+   todos:[{t:'Reproduce the flake',s:'done'},{t:'Replace sleep w/ wait-for-idle',s:'done'},{t:'Confirm over 50 runs',s:'doing'},{t:'Open PR',s:'pend'}],
+   files:['e2e/checkout.spec.ts'],artifacts:[],
+   primary:{label:'Open session →',kind:'session'}},
+  {id:3,state:'done',goal:'Add OAuth refresh-token rotation',repo:'auth-service',hue:'--project-iris',branch:'claude/oauth-rotation',age:'6m',
+   youAsked:'Rotate on every refresh and revoke the old token.',hk:'result',
+   hl:'Implemented rotation + revocation, added 7 tests (all green), opened PR #214.',
+   todos:[{t:'Rotate on refresh',s:'done'},{t:'Revoke old token',s:'done'},{t:'Tests',s:'done'}],
+   files:['tokens/rotate.ts','tokens/revoke.ts','tokens/rotate.test.ts'],
+   artifacts:[{label:'PR #214',kind:'pr'},{label:'7 tests green',kind:'test'}],
+   primary:{label:'Review PR #214 →',kind:'artifact'}},
+  {id:4,state:'working',goal:'Investigate the worker-pool memory leak',repo:'worker',hue:'--project-moss',branch:'main',age:'8m',
+   youAsked:'Heap grows ~20MB/hr in prod — find what is retained.',hk:'status',
+   hl:'Diffing two heap snapshots; suspects an unbounded listener map.',
+   todos:[{t:'Capture heap snapshots',s:'done'},{t:'Diff retained sets',s:'doing'},{t:'Patch + verify',s:'pend'}],
+   files:['pool/scheduler.ts','pool/events.ts'],artifacts:[],
+   primary:{label:'Open session →',kind:'session'}},
+  {id:5,state:'blocked',goal:'Upgrade the app to React 19',repo:'web-app',hue:'--project-harbor',branch:'claude/react-19',age:'52m',
+   youAsked:'Bump React and fix whatever breaks.',hk:'q',
+   hl:'Build fails: react-beautiful-dnd is incompatible and unmaintained. Swap the library, or pin React 18?',
+   todos:[{t:'Bump react + react-dom',s:'done'},{t:'Fix breaking APIs',s:'doing'},{t:'Resolve dnd incompatibility',s:'pend'}],
+   files:['package.json','Board.tsx'],artifacts:[],
+   primary:{label:'Open session →',kind:'session'}},
+  {id:6,state:'done',goal:'Draft the Q3 reliability report',repo:'docs',hue:'--project-rose',branch:'main',age:'40m',
+   youAsked:'Pull the incident data and draft it for the team.',hk:'result',
+   hl:'Pulled incident data, wrote q3-reliability.md — 4 sections, 2 charts.',
+   todos:[{t:'Gather incidents',s:'done'},{t:'Write sections',s:'done'},{t:'Add charts',s:'done'}],
+   files:['q3-reliability.md'],artifacts:[{label:'q3-reliability.md',kind:'file'}],
+   primary:{label:'Open report →',kind:'artifact'}},
+  {id:7,state:'done',goal:'Add rate-limiting to the public API',repo:'api-gateway',hue:'--project-pine',branch:'claude/rate-limit',age:'1h',
+   youAsked:'Token-bucket, 100 requests/min per key.',hk:'result',
+   hl:'Token-bucket middleware, 100 req/min/key, opened PR #88.',
+   todos:[{t:'Middleware',s:'done'},{t:'Per-key buckets',s:'done'},{t:'Tests',s:'done'}],
+   files:['mw/rateLimit.ts','mw/rateLimit.test.ts'],artifacts:[{label:'PR #88',kind:'pr'}],
+   primary:{label:'Review PR #88 →',kind:'artifact'}},
+  {id:8,state:'done',goal:'Rename vault → graphbook in CLI help',repo:'duo',hue:'--project-plum',branch:'main',age:'2h',
+   youAsked:'Update the user-facing help strings only; leave internals.',hk:'result',
+   hl:'Updated 11 help strings; internal name unchanged. Committed to main.',
+   todos:[{t:'Find help strings',s:'done'},{t:'Rename 11',s:'done'}],
+   files:['cli/help.ts'],artifacts:[{label:'commit a1b2c3',kind:'file'}],
+   primary:{label:'View diff →',kind:'artifact'}},
+];
+const ORDER = {needs:0,blocked:1,working:2,done:3}; // triage priority
+
+// ── atoms ───────────────────────────────────────────────────────────────
+const esc = s => s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const dotHtml = s => `<span class="pdot" style="background:var(${s.hue})"></span>`;
+const badgeHtml = st => `<span class="badge ${ST[st].badge}">${ST[st].sym} ${ST[st].label}</span>`;
+const filesHtml = f => f.map(x=>`<span class="fchip">${esc(x)}</span>`).join('');
+const artHtml = a => a.map(x=>`<span class="achip achip-${x.kind}">${esc(x.label)}</span>`).join('');
+const todosHtml = t => `<ul class="todos">`+t.map(x=>{
+  const sym = x.s==='done'?'✓':x.s==='doing'?'▸':'○';
+  return `<li class="${x.s}"><span class="bx">${sym}</span><span class="tx">${esc(x.t)}</span></li>`;
+}).join('')+`</ul>`;
+const hlHtml = s => {
+  if(s.hk==='q') return `<span class="hl-q">${s.state==='blocked'?'Blocked: ':'Asks: '}${esc(s.hl)}</span>`;
+  if(s.hk==='status') return `Doing now: ${esc(s.hl)}`;
+  return esc(s.hl);
+};
+const nextTodo = s => { const d=s.todos.find(t=>t.s==='doing')||s.todos.find(t=>t.s==='pend'); return d?d.t:'—'; };
+
+// ── 1 · INBOX ────────────────────────────────────────────────────────────
+let inboxLane='all', inboxSel=1;
+function renderInbox(){
+  const counts = S.reduce((m,s)=>{m[s.state]=(m[s.state]||0)+1;return m;},{});
+  const lanes=[['all','All',S.length],['needs','⏸ Needs you',counts.needs||0],['done','✓ Done',counts.done||0],['working','● Working',counts.working||0],['blocked','✕ Blocked',counts.blocked||0]];
+  document.getElementById('lanes').innerHTML = lanes.map(([k,l,n])=>
+    `<div class="lane ${k===inboxLane?'on':''}" data-lane="${k}"><span>${l}</span><span class="ln">${n}</span></div>`).join('');
+  const list = S.filter(s=>inboxLane==='all'||s.state===inboxLane).sort((a,b)=>ORDER[a.state]-ORDER[b.state]);
+  if(list.length && !list.find(s=>s.id===inboxSel)) inboxSel=list[0].id;
+  document.getElementById('ilist').innerHTML = list.map(s=>
+    `<div class="irow ${s.id===inboxSel?'sel':''}" data-id="${s.id}">
+       <span class="sdot" style="background:${ST[s.state].dot}"></span>
+       <span class="ig">${esc(s.goal)}</span>
+       ${s.state==='needs'||s.state==='blocked'?'<span class="ibang">!</span>':''}
+       <span class="iage">${s.age}</span>
+     </div>`).join('');
+  const s = S.find(x=>x.id===inboxSel)||list[0];
+  document.getElementById('idetail').innerHTML = s?`
+    <div class="idetail">
+      <div style="margin-bottom:8px">${badgeHtml(s.state)}</div>
+      <h3>${esc(s.goal)}</h3>
+      <div class="isub">${dotHtml(s)} ${esc(s.repo)} · <code>${esc(s.branch)}</code> · ${s.age} ago</div>
+      <div class="drow"><span class="dl lbl">You asked</span><span class="dv">“${esc(s.youAsked)}”</span></div>
+      <div class="drow"><span class="dl lbl">${s.hk==='q'?'Waiting':s.hk==='status'?'Status':'Result'}</span><span class="dv">${hlHtml(s)}</span></div>
+      <div class="drow"><span class="dl lbl">Next</span><span class="dv">${todosHtml(s.todos)}</span></div>
+      <div class="drow"><span class="dl lbl">Files</span><span class="dv">${filesHtml(s.files)}</span></div>
+      ${s.artifacts.length?`<div class="drow"><span class="dl lbl">Made</span><span class="dv">${artHtml(s.artifacts)}</span></div>`:''}
+      <div class="dacts"><button class="act primary">${esc(s.primary.label)}</button><button class="act">Mark reviewed</button></div>
+    </div>`:'';
+}
+document.getElementById('lanes').addEventListener('click',e=>{const l=e.target.closest('.lane');if(l){inboxLane=l.dataset.lane;renderInbox();}});
+document.getElementById('ilist').addEventListener('click',e=>{const r=e.target.closest('.irow');if(r){inboxSel=+r.dataset.id;renderInbox();}});
+
+// ── 2 · BRIEFING ─────────────────────────────────────────────────────────
+function renderBrief(){
+  const c = S.reduce((m,s)=>{m[s.state]=(m[s.state]||0)+1;return m;},{});
+  const secOrder=[['needs','Needs your decision'],['blocked','Blocked — awaiting a call'],['working','Still running'],['done','Shipped while you were out']];
+  let html = `<p class="brief-digest">Welcome back, Geoff. Of the <b>8 sessions</b> from your 7:40am batch,
+    <b style="color:var(--pass)">${c.done||0} finished</b>, <b style="color:var(--accent)">${(c.needs||0)+(c.blocked||0)} need a word from you</b>,
+    and <b style="color:var(--project-harbor)">${c.working||0} ${c.working===1?'is':'are'} still going</b>. Two opened PRs.</p>
+    <p class="brief-since">You were away 1h 12m · 6 sessions advanced since.</p>`;
+  for(const [st,title] of secOrder){
+    const items = S.filter(s=>s.state===st);
+    if(!items.length) continue;
+    html += `<div class="brief-sec">${ST[st].sym} ${title} · ${items.length}</div>`;
+    for(const s of items){
+      const key = s.hk==='q'
+        ? `<span class="bq">${esc(s.hl)}</span>`
+        : esc(s.hl);
+      html += `<div class="brief-item">
+        <div class="bg">${esc(s.goal)} <span class="bp">· ${esc(s.repo)} · ${s.age} ago</span></div>
+        <p>${key}</p>
+        <p><a class="blink" href="#">${esc(s.primary.label)}</a></p>
+      </div>`;
+    }
+  }
+  document.getElementById('brief').innerHTML = html;
+}
+
+// ── 3 · BOARD ────────────────────────────────────────────────────────────
+function renderBoard(){
+  const cols=[['needs','Needs you'],['working','Working'],['blocked','Blocked'],['done','Done']];
+  document.getElementById('board').innerHTML = cols.map(([st,label])=>{
+    const items=S.filter(s=>s.state===st);
+    return `<div class="bcol">
+      <div class="bcol-h"><span>${ST[st].sym} ${label}</span><span class="cnt">${items.length}</span></div>
+      ${items.map(s=>`
+        <div class="bcard" style="border-top-color:var(${s.hue})">
+          <div class="bg">${esc(s.goal)}</div>
+          <div class="bmeta">${dotHtml(s)} ${esc(s.repo)} · ${s.age}</div>
+          ${s.hk==='q'?`<div class="bq">${ST[st].sym} ${esc(s.hl.slice(0,70))}${s.hl.length>70?'…':''}</div>`
+            :`<div class="bnext"><span class="nx">Next:</span> ${esc(nextTodo(s))}</div>`}
+          <button class="act ${s.primary.kind==='artifact'?'primary':''}">${esc(s.primary.label)}</button>
+        </div>`).join('')||'<div style="font-size:11px;color:var(--ink-ghost);padding:6px 4px">—</div>'}
+    </div>`;
+  }).join('');
+}
+
+// ── 4 · DECK ─────────────────────────────────────────────────────────────
+const DECK = [...S].sort((a,b)=>ORDER[a.state]-ORDER[b.state]);
+let deckI=0;
+function renderDeck(){
+  const s=DECK[deckI];
+  document.getElementById('deck').innerHTML = `
+    <div class="deck-top">
+      <span class="deck-count">Reviewing ${deckI+1} of ${DECK.length} · ${ST[s.state].label.toLowerCase()} first</span>
+      <span class="deck-dots">${DECK.map((d,i)=>`<span class="dd ${i===deckI?'cur':''}" data-i="${i}" style="background:${i===deckI?ST[d.state].dot:'var(--paper-rule)'}"></span>`).join('')}</span>
+    </div>
+    <div class="deck-card" style="border-left-color:${ST[s.state].dot}">
+      <div style="margin-bottom:9px">${badgeHtml(s.state)}</div>
+      <h3>${esc(s.goal)}</h3>
+      <div class="dsub">${dotHtml(s)} ${esc(s.repo)} · <code>${esc(s.branch)}</code> · ${s.age} ago</div>
+      <div class="drow"><span class="dl lbl">You asked</span><span class="dv">“${esc(s.youAsked)}”</span></div>
+      <div class="drow"><span class="dl lbl">${s.hk==='q'?'Waiting':s.hk==='status'?'Status':'Result'}</span><span class="dv">${hlHtml(s)}</span></div>
+      <div class="drow"><span class="dl lbl">Next steps</span><span class="dv">${todosHtml(s.todos)}</span></div>
+      <div class="drow"><span class="dl lbl">Files</span><span class="dv">${filesHtml(s.files)}${s.artifacts.length?' &nbsp; '+artHtml(s.artifacts):''}</span></div>
+    </div>
+    <div class="deck-nav">
+      <button class="act" id="deck-prev" ${deckI===0?'disabled':''}>← Prev</button>
+      <div class="navbtns">
+        <button class="act">Mark reviewed</button>
+        <button class="act primary">${esc(s.primary.label)}</button>
+        <button class="act" id="deck-next">${deckI===DECK.length-1?'Done':'Skip →'}</button>
+      </div>
+    </div>`;
+  document.getElementById('deck-prev').onclick=()=>{if(deckI>0){deckI--;renderDeck();}};
+  document.getElementById('deck-next').onclick=()=>{if(deckI<DECK.length-1){deckI++;renderDeck();}};
+  document.querySelectorAll('#deck .dd').forEach(d=>d.onclick=()=>{deckI=+d.dataset.i;renderDeck();});
+}
+
+renderInbox(); renderBrief(); renderBoard(); renderDeck();
+
+// ── decisions copy-bar ───────────────────────────────────────────────────
+const form=document.getElementById('decisions'),countEl=document.getElementById('answered-count'),btn=document.getElementById('copy-btn');
+function read(){return [...form.querySelectorAll('.decision-card')].map(card=>{
+  const q=card.dataset.q,title=card.querySelector('.q-prompt').textContent.trim();
+  const r=card.querySelector('input:checked'); const notes=(card.querySelector('.q-notes')?.value||'').trim();
+  return {q,title,answer:r?r.value:'',notes};});}
+function refresh(){countEl.textContent=read().filter(x=>x.answer||x.notes).length;}
+form.addEventListener('input',refresh);form.addEventListener('change',refresh);
+btn.addEventListener('click',()=>{
+  const d=read(),lines=['# Async Catch-Up — direction decision',''];
+  d.forEach(x=>{lines.push(`## ${x.q}: ${x.title}`);lines.push(`- Answer: ${x.answer||'(none)'}`);if(x.notes)lines.push(`- Notes: ${x.notes}`);lines.push('');});
+  navigator.clipboard.writeText(lines.join('\n')).then(()=>{btn.textContent='Copied ✓';btn.classList.add('copied');setTimeout(()=>{btn.textContent='Copy decisions';btn.classList.remove('copied');},1800);});
+});
+refresh();
+</script>
+</body>
+</html>

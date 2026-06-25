@@ -1759,6 +1759,110 @@ export interface HomeSessionActionResult {
   externalLive?: boolean
 }
 
+// ── ENH-231 — Async Catch-Up (sibling Home mode / Command Board) ──────────────
+// A per-session DIGEST, materialized at the Stop hook from a deterministic
+// JSONL scan — NO inference at open. `SessionDigest` holds ONLY
+// transcript-derived fields, so it lives in the rebuildable cache
+// (`~/.claude/duo/session-digests.json`). Agent-supplied narrative + review
+// state live SEPARATELY in `home-state.json` (Duo-owned, NOT rebuildable).
+// See docs/prd/enh-231-implementation-plan.md §3 (the §D9 boundary).
+export type HomeMode = 'projects' | 'catchup'
+export type AttentionReason = 'plan-to-approve' | 'question' | 'blocked'
+export type DigestState = 'needs-you' | 'working' | 'done'
+
+export interface DigestTodo {
+  text: string
+  status: 'pending' | 'in_progress' | 'completed'
+}
+
+export interface DigestFile {
+  path: string
+  kind: 'edited' | 'created'
+}
+
+export interface DigestArtifacts {
+  pr?: { number: number; url: string }
+  tests?: 'pass' | 'fail' | 'unknown'
+  createdFiles?: string[]
+}
+
+/** Transcript-derived ONLY → the rebuildable cache (`session-digests.json`).
+ *  Every field is a deterministic scan of the session JSONL; missing data is
+ *  empty (`todos:[]`, `attention:null`), never inferred. */
+export interface SessionDigest {
+  uuid: string
+  cwd: string
+  /** The card heading via the goal ladder (custom-title /rename → ai-title Haiku
+   *  → recap → command → first prompt) — see `extractGoal`. So a renamed or
+   *  Haiku-titled session already headlines with that title. */
+  goal: string
+  /** Most-recent user message (skip tool_result carriers + machinery). */
+  youAsked: string
+  /** Latest TodoWrite input.todos[]. */
+  todos: DigestTodo[]
+  /** Edit/Write/NotebookEdit file set, deduped. */
+  files: DigestFile[]
+  artifacts: DigestArtifacts
+  attention: { reason: AttentionReason } | null
+  state: DigestState
+  /** Last assistant text — renderer fallback when no agent narrative. */
+  fallbackSnippet?: string
+  gitBranch: string | null
+  /** Session JSONL mtime (ms epoch). */
+  lastActivityAt: number
+}
+
+/** Duo-owned, NOT transcript-derived → `home-state.json` (§D9-exempt). */
+export interface SessionAnnotation {
+  uuid: string
+  /** Agent self-narration via `duo session note`. */
+  note?: string
+  /** Agent self-narration via `duo session next`. */
+  next?: string
+  /** "Marked reviewed" timestamp (ms epoch). */
+  reviewedAt?: number
+}
+
+/** Merged view the renderer consumes: digest ⊕ annotation ⊕ assembly flags. */
+export interface CatchupCard extends SessionDigest {
+  narrative?: { note?: string; next?: string }
+  reviewedAt?: number
+  /** Cron-minted session (set by assembly, never inferred from transcript). */
+  scheduled?: boolean
+  /** The session's recorded cwd no longer exists on disk (e.g. a removed git
+   *  worktree). Re-entry can't `claude --resume` there — the renderer strikes the
+   *  card through + suppresses re-entry. (Rich recovery is a tracked follow-up.) */
+  cwdGone?: boolean
+  /** The live-process join — the SAME focusable shape as `HomeSession.open`
+   *  (`kind:'duo'` ⇒ a Duo tab hosts it, focusable; `kind:'external'` ⇒ live
+   *  outside Duo, fork-not-focus). ABSENT ⇒ no live `claude` process ⇒ closed.
+   *  Liveness is therefore `open != null`; "open in Duo" is `open?.kind==='duo'`. */
+  open?: HomeSessionOpen
+  /** Two-tier rule: `full` if live OR needs-you OR **finished** (a produced
+   *  artifact, or a fully-complete TodoWrite plan); else `compact`. So in the
+   *  Done column, full cards are completed/reviewable work and the compact rows
+   *  beneath are STALLED sessions (closed, unfinished, no deliverable). A closed
+   *  session that needs you stays full (review fix #8). */
+  tier: 'full' | 'compact'
+}
+
+export interface CatchupColumn {
+  full: CatchupCard[]
+  compact: CatchupCard[]
+}
+
+export interface CatchupSnapshot {
+  generatedAt: number
+  mode: 'catchup'
+  columns: {
+    needsYou: CatchupColumn
+    working: CatchupColumn
+    done: CatchupColumn
+  }
+  /** "Since you were away" watermark (ms epoch), from home-state.json. */
+  watermarkAt?: number
+}
+
 // ── ENH-224 — Open bar: Open Recent (D14) + native Browse… (D17) ─────────────
 
 /** What an Open Recent entry points at. Mirrors the resolver's kinds, but
@@ -2607,6 +2711,12 @@ export const IPC = {
   HOME_SNAPSHOT: 'home:snapshot',
   HOME_LIST_SESSIONS: 'home:list-sessions',
   HOME_SESSION_ACTION: 'home:session-action',
+  // ENH-231 — Async Catch-Up (sibling Home mode / Command Board).
+  HOME_CATCHUP: 'home:catchup',          // renderer → main: build CatchupSnapshot
+  HOME_MODE_GET: 'home:mode-get',        // renderer → main: read app-global mode
+  HOME_MODE_SET: 'home:mode-set',        // renderer → main: persist mode
+  HOME_MODE_PUSH: 'home:mode-push',      // main → ALL renderers: mode changed elsewhere
+  SESSION_DIGEST: 'session:digest',      // renderer → main: materialize digest for a tab
   // ENH-223 Tier 2 — cron Home surface. One invoke channel (renderer → main)
   // delegating to CronService.handleCli (list/add/run/pause/resume/rm/show —
   // the same dispatch the socket CLI uses), plus a push (main → renderer) that

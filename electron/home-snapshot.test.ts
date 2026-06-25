@@ -21,14 +21,18 @@ import path from 'path'
 import os from 'os'
 import {
   buildHomeSnapshot,
+  buildCatchupSnapshot,
   rollupProjects,
   scanRecentFiles,
   buildGreeting,
   attributeOpenSessions,
   type LiveCwdGroup,
+  type OpenByUuid,
 } from './home-snapshot'
+import { SessionDigestStore } from '../core/session-digest-store'
+import { HomeStateStore } from '../core/home-state-store'
 import { hashColorIndex } from '../shared/projects'
-import type { HomeProject } from '../shared/types'
+import type { HomeProject, HomeSessionOpen } from '../shared/types'
 
 // ── fixture helpers ──────────────────────────────────────────────────────
 
@@ -537,5 +541,213 @@ describe('buildHomeSnapshot — perf + bytes-read bound (85-session tree)', () =
     // git-root/marker stat) — real but bounded fs work; the strict assertion
     // above (zero JSONL slurps) is what actually protects the 270MB-file trap.
     expect(elapsed).toBeLessThan(500)
+  })
+})
+
+// ── ENH-231 — buildCatchupSnapshot (the Command Board) ─────────────────────
+
+describe('buildCatchupSnapshot — columns, two-tier, dedup, §D9', () => {
+  let digestStore: SessionDigestStore
+  let homeStore: HomeStateStore
+
+  beforeEach(async () => {
+    digestStore = new SessionDigestStore(path.join(projectsRoot, 'session-digests.json'))
+    homeStore = new HomeStateStore(path.join(projectsRoot, 'home-state.json'))
+    await digestStore.load()
+    await homeStore.load()
+  })
+  afterEach(async () => {
+    await digestStore.whenIdle()
+    await homeStore.whenIdle()
+  })
+
+  const exitPlanEntry = (cwd: string): object => ({
+    parentUuid: 'p',
+    isSidechain: false,
+    type: 'assistant',
+    message: { role: 'assistant', content: [{ type: 'tool_use', id: 'p1', name: 'ExitPlanMode', input: { plan: 'do it' } }] },
+    uuid: 'a',
+    timestamp: '2026-06-10T01:10:00.000Z',
+    cwd,
+    sessionId: 's',
+    gitBranch: 'main',
+  })
+
+  /** Write a session whose head carries `cwd`, then arbitrary trailing entries. */
+  async function writeRaw(encoded: string, uuid: string, cwd: string, trailing: object[], ageSec = 60): Promise<void> {
+    const dir = path.join(projectsRoot, encoded)
+    await fs.mkdir(dir, { recursive: true })
+    const file = path.join(dir, `${uuid}.jsonl`)
+    await fs.writeFile(file, jsonl([userEntry('the goal', cwd), ...trailing]))
+    const t = new Date(Date.now() - ageSec * 1000)
+    await fs.utimes(file, t, t)
+  }
+
+  const liveDuo = (...uuids: string[]): OpenByUuid => {
+    const m = new Map<string, HomeSessionOpen>()
+    let i = 0
+    for (const u of uuids) m.set(u, { kind: 'duo', windowId: 1, tabId: `t${i++}` })
+    return m
+  }
+
+  // Default deps + cwdExists:()=>true so fixture cwds don't all read as removed
+  // worktrees. The cwdGone test overrides cwdExists with the real fs check.
+  type Deps = Parameters<typeof buildCatchupSnapshot>[0]
+  const build = (over: Partial<Deps> = {}) =>
+    buildCatchupSnapshot({
+      projectsRoot,
+      digestStore,
+      homeStateStore: homeStore,
+      cwdExists: async () => true,
+      now: Date.now(),
+      ...over,
+    })
+
+  it('windows out sessions older than the rolling window (7d)', async () => {
+    await writeRaw('enc-fresh', 'fresh1', '/proj/a', [assistantEntry('done', '/proj/a')], 60)
+    await writeRaw('enc-old', 'old1', '/proj/b', [assistantEntry('done', '/proj/b')], 8 * 86400)
+    const board = await buildCatchupSnapshot({ projectsRoot, digestStore, homeStateStore: homeStore, now: Date.now() })
+    const all = [...board.columns.needsYou.full, ...board.columns.needsYou.compact, ...board.columns.working.full, ...board.columns.working.compact, ...board.columns.done.full, ...board.columns.done.compact]
+    expect(all.map((c) => c.uuid)).toEqual(['fresh1'])
+  })
+
+  it('columns: needs-you (full) · In-progress = live full + closed compact · Done = finished full', async () => {
+    // needs-you: ends on assistant text (→ question), not live → full (attention)
+    await writeRaw('enc-q', 'q1', '/proj/q', [assistantEntry('Which option, X or Y?', '/proj/q')])
+    // in-progress LIVE → working.full
+    await writeRaw('enc-w', 'w1', '/proj/w', [])
+    // closed: no attention, not live, no deliverable → working.compact (resumable)
+    await writeRaw('enc-d', 'd1', '/proj/d', [])
+
+    const board = await build({ openByUuid: liveDuo('w1') })
+    expect(board.columns.needsYou.full.map((c) => c.uuid)).toEqual(['q1'])
+    expect(board.columns.working.full.map((c) => c.uuid)).toEqual(['w1'])
+    expect(board.columns.working.compact.map((c) => c.uuid)).toEqual(['d1']) // CLOSED, not Done
+    expect(board.columns.needsYou.full[0].tier).toBe('full')
+    expect(board.columns.working.full[0].tier).toBe('full')
+    expect(board.columns.working.compact[0].tier).toBe('compact')
+    expect(board.columns.done.full).toEqual([]) // nothing finished
+    expect(board.columns.done.compact).toEqual([])
+  })
+
+  it('Done = FINISHED (full); closed-no-deliverable → In-progress compact (owner reframe)', async () => {
+    const todoWriteEntry = (todos: object[], cwd: string): object => ({
+      parentUuid: 'p', isSidechain: false, type: 'assistant',
+      message: { role: 'assistant', content: [{ type: 'tool_use', id: 'tw', name: 'TodoWrite', input: { todos } }] },
+      uuid: 'a', timestamp: '2026-06-10T01:10:00.000Z', cwd, sessionId: 's', gitBranch: 'main',
+    })
+    const bashEntry = (command: string, cwd: string): object => ({
+      type: 'assistant',
+      message: { role: 'assistant', content: [{ type: 'tool_use', id: 'b1', name: 'Bash', input: { command } }] },
+      uuid: 'a', timestamp: '2026-06-10T01:10:00.000Z', cwd, sessionId: 's', gitBranch: 'main',
+    })
+    const toolResult = (cwd: string, toolUseResult: unknown): object => ({
+      type: 'user',
+      message: { content: [{ type: 'tool_result', tool_use_id: 'b1', content: 'ok' }] },
+      toolUseResult, cwd, uuid: 'r', timestamp: '2026-06-10T01:11:00.000Z',
+    })
+    // All sessions END ON A USER/tool-result TURN so the attention heuristic stays null (→ Done column).
+    // finished — a fully-complete TodoWrite plan.
+    await writeRaw('enc-fin1', 'fin1', '/proj/f1', [
+      todoWriteEntry([{ content: 'ship it', status: 'completed' }], '/proj/f1'),
+      userEntry('thanks', '/proj/f1'),
+    ])
+    // finished — actually OPENED a PR (gh pr create → URL in the tool result).
+    await writeRaw('enc-fin2', 'fin2', '/proj/f2', [
+      bashEntry('gh pr create --fill', '/proj/f2'),
+      toolResult('/proj/f2', 'https://github.com/o/r/pull/9\n'),
+    ])
+    // finished — produced a DOCUMENT (.md), the D7 report case.
+    await writeRaw('enc-fin3', 'fin3', '/proj/f3', [
+      toolResult('/proj/f3', { type: 'create', filePath: '/proj/f3/report.md' }),
+    ])
+    // stalled — a half-done plan, no deliverable.
+    await writeRaw('enc-stall', 'stall1', '/proj/s', [
+      todoWriteEntry([{ content: 'a', status: 'completed' }, { content: 'b', status: 'pending' }], '/proj/s'),
+      userEntry('hold on', '/proj/s'),
+    ])
+    // stalled — only CODE files touched (no PR, no completed plan, no doc).
+    await writeRaw('enc-stall2', 'stall2', '/proj/s2', [
+      toolResult('/proj/s2', { type: 'create', filePath: '/proj/s2/util.ts' }),
+    ])
+    const board = await build()
+    expect(board.columns.done.full.map((c) => c.uuid).sort()).toEqual(['fin1', 'fin2', 'fin3'])
+    // closed-no-deliverable now lives in the In-progress (working) compact tier
+    expect(board.columns.working.compact.map((c) => c.uuid).sort()).toEqual(['stall1', 'stall2'])
+    expect(board.columns.done.compact).toEqual([])
+  })
+
+  it('keeps a CLOSED needs-you (plan-to-approve) session as a FULL card (review fix #8)', async () => {
+    await writeRaw('enc-plan', 'plan1', '/proj/p', [exitPlanEntry('/proj/p')])
+    const board = await build()
+    // not live, but attention=plan-to-approve → needs-you AND full (not compact)
+    expect(board.columns.needsYou.full.map((c) => c.uuid)).toEqual(['plan1'])
+    expect(board.columns.needsYou.compact).toEqual([])
+    expect(board.columns.needsYou.full[0].attention).toEqual({ reason: 'plan-to-approve' })
+    expect(board.columns.needsYou.full[0].open).toBeUndefined() // closed, yet full
+  })
+
+  it('dedups a uuid that appears in two encoded dirs (keep one card)', async () => {
+    await writeRaw('enc-1', 'dup', '/proj/x', [], 120)
+    await writeRaw('enc-2', 'dup', '/proj/x', [], 60)
+    const board = await build()
+    const all = [...board.columns.working.full, ...board.columns.working.compact, ...board.columns.done.full, ...board.columns.done.compact]
+    expect(all.filter((c) => c.uuid === 'dup')).toHaveLength(1)
+  })
+
+  it('merges the Duo-owned annotation (narrative + reviewedAt) onto the card', async () => {
+    await writeRaw('enc-n', 'note1', '/proj/n', [assistantEntry('ok', '/proj/n')])
+    await homeStore.setNote('note1', 'Shipped the token bucket')
+    await homeStore.setNext('note1', 'Add the per-route override')
+    await homeStore.markReviewed('note1', 1234)
+    const board = await build()
+    const card = board.columns.needsYou.full.find((c) => c.uuid === 'note1')!
+    expect(card.narrative).toEqual({ note: 'Shipped the token bucket', next: 'Add the per-route override' })
+    expect(card.reviewedAt).toBe(1234)
+  })
+
+  it('a removed-worktree session is flagged cwdGone and lands in DONE, collapsed (owner)', async () => {
+    // projectsRoot exists on disk; the other cwd does not. Real fs check (no stub).
+    await writeRaw('enc-here', 'here1', projectsRoot, [])
+    await writeRaw('enc-gone', 'gone1', path.join(projectsRoot, 'removed-worktree-xyz'), [])
+    const board = await buildCatchupSnapshot({ projectsRoot, digestStore, homeStateStore: homeStore, now: Date.now() })
+    // gone → Done column, compact tier (a deleted worktree = work is over = done)
+    expect(board.columns.done.compact.map((c) => c.uuid)).toEqual(['gone1'])
+    expect(board.columns.done.compact[0].cwdGone).toBe(true)
+    // here1 (cwd exists, no deliverable) → closed/In-progress compact, not gone
+    expect(board.columns.working.compact.map((c) => c.uuid)).toEqual(['here1'])
+    expect(board.columns.working.compact[0].cwdGone).toBeFalsy()
+  })
+
+  it('badges scheduled when the uuid is in cronSessionIds (never inferred)', async () => {
+    await writeRaw('enc-c', 'cron1', '/proj/c', []) // closed → In-progress compact
+    const board = await build({ cronSessionIds: new Set(['cron1']) })
+    const card = board.columns.working.compact.find((c) => c.uuid === 'cron1')!
+    expect(card.scheduled).toBe(true)
+  })
+
+  it('an OPEN session bypasses the 7-day window; a closed one is dropped', async () => {
+    // Both 10 days old; only the open one survives the window.
+    await writeRaw('enc-oldopen', 'oldopen', '/proj/o', [], 10 * 86400)
+    await writeRaw('enc-oldclosed', 'oldclosed', '/proj/cl', [], 10 * 86400)
+    const board = await build({ openByUuid: liveDuo('oldopen') })
+    const all = [...board.columns.working.full, ...board.columns.working.compact, ...board.columns.done.full, ...board.columns.done.compact, ...board.columns.needsYou.full]
+    expect(all.map((c) => c.uuid)).toEqual(['oldopen']) // open kept despite age; closed dropped
+  })
+
+  it('§D9 — a cold (cache-miss) board equals the warm (cache-hit) rebuild', async () => {
+    const now = Date.now()
+    await writeRaw('enc-a', 'a1', '/proj/a', [assistantEntry('Need a decision', '/proj/a')])
+    await writeRaw('enc-b', 'b1', '/proj/b', [])
+    const open = liveDuo('b1')
+
+    // Cold: empty store → extract + cache.
+    const cold = await build({ openByUuid: open, now })
+    await digestStore.whenIdle()
+    expect(digestStore.snapshot().size).toBe(2) // both digests cached
+
+    // Warm: same store, now serving cache hits → identical board.
+    const warm = await build({ openByUuid: open, now })
+    expect(warm).toEqual(cold)
   })
 })

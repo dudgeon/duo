@@ -290,6 +290,110 @@ describe('SocketServer — ENH-212 Home CLI routing', () => {
   })
 })
 
+// ENH-231 — Async Catch-Up CLI routing: session digest|note|next + home
+// mode|catchup. Same pure-node dispatch harness; pins each sub-op to its
+// NavBridge method + the unknown-op + missing-arg guards (the "IPC handler gap
+// is invisible to typecheck" class — a routing miss only shows at runtime).
+describe('SocketServer — ENH-231 Async Catch-Up CLI routing', () => {
+  it('`duo session digest <tab>` materializes via sessionDigest (youAskedOnly=false)', async () => {
+    const d = stubDeps()
+    const sessionDigest = vi.fn(async () => ({ ok: true, uuid: 'uX' }))
+    const nav = { sessionDigest } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'session', { op: 'digest', tabId: 't1' })
+    expect(res.ok).toBe(true)
+    expect(sessionDigest).toHaveBeenCalledWith('t1', false)
+  })
+
+  it('`--you-asked-only` threads youAskedOnly=true', async () => {
+    const d = stubDeps()
+    const sessionDigest = vi.fn(async () => ({ ok: true }))
+    const nav = { sessionDigest } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    await dispatch(server, 'session', { op: 'digest', tabId: 't1', youAskedOnly: true })
+    expect(sessionDigest).toHaveBeenCalledWith('t1', true)
+  })
+
+  it('`duo session digest` without a tab fails cleanly', async () => {
+    const d = stubDeps()
+    const nav = { sessionDigest: vi.fn() } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'session', { op: 'digest' })
+    expect(res.ok).toBe(false)
+    expect(res.error).toMatch(/requires <tab>/)
+  })
+
+  it('`duo session note <tab>` (no text) READS via getSessionNote', async () => {
+    const d = stubDeps()
+    const getSessionNote = vi.fn(async () => 'shipped the bucket')
+    const nav = { getSessionNote } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'session', { op: 'note', tabId: 't1' })
+    expect(res.ok).toBe(true)
+    expect(res.result).toEqual({ ok: true, note: 'shipped the bucket' })
+    expect(getSessionNote).toHaveBeenCalledWith('t1')
+  })
+
+  it('`duo session note <tab> "<text>"` WRITES via setSessionNote', async () => {
+    const d = stubDeps()
+    const setSessionNote = vi.fn(async () => ({ ok: true, uuid: 'uX' }))
+    const nav = { setSessionNote } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'session', { op: 'note', tabId: 't1', text: 'did the thing' })
+    expect(res.ok).toBe(true)
+    expect(setSessionNote).toHaveBeenCalledWith('t1', 'did the thing')
+  })
+
+  it('`duo session next <tab> "<text>"` WRITES via setSessionNext', async () => {
+    const d = stubDeps()
+    const setSessionNext = vi.fn(async () => ({ ok: true, uuid: 'uX' }))
+    const nav = { setSessionNext } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    await dispatch(server, 'session', { op: 'next', tabId: 't1', text: 'review the PR' })
+    expect(setSessionNext).toHaveBeenCalledWith('t1', 'review the PR')
+  })
+
+  it('`duo home mode` (no value) READS getHomeMode', async () => {
+    const d = stubDeps()
+    const getHomeMode = vi.fn(() => 'catchup' as const)
+    const nav = { getHomeMode } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'home', { op: 'mode' })
+    expect(res.ok).toBe(true)
+    expect(res.result).toEqual({ mode: 'catchup' })
+  })
+
+  it('`duo home mode catchup` SETS via setHomeMode', async () => {
+    const d = stubDeps()
+    const setHomeMode = vi.fn(async () => ({ ok: true }))
+    const nav = { setHomeMode } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'home', { op: 'mode', value: 'catchup' })
+    expect(res.ok).toBe(true)
+    expect(setHomeMode).toHaveBeenCalledWith('catchup')
+  })
+
+  it('`duo home mode <bogus>` is rejected', async () => {
+    const d = stubDeps()
+    const nav = { setHomeMode: vi.fn() } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'home', { op: 'mode', value: 'sideways' })
+    expect(res.ok).toBe(false)
+    expect(res.error).toMatch(/expected projects\|catchup/)
+  })
+
+  it('`duo home catchup` builds the board via getCatchupBoard', async () => {
+    const d = stubDeps()
+    const board = { generatedAt: 1, mode: 'catchup', columns: { needsYou: { full: [], compact: [] }, working: { full: [], compact: [] }, done: { full: [], compact: [] } } }
+    const getCatchupBoard = vi.fn(async () => board)
+    const nav = { getCatchupBoard } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'home', { op: 'catchup' })
+    expect(res.ok).toBe(true)
+    expect(res.result).toEqual(board)
+  })
+})
+
 // ENH-224 D14 — `duo recent` routing + record-on-open. Pins the socket-side
 // contract the UI Open bar can't reach: `recent` lists via the NavBridge, and
 // a SUCCESSFUL `open` records a derived pointer (a failed open does NOT). Same

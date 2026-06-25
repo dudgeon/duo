@@ -36,12 +36,20 @@ import {
   readSessionTailMeta,
   type TopLevelSessionStat,
 } from './claude-session-tracker'
+import { extractSessionDigest } from './session-digest'
+import type { SessionDigestStore } from '../core/session-digest-store'
+import type { HomeStateStore } from '../core/home-state-store'
 import type {
   GreetingData,
   HomeProject,
   HomeSession,
   HomeSessionOpen,
   HomeSnapshot,
+  SessionDigest,
+  DigestState,
+  CatchupCard,
+  CatchupColumn,
+  CatchupSnapshot,
 } from '../shared/types'
 
 /** Default sessions surfaced per project before the "all N sessions"
@@ -576,6 +584,208 @@ export async function buildHomeSnapshot(deps: BuildHomeSnapshotDeps = {}): Promi
     generatedAt: now,
     greeting,
     projects,
+  }
+}
+
+// ── ENH-231 — Async Catch-Up assembly (the Command Board) ────────────────
+//
+// Same enumerate → rollup spine as buildHomeSnapshot, but the unit of
+// attention is the SESSION, not the project. Each in-window session is
+// hydrated from its pre-materialized digest (the §D9 rebuildable cache) and
+// merged with its Duo-owned annotation (home-state.json) into a CatchupCard,
+// then bucketed by attention/liveness into the three board columns. ZERO
+// inference at open — every field comes from the cached digest or the
+// annotation; a cache miss re-extracts deterministically (and re-caches).
+
+const DAY_MS = 86_400_000
+const DEFAULT_CATCHUP_DAYS = 7
+
+/**
+ * The read-or-extract fast-path that backs the §D9 invariant at assembly time.
+ * Cache hit (cached digest at least as fresh as the JSONL) ⇒ return it; miss or
+ * stale (the transcript advanced past the cache) ⇒ re-extract deterministically
+ * and re-cache, so the board is identical whether the cache was warm or cold.
+ * Returns null only when extraction fails AND there is no cache to fall back to.
+ */
+async function readOrExtractDigest(
+  store: SessionDigestStore,
+  uuid: string,
+  jsonlPath: string,
+  mtimeMs: number,
+): Promise<SessionDigest | null> {
+  const cached = store.getDigest(uuid)
+  if (cached && cached.lastActivityAt >= mtimeMs) return cached
+  const fresh = await extractSessionDigest(jsonlPath, uuid)
+  if (fresh) {
+    await store.setDigest(uuid, fresh)
+    return fresh
+  }
+  return cached ?? null // I/O failure — prefer a stale cache over dropping the card
+}
+
+export interface BuildCatchupDeps {
+  /** Default ~/.claude/projects; injectable for tests. */
+  projectsRoot?: string
+  /** Rolling window (days) the board covers. Default 7. */
+  daysSince?: number
+  /** Clock injection for the window cutoff + generatedAt (tests). */
+  now?: number
+  /** The rebuildable digest cache (transcript-derived; §D9-gated). */
+  digestStore: SessionDigestStore
+  /** Duo-owned annotations + watermark (narrative / reviewedAt). */
+  homeStateStore: HomeStateStore
+  /** Process-primary liveness join (uuid → duo|external). Absent ⇒ all closed. */
+  openByUuid?: OpenByUuid
+  /** P6 — session uuids minted by a cron run (badged `scheduled`). */
+  cronSessionIds?: ReadonlySet<string>
+  /** Does a session cwd still exist on disk? Default: a real `fs.stat`. Injected
+   *  by tests so fixture cwds don't all read as removed worktrees. */
+  cwdExists?: (cwd: string) => Promise<boolean>
+}
+
+/** Default cwd-existence probe (a removed git worktree → false). */
+function cwdExistsOnDisk(cwd: string): Promise<boolean> {
+  return cwd ? fs.stat(cwd).then(() => true).catch(() => false) : Promise.resolve(true)
+}
+
+function emptyColumn(): CatchupColumn {
+  return { full: [], compact: [] }
+}
+
+/**
+ * Assemble the Command Board. Deterministic with respect to its injected deps;
+ * the only ambient I/O is the seek-based, concurrency-limited transcript reads
+ * (cache misses only). The server is the authority — the renderer renders these
+ * columns verbatim.
+ *
+ * Column + tier (owner reframe 2026-06-24): Needs you = attention (full); the
+ * `working` column = "In progress" = live (full) + closed-resumable (compact);
+ * Done = a finished deliverable (full). Removed-worktree sessions land in the
+ * closed/collapsed area, struck through. See the per-card block below.
+ */
+export async function buildCatchupSnapshot(deps: BuildCatchupDeps): Promise<CatchupSnapshot> {
+  const projectsRoot = deps.projectsRoot ?? path.join(os.homedir(), '.claude', 'projects')
+  const daysSince = deps.daysSince ?? DEFAULT_CATCHUP_DAYS
+  const now = deps.now ?? Date.now()
+  const openByUuid: OpenByUuid = deps.openByUuid ?? new Map()
+  const cronSessionIds = deps.cronSessionIds ?? new Set<string>()
+  const cwdExists = deps.cwdExists ?? cwdExistsOnDisk
+  const since = now - daysSince * DAY_MS
+
+  const raw = await enumerateProjectDirs(projectsRoot)
+  const rolled = await rollupProjects(raw)
+
+  // Flatten to one entry per session, deduped by uuid (keep the freshest stat —
+  // a resume-minted duplicate is a known v1 limit). The 7-day window applies
+  // ONLY to NON-OPEN sessions (owner 2026-06-24): an OPEN session (a live claude
+  // process attributed) always shows regardless of age; a closed one drops past
+  // the window.
+  const byUuid = new Map<string, RolledSession>()
+  for (const proj of rolled) {
+    for (const rs of proj.sessions) {
+      if (rs.stat.mtimeMs < since && !openByUuid.has(rs.stat.id)) continue
+      const prev = byUuid.get(rs.stat.id)
+      if (!prev || rs.stat.mtimeMs > prev.stat.mtimeMs) byUuid.set(rs.stat.id, rs)
+    }
+  }
+  const entries = [...byUuid.values()]
+
+  const cards = (
+    await mapLimit(entries, READ_CONCURRENCY, async (rs): Promise<CatchupCard | null> => {
+      const uuid = rs.stat.id
+      const jsonlPath = path.join(rs.encodedDir, `${uuid}.jsonl`)
+      const digest = await readOrExtractDigest(deps.digestStore, uuid, jsonlPath, rs.stat.mtimeMs)
+      if (!digest) return null
+
+      // BUG-worktree — the session's recorded cwd may be a removed git worktree;
+      // `claude --resume` there fails. Flag it so the card strikes through +
+      // collapses (cheap stat, bounded by the window).
+      const cwdGone = digest.cwd ? !(await cwdExists(digest.cwd)) : false
+
+      // The focusable join (kind duo|external); absent ⇒ closed. Liveness is
+      // its presence (any live claude process), not just a Duo tab.
+      const open = openByUuid.get(uuid)
+      const live = open != null
+      const attention = digest.attention
+      // FINISHED = a CRISP deliverable (not just "touched files" — every coding
+      // session creates files): opened a PR, produced a DOCUMENT (.md/.html), or
+      // fully checked off its TodoWrite plan.
+      const art = digest.artifacts
+      const createdDoc = (art.createdFiles ?? []).some((f) => /\.(md|markdown|html?)$/i.test(f))
+      const completed =
+        !!art.pr ||
+        createdDoc ||
+        (digest.todos.length > 0 && digest.todos.every((t) => t.status === 'completed'))
+
+      // Column + tier (owner reframe 2026-06-24 — supersedes the old "Done = any
+      // inactive" model; D6 revision):
+      //   Needs you   = attention                       → full
+      //   In progress = live (full) OR closed-resumable (compact) — the `working`
+      //                 column key. A closed session that produced no deliverable
+      //                 is "closed" (resumable): the high-value pick-it-back-up
+      //                 surface, collapsed beneath the live cards.
+      //   Done        = a FINISHED deliverable           → full
+      //   Gone (removed worktree) → DONE, collapsed + struck (owner 2026-06-24:
+      //                 a deleted worktree means the work is over → assume done;
+      //                 it can't be resumed, so it belongs in Done, not "Closed").
+      let state: DigestState
+      let tier: CatchupCard['tier']
+      if (cwdGone) {
+        state = 'done'
+        tier = 'compact'
+      } else if (attention) {
+        state = 'needs-you'
+        tier = 'full'
+      } else if (live) {
+        state = 'working'
+        tier = 'full'
+      } else if (completed) {
+        state = 'done'
+        tier = 'full'
+      } else {
+        state = 'working' // closed, resumable
+        tier = 'compact'
+      }
+      const ann = deps.homeStateStore.getAnnotation(uuid)
+      const narrative =
+        ann?.note || ann?.next
+          ? { ...(ann.note ? { note: ann.note } : {}), ...(ann.next ? { next: ann.next } : {}) }
+          : undefined
+
+      return {
+        ...digest,
+        state, // re-derived with REAL liveness (the cache stored not-live)
+        ...(open ? { open } : {}),
+        tier,
+        ...(narrative ? { narrative } : {}),
+        ...(ann?.reviewedAt ? { reviewedAt: ann.reviewedAt } : {}),
+        ...(cronSessionIds.has(uuid) ? { scheduled: true } : {}),
+        ...(cwdGone ? { cwdGone: true } : {}),
+      }
+    })
+  ).filter((c): c is CatchupCard => c !== null)
+
+  const columns = { needsYou: emptyColumn(), working: emptyColumn(), done: emptyColumn() }
+  for (const card of cards) {
+    const col =
+      card.state === 'needs-you'
+        ? columns.needsYou
+        : card.state === 'working'
+          ? columns.working
+          : columns.done
+    ;(card.tier === 'full' ? col.full : col.compact).push(card)
+  }
+  for (const col of [columns.needsYou, columns.working, columns.done]) {
+    col.full.sort((a, b) => b.lastActivityAt - a.lastActivityAt)
+    col.compact.sort((a, b) => b.lastActivityAt - a.lastActivityAt)
+  }
+
+  const watermarkAt = deps.homeStateStore.getWatermark()
+  return {
+    generatedAt: now,
+    mode: 'catchup',
+    columns,
+    ...(watermarkAt !== undefined ? { watermarkAt } : {}),
   }
 }
 

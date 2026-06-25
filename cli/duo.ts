@@ -476,14 +476,14 @@ const VERBS: VerbSpec[] = [
   {
     name: 'session',
     group: 'Workspace & projects',
-    args: '<list|resume|open> [args]',
-    summary: 'Claude session lifecycle. session list [--cwd <path>] lists prior "<uuid>.jsonl" sessions in the CWD ({uuid, title, source, messageCount, modifiedAt}); session resume <tabId> <uuid> spawns "claude --resume <uuid>" in the named tab\'s PTY; session open <uuid> [--cwd <path>] [--force] is the Home click contract — focuses the session\'s live tab if open, else spawns "claude --resume <uuid>" in a new tab in the primary window (--cwd required to resume; a session live OUTSIDE Duo is refused unless --force, which FORKS via --fork-session).'
+    args: '<list|resume|open|digest|note|next> [args]',
+    summary: 'Claude session lifecycle. session list [--cwd <path>] lists prior "<uuid>.jsonl" sessions in the CWD ({uuid, title, source, messageCount, modifiedAt}); session resume <tabId> <uuid> spawns "claude --resume <uuid>" in the named tab\'s PTY; session open <uuid> [--cwd <path>] [--force] is the Home click contract — focuses the session\'s live tab if open, else spawns "claude --resume <uuid>" in a new tab in the primary window (--cwd required to resume; a session live OUTSIDE Duo is refused unless --force, which FORKS via --fork-session). ENH-231 Async Catch-Up: session digest <tab> [--you-asked-only] materializes the tab\'s pre-hydration digest (the Stop-hook ping; --you-asked-only refreshes only "You asked"); session note|next <tab> ["<text>"] reads (no text) or writes the agent\'s self-narrated status / next-step recommendation, stamped by session uuid so it survives the tab closing (call these at natural stopping points — they fill the catch-up card\'s narrative).'
   },
   {
     name: 'home',
     group: 'Workspace & projects',
-    args: '[show|state|refresh] [--json]',
-    summary: 'Home, the re-entry surface (slot 0). Bare "duo home" (or "home show") focuses/synthesizes Home in the target window; home state [--json] prints what the user sees (greeting + rolled-up projects with their sessions); home refresh forces a snapshot refetch. Honors --window N. No "home close" — Home is non-closable by design.'
+    args: '[show|state|refresh|mode|catchup] [--json]',
+    summary: 'Home, the re-entry surface (slot 0). Bare "duo home" (or "home show") focuses/synthesizes Home in the target window; home state [--json] prints what the user sees (greeting + rolled-up projects with their sessions); home refresh forces a snapshot refetch. ENH-231: home mode [projects|catchup] reads/sets the app-global Home mode (Projects aggregation ↔ async Catch-Up Command Board; a set fans out to every window); home catchup [--json] prints the Command Board (needs-you / working / done columns of pre-hydrated session digests). Honors --window N. No "home close" — Home is non-closable by design.'
   },
 
   // ── Repo & git ──
@@ -2568,8 +2568,26 @@ async function main(): Promise<void> {
           if (cwd) payload.cwd = cwd
           if (force) payload.force = true
           out(await send('session', payload))
+        } else if (sub === 'digest') {
+          // ENH-231 — materialize the tab's pre-hydration digest (the Stop-hook
+          // ping; --you-asked-only refreshes only "You asked" for the new turn).
+          const tabId = rest[1]
+          if (!tabId) die('Usage: duo session digest <tab> [--you-asked-only]')
+          const payload: Record<string, unknown> = { op: 'digest', tabId }
+          if (rest.includes('--you-asked-only')) payload.youAskedOnly = true
+          out(await send('session', payload))
+        } else if (sub === 'note' || sub === 'next') {
+          // ENH-231 — agent self-narration. No text ⇒ READ; text ⇒ WRITE
+          // (stamped by session uuid; survives the tab closing).
+          const tabId = rest[1]
+          if (!tabId) die(`Usage: duo session ${sub} <tab> ["<text>"]   (omit text to read)`)
+          const raw = rest[2]
+          const text = raw && !raw.startsWith('--') ? raw : undefined
+          const payload: Record<string, unknown> = { op: sub, tabId }
+          if (text !== undefined) payload.text = text
+          out(await send('session', payload))
         } else {
-          die(`Unknown session sub-op: ${sub}. Expected list|resume|open.`)
+          die(`Unknown session sub-op: ${sub}. Expected list|resume|open|digest|note|next.`)
         }
         break
       }
@@ -2585,8 +2603,22 @@ async function main(): Promise<void> {
         } else if (sub === 'state') {
           // Output is already JSON; --json is accepted for symmetry (no-op).
           out(await send('home', { op: 'state' }))
+        } else if (sub === 'mode') {
+          // ENH-231 — read (no value) or set the app-global Home mode. A set
+          // fans HOME_MODE_PUSH out to every window (main-side).
+          const value = rest[1]
+          if (value && value !== 'projects' && value !== 'catchup') {
+            die('Usage: duo home mode [projects|catchup]')
+          }
+          const payload: Record<string, unknown> = { op: 'mode' }
+          if (value) payload.value = value
+          out(await send('home', payload))
+        } else if (sub === 'catchup') {
+          // ENH-231 — the Async Catch-Up Command Board. Output is JSON; --json
+          // accepted for symmetry.
+          out(await send('home', { op: 'catchup' }))
         } else {
-          die(`Unknown home sub-op: ${sub}. Expected show|state|refresh.`)
+          die(`Unknown home sub-op: ${sub}. Expected show|state|refresh|mode|catchup.`)
         }
         break
       }

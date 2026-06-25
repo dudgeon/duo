@@ -317,3 +317,127 @@ describe('assignCronJobs (D6 — nest under surfaced project cards)', () => {
     expect(byRoot.get('/Users/x/web')?.map((j) => j.id)).toEqual(['c'])
   })
 })
+
+// ── ENH-231 — catch-up presentation helpers ────────────────────────────────
+import {
+  repoLabel,
+  attentionChip,
+  digestPrimaryAction,
+  digestSecondaryAction,
+  digestNextLine,
+  digestNeedsLine,
+  compactDotClass,
+  worktreeInfo,
+  toPlainPreview,
+} from './homeModel'
+import type { CatchupCard } from '@shared/types'
+
+function card(over: Partial<CatchupCard> = {}): CatchupCard {
+  return {
+    uuid: 'u1',
+    cwd: '/Users/x/web-app',
+    goal: 'g',
+    youAsked: 'ya',
+    todos: [],
+    files: [],
+    artifacts: {},
+    attention: null,
+    state: 'done',
+    gitBranch: null,
+    lastActivityAt: 1000,
+    tier: 'compact',
+    ...over,
+  }
+}
+
+describe('repoLabel', () => {
+  it('is the cwd basename', () => {
+    expect(repoLabel('/Users/x/web-app')).toBe('web-app')
+    expect(repoLabel('/Users/x/web-app/')).toBe('web-app')
+    expect(repoLabel('')).toBe('—')
+  })
+})
+
+describe('attentionChip', () => {
+  it('maps each reason to a label + a both-theme-legible banner class', () => {
+    expect(attentionChip('plan-to-approve')).toEqual({ label: '📋 plan to approve', bannerClass: 'duo-banner-warn' })
+    expect(attentionChip('question')).toEqual({ label: '💬 question', bannerClass: 'duo-banner-info' })
+    expect(attentionChip('blocked')).toEqual({ label: '⛔ blocked', bannerClass: 'duo-banner-error' })
+  })
+})
+
+describe('digestPrimaryAction / digestSecondaryAction (D7)', () => {
+  it('a Done md/html product leads with the artifact; session is secondary', () => {
+    const c = card({ state: 'done', artifacts: { createdFiles: ['/Users/x/web-app/q3.md'] } })
+    expect(digestPrimaryAction(c)).toEqual({ kind: 'artifact', label: 'Open q3.md →', path: '/Users/x/web-app/q3.md' })
+    expect(digestSecondaryAction(c)).toEqual({ kind: 'session', label: 'Open session' })
+  })
+
+  it('a PR-bearing card leads with the session; PR is the secondary link', () => {
+    const c = card({ state: 'done', artifacts: { pr: { number: 214, url: 'https://github.com/o/r/pull/214' } } })
+    expect(digestPrimaryAction(c).kind).toBe('session')
+    expect(digestSecondaryAction(c)).toEqual({ kind: 'pr', label: 'Review PR #214', value: 'https://github.com/o/r/pull/214' })
+  })
+
+  it('a needs-you card always leads with re-entry, even with a created doc (not done)', () => {
+    const c = card({ state: 'needs-you', attention: { reason: 'question' }, artifacts: { createdFiles: ['/x/a.md'] } })
+    expect(digestPrimaryAction(c).kind).toBe('session') // not 'done' → no artifact-lead
+  })
+
+  it('secondary precedence is PR > doc > diff', () => {
+    expect(digestSecondaryAction(card({ artifacts: {}, gitBranch: 'feat/x' }))).toEqual({ kind: 'diff', label: 'View diff' })
+    expect(digestSecondaryAction(card({ artifacts: {} }))).toBeNull()
+  })
+})
+
+describe('digestNextLine / digestNeedsLine', () => {
+  it('next prefers the agent recommendation, else the first unfinished todo', () => {
+    expect(digestNextLine(card({ narrative: { next: 'do X' } }))).toBe('do X')
+    expect(digestNextLine(card({ todos: [{ text: 'a', status: 'completed' }, { text: 'b', status: 'pending' }] }))).toBe('b')
+    expect(digestNextLine(card())).toBeNull()
+  })
+  it('needs line prefers the agent note, else the last assistant block, else youAsked', () => {
+    expect(digestNeedsLine(card({ narrative: { note: 'paused on the schema' } }))).toBe('paused on the schema')
+    expect(digestNeedsLine(card({ fallbackSnippet: 'Should I use X or Y?' }))).toBe('Should I use X or Y?')
+    expect(digestNeedsLine(card({ youAsked: 'the ask' }))).toBe('the ask')
+  })
+})
+
+describe('worktreeInfo', () => {
+  it('splits a Duo worktree cwd into repo + slug; a plain cwd has no worktree', () => {
+    expect(worktreeInfo('/Users/x/duo/.claude/worktrees/vigorous-7d2fb6')).toEqual({ repo: 'duo', worktree: 'vigorous-7d2fb6' })
+    expect(worktreeInfo('/Users/x/duo')).toEqual({ repo: 'duo' })
+    expect(worktreeInfo('/Users/x/duo/')).toEqual({ repo: 'duo' })
+  })
+})
+
+describe('compactDotClass', () => {
+  it('attention → attn, open → live, else closed (compact rows are closed/resumable)', () => {
+    expect(compactDotClass(card({ attention: { reason: 'blocked' } }))).toBe('duo-cu-dot-attn')
+    expect(compactDotClass(card({ open: { kind: 'duo', windowId: 1, tabId: 't' } }))).toBe('duo-cu-dot-live')
+    expect(compactDotClass(card())).toBe('duo-cu-dot-closed')
+  })
+})
+
+describe('toPlainPreview — markdown-stripped, length-bounded card preview', () => {
+  it('drops fenced code blocks (the bash noise) and unwraps inline markdown', () => {
+    const raw =
+      'The command runs from the **main repo root**. From the repo (`/Users/x/duo`): ```bash\ngit worktree remove --force .claude/worktrees/x\n``` Done.'
+    const out = toPlainPreview(raw, 200)
+    expect(out).not.toContain('```')
+    expect(out).not.toContain('**')
+    expect(out).toContain('main repo root')
+    expect(out).toContain('/Users/x/duo')
+    expect(out).not.toContain('git worktree remove') // fenced block dropped
+  })
+
+  it('collapses whitespace and truncates with an ellipsis', () => {
+    const out = toPlainPreview('a'.repeat(300), 180)
+    expect(out.length).toBe(181) // 180 + the ellipsis char
+    expect(out.endsWith('…')).toBe(true)
+  })
+
+  it('unwraps links to their text and strips headings/bullets', () => {
+    expect(toPlainPreview('# Title\n- see [the PR](https://x/pull/1) now')).toBe('Title see the PR now')
+  })
+})

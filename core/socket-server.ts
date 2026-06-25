@@ -320,6 +320,29 @@ export interface NavBridge {
    *  always-fresh, no-cache pull pattern as `duo status` / `duo layout`.
    *  Returns null when Home hasn't fetched a snapshot yet. */
   getHomeState: () => Promise<unknown>
+  /** ENH-231 — `duo home catchup [--json]`. Build the Async Catch-Up Command
+   *  Board (the same coalesced snapshot the renderer's HOME_CATCHUP serves).
+   *  Pure read of the pre-hydrated digest cache + Duo-owned annotations. */
+  getCatchupBoard: () => Promise<import('../shared/types').CatchupSnapshot>
+  /** ENH-231 — `duo home mode` (read). The app-global Home mode. */
+  getHomeMode: () => import('../shared/types').HomeMode
+  /** ENH-231 — `duo home mode <projects|catchup>` (write). Persists app-global
+   *  and fans HOME_MODE_PUSH out to every window. */
+  setHomeMode: (mode: import('../shared/types').HomeMode) => Promise<{ ok: boolean; error?: string }>
+  /** ENH-231 — `duo session digest <tab> [--you-asked-only]`. Materialize the
+   *  tab's session digest into the rebuildable cache (the Stop-hook ping). */
+  sessionDigest: (tabId: string, youAskedOnly?: boolean) => Promise<{ ok: boolean; uuid?: string; error?: string }>
+  /** ENH-231 — `duo session note <tab>` (read). The agent's last self-narrated
+   *  status line for the tab's session, or null. */
+  getSessionNote: (tabId: string) => Promise<string | null>
+  /** ENH-231 — `duo session next <tab>` (read). The agent's last self-narrated
+   *  next-step recommendation, or null. */
+  getSessionNext: (tabId: string) => Promise<string | null>
+  /** ENH-231 — `duo session note <tab> "<text>"` (write). Stamps home-state.json
+   *  by uuid (survives the tab closing). */
+  setSessionNote: (tabId: string, text: string) => Promise<{ ok: boolean; uuid?: string; error?: string }>
+  /** ENH-231 — `duo session next <tab> "<text>"` (write). */
+  setSessionNext: (tabId: string, text: string) => Promise<{ ok: boolean; uuid?: string; error?: string }>
   /** ENH-212 — `duo term tabs`. Enumerate the addressed window's terminal
    *  tabs ([{id, kind, cwd, title, active}]) so `duo term tab <id>` can
    *  target one by its stable id (NOT a bare index). Reads the renderer's
@@ -2212,9 +2235,28 @@ export class SocketServer {
             const r = await this.nav.sessionOpen(uuid, cwd, force)
             if (!r.ok) throw new Error(r.error ?? 'open failed')
             result = { ok: true, action: r.action }
+          } else if (op === 'digest') {
+            // ENH-231 — materialize the tab's digest into the rebuildable cache.
+            const tabId = args['tabId'] as string | undefined
+            if (!tabId) throw new Error('duo session digest requires <tab>')
+            const youAskedOnly = args['youAskedOnly'] === true || args['youAskedOnly'] === 'true'
+            result = await this.nav.sessionDigest(tabId, youAskedOnly)
+          } else if (op === 'note' || op === 'next') {
+            // ENH-231 — agent self-narration. No `text` ⇒ READ; with `text` ⇒ WRITE.
+            const tabId = args['tabId'] as string | undefined
+            if (!tabId) throw new Error(`duo session ${op} requires <tab>`)
+            const text = args['text'] as string | undefined
+            if (text === undefined) {
+              const value = op === 'note' ? await this.nav.getSessionNote(tabId) : await this.nav.getSessionNext(tabId)
+              result = { ok: true, [op]: value }
+            } else {
+              const r = op === 'note' ? await this.nav.setSessionNote(tabId, text) : await this.nav.setSessionNext(tabId, text)
+              if (!r.ok) throw new Error(r.error ?? `session ${op} failed`)
+              result = { ok: true, uuid: r.uuid }
+            }
           } else {
             // ENH-183 pared 2026-05-25 (Option A): rename + hydrate ops removed.
-            throw new Error(`Unknown session op: ${op}. Expected list|resume|open.`)
+            throw new Error(`Unknown session op: ${op}. Expected list|resume|open|digest|note|next.`)
           }
           break
         }
@@ -2233,8 +2275,23 @@ export class SocketServer {
             result = { ok: true }
           } else if (op === 'state') {
             result = await this.nav.getHomeState()
+          } else if (op === 'mode') {
+            // ENH-231 — read (no value) or set the app-global Home mode.
+            const value = args['value'] as string | undefined
+            if (value === undefined) {
+              result = { mode: this.nav.getHomeMode() }
+            } else if (value !== 'projects' && value !== 'catchup') {
+              throw new Error(`duo home mode: expected projects|catchup, got ${value}`)
+            } else {
+              const r = await this.nav.setHomeMode(value)
+              if (!r.ok) throw new Error(r.error ?? 'home mode failed')
+              result = { ok: true, mode: value }
+            }
+          } else if (op === 'catchup') {
+            // ENH-231 — the Async Catch-Up Command Board.
+            result = await this.nav.getCatchupBoard()
           } else {
-            throw new Error(`Unknown home op: ${op}. Expected show|state|refresh.`)
+            throw new Error(`Unknown home op: ${op}. Expected show|state|refresh|mode|catchup.`)
           }
           break
         }

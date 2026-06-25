@@ -1,4 +1,28 @@
-# Active sprint state — v0.11.2 batch MERGED to main (ENH-221/222/223/225 + #101), cut GATED on PR #102 (open+clone flow)
+# Active sprint state — ENH-231 Async Catch-Up built on PR #108 (awaiting smoke-walk → cut)
+
+## ENH-231 — Async Catch-Up Home (🚧 built P0–P7, PR #108, 2026-06-23)
+
+> **A sibling Home mode** (Projects ↔ Catch-up). Catch-up = the **Command Board**:
+> three attention columns (Needs you · Working · Done), full cards for live /
+> needs-you sessions + a compact last-7-days tier. Each card is a **pre-hydrated
+> digest** (goal · "You asked" · todos · files · artifacts · attention) — zero
+> inference at open. Agent self-narration via `duo session note|next`; CLI parity
+> via `duo home mode|catchup`. Cron runs badged `scheduled`.
+>
+> **Built P0–P7 on `claude/async-catchup-home-view-657v0x`:** P0 types/channels +
+> P1 deterministic extractor + the two §D9 stores · P2 Stop-hook digest trigger ·
+> P3 assembly + `sessionIdForTab` + IPC/NavBridge + `HOME_MODE_PUSH` fan-out · P5
+> CLI sub-ops + 4-surface sync + currency edit · P4 the renderer board · P6 cron
+> badge. Typecheck clean; **2008 tests green** incl. the §D9 rebuild gate, the
+> BUG-046 fetch gate, and the theme grep. JSONL shapes confirmed live.
+>
+> **Owed before cut:** the **live smoke-walk** (running app — real digests, both
+> themes, toggle fan-out, the Stop hook firing; needs `install-service.run()` so
+> the updated `duo-attention.sh` reaches `~/.claude/duo/hooks/`). Then `cut-version`.
+> Flip `tasks.md` ENH-231 → ✅ on merge.
+>
+> **Carry-forward note:** this branch forked at v0.12.1; reconcile with `main`'s
+> v0.12.2 bump at cut time.
 
 ## Current state (2026-06-21)
 

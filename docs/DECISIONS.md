@@ -860,6 +860,24 @@ Cross-references: `core/file-history-service.ts` (+ `.test.ts`), `electron/files
 
 Cross-references: ENH-223 PRD (`docs/prd/enh-223-scheduled-sessions.md`, §3 D1–D10 + §9/§10 build + §11(d) DST), the no-sidecar invariant (CLAUDE.md locked-decision #12 / §D9, ENH-183), the multi-window identity ADR (run-landing resolves a window by identity, never focus), `core/cron-{schedule,command,store,service}.ts`, `shared/feature-flags.ts` (`FEATURE_HEADLESS_CRON`), `cli/duo.ts` (`case 'cron'` + `duo attention`).
 
+### Async Catch-Up — TWO Duo-owned stores, only one rebuildable (ENH-231)
+
+**Status:** 🟢 Locked 2026-06-23 (ENH-231; built P0–P7 on PR #108, awaiting smoke-walk → cut). The headline decision that an adversarial implementation-planning review forced.
+
+**Context.** Catch-Up Home renders a per-session **digest** (goal · "You asked" · todos · files · artifacts · attention) materialized at the managed Stop hook, so Home does **zero inference and zero heavy transcript parse at open** (the owner's hard constraint: Duo has no general-purpose inference API). A digest cache sits on the §D9 line — is it a forbidden sidecar?
+
+**Decision — split into two files, only one of which claims to be the rebuildable cache:**
+
+1. **`~/.claude/duo/session-digests.json` — the rebuildable cache (§D9-gated).** Holds ONLY transcript-derived fields (goal, youAsked, todos, files, artifacts, attention, state, gitBranch, fallbackSnippet, lastActivityAt). **Acceptable because** it is a *materialized index*, not an authority: every field re-derives deterministically from the session JSONL via `extractSessionDigest` (no `Date.now()`, no network — asserted by test), it is refreshed only on real evidence (the Stop hook fired = the session advanced), and assembly prefers the transcript on any mtime mismatch (`readOrExtractDigest`). **The invariant, gated by a test:** delete the file → `readOrExtractDigest` rebuilds every entry **byte-identical**.
+
+2. **`~/.claude/duo/home-state.json` — Duo-owned, NOT rebuildable (§D9-exempt).** Holds per-uuid `{note?, next?, reviewedAt?}` annotations + the "since you were away" watermark. The review's central finding: the agent's self-narrated `note`/`next` (via `duo session note|next`) is **not derivable from the transcript**, so storing it in the "rebuildable cache" would make the §D9 invariant a lie. These are Duo concepts Claude Code never tracks (the no-sidecar litmus permits Duo-owned state), captured at Stop-hook time **keyed by uuid** so the narrative survives after the session's terminal tab closes (the Done-review case). The rendered card is `digest ⊕ annotation`, merged at assembly; the §D9 byte-identical test applies **only** to `session-digests.json`.
+
+**Rejected:** one file holding both transcript-derived + agent-supplied fields (the naive D4 design) — it conflates a rebuildable index with un-rebuildable Duo state and breaks the very invariant that justifies caching at all.
+
+**Two smaller locked calls from the same review:** (a) the tab→uuid resolver `sessionIdForTab` (launch cwd → projects dir → freshest jsonl) is the load-bearing primitive the Stop hook + `note/next` depend on, resolvable only while the tab is live (exactly when those fire); closed sessions are reached by uuid at assembly. (b) `home mode` is **app-global** (settings.json) and a set **fans `HOME_MODE_PUSH` out to every window** via `WindowRegistry.all()` — an app-global pref only the calling window hears is pointless.
+
+Cross-references: ENH-231 PRD (`docs/prd/enh-231-async-catchup-home.md` D8) + implementation plan (`docs/prd/enh-231-implementation-plan.md` §3 + §11 review-fix table), the no-sidecar invariant (CLAUDE.md #12 / §D9), ENH-225 (the Stop hook this piggybacks), `electron/session-digest.ts`, `core/session-digest-store.ts`, `core/home-state-store.ts`, `electron/home-snapshot.ts` (`buildCatchupSnapshot`).
+
 ---
 
 ## Open ADRs (pending decision)

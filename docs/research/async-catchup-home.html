@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Async Catch-Up — an alternate Home view</title>
+<style>
+/* ── Atelier kernel (inlined verbatim per CLAUDE.md §11) ───────────────── */
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+  --project-pine:   #2E7D74;
+  --project-harbor: #3C6E93;
+  --project-iris:   #5B57A6;
+  --project-plum:   #87508F;
+  --project-rose:   #A4506A;
+  --project-moss:   #69763A;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+body { padding: 32px 40px 96px; max-width: 920px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 { font-family: "New York","Iowan Old Style",Georgia,serif; font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px; }
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 6px; }
+.intro { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 14px 18px; margin-bottom: 28px; font-size: 13.5px; color: var(--ink-soft); }
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 { font-family: "New York","Iowan Old Style",Georgia,serif; font-weight: 600; margin: 36px 0 12px; font-size: 19px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px; }
+h3 { font-family: -apple-system,"SF Pro Text",system-ui,sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+h4 { margin: 16px 0 6px; font-size: 13.5px; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code { font-family: ui-monospace,"SF Mono",Menlo,monospace; font-size: 12.5px; background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; }
+pre { font-family: ui-monospace,"SF Mono",Menlo,monospace; font-size: 11.5px; line-height: 1.5; background: var(--code-bg); color: var(--code-ink); padding: 14px 16px; border-radius: 6px; overflow-x: auto; }
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+.decision-card { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 16px 18px; margin: 18px 0; }
+.decision-card .q-title { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px; }
+.decision-card .q-prompt { font-family: "New York","Iowan Old Style",Georgia,serif; font-weight: 500; font-size: 17px; color: var(--ink); margin: 0 0 12px; line-height: 1.35; }
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option { display: block; background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 10px 12px; cursor: pointer; transition: border-color .12s, background .12s; }
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"], .q-option input[type="checkbox"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes { width: 100%; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px; }
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+details.deferred { margin: 22px 0; padding: 12px 16px; background: var(--paper-deep); border: 1px dashed var(--paper-rule); border-radius: 6px; }
+details.deferred summary { cursor: pointer; font-weight: 600; color: var(--ink-soft); font-size: 13.5px; }
+details.deferred[open] summary { color: var(--ink); }
+details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(--ink-soft); }
+.copy-bar { position: sticky; bottom: 0; margin: 32px -40px -96px; padding: 16px 40px; background: color-mix(in srgb, var(--paper-deep) 96%, transparent); border-top: 1.5px solid var(--paper-rule); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button { background: var(--accent); color: white; border: none; border-radius: 5px; padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background .12s; }
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* ── Per-playground styles ───────────────────────────────────────────── */
+
+/* Locked-decisions banner */
+.lockbar { background: color-mix(in srgb,var(--pass) 9%,var(--paper)); border: 1.5px solid color-mix(in srgb,var(--pass) 35%,var(--paper-rule)); border-radius: 6px; padding: 12px 16px; margin: 0 0 22px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.6; }
+.lockbar strong { color: var(--pass); }
+.lockbar .lk { display: block; margin-top: 3px; }
+.lockbar .lk b { color: var(--ink); font-weight: 600; }
+
+/* The prototype "app frame" — a dark-edged surface that reads as the
+   running app, distinct from the cream research paper around it. */
+.proto-frame {
+  background: var(--paper);
+  border: 1.5px solid var(--paper-rule);
+  border-radius: 10px;
+  overflow: hidden;
+  margin: 18px 0 28px;
+  box-shadow: 0 8px 28px -16px rgba(43,38,32,.45);
+}
+.proto-titlebar {
+  background: var(--paper-deep);
+  border-bottom: 1px solid var(--paper-rule);
+  padding: 7px 14px; font-size: 11.5px; color: var(--ink-mute);
+  display: flex; align-items: center; gap: 8px;
+}
+.proto-titlebar .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--paper-rule); }
+.proto-titlebar .dot:nth-child(1){ background:#e0a0a0; } .proto-titlebar .dot:nth-child(2){ background:#e8c98a; } .proto-titlebar .dot:nth-child(3){ background:#a7c990; }
+.proto-titlebar .grow { flex: 1; }
+.proto-body { padding: 20px 22px 24px; }
+
+/* Briefing header — the "standup digest" sentence */
+.briefing { margin-bottom: 16px; }
+.briefing .digest {
+  font-family: "New York","Iowan Old Style",Georgia,serif;
+  font-size: 19px; line-height: 1.4; color: var(--ink); font-weight: 500; margin: 0 0 4px;
+}
+.briefing .digest b { font-weight: 600; }
+.briefing .digest .needs { color: var(--accent); }
+.briefing .since { font-size: 12px; color: var(--ink-mute); }
+
+/* Triage filter chips */
+.triage { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 6px; }
+.chip {
+  border: 1.5px solid var(--paper-rule); background: var(--paper);
+  border-radius: 16px; padding: 4px 12px; font-size: 12px; cursor: pointer;
+  color: var(--ink-soft); display: inline-flex; align-items: center; gap: 6px;
+  transition: border-color .12s, background .12s;
+}
+.chip:hover { border-color: var(--ink-ghost); }
+.chip.active { border-color: var(--accent); background: color-mix(in srgb,var(--accent) 9%,var(--paper)); color: var(--ink); font-weight: 600; }
+.chip .n { font-size: 11px; color: var(--ink-mute); font-weight: 600; }
+.chip.active .n { color: var(--accent); }
+
+/* "Since you were away" watermark divider */
+.watermark { display: flex; align-items: center; gap: 10px; margin: 18px 0 10px; }
+.watermark::before, .watermark::after { content: ""; flex: 1; height: 1px; background: var(--paper-rule); }
+.watermark span { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-ghost); font-weight: 600; }
+
+/* Timeline */
+.timeline { position: relative; padding-left: 22px; }
+.timeline::before { content: ""; position: absolute; left: 6px; top: 6px; bottom: 6px; width: 2px; background: var(--paper-rule); }
+
+/* Session card */
+.scard {
+  position: relative; background: var(--paper); border: 1.5px solid var(--paper-rule);
+  border-radius: 8px; padding: 12px 14px; margin: 0 0 12px;
+  transition: border-color .12s, box-shadow .12s;
+}
+.scard:hover { border-color: var(--ink-ghost); box-shadow: 0 4px 14px -10px rgba(43,38,32,.5); }
+.scard::before { /* timeline node */
+  content: ""; position: absolute; left: -22px; top: 16px; width: 12px; height: 12px;
+  border-radius: 50%; background: var(--paper); border: 2px solid var(--ink-ghost);
+}
+.scard[data-state="needs"]::before { border-color: var(--accent); background: var(--accent); }
+.scard[data-state="working"]::before { border-color: var(--project-harbor); background: var(--project-harbor); animation: pulse 1.6s ease-in-out infinite; }
+.scard[data-state="blocked"]::before { border-color: var(--fail); background: var(--fail); }
+.scard[data-state="done"]::before { border-color: var(--pass); background: var(--pass); }
+@keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb,var(--project-harbor) 50%,transparent);} 50% { box-shadow: 0 0 0 5px transparent; } }
+
+.scard-top { display: flex; align-items: flex-start; gap: 10px; }
+.scard-badge {
+  flex: none; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  padding: 3px 8px; border-radius: 10px; margin-top: 1px; white-space: nowrap;
+}
+.badge-needs { background: var(--accent-soft); color: var(--accent); }
+.badge-working { background: color-mix(in srgb,var(--project-harbor) 16%,var(--paper)); color: var(--project-harbor); }
+.badge-blocked { background: color-mix(in srgb,var(--fail) 14%,var(--paper)); color: var(--fail); }
+.badge-done { background: color-mix(in srgb,var(--pass) 15%,var(--paper)); color: var(--pass); }
+.scard-headline { flex: 1; min-width: 0; }
+.scard-goal { font-weight: 600; font-size: 14px; color: var(--ink); margin: 0; line-height: 1.3; }
+.scard-sub { font-size: 11.5px; color: var(--ink-mute); margin: 3px 0 0; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.proj-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; vertical-align: -1px; }
+.scard-age { flex: none; font-size: 11px; color: var(--ink-ghost); margin-top: 2px; }
+
+.scard-body { margin: 9px 0 0; font-size: 12.5px; }
+.line { display: flex; gap: 8px; margin: 5px 0; }
+.line .lbl { flex: none; width: 78px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-ghost); font-weight: 600; padding-top: 1px; }
+.line .val { flex: 1; color: var(--ink-soft); min-width: 0; }
+.line .val .q { color: var(--accent); font-weight: 600; }
+.file-chip { display: inline-block; background: var(--paper-deep); border: 1px solid var(--paper-edge); border-radius: 4px; padding: 1px 7px; font-family: ui-monospace,Menlo,monospace; font-size: 11px; color: var(--ink-soft); margin: 0 4px 3px 0; }
+.file-chip .conflict { color: var(--fail); font-weight: 700; }
+
+/* Next-steps = the TodoWrite list */
+.todos { margin: 4px 0 0; padding: 0; list-style: none; }
+.todos li { display: flex; gap: 7px; font-size: 12px; color: var(--ink-soft); margin: 2px 0; align-items: baseline; }
+.todos .box { flex: none; font-size: 11px; width: 13px; text-align: center; }
+.todos .done { color: var(--pass); } .todos .done .txt { color: var(--ink-mute); text-decoration: line-through; }
+.todos .doing { color: var(--project-harbor); font-weight: 600; }
+.todos .pend { color: var(--ink-ghost); }
+
+.scard-actions { display: flex; gap: 8px; margin-top: 11px; flex-wrap: wrap; }
+.act { font-size: 12px; border: 1.5px solid var(--paper-rule); background: var(--paper); border-radius: 5px; padding: 5px 11px; cursor: pointer; color: var(--ink-soft); font-weight: 500; }
+.act:hover { border-color: var(--ink-ghost); }
+.act.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.act.primary:hover { background: color-mix(in srgb,black 8%,var(--accent)); }
+
+.scard[hidden] { display: none; }
+
+/* Provenance table */
+.prov { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 12.5px; }
+.prov th, .prov td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--paper-rule); vertical-align: top; }
+.prov th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-mute); font-weight: 700; }
+.prov tr:hover td { background: color-mix(in srgb,var(--accent) 4%,transparent); }
+.prov .field { font-weight: 600; color: var(--ink); white-space: nowrap; }
+.tag { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; padding: 1px 7px; border-radius: 9px; white-space: nowrap; }
+.tag-free { background: color-mix(in srgb,var(--pass) 16%,var(--paper)); color: var(--pass); }
+.tag-cli { background: color-mix(in srgb,var(--project-harbor) 16%,var(--paper)); color: var(--project-harbor); }
+.tag-infer { background: var(--accent-soft); color: var(--accent); }
+.tag-derive { background: color-mix(in srgb,var(--project-iris) 16%,var(--paper)); color: var(--project-iris); }
+
+/* Feature catalog cards */
+.feat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0; }
+@media (max-width: 680px){ .feat-grid { grid-template-columns: 1fr; } .line .lbl { width: 64px; } }
+.feat { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 12px 14px; }
+.feat h4 { margin: 0 0 5px; font-size: 13.5px; color: var(--ink); display: flex; align-items: center; gap: 7px; }
+.feat h4 .ix { font-size: 11px; color: var(--accent); font-weight: 700; font-family: ui-monospace,Menlo,monospace; }
+.feat p { margin: 0; font-size: 12px; color: var(--ink-soft); }
+.feat .needs { margin-top: 6px; font-size: 11px; color: var(--ink-mute); }
+.feat .needs b { color: var(--ink-soft); }
+
+/* Pipeline diagram */
+.pipe { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0; margin: 14px 0; }
+.pipe-step { flex: 1; min-width: 130px; background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 11px 12px; position: relative; }
+.pipe-step + .pipe-step { margin-left: 22px; }
+.pipe-step + .pipe-step::before { content: "→"; position: absolute; left: -19px; top: 50%; transform: translateY(-50%); color: var(--accent); font-size: 16px; font-weight: 700; }
+.pipe-step .when { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--accent); font-weight: 700; margin-bottom: 4px; }
+.pipe-step h4 { margin: 0 0 4px; font-size: 13px; }
+.pipe-step p { margin: 0; font-size: 11.5px; color: var(--ink-soft); }
+.callout { border-left: 3px solid var(--accent); background: color-mix(in srgb,var(--accent) 6%,var(--paper)); padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 16px 0; }
+.callout strong { color: var(--ink); }
+.lede { font-family:"New York",Georgia,serif; font-style: italic; font-size: 15px; color: var(--ink-soft); }
+.key { font-size: 11px; color: var(--ink-mute); margin: 8px 0 0; }
+.key .tag { margin-right: 4px; }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Async Catch-Up — an alternate Home view</h1>
+  <div class="meta">
+    <span class="pill">Prototype</span>
+    <span class="pill">ENH (proposed)</span>
+    Re-entry surface re-imagined around <em>catching up on delegated work</em>, not project segregation ·
+    2026-06-23
+  </div>
+</header>
+
+<div class="intro">
+  <strong>The persona &amp; the job.</strong> You spin up eight jobs, walk away, and forget what they
+  were. You come back and want to <em>review the work</em> — with a reminder, per session, of
+  <strong>what the goal was</strong>, <strong>the most recent instruction</strong>, <strong>the file
+  it's touching</strong>, and <strong>what the next steps are</strong>. The surface that serves this is a
+  <strong>timeline of commingled sessions</strong>, not an aggregation of projects. This document is in
+  two passes, exactly as briefed: <strong>(1)</strong> features ideal for the task, ignoring data
+  constraints; <strong>(2)</strong> what Duo must pre-hydrate <em>while sessions are live</em> to make
+  them real — because <strong>Duo has no general inference API and cannot summarize at the moment Home
+  opens.</strong>
+</div>
+
+<div class="lockbar">
+  <strong>Decisions locked — 2026-06-23.</strong>
+  <span class="lk"><b>Direction:</b> build as a sibling Home mode (toggle Projects ↔ Catch-up).</span>
+  <span class="lk"><b>v1 fields:</b> goal + your-last-instruction · next-steps (todos) · files · artifact chips.</span>
+  <span class="lk"><b>Narrative:</b> agent self-narration (<code>duo session note/next</code>) + snippet fallback.</span>
+  <span class="lk"><b>Hydration:</b> materialize the digest on the Stop hook.</span>
+  <span class="lk">Tracked as <b>ENH-231</b> → PRD <code>docs/prd/enh-231-async-catchup-home.md</code>.</span>
+</div>
+
+<!-- ════════════════════════ THE PROTOTYPE ════════════════════════ -->
+<h2>The prototype — a commingled catch-up timeline</h2>
+<p>Interactive mock with eight sessions across four repos, interleaved by last activity. Click the
+triage chips to filter; the cards are the briefing anatomy from pass&nbsp;1. This is the <em>shape</em>
+under discussion, not final visual design.</p>
+
+<div class="proto-frame">
+  <div class="proto-titlebar">
+    <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    <span class="grow"></span>
+    <span>Duo — Home · Catch-up</span>
+    <span class="grow"></span>
+  </div>
+  <div class="proto-body">
+
+    <div class="briefing">
+      <p class="digest">Welcome back, Geoff — <b>8 sessions</b> from your 7:40am batch:
+        <b style="color:var(--pass)">5 done</b>,
+        <b class="needs">2 need you</b>,
+        <b style="color:var(--project-harbor)">1 still running</b>.
+        2 opened PRs.</p>
+      <p class="since">Last here 1h 12m ago · 6 sessions advanced since</p>
+    </div>
+
+    <div class="triage" id="triage">
+      <span class="chip active" data-filter="all">All <span class="n">8</span></span>
+      <span class="chip" data-filter="needs">⏸ Needs you <span class="n">2</span></span>
+      <span class="chip" data-filter="done">✓ Done — review <span class="n">4</span></span>
+      <span class="chip" data-filter="working">● Working <span class="n">1</span></span>
+      <span class="chip" data-filter="blocked">✕ Blocked <span class="n">1</span></span>
+    </div>
+
+    <div class="watermark"><span>Since you were away</span></div>
+
+    <div class="timeline" id="timeline">
+
+      <!-- 1 — NEEDS YOU (question) -->
+      <div class="scard" data-state="needs" data-cat="needs">
+        <div class="scard-top">
+          <span class="scard-badge badge-needs">⏸ Asked you</span>
+          <div class="scard-headline">
+            <p class="scard-goal">Migrate analytics events to the v2 schema</p>
+            <p class="scard-sub"><span class="proj-dot" style="background:var(--project-harbor)"></span>web-app · <code>claude/analytics-v2</code></p>
+          </div>
+          <span class="scard-age">14m ago</span>
+        </div>
+        <div class="scard-body">
+          <div class="line"><span class="lbl">You asked</span><span class="val">“Migrate the events, but keep v1 emitting in parallel.”</span></div>
+          <div class="line"><span class="lbl">Waiting</span><span class="val"><span class="q">Q: Should deprecated <code>page_view</code> events map to <code>screen.viewed</code> or be dropped? I paused before touching 40 call-sites.</span></span></div>
+          <div class="line"><span class="lbl">Files</span><span class="val"><span class="file-chip">events/schema.ts</span><span class="file-chip">events/emit.ts</span><span class="file-chip">+3</span></span></div>
+        </div>
+        <div class="scard-actions">
+          <button class="act primary">Open session →</button>
+          <button class="act">View diff</button>
+        </div>
+      </div>
+
+      <!-- 2 — WORKING (live) -->
+      <div class="scard" data-state="working" data-cat="working">
+        <div class="scard-top">
+          <span class="scard-badge badge-working">● Working</span>
+          <div class="scard-headline">
+            <p class="scard-goal">Fix the flaky checkout E2E test</p>
+            <p class="scard-sub"><span class="proj-dot" style="background:var(--project-harbor)"></span>web-app · <code>claude/flaky-checkout</code></p>
+          </div>
+          <span class="scard-age">2m ago</span>
+        </div>
+        <div class="scard-body">
+          <div class="line"><span class="lbl">You asked</span><span class="val">“Find the race and make it deterministic — no arbitrary sleeps.”</span></div>
+          <div class="line"><span class="lbl">Doing now</span><span class="val">Running the suite 50× to confirm the fix holds…</span></div>
+          <div class="line"><span class="lbl">Next</span>
+            <ul class="todos val">
+              <li class="done"><span class="box">✓</span><span class="txt">Reproduce the flake locally</span></li>
+              <li class="done"><span class="box">✓</span><span class="txt">Replace sleep with explicit wait-for-network-idle</span></li>
+              <li class="doing"><span class="box">▸</span><span class="txt">Confirm stability over 50 runs</span></li>
+              <li class="pend"><span class="box">○</span><span class="txt">Open PR</span></li>
+            </ul>
+          </div>
+        </div>
+        <div class="scard-actions">
+          <button class="act primary">Open session →</button>
+          <button class="act">Watch live</button>
+        </div>
+      </div>
+
+      <!-- 3 — DONE (PR opened) -->
+      <div class="scard" data-state="done" data-cat="done">
+        <div class="scard-top">
+          <span class="scard-badge badge-done">✓ Done</span>
+          <div class="scard-headline">
+            <p class="scard-goal">Add OAuth refresh-token rotation</p>
+            <p class="scard-sub"><span class="proj-dot" style="background:var(--project-iris)"></span>auth-service · <code>claude/oauth-rotation</code></p>
+          </div>
+          <span class="scard-age">6m ago</span>
+        </div>
+        <div class="scard-body">
+          <div class="line"><span class="lbl">You asked</span><span class="val">“Rotate on every refresh and revoke the old token.”</span></div>
+          <div class="line"><span class="lbl">Result</span><span class="val">Implemented rotation + revocation, added 7 tests (all green), opened <b>PR&nbsp;#214</b>.</span></div>
+          <div class="line"><span class="lbl">Files</span><span class="val"><span class="file-chip">tokens/rotate.ts</span><span class="file-chip">tokens/revoke.ts</span><span class="file-chip">tokens/rotate.test.ts</span></span></div>
+          <div class="line"><span class="lbl">Next</span><span class="val">Review PR&nbsp;#214 · CI passed</span></div>
+        </div>
+        <div class="scard-actions">
+          <button class="act primary">Review PR #214</button>
+          <button class="act">View diff</button>
+          <button class="act">Mark reviewed</button>
+        </div>
+      </div>
+
+      <!-- 4 — WORKING/quiet -->
+      <div class="scard" data-state="working" data-cat="working">
+        <div class="scard-top">
+          <span class="scard-badge badge-working">● Working</span>
+          <div class="scard-headline">
+            <p class="scard-goal">Investigate the worker-pool memory leak</p>
+            <p class="scard-sub"><span class="proj-dot" style="background:var(--project-moss)"></span>worker · <code>main</code></p>
+          </div>
+          <span class="scard-age">8m ago</span>
+        </div>
+        <div class="scard-body">
+          <div class="line"><span class="lbl">You asked</span><span class="val">“Heap grows ~20MB/hr in prod — find what's retained.”</span></div>
+          <div class="line"><span class="lbl">Doing now</span><span class="val">Diffing two heap snapshots; suspects an unbounded listener map.</span></div>
+          <div class="line"><span class="lbl">Files</span><span class="val"><span class="file-chip">pool/scheduler.ts</span><span class="file-chip">pool/events.ts</span></span></div>
+        </div>
+        <div class="scard-actions"><button class="act primary">Open session →</button></div>
+      </div>
+
+      <!-- 5 — BLOCKED -->
+      <div class="scard" data-state="blocked" data-cat="blocked">
+        <div class="scard-top">
+          <span class="scard-badge badge-blocked">✕ Blocked</span>
+          <div class="scard-headline">
+            <p class="scard-goal">Upgrade the app to React 19</p>
+            <p class="scard-sub"><span class="proj-dot" style="background:var(--project-harbor)"></span>web-app · <code>claude/react-19</code></p>
+          </div>
+          <span class="scard-age">52m ago</span>
+        </div>
+        <div class="scard-body">
+          <div class="line"><span class="lbl">You asked</span><span class="val">“Bump React and fix whatever breaks.”</span></div>
+          <div class="line"><span class="lbl">Stopped on</span><span class="val"><span class="q">Build fails: <code>react-beautiful-dnd</code> is incompatible and unmaintained. Needs a decision — swap library or pin React 18.</span></span></div>
+          <div class="line"><span class="lbl">Files</span><span class="val"><span class="file-chip">package.json</span><span class="file-chip"><span class="conflict">⚠</span> Board.tsx</span></span></div>
+        </div>
+        <div class="scard-actions">
+          <button class="act primary">Open session →</button>
+          <button class="act">View diff</button>
+        </div>
+      </div>
+
+      <div class="watermark"><span>Earlier — already settled</span></div>
+
+      <!-- 6 — DONE (report) -->
+      <div class="scard" data-state="done" data-cat="done">
+        <div class="scard-top">
+          <span class="scard-badge badge-done">✓ Done</span>
+          <div class="scard-headline">
+            <p class="scard-goal">Draft the Q3 reliability report</p>
+            <p class="scard-sub"><span class="proj-dot" style="background:var(--project-rose)"></span>docs · <code>main</code></p>
+          </div>
+          <span class="scard-age">40m ago</span>
+        </div>
+        <div class="scard-body">
+          <div class="line"><span class="lbl">Result</span><span class="val">Pulled incident data, wrote <code>q3-reliability.md</code> — 4 sections, 2 charts.</span></div>
+          <div class="line"><span class="lbl">Next</span><span class="val">Your read-through before it goes to the team.</span></div>
+        </div>
+        <div class="scard-actions">
+          <button class="act primary">Open report</button>
+          <button class="act">Mark reviewed</button>
+        </div>
+      </div>
+
+      <!-- 7 — DONE -->
+      <div class="scard" data-state="done" data-cat="done">
+        <div class="scard-top">
+          <span class="scard-badge badge-done">✓ Done</span>
+          <div class="scard-headline">
+            <p class="scard-goal">Add rate-limiting to the public API</p>
+            <p class="scard-sub"><span class="proj-dot" style="background:var(--project-pine)"></span>api-gateway · <code>claude/rate-limit</code></p>
+          </div>
+          <span class="scard-age">1h ago</span>
+        </div>
+        <div class="scard-body">
+          <div class="line"><span class="lbl">Result</span><span class="val">Token-bucket middleware, 100 req/min/key, opened <b>PR&nbsp;#88</b>.</span></div>
+          <div class="line"><span class="lbl">Next</span><span class="val">Review PR&nbsp;#88</span></div>
+        </div>
+        <div class="scard-actions">
+          <button class="act primary">Review PR #88</button>
+          <button class="act">Mark reviewed</button>
+        </div>
+      </div>
+
+      <!-- 8 — DONE -->
+      <div class="scard" data-state="done" data-cat="done">
+        <div class="scard-top">
+          <span class="scard-badge badge-done">✓ Done</span>
+          <div class="scard-headline">
+            <p class="scard-goal">Rename <code>vault</code> → <code>graphbook</code> in CLI help</p>
+            <p class="scard-sub"><span class="proj-dot" style="background:var(--project-plum)"></span>duo · <code>main</code></p>
+          </div>
+          <span class="scard-age">2h ago</span>
+        </div>
+        <div class="scard-body">
+          <div class="line"><span class="lbl">Result</span><span class="val">Updated 11 help strings; internal name unchanged. Committed to main.</span></div>
+        </div>
+        <div class="scard-actions"><button class="act">View diff</button><button class="act">Mark reviewed</button></div>
+      </div>
+
+    </div><!-- /timeline -->
+  </div>
+</div>
+
+<p class="key">
+  <span class="tag tag-free">node fill</span> deterministic, free from the transcript ·
+  <span class="tag tag-derive">derived</span> cheap heuristic ·
+  <span class="tag tag-cli">agent-stamped</span> written by the agent via CLI/hook ·
+  <span class="tag tag-infer">needs inference</span> only the agent can author — never at open-time.
+  The next two sections trace every field on these cards back to one of these.
+</p>
+
+<!-- ════════════════════════ PASS 1 ════════════════════════ -->
+<h2>Pass 1 — Features ideal for catching up (data-blind)</h2>
+<p>Taking the persona literally: you are a manager returning to a team of agents who each worked while
+you were out. The surface is your <em>standup</em>. These are the features that serve that job best,
+<strong>ignoring for now what data Duo can actually get</strong>.</p>
+
+<h3>A · The timeline spine</h3>
+<div class="feat-grid">
+  <div class="feat"><h4><span class="ix">A1</span> Commingled reverse-chron stream</h4><p>One interleaved stream of all sessions by last activity — project is a tag, not a section. The core inversion of today's Home.</p><p class="needs"><b>Needs:</b> per-session last-activity timestamp.</p></div>
+  <div class="feat"><h4><span class="ix">A2</span> "Since you were away" watermark</h4><p>A line marking your last visit; everything above advanced since. Turns catch-up into an unread-inbox sweep.</p><p class="needs"><b>Needs:</b> a persisted "last seen Home" mark + per-session advanced-since.</p></div>
+  <div class="feat"><h4><span class="ix">A3</span> Activity sparkline per session</h4><p>A tiny strip showing when each thread was busy — spot the one that went quiet an hour ago vs. the one that just finished.</p><p class="needs"><b>Needs:</b> turn timestamps over the session's life.</p></div>
+  <div class="feat"><h4><span class="ix">A4</span> Batch grouping</h4><p>"You spun up 8 jobs together" → an optional roll-up header with a done/blocked/running tally. The fan-out you launched is itself an object.</p><p class="needs"><b>Needs:</b> launch-time clustering of sessions.</p></div>
+</div>
+
+<h3>B · The session briefing card</h3>
+<div class="feat-grid">
+  <div class="feat"><h4><span class="ix">B1</span> Goal line</h4><p>The original ask, one line — "what was this session <em>for</em>?" The top-of-mind reminder the persona names first.</p><p class="needs"><b>Needs:</b> the session's first instruction.</p></div>
+  <div class="feat"><h4><span class="ix">B2</span> Your most-recent instruction</h4><p>"What did <em>I</em> last tell it?" — distinct from the goal; the latest steer, attributed to you (the card labels it <em>"You asked"</em> so it's never confused with the agent's own line).</p><p class="needs"><b>Needs:</b> the last human turn.</p></div>
+  <div class="feat"><h4><span class="ix">B3</span> File(s) in flight</h4><p>What the session is touching right now — the persona's literal ask. Chips, basename only.</p><p class="needs"><b>Needs:</b> the set of files edited this session.</p></div>
+  <div class="feat"><h4><span class="ix">B4</span> Next steps</h4><p>The agent's own plan for what's left — the single most valuable re-entry cue.</p><p class="needs"><b>Needs:</b> the agent's todo list / stated plan.</p></div>
+  <div class="feat"><h4><span class="ix">B5</span> "What happened" narrative</h4><p>One sentence of story: what it actually did since you left. The hardest field — pure summarization.</p><p class="needs"><b>Needs:</b> a written summary (inference).</p></div>
+  <div class="feat"><h4><span class="ix">B6</span> State badge</h4><p>needs-you / working / done / blocked — the triage primitive every other feature leans on.</p><p class="needs"><b>Needs:</b> liveness + end-of-transcript shape.</p></div>
+</div>
+
+<h3>C · Triage &amp; attention</h3>
+<div class="feat-grid">
+  <div class="feat"><h4><span class="ix">C1</span> State lanes / filter chips</h4><p>Filter to "Needs you", "Done — review", "Working". Catch-up <em>is</em> triage; the lanes make order obvious.</p><p class="needs"><b>Needs:</b> the B6 state.</p></div>
+  <div class="feat"><h4><span class="ix">C2</span> Question / blocker hoisting</h4><p>If a session ended on a question or an error, that line becomes the headline. The two "need you" cards float to the top.</p><p class="needs"><b>Needs:</b> detect the session ended awaiting input.</p></div>
+  <div class="feat"><h4><span class="ix">C3</span> Suggested reading order</h4><p>"Start with the 2 blockers, then 4 done PRs, leave the 2 running." A one-line plan for your own next ten minutes.</p><p class="needs"><b>Needs:</b> states + ages, ranked.</p></div>
+  <div class="feat"><h4><span class="ix">C4</span> Triage gestures</h4><p>Pin · snooze · mark-reviewed per card, so a second visit shows only what you haven't cleared.</p><p class="needs"><b>Needs:</b> Duo-owned per-session review state.</p></div>
+</div>
+
+<h3>D · Reviewing the work · E · Acting next</h3>
+<div class="feat-grid">
+  <div class="feat"><h4><span class="ix">D1</span> Diff-first review</h4><p>For done sessions, one click to the diff / changed files. The work product is the point of "review the work".</p><p class="needs"><b>Needs:</b> git branch + base to diff against.</p></div>
+  <div class="feat"><h4><span class="ix">D2</span> Artifact chips</h4><p>"Opened PR #214", "ran tests: green", "wrote report.md" — the outcomes, linked.</p><p class="needs"><b>Needs:</b> detect PR/test/file-creation events.</p></div>
+  <div class="feat"><h4><span class="ix">D3</span> Cross-session file conflicts</h4><p>Two agents editing the same file → flag it. A hazard unique to parallel async work.</p><p class="needs"><b>Needs:</b> edited-file sets across sessions.</p></div>
+  <div class="feat"><h4><span class="ix">E1</span> One-click next action</h4><p>Each card offers the obvious move: Answer &amp; continue · Review PR · Decide &amp; unblock · Focus. Catch-up → act, no detour.</p><p class="needs"><b>Needs:</b> state → action mapping (mostly free).</p></div>
+</div>
+
+<!-- ════════════════════════ PASS 2 ════════════════════════ -->
+<h2>Pass 2 — Pre-hydrating the data Duo can't infer at open</h2>
+
+<div class="callout">
+  <p style="margin-top:0"><strong>The constraint, restated.</strong> Duo has no general-purpose inference
+  API. It <strong>cannot</strong> summarize a transcript, write a "what happened" sentence, or cluster
+  sessions by theme <em>at the moment Home opens</em>. Whatever the catch-up view shows must already
+  exist as structured data by the time you look at it.</p>
+  <p style="margin-bottom:0" class="lede">But the inference Home needs already happened — it happened
+  inside each agent while it worked. Duo's job is not to <em>generate</em> understanding at open-time;
+  it's to <em>capture the agent's structured exhaust</em> at rest-points and replay it.</p>
+</div>
+
+<h3>The pleasant surprise: most fields are free</h3>
+<p>Duo already does <strong>deterministic, seek-based JSONL extraction</strong> today
+(<code>electron/claude-session-tracker.ts</code>) — it reads the head of each session transcript for the
+first user message (the title) and the tail for the last assistant message (the snippet), plus git
+branch and timestamps, with <em>zero</em> inference. The catch-up view extends that proven machinery by
+a few fields. Tracing every card field to its source:</p>
+
+<table class="prov">
+  <thead><tr><th>Card field</th><th>Source in the transcript</th><th>Cost</th><th>Status today</th></tr></thead>
+  <tbody>
+    <tr><td class="field">Goal (B1)</td><td>First <code>type:"user"</code> message → <code>cleanAndTruncate</code></td><td><span class="tag tag-free">free</span></td><td>Already extracted as the session title</td></tr>
+    <tr><td class="field">Last instruction (B2)</td><td><em>Last</em> <code>type:"user"</code> message (skip tool-results &amp; machinery)</td><td><span class="tag tag-free">free</span></td><td>New — mirror of the first-message scan, in reverse</td></tr>
+    <tr><td class="field">Files in flight (B3)</td><td>Scan <code>tool_use</code> blocks for <code>Edit/Write/NotebookEdit</code> → <code>file_path</code> set</td><td><span class="tag tag-free">free</span></td><td>New — deterministic param scan</td></tr>
+    <tr><td class="field">Next steps (B4)</td><td>Latest <code>TodoWrite</code> tool call → its <code>todos[]</code> array (with statuses)</td><td><span class="tag tag-free">free</span></td><td><b>The unlock</b> — the agent already maintains this list; we just read it</td></tr>
+    <tr><td class="field">State badge (B6)</td><td>Liveness (<code>HomeSessionOpen</code>) + attention flag (ENH-225) + last-block shape</td><td><span class="tag tag-derive">derived</span></td><td>Liveness + attention exist; "blocked/done" is a cheap heuristic</td></tr>
+    <tr><td class="field">"Doing now" / status</td><td>Last assistant text block</td><td><span class="tag tag-free">free</span></td><td>Already extracted as the Home snippet</td></tr>
+    <tr><td class="field">Artifacts: PR/tests (D2)</td><td>Scan Bash <code>tool_use</code> for <code>gh pr</code>, test runners, file creation</td><td><span class="tag tag-derive">derived</span></td><td>New — pattern-match on commands run</td></tr>
+    <tr><td class="field">Git branch / diff (D1)</td><td><code>gitBranch</code> field on transcript entries</td><td><span class="tag tag-free">free</span></td><td>Already extracted in tail meta</td></tr>
+    <tr><td class="field">Activity sparkline (A3)</td><td>Per-turn <code>timestamp</code> fields</td><td><span class="tag tag-free">free</span></td><td>New — collect, don't just take the latest</td></tr>
+    <tr><td class="field">Conflict flag (D3)</td><td>Intersect B3 file-sets across sessions</td><td><span class="tag tag-derive">derived</span></td><td>New — set intersection over digests</td></tr>
+    <tr><td class="field">Review state (C4)</td><td>Duo-owned pin/snooze/seen, keyed on session uuid</td><td><span class="tag tag-cli">Duo state</span></td><td>New — a legit Duo-owned concept (§D9-clean)</td></tr>
+    <tr><td class="field">"What happened" prose (B5)</td><td><b>Nothing deterministic produces this</b></td><td><span class="tag tag-infer">inference</span></td><td>Agent self-narration, or fall back to the snippet</td></tr>
+  </tbody>
+</table>
+
+<p>So <strong>ten of eleven fields are deterministic</strong> — they need plumbing, not intelligence. Only
+the optional narrative (B5) needs a written sentence, and even that has a no-inference fallback (use the
+last assistant block) plus an opt-in upgrade (below).</p>
+
+<h3>The pre-hydration pipeline — capture at rest, never at open</h3>
+<p>Reading head+tail of N transcripts (some reach hundreds of MB) <em>on every Home open</em> is the cost
+to avoid. Instead, compute a per-session <code>SessionDigest</code> incrementally, triggered at turn
+boundaries <strong>while the session is live</strong>, and cache it. Home then reads cheap cached digests.</p>
+
+<div class="pipe">
+  <div class="pipe-step"><div class="when">While live</div><h4>1 · Trigger</h4><p>The managed <code>Stop</code> / <code>Notification</code> hook (already installed for the attention badge, ENH-225) <em>also</em> pings <code>duo session digest &lt;tab&gt;</code>. <code>UserPromptSubmit</code> refreshes "last instruction". Fires at every turn boundary — the natural rest-point.</p></div>
+  <div class="pipe-step"><div class="when">On trigger</div><h4>2 · Extract</h4><p>A deterministic parser (<code>core/session-digest/</code>) seek-reads the transcript tail and pulls the table above — goal, last instruction, files, todos, state, artifacts. No inference. Reuses the existing JSONL reader.</p></div>
+  <div class="pipe-step"><div class="when">On trigger</div><h4>3 · Materialize</h4><p>Write the digest to a Duo-owned index keyed on session uuid. It's a <em>cache</em>, always rebuildable from the transcript — the transcript stays the source of truth (§D9, see below).</p></div>
+  <div class="pipe-step"><div class="when">At open</div><h4>4 · Assemble</h4><p>Home reads the cached digests, runs the live liveness check it already does, sorts commingled by activity, and renders. Zero heavy parsing, zero inference at open-time.</p></div>
+</div>
+
+<p>The timing insight is the whole design: <strong>hydrate on <em>Stop</em>, not on <em>open</em>.</strong>
+The moment an agent finishes a turn is exactly when its digest is both freshest and cheap to compute —
+and it's well before you ever look at Home.</p>
+
+<details class="deferred">
+  <summary>Is the digest cache a §D9 "sidecar" violation? (the honest read)</summary>
+  <div class="deferred-body">
+    <p>CLAUDE.md §12 forbids Duo-owned files that <em>mirror another system's state and drift from it</em>.
+    The digest cache sits right on that line, so be deliberate:</p>
+    <ul>
+      <li><strong>Why it's acceptable:</strong> it's a <em>materialized index</em>, not an authority. Every
+      field is re-derivable from the Claude Code transcript, it's refreshed on real evidence (the Stop
+      hook fired = the session actually advanced), and the transcript remains the source of truth. This is
+      the same posture as the ENH-212 Home snippet read — just memoized instead of recomputed per open.</li>
+      <li><strong>The invariant that keeps it clean:</strong> Home must be able to rebuild any digest from
+      the transcript on demand, and must prefer the transcript on any mismatch. The cache is an optimization
+      you can delete at any time with no loss — never a place where the only copy of a fact lives.</li>
+      <li><strong>What is legitimately Duo-owned</strong> (not a mirror, so §D9-clean outright): the
+      pin/snooze/seen review state (C4), the "last seen Home" watermark (A2), and the batch-launch grouping
+      (A4) — concepts Claude Code doesn't track at all.</li>
+    </ul>
+    <p>If the owner would rather avoid the cache entirely, there's a no-store variant: extract digests
+    lazily at open but <em>bounded</em> — only for sessions whose JSONL mtime changed since last open, in
+    parallel, tail-only. Slower on a cold open with many huge transcripts, but zero new persisted state.
+    This is decision Q4.</p>
+  </div>
+</details>
+
+<h3>The one field that needs inference — and how to get it without an API</h3>
+<p>The "what happened" narrative (B5) and any crisp agent-authored "next step" recommendation genuinely
+need a written sentence. Duo can't write it. But the agent can, <em>while it's running</em> — it is the
+inference engine, already in the loop. Two mechanisms, both CLI-parity-clean:</p>
+<ul>
+  <li><strong>Agent self-narration via a new verb</strong> — teach the skill to call
+  <code>duo session note "&lt;one-line status&gt;"</code> / <code>duo session next "&lt;recommendation&gt;"</code>
+  at natural stopping points. The agent stamps its own digest; Home replays it verbatim. Progressive
+  enhancement: present when the agent narrated, absent otherwise.</li>
+  <li><strong>No-narration fallback</strong> — when the agent didn't narrate, show the deterministic last
+  assistant block (today's snippet). Never fabricate; the worst case is exactly what Home shows now.</li>
+</ul>
+<p>This keeps the rule intact: <strong>inference only ever happens inside a running agent, never inside
+Duo at open-time.</strong></p>
+
+<!-- ════════════════════════ DECISIONS ════════════════════════ -->
+<h2>Decisions for the owner</h2>
+<p>Pick where you want this to go. Your answers shape the ENH/PRD I'd write next.</p>
+
+<form id="decisions">
+
+<div class="decision-card" data-q="direction">
+  <p class="q-title">Q1 · Direction</p>
+  <p class="q-prompt">Is the commingled catch-up timeline worth building as a real surface?</p>
+  <p class="q-context">It's a genuine inversion of today's project-aggregated Home — likely a sibling view, not a replacement.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="direction" value="sibling"><span class="q-option-body"><span class="q-option-title">Build it as a second Home mode<span class="recommend-tag">Rec</span></span><span class="q-option-rationale">A toggle on Home: "Projects" (today) ↔ "Catch-up" (this). Keeps both mental models; lowest-risk path to validating the idea.</span></span></label>
+    <label class="q-option"><input type="radio" name="direction" value="replace"><span class="q-option-body"><span class="q-option-title">Make it the default Home</span><span class="q-option-rationale">Bolder — bet that catch-up is the dominant re-entry need and demote project aggregation to a filter.</span></span></label>
+    <label class="q-option"><input type="radio" name="direction" value="prototype-only"><span class="q-option-body"><span class="q-option-title">Keep prototyping first</span><span class="q-option-rationale">Iterate on this HTML mock more before any real code — refine the card anatomy and triage model on paper.</span></span></label>
+    <label class="q-option"><input type="radio" name="direction" value="drop"><span class="q-option-body"><span class="q-option-title">Not now</span><span class="q-option-rationale">Interesting but not a priority this cycle.</span></span></label>
+  </div>
+  <textarea class="q-notes" name="direction-notes" placeholder="Notes…"></textarea>
+</div>
+
+<div class="decision-card" data-q="fields">
+  <p class="q-title">Q2 · Card anatomy</p>
+  <p class="q-prompt">Which briefing fields are must-have for v1?</p>
+  <p class="q-context">All four below are deterministic (free from the transcript). Check the ones that earn their place on the card; the rest can live behind expand.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="checkbox" name="fields" value="goal"><span class="q-option-body"><span class="q-option-title">Goal + last instruction (B1/B2)</span><span class="q-option-rationale">The "what was this for / what did I last say" pair the persona named first.</span></span></label>
+    <label class="q-option"><input type="checkbox" name="fields" value="todos"><span class="q-option-body"><span class="q-option-title">Next steps from the todo list (B4)</span><span class="q-option-rationale">The single highest-value re-entry cue, and it's free — the agent already keeps it.</span></span></label>
+    <label class="q-option"><input type="checkbox" name="fields" value="files"><span class="q-option-body"><span class="q-option-title">Files in flight (B3)</span><span class="q-option-rationale">Literal persona ask; also powers the cross-session conflict flag.</span></span></label>
+    <label class="q-option"><input type="checkbox" name="fields" value="artifacts"><span class="q-option-body"><span class="q-option-title">Artifact chips — PR / tests (D2)</span><span class="q-option-rationale">Makes "review the work" one click. Slightly more parsing (Bash command scan).</span></span></label>
+  </div>
+  <textarea class="q-notes" name="fields-notes" placeholder="Other fields? Anything to cut?"></textarea>
+</div>
+
+<div class="decision-card" data-q="narrative">
+  <p class="q-title">Q3 · The narrative field</p>
+  <p class="q-prompt">How should the "what happened" line work, given no inference at open?</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="narrative" value="agent-stamp"><span class="q-option-body"><span class="q-option-title">Agent self-narration + snippet fallback<span class="recommend-tag">Rec</span></span><span class="q-option-rationale">New <code>duo session note/next</code> verbs the skill calls at stopping points; fall back to the last assistant block when absent. Best result, opt-in, no fabrication.</span></span></label>
+    <label class="q-option"><input type="radio" name="narrative" value="snippet-only"><span class="q-option-body"><span class="q-option-title">Deterministic snippet only</span><span class="q-option-rationale">Just show the last assistant block (today's behavior). Zero new agent behavior; less crisp.</span></span></label>
+    <label class="q-option"><input type="radio" name="narrative" value="todos-as-narrative"><span class="q-option-body"><span class="q-option-title">Skip prose — let the todo list carry it</span><span class="q-option-rationale">No narrative field at all; the completed/pending todos tell the story structurally.</span></span></label>
+  </div>
+  <textarea class="q-notes" name="narrative-notes" placeholder="Notes…"></textarea>
+</div>
+
+<div class="decision-card" data-q="cache">
+  <p class="q-title">Q4 · Hydration storage</p>
+  <p class="q-prompt">Cache the digests, or extract lazily at open?</p>
+  <p class="q-context">The §D9 tension from the collapsible note above. Both keep the transcript as source of truth.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="cache" value="hook-cache"><span class="q-option-body"><span class="q-option-title">Materialize on the Stop hook<span class="recommend-tag">Rec</span></span><span class="q-option-rationale">Pre-hydrate at every turn boundary; Home reads cached digests. Fast open, rebuildable cache. The "capture at rest" design.</span></span></label>
+    <label class="q-option"><input type="radio" name="cache" value="lazy-open"><span class="q-option-body"><span class="q-option-title">Lazy at open, mtime-bounded</span><span class="q-option-rationale">No new persisted state — extract only changed transcripts, tail-only, in parallel. Slower cold open with many huge sessions.</span></span></label>
+  </div>
+  <textarea class="q-notes" name="cache-notes" placeholder="Notes…"></textarea>
+</div>
+
+</form>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 4 decided — round-trips to your clipboard for pasting back here</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+// ── Prototype: triage filtering ──────────────────────────────────────────
+const triage = document.getElementById('triage');
+const cards = Array.from(document.querySelectorAll('#timeline .scard'));
+triage.addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  triage.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c === chip));
+  const f = chip.dataset.filter;
+  cards.forEach(c => { c.hidden = !(f === 'all' || c.dataset.cat === f); });
+  // hide the "earlier" watermark when filtering
+  document.querySelectorAll('#timeline .watermark').forEach(w => { w.style.display = f === 'all' ? '' : 'none'; });
+});
+
+// ── Decisions copy-bar ───────────────────────────────────────────────────
+const form = document.getElementById('decisions');
+const countEl = document.getElementById('answered-count');
+const btn = document.getElementById('copy-btn');
+
+function readDecisions() {
+  const out = [];
+  form.querySelectorAll('.decision-card').forEach(card => {
+    const q = card.dataset.q;
+    const title = card.querySelector('.q-prompt').textContent.trim();
+    const radios = card.querySelectorAll('input[type=radio]:checked');
+    const checks = card.querySelectorAll('input[type=checkbox]:checked');
+    let answer = '';
+    if (radios.length) answer = radios[0].value;
+    else if (checks.length) answer = Array.from(checks).map(c => c.value).join(', ');
+    const notes = (card.querySelector('.q-notes')?.value || '').trim();
+    out.push({ q, title, answer, notes });
+  });
+  return out;
+}
+function answeredCount(d) { return d.filter(x => x.answer || x.notes).length; }
+function refresh() { countEl.textContent = answeredCount(readDecisions()); }
+form.addEventListener('input', refresh);
+form.addEventListener('change', refresh);
+
+btn.addEventListener('click', () => {
+  const d = readDecisions();
+  const lines = ['# Async Catch-Up Home — decisions', ''];
+  d.forEach(x => {
+    lines.push(`## ${x.q}: ${x.title}`);
+    lines.push(`- Answer: ${x.answer || '(none)'}`);
+    if (x.notes) lines.push(`- Notes: ${x.notes}`);
+    lines.push('');
+  });
+  const text = lines.join('\n');
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'Copied ✓'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy decisions'; btn.classList.remove('copied'); }, 1800);
+  });
+});
+refresh();
+</script>
+</body>
+</html>

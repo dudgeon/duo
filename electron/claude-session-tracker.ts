@@ -175,7 +175,8 @@ export async function readBannerTitle(
 /** Rungs 1–3 of the D5 title ladder over an already-read set of JSONL
  *  lines. Shared by `readBannerTitle` (full read ladder) and
  *  `readSessionHeadMeta` (ENH-212 head-16KB read). Returns null when
- *  no rung fires — callers fall back to the short UUID. */
+ *  no rung fires — callers fall back to the short UUID. (The ENH-231 digest
+ *  has its OWN richer goal ladder, `extractGoal`, which also honors these.) */
 function titleFromLines(lines: string[]): BannerTitleResult | null {
   // Reverse scan for the latest custom-title entry.
   for (let i = lines.length - 1; i >= 0; i--) {
@@ -316,7 +317,9 @@ function jsonlPathFor(sessionUuid: string, cwd: string): string {
  *  head-bytes + tail-bytes splice so we catch custom-title entries
  *  regardless of where they sit in the file. Partial first/last
  *  lines from chunked reads are discarded. */
-async function readJsonlLines(filePath: string): Promise<string[]> {
+// ENH-231 — exported (was file-private) so the session-digest extractor reuses
+// the exact same JSONL read/parse logic rather than duplicating it.
+export async function readJsonlLines(filePath: string): Promise<string[]> {
   const stat = await fs.stat(filePath)
   if (stat.size <= FULL_READ_BYTES) {
     const buf = await fs.readFile(filePath)
@@ -348,7 +351,7 @@ function splitLines(buf: Buffer): string[] {
   return buf.toString('utf8').split('\n').map((l) => l.trim()).filter((l) => l.length > 0)
 }
 
-function safeParse(line: string): Record<string, unknown> | null {
+export function safeParse(line: string): Record<string, unknown> | null {
   try {
     const v = JSON.parse(line)
     return v && typeof v === 'object' ? (v as Record<string, unknown>) : null
@@ -592,7 +595,7 @@ function scanTailLines(lines: string[]): TailScan {
 /** Pull the last text content block from a `type:"assistant"` entry.
  *  Assistant content is a block array (thinking / text / tool_use…);
  *  the LAST text block is the user-visible closing line. */
-function extractAssistantText(parsed: Record<string, unknown>): string | null {
+export function extractAssistantText(parsed: Record<string, unknown>): string | null {
   const message = parsed.message as Record<string, unknown> | undefined
   const content = message?.content
   if (typeof content === 'string') return content.trim() || null
@@ -686,7 +689,7 @@ export async function readSessionHeadMeta(file: string): Promise<SessionHeadMeta
  *  Claude Code's user-role entries are nested:
  *    { type: "user", message: { content: "...", role: "user" } }
  *  …or content can be an array of `{type:'text', text:'...'}` blocks. */
-function extractUserMessageText(parsed: Record<string, unknown> | null): string | null {
+export function extractUserMessageText(parsed: Record<string, unknown> | null): string | null {
   if (!parsed || parsed.type !== 'user') return null
   const message = parsed.message as Record<string, unknown> | undefined
   if (!message) return null

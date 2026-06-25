@@ -39,7 +39,10 @@ export default defineConfig({
     }
   },
   test: {
-    include: ['**/*.test.ts'],
+    // `.test.tsx` added for ENH-231 — the first React-component render tests
+    // (CatchupBoard / HomeView), which need JSX (the @testing-library/react +
+    // jsdom devDeps were already present for exactly this).
+    include: ['**/*.test.ts', '**/*.test.tsx'],
     exclude: ['node_modules/**', 'out/**', 'dist/**', '.claude/worktrees/**'],
     environment: 'node'
   }

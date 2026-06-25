@@ -5,8 +5,8 @@
 // (HomeView / HeroPanel / SpineRow / SessionRow / GreetingLine) consumes
 // these; it never re-derives any of this logic inline.
 
-import type { GreetingData, HomeProject, CronJobView } from '@shared/types'
-import { deepestEnclosingRoot } from '@shared/projects'
+import type { GreetingData, HomeProject, CronJobView, CatchupCard, AttentionReason } from '@shared/types'
+import { deepestEnclosingRoot, hashColorIndex } from '@shared/projects'
 
 /** Map colorIndex (0..5) → CSS var. Mirrors the six `--duo-project-*`
  *  tokens in `renderer/styles/globals.css` (which themselves mirror the
@@ -229,4 +229,127 @@ export function freshestSession(
     }
   }
   return best
+}
+
+// ── ENH-231 — Async Catch-Up presentation helpers (pure, testable) ─────────
+// The SERVER assembles the columns/tiers (electron/home-snapshot.ts is
+// authoritative); these are display-only derivations the board components
+// consume so the JSX never re-derives label/class/action logic inline.
+
+/** Posix basename. */
+function baseName(p: string): string {
+  const t = p.replace(/\/+$/, '')
+  const i = t.lastIndexOf('/')
+  return i < 0 ? t : t.slice(i + 1)
+}
+
+/** Short repo/project label for a card — the session cwd's basename. */
+export function repoLabel(cwd: string): string {
+  return baseName(cwd) || cwd || '—'
+}
+
+/** Split a session cwd into its repo label + an optional worktree slug so two
+ *  worktrees of one repo are distinguishable (parity with Projects Home's
+ *  subPath badge). Recognizes Duo's `.../<repo>/.claude/worktrees/<slug>`
+ *  convention; otherwise the cwd basename is the repo and there's no worktree. */
+export function worktreeInfo(cwd: string): { repo: string; worktree?: string } {
+  const m = cwd.match(/^(.*?)\/\.claude\/worktrees\/([^/]+)\/?$/)
+  if (m) return { repo: baseName(m[1]) || m[1], worktree: m[2] }
+  return { repo: baseName(cwd) || cwd || '—' }
+}
+
+/** Stable hue for a card, hashed off its cwd — the same palette the project
+ *  rail + Home spine use, so a project reads as one color everywhere. */
+export function cardHue(cwd: string): string {
+  return projectHue(hashColorIndex(cwd || ''))
+}
+
+/** The Needs-you reason chip: visible label + the shared both-theme-legible
+ *  banner class (ENH-231 §9: plan→warn, question→info, blocked→error). */
+export function attentionChip(reason: AttentionReason): { label: string; bannerClass: string } {
+  switch (reason) {
+    case 'plan-to-approve':
+      return { label: '📋 plan to approve', bannerClass: 'duo-banner-warn' }
+    case 'question':
+      return { label: '💬 question', bannerClass: 'duo-banner-info' }
+    case 'blocked':
+      return { label: '⛔ blocked', bannerClass: 'duo-banner-error' }
+  }
+}
+
+const DOC_EXT = /\.(md|markdown|html?)$/i
+function isDocFile(p: string): boolean {
+  return DOC_EXT.test(p)
+}
+
+export type DigestPrimary = { kind: 'session' | 'artifact'; label: string; path?: string }
+export type DigestSecondary = { kind: 'session' | 'pr' | 'file' | 'diff'; label: string; value?: string }
+
+/** D7 — the card's PRIMARY action. A Done card whose work product is an md/html
+ *  file leads with the artifact (Duo's canvas/playground home turf). Otherwise
+ *  re-entry: a Duo-hosted live session FOCUSES (never forks); an external-live or
+ *  closed session opens/resumes (external opening forks, behind the confirm). The
+ *  worktree-gone case is handled by the caller (no re-entry — the cwd is gone). */
+export function digestPrimaryAction(card: CatchupCard): DigestPrimary {
+  const doc = (card.artifacts.createdFiles ?? []).find(isDocFile)
+  if (card.state === 'done' && doc) return { kind: 'artifact', label: `Open ${baseName(doc)} →`, path: doc }
+  if (card.open?.kind === 'duo') return { kind: 'session', label: 'Focus session →' }
+  return { kind: 'session', label: 'Open session →' }
+}
+
+/** D7 — the quieter SECONDARY link. When the artifact leads, re-entry is the
+ *  secondary; otherwise precedence is PR > new doc > diff. Null when none. */
+export function digestSecondaryAction(card: CatchupCard): DigestSecondary | null {
+  if (digestPrimaryAction(card).kind === 'artifact') return { kind: 'session', label: 'Open session' }
+  const a = card.artifacts
+  if (a.pr) return { kind: 'pr', label: `Review PR #${a.pr.number}`, value: a.pr.url }
+  const doc = (a.createdFiles ?? []).find(isDocFile)
+  if (doc) return { kind: 'file', label: `Open ${baseName(doc)}`, value: doc }
+  if (card.gitBranch) return { kind: 'diff', label: 'View diff' }
+  return null
+}
+
+/** The "Next:" line for a working/closed card — agent self-narration if it
+ *  narrated, else the first not-yet-done todo, else null. */
+export function digestNextLine(card: CatchupCard): string | null {
+  if (card.narrative?.next) return card.narrative.next
+  const todo = card.todos.find((t) => t.status !== 'completed')
+  return todo?.text ?? null
+}
+
+/** The Needs-you body line — the agent's note if narrated, else the last
+ *  assistant block (the honest fallback), else what the user last asked. */
+export function digestNeedsLine(card: CatchupCard): string | null {
+  return card.narrative?.note ?? card.fallbackSnippet ?? card.youAsked ?? null
+}
+
+/** CSS class for a compact row's state dot. Compact rows are CLOSED (ended with
+ *  no deliverable; resumable), so the default is the muted closed dot; the
+ *  attention/live branches are defensive (shouldn't occur in a compact row). */
+export function compactDotClass(card: CatchupCard): string {
+  if (card.attention) return 'duo-cu-dot-attn'
+  if (card.open) return 'duo-cu-dot-live'
+  return 'duo-cu-dot-closed'
+}
+
+/** Flatten a markdown-bearing transcript line into a short plain-text preview
+ *  for a card (the raw last-assistant block is full markdown — fenced code,
+ *  bold, links — which reads as machinery on a card). Drops fenced code blocks
+ *  entirely, unwraps inline code / emphasis / links, collapses whitespace, and
+ *  truncates. The card additionally CSS-line-clamps, so this is the upper bound
+ *  on payload, not the visible height. */
+export function toPlainPreview(text: string, max = 180): string {
+  const flat = text
+    .replace(/```[\s\S]*?```/g, ' ') // drop fenced code blocks (the bash noise)
+    .replace(/~~~[\s\S]*?~~~/g, ' ')
+    .replace(/`([^`]+)`/g, '$1') // unwrap inline code
+    .replace(/\*\*([^*]+)\*\*/g, '$1') // unbold
+    .replace(/(^|\s)\*([^*\n]+)\*/g, '$1$2') // unitalic
+    .replace(/(^|\s)_([^_\n]+)_/g, '$1$2')
+    .replace(/^#{1,6}\s+/gm, '') // headings
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // links → text
+    .replace(/^\s*[-*+]\s+/gm, '') // list bullets
+    .replace(/\s+/g, ' ')
+    .trim()
+  return flat.length > max ? `${flat.slice(0, max).trimEnd()}…` : flat
 }

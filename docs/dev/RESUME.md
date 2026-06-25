@@ -112,39 +112,37 @@
 > under `.claude/rules/`.
 
 ## Version state
-- **Latest released:** **v0.11.1**.
-- **`package.json`:** bumped to **v0.11.2** but **NOT yet cut** — four features are
-  merged to `main` and queued for the next cut.
-- **The next cut is GATED on PR #102** (`duo-file-open-flow-g3rpdx` — the ENH-224
-  unified Open + Clone flow, still a DRAFT). **Do not cut until #102 lands.**
+- **Latest released:** **v0.12.1**. `main` is bumped to **v0.12.2** for the next
+  sprint (ENH-228/229 vault rollups shipped v0.12.0; ENH-230 OKF listing in #107).
+- **This branch** (`claude/async-catchup-home-view-657v0x`, PR #108) forked at
+  v0.12.1 (`d8e4f9f`); its `package.json` reads 0.12.1. The cut will bump from
+  here (rebase onto `main`'s 0.12.2 first, or bump directly — confirm at cut time).
 
-## Merged since v0.11.1 (on `main`, awaiting the v0.11.2 cut)
-- **ENH-221 — durable file version history + a real ⌘Z undo fix** (#104). History
-  modal: timeline · inline diff · restore-with-confirm. `duo history list|show|restore`.
-  Store at `~/.claude/duo/file-history/` (§D9-clean). ADR in `docs/DECISIONS.md`.
-- **ENH-222 — worktree lifecycle UX** (#105). Create a worktree from the navigator
-  dropdown (slug-validated, no git typing) + graceful removal-recovery (revert to
-  main, dismissible banner, never a crash). `duo worktree new|remove`. PRD:
-  `docs/prd/enh-222-worktree-lifecycle.md`.
-- **ENH-223 — scheduled (cron) Claude sessions** (#103). Create/manage from Home
-  (presets + custom cron, live preview, per-project nesting).
-  `duo cron list|add|edit|run|pause|resume|rm|show`. PRD:
-  `docs/prd/enh-223-scheduled-sessions.md`.
-- **ENH-225 — "waiting on you" tab attention badge** (#103). Amber dot when a
-  background Claude session stops; clears on focus/activity. `duo attention`.
-- **#101 — iCloud sync-conflict duplicate detection** in the materialization check
-  (dev tooling only; documented in `CLAUDE.md` § iCloud Drive trap).
-
-## In flight / next move
-- **PR #102 (ENH-224 open + clone flow)** is the next to land; the cut waits on it.
-- **When #102 merges:** do the doc cleanup held back to avoid colliding with its
-  plumbing edits — flip the `tasks.md` Status lines for ENH-221/222/223 to ✅ and
-  add a first-class **ENH-225** entry; touch up the CLI docs (`CLI-COVERAGE.md`
-  "last updated" + the `duo history` follow-up note, `agents/duo.md` attention-hook
-  wording, `skill/SKILL.md` verb map). Then run `/smoke-walk` (via the Skill tool)
-  and propose the **v0.11.2 cut** via the `cut-version` skill.
+## In flight / next move — ENH-231 Async Catch-Up (PR #108)
+- **Built P0–P7** on this branch. A sibling Home **mode** (Projects ↔ Catch-up):
+  Catch-up renders a **Command Board** — three attention columns (Needs you ·
+  Working · Done), full cards for live/needs-you sessions + a compact last-7-days
+  tier. Each card is a pre-hydrated **digest** (goal · "You asked" · todos · files
+  · artifacts · attention) materialized at the Stop hook — **zero inference at
+  open**. Agent self-narration via `duo session note|next`; CLI parity via
+  `duo home mode|catchup`.
+- **Verified headlessly:** typecheck clean; 2008 tests green incl. the **§D9
+  delete-cache→byte-identical-rebuild** gate, the **BUG-046** hidden-Home/toggle
+  no-fetch gate, and the theme grep (board CSS is `--duo-*`-only). JSONL shapes
+  confirmed against live transcripts.
+- **Next move:** **live smoke-walk** (the running app — real digests, both themes,
+  the toggle fan-out, the Stop hook firing — needs `install-service.run()` so the
+  updated `duo-attention.sh` lands in `~/.claude/duo/hooks/`), then **cut**. Run
+  `/smoke-walk` via the Skill tool, wait for the owner's pasted results, then
+  `cut-version`. Flip the `tasks.md` ENH-231 Status to ✅ the moment #108 merges.
 
 ## Locked designs — don't re-derive these (full ADRs in `docs/DECISIONS.md`)
+- **Async Catch-Up uses TWO Duo-owned stores** (ENH-231): `session-digests.json`
+  is the transcript-derived **rebuildable** cache (the §D9 gate applies here);
+  `home-state.json` holds the agent's **un-rebuildable** narrative/reviewedAt +
+  watermark (§D9-exempt). The card = digest ⊕ annotation. `home mode` is
+  app-global + fans `HOME_MODE_PUSH` to every window. `sessionIdForTab` (launch
+  cwd → projects dir → freshest jsonl) is the tab→uuid primitive.
 - **File history** is an append-only, content-addressed store captured
   fire-and-forget OFF the save path (§D9-clean — never a sidecar).
 - **Cron is interactive-only** — a real Claude TUI in a Duo tab, an in-app
@@ -152,7 +150,7 @@
   `-p` is behind a default-off flag; the scheduler starts only after
   `SESSION_STATE_RESTORE_SETTLED` (the boot catch-up gate).
 - **Attention badge** keys off a `DUO_TAB` env stamp + a Duo-managed Claude Stop
-  hook posting to the Unix socket.
+  hook posting to the Unix socket (ENH-231's digest piggybacks the SAME hook arms).
 
 ## Known / flagged (non-blocking)
 - **DST spring-forward:** a cron wall-time in the skipped hour (e.g. daily 02:30 on

@@ -1,0 +1,46 @@
+{
+  "version": "0.12.1",
+  "date": "2026-06-24",
+  "title": "Smoke walk · ENH-231 Catch-Up · rev2 (Done-IA reframe)",
+  "intro_html": "<p>Re-walk of the 2 FAILs from walk-1, plus your 'project identifier' note. Walk-1 PASSes (focus, file-open, expand, text, worktree-badge, dark, mode) are NOT repeated. <strong>Agent-verified live:</strong> 3 columns (Needs you · In progress · Done); In progress = live (full) + a 'Closed · click to resume' tier; Done = finished (full) + a 'Worktree removed' tier of struck-through removed-worktree rows; a closed row expands → card + 'closed' badge + Open-session resume; project rows render at card tops. The items below are your judgment calls. Switch Home to <strong>Catch-up</strong> first.</p>",
+  "items": [
+    {
+      "id": "CU-DONE-IA",
+      "title": "(walk-3) The reframe: In progress (live + Closed) · Done = finished — does it fit now?",
+      "what_fixes": "Walk-1: the finished/stalled split inside 'Done' didn't fit your model. Reframe: catch-up is about picking work back up, so resumable work is prominent. Columns are now Needs you · In progress · Done; 'stalled' → 'closed'; closed sessions collapse in the middle column.",
+      "steps": [
+        "Confirm the three columns read: **Needs you** · **In progress** · **Done**.",
+        "In **In progress**: your **live** sessions are full cards (focus/wait); beneath a **'Closed · click to resume'** divider are the sessions you stopped mid-stream (no deliverable) as collapsed rows.",
+        "Click a **Closed** row → it expands into the full card with a **closed** badge and an **Open session →** to resume.",
+        "**Done** holds only **finished** work (opened a PR / produced a .md/.html doc / completed its plan).",
+        "PASS if this matches how you think about catching up; FAIL + note what's still off."
+      ]
+    },
+    {
+      "id": "CU-WORKTREE-GONE",
+      "title": "(walk-3) Removed-worktree sessions → DONE, collapsed + struck",
+      "what_fixes": "A deleted worktree means the work is over (can't resume), so it's assumed DONE. Removed-worktree sessions now sit in the **Done** column under a 'Worktree removed' divider, collapsed + grey + struck through, reason on hover — no full card, no scary flag.",
+      "steps": [
+        "In the **Done** column, scroll past the finished cards to a **'Worktree removed'** divider.",
+        "Beneath it: grey + struck-through one-line rows (the removed-worktree sessions), defaulting collapsed.",
+        "Hover one — the tooltip explains the worktree was removed.",
+        "PASS if removed-worktree sessions read as quietly 'done & gone' in the Done column."
+      ]
+    },
+    {
+      "id": "CU-PROJID",
+      "title": "(new) Prominent project / cwd identifier at the top of each card",
+      "what_fixes": "Your other note: cards need a prominent project/CWD identifier at the top. Each full card now leads with a project row — a hue dot + the repo name (uppercase) + a ⑂ worktree badge — above the goal heading.",
+      "steps": [
+        "Look at any full card (a live one in In progress, or a finished one in Done).",
+        "Confirm it leads with a **project row at the very top**: a colored dot + the **REPO NAME** (+ **⑂ worktree** if it's a worktree), above the session goal.",
+        "PASS if the project context is prominent enough; FAIL + note if you'd want it bigger / different."
+      ]
+    }
+  ],
+  "misc_notes": {
+    "title": "Anything else",
+    "help": "Other tweaks before we merge #108.",
+    "result_block_title": "OTHER NOTES"
+  }
+}
