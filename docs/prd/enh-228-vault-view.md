@@ -149,4 +149,34 @@ submission supersedes (it is the rule-11 decision mechanism).
 - "Process inbox" button → Claude (D6 fast-follow).
 - Both-paths create menu (guided vs blank note) once the Claude path proves out.
 - Inline rollup "re-render" affordance (calls `duo rollup render`).
-- Fold the HTML-default (D2) decision into the ENH-229 PRD's D3 note.
+- Fold the HTML-default (D2) decision into the ENH-229 PRD's D3 note. ✅ done
+  (ENH-229 D3 SUPERSEDED note added; `duo rollup render` default flipped to HTML).
+
+## F. Requirements changed / fixes applied (build log)
+
+- **2026-06-24 — where the rollup NOTE lives vs the corpus-skip of `rollups/`.**
+  The PRD (B.1) renders artifacts into `rollups/<slug>.html` and (D1) discovers
+  rollups via the corpus query `type == rollup`. But the *general* corpus walk
+  (`core/vault/parse.ts` `SKIP_DIRS`) deliberately skips `rollups/` so that
+  rendered artifacts never pollute the corpus / `sourceHash` — so a literal
+  `readNotes().filter(type==rollup)` returns nothing. **Resolution (D1-faithful):**
+  the rollup *note* lives in `rollups/<slug>.md` (`type: rollup`) and its *artifact*
+  renders to `rollups/<slug>.html` (different extension — no collision);
+  `listRollups` scopes the `type == rollup` query to the `rollups/` folder. The
+  `type: rollup` filter drops rendered `.md` artifacts (they carry no `type:`) and
+  `.html` artifacts are excluded by the `.md`-only read — both invariants hold,
+  and discovery stays a type query (not an artifact-filename scan, not a sidecar).
+  A collision guard refuses an artifact path equal to the note path (the `--md`
+  edge). `core/vault/parse.ts` is untouched (zero regression to the corpus suite).
+- **2026-06-24 — HTML default flipped globally (D2).** `duo rollup render` now
+  defaults to HTML across the board (`--md` opt-in), honoring a `type: rollup`
+  note's declared `format:` when no flag is given. This supersedes ENH-229 D3's
+  MD default (cross-noted there). The `duo rollup format` preference verb is not
+  built — the per-rollup default lives in the note's `format:` field (§D9-clean).
+- **2026-06-24 — `templates/rollup.md` added to BOTH scaffolds.** Makes `rollup`
+  a first-class corpus type (D1) for new vaults (`duo vault stub rollup`, schema
+  awareness). Existing vaults work without it — `listRollups`/`resolveRollupNote`
+  read `type: rollup` frontmatter directly. The template ships NO live embedded
+  ```base block (so a stub never inherits a phantom query). Affected the bounded
+  set of scaffold/okf type-set assertions (now a 6-type set); the static
+  `graphbook-prototype` fixture is unaffected.

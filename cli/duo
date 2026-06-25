@@ -25,15 +25,15 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 // cli/duo.ts
 var net = __toESM(require("net"));
 var os3 = __toESM(require("os"));
-var path15 = __toESM(require("path"));
-var fs14 = __toESM(require("fs"));
+var path16 = __toESM(require("path"));
+var fs15 = __toESM(require("fs"));
 var import_crypto = require("crypto");
 
 // core/vault/parse.ts
 var import_node_fs = __toESM(require("node:fs"));
 var import_node_path = __toESM(require("node:path"));
 
-// node_modules/js-yaml/dist/js-yaml.mjs
+// ../../../node_modules/js-yaml/dist/js-yaml.mjs
 function isNothing(subject) {
   return typeof subject === "undefined" || subject === null;
 }
@@ -3564,6 +3564,30 @@ var INITIATIVE_TPL = [
   TB,
   ""
 ].join("\n");
+var ROLLUP_TPL = [
+  "---",
+  "type: rollup",
+  "folder: rollups",
+  "spec:",
+  "format: html",
+  "out:",
+  "last_generated:",
+  "last_hash:",
+  "---",
+  "",
+  "<!-- A rollup is a saved query over your notes, rendered to a shareable",
+  "     artifact. Define the query ONE of two ways:",
+  "       1. a fenced `base` block in this note body (a vault-wide query), or",
+  "       2. a `spec:` path above, pointing to a .base file.",
+  "     Then render + auto-stamp provenance with:",
+  "         duo rollup render <this-note> --html --open",
+  "     HTML is the default (set by `format:` above); pass --md for a",
+  "     GitHub-portable Markdown artifact instead. `out`/`last_generated`/",
+  "     `last_hash` are stamped on each render \u2014 do not hand-edit them. -->",
+  "",
+  "## Spec",
+  ""
+].join("\n");
 var INITIATIVE_TPL_OKF = [
   "---",
   "type: initiative",
@@ -3704,6 +3728,7 @@ function initVault(folder, opts = {}) {
     writeFile("templates/initiative.md", INITIATIVE_TPL);
     writeFile("templates/milestone.md", MILESTONE_TPL);
     writeFile("templates/meeting.md", MEETING_TPL);
+    writeFile("templates/rollup.md", ROLLUP_TPL);
     writeFile("bases/processing.base", PROCESSING_BASE);
     writeFile("README.md", readmeText(import_node_path8.default.basename(root)));
   } else {
@@ -3714,6 +3739,7 @@ function initVault(folder, opts = {}) {
     writeFile("templates/initiative.md", INITIATIVE_TPL_OKF);
     writeFile("templates/milestone.md", MILESTONE_TPL);
     writeFile("templates/meeting.md", MEETING_TPL);
+    writeFile("templates/rollup.md", ROLLUP_TPL);
   }
   const docs = import_node_path8.default.join(import_node_os2.default.homedir(), "Documents");
   if (root === docs || root.startsWith(docs + import_node_path8.default.sep)) {
@@ -4762,9 +4788,124 @@ ${meta.rollup ? "<script>window.__rollupMd = " + JSON.stringify(meta.markdownSou
 `;
 }
 
-// core/vault/lint.ts
+// core/vault/rollup-notes.ts
 var import_node_fs11 = __toESM(require("node:fs"));
 var import_node_path11 = __toESM(require("node:path"));
+var ROLLUPS_DIR = "rollups";
+function asString(v) {
+  return typeof v === "string" && v.trim() ? v.trim() : null;
+}
+function normalizeFormat(v, outRel) {
+  const f = asString(v);
+  if (f === "md") return "md";
+  if (f === "html") return "html";
+  if (outRel && outRel.toLowerCase().endsWith(".md")) return "md";
+  return "html";
+}
+function listRollups(root) {
+  const dir = import_node_path11.default.join(root, ROLLUPS_DIR);
+  let names;
+  try {
+    names = import_node_fs11.default.readdirSync(dir).filter((f) => f.endsWith(".md"));
+  } catch {
+    return [];
+  }
+  const current = sourceHash(root);
+  const out2 = [];
+  for (const name of names) {
+    const abs = import_node_path11.default.join(dir, name);
+    let note;
+    try {
+      note = parseFile(abs, root);
+    } catch {
+      continue;
+    }
+    if (note.frontmatter.type !== "rollup") continue;
+    const outRel = asString(note.frontmatter.out);
+    const lastHash = asString(note.frontmatter.last_hash);
+    out2.push({
+      note: note.relPath,
+      absPath: abs,
+      title: asString(note.frontmatter.title) ?? note.basename,
+      out: outRel,
+      format: normalizeFormat(note.frontmatter.format, outRel),
+      last_generated: asString(note.frontmatter.last_generated),
+      last_hash: lastHash,
+      stale: lastHash == null || lastHash !== current
+    });
+  }
+  out2.sort((a, b) => a.title.localeCompare(b.title));
+  return out2;
+}
+function resolveRollupNote(root, target) {
+  const candidates = [];
+  const direct = import_node_path11.default.isAbsolute(target) ? target : import_node_path11.default.resolve(root, target);
+  if (target.endsWith(".md")) candidates.push(direct);
+  const slug = import_node_path11.default.basename(target).replace(/\.(base|md)$/i, "");
+  candidates.push(import_node_path11.default.join(root, ROLLUPS_DIR, `${slug}.md`));
+  if (!target.endsWith(".md") && !target.endsWith(".base")) candidates.push(`${direct}.md`);
+  let abs = null;
+  for (const c of candidates) {
+    if (import_node_fs11.default.existsSync(c) && import_node_fs11.default.statSync(c).isFile()) {
+      abs = c;
+      break;
+    }
+  }
+  if (!abs) return null;
+  const { frontmatter } = splitFrontmatter(import_node_fs11.default.readFileSync(abs, "utf8"));
+  if (frontmatter.type !== "rollup") return null;
+  const outRel = asString(frontmatter.out);
+  return {
+    noteAbs: abs,
+    noteRel: import_node_path11.default.relative(root, abs).split(import_node_path11.default.sep).join("/"),
+    slug: import_node_path11.default.basename(abs, ".md"),
+    title: asString(frontmatter.title) ?? import_node_path11.default.basename(abs, ".md"),
+    format: normalizeFormat(frontmatter.format, outRel),
+    outRel,
+    specPath: asString(frontmatter.spec),
+    frontmatter
+  };
+}
+function yamlScalar(v) {
+  return JSON.stringify(v);
+}
+function stampRollupProvenance(noteAbs, fields) {
+  const updates = {
+    last_generated: yamlScalar(fields.last_generated),
+    last_hash: yamlScalar(fields.last_hash),
+    out: yamlScalar(fields.out)
+  };
+  const raw = import_node_fs11.default.readFileSync(noteAbs, "utf8");
+  const m = raw.match(/^---\n([\s\S]*?)\n---\n?/);
+  if (!m) {
+    const block = Object.entries(updates).map(([k, v]) => `${k}: ${v}`).join("\n");
+    import_node_fs11.default.writeFileSync(noteAbs, `---
+${block}
+---
+
+${raw}`);
+    return;
+  }
+  const lines = m[1].split("\n");
+  const remaining = { ...updates };
+  for (let i = 0; i < lines.length; i++) {
+    const key = lines[i].match(/^([A-Za-z0-9_-]+)\s*:/)?.[1];
+    if (key && key in remaining) {
+      lines[i] = `${key}: ${remaining[key]}`;
+      delete remaining[key];
+    }
+  }
+  for (const [k, v] of Object.entries(remaining)) lines.push(`${k}: ${v}`);
+  const body = raw.slice(m[0].length);
+  import_node_fs11.default.writeFileSync(noteAbs, `---
+${lines.join("\n")}
+---
+${body}`);
+}
+
+// core/vault/lint.ts
+var import_node_fs12 = __toESM(require("node:fs"));
+var import_node_path12 = __toESM(require("node:path"));
 function lev(a, b) {
   const m = a.length;
   const n = b.length;
@@ -4915,10 +5056,10 @@ function lintVault(root, target) {
   const corpus = buildCorpus(root);
   const results = [];
   const lintBaseFile = (abs) => {
-    const rel = import_node_path11.default.relative(root, abs).split(import_node_path11.default.sep).join("/");
+    const rel = import_node_path12.default.relative(root, abs).split(import_node_path12.default.sep).join("/");
     let def;
     try {
-      def = load(import_node_fs11.default.readFileSync(abs, "utf8"));
+      def = load(import_node_fs12.default.readFileSync(abs, "utf8"));
     } catch (e) {
       results.push({ source: rel, findings: [], parseError: e instanceof Error ? e.message : String(e) });
       return;
@@ -4943,12 +5084,12 @@ function lintVault(root, target) {
     for (const abs of walk(root).filter((p) => p.endsWith(".base")).sort()) lintBaseFile(abs);
     for (const note of readNotes(root)) lintNoteEmbeds(note.relPath, note.basename, note.body);
   } else {
-    const abs = import_node_path11.default.isAbsolute(target) ? target : import_node_path11.default.resolve(root, target);
+    const abs = import_node_path12.default.isAbsolute(target) ? target : import_node_path12.default.resolve(root, target);
     if (target.endsWith(".base")) {
       lintBaseFile(abs);
     } else {
       const notes = readNotes(root);
-      const note = import_node_fs11.default.existsSync(abs) && abs.endsWith(".md") ? notes.find((n) => n.absPath === abs) : notes.find((n) => n.basename === target.replace(/\.md$/, ""));
+      const note = import_node_fs12.default.existsSync(abs) && abs.endsWith(".md") ? notes.find((n) => n.absPath === abs) : notes.find((n) => n.basename === target.replace(/\.md$/, ""));
       if (!note) throw new Error(`lint target not found: ${target} (expected --all, a .base file, or a note path/name)`);
       lintNoteEmbeds(note.relPath, note.basename, note.body);
     }
@@ -4957,8 +5098,8 @@ function lintVault(root, target) {
 }
 
 // core/vault/listings.ts
-var import_node_fs12 = __toESM(require("node:fs"));
-var import_node_path12 = __toESM(require("node:path"));
+var import_node_fs13 = __toESM(require("node:fs"));
+var import_node_path13 = __toESM(require("node:path"));
 function noteTitle(note) {
   const t = note.frontmatter.title;
   if (typeof t === "string" && t.trim()) return t.trim();
@@ -5071,13 +5212,13 @@ function generatedStamp(root, kind, dateSource) {
 function writeIfChanged(abs, content) {
   let existing = null;
   try {
-    existing = import_node_fs12.default.readFileSync(abs, "utf8");
+    existing = import_node_fs13.default.readFileSync(abs, "utf8");
   } catch {
     existing = null;
   }
   if (existing === content) return false;
-  import_node_fs12.default.mkdirSync(import_node_path12.default.dirname(abs), { recursive: true });
-  import_node_fs12.default.writeFileSync(abs, content);
+  import_node_fs13.default.mkdirSync(import_node_path13.default.dirname(abs), { recursive: true });
+  import_node_fs13.default.writeFileSync(abs, content);
   return true;
 }
 function spliceRootIndex(existingRaw, stamp, body) {
@@ -5110,8 +5251,8 @@ function writeListings(root, opts = {}) {
   const written = [];
   const warnings = [];
   if (wantIndex) {
-    const rootIndexAbs = import_node_path12.default.join(root, "index.md");
-    const existing = import_node_fs12.default.readFileSync(rootIndexAbs, "utf8");
+    const rootIndexAbs = import_node_path13.default.join(root, "index.md");
+    const existing = import_node_fs13.default.readFileSync(rootIndexAbs, "utf8");
     const fm = splitFrontmatter(existing).frontmatter;
     const indexBody = engineIndexBody(root, fm, (reason) => warnings.push(reason)) ?? generateIndex(root, "");
     const indexStamp = generatedStamp(root, "index", "corpus");
@@ -5120,7 +5261,7 @@ function writeListings(root, opts = {}) {
     }
   }
   if (wantLog) {
-    const logAbs = import_node_path12.default.join(root, "log.md");
+    const logAbs = import_node_path13.default.join(root, "log.md");
     const logStamp = generatedStamp(root, "log", "file mtimes");
     if (writeIfChanged(logAbs, `${logStamp}
 
@@ -5138,7 +5279,7 @@ ${generateLog(root)}
       if (n.folder) dirs.add(n.folder);
     }
     for (const dir of [...dirs].sort()) {
-      const abs = import_node_path12.default.join(root, dir, "index.md");
+      const abs = import_node_path13.default.join(root, dir, "index.md");
       const stamp = generatedStamp(root, "index", "corpus");
       if (writeIfChanged(abs, `${stamp}
 
@@ -5179,7 +5320,7 @@ function findSection(body, heading) {
 }
 function promoteSection(root, noteRel, heading, type2) {
   const mode = detectVaultMode(root);
-  const noteAbs = import_node_path12.default.join(root, noteRel);
+  const noteAbs = import_node_path13.default.join(root, noteRel);
   const note = parseFile(noteAbs, root);
   const section = findSection(note.body, heading);
   if (!section) throw new Error(`section "## ${heading}" not found in ${noteRel}`);
@@ -5201,21 +5342,21 @@ function promoteSection(root, noteRel, heading, type2) {
 Moved to ${leftLink}
 `;
   const newBody = note.body.slice(0, section.start) + replacement + note.body.slice(section.end);
-  const raw = import_node_fs12.default.readFileSync(noteAbs, "utf8");
+  const raw = import_node_fs13.default.readFileSync(noteAbs, "utf8");
   const fmMatch = raw.match(/^---\n[\s\S]*?\n---\n?/);
   const frontmatterBlock = fmMatch ? fmMatch[0] : "";
-  import_node_fs12.default.writeFileSync(noteAbs, frontmatterBlock + newBody);
+  import_node_fs13.default.writeFileSync(noteAbs, frontmatterBlock + newBody);
   return { entityRel: stub.path, leftLink, created: stub.created };
 }
 
 // core/git/worktree.ts
-var path14 = __toESM(require("path"));
-var fs13 = __toESM(require("fs"));
+var path15 = __toESM(require("path"));
+var fs14 = __toESM(require("fs"));
 
 // core/git/exec.ts
 var import_child_process = require("child_process");
 var import_util = require("util");
-var path13 = __toESM(require("path"));
+var path14 = __toESM(require("path"));
 var execFileAsync = (0, import_util.promisify)(import_child_process.execFile);
 var DEFAULT_TIMEOUT_MS = 1e4;
 var WELL_KNOWN_BIN_DIRS = [
@@ -5223,7 +5364,7 @@ var WELL_KNOWN_BIN_DIRS = [
   // Homebrew (Apple Silicon)
   "/usr/local/bin",
   // Homebrew (Intel) + manual installs
-  path13.join(process.env.HOME ?? "", ".local", "bin")
+  path14.join(process.env.HOME ?? "", ".local", "bin")
   // pipx / manual installs
 ];
 function augmentedEnv(base) {
@@ -5295,7 +5436,7 @@ var EMPTY_IDENTITY = {
 };
 function mainRootFromCommonDir(commonDir) {
   const trimmed = commonDir.replace(/\/+$/, "");
-  if (path14.basename(trimmed) === ".git") return path14.dirname(trimmed);
+  if (path15.basename(trimmed) === ".git") return path15.dirname(trimmed);
   return trimmed;
 }
 function basename2(p) {
@@ -5384,7 +5525,7 @@ var WORKTREES_SUBDIR = ".claude/worktrees";
 var BRANCH_PREFIX = "claude/";
 function dirExistsSafe(p) {
   try {
-    return fs13.existsSync(p);
+    return fs14.existsSync(p);
   } catch {
     return false;
   }
@@ -5407,10 +5548,10 @@ async function createWorktree(repoCwd, opts) {
   const existingBranches = new Set(
     branchesRes.ok ? branchesRes.stdout.split("\n").map((l) => l.trim()).filter(Boolean) : []
   );
-  const worktreesDir = path14.join(mainRoot, WORKTREES_SUBDIR);
-  const taken = (slug2) => existingBranches.has(BRANCH_PREFIX + slug2) || dirExistsSafe(path14.join(worktreesDir, slug2));
+  const worktreesDir = path15.join(mainRoot, WORKTREES_SUBDIR);
+  const taken = (slug2) => existingBranches.has(BRANCH_PREFIX + slug2) || dirExistsSafe(path15.join(worktreesDir, slug2));
   const slug = nextAvailableSlug(baseSlug, taken);
-  const wtPath = path14.join(worktreesDir, slug);
+  const wtPath = path15.join(worktreesDir, slug);
   const branch = BRANCH_PREFIX + slug;
   let fromRef = opts.fromRef;
   if (!fromRef) {
@@ -5418,7 +5559,7 @@ async function createWorktree(repoCwd, opts) {
     fromRef = wts.find((w) => w.isMain)?.branch || "HEAD";
   }
   try {
-    fs13.mkdirSync(worktreesDir, { recursive: true });
+    fs14.mkdirSync(worktreesDir, { recursive: true });
   } catch {
   }
   const addRes = await execGit(
@@ -5439,7 +5580,7 @@ async function createWorktree(repoCwd, opts) {
 }
 async function removeWorktree(worktreePath, opts = {}) {
   const identity = await resolveWorktreeIdentity(worktreePath);
-  const cwd = identity.mainWorktreeRoot || path14.dirname(worktreePath);
+  const cwd = identity.mainWorktreeRoot || path15.dirname(worktreePath);
   const args = ["worktree", "remove"];
   if (opts.force) args.push("--force");
   args.push(worktreePath);
@@ -5930,12 +6071,12 @@ var VERBS = [
   {
     name: "rollup",
     group: "Vault",
-    args: '<render <note|base>|diff <note|base>> [--md|--html] [--style css] [--summary "t"|--no-summary] [--against p] [--out p] [--open] [--vault p]',
-    summary: 'ENH-229 \u2014 rollup artifacts. render <note|base> [--md|--html]: emit ONE variant \u2014 Markdown (--md, the GitHub-portable OKF default) OR a stamped HTML artifact (--html); mutually exclusive. Every row LINKS the entities it rolls up (the note + owner/group links resolved from frontmatter, incl. OKF rel-md). --style <css-file> layers a custom stylesheet over the Atelier base (HTML only). Change summary (req #7): the artifact self-embeds a rows snapshot + a summary log (HTML comments \u2014 \xA7D9-clean, no sidecar); --summary "<text>" adds a new latest "What changed" entry (an interactive Claude writes the narrative+notables from `duo rollup diff`), prior entries drop into a collapsible history; --no-summary clears it. diff <note|base> [--against <prior>]: deterministic JSON delta (added/removed/changed rows) vs the prior artifact\'s embedded snapshot \u2014 the material Claude summarizes. Default writes to the vault out/; --out writes elsewhere; --open surfaces it as a tab.'
+    args: '<render <note|base>|list|diff <note|base>> [--md|--html] [--style css] [--summary "t"|--no-summary] [--against p] [--out p] [--open] [--vault p]',
+    summary: 'ENH-229/ENH-228 \u2014 rollups. A rollup is a first-class `type: rollup` NOTE (templates/rollup.md, filed in rollups/) that owns its spec (an embedded ```base block or a `spec:` .base path) + render provenance. render <note|base> [--md|--html]: render the spec and emit ONE variant \u2014 a stamped HTML artifact (--html; the DEFAULT for a rollup note \u2014 D2, HTML-first) OR Markdown (--md; GitHub-portable). For a `type: rollup` note the out path defaults to its `out:` (else rollups/<slug>.html) and `out`/`last_generated`/`last_hash` are stamped back into the note surgically (body untouched). A bare `.base`/non-rollup target keeps the legacy MD-default, no-stamp behavior. Every row LINKS the entities it rolls up (the note + owner/group links resolved from frontmatter, incl. OKF rel-md). --style <css-file> layers a custom stylesheet over the Atelier base (HTML only). list: the rollup inventory \u2014 every `type: rollup` note with {note,title,out,format,last_generated,last_hash,stale} (stale = last_hash !== the live source hash); a corpus query, no scan, no sidecar. Change summary (req #7): the artifact self-embeds a rows snapshot + a summary log (HTML comments \u2014 \xA7D9-clean, no sidecar); --summary "<text>" adds a new latest "What changed" entry (an interactive Claude writes the narrative+notables from `duo rollup diff`), prior entries drop into a collapsible history; --no-summary clears it. diff <note|base> [--against <prior>]: deterministic JSON delta (added/removed/changed rows) vs the prior artifact\'s embedded snapshot \u2014 the material Claude summarizes. --out writes elsewhere; --open surfaces it as a tab.'
   }
 ];
-var SOCKET_PATH = process.env.DUO_SOCKET ?? path15.join(os3.homedir(), "Library", "Application Support", "duo", "duo.sock");
-var PORT_FILE = process.env.DUO_PORT_FILE ?? path15.join(os3.homedir(), "Library", "Application Support", "duo", "duo.port");
+var SOCKET_PATH = process.env.DUO_SOCKET ?? path16.join(os3.homedir(), "Library", "Application Support", "duo", "duo.sock");
+var PORT_FILE = process.env.DUO_PORT_FILE ?? path16.join(os3.homedir(), "Library", "Application Support", "duo", "duo.port");
 var windowOverride;
 function resolveWindowId() {
   if (windowOverride != null) return windowOverride;
@@ -5952,7 +6093,7 @@ var PER_CMD_TIMEOUT_MS = {
 };
 function readPortFile() {
   try {
-    const raw = fs14.readFileSync(PORT_FILE, "utf8");
+    const raw = fs15.readFileSync(PORT_FILE, "utf8");
     const parsed = JSON.parse(raw);
     if (typeof parsed.port === "number" && typeof parsed.token === "string") {
       return { port: parsed.port, token: parsed.token };
@@ -6018,7 +6159,7 @@ var FALLBACK_CONNECT_CODES = /* @__PURE__ */ new Set([
 ]);
 async function send(cmd, args = {}, opts = {}) {
   const timeoutMs = opts.timeoutMs ?? PER_CMD_TIMEOUT_MS[cmd] ?? TIMEOUT_MS;
-  if (process.env.DUO_TCP_ONLY !== "1" && fs14.existsSync(SOCKET_PATH)) {
+  if (process.env.DUO_TCP_ONLY !== "1" && fs15.existsSync(SOCKET_PATH)) {
     try {
       return await sendOver(
         () => ({ socket: net.createConnection(SOCKET_PATH) }),
@@ -6033,7 +6174,7 @@ async function send(cmd, args = {}, opts = {}) {
   }
   const portInfo = readPortFile();
   if (!portInfo) {
-    if (!fs14.existsSync(SOCKET_PATH)) {
+    if (!fs15.existsSync(SOCKET_PATH)) {
       die("Cannot connect: Duo app is not running.\nLaunch Duo.app first.");
     }
     die("Cannot connect: Unix socket failed and no TCP fallback available.\nRun `duo doctor` for details.");
@@ -6050,7 +6191,7 @@ async function send(cmd, args = {}, opts = {}) {
 }
 function sendStreamed(cmd, args, onAck, onEvent) {
   const factory = () => {
-    if (process.env.DUO_TCP_ONLY !== "1" && fs14.existsSync(SOCKET_PATH)) {
+    if (process.env.DUO_TCP_ONLY !== "1" && fs15.existsSync(SOCKET_PATH)) {
       return { socket: net.createConnection(SOCKET_PATH) };
     }
     const portInfo = readPortFile();
@@ -6383,8 +6524,8 @@ async function main() {
         const selector = selectorIdx !== -1 ? rest[selectorIdx + 1] : void 0;
         const b64 = await send("screenshot", { selector });
         if (outputPath) {
-          const abs = path15.resolve(outputPath);
-          fs14.writeFileSync(abs, Buffer.from(b64, "base64"));
+          const abs = path16.resolve(outputPath);
+          fs15.writeFileSync(abs, Buffer.from(b64, "base64"));
           out(`Saved to ${abs}`);
         } else {
           out(b64);
@@ -6410,7 +6551,7 @@ async function main() {
         const sub = rest[0];
         if (sub !== "new") die("Usage: duo window new [--cwd <path>]");
         const cwdIdx = rest.indexOf("--cwd");
-        const cwd = cwdIdx >= 0 && rest[cwdIdx + 1] ? path15.resolve(process.cwd(), rest[cwdIdx + 1]) : void 0;
+        const cwd = cwdIdx >= 0 && rest[cwdIdx + 1] ? path16.resolve(process.cwd(), rest[cwdIdx + 1]) : void 0;
         const r = await send("window", cwd ? { action: "new", cwd } : { action: "new" });
         if (r && r.ok === false) die(r.error ?? 'duo window new failed (is "Allow Multiple Windows" enabled?)');
         out(r);
@@ -6601,7 +6742,7 @@ To confirm, re-run:
         if (sub === "open") {
           const p = rest[1];
           if (!p) die("Usage: duo split-view open <path>");
-          const resolved = path15.isAbsolute(p) ? p : path15.resolve(process.cwd(), p);
+          const resolved = path16.isAbsolute(p) ? p : path16.resolve(process.cwd(), p);
           out(await send("split-view", { op: "open", path: resolved }));
           break;
         }
@@ -6741,9 +6882,9 @@ To confirm, re-run:
           if (caseSensitive) payload["case-sensitive"] = true;
           out(await send("doc-find", payload));
         } else if (sub === "conflict-log") {
-          const logPath = path15.join(os3.homedir(), ".claude", "duo", "logs", "last-conflict.log");
+          const logPath = path16.join(os3.homedir(), ".claude", "duo", "logs", "last-conflict.log");
           try {
-            const raw = fs14.readFileSync(logPath, "utf8");
+            const raw = fs15.readFileSync(logPath, "utf8");
             process.stdout.write(raw);
             if (!raw.endsWith("\n")) process.stdout.write("\n");
           } catch (err) {
@@ -7178,7 +7319,7 @@ To confirm, re-run:
           const resolvedPatch = resolveFilePath(patchPath);
           let mergeJson;
           try {
-            mergeJson = fs14.readFileSync(resolvedPatch, "utf8");
+            mergeJson = fs15.readFileSync(resolvedPatch, "utf8");
           } catch (err) {
             die(`Could not read patch file ${resolvedPatch}: ${err?.message ?? err}`);
           }
@@ -7251,12 +7392,12 @@ To confirm, re-run:
         const afterSub = rest.slice(rest.indexOf(sub) + 1);
         const positionals = afterSub.filter((a) => !a.startsWith("--"));
         const pathArg = positionals[0];
-        const absPath = pathArg ? path15.isAbsolute(pathArg) ? pathArg : path15.resolve(process.cwd(), pathArg) : process.cwd();
+        const absPath = pathArg ? path16.isAbsolute(pathArg) ? pathArg : path16.resolve(process.cwd(), pathArg) : process.cwd();
         const asJson = rest.includes("--json");
         if (sub === "export") {
           const destArg = positionals[1];
           if (!destArg) die("Usage: duo pr export <path> <dest>");
-          const destAbs = path15.isAbsolute(destArg) ? destArg : path15.resolve(process.cwd(), destArg);
+          const destAbs = path16.isAbsolute(destArg) ? destArg : path16.resolve(process.cwd(), destArg);
           const res2 = await send("pr", { sub, path: absPath, dest: destAbs });
           if (asJson) {
             out(JSON.stringify(res2, null, 2));
@@ -7334,14 +7475,14 @@ ${res.pr.url}`);
           const subRest = rest.slice(1);
           const targetArg = positionalArgs(subRest)[0];
           if (!targetArg) die("Usage: duo worktree remove <path> [--force]");
-          const targetPath = path15.resolve(process.cwd(), targetArg);
+          const targetPath = path16.resolve(process.cwd(), targetArg);
           const res = await removeWorktree(targetPath, { force: subRest.includes("--force") });
           if (!res.ok) die(res.error ?? "duo worktree remove failed");
           out({ ok: true, removed: targetPath });
           break;
         }
         const args2 = sub === "list" ? rest.slice(1) : rest;
-        const target = args2[0] ? path15.resolve(process.cwd(), args2[0]) : process.cwd();
+        const target = args2[0] ? path16.resolve(process.cwd(), args2[0]) : process.cwd();
         out(await listWorktrees(target));
         break;
       }
@@ -7365,18 +7506,18 @@ ${res.pr.url}`);
         }
         if (sub === "save") {
           const subRest = rest.slice(1);
-          const path16 = subRest.find((a) => !a.startsWith("-"));
+          const path17 = subRest.find((a) => !a.startsWith("-"));
           const name = flagValue(subRest, "--name");
           const saveAs = subRest.includes("--save-as");
           const payload = { op: "save" };
-          if (path16) payload.path = path16;
+          if (path17) payload.path = path17;
           if (name) payload.name = name;
           if (saveAs) payload["save-as"] = true;
           out(await send("workspace", payload));
         } else if (sub === "open") {
-          const path16 = rest[1];
-          if (!path16) die("Usage: duo workspace open <path>");
-          out(await send("workspace", { op: "open", path: path16 }));
+          const path17 = rest[1];
+          if (!path17) die("Usage: duo workspace open <path>");
+          out(await send("workspace", { op: "open", path: path17 }));
         } else if (sub === "list-recent") {
           out(await send("workspace", { op: "list-recent" }));
         } else if (sub === "current") {
@@ -7598,7 +7739,7 @@ ${res.pr.url}`);
             die(`unknown --format "${formatRaw}" (expected okf or obsidian)`);
           }
           const name = subRest.find((a) => a.startsWith("--name="))?.slice("--name=".length) ?? flagValue(subRest, "--name");
-          const result = initVault(path15.resolve(process.cwd(), folder), {
+          const result = initVault(path16.resolve(process.cwd(), folder), {
             force: subRest.includes("--force"),
             format: formatRaw,
             name
@@ -7683,7 +7824,7 @@ ${res.pr.url}`);
 `);
           let opened = null;
           if (subRest.includes("--open")) {
-            const indexAbs = path15.join(root, "index.md");
+            const indexAbs = path16.join(root, "index.md");
             try {
               opened = await send("open", { url: resolveOpenTarget(indexAbs), mode: "browser", reveal: true });
             } catch (e) {
@@ -7739,14 +7880,14 @@ ${res.pr.url}`);
           const root = resolveVaultOrDefault(process.cwd(), vaultFlag);
           const outFlag = flagValue(subRest, "--out");
           const open = subRest.includes("--open");
-          const stem = path15.basename(target).replace(/\.(base|md)$/i, "") || "rollup";
+          const stem = path16.basename(target).replace(/\.(base|md)$/i, "") || "rollup";
           let outPath;
-          if (outFlag) outPath = path15.resolve(process.cwd(), outFlag);
-          else if (open) outPath = path15.join(os3.tmpdir(), `duo-rollup-${stem}-${Date.now()}.html`);
-          else outPath = path15.join(root, "out", `${stem}.html`);
-          const result = renderTarget(root, target, { outDir: path15.dirname(outPath) });
-          fs14.mkdirSync(path15.dirname(outPath), { recursive: true });
-          fs14.writeFileSync(outPath, result.html);
+          if (outFlag) outPath = path16.resolve(process.cwd(), outFlag);
+          else if (open) outPath = path16.join(os3.tmpdir(), `duo-rollup-${stem}-${Date.now()}.html`);
+          else outPath = path16.join(root, "out", `${stem}.html`);
+          const result = renderTarget(root, target, { outDir: path16.dirname(outPath) });
+          fs15.mkdirSync(path16.dirname(outPath), { recursive: true });
+          fs15.writeFileSync(outPath, result.html);
           let opened = null;
           if (open) {
             try {
@@ -7779,13 +7920,13 @@ ${res.pr.url}`);
         const sub = rest[0];
         const subRest = rest.slice(1);
         const vaultFlag = flagValue(subRest, "--vault");
-        const USAGE = 'Usage: duo rollup <render|diff> <note|base> [--md|--html] [--style <css-file>] [--summary "<text>"|--no-summary] [--against <path>] [--out <path>] [--open] [--vault <path>]';
+        const USAGE = 'Usage: duo rollup <render|list|diff> <note|base> [--md|--html] [--style <css-file>] [--summary "<text>"|--no-summary] [--against <path>] [--out <path>] [--open] [--vault <path>]';
         const newestExisting = (paths) => {
           let best = null;
           let bestM = -1;
           for (const p of paths) {
             try {
-              const m = fs14.statSync(p).mtimeMs;
+              const m = fs15.statSync(p).mtimeMs;
               if (m > bestM) {
                 bestM = m;
                 best = p;
@@ -7801,16 +7942,24 @@ ${res.pr.url}`);
           const wantHtml = subRest.includes("--html");
           const wantMd = subRest.includes("--md");
           if (wantHtml && wantMd) die("duo rollup render: choose ONE of --md or --html, not both");
-          const format = wantHtml ? "html" : "md";
           const root = resolveVaultOrDefault(process.cwd(), vaultFlag);
+          const rollupNote = resolveRollupNote(root, target);
+          const format = wantHtml ? "html" : wantMd ? "md" : rollupNote ? rollupNote.format : "html";
+          const renderTargetArg = rollupNote ? rollupNote.specPath ?? rollupNote.noteRel : target;
           const outFlag = flagValue(subRest, "--out");
           const open = subRest.includes("--open");
-          const stem = path15.basename(target).replace(/\.(base|md)$/i, "") || "rollup";
+          const stem = (rollupNote ? rollupNote.slug : path16.basename(target).replace(/\.(base|md)$/i, "")) || "rollup";
           const ext = format === "html" ? ".html" : ".md";
           let outPath;
-          if (outFlag) outPath = path15.resolve(process.cwd(), outFlag);
-          else if (open) outPath = path15.join(os3.tmpdir(), `duo-rollup-${stem}-${Date.now()}${ext}`);
-          else outPath = path15.join(root, "rollups", `${stem}${ext}`);
+          if (outFlag) outPath = path16.resolve(process.cwd(), outFlag);
+          else if (open) outPath = path16.join(os3.tmpdir(), `duo-rollup-${stem}-${Date.now()}${ext}`);
+          else if (rollupNote && rollupNote.outRel && !wantHtml && !wantMd)
+            outPath = path16.join(root, rollupNote.outRel);
+          else outPath = path16.join(root, "rollups", `${stem}${ext}`);
+          if (rollupNote && path16.resolve(outPath) === rollupNote.noteAbs)
+            die(
+              `duo rollup render: artifact path ${outPath} collides with the rollup note ${rollupNote.noteRel}. Render --html, or set a distinct out:/--out.`
+            );
           const styleFlag = flagValue(subRest, "--style");
           let styleCss;
           if (styleFlag && styleFlag !== "atelier") {
@@ -7818,7 +7967,7 @@ ${res.pr.url}`);
             if (/^[a-z][a-z0-9+.-]*:\/\//i.test(styleFlag))
               die("duo rollup render: --style takes a local CSS file path (remote URLs are not fetched)");
             try {
-              styleCss = fs14.readFileSync(path15.resolve(process.cwd(), styleFlag), "utf8");
+              styleCss = fs15.readFileSync(path16.resolve(process.cwd(), styleFlag), "utf8");
             } catch (e) {
               die(`duo rollup render: cannot read --style file ${styleFlag}: ${e instanceof Error ? e.message : String(e)}`);
             }
@@ -7827,22 +7976,29 @@ ${res.pr.url}`);
           const summaryText = flagValue(subRest, "--summary");
           if (summaryText !== void 0 && summaryText.startsWith("--"))
             die(`duo rollup render: --summary needs a text argument (got the flag "${summaryText}")`);
-          const priorCandidates = outFlag ? [outPath] : [path15.join(root, "rollups", `${stem}.md`), path15.join(root, "rollups", `${stem}.html`)];
+          const priorCandidates = outFlag ? [outPath] : [outPath, path16.join(root, "rollups", `${stem}.md`), path16.join(root, "rollups", `${stem}.html`)];
           const priorPath = newestExisting(priorCandidates);
-          const priorContent = priorPath ? fs14.readFileSync(priorPath, "utf8") : "";
+          const priorContent = priorPath ? fs15.readFileSync(priorPath, "utf8") : "";
           let summaryLog = noSummary ? [] : extractSummaryLog(priorContent);
           if (!noSummary && summaryText) {
             const today = new DuoDate(/* @__PURE__ */ new Date(), /* @__PURE__ */ new Date()).format("YYYY-MMM-DD");
             summaryLog = prependSummary(summaryLog, { date: today, text: summaryText });
           }
-          const result = renderTarget(root, target, {
-            outDir: path15.dirname(outPath),
+          const result = renderTarget(root, renderTargetArg, {
+            outDir: path16.dirname(outPath),
             styleCss,
             summaryLog,
             embedSnapshot: true
           });
-          fs14.mkdirSync(path15.dirname(outPath), { recursive: true });
-          fs14.writeFileSync(outPath, format === "html" ? result.html : result.md);
+          fs15.mkdirSync(path16.dirname(outPath), { recursive: true });
+          fs15.writeFileSync(outPath, format === "html" ? result.html : result.md);
+          if (rollupNote) {
+            stampRollupProvenance(rollupNote.noteAbs, {
+              last_generated: result.generatedAt,
+              last_hash: result.sourceHash,
+              out: path16.relative(root, outPath).split(path16.sep).join("/")
+            });
+          }
           let opened = null;
           if (open) {
             try {
@@ -7860,6 +8016,7 @@ ${res.pr.url}`);
           out({
             path: outPath,
             format,
+            ...rollupNote ? { rollupNote: rollupNote.noteRel, stamped: true } : {},
             sourceHash: result.sourceHash,
             generatedAt: result.generatedAt,
             asOf: result.asOfLabel,
@@ -7870,21 +8027,24 @@ ${res.pr.url}`);
             })),
             ...open ? { opened } : {}
           });
+        } else if (sub === "list") {
+          const root = resolveVaultOrDefault(process.cwd(), vaultFlag);
+          out({ root, rollups: listRollups(root) });
         } else if (sub === "diff") {
           const target = positionalArgs(subRest, ["--vault", "--against"])[0];
           if (!target) die("Usage: duo rollup diff <note|base> [--against <prior-artifact>] [--vault <path>]");
           const root = resolveVaultOrDefault(process.cwd(), vaultFlag);
-          const stem = path15.basename(target).replace(/\.(base|md)$/i, "") || "rollup";
+          const stem = path16.basename(target).replace(/\.(base|md)$/i, "") || "rollup";
           const against = flagValue(subRest, "--against");
           let priorPath;
           if (against) {
-            priorPath = path15.resolve(process.cwd(), against);
-            if (!fs14.existsSync(priorPath))
+            priorPath = path16.resolve(process.cwd(), against);
+            if (!fs15.existsSync(priorPath))
               die(`duo rollup diff: --against path does not exist: ${priorPath} (resolved relative to cwd)`);
           } else {
-            priorPath = newestExisting([path15.join(root, "rollups", `${stem}.md`), path15.join(root, "rollups", `${stem}.html`)]);
+            priorPath = newestExisting([path16.join(root, "rollups", `${stem}.md`), path16.join(root, "rollups", `${stem}.html`)]);
           }
-          const priorContent = priorPath ? fs14.readFileSync(priorPath, "utf8") : "";
+          const priorContent = priorPath ? fs15.readFileSync(priorPath, "utf8") : "";
           const prior = priorContent ? extractSnapshot(priorContent) : null;
           const current = renderTarget(root, target).snapshot;
           out({ priorArtifact: priorPath, diff: diffSnapshots(prior, current) });
@@ -7915,10 +8075,10 @@ function readStdin() {
 }
 function resolveFilePath(input) {
   if (input.startsWith("~/") || input === "~") {
-    return path15.resolve(input.replace(/^~/, os3.homedir()));
+    return path16.resolve(input.replace(/^~/, os3.homedir()));
   }
-  if (path15.isAbsolute(input)) return input;
-  return path15.resolve(process.cwd(), input);
+  if (path16.isAbsolute(input)) return input;
+  return path16.resolve(process.cwd(), input);
 }
 function resolveOpenTarget(target) {
   if (/^[a-z][a-z0-9+.-]*:/i.test(target)) return target;
@@ -7927,32 +8087,32 @@ function resolveOpenTarget(target) {
   }
   let absolute;
   if (target.startsWith("~/") || target === "~") {
-    absolute = path15.resolve(target.replace(/^~/, os3.homedir()));
+    absolute = path16.resolve(target.replace(/^~/, os3.homedir()));
   } else {
-    absolute = path15.resolve(process.cwd(), target);
+    absolute = path16.resolve(process.cwd(), target);
   }
   const encoded = absolute.split("/").map((seg) => encodeURIComponent(seg).replace(/%2F/g, "/")).join("/");
   return "file://" + encoded;
 }
 function runInstall(opts = {}) {
-  const self = fs14.realpathSync(process.argv[1]);
+  const self = fs15.realpathSync(process.argv[1]);
   const targets = [];
   if (opts.system) {
     targets.push("/usr/local/bin/duo");
   } else {
-    targets.push(path15.join(os3.homedir(), ".claude", "duo", "bin", "duo"));
-    targets.push(path15.join(os3.homedir(), ".local", "bin", "duo"));
+    targets.push(path16.join(os3.homedir(), ".claude", "duo", "bin", "duo"));
+    targets.push(path16.join(os3.homedir(), ".local", "bin", "duo"));
   }
   for (const target of targets) {
     try {
-      fs14.mkdirSync(path15.dirname(target), { recursive: true });
+      fs15.mkdirSync(path16.dirname(target), { recursive: true });
       try {
-        fs14.unlinkSync(target);
+        fs15.unlinkSync(target);
       } catch {
       }
-      fs14.symlinkSync(self, target);
+      fs15.symlinkSync(self, target);
       out(`Installed: ${target} \u2192 ${self}`);
-      const dir = path15.dirname(target);
+      const dir = path16.dirname(target);
       const userPath = (process.env.PATH ?? "").split(":");
       if (!userPath.includes(dir)) {
         out("");
@@ -7978,7 +8138,7 @@ async function runDoctor() {
   let unixErr = null;
   let appVersion = null;
   let windowCount = null;
-  if (fs14.existsSync(SOCKET_PATH)) {
+  if (fs15.existsSync(SOCKET_PATH)) {
     try {
       const res = await probe(() => ({ socket: net.createConnection(SOCKET_PATH) }));
       unixOk = true;
@@ -8045,25 +8205,25 @@ async function runDoctor() {
   const cliPath = process.argv[1];
   let cliReal = null;
   try {
-    cliReal = fs14.realpathSync(cliPath);
+    cliReal = fs15.realpathSync(cliPath);
   } catch {
   }
   lines.push(`  CLI invoked as: ${cliPath}${cliReal && cliReal !== cliPath ? ` \u2192 ${cliReal}` : ""}`);
   const knownInstallTargets = [
     // ENH-141 — SHIM_DIR (auto-prepended to PTY $PATH; primary target).
-    path15.join(os3.homedir(), ".claude", "duo", "bin", "duo"),
+    path16.join(os3.homedir(), ".claude", "duo", "bin", "duo"),
     // Pre-ENH-141 sandbox-writable target (still listed for diagnosing
     // stale installs — the dir was never on PATH so the symlink was
     // effectively dead).
-    path15.join(os3.homedir(), ".claude", "bin", "duo"),
-    path15.join(os3.homedir(), ".local", "bin", "duo"),
+    path16.join(os3.homedir(), ".claude", "bin", "duo"),
+    path16.join(os3.homedir(), ".local", "bin", "duo"),
     "/usr/local/bin/duo"
   ];
   for (const t of knownInstallTargets) {
-    if (!fs14.existsSync(t)) continue;
+    if (!fs15.existsSync(t)) continue;
     let real = null;
     try {
-      real = fs14.realpathSync(t);
+      real = fs15.realpathSync(t);
     } catch {
     }
     const matches = real && cliReal && real === cliReal;
@@ -8071,10 +8231,10 @@ async function runDoctor() {
   }
   lines.push("");
   lines.push("Skill");
-  const skillFile = path15.join(os3.homedir(), ".claude", "skills", "duo", "SKILL.md");
-  const agentFile = path15.join(os3.homedir(), ".claude", "agents", "duo.md");
-  lines.push(`  ${fs14.existsSync(skillFile) ? "\u2713" : "\u2717"} ${skillFile}`);
-  lines.push(`  ${fs14.existsSync(agentFile) ? "\u2713" : "\u2717"} ${agentFile}`);
+  const skillFile = path16.join(os3.homedir(), ".claude", "skills", "duo", "SKILL.md");
+  const agentFile = path16.join(os3.homedir(), ".claude", "agents", "duo.md");
+  lines.push(`  ${fs15.existsSync(skillFile) ? "\u2713" : "\u2717"} ${skillFile}`);
+  lines.push(`  ${fs15.existsSync(agentFile) ? "\u2713" : "\u2717"} ${agentFile}`);
   lines.push("");
   lines.push("Locale");
   const localeVars = ["LC_ALL", "LC_CTYPE", "LANG"];

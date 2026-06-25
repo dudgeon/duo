@@ -49,6 +49,12 @@ surface for OKF vaults.
 - **D3 — default format.** MD by default for OKF vaults (GitHub-portable, matches
   OKF philosophy); `--html` opt-in. Persist the preference:
   `duo rollup format md|html` (machine- or vault-scoped; pref file, §D9-clean).
+  - **SUPERSEDED 2026-06-24 by ENH-228 D2 (HTML-first).** The owner is HTML-first
+    (*"the rollups I'm most interested in producing are HTML based, not MD"*), so
+    `duo rollup render` now defaults to **HTML** (`--md` opt-in), and a
+    `type: rollup` note's own `format:` (html by default) is honored when no flag
+    is given. The `duo rollup format` preference verb is not built; the default
+    lives in the rollup note's `format:` field instead (per-rollup, §D9-clean).
 - **D4 — refresh transport.** Ship **HTML refresh now** with existing primitives:
   the button is `data-duo-action="duo:event"` emitting `rollup:refresh` (payload =
   the rollup spec/id); a small **`duo rollup watch`** subscribes via the existing

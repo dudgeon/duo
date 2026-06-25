@@ -75,7 +75,8 @@ fields, no invented syntax, regardless of format. Then, per format:
 | `duo graph backlinks <note>` | who links to a note (wikilinks basename-resolved AND markdown rel links; scans frontmatter + body) |
 | `duo graph orphans` | notes with no links in or out (a tidy-up list) |
 | `duo base lint <file\|--all>` | validate a `.base` against the corpus before rendering (Obsidian-mode rollups) |
-| `duo base render <file\|note> [--out p] [--open]` | render a rollup to a stamped HTML artifact |
+| `duo base render <file\|note> [--out p] [--open]` | render a rollup to a stamped HTML artifact (the lower-level twin of `duo rollup render`, no provenance stamp) |
+| `duo rollup list [--vault p]` | the rollup inventory — every `type: rollup` note with its `out`/`format`/`last_generated`/`last_hash`/`stale` (ENH-228 D1; a `type == rollup` corpus query — what the Vault view's Rollups column lists). Authoring + render: [rollup.md](rollup.md) |
 
 Vault resolution order: explicit `--vault <path>` → the enclosing vault (walk
 up from the cwd to the nearest marker — an OKF `okf_version` index.md or an
@@ -160,27 +161,33 @@ filing rule in meta keys (exposed by `duo vault schema` under `templates`):
 
 All non-filing relationships stay links — filing loses no edges.
 
-## Authoring a rollup (P7) — the loop
+## Authoring a rollup (P7 · ENH-228) — the loop
 
-A **rollup** is a `.base` view computed from frontmatter. The loop:
+A **rollup** is a saved query over frontmatter, rendered to a shareable
+artifact. **A rollup is a first-class `type: rollup` NOTE (ENH-228 D1)** — a
+typed note (from `templates/rollup.md`, filed in `rollups/`) that owns its spec
++ its render provenance, so it's discoverable by `duo rollup list` and appears
+in the Vault view's Rollups column. The loop:
 
 1. **Understand the ask** in prose ("open milestones for this initiative, grouped
    by owner, with a due chip").
 2. **Get the corpus**: `duo vault schema`. It tells you the real type names,
-   entity names, and observed enum values — write the base against *those*, not
+   entity names, and observed enum values — write the spec against *those*, not
    guesses.
-3. **Write the `.base`** (Obsidian Bases YAML):
-   - vault-wide → a file in `bases/`.
-   - per-entity → an embedded ` ```base ` block in the **type template** with a
-     `… == this` filter (e.g. `initiative == this`), so **every** entity of that
-     type inherits the rollup with zero per-note setup. This is the headline
-     pattern — see `templates/initiative.md`.
-4. **Lint until clean**: `duo base lint <file>` (or `--all`). It flags bad types,
+3. **Write a `type: rollup` note** in `rollups/<slug>.md`. Put the query (Obsidian
+   Bases YAML) in an embedded ` ```base ` block in the body, or set `spec:` to a
+   `.base` path; leave `format: html`. (The per-entity headline pattern still
+   lives in a **type template** — an embedded ` ```base ` block with a `… ==
+   this` filter, e.g. `initiative == this` in `templates/initiative.md`, so every
+   entity inherits the rollup.)
+4. **Lint until clean**: `duo base lint <note>` (or `--all`). It flags bad types,
    unresolved `[[entities]]`, off-enum values, unknown functions/view-types, each
    with a "did you mean". Lint is **advisory — it never blocks** (D15); fix what
    it finds, then render.
-5. **Render**: `duo base render <file|note> --open` evaluates it over live
-   frontmatter and opens the result as a tab.
+5. **Render + stamp**: `duo rollup render <note> --html --open` evaluates it over
+   live frontmatter, writes the artifact (HTML by default — D2; `--md` opt-in),
+   and stamps `out`/`last_generated`/`last_hash` back into the note surgically.
+   (`duo base render` is the lower-level twin with no provenance stamp.)
 
 **The engine is a locked subset** of Obsidian Bases — filters (`and`/`or`/`not`,
 `file.inFolder`/`hasProperty`/`ext`/`name`), `if()`, link `== this`, date math,

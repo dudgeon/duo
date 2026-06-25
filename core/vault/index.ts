@@ -68,6 +68,16 @@ export {
   type SummaryEntry,
   type RollupDiff,
 } from './rollup'
+// ENH-228 — the `type: rollup` lifecycle layer (discovery + provenance) and
+// the inbox listing, the data contracts behind the Vault view + its CLI/IPC.
+export {
+  listRollups,
+  resolveRollupNote,
+  stampRollupProvenance,
+  type RollupListing,
+  type ResolvedRollupNote,
+} from './rollup-notes'
+export { listInbox, type InboxEntry } from './inbox'
 export {
   lintVault,
   lintBaseDef,

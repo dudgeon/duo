@@ -39,6 +39,7 @@ describe('vault init (Obsidian — the legacy scaffold, byte-identical regressio
       'templates/milestone.md',
       'templates/meeting.md',
       'templates/theme.md',
+      'templates/rollup.md',
       'bases/processing.base',
       'README.md',
     ]) {
@@ -75,9 +76,9 @@ describe('vault init (Obsidian — the legacy scaffold, byte-identical regressio
     expect(milestone.fields).not.toContain('filingParent')
   })
 
-  it('the scaffolded vault lints clean and yields a 5-type corpus', () => {
+  it('the scaffolded vault lints clean and yields a 6-type corpus (incl. rollup, ENH-228)', () => {
     const v = initVault(path.join(root, 'v'), { format: 'obsidian' }).root
-    expect(buildCorpus(v).types).toEqual(['initiative', 'meeting', 'milestone', 'person', 'theme'])
+    expect(buildCorpus(v).types).toEqual(['initiative', 'meeting', 'milestone', 'person', 'rollup', 'theme'])
     const errors = lintVault(v, '--all').flatMap((r) => r.findings.filter((f) => f.severity === 'error'))
     expect(errors).toEqual([])
   })
@@ -109,13 +110,14 @@ describe('vault init (OKF — the new default, ENH-216 D2)', () => {
     expect(idx).toContain('<!-- duo:listing -->')
   })
 
-  it('templates are the SAME 5-type set as Obsidian (the initiative minus its embedded .base)', () => {
+  it('templates are the SAME 6-type set as Obsidian (the initiative minus its embedded .base)', () => {
     const okf = initVault(path.join(root, 'okf')).root
     const obs = initVault(path.join(root, 'obs'), { format: 'obsidian' }).root
     const types = (r: string) => loadTemplates(r).map((t) => t.type).sort()
-    const FIVE = ['initiative', 'meeting', 'milestone', 'person', 'theme']
-    expect(types(okf)).toEqual(FIVE)
-    expect(types(obs)).toEqual(FIVE)
+    // ENH-228 added the `rollup` type to both scaffolds.
+    const SIX = ['initiative', 'meeting', 'milestone', 'person', 'rollup', 'theme']
+    expect(types(okf)).toEqual(SIX)
+    expect(types(obs)).toEqual(SIX)
     // OKF's initiative template carries NO embedded `.base` rollup (D8 — OKF
     // listings are static markdown), unlike Obsidian's.
     expect(loadTemplates(okf).find((t) => t.type === 'initiative')!.embeddedBase).toBeNull()
@@ -124,16 +126,17 @@ describe('vault init (OKF — the new default, ENH-216 D2)', () => {
     )
   })
 
-  it('buildCorpus surfaces the 5 template types + the root index entity (D10 type-stamp-everything)', () => {
+  it('buildCorpus surfaces the 6 template types + the root index entity (D10 type-stamp-everything)', () => {
     const v = initVault(path.join(root, 'v')).root
     // The root index.md is itself type:index (D10), so the entity-derived
-    // corpus carries `index` on top of the 5 template types.
+    // corpus carries `index` on top of the 6 template types (ENH-228 rollup).
     expect(buildCorpus(v).types).toEqual([
       'index',
       'initiative',
       'meeting',
       'milestone',
       'person',
+      'rollup',
       'theme',
     ])
   })

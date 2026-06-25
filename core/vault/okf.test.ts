@@ -224,23 +224,25 @@ describe('initVault — OKF scaffold + the D2 default flip', () => {
     expect(idx).toContain(LISTING_FENCE)
   })
 
-  it('templates are type-stamped (the 5-type set) and the corpus surfaces index too (D10)', () => {
+  it('templates are type-stamped (the 6-type set, incl. rollup) and the corpus surfaces index too (D10)', () => {
     const v = initVault(path.join(root, 'v')).root
     expect(loadTemplates(v).map((t) => t.type).sort()).toEqual([
       'initiative',
       'meeting',
       'milestone',
       'person',
+      'rollup',
       'theme',
     ])
     // The root index.md is itself an entity stamped type:index (D10), so the
-    // entity-derived corpus carries it on top of the 5 template types.
+    // entity-derived corpus carries it on top of the 6 template types (ENH-228).
     expect(buildCorpus(v).types).toEqual([
       'index',
       'initiative',
       'meeting',
       'milestone',
       'person',
+      'rollup',
       'theme',
     ])
   })
