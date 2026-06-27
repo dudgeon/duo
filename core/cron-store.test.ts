@@ -4,11 +4,12 @@ import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
 import { CronStore, emptyCronFile, CRON_FILE_VERSION } from './cron-store'
-import type { CronJob } from '../shared/types'
+import type { CronClaudeJob, CronShellJob } from '../shared/types'
 
-function makeJob(overrides: Partial<CronJob> = {}): CronJob {
+function makeJob(overrides: Partial<CronClaudeJob> = {}): CronClaudeJob {
   return {
     id: overrides.id ?? 'job_1',
+    kind: 'claude',
     name: overrides.name ?? 'Morning triage',
     cwd: overrides.cwd ?? '/tmp/proj',
     instruction: overrides.instruction ?? 'review PRs',
@@ -17,6 +18,22 @@ function makeJob(overrides: Partial<CronJob> = {}): CronJob {
     catchUpOnLaunch: overrides.catchUpOnLaunch ?? null,
     enabled: overrides.enabled ?? true,
     lastSessionId: overrides.lastSessionId ?? null,
+    lastRunAt: overrides.lastRunAt ?? null,
+    lastRunState: overrides.lastRunState ?? null,
+    createdAt: overrides.createdAt ?? new Date().toISOString(),
+  }
+}
+
+function makeShellJob(overrides: Partial<CronShellJob> = {}): CronShellJob {
+  return {
+    id: overrides.id ?? 'job_shell',
+    kind: 'shell',
+    name: overrides.name ?? 'Reindex docs',
+    cwd: overrides.cwd ?? '/tmp/proj',
+    command: overrides.command ?? 'qmd update && qmd embed',
+    schedule: overrides.schedule ?? { kind: 'preset', preset: 'daily', hour: 9, minute: 0 },
+    catchUpOnLaunch: overrides.catchUpOnLaunch ?? null,
+    enabled: overrides.enabled ?? true,
     lastRunAt: overrides.lastRunAt ?? null,
     lastRunState: overrides.lastRunState ?? null,
     createdAt: overrides.createdAt ?? new Date().toISOString(),
@@ -48,7 +65,9 @@ describe('CronStore', () => {
 
     const reloaded = new CronStore(dir)
     await reloaded.load()
-    expect(reloaded.getJob('job_1')?.instruction).toBe('review PRs')
+    const job = reloaded.getJob('job_1')
+    expect(job?.kind).toBe('claude')
+    expect(job?.kind === 'claude' ? job.instruction : null).toBe('review PRs')
   })
 
   it('rejects a duplicate id', async () => {
@@ -60,7 +79,7 @@ describe('CronStore', () => {
     await store.addJob(makeJob())
     const updated = await store.updateJob('job_1', { enabled: false, lastSessionId: 'abc' })
     expect(updated?.enabled).toBe(false)
-    expect(updated?.lastSessionId).toBe('abc')
+    expect(updated?.kind === 'claude' ? updated.lastSessionId : null).toBe('abc')
     expect(store.getJob('job_1')?.enabled).toBe(false)
   })
 
@@ -110,5 +129,88 @@ describe('CronStore', () => {
 
   it('emptyCronFile carries the current version', () => {
     expect(emptyCronFile().version).toBe(CRON_FILE_VERSION)
+  })
+
+  // ── shell-job kind (cron shell jobs) ──────────────────────────────────────
+  it('a legacy job with no `kind` loads as kind:"claude" (back-compat)', async () => {
+    // Persist a record WITHOUT a `kind` field (the pre-shell-job shape).
+    const legacy = {
+      version: CRON_FILE_VERSION,
+      jobs: [
+        {
+          id: 'legacy',
+          name: 'Legacy job',
+          cwd: '/tmp/proj',
+          instruction: 'review PRs',
+          session: 'fresh',
+          schedule: { kind: 'preset', preset: 'daily', hour: 9, minute: 0 },
+          catchUpOnLaunch: null,
+          enabled: true,
+          lastSessionId: null,
+          lastRunAt: null,
+          lastRunState: null,
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      settings: { defaultCatchUpOnLaunch: false },
+    }
+    await fs.writeFile(path.join(dir, 'cron-jobs.json'), JSON.stringify(legacy))
+    const s = new CronStore(dir)
+    await s.load()
+    const job = s.getJob('legacy')
+    expect(job?.kind).toBe('claude')
+    expect(job?.kind === 'claude' ? job.instruction : null).toBe('review PRs')
+  })
+
+  it('a shell job round-trips across instances', async () => {
+    await store.addJob(makeShellJob({ command: 'qmd update && qmd embed' }))
+    const reloaded = new CronStore(dir)
+    await reloaded.load()
+    const job = reloaded.getJob('job_shell')
+    expect(job?.kind).toBe('shell')
+    expect(job?.kind === 'shell' ? job.command : null).toBe('qmd update && qmd embed')
+    // A shell job carries no instruction/session/lastSessionId.
+    expect(job && 'instruction' in job).toBe(false)
+    expect(job && 'session' in job).toBe(false)
+    expect(job && 'lastSessionId' in job).toBe(false)
+  })
+
+  it('a shell job missing its command is dropped on load', async () => {
+    const file = {
+      version: CRON_FILE_VERSION,
+      jobs: [
+        // A valid shell job + a kind:"shell" job with no command (unusable).
+        {
+          id: 'good-shell',
+          kind: 'shell',
+          name: 'Good',
+          cwd: '/tmp/proj',
+          command: 'echo hi',
+          schedule: { kind: 'preset', preset: 'daily', hour: 9, minute: 0 },
+          catchUpOnLaunch: null,
+          enabled: true,
+          lastRunAt: null,
+          lastRunState: null,
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: 'bad-shell-no-command',
+          kind: 'shell',
+          name: 'Bad',
+          cwd: '/tmp/proj',
+          schedule: { kind: 'preset', preset: 'daily', hour: 9, minute: 0 },
+          catchUpOnLaunch: null,
+          enabled: true,
+          lastRunAt: null,
+          lastRunState: null,
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      settings: { defaultCatchUpOnLaunch: false },
+    }
+    await fs.writeFile(path.join(dir, 'cron-jobs.json'), JSON.stringify(file))
+    const s = new CronStore(dir)
+    await s.load()
+    expect(s.getJobs().map((j) => j.id)).toEqual(['good-shell'])
   })
 })

@@ -430,7 +430,7 @@ const VERBS: VerbSpec[] = [
     group: 'Scheduling',
     args: '<list|add|edit|run|pause|resume|rm|show> [args]',
     summary:
-      'Scheduled ("cron") Claude sessions — fire a Claude command in a project on a schedule, INTERACTIVELY (Duo does session start + initial instruction, then hands control to you; runs only fire while Duo is open). list shows jobs (+ next-fire + status); add --name <n> --cwd <path> --say "<instruction>" (--every hourly|daily|weekdays|weekly [--at HH:MM] [--on <weekday>] | --cron "<expr>") [--session fresh|same] [--catch-up]; edit <id> [same flags] changes a job (schedule flags replace the whole schedule; --no-catch-up turns catch-up off); run <id> fires now; pause / resume / rm / show <id> manage one job (ids from "cron list").'
+      'Scheduled ("cron") jobs — fire a Claude session OR a raw shell command in a project on a schedule (runs only fire while Duo is open). A Claude job is INTERACTIVE (Duo does session start + initial instruction, then hands control to you); a shell job (--run) runs a raw command in a background tab, no Claude session. list shows jobs (+ next-fire + status); add --name <n> --cwd <path> (--say "<instruction>" [--session fresh|same] | --run "<command>") (--every hourly|daily|weekdays|weekly [--at HH:MM] [--on <weekday>] | --cron "<expr>") [--catch-up]; edit <id> [same flags] changes a job (schedule flags replace the whole schedule; --no-catch-up turns catch-up off; --run and --say/--session are mutually exclusive); run <id> fires now; pause / resume / rm / show <id> manage one job (ids from "cron list").'
   },
   {
     name: 'attention',
@@ -2652,13 +2652,15 @@ async function main(): Promise<void> {
       }
 
       case 'cron': {
-        // ENH-223 — scheduled ("cron") Claude sessions. Single 'cron' socket
-        // command with a discriminated op. Runs are INTERACTIVE only (Duo does
-        // session start + initial instruction); headless `-p` is gated off.
+        // ENH-223 — scheduled ("cron") jobs. Single 'cron' socket command with
+        // a discriminated op. A CLAUDE job (--say) is INTERACTIVE only (Duo does
+        // session start + initial instruction; headless `-p` is gated off). A
+        // SHELL job (--run) runs a raw command in a background tab, no session.
         //   cron list
-        //   cron add --name <n> --cwd <path> --say "<instruction>"
+        //   cron add --name <n> --cwd <path>
+        //            (--say "<instruction>" [--session fresh|same] | --run "<command>")
         //            (--every hourly|daily|weekdays|weekly [--at HH:MM] [--on <weekday>]
-        //             | --cron "<expr>")  [--session fresh|same] [--catch-up]
+        //             | --cron "<expr>")  [--catch-up]
         //   cron show|run|pause|resume|rm <id>
         const sub = rest[0]
         if (!sub) {
@@ -2670,22 +2672,28 @@ async function main(): Promise<void> {
           const name = flagValue(rest, '--name')
           const cwd = flagValue(rest, '--cwd')
           const say = flagValue(rest, '--say')
+          // --run "<command>" creates a SHELL job (raw command, no Claude
+          // session); --say/--session create a CLAUDE job. The two are mutually
+          // exclusive.
+          const run = flagValue(rest, '--run')
+          const sessionMode = flagValue(rest, '--session')
           if (!name) {
-            die('Usage: duo cron add --name <name> --cwd <path> --say "<instruction>" (--every <preset> [--at HH:MM] [--on <weekday>] | --cron "<expr>") [--session fresh|same] [--catch-up]')
+            die('Usage: duo cron add --name <name> --cwd <path> (--say "<instruction>" [--session fresh|same] | --run "<command>") (--every <preset> [--at HH:MM] [--on <weekday>] | --cron "<expr>") [--catch-up]')
           }
           if (!cwd) die('duo cron add: --cwd <path> is required')
-          if (!say) die('duo cron add: --say "<instruction>" is required')
+          if (run && (say || sessionMode)) die('duo cron add: --run cannot be combined with --say or --session')
+          if (!run && !say) die('duo cron add: --say "<instruction>" or --run "<command>" is required')
           const payload: Record<string, unknown> = {
             op: 'add',
             name,
-            cwd: resolveFilePath(cwd),
-            instruction: say
+            cwd: resolveFilePath(cwd)
           }
+          if (run) payload.command = run
+          else payload.instruction = say
           const cron = flagValue(rest, '--cron')
           const every = flagValue(rest, '--every')
           const at = flagValue(rest, '--at')
           const on = flagValue(rest, '--on')
-          const sessionMode = flagValue(rest, '--session')
           if (cron) payload.cron = cron
           if (every) payload.every = every
           if (at) payload.at = at
@@ -2699,20 +2707,24 @@ async function main(): Promise<void> {
           // (--every/--cron + --at/--on) replaces the WHOLE schedule.
           const id = rest[1]
           if (!id) {
-            die('Usage: duo cron edit <id> [--name <n>] [--cwd <path>] [--say "<instruction>"] (--every <preset> [--at HH:MM] [--on <weekday>] | --cron "<expr>") [--session fresh|same] [--catch-up | --no-catch-up]')
+            die('Usage: duo cron edit <id> [--name <n>] [--cwd <path>] [--say "<instruction>" | --run "<command>"] (--every <preset> [--at HH:MM] [--on <weekday>] | --cron "<expr>") [--session fresh|same] [--catch-up | --no-catch-up]')
           }
           const payload: Record<string, unknown> = { op: 'edit', id }
           const name = flagValue(rest, '--name')
           const cwd = flagValue(rest, '--cwd')
           const say = flagValue(rest, '--say')
+          const run = flagValue(rest, '--run')
           const cron = flagValue(rest, '--cron')
           const every = flagValue(rest, '--every')
           const at = flagValue(rest, '--at')
           const on = flagValue(rest, '--on')
           const sessionMode = flagValue(rest, '--session')
+          // --run (shell job's command) is mutually exclusive with --say/--session.
+          if (run && (say || sessionMode)) die('duo cron edit: --run cannot be combined with --say or --session')
           if (name) payload.name = name
           if (cwd) payload.cwd = resolveFilePath(cwd)
           if (say) payload.instruction = say
+          if (run) payload.command = run
           if (cron) payload.cron = cron
           if (every) payload.every = every
           if (at) payload.at = at

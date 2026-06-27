@@ -6,6 +6,7 @@ import * as path from 'path'
 import * as os from 'os'
 import { CronStore } from './cron-store'
 import { CronService, type CronRunner } from './cron-service'
+import type { CronClaudeJob, CronJob } from '../shared/types'
 
 interface SpawnCall {
   cwd: string
@@ -22,6 +23,12 @@ function makeRunner(result: { ok: boolean; error?: string; reason?: 'no-window' 
     },
   }
   return { runner, calls }
+}
+
+/** Narrow a fetched job to the claude variant (fails the test if it isn't). */
+function asClaude(job: CronJob | undefined): CronClaudeJob {
+  if (!job || job.kind !== 'claude') throw new Error('expected a claude job')
+  return job
 }
 
 describe('CronService', () => {
@@ -73,7 +80,7 @@ describe('CronService', () => {
 
     expect(calls).toHaveLength(1)
     expect(calls[0].command).toMatch(/^claude --session-id [0-9a-f-]{36} 'review PRs'\n$/)
-    const job = store.getJob(view.id)!
+    const job = asClaude(store.getJob(view.id))
     expect(job.lastSessionId).toBeTruthy()
     expect(job.lastRunState).toBe('ran')
   })
@@ -86,7 +93,7 @@ describe('CronService', () => {
     await svc.fireJob(fired.id, { reason: 'manual' })
 
     const ids = svc.lastSessionIds()
-    expect(ids).toEqual([store.getJob(fired.id)!.lastSessionId])
+    expect(ids).toEqual([asClaude(store.getJob(fired.id)).lastSessionId])
   })
 
   it('a "same" job resumes when the prior session still exists', async () => {
@@ -96,13 +103,13 @@ describe('CronService', () => {
 
     // First run: no prior session → fresh, captures an id.
     await svc.fireJob(view.id, { reason: 'manual' })
-    const firstId = store.getJob(view.id)!.lastSessionId!
+    const firstId = asClaude(store.getJob(view.id)).lastSessionId!
     expect(calls[0].command).toContain('--session-id')
 
     // Second run: prior session exists → resume the SAME id.
     await svc.fireJob(view.id, { reason: 'manual' })
     expect(calls[1].command).toBe(`claude --resume ${firstId} 'review PRs'\n`)
-    expect(store.getJob(view.id)!.lastSessionId).toBe(firstId)
+    expect(asClaude(store.getJob(view.id)).lastSessionId).toBe(firstId)
     expect(store.getJob(view.id)!.lastRunState).toBe('ran')
   })
 
@@ -112,14 +119,135 @@ describe('CronService', () => {
     const view = (await addJob(svc, { session: 'same' })) as { id: string }
 
     await svc.fireJob(view.id, { reason: 'manual' }) // first run, fresh
-    const firstId = store.getJob(view.id)!.lastSessionId!
+    const firstId = asClaude(store.getJob(view.id)).lastSessionId!
     await svc.fireJob(view.id, { reason: 'manual' }) // prior gone → fresh-fallback
 
     expect(calls[1].command).toContain('--session-id')
     expect(calls[1].command).not.toContain('--resume')
-    const job = store.getJob(view.id)!
+    const job = asClaude(store.getJob(view.id))
     expect(job.lastRunState).toBe('fresh-fallback')
     expect(job.lastSessionId).not.toBe(firstId) // a new id was minted
+  })
+
+  // ── shell jobs (raw command, no Claude session) ──────────────────────────
+  describe('shell jobs', () => {
+    async function addShellJob(svc: CronService, over: Record<string, unknown> = {}) {
+      return svc.handleCli('add', {
+        name: 'Reindex',
+        cwd: '/tmp/proj',
+        command: 'qmd update && qmd embed',
+        every: 'daily',
+        at: '09:00',
+        ...over,
+      })
+    }
+
+    it('creates a shell job via --run args (kind:"shell", no session payload)', async () => {
+      const { runner } = makeRunner()
+      const svc = new CronService({ store, runner, sessionExists: async () => false, headlessAllowed: false })
+      const view = (await addShellJob(svc)) as { id: string; kind: string; scheduleLabel: string }
+      expect(view.kind).toBe('shell')
+      expect(view.scheduleLabel).toBe('every day at 09:00')
+      const job = store.getJob(view.id)!
+      expect(job.kind).toBe('shell')
+      expect(job.kind === 'shell' ? job.command : null).toBe('qmd update && qmd embed')
+      expect('instruction' in job).toBe(false)
+      expect('session' in job).toBe(false)
+      expect('lastSessionId' in job).toBe(false)
+    })
+
+    it('rejects --run combined with --say or --session', async () => {
+      const { runner } = makeRunner()
+      const svc = new CronService({ store, runner, sessionExists: async () => false, headlessAllowed: false })
+      await expect(addShellJob(svc, { instruction: 'do it' })).rejects.toThrow(/--run cannot be combined/)
+      await expect(addShellJob(svc, { session: 'same' })).rejects.toThrow(/--run cannot be combined/)
+    })
+
+    it('add with neither --say nor --run is rejected', async () => {
+      const { runner } = makeRunner()
+      const svc = new CronService({ store, runner, sessionExists: async () => false, headlessAllowed: false })
+      await expect(
+        svc.handleCli('add', { name: 'x', cwd: '/tmp/p', every: 'daily', at: '09:00' })
+      ).rejects.toThrow(/--say.*--run|--run.*--say/)
+    })
+
+    it('firing a shell job dispatches the RAW command + newline and records no session', async () => {
+      // sessionExists returns true to prove the shell path never consults it —
+      // a shell job must NOT resume even if a session somehow existed.
+      const { runner, calls } = makeRunner()
+      const svc = new CronService({ store, runner, sessionExists: async () => true, headlessAllowed: false })
+      const view = (await addShellJob(svc)) as { id: string }
+      await svc.fireJob(view.id, { reason: 'manual' })
+
+      expect(calls).toHaveLength(1)
+      // Raw command verbatim + trailing newline; NO claude/--session-id/--resume.
+      expect(calls[0].command).toBe('qmd update && qmd embed\n')
+      expect(calls[0].command).not.toContain('claude')
+      expect(calls[0].command).not.toContain('--session-id')
+      expect(calls[0].command).not.toContain('--resume')
+
+      const job = store.getJob(view.id)!
+      expect(job.lastRunState).toBe('ran')
+      expect(job.lastRunAt).toBeTruthy()
+      // No session bookkeeping leaked onto the shell job.
+      expect('lastSessionId' in job).toBe(false)
+      expect(svc.lastSessionIds()).toEqual([])
+    })
+
+    it('a shell job ignores headlessAllowed gating (runs the raw command either way)', async () => {
+      // A shell command that LOOKS headless (`-p`) is fine — the gate is claude-only.
+      const { runner, calls } = makeRunner()
+      const svc = new CronService({ store, runner, sessionExists: async () => false, headlessAllowed: false })
+      const view = (await addShellJob(svc, { command: 'claude -p "noninteractive"' })) as { id: string }
+      const r = await svc.fireJob(view.id, { reason: 'manual' })
+      expect(r.ok).toBe(true)
+      expect(calls[0].command).toBe('claude -p "noninteractive"\n')
+    })
+
+    it('edits a shell job command via --run', async () => {
+      const { runner } = makeRunner()
+      const svc = new CronService({ store, runner, sessionExists: async () => false, headlessAllowed: false })
+      const view = (await addShellJob(svc)) as { id: string }
+      const edited = (await svc.handleCli('edit', { id: view.id, command: 'qmd update' })) as { kind: string }
+      expect(edited.kind).toBe('shell')
+      const job = store.getJob(view.id)!
+      expect(job.kind === 'shell' ? job.command : null).toBe('qmd update')
+    })
+
+    it('editing only a shell job schedule keeps kind:"shell" + command, no instruction/session leak', async () => {
+      // Mirrors the native Home edit modal's shell-edit Save patch: it sends
+      // name/cwd/catchUp + schedule args (and command) but NEVER instruction or
+      // session. CronService.buildPatchFromArgs only touches the fields present
+      // and CronStore.updateJob spreads onto the existing record preserving the
+      // discriminant, so the job must stay kind:'shell'.
+      const { runner } = makeRunner()
+      const svc = new CronService({ store, runner, sessionExists: async () => false, headlessAllowed: false })
+      const view = (await addShellJob(svc)) as { id: string }
+
+      const edited = (await svc.handleCli('edit', {
+        id: view.id,
+        name: 'Reindex (evening)',
+        cwd: '/tmp/proj',
+        catchUp: true,
+        every: 'weekly',
+        on: '5',
+        at: '18:00',
+      })) as { kind: string; name: string; scheduleLabel: string }
+
+      expect(edited.kind).toBe('shell')
+      expect(edited.name).toBe('Reindex (evening)')
+      expect(edited.scheduleLabel).toBe('every Friday at 18:00')
+
+      const job = store.getJob(view.id)!
+      expect(job.kind).toBe('shell')
+      // The command is untouched (the schedule-only edit didn't clobber it).
+      expect(job.kind === 'shell' ? job.command : null).toBe('qmd update && qmd embed')
+      expect(job.catchUpOnLaunch).toBe(true)
+      // No claude-job payload leaked onto the shell record.
+      expect('instruction' in job).toBe(false)
+      expect('session' in job).toBe(false)
+      expect('lastSessionId' in job).toBe(false)
+    })
   })
 
   it('records error state when the runner fails to spawn', async () => {

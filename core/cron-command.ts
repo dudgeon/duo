@@ -72,6 +72,43 @@ export function buildResumeRunCommand(uuid: string, instruction: string): string
   return `claude --resume ${uuid}${prompt}\n`
 }
 
+/**
+ * Validate + normalize a raw shell command for a 'shell' cron job. Returns the
+ * trimmed command (NO trailing newline — that's added at fire time by
+ * buildShellCommand). Used at add/edit time so a bad command is rejected before
+ * it's persisted.
+ *
+ * A shell command must be a single line: an embedded newline (CR, LF, or a
+ * Unicode line separator) would split the line — running only the first part,
+ * or injecting a second command — and an empty / whitespace-only command has
+ * nothing to run. assertInteractiveCommand is intentionally NOT applied: a
+ * shell job runs whatever the user authored locally.
+ */
+export function validateShellCommand(command: string): string {
+  if (typeof command !== 'string') {
+    throw new Error('cron: shell command must be a string')
+  }
+  if (/[\r\n\u2028\u2029]/.test(command)) {
+    throw new Error('cron: shell command must be a single line (no embedded newlines)')
+  }
+  const trimmed = command.trim()
+  if (trimmed === '') {
+    throw new Error('cron: shell command must not be empty')
+  }
+  return trimmed
+}
+
+/**
+ * Shell-job command: run a raw, single-line shell command the user authored
+ * locally (e.g. `qmd update && qmd embed`) in a background terminal tab, no
+ * Claude session. Returns the validated command with a trailing newline so the
+ * PTY auto-runs it (mirroring how the Claude command is fed in). Validation
+ * (single-line, non-empty) is shared with validateShellCommand.
+ */
+export function buildShellCommand(command: string): string {
+  return `${validateShellCommand(command)}\n`
+}
+
 // Headless triggers we refuse unless FEATURE_HEADLESS_CRON is on (D4). These
 // are matched as whole tokens OUTSIDE single quotes, so a quoted instruction
 // containing one of these words is never mistaken for a flag.

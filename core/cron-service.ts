@@ -10,13 +10,15 @@
 
 import { randomUUID } from 'node:crypto'
 import { isAbsolute } from 'node:path'
-import type { CronJob, CronJobView, CronRunState, CronSessionMode, CronSchedule } from '../shared/types'
+import type { CronJob, CronJobPatch, CronJobView, CronRunState, CronSchedule } from '../shared/types'
 import { CronStore } from './cron-store'
 import { nextFireAfterSchedule, describeSchedule, parseScheduleArgs } from './cron-schedule'
 import {
   mintSessionId,
   buildFreshRunCommand,
   buildResumeRunCommand,
+  buildShellCommand,
+  validateShellCommand,
   assertInteractiveCommand,
 } from './cron-command'
 
@@ -104,7 +106,8 @@ export class CronService {
   lastSessionIds(): string[] {
     const ids: string[] = []
     for (const job of this.store.getJobs()) {
-      if (job.lastSessionId) ids.push(job.lastSessionId)
+      // Only claude jobs carry a session id; shell jobs never mint one.
+      if (job.kind === 'claude' && job.lastSessionId) ids.push(job.lastSessionId)
     }
     return ids
   }
@@ -180,34 +183,52 @@ export class CronService {
 
     this.firing.add(jobId)
     try {
-      let sessionId: string
+      // A 'shell' run carries no session id and never resumes — it just types
+      // the raw command into a background tab. The success path therefore
+      // records only lastRunAt/lastRunState (no lastSessionId). A 'claude' run
+      // keeps the full fresh/resume + D4-gate logic.
+      let sessionId: string | null = null
       let command: string
       let runState: CronRunState
 
-      const canResume =
-        job.session === 'same' &&
-        !!job.lastSessionId &&
-        (await this.sessionExists(job.cwd, job.lastSessionId))
-
-      if (canResume) {
-        sessionId = job.lastSessionId as string
-        command = buildResumeRunCommand(sessionId, job.instruction)
+      if (job.kind === 'shell') {
+        // No session bookkeeping, no headless gate — the user authored this
+        // command locally and we run it verbatim.
+        command = buildShellCommand(job.command)
         runState = 'ran'
       } else {
-        sessionId = mintSessionId()
-        command = buildFreshRunCommand(sessionId, job.instruction)
-        // A "same" job whose prior session vanished falls back to fresh (D3).
-        runState = job.session === 'same' && job.lastSessionId ? 'fresh-fallback' : 'ran'
-      }
+        const canResume =
+          job.session === 'same' &&
+          !!job.lastSessionId &&
+          (await this.sessionExists(job.cwd, job.lastSessionId))
 
-      // D4 gate (no-op for our builders, load-bearing for any future raw cmd).
-      assertInteractiveCommand(command, { headlessAllowed: this.headlessAllowed })
+        if (canResume) {
+          // canResume already proved lastSessionId is non-null (the `!!` guard).
+          sessionId = job.lastSessionId as string
+          command = buildResumeRunCommand(sessionId, job.instruction)
+          runState = 'ran'
+        } else {
+          sessionId = mintSessionId()
+          command = buildFreshRunCommand(sessionId, job.instruction)
+          // A "same" job whose prior session vanished falls back to fresh (D3).
+          runState = job.session === 'same' && job.lastSessionId ? 'fresh-fallback' : 'ran'
+        }
+
+        // D4 gate (no-op for our builders, load-bearing for any future raw cmd).
+        // Claude jobs only — a shell job intentionally runs whatever the user typed.
+        assertInteractiveCommand(command, { headlessAllowed: this.headlessAllowed })
+      }
 
       const result = await this.runner.spawn({ cwd: job.cwd, command, jobId: job.id, jobName: job.name })
       const at = new Date(this.now()).toISOString()
 
       if (result.ok) {
-        await this.store.updateJob(jobId, { lastSessionId: sessionId, lastRunAt: at, lastRunState: runState })
+        // Shell jobs have no session id to record; only persist it for claude jobs.
+        const patch =
+          sessionId != null
+            ? { lastSessionId: sessionId, lastRunAt: at, lastRunState: runState }
+            : { lastRunAt: at, lastRunState: runState }
+        await this.store.updateJob(jobId, patch)
       } else if (result.reason === 'no-window') {
         // D10(3) — the occurrence came due with no Duo window open. That's a
         // "missed" run governed by D5 (catch-up on next launch), NOT a spawn
@@ -342,7 +363,7 @@ export class CronService {
         if (!id) throw new Error('cron edit requires <id>')
         const patch = this.buildPatchFromArgs(args)
         if (Object.keys(patch).length === 0) {
-          throw new Error('cron edit: nothing to change (pass --name/--cwd/--say/--every|--cron/--at/--on/--session/--catch-up|--no-catch-up)')
+          throw new Error('cron edit: nothing to change (pass --name/--cwd/--say|--run/--every|--cron/--at/--on/--session/--catch-up|--no-catch-up)')
         }
         const updated = await this.store.updateJob(id, patch)
         if (!updated) throw new Error(`no such job: ${id}`)
@@ -376,9 +397,10 @@ export class CronService {
 
   /** Build a partial-update patch from loose `cron edit` args — only the fields
    *  present are touched. Schedule is replaced wholesale if ANY schedule arg is
-   *  given (parseScheduleArgs builds a complete schedule). */
-  private buildPatchFromArgs(args: Record<string, unknown>): Partial<Omit<CronJob, 'id'>> {
-    const patch: Partial<Omit<CronJob, 'id'>> = {}
+   *  given (parseScheduleArgs builds a complete schedule). `--run` patches a
+   *  shell job's command; `--say`/`--session` patch a claude job's payload. */
+  private buildPatchFromArgs(args: Record<string, unknown>): CronJobPatch {
+    const patch: CronJobPatch = {}
     const name = str(args.name)
     if (name) patch.name = name
     const cwd = str(args.cwd)
@@ -386,6 +408,8 @@ export class CronService {
       assertCwdAbsolute(cwd)
       patch.cwd = cwd
     }
+    const command = str(args.command)
+    if (command) patch.command = validateShellCommand(command)
     const instruction = str(args.instruction)
     if (instruction) patch.instruction = instruction
     const sessionRaw = str(args.session)
@@ -406,14 +430,25 @@ export class CronService {
     return patch
   }
 
-  /** Create a job from `duo cron add` args. */
+  /** Create a job from `duo cron add` args. `--run` (args.command) creates a
+   *  'shell' job (raw command, no Claude session); `--say`/`--session`
+   *  (args.instruction/args.session) create a 'claude' job. The two are
+   *  mutually exclusive. */
   private async addFromArgs(args: Record<string, unknown>): Promise<CronJobView> {
     const name = str(args.name)
     const cwd = str(args.cwd)
+    const command = str(args.command)
     const instruction = str(args.instruction)
+    const sessionRaw = str(args.session)
     if (!name) throw new Error('cron add requires --name')
     if (!cwd) throw new Error('cron add requires --cwd')
-    if (!instruction) throw new Error('cron add requires --say "<instruction>"')
+    // A shell job (--run) and a claude job (--say/--session) are mutually exclusive.
+    if (command && (instruction || sessionRaw)) {
+      throw new Error('cron add: --run cannot be combined with --say or --session')
+    }
+    if (!command && !instruction) {
+      throw new Error('cron add requires --say "<instruction>" or --run "<command>"')
+    }
     assertCwdAbsolute(cwd)
 
     const schedule = parseScheduleArgs({
@@ -424,24 +459,20 @@ export class CronService {
     })
     this.assertSchedulable(schedule)
 
-    const sessionRaw = str(args.session)
-    const session: CronSessionMode = sessionRaw === 'same' ? 'same' : 'fresh'
     const catchUpOnLaunch = args.catchUp === true || args.catchUp === 'true' ? true : null
+    const id = `job_${randomUUID()}`
+    const createdAt = new Date(this.now()).toISOString()
+    const base = { id, name, cwd, schedule, catchUpOnLaunch, enabled: true, lastRunAt: null, lastRunState: null, createdAt }
 
-    const job: CronJob = {
-      id: `job_${randomUUID()}`,
-      name,
-      cwd,
-      instruction,
-      session,
-      schedule,
-      catchUpOnLaunch,
-      enabled: true,
-      lastSessionId: null,
-      lastRunAt: null,
-      lastRunState: null,
-      createdAt: new Date(this.now()).toISOString(),
-    }
+    const job: CronJob = command
+      ? { ...base, kind: 'shell', command: validateShellCommand(command) }
+      : {
+          ...base,
+          kind: 'claude',
+          instruction: instruction as string,
+          session: sessionRaw === 'same' ? 'same' : 'fresh',
+          lastSessionId: null,
+        }
 
     const added = await this.store.addJob(job)
     this.rescheduleJob(added, new Date(this.now()))

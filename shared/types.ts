@@ -733,33 +733,76 @@ export type CronSchedule =
  *  = a "same" job whose prior session was gone, so it started fresh (D3). */
 export type CronRunState = 'ran' | 'fresh-fallback' | 'missed' | 'error'
 
-/** A scheduled job — the persisted shape inside cron-jobs.json `jobs[]`. */
-export interface CronJob {
+/** Which kind of work a scheduled job fires (ENH-223 follow-up).
+ *  - 'claude' — launch an interactive Claude session (the original behavior).
+ *  - 'shell'  — run a raw shell command in a background terminal tab, no
+ *               Claude session. */
+export type CronJobKind = 'claude' | 'shell'
+
+/** Fields shared by every job kind — the persisted shape inside
+ *  cron-jobs.json `jobs[]`, minus the kind-specific payload. */
+export interface CronJobBase {
   /** Stable Duo-minted id (e.g. `job_<uuid>`). */
   id: string
   /** Human label shown on Home + in `duo cron list`. */
   name: string
   /** Absolute working directory the run launches in. */
   cwd: string
-  /** The initial instruction — Claude's positional prompt (D2). */
-  instruction: string
-  /** fresh = new session each run; same = resume the last run's session (D3). */
-  session: CronSessionMode
   schedule: CronSchedule
   /** Per-job override of the global "run once on next launch" default (D5).
    *  null = inherit the file-level `settings.defaultCatchUpOnLaunch`. */
   catchUpOnLaunch: boolean | null
   /** Paused jobs persist but never fire. */
   enabled: boolean
-  /** Duo-minted pointer to the session the last run created (D3, ENH-183 D9).
-   *  null until the first run. */
-  lastSessionId: string | null
   /** ISO timestamp of the last run, or null. */
   lastRunAt: string | null
   lastRunState: CronRunState | null
   /** ISO timestamp the job was created (the catch-up baseline before first run). */
   createdAt: string
 }
+
+/** A scheduled job that launches an interactive Claude session (the original
+ *  ENH-223 behavior). Duo does session start + initial instruction, then hands
+ *  control to the user. */
+export interface CronClaudeJob extends CronJobBase {
+  kind: 'claude'
+  /** The initial instruction — Claude's positional prompt (D2). */
+  instruction: string
+  /** fresh = new session each run; same = resume the last run's session (D3). */
+  session: CronSessionMode
+  /** Duo-minted pointer to the session the last run created (D3, ENH-183 D9).
+   *  null until the first run. */
+  lastSessionId: string | null
+}
+
+/** A scheduled job that runs a raw shell command in a background terminal tab,
+ *  with NO Claude session. The command is whatever the user authored locally
+ *  (e.g. `qmd update && qmd embed`); there is no session bookkeeping. */
+export interface CronShellJob extends CronJobBase {
+  kind: 'shell'
+  /** The raw, single-line shell command to run (auto-submitted on a trailing
+   *  newline by the PTY, mirroring how the Claude command is fed in). */
+  command: string
+}
+
+/** A scheduled job — the persisted shape inside cron-jobs.json `jobs[]`. A
+ *  discriminated union on `kind`: 'claude' (interactive session) or 'shell'
+ *  (raw command). Legacy jobs without a `kind` load as 'claude'. */
+export type CronJob = CronClaudeJob | CronShellJob
+
+/** A partial patch for `CronStore.updateJob`. Spans the fields of BOTH job
+ *  kinds (so a 'shell' job can patch `command` and a 'claude' job can patch
+ *  `instruction`/`session`/`lastSessionId`); the store spreads it onto the
+ *  existing record, so callers are responsible for only patching fields that
+ *  apply to the target job's kind. `id` is never patchable. */
+export type CronJobPatch = Partial<
+  Omit<CronJobBase, 'id'> & {
+    instruction: string
+    session: CronSessionMode
+    lastSessionId: string | null
+    command: string
+  }
+>
 
 /** The cron-jobs.json on-disk envelope (app-global, D1). */
 export interface CronJobsFile {
@@ -768,14 +811,19 @@ export interface CronJobsFile {
   settings: { defaultCatchUpOnLaunch: boolean }
 }
 
-/** Read-model row for `duo cron list` / `show` — a job plus the computed
- *  next-fire time and a human-readable schedule label. */
-export interface CronJobView extends CronJob {
+/** The computed read-model fields layered onto a job for `duo cron list` /
+ *  `show` — the next-fire time and a human-readable schedule label. */
+export interface CronJobViewExtras {
   /** ISO timestamp of the next scheduled fire, or null (disabled / unschedulable). */
   nextFireAt: string | null
   /** Human label, e.g. "every day at 09:00" or "weekdays at 08:30". */
   scheduleLabel: string
 }
+
+/** Read-model row for `duo cron list` / `show` — a job plus the computed
+ *  next-fire time and a human-readable schedule label. Distributes over the
+ *  union so each variant keeps its own discriminant + payload. */
+export type CronJobView = CronJob & CronJobViewExtras
 
 // Stage 21c — session state restored across Duo relaunches.
 // Persisted at ~/.claude/duo/session-state.json. Identity-bearing

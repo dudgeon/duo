@@ -11,7 +11,7 @@ import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
 import { uniqueTmpPath, createWriteQueue } from './write-queue'
-import type { CronJob, CronJobsFile } from '../shared/types'
+import type { CronJob, CronJobPatch, CronJobsFile } from '../shared/types'
 
 export const CRON_FILE_VERSION = 1
 const DEFAULT_DIR = path.join(os.homedir(), '.claude', 'duo')
@@ -25,26 +25,42 @@ function isObj(v: unknown): v is Record<string, unknown> {
 }
 
 /** Validate + coerce one persisted job, returning null if it's unusable.
- *  Lenient: a bad job is dropped (with a warning), not a load-crashing throw. */
+ *  Lenient: a bad job is dropped (with a warning), not a load-crashing throw.
+ *  A job with no `kind` defaults to 'claude' (back-compat with pre-shell-job
+ *  records). A 'shell' job must carry a non-empty `command`. */
 function coerceJob(raw: unknown): CronJob | null {
   if (!isObj(raw)) return null
   const id = typeof raw.id === 'string' ? raw.id : null
   const cwd = typeof raw.cwd === 'string' ? raw.cwd : null
   const schedule = raw.schedule
   if (!id || !cwd || !isObj(schedule)) return null
-  return {
+
+  const base = {
     id,
     name: typeof raw.name === 'string' ? raw.name : id,
     cwd,
-    instruction: typeof raw.instruction === 'string' ? raw.instruction : '',
-    session: raw.session === 'same' ? 'same' : 'fresh',
     schedule: schedule as CronJob['schedule'],
     catchUpOnLaunch: typeof raw.catchUpOnLaunch === 'boolean' ? raw.catchUpOnLaunch : null,
     enabled: typeof raw.enabled === 'boolean' ? raw.enabled : true,
-    lastSessionId: typeof raw.lastSessionId === 'string' ? raw.lastSessionId : null,
     lastRunAt: typeof raw.lastRunAt === 'string' ? raw.lastRunAt : null,
     lastRunState: (raw.lastRunState as CronJob['lastRunState']) ?? null,
     createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : new Date().toISOString(),
+  }
+
+  // A 'shell' job runs a raw command; everything else (including legacy jobs
+  // with no `kind`) is a 'claude' job (back-compat).
+  if (raw.kind === 'shell') {
+    const command = typeof raw.command === 'string' ? raw.command.trim() : ''
+    if (!command) return null // a shell job with no command is unusable
+    return { ...base, kind: 'shell', command }
+  }
+
+  return {
+    ...base,
+    kind: 'claude',
+    instruction: typeof raw.instruction === 'string' ? raw.instruction : '',
+    session: raw.session === 'same' ? 'same' : 'fresh',
+    lastSessionId: typeof raw.lastSessionId === 'string' ? raw.lastSessionId : null,
   }
 }
 
@@ -140,12 +156,16 @@ export class CronStore {
     })
   }
 
-  /** Patch a job in place. Returns the updated job, or undefined if absent. */
-  async updateJob(id: string, patch: Partial<Omit<CronJob, 'id'>>): Promise<CronJob | undefined> {
+  /** Patch a job in place. Returns the updated job, or undefined if absent.
+   *  The patch spans both kinds' fields (CronJobPatch); callers only pass fields
+   *  that apply to the target job's kind, so the spread preserves a valid
+   *  discriminated-union record. The cast bridges the spread result (which TS
+   *  can't prove stays within one union arm) back to the persisted type. */
+  async updateJob(id: string, patch: CronJobPatch): Promise<CronJob | undefined> {
     return this.enqueue(async () => {
       const idx = this.cache.jobs.findIndex((j) => j.id === id)
       if (idx === -1) return undefined
-      this.cache.jobs[idx] = { ...this.cache.jobs[idx], ...patch, id }
+      this.cache.jobs[idx] = { ...this.cache.jobs[idx], ...patch, id } as CronJob
       await this.persist()
       return cloneJob(this.cache.jobs[idx])
     })
