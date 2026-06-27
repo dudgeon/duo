@@ -1,5 +1,19 @@
 # Active sprint state — v0.12.2 shipped (Async Catch-Up + the Vault view); next: triage
 
+## Merged to `main` since v0.12.3 — awaiting the next cut
+
+> **ENH-237** (#112) **shell-command cron jobs.** `CronJob` is now a discriminated
+> union on `kind`: a **claude** job (interactive session, the original ENH-223
+> behavior) or a **shell** job (`duo cron add --run "<cmd>"`) that runs a raw
+> single-line command in a background terminal tab — no Claude session, no D4
+> headless gate. Legacy `kind`-less records load as `claude` (back-compat, no
+> migration). Shell jobs are CLI-created + UI-edited (deliberate asymmetry,
+> ENH-223 PRD § 12). Merged with a post-review doc-reconciliation pass (4-surface
+> CLI sync + PRD § 12 + ledger were missing from the original PR). typecheck
+> clean · cron suites 66/66 · `check:skill-currency` PASS. **Not yet cut** (owner
+> directive: merge but hold the version). Deferred follow-ups in the ENH-237
+> ledger entry (Home kind badge; `coerceJob` single-line; the `updateJob` cast).
+
 ## v0.12.2 cut 2026-06-25 — Async Catch-Up + the Vault view + OKF rollup discoverability
 
 > **Shipped & merged to `main`:** **ENH-231** (#108) Async Catch-Up — a second Home
