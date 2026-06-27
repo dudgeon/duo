@@ -73,9 +73,17 @@ function fromSchedule(s: CronSchedule | undefined): {
 
 export function NewCronJobModal({ open, editJob, defaultCwd, onClose, onSaved }: NewCronJobModalProps) {
   const isEdit = !!editJob
+  // Editing a 'shell' job (a raw command, no Claude session). The create flow is
+  // claude-only by design (the user explicitly does NOT want shell-job creation
+  // from this dialog); only the EDIT path authors shell jobs. In this branch we
+  // swap the instruction/session controls for a command field and build a
+  // shell-shaped Save patch (no instruction/session) so the persisted job stays
+  // kind:'shell' with its command intact.
+  const isShellEdit = isEdit && editJob?.kind === 'shell'
   const [name, setName] = useState('')
   const [cwd, setCwd] = useState('')
   const [instruction, setInstruction] = useState('')
+  const [command, setCommand] = useState('')
   const [preset, setPreset] = useState<PresetKind>('daily')
   const [at, setAt] = useState('09:00')
   const [hourlyMinute, setHourlyMinute] = useState('0')
@@ -101,18 +109,23 @@ export function NewCronJobModal({ open, editJob, defaultCwd, onClose, onSaved }:
       const d = fromSchedule(editJob.schedule)
       setName(editJob.name)
       setCwd(editJob.cwd)
-      setInstruction(editJob.instruction)
+      // A 'claude' job carries instruction + session; a 'shell' job carries a raw
+      // command. Seed whichever applies and leave the other field empty — the
+      // render branches on isShellEdit so only the relevant control is shown.
+      setInstruction(editJob.kind === 'claude' ? editJob.instruction : '')
+      setCommand(editJob.kind === 'shell' ? editJob.command : '')
       setPreset(d.preset)
       setAt(d.at)
       setHourlyMinute(d.hourlyMinute)
       setWeekday(d.weekday)
       setCronExpr(d.cronExpr)
-      setSession(editJob.session)
+      setSession(editJob.kind === 'claude' ? editJob.session : 'fresh')
       setCatchUp(editJob.catchUpOnLaunch === true)
     } else {
       setName('')
       setCwd(defaultCwd ?? '')
       setInstruction('')
+      setCommand('')
       setPreset('daily')
       setAt('09:00')
       setHourlyMinute('0')
@@ -188,8 +201,15 @@ export function NewCronJobModal({ open, editJob, defaultCwd, onClose, onSaved }:
 
   if (!open) return null
 
+  // A shell-job edit gates on a non-empty command (no instruction/session); a
+  // claude job (create or edit) gates on a non-empty instruction.
   const canSave =
-    !busy && !!name.trim() && !!cwd.trim() && !!instruction.trim() && !previewError && !previewPending
+    !busy &&
+    !!name.trim() &&
+    !!cwd.trim() &&
+    (isShellEdit ? !!command.trim() : !!instruction.trim()) &&
+    !previewError &&
+    !previewPending
 
   // Browse… → native folder picker, seeded with the current path. Cancel keeps
   // whatever's typed.
@@ -216,14 +236,28 @@ export function NewCronJobModal({ open, editJob, defaultCwd, onClose, onSaved }:
     setBusy(true)
     setError(null)
     try {
-      const payload: Record<string, unknown> = {
-        name: name.trim(),
-        cwd: expandedCwd,
-        instruction: instruction.trim(),
-        session,
-        catchUp,
-        ...scheduleArgs(),
-      }
+      // Build a kind-correct patch. A shell-job edit sends `command` (mapped to
+      // the same `args.command` the CLI's `--run` uses) and deliberately OMITS
+      // instruction/session — CronService.buildPatchFromArgs only touches the
+      // fields present, and CronStore.updateJob spreads the patch onto the
+      // existing record preserving `kind`, so the job stays kind:'shell'. A
+      // claude job (create or edit) sends instruction/session as before.
+      const payload: Record<string, unknown> = isShellEdit
+        ? {
+            name: name.trim(),
+            cwd: expandedCwd,
+            command: command.trim(),
+            catchUp,
+            ...scheduleArgs(),
+          }
+        : {
+            name: name.trim(),
+            cwd: expandedCwd,
+            instruction: instruction.trim(),
+            session,
+            catchUp,
+            ...scheduleArgs(),
+          }
       if (isEdit && editJob) payload.id = editJob.id
       const saved = (await window.electron.cron.invoke(isEdit ? 'edit' : 'add', payload)) as CronJobView
       onSaved?.(saved)
@@ -267,12 +301,20 @@ export function NewCronJobModal({ open, editJob, defaultCwd, onClose, onSaved }:
           </button>
         </div>
 
-        {/* How scheduled jobs behave — interactive-only (no headless yet). */}
-        <p className="mb-3 px-3 py-2 rounded text-xs bg-accent/10 border border-border text-ink-soft">
-          Scheduled jobs run interactively in the terminal and require user interaction
-          after the first prompt; headless (<span className="font-mono">-p</span>) execution
-          is not yet supported.
-        </p>
+        {/* How scheduled jobs behave. A shell job runs its raw command in a
+            background terminal tab; a claude job runs interactively. */}
+        {isShellEdit ? (
+          <p className="mb-3 px-3 py-2 rounded text-xs bg-accent/10 border border-border text-ink-soft">
+            This is a shell job — it runs its command in a background terminal tab
+            (no Claude session) and only fires while Duo is open.
+          </p>
+        ) : (
+          <p className="mb-3 px-3 py-2 rounded text-xs bg-accent/10 border border-border text-ink-soft">
+            Scheduled jobs run interactively in the terminal and require user interaction
+            after the first prompt; headless (<span className="font-mono">-p</span>) execution
+            is not yet supported.
+          </p>
+        )}
 
         {/* Name */}
         <label className="block text-xs text-ink-mute mb-1" htmlFor="cron-name">Name</label>
@@ -310,17 +352,36 @@ export function NewCronJobModal({ open, editJob, defaultCwd, onClose, onSaved }:
           </button>
         </div>
 
-        {/* Instruction */}
-        <label className="block text-xs text-ink-mute mb-1" htmlFor="cron-instruction">What should Claude do?</label>
-        <textarea
-          id="cron-instruction"
-          value={instruction}
-          onChange={(e) => setInstruction(e.target.value)}
-          placeholder="review my open PRs and summarize what needs my attention"
-          disabled={busy}
-          rows={2}
-          className={`${inputCls} mb-3 resize-y`}
-        />
+        {/* Instruction (claude jobs) — or Command (shell jobs, edit-only). A shell
+            job has no Claude instruction; it runs the raw command verbatim. */}
+        {isShellEdit ? (
+          <>
+            <label className="block text-xs text-ink-mute mb-1" htmlFor="cron-command">Command</label>
+            <input
+              id="cron-command"
+              type="text"
+              value={command}
+              onChange={(e) => setCommand(e.target.value)}
+              placeholder="qmd update && qmd embed"
+              disabled={busy}
+              spellCheck={false}
+              className={`${inputCls} font-mono mb-3`}
+            />
+          </>
+        ) : (
+          <>
+            <label className="block text-xs text-ink-mute mb-1" htmlFor="cron-instruction">What should Claude do?</label>
+            <textarea
+              id="cron-instruction"
+              value={instruction}
+              onChange={(e) => setInstruction(e.target.value)}
+              placeholder="review my open PRs and summarize what needs my attention"
+              disabled={busy}
+              rows={2}
+              className={`${inputCls} mb-3 resize-y`}
+            />
+          </>
+        )}
 
         {/* Schedule — preset segmented control + conditional fields + live preview */}
         <div className="block text-xs text-ink-mute mb-1">Schedule</div>
@@ -410,19 +471,22 @@ export function NewCronJobModal({ open, editJob, defaultCwd, onClose, onSaved }:
           )}
         </div>
 
-        {/* Session + catch-up */}
+        {/* Session (claude jobs only) + catch-up. A shell job has no Claude
+            session, so the fresh/same control is hidden when editing one. */}
         <div className="flex flex-wrap items-center gap-4 mb-3">
-          <div className="flex items-center gap-2 text-xs text-ink-soft">
-            <span className="text-ink-mute">Session</span>
-            <label className="flex items-center gap-1 cursor-pointer">
-              <input type="radio" name="cron-session" checked={session === 'fresh'} onChange={() => setSession('fresh')} disabled={busy} className="accent-accent" />
-              Fresh
-            </label>
-            <label className="flex items-center gap-1 cursor-pointer">
-              <input type="radio" name="cron-session" checked={session === 'same'} onChange={() => setSession('same')} disabled={busy} className="accent-accent" />
-              Same (resume)
-            </label>
-          </div>
+          {!isShellEdit && (
+            <div className="flex items-center gap-2 text-xs text-ink-soft">
+              <span className="text-ink-mute">Session</span>
+              <label className="flex items-center gap-1 cursor-pointer">
+                <input type="radio" name="cron-session" checked={session === 'fresh'} onChange={() => setSession('fresh')} disabled={busy} className="accent-accent" />
+                Fresh
+              </label>
+              <label className="flex items-center gap-1 cursor-pointer">
+                <input type="radio" name="cron-session" checked={session === 'same'} onChange={() => setSession('same')} disabled={busy} className="accent-accent" />
+                Same (resume)
+              </label>
+            </div>
+          )}
           <label className="flex items-center gap-1.5 text-xs text-ink-soft cursor-pointer">
             <input type="checkbox" checked={catchUp} onChange={(e) => setCatchUp(e.target.checked)} disabled={busy} className="accent-accent" />
             Run once on next launch if missed

@@ -3,6 +3,23 @@
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
 
+### ENH-237: Shell-command cron jobs (a second cron job `kind`)
+**Status:** ✅ Shipped (#112, 2026-06-27). **P2.** Follow-up to ENH-223; PRD § 12. **Ticket note:** ENH-236 was taken (committed, PR #113, sibling worktree `peaceful-robinson-084f22`) — allocated ENH-237.
+
+Lets a scheduled job run a plain command on a schedule **without spawning a Claude session**. Motivation: a batch job (e.g. `qmd update && qmd embed`) needs no LLM, so wrapping it in an interactive session was wasteful — a shell job runs the command directly in a background terminal tab.
+
+**The change.** `CronJob` becomes a discriminated union on `kind`: `CronClaudeJob` (instruction + session, the original behavior) | `CronShellJob` (raw `command`). Legacy records with no `kind` load as `'claude'` (back-compat via `coerceJob`, no migration; `CRON_FILE_VERSION` unchanged). CLI: `duo cron add --run "<command>"` / `cron edit --run` — mutually exclusive with `--say`/`--session`. `fireJob` branches on `kind` and dispatches shell jobs through the existing `dispatchNewTabToWindow({ kind:'shell', … })` background-tab path, skipping the D4 `assertInteractiveCommand` gate and all session bookkeeping. Commands are validated **single-line + non-empty** at add/edit *and* fire (`validateShellCommand` / `buildShellCommand`).
+
+**Deliberate CLI/UI asymmetry (PRD § 12 D13).** Shell jobs are **CLI-created** (`cron add --run`) and **UI-edited** (the Home `NewCronJobModal` edit path). The create dialog stays **claude-only by design** (owner's call). Do not surface shell-job creation in the modal without an owner decision.
+
+**Docs / 4-surface sync (this commit, post-merge follow-up).** The original #112 shipped the code + tests but skipped the doc surfaces; reconciled here: `agents/duo.md`, `skill/references/cli-reference.md`, `docs/CLI-COVERAGE.md` cron rows updated for `--run`; `CLAUDE.md` cron locked-decision row de-"Interactive-only"-ed; PRD § 12 added. `check:skill-currency` is verb-level (cron is one verb), so it does **not** guard this flag — kept current by hand.
+
+**Tests.** `core/cron-{command,store,service}.test.ts`: legacy `kind`-less load → claude; shell round-trip; missing-command drop; `--run`/`--say` mutual exclusion; fired shell job dispatches raw command + newline, records no session; headless-gate bypass; schedule-only edit preserves `kind:'shell'` + command. `npm run typecheck` clean.
+
+**Follow-ups (not blocking, deferred):** (i) no `kind` affordance in the Home `CronJobRow` list — a shell job is indistinguishable from a claude job until you open Edit; a small "shell" badge would help. (ii) `coerceJob` trims the shell command but doesn't single-line-validate on load (the fire-time `buildShellCommand` guard backstops it — recorded as a blocked run, no tick crash). (iii) `CronStore.updateJob`'s `as CronJob` cast drops discriminant safety — a caller patching a wrong-kind field would silently persist a hybrid record; callers are controlled, but a `kind`-aware patch overload would restore the guard.
+
+---
+
 ### ENH-232: Catch-up — rich re-entry for sessions whose worktree was removed
 **Status:** 🔵 Open (filed from ENH-231 walk #2, 2026-06-24). **P1.**
 

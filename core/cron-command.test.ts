@@ -6,6 +6,8 @@ import {
   shellQuoteArg,
   buildFreshRunCommand,
   buildResumeRunCommand,
+  buildShellCommand,
+  validateShellCommand,
   assertInteractiveCommand,
 } from './cron-command'
 
@@ -69,6 +71,33 @@ describe('buildFreshRunCommand', () => {
 describe('buildResumeRunCommand', () => {
   it('resumes with the seeded prompt', () => {
     expect(buildResumeRunCommand(UUID, 'continue')).toBe(`claude --resume ${UUID} 'continue'\n`)
+  })
+})
+
+describe('buildShellCommand (shell jobs)', () => {
+  it('returns the raw command verbatim plus a trailing newline (no quoting)', () => {
+    expect(buildShellCommand('qmd update && qmd embed')).toBe('qmd update && qmd embed\n')
+  })
+  it('trims surrounding whitespace before appending the newline', () => {
+    expect(buildShellCommand('  echo hi  ')).toBe('echo hi\n')
+  })
+  it('rejects an empty / whitespace-only command', () => {
+    expect(() => buildShellCommand('')).toThrow(/must not be empty/)
+    expect(() => buildShellCommand('   ')).toThrow(/must not be empty/)
+  })
+  it('rejects an embedded newline (would split / inject a command)', () => {
+    expect(() => buildShellCommand('echo one\necho two')).toThrow(/single line/)
+    expect(() => buildShellCommand('echo one\r\necho two')).toThrow(/single line/)
+  })
+})
+
+describe('validateShellCommand', () => {
+  it('returns the trimmed command WITHOUT a trailing newline (storage form)', () => {
+    expect(validateShellCommand('  qmd update  ')).toBe('qmd update')
+  })
+  it('rejects empty + multiline the same way buildShellCommand does', () => {
+    expect(() => validateShellCommand('   ')).toThrow(/must not be empty/)
+    expect(() => validateShellCommand('a\nb')).toThrow(/single line/)
   })
 })
 
