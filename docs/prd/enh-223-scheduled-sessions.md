@@ -449,3 +449,54 @@ it (catch-up anchors on the same next-fire computation). The added DST test pins
 this *current* behavior with a comment. Decision owed: accept the skip, or
 special-case the gap. Non-blocking for v1.
 
+---
+
+## 12. Requirements changed — shell-command job kind (ENH-237, #112, 2026-06-27)
+
+A follow-up enhancement (tracked as **ENH-237**, PR #112) adds a **second job
+kind** so a cron job can run a plain command on a schedule *without* spawning a
+Claude session. Motivation: a batch job (e.g. `qmd update && qmd embed`) needs
+no LLM, so wrapping it in an interactive Claude session was wasteful. This
+**changes the § 1 framing** — the scheduler is no longer "for interactive
+Claude Code sessions" exclusively; it fires one of two job kinds.
+
+**D11 — `CronJob` becomes a discriminated union on `kind`.**
+- `kind:'claude'` — the original behavior (§ 1–§ 4 unchanged): interactive
+  session, `instruction` + `session` (fresh/same) + `lastSessionId`, fresh/resume
+  logic (D3), and the D4 headless gate.
+- `kind:'shell'` — a raw single-line `command` run in a **background terminal
+  tab** via the existing `dispatchNewTabToWindow({ kind:'shell', … })` path. **No
+  session bookkeeping** (no `lastSessionId` minted/recorded), and the D4
+  `assertInteractiveCommand` gate is **intentionally skipped** — the user
+  authored the command locally, so a `-p` in it is fine. The command is
+  validated **single-line + non-empty** at add/edit *and* at fire
+  (`validateShellCommand` / `buildShellCommand` in `core/cron-command.ts`) so a
+  stored command can't inject a second statement via an embedded newline.
+
+**D12 — back-compat (no migration).** A persisted record with **no `kind`** loads
+as `kind:'claude'` with the prior validation (`coerceJob`, `core/cron-store.ts`);
+a `kind:'shell'` record missing its `command` is dropped on load (lenient, same
+as any other unusable job). The `CRON_FILE_VERSION` is unchanged (still 1).
+
+**D13 — deliberate CLI/UI asymmetry (called out per CLAUDE.md rule 4).** Shell
+jobs are **created only via the CLI** (`duo cron add --run "<command>"`) and
+**edited only in the UI** (the Home `NewCronJobModal` edit path swaps the
+instruction/session controls for a command field and saves a shell-shaped patch
+that preserves `kind:'shell'`). The create dialog stays **claude-only by
+design** — the owner explicitly does not want shell-job *creation* surfaced in
+that dialog. This asymmetry is intentional; do not "fix" it by adding shell-job
+creation to the modal without an owner decision.
+
+**CLI surface (§ 8 addendum).** `--run "<command>"` on `cron add` / `cron edit`,
+mutually exclusive with `--say`/`--session`. The 4-surface sync (`cli/duo.ts`,
+`skill/references/cli-reference.md`, `agents/duo.md`, `docs/CLI-COVERAGE.md`) was
+completed in #112. `check:skill-currency` is verb-level (cron is one verb), so it
+does **not** mechanically guard this flag — the docs are kept current by hand.
+
+**Tests.** `core/cron-{command,store,service}.test.ts` cover: legacy `kind`-less
+load → claude; shell round-trip; missing-command drop; `--run`/`--say` mutual
+exclusion; a fired shell job dispatches the raw command + newline and records no
+session; the headless gate is bypassed for shell; and a **schedule-only edit of
+a shell job preserves `kind:'shell'` + `command`** with no instruction/session
+leak. `npm run typecheck` clean.
+
