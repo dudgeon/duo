@@ -36,6 +36,15 @@
 > mark-reviewed, P1). Also **ENH-235** (`duo base new` scaffolder) + the standing
 > Vault/Home backlog, and an archive-debt cleanup (~10 older ✅ entries still
 > ✅-in-place in `tasks.md`, not swept during this cut).
+>
+> **In-flight (worktree `peaceful-robinson-084f22`, branch
+> `claude/peaceful-robinson-084f22`):** **ENH-236** — Send → agent keeps focus +
+> caret in the terminal after the inserted text. Root cause: the shared
+> `onSendToDuo` handler skipped `keyboard.reclaimFocus()`, so a browser-mode
+> playground send left OS focus in the page (its WebContentsView). Fix routes the
+> focus leg through the proven `focusPane('terminal')` helper. Renderer-only,
+> typecheck clean; **owner-verified live 2026-06-27** across all three send
+> surfaces (smoke-walk waived). PR #113 open; flips to ✅ Shipped on merge.
 
 ## Current state (2026-06-21)
 

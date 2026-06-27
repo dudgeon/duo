@@ -5078,11 +5078,23 @@ export function App() {
               // into the active terminal's PTY. PRD G11: no Enter
               // appended — the user confirms by pressing Enter
               // themselves. Focus moves to the active terminal so the
-              // user can immediately type their verb without an extra
-              // click. We need both the React-side `focusedColumn`
-              // flip (drives the focus-ring CSS) AND OS-level focus on
-              // the xterm helper-textarea so PTY keystrokes route in —
-              // mirrors togglePaneFocus's terminal branch.
+              // user can immediately keep typing right after the inserted
+              // text, without an extra click.
+              //
+              // ENH-236 — reuse focusPane('terminal') (the ⌘⌥L /
+              // `duo focus-pane terminal` helper) for the focus leg. It
+              // does the React `focusedColumn` flip (focus-ring CSS) AND,
+              // crucially, calls keyboard.reclaimFocus() to pull OS focus
+              // back to the renderer webContents BEFORE focusing the xterm
+              // helper-textarea. The reclaim is REQUIRED when the pill
+              // fires from a browser-mode playground: its WebContentsView
+              // holds OS keyboard focus, so a bare textarea.focus() is a
+              // no-op at the OS level and the next keystrokes route into
+              // the page, not the terminal. The prior inline block flipped
+              // the column + focused the textarea but skipped the reclaim
+              // (despite a comment claiming it mirrored togglePaneFocus's
+              // terminal branch, which DOES reclaim) — so doc/canvas sends
+              // worked but playground sends left focus stranded in the page.
               //
               // ENH-176 — pill firing is now governed by two
               // independent localStorage flags (see useSendPillFlags).
@@ -5095,13 +5107,7 @@ export function App() {
                 activeTabId && ((claudeLive && sendPillFlags.agent) || (sendPillFlags.terminal && !claudeLive))
                   ? (payload) => {
                       void window.electron.pty.write(activeTabId, payload)
-                      setFocusedColumn('terminal')
-                      queueMicrotask(() => {
-                        const textarea = document.querySelector<HTMLTextAreaElement>(
-                          '.xterm-host:not([style*="display: none"]) .xterm-helper-textarea'
-                        )
-                        textarea?.focus()
-                      })
+                      focusPane('terminal')
                     }
                   : null
               }

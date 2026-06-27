@@ -56,6 +56,22 @@ Let the user drop a reviewed/abandoned session off the Catch-up board. **Owner l
 
 **The change (proposed).** `duo base new --type <t> [--group <field>] [--cols a,b,c] [--filter '<expr>'] [--name "<view>"] [--out <path>] [--open]` → derives the corpus (`duo vault schema`), emits a `.base` (or ` ```base ` block) that's already lint-clean against the live types/fields/enums, and (with `--open`) hands straight to `duo rollup render`. New CLI verb → 4-surface sync (`cli/duo.ts`, `skill/SKILL.md` + `references/rollup.md`, `agents/duo.md`, `docs/CLI-COVERAGE.md`) + `build:cli` + `sync:claude`. Orthogonal to the Q1=A skill strengthening (helps every rollup path).
 
+### ENH-236: Send → agent — keep focus + caret in the terminal after the inserted text
+
+**Status:** 🚧 Built + **owner-verified 2026-06-27** — PR #113 open (flips to ✅ Shipped on merge). Owner validated all three send surfaces (doc · canvas · browser-mode playground) live; **smoke-walk waived by owner**. **Priority:** P2 (breaks the "select → send → keep typing" flow on playgrounds). **Effort:** S. **Ticket note:** allocated above committed max ENH-235; siblings (`vigorous-chandrasekhar-7d2fb6` et al.) sit ≤ ENH-235 — renumber on collision.
+
+**Provenance.** Owner (2026-06-27): *"when a user selects text in a doc or playground, and then selects 'send to agent', after the text is populated in terminal the carat and focus MUST stay in the terminal after the inserted span so the user can just keep typing."*
+
+**Symptom.** Select text in a **browser-mode playground**, click the **Send → agent** pill; the formatted payload lands at the terminal prompt, but keyboard focus stays in the page — the next keystrokes route into the playground, not the terminal. (Doc/canvas sends already kept focus correctly.)
+
+**Root cause (confirmed by code read).** The shared `onSendToDuo` handler ([App.tsx](renderer/App.tsx) ~5094, used by the markdown editor, the canvas `PageTab`, AND the `BrowserRenderer` pill) did `setFocusedColumn('terminal')` + a `queueMicrotask` `textarea.focus()` but **skipped `keyboard.reclaimFocus()`** — despite a comment claiming it "mirrors togglePaneFocus's terminal branch" (which DOES reclaim). `PANE_FOCUS_RECLAIM` → `event.sender.focus()` ([main.ts](electron/main.ts):2182) pulls OS keyboard focus back to the renderer webContents. Without it, a doc/canvas send works (DOM + iframe already live in the renderer's webContents) but a **browser-mode playground** send doesn't: its `WebContentsView` keeps OS focus, so a bare DOM `textarea.focus()` is an OS-level no-op. Same focus-management domain as [BUG-211](#bug-211) (WCV ↔ keyboard focus), opposite direction.
+
+**Fix (shipped this entry).** Replace the inline focus block in `onSendToDuo` with the proven `focusPane('terminal')` helper (the `⌘⌥L` / `duo focus-pane terminal` path) — it flips the focus column, calls `reclaimFocus()`, THEN focuses the active xterm helper-textarea, uniformly for all three send surfaces. The PTY echo already lands the terminal cursor after the inserted text (no Enter appended — PRD G11), so the caret sits "after the inserted span" ready to keep typing. No CLI/IPC change (pure renderer focus-leg fix; the agent's `duo send` + `duo focus-pane terminal` already compose the same behavior).
+
+**Acceptance.** (1) Doc, (2) canvas page, and (3) **browser-mode playground**: select text → click Send → agent → immediately type → the typed characters append after the inserted text **in the terminal** (no extra click). Verify the playground case with a REAL keystroke (synthetic focus checks can't reproduce WCV OS-focus). No regression to the doc/canvas paths or to no-Enter behavior.
+
+---
+
 ### ENH-226: ⌘O Open bar — autofocus the URL/path entry field on open
 
 **Status:** 🆕 Filed 2026-06-21. **Priority:** P3 (small UX polish). **Effort:** S. **Ticket note:** allocated above this worktree's committed max (ENH-225); siblings sit ≤ ENH-206 — renumber if a concurrent agent collides.
