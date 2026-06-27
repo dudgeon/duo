@@ -3,6 +3,39 @@
 > Closed entries (✅ shipped / ❌ won't-do / 🟢 done) split out of [`tasks.md`](tasks.md) on 2026-05-31 (ENH-191 / D1) to keep the live backlog lean. **Open work lives in [tasks.md](tasks.md).** Section headers mirror the original; the cut-version skill appends newly-closed entries here.
 
 
+## v0.13.0 — Shell-command cron jobs + Send→agent focus fix (shipped 2026-06-27)
+
+### ENH-237: Shell-command cron jobs (a second cron job `kind`)
+**Status:** ✅ Shipped (#112, 2026-06-27). **P2.** Follow-up to ENH-223; PRD § 12. **Ticket note:** ENH-236 was taken (committed, PR #113, sibling worktree `peaceful-robinson-084f22`) — allocated ENH-237.
+
+Lets a scheduled job run a plain command on a schedule **without spawning a Claude session**. Motivation: a batch job (e.g. `qmd update && qmd embed`) needs no LLM, so wrapping it in an interactive session was wasteful — a shell job runs the command directly in a background terminal tab.
+
+**The change.** `CronJob` becomes a discriminated union on `kind`: `CronClaudeJob` (instruction + session, the original behavior) | `CronShellJob` (raw `command`). Legacy records with no `kind` load as `'claude'` (back-compat via `coerceJob`, no migration; `CRON_FILE_VERSION` unchanged). CLI: `duo cron add --run "<command>"` / `cron edit --run` — mutually exclusive with `--say`/`--session`. `fireJob` branches on `kind` and dispatches shell jobs through the existing `dispatchNewTabToWindow({ kind:'shell', … })` background-tab path, skipping the D4 `assertInteractiveCommand` gate and all session bookkeeping. Commands are validated **single-line + non-empty** at add/edit *and* fire (`validateShellCommand` / `buildShellCommand`).
+
+**Deliberate CLI/UI asymmetry (PRD § 12 D13).** Shell jobs are **CLI-created** (`cron add --run`) and **UI-edited** (the Home `NewCronJobModal` edit path). The create dialog stays **claude-only by design** (owner's call). Do not surface shell-job creation in the modal without an owner decision.
+
+**Docs / 4-surface sync (post-merge follow-up).** The original #112 shipped the code + tests but skipped the doc surfaces; reconciled: `agents/duo.md`, `skill/references/cli-reference.md`, `docs/CLI-COVERAGE.md` cron rows updated for `--run`; `CLAUDE.md` cron locked-decision row de-"Interactive-only"-ed; PRD § 12 added. `check:skill-currency` is verb-level (cron is one verb), so it does **not** guard this flag — kept current by hand.
+
+**Tests.** `core/cron-{command,store,service}.test.ts`: legacy `kind`-less load → claude; shell round-trip; missing-command drop; `--run`/`--say` mutual exclusion; fired shell job dispatches raw command + newline, records no session; headless-gate bypass; schedule-only edit preserves `kind:'shell'` + command. `npm run typecheck` clean.
+
+**Follow-ups (not blocking, deferred):** (i) no `kind` affordance in the Home `CronJobRow` list — a shell job is indistinguishable from a claude job until you open Edit; a small "shell" badge would help. (ii) `coerceJob` trims the shell command but doesn't single-line-validate on load (the fire-time `buildShellCommand` guard backstops it — recorded as a blocked run, no tick crash). (iii) `CronStore.updateJob`'s `as CronJob` cast drops discriminant safety — a caller patching a wrong-kind field would silently persist a hybrid record; callers are controlled, but a `kind`-aware patch overload would restore the guard.
+
+---
+
+### ENH-236: Send → agent — keep focus + caret in the terminal after the inserted text
+
+**Status:** ✅ Shipped (#113, 2026-06-27) — owner-verified live across all three send surfaces (doc · canvas · browser-mode playground); **smoke-walk waived by owner**. **Priority:** P2 (breaks the "select → send → keep typing" flow on playgrounds). **Effort:** S.
+
+**Provenance.** Owner (2026-06-27): *"when a user selects text in a doc or playground, and then selects 'send to agent', after the text is populated in terminal the carat and focus MUST stay in the terminal after the inserted span so the user can just keep typing."*
+
+**Symptom.** Select text in a **browser-mode playground**, click the **Send → agent** pill; the formatted payload lands at the terminal prompt, but keyboard focus stays in the page — the next keystrokes route into the playground, not the terminal. (Doc/canvas sends already kept focus correctly.)
+
+**Root cause (confirmed by code read).** The shared `onSendToDuo` handler ([App.tsx](renderer/App.tsx) ~5094, used by the markdown editor, the canvas `PageTab`, AND the `BrowserRenderer` pill) did `setFocusedColumn('terminal')` + a `queueMicrotask` `textarea.focus()` but **skipped `keyboard.reclaimFocus()`** — despite a comment claiming it "mirrors togglePaneFocus's terminal branch" (which DOES reclaim). `PANE_FOCUS_RECLAIM` → `event.sender.focus()` ([main.ts](electron/main.ts):2182) pulls OS keyboard focus back to the renderer webContents. Without it, a doc/canvas send works (DOM + iframe already live in the renderer's webContents) but a **browser-mode playground** send doesn't: its `WebContentsView` keeps OS focus, so a bare DOM `textarea.focus()` is an OS-level no-op. Same focus-management domain as BUG-211 (WCV ↔ keyboard focus), opposite direction.
+
+**Fix.** Replace the inline focus block in `onSendToDuo` with the proven `focusPane('terminal')` helper (the `⌘⌥L` / `duo focus-pane terminal` path) — it flips the focus column, calls `reclaimFocus()`, THEN focuses the active xterm helper-textarea, uniformly for all three send surfaces. The PTY echo already lands the terminal cursor after the inserted text (no Enter appended — PRD G11), so the caret sits "after the inserted span" ready to keep typing. No CLI/IPC change (pure renderer focus-leg fix; the agent's `duo send` + `duo focus-pane terminal` already compose the same behavior).
+
+---
+
 ## v0.12.2 — Async Catch-Up + the Vault view (shipped 2026-06-25)
 
 ### ENH-231: Async Catch-Up — a sibling Home mode (commingled session timeline)

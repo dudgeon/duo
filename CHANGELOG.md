@@ -19,7 +19,35 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.12.2 cut 2026-06-25.
+> Empty — v0.13.0 cut 2026-06-27.
+
+## [0.13.0] — 2026-06-27 — Shell-command cron jobs + Send→agent focus fix
+
+### Added
+- **Shell-command cron jobs — a second job kind (ENH-237).** A scheduled job
+  can now run a plain command WITHOUT spawning a Claude session:
+  `duo cron add --run "<command>"` (e.g. `qmd update && qmd embed`) runs a raw
+  single-line command in a background terminal tab — no LLM, no session
+  bookkeeping, no headless gate. `CronJob` becomes a discriminated union on
+  `kind` (`claude` | `shell`); `--run` is mutually exclusive with
+  `--say`/`--session`. Shell jobs are CLI-created and edited natively in the
+  Home schedule dialog (the edit modal swaps instruction/session for a command
+  field). Legacy `cron-jobs.json` entries with no `kind` load as `claude` — no
+  migration (#112).
+
+### Fixed
+- **Send → agent keeps focus + caret in the terminal (ENH-236).** Selecting
+  text in a browser-mode playground and clicking Send → agent dropped the
+  payload at the prompt but left OS keyboard focus in the page, so the next
+  keystrokes routed into the playground. The shared send handler now routes its
+  focus leg through the proven `focusPane('terminal')` helper (the `⌘⌥L` /
+  `duo focus-pane terminal` path), which reclaims OS focus before focusing the
+  terminal input — fixing all three send surfaces (doc · canvas · playground)
+  at once (#113).
+
+### Known issues
+- Cron jobs don't show their kind in the Home "Scheduled" list — a shell job is
+  indistinguishable from a Claude job until you open Edit (ENH-237 follow-up).
 
 ## [0.12.2] — 2026-06-25 — Async Catch-Up + the Vault view: two new top-level surfaces
 
@@ -2061,7 +2089,8 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.12.2...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/dudgeon/duo/compare/v0.12.2...v0.13.0
 [0.12.2]: https://github.com/dudgeon/duo/compare/v0.12.1...v0.12.2
 [0.12.1]: https://github.com/dudgeon/duo/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/dudgeon/duo/compare/v0.11.2...v0.12.0

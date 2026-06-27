@@ -21,7 +21,19 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.12.2 cut 2026-06-25)*
+> *(empty — v0.13.0 cut 2026-06-27)*
+
+---
+
+## v0.13.0 — 2026-06-27 — Cron grows a second job kind: run a command, skip the LLM
+
+ENH-223's scheduler only knew one trick: open an interactive Claude session on a schedule. But plenty of scheduled work — reindex a vault, rebuild an embedding store, `qmd update && qmd embed` — needs no model, and wrapping it in a Claude session was pure waste. v0.13.0 makes `CronJob` a discriminated union on `kind`: a **claude** job (the original interactive behavior, untouched) or a **shell** job (`duo cron add --run "<command>"`) that types a raw single-line command into a background terminal tab and lets the PTY run it — no session, no session bookkeeping, no D4 headless gate.
+
+**Three decisions baked in.** (1) **Back-compat, no migration** — a `cron-jobs.json` record with no `kind` loads as `claude` with the prior validation; the file version is unchanged. (2) **Single-line, validated twice** — a shell command is rejected (empty or multi-line) at both add/edit and fire time, so a stored command can't smuggle a second statement past a newline. (3) **A deliberate CLI/UI asymmetry** — shell jobs are *created* only from the CLI (the create dialog stays Claude-only by owner intent) but *edited* natively in the Home schedule dialog, which swaps its instruction/session controls for a command field and preserves `kind:shell` on save.
+
+Riding alongside is a focus fix (ENH-236): Send → agent from a browser-mode playground used to strand keyboard focus in the page (its `WebContentsView` held OS focus, so a bare `textarea.focus()` was a no-op); it now reclaims OS focus to the terminal so you can keep typing right after the inserted text — and the fix collapsed a *drifted inline copy* of the focus logic back into the one canonical `focusPane('terminal')` helper, so all three send surfaces (doc · canvas · playground) are corrected by a single change.
+
+**What this is and isn't.** A focused follow-up sprint — one new capability (shell cron jobs) plus one bug fix — both merged after adversarial code review, the cron change covered by 66 passing core tests (including the schedule-only-edit-preserves-kind invariant) and the focus fix owner-verified live across all three send surfaces. It is **not** UI-created shell jobs (CLI-only by design) and **not** a Home-list kind badge yet — a shell job still looks like a Claude job in the Scheduled list until you open it (a tracked ENH-237 follow-up).
 
 ---
 

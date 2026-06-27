@@ -3,23 +3,6 @@
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
 
-### ENH-237: Shell-command cron jobs (a second cron job `kind`)
-**Status:** ✅ Shipped (#112, 2026-06-27). **P2.** Follow-up to ENH-223; PRD § 12. **Ticket note:** ENH-236 was taken (committed, PR #113, sibling worktree `peaceful-robinson-084f22`) — allocated ENH-237.
-
-Lets a scheduled job run a plain command on a schedule **without spawning a Claude session**. Motivation: a batch job (e.g. `qmd update && qmd embed`) needs no LLM, so wrapping it in an interactive session was wasteful — a shell job runs the command directly in a background terminal tab.
-
-**The change.** `CronJob` becomes a discriminated union on `kind`: `CronClaudeJob` (instruction + session, the original behavior) | `CronShellJob` (raw `command`). Legacy records with no `kind` load as `'claude'` (back-compat via `coerceJob`, no migration; `CRON_FILE_VERSION` unchanged). CLI: `duo cron add --run "<command>"` / `cron edit --run` — mutually exclusive with `--say`/`--session`. `fireJob` branches on `kind` and dispatches shell jobs through the existing `dispatchNewTabToWindow({ kind:'shell', … })` background-tab path, skipping the D4 `assertInteractiveCommand` gate and all session bookkeeping. Commands are validated **single-line + non-empty** at add/edit *and* fire (`validateShellCommand` / `buildShellCommand`).
-
-**Deliberate CLI/UI asymmetry (PRD § 12 D13).** Shell jobs are **CLI-created** (`cron add --run`) and **UI-edited** (the Home `NewCronJobModal` edit path). The create dialog stays **claude-only by design** (owner's call). Do not surface shell-job creation in the modal without an owner decision.
-
-**Docs / 4-surface sync (this commit, post-merge follow-up).** The original #112 shipped the code + tests but skipped the doc surfaces; reconciled here: `agents/duo.md`, `skill/references/cli-reference.md`, `docs/CLI-COVERAGE.md` cron rows updated for `--run`; `CLAUDE.md` cron locked-decision row de-"Interactive-only"-ed; PRD § 12 added. `check:skill-currency` is verb-level (cron is one verb), so it does **not** guard this flag — kept current by hand.
-
-**Tests.** `core/cron-{command,store,service}.test.ts`: legacy `kind`-less load → claude; shell round-trip; missing-command drop; `--run`/`--say` mutual exclusion; fired shell job dispatches raw command + newline, records no session; headless-gate bypass; schedule-only edit preserves `kind:'shell'` + command. `npm run typecheck` clean.
-
-**Follow-ups (not blocking, deferred):** (i) no `kind` affordance in the Home `CronJobRow` list — a shell job is indistinguishable from a claude job until you open Edit; a small "shell" badge would help. (ii) `coerceJob` trims the shell command but doesn't single-line-validate on load (the fire-time `buildShellCommand` guard backstops it — recorded as a blocked run, no tick crash). (iii) `CronStore.updateJob`'s `as CronJob` cast drops discriminant safety — a caller patching a wrong-kind field would silently persist a hybrid record; callers are controlled, but a `kind`-aware patch overload would restore the guard.
-
----
-
 ### ENH-232: Catch-up — rich re-entry for sessions whose worktree was removed
 **Status:** 🔵 Open (filed from ENH-231 walk #2, 2026-06-24). **P1.**
 
@@ -55,22 +38,6 @@ Let the user drop a reviewed/abandoned session off the Catch-up board. **Owner l
 **Why.** The ENH-234 photo showed the rollup workflow's friction: step 2 is hand-authoring a `.base` from scratch. Even with the guidance fixed, an agent (or the owner) still writes filters/views/groupBy/formula YAML by hand and lint-iterates. A scaffolder collapses "make a rollup" to two verbs in any vault and removes the hand-YAML step.
 
 **The change (proposed).** `duo base new --type <t> [--group <field>] [--cols a,b,c] [--filter '<expr>'] [--name "<view>"] [--out <path>] [--open]` → derives the corpus (`duo vault schema`), emits a `.base` (or ` ```base ` block) that's already lint-clean against the live types/fields/enums, and (with `--open`) hands straight to `duo rollup render`. New CLI verb → 4-surface sync (`cli/duo.ts`, `skill/SKILL.md` + `references/rollup.md`, `agents/duo.md`, `docs/CLI-COVERAGE.md`) + `build:cli` + `sync:claude`. Orthogonal to the Q1=A skill strengthening (helps every rollup path).
-
-### ENH-236: Send → agent — keep focus + caret in the terminal after the inserted text
-
-**Status:** ✅ Shipped (#113, 2026-06-27) — owner-verified live across all three send surfaces (doc · canvas · browser-mode playground); **smoke-walk waived by owner**. Awaiting the next version cut (owner held it). **Priority:** P2 (breaks the "select → send → keep typing" flow on playgrounds). **Effort:** S. **Ticket note:** allocated above committed max ENH-235; siblings (`vigorous-chandrasekhar-7d2fb6` et al.) sat ≤ ENH-235 — no collision.
-
-**Provenance.** Owner (2026-06-27): *"when a user selects text in a doc or playground, and then selects 'send to agent', after the text is populated in terminal the carat and focus MUST stay in the terminal after the inserted span so the user can just keep typing."*
-
-**Symptom.** Select text in a **browser-mode playground**, click the **Send → agent** pill; the formatted payload lands at the terminal prompt, but keyboard focus stays in the page — the next keystrokes route into the playground, not the terminal. (Doc/canvas sends already kept focus correctly.)
-
-**Root cause (confirmed by code read).** The shared `onSendToDuo` handler ([App.tsx](renderer/App.tsx) ~5094, used by the markdown editor, the canvas `PageTab`, AND the `BrowserRenderer` pill) did `setFocusedColumn('terminal')` + a `queueMicrotask` `textarea.focus()` but **skipped `keyboard.reclaimFocus()`** — despite a comment claiming it "mirrors togglePaneFocus's terminal branch" (which DOES reclaim). `PANE_FOCUS_RECLAIM` → `event.sender.focus()` ([main.ts](electron/main.ts):2182) pulls OS keyboard focus back to the renderer webContents. Without it, a doc/canvas send works (DOM + iframe already live in the renderer's webContents) but a **browser-mode playground** send doesn't: its `WebContentsView` keeps OS focus, so a bare DOM `textarea.focus()` is an OS-level no-op. Same focus-management domain as [BUG-211](#bug-211) (WCV ↔ keyboard focus), opposite direction.
-
-**Fix (shipped this entry).** Replace the inline focus block in `onSendToDuo` with the proven `focusPane('terminal')` helper (the `⌘⌥L` / `duo focus-pane terminal` path) — it flips the focus column, calls `reclaimFocus()`, THEN focuses the active xterm helper-textarea, uniformly for all three send surfaces. The PTY echo already lands the terminal cursor after the inserted text (no Enter appended — PRD G11), so the caret sits "after the inserted span" ready to keep typing. No CLI/IPC change (pure renderer focus-leg fix; the agent's `duo send` + `duo focus-pane terminal` already compose the same behavior).
-
-**Acceptance.** (1) Doc, (2) canvas page, and (3) **browser-mode playground**: select text → click Send → agent → immediately type → the typed characters append after the inserted text **in the terminal** (no extra click). Verify the playground case with a REAL keystroke (synthetic focus checks can't reproduce WCV OS-focus). No regression to the doc/canvas paths or to no-Enter behavior.
-
----
 
 ### ENH-226: ⌘O Open bar — autofocus the URL/path entry field on open
 

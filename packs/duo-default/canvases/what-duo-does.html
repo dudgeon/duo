@@ -744,12 +744,13 @@
   </div>
 </article>
 
-<article class="item" data-keys="cron schedule scheduled claude session recurring presets custom cron expression home screen run pause resume while duo open daily nightly background enh-221">
+<article class="item" data-keys="cron schedule scheduled claude session recurring presets custom cron expression home screen run pause resume while duo open daily nightly background enh-221 shell command --run no claude session batch qmd terminal tab enh-237">
   <div class="num">126</div>
   <div>
-    <h3>Schedule Claude sessions to run on a timer (cron)</h3>
+    <h3>Schedule Claude sessions — or a plain command — to run on a timer (cron)</h3>
     <p class="why"><strong>v0.11.2:</strong> set up a Claude run that fires on a schedule — nightly cleanup, a morning triage pass, an hourly check — and manage the whole set from the Home screen. Pick a preset (daily, hourly, etc.) or write a custom cron expression; view what's scheduled, edit it, run one on demand, or pause and resume. Scheduled runs fire while Duo is open, so they share your real workspace and tools rather than a stripped-down environment.</p>
-    <p class="how"><strong>UI</strong>Home screen → scheduled runs panel. <strong>CLI</strong><code>duo cron list | add | edit | run | pause | resume | rm | show</code> (the full lifecycle — create, inspect, trigger, pause/resume, and remove a scheduled run).</p>
+    <p class="why"><strong>v0.13.0:</strong> a scheduled job can also run a plain shell command — no Claude session at all. Some batch work (reindex a vault, rebuild an embedding store, <code>qmd update &amp;&amp; qmd embed</code>) needs no model, so a <strong>shell job</strong> just runs the command in a background terminal tab. Create one from the CLI with <code>--run</code>; edit its schedule, name, and command from the same Home dialog as a Claude job.</p>
+    <p class="how"><strong>UI</strong>Home screen → scheduled runs panel (edit a shell job's command inline). <strong>CLI</strong><code>duo cron list | add | edit | run | pause | resume | rm | show</code> — a Claude job uses <code>--say "&lt;instruction&gt;"</code>; a shell job uses <code>--run "&lt;command&gt;"</code> (the two are mutually exclusive).</p>
   </div>
 </article>
 
@@ -1342,7 +1343,7 @@
 </article>
 
 <footer>
-  <p>This is Duo v0.12.2. Last updated 2026-06-25. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
+  <p>This is Duo v0.13.0. Last updated 2026-06-27. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
   <p style="margin-top:6px; color: var(--ink-ghost); font-size: 11px;">Find an item that should be here? Tell Claude — the cut-version skill updates this file with each release.</p>
 </footer>
 

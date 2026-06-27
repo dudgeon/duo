@@ -1,29 +1,34 @@
-# Active sprint state — v0.12.2 shipped (Async Catch-Up + the Vault view); next: triage
+# Active sprint state — v0.13.0 shipped (shell cron jobs + Send→agent focus fix); next: triage
 
-## Merged to `main` since v0.12.3 — awaiting the next cut
+## v0.13.0 cut 2026-06-27 — Shell-command cron jobs + the Send→agent focus fix
 
-> **ENH-237** (#112) **shell-command cron jobs.** `CronJob` is now a discriminated
-> union on `kind`: a **claude** job (interactive session, the original ENH-223
-> behavior) or a **shell** job (`duo cron add --run "<cmd>"`) that runs a raw
-> single-line command in a background terminal tab — no Claude session, no D4
-> headless gate. Legacy `kind`-less records load as `claude` (back-compat, no
-> migration). Shell jobs are CLI-created + UI-edited (deliberate asymmetry,
-> ENH-223 PRD § 12). Merged with a post-review doc-reconciliation pass (4-surface
-> CLI sync + PRD § 12 + ledger were missing from the original PR). typecheck
-> clean · cron suites 66/66 · `check:skill-currency` PASS. **Not yet cut** (owner
-> directive: merge but hold the version). Deferred follow-ups in the ENH-237
-> ledger entry (Home kind badge; `coerceJob` single-line; the `updateJob` cast).
+> **Shipped & cut (NOT yet pushed/tagged unless noted):** **ENH-237** (#112)
+> shell-command cron jobs — `CronJob` is now a discriminated union on `kind`: a
+> **claude** job (interactive session, the original ENH-223 behavior) or a
+> **shell** job (`duo cron add --run "<cmd>"`) that runs a raw single-line
+> command in a background terminal tab — no Claude session, no D4 headless gate.
+> Legacy `kind`-less records load as `claude` (back-compat, no migration). Shell
+> jobs are CLI-created + UI-edited (deliberate asymmetry, ENH-223 PRD § 12);
+> merged with a post-review doc-reconciliation pass (4-surface CLI sync + PRD § 12
+> + ledger). **ENH-236** (#113) Send → agent keeps focus + caret in the terminal —
+> a browser-mode playground send left OS focus stranded in the page; the shared
+> `onSendToDuo` handler now routes its focus leg through the canonical
+> `focusPane('terminal')` reclaim (collapsing a drifted inline copy), correcting
+> all three send surfaces at once. cron suites 66/66 · typecheck clean ·
+> `check:skill-currency` PASS · ENH-236 owner-verified live (no smoke-walk this
+> cut — owner chose cut-now). Signed + notarized DMG.
 >
-> **ENH-236** (#113) **Send → agent keeps focus + caret in the terminal.** A
-> browser-mode playground send left OS keyboard focus in the page (its
-> `WebContentsView`), so the next keystrokes routed into the page, not the
-> terminal. Root cause: the shared `onSendToDuo` handler skipped
-> `keyboard.reclaimFocus()`; fix routes the focus leg through the proven
-> `focusPane('terminal')` helper (collapsing a drifted inline copy into the
-> canonical path), correcting all three send surfaces (doc · canvas · playground)
-> at once. Renderer-only; typecheck clean; **owner-verified live 2026-06-27**
-> (smoke-walk waived — WCV OS-focus isn't observable via DOM probes). **Not yet
-> cut.**
+> **Deferred ENH-237 follow-ups (open):** a Home-list `kind` badge (a shell job
+> looks like a claude job until you open Edit); `coerceJob` single-line-on-load;
+> the `CronStore.updateJob` `as CronJob` cast.
+>
+> **Next move — triage the next sprint.** Standing queue: **ENH-232** (rich
+> re-entry for removed-worktree catch-up sessions, P1), **ENH-233** (dismiss /
+> mark-reviewed, P1), **ENH-235** (`duo base new` scaffolder, P2) + the standing
+> Vault/Home backlog. Two doc-debt items: (1) `docs/dev/RESUME.md` is stale —
+> still the 2026-06-21 ENH-224 worktree resume, long-since shipped (v0.11.2);
+> needs a from-scratch refresh to v0.13.0 cold-start state. (2) ~10 older ✅
+> entries still sit in `tasks.md` (archive-move deferred across cuts).
 
 ## v0.12.2 cut 2026-06-25 — Async Catch-Up + the Vault view + OKF rollup discoverability
 
