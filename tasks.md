@@ -58,7 +58,7 @@ Let the user drop a reviewed/abandoned session off the Catch-up board. **Owner l
 
 ### ENH-236: Send → agent — keep focus + caret in the terminal after the inserted text
 
-**Status:** 🚧 Built + **owner-verified 2026-06-27** — PR #113 open (flips to ✅ Shipped on merge). Owner validated all three send surfaces (doc · canvas · browser-mode playground) live; **smoke-walk waived by owner**. **Priority:** P2 (breaks the "select → send → keep typing" flow on playgrounds). **Effort:** S. **Ticket note:** allocated above committed max ENH-235; siblings (`vigorous-chandrasekhar-7d2fb6` et al.) sit ≤ ENH-235 — renumber on collision.
+**Status:** ✅ Shipped (#113, 2026-06-27) — owner-verified live across all three send surfaces (doc · canvas · browser-mode playground); **smoke-walk waived by owner**. Awaiting the next version cut (owner held it). **Priority:** P2 (breaks the "select → send → keep typing" flow on playgrounds). **Effort:** S. **Ticket note:** allocated above committed max ENH-235; siblings (`vigorous-chandrasekhar-7d2fb6` et al.) sat ≤ ENH-235 — no collision.
 
 **Provenance.** Owner (2026-06-27): *"when a user selects text in a doc or playground, and then selects 'send to agent', after the text is populated in terminal the carat and focus MUST stay in the terminal after the inserted span so the user can just keep typing."*
 

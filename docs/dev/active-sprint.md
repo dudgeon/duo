@@ -13,6 +13,17 @@
 > clean · cron suites 66/66 · `check:skill-currency` PASS. **Not yet cut** (owner
 > directive: merge but hold the version). Deferred follow-ups in the ENH-237
 > ledger entry (Home kind badge; `coerceJob` single-line; the `updateJob` cast).
+>
+> **ENH-236** (#113) **Send → agent keeps focus + caret in the terminal.** A
+> browser-mode playground send left OS keyboard focus in the page (its
+> `WebContentsView`), so the next keystrokes routed into the page, not the
+> terminal. Root cause: the shared `onSendToDuo` handler skipped
+> `keyboard.reclaimFocus()`; fix routes the focus leg through the proven
+> `focusPane('terminal')` helper (collapsing a drifted inline copy into the
+> canonical path), correcting all three send surfaces (doc · canvas · playground)
+> at once. Renderer-only; typecheck clean; **owner-verified live 2026-06-27**
+> (smoke-walk waived — WCV OS-focus isn't observable via DOM probes). **Not yet
+> cut.**
 
 ## v0.12.2 cut 2026-06-25 — Async Catch-Up + the Vault view + OKF rollup discoverability
 
@@ -36,15 +47,6 @@
 > mark-reviewed, P1). Also **ENH-235** (`duo base new` scaffolder) + the standing
 > Vault/Home backlog, and an archive-debt cleanup (~10 older ✅ entries still
 > ✅-in-place in `tasks.md`, not swept during this cut).
->
-> **In-flight (worktree `peaceful-robinson-084f22`, branch
-> `claude/peaceful-robinson-084f22`):** **ENH-236** — Send → agent keeps focus +
-> caret in the terminal after the inserted text. Root cause: the shared
-> `onSendToDuo` handler skipped `keyboard.reclaimFocus()`, so a browser-mode
-> playground send left OS focus in the page (its WebContentsView). Fix routes the
-> focus leg through the proven `focusPane('terminal')` helper. Renderer-only,
-> typecheck clean; **owner-verified live 2026-06-27** across all three send
-> surfaces (smoke-walk waived). PR #113 open; flips to ✅ Shipped on merge.
 
 ## Current state (2026-06-21)
 
