@@ -30,7 +30,7 @@
 > playground send left OS focus in the page (its WebContentsView). Fix routes the
 > focus leg through the proven `focusPane('terminal')` helper. Renderer-only,
 > typecheck clean; **owner-verified live 2026-06-27** across all three send
-> surfaces (smoke-walk waived). PR open; flips to ✅ Shipped on merge.
+> surfaces (smoke-walk waived). PR #113 open; flips to ✅ Shipped on merge.
 
 ## Current state (2026-06-21)
 
