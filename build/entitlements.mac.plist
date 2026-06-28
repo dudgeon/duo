@@ -14,5 +14,11 @@
     <true/>
     <key>com.apple.security.files.user-selected.read-write</key>
     <true/>
+    <!-- GPU / Metal access. Without this, any process Duo spawns (incl.
+         terminal sessions running node-llama-cpp, Core ML, qmd embed, etc.)
+         can't create Metal command queues and silently falls back to
+         CPU-only. Inherited by helper processes via entitlementsInherit. -->
+    <key>com.apple.security.device.gpu</key>
+    <true/>
   </dict>
 </plist>

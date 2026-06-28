@@ -3,6 +3,16 @@
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
 
+### BUG-212: macOS entitlements miss `com.apple.security.device.gpu` → no Metal in Duo-spawned terminals
+
+**Status:** ✅ Shipped (fix landed `claude/session-task-96bpvn`, 2026-06-28). **Priority:** P1 (silently degrades any GPU/Metal workload run from Duo's terminal). **Effort:** S.
+
+**Provenance.** Owner photo (2026-06-28): a Claude Code session diagnosing why `qmd embed` ran CPU-only (~40 min) inside a Duo terminal. **Root cause is the Duo app, not Claude Code or the machine** — Duo's signed bundle entitlements (`build/entitlements.mac.plist`) didn't include `com.apple.security.device.gpu`, so any process Duo spawns (terminal sessions included) couldn't create Metal command queues and fell back to CPU. Affects anything in Duo's terminal that needs Metal: `node-llama-cpp`, Core ML, `qmd embed`, etc.
+
+**The fix.** Added `com.apple.security.device.gpu` to `build/entitlements.mac.plist`. Because `electron-builder.yml` sets both `entitlements` and `entitlementsInherit` to that same file, the GPU grant flows to helper/spawned processes too. Takes effect on the next signed cut — existing installs keep the old entitlements until they update.
+
+---
+
 ### ENH-232: Catch-up — rich re-entry for sessions whose worktree was removed
 **Status:** 🔵 Open (filed from ENH-231 walk #2, 2026-06-24). **P1.**
 
