@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>Stack alternatives to Electron — and the Claude-design loop</title>
+<style>
+/* ============================================================
+   Atelier CSS kernel (inlined verbatim — skill/references/duo-atelier.css)
+   ============================================================ */
+:root {
+  --paper: #fbf8f1; --paper-deep: #f3ede0; --paper-edge: #e8e0cb; --paper-rule: #d9cea8;
+  --ink: #2b2620; --ink-soft: #4a4238; --ink-mute: #6f6557; --ink-ghost: #9a9080;
+  --accent: #c46a1c; --accent-soft: #f4d9b6;
+  --pass: #4a7d3e; --fail: #b13e3a; --warn: #b07527;
+  --code-bg: #2b2823; --code-ink: #e8e0cb;
+  --project-pine: #2E7D74; --project-harbor: #3C6E93; --project-iris: #5B57A6;
+  --project-plum: #87508F; --project-rose: #A4506A; --project-moss: #69763A;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif; font-size: 14px; line-height: 1.55; }
+body { padding: 32px 40px 96px; max-width: 920px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px; }
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 6px; }
+.intro { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 14px 18px; margin-bottom: 28px; font-size: 13.5px; color: var(--ink-soft); }
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 600; margin: 36px 0 12px; font-size: 19px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px; }
+h3 { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+h4 { margin: 16px 0 6px; font-size: 13.5px; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; }
+pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; line-height: 1.5; background: var(--code-bg); color: var(--code-ink); padding: 14px 16px; border-radius: 6px; overflow-x: auto; }
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+.decision-card { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 16px 18px; margin: 18px 0; }
+.decision-card .q-title { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px; }
+.decision-card .q-prompt { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 500; font-size: 17px; color: var(--ink); margin: 0 0 12px; line-height: 1.35; }
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option { display: block; background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 10px 12px; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes { width: 100%; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px; }
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+details.deferred { margin: 22px 0; padding: 12px 16px; background: var(--paper-deep); border: 1px dashed var(--paper-rule); border-radius: 6px; }
+details.deferred summary { cursor: pointer; font-weight: 600; color: var(--ink-soft); font-size: 13.5px; }
+details.deferred[open] summary { color: var(--ink); }
+details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(--ink-soft); }
+.copy-bar { position: sticky; bottom: 0; margin: 32px -40px -96px; padding: 16px 40px; background: color-mix(in srgb, var(--paper-deep) 96%, transparent); border-top: 1.5px solid var(--paper-rule); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; justify-content: space-between; align-items: center; gap: 16px; z-index: 50; }
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button { background: var(--accent); color: white; border: none; border-radius: 5px; padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background 0.12s; }
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* ============================================================
+   Per-playground patterns (after the kernel)
+   ============================================================ */
+.tl-dr { background: color-mix(in srgb, var(--accent) 8%, var(--paper)); border: 1.5px solid var(--accent-soft); border-left: 4px solid var(--accent); border-radius: 6px; padding: 14px 18px; margin: 0 0 26px; }
+.tl-dr h3 { margin: 0 0 6px; color: var(--accent); font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; }
+.tl-dr p { margin: 6px 0; font-size: 13.5px; color: var(--ink-soft); }
+.tl-dr strong { color: var(--ink); }
+
+table.cmp { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 12.5px; }
+table.cmp th, table.cmp td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--paper-rule); vertical-align: top; }
+table.cmp thead th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-mute); border-bottom: 1.5px solid var(--paper-rule); }
+table.cmp td.dim { color: var(--ink-mute); }
+table.cmp .yes { color: var(--pass); font-weight: 700; }
+table.cmp .no  { color: var(--fail); font-weight: 700; }
+table.cmp .meh { color: var(--warn); font-weight: 700; }
+table.cmp tbody tr:hover { background: color-mix(in srgb, var(--accent) 4%, transparent); }
+table.cmp .feat { font-weight: 600; color: var(--ink); }
+table.cmp tr.rec td { background: color-mix(in srgb, var(--pass) 9%, var(--paper)); }
+
+.stack-card { border: 1.5px solid var(--paper-rule); border-radius: 7px; padding: 14px 16px; margin: 12px 0; background: var(--paper); }
+.stack-card.rec { border-color: var(--pass); background: color-mix(in srgb, var(--pass) 6%, var(--paper)); }
+.stack-card.kill { border-color: color-mix(in srgb, var(--fail) 50%, var(--paper-rule)); }
+.stack-card h3 { margin: 0 0 4px; display: flex; align-items: baseline; gap: 8px; }
+.stack-card .verdict { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; padding: 2px 8px; border-radius: 9px; }
+.stack-card .verdict.v-rec { background: color-mix(in srgb, var(--pass) 18%, var(--paper)); color: var(--pass); }
+.stack-card .verdict.v-maybe { background: var(--accent-soft); color: var(--accent); }
+.stack-card .verdict.v-no { background: color-mix(in srgb, var(--fail) 16%, var(--paper)); color: var(--fail); }
+.stack-card .loe { font-size: 11.5px; color: var(--ink-mute); font-weight: 500; }
+.stack-card ul { margin: 8px 0 0; }
+.stack-card .win { color: var(--pass); }
+.stack-card .cost { color: var(--fail); }
+
+figure { margin: 18px 0; }
+figure svg { display: block; width: 100%; height: auto; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 7px; }
+figcaption { font-size: 11.5px; color: var(--ink-mute); margin-top: 7px; font-style: italic; }
+.gen-comments { margin: 22px 0; }
+.gen-comments label { font-weight: 600; font-size: 13px; color: var(--ink-soft); display: block; margin-bottom: 6px; }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Off Electron? Stack alternatives &amp; the Claude-design loop</h1>
+  <div class="meta">
+    <span class="pill">Research · ENH-238</span>
+    2026-06-28 · Duo v0.13.1 · owner-decision artifact
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> You asked: should Duo move off Electron — native macOS, a different React
+  approach, or a hybrid — and would that buy a tighter feedback loop with <em>Claude Design</em>? This
+  evaluates each candidate against Duo's real lock-in points (measured from the codebase) and against the
+  thing you actually want (the design round-trip). Decisions to record are at the bottom.
+</div>
+
+<div class="tl-dr">
+  <h3>The short version</h3>
+  <p><strong>Your React isn't the blocker — its packaging is.</strong> Duo already renders in React
+  (~53k LOC, 237 components). The Claude-design loop is weak not because you lack React, but because that
+  React only runs <em>inside Electron</em>, where there's no component preview and Claude can't even
+  screenshot the dev build. The fix is to let the existing UI render in a plain browser — not to change stacks.</p>
+  <p><strong>Going native would make the design loop worse, not better.</strong> SwiftUI / React-Native-macOS
+  render to AppKit, not the DOM. There's no browser preview, Claude is far weaker at them than at React-web,
+  and Claude Design's design-system import targets web components. Native optimizes the axis you're <em>not</em>
+  complaining about (polish) at the direct expense of the one you are.</p>
+  <p><strong>Tauri is a footprint play that fights Duo's reason for existing.</strong> Its macOS webview is
+  WebKit (WKWebView), which has no Chrome DevTools Protocol — and <code>duo open/eval/dom/inspect</code> are
+  all CDP. You'd lose the browser-control premise or have to bundle Chromium anyway (erasing the win).</p>
+  <p><strong>Recommendation:</strong> don't migrate. Spend ~2–4 weeks unlocking the loop you already have
+  (component preview + a browser-runnable renderer + a <code>@duo/ui</code> design kernel). Keep one strategic
+  hedge alive (engine/shell split) only if shell-portability ever becomes a real goal.</p>
+</div>
+
+<h2>1. The reframe: what actually blocks the Claude-design loop</h2>
+<p>
+  <em>Claude Design</em> (Anthropic Labs) is real and it's what you're reaching for: it imports a design system
+  by reading your codebase + design files (colors, typography, components), builds against it, auto-corrects
+  against the system, then ships a <strong>"Handoff to Claude Code"</strong> bundle that lands the change in your
+  repo. The iteration loop — generate → render → observe → correct — is its core.
+</p>
+<p>None of those three stages is gated on <em>having</em> React. Duo has React. They're gated on three things,
+  all fixable without touching the stack:</p>
+<table class="cmp">
+  <thead><tr><th style="width:30%">What the loop needs</th><th>Duo today</th><th>Why it's blocked</th></tr></thead>
+  <tbody>
+    <tr><td class="feat">Render a component in isolation</td><td class="no">Missing</td><td class="dim">No Storybook / Ladle / standalone renderer entry — the UI only boots inside the full Electron app.</td></tr>
+    <tr><td class="feat">Let Claude observe the render</td><td class="no">Broken</td><td class="dim">computer-use can't reach the dev Electron build (known; screenshots return wallpaper). So even the full-app loop is unobservable to the agent.</td></tr>
+    <tr><td class="feat">Import the UI as a design system</td><td class="meh">Partial</td><td class="dim">Tokens live in <code>duo-atelier.css</code> + Tailwind; components aren't extracted into an importable, previewable kernel. Import fidelity is highest against standard web/React/Tailwind — which Duo mostly is.</td></tr>
+  </tbody>
+</table>
+<p>
+  So the design-loop goal is an argument <strong>for</strong> keeping a web/DOM React UI and <strong>against</strong>
+  native — and the actual work is preview infrastructure, not migration.
+</p>
+
+<h2>2. Does Claude Design require React? (the honest answer)</h2>
+<p>
+  Not strictly — but it strongly favors a <strong>web / DOM</strong> UI, and React specifically is the
+  highest-fidelity target. Three reasons, each independent:
+</p>
+<ul>
+  <li><strong>Training depth.</strong> Claude's strongest UI idiom is React + Tailwind (+ shadcn) — that's what
+  Artifacts and the web-artifacts toolchain are built on. Output quality on SwiftUI / Flutter / RN-macOS is
+  materially lower.</li>
+  <li><strong>Observability.</strong> The generate→screenshot→iterate loop needs a renderable surface the agent
+  can capture. A browser DOM is trivially screenshot-able and previewable; AppKit / Flutter's own canvas is not,
+  in the same agent-driven way.</li>
+  <li><strong>Design-system import + round-trip.</strong> Claude Design reads component libraries and auto-corrects
+  against them; the handoff lands via Claude Code into your repo. Both ends are strongest when the components are
+  web components. SwiftUI has no equivalent import path today.</li>
+</ul>
+<p><em>Conclusion:</em> a web React UI is the best possible substrate for this loop. Duo already has it. The
+  strategic mistake would be leaving it for native.</p>
+
+<h2>3. Duo's three hard requirements (what any stack must satisfy)</h2>
+<p>Measured from the codebase — these are the constraints that decide feasibility:</p>
+<ul>
+  <li><strong>A CDP-controllable embedded Chromium.</strong> The whole premise — "Claude Code reads &amp; drives
+  the browser" — rides Chrome DevTools Protocol through Electron's <code>webContents.debugger</code>
+  (<code>electron/cdp-bridge.ts</code>, ~2,150 LOC). <code>duo open / eval / dom / inspect / selection /
+  screenshot / console / network</code> are all CDP. <strong>This is the single biggest lock-in.</strong> Only
+  Electron (or raw Chromium/CEF embedding) provides it. WebKit webviews do not.</li>
+  <li><strong>node-pty terminals.</strong> Node runtime in the main process (<code>core/pty-manager.ts</code>).
+  Re-implementable per platform (Rust <code>portable-pty</code>, Swift <code>openpty</code>/NSTask) but it's real
+  work plus a new IPC contract.</li>
+  <li><strong>The local Unix-socket CLI bridge.</strong> The <code>duo</code> verb surface (60+ commands). The
+  protocol is portable JSON, but every handler currently routes into Electron-backed systems.</li>
+</ul>
+<p>
+  The renderer is the <em>most</em> portable layer (~50% of components are pure presentational). The main process
+  (~20k LOC across <code>electron/</code>) is the <em>least</em> portable — and ~50–60% of that is the
+  CDP+WebContentsView browser engine that has no equal outside Chromium.
+</p>
+
+<h2>4. The candidates, scored against the goal</h2>
+<table class="cmp">
+  <thead><tr>
+    <th style="width:22%">Stack</th>
+    <th>Design loop</th>
+    <th>CDP browser control</th>
+    <th>Reuse React UI</th>
+    <th>Footprint win</th>
+    <th>Migration LOE</th>
+    <th>Risk</th>
+  </tr></thead>
+  <tbody>
+    <tr class="rec">
+      <td class="feat">Stay Electron + unlock loop</td>
+      <td class="yes">Big gain</td><td class="yes">Kept</td><td class="yes">100%</td>
+      <td class="no">None</td><td>~2–4 wk</td><td class="yes">Minimal</td>
+    </tr>
+    <tr>
+      <td class="feat">Tauri (WebKit webview)</td>
+      <td class="meh">Same as web</td><td class="no">Lost</td><td class="meh">Frontend yes</td>
+      <td class="yes">Large</td><td>~8–12 wk</td><td class="no">High</td>
+    </tr>
+    <tr>
+      <td class="feat">Tauri + bundled CEF</td>
+      <td class="meh">Same</td><td class="yes">Kept</td><td class="meh">Frontend yes</td>
+      <td class="no">Erased</td><td>~12–16 wk</td><td class="no">High</td>
+    </tr>
+    <tr>
+      <td class="feat">Native (Swift / SwiftUI)</td>
+      <td class="no">Worse</td><td class="no">Lost*</td><td class="no">0%</td>
+      <td class="yes">Best</td><td>6–12 mo</td><td class="no">Extreme</td>
+    </tr>
+    <tr>
+      <td class="feat">React Native macOS</td>
+      <td class="no">Worse (no DOM)</td><td class="no">Lost</td><td class="meh">Language only</td>
+      <td class="meh">Some</td><td>4–8 mo</td><td class="no">High</td>
+    </tr>
+    <tr>
+      <td class="feat">Flutter desktop</td>
+      <td class="no">Worse</td><td class="no">Lost</td><td class="no">0%</td>
+      <td class="meh">Some</td><td>6–12 mo</td><td class="no">Extreme</td>
+    </tr>
+  </tbody>
+</table>
+<p style="font-size:11.5px;color:var(--ink-mute)">*Native could embed WKWebView (no CDP) or CEF (heavy);
+  neither matches Electron's built-in CDP ergonomics.</p>
+
+<figure>
+<svg viewBox="0 0 760 420" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system, system-ui, sans-serif">
+  <!-- axes -->
+  <line x1="70" y1="370" x2="730" y2="370" stroke="#9a9080" stroke-width="1.5"/>
+  <line x1="70" y1="40" x2="70" y2="370" stroke="#9a9080" stroke-width="1.5"/>
+  <text x="400" y="402" text-anchor="middle" font-size="12.5" fill="#6f6557">Migration effort / risk  →</text>
+  <text x="28" y="205" text-anchor="middle" font-size="12.5" fill="#6f6557" transform="rotate(-90 28 205)">Payoff for a tighter Claude-design loop  →</text>
+  <!-- quadrant guide -->
+  <line x1="400" y1="40" x2="400" y2="370" stroke="#d9cea8" stroke-width="1" stroke-dasharray="3 4"/>
+  <line x1="70" y1="205" x2="730" y2="205" stroke="#d9cea8" stroke-width="1" stroke-dasharray="3 4"/>
+  <!-- recommended: low effort, high payoff (top-left) -->
+  <circle cx="165" cy="95" r="11" fill="#4a7d3e"/>
+  <text x="182" y="92" font-size="12.5" font-weight="700" fill="#2b2620">Unlock loop in-place</text>
+  <text x="182" y="108" font-size="11" fill="#6f6557">Storybook + @duo/ui kernel · ~2–4 wk</text>
+  <!-- status quo: zero effort, zero payoff (bottom-left) -->
+  <circle cx="110" cy="330" r="8" fill="#9a9080"/>
+  <text x="124" y="334" font-size="11.5" fill="#6f6557">Status quo</text>
+  <!-- engine/shell split: high effort, neutral-now but strategic -->
+  <circle cx="560" cy="225" r="9" fill="#3C6E93"/>
+  <text x="438" y="229" text-anchor="end" font-size="11.5" font-weight="600" fill="#3C6E93">Engine/shell split (hedge)</text>
+  <!-- tauri webkit: high effort, low/negative payoff (breaks control) -->
+  <circle cx="600" cy="300" r="9" fill="#b13e3a"/>
+  <text x="588" y="304" text-anchor="end" font-size="11.5" fill="#b13e3a">Tauri (WebKit)</text>
+  <!-- RN macOS -->
+  <circle cx="540" cy="335" r="8" fill="#b13e3a"/>
+  <text x="528" y="339" text-anchor="end" font-size="11.5" fill="#b13e3a">RN macOS</text>
+  <!-- native -->
+  <circle cx="690" cy="345" r="10" fill="#b13e3a"/>
+  <text x="678" y="349" text-anchor="end" font-size="11.5" fill="#b13e3a">Native Swift</text>
+  <!-- tauri+cef -->
+  <circle cx="680" cy="215" r="8" fill="#b07527"/>
+  <text x="668" y="200" text-anchor="end" font-size="11" fill="#b07527">Tauri + CEF</text>
+  <!-- sweet-spot label -->
+  <text x="165" y="62" text-anchor="middle" font-size="11" font-style="italic" fill="#4a7d3e">cheap &amp; high-payoff</text>
+</svg>
+<figcaption>Figure — Only one option sits in the cheap-and-high-payoff corner, and it isn't a migration.
+Everything that changes the stack lands far-right (costly) while paying little or negatively on the
+design-loop axis the request is about. Footprint wins (Tauri/native) are real but orthogonal to the stated goal.</figcaption>
+</figure>
+
+<h2>5. Per-option detail</h2>
+
+<div class="stack-card rec">
+  <h3>A · Stay Electron, unlock the loop <span class="verdict v-rec">Recommended</span> <span class="loe">~2–4 wk · reversible</span></h3>
+  <p>Add a component-preview harness (Storybook or Ladle) + a browser-runnable renderer mode with the
+  <code>window.electron</code> bridge mocked, and extract the pure presentational components into a
+  <code>@duo/ui</code> package that runs in both Electron and a plain browser.</p>
+  <ul>
+    <li class="win"><strong>Gets the tight loop:</strong> Claude edits a component, HMR renders it in a browser, screenshots + iterates — no Electron boot, no blind dev build.</li>
+    <li class="win"><strong>Makes Claude Design sing:</strong> <code>@duo/ui</code> + the Atelier tokens are exactly the importable design system the round-trip wants.</li>
+    <li class="win"><strong>Zero loss:</strong> CDP browser control, terminals, socket CLI, distribution — all untouched.</li>
+    <li class="cost">Doesn't reduce Electron's memory/binary footprint (but that isn't the stated pain).</li>
+  </ul>
+</div>
+
+<div class="stack-card">
+  <h3>B · Tauri (Rust + system WebKit) <span class="verdict v-no">Footprint only</span> <span class="loe">~8–12 wk · high risk</span></h3>
+  <ul>
+    <li class="win">~3–10 MB binaries vs ~100 MB+; much lower idle memory; Rust backend; keeps the React frontend.</li>
+    <li class="cost"><strong>macOS webview = WKWebView (WebKit), no CDP.</strong> Duo's browser-control premise breaks: you'd rebuild it on WKWebView's async JS-message bridge (no DOM/Network/Accessibility protocols) — strictly weaker — or bundle CEF and lose the size win.</li>
+    <li class="cost">Rewrite main.ts (~5.8k LOC) + socket handlers in Rust glue, node-pty → portable-pty, IPC model swap, updater + menus.</li>
+    <li class="dim">Only sensible if you re-scope Duo to not need CDP-grade browser control — which is most of why Duo exists.</li>
+  </ul>
+</div>
+
+<div class="stack-card kill">
+  <h3>C · Native macOS (Swift / SwiftUI / AppKit) <span class="verdict v-no">Against the goal</span> <span class="loe">6–12 mo · extreme risk</span></h3>
+  <ul>
+    <li class="win">Best performance, smallest footprint, native fidelity, Sparkle updates, deepest macOS integration.</li>
+    <li class="cost"><strong>Degrades the design loop hardest</strong> — Claude weak at SwiftUI, no browser preview, no Claude-Design import target. Directly contradicts the request.</li>
+    <li class="cost">~80%+ rewrite; the 53k-LOC React investment is discarded; browser pane → WKWebView (no CDP) or embedded CEF.</li>
+  </ul>
+</div>
+
+<div class="stack-card kill">
+  <h3>D · React Native macOS <span class="verdict v-no">Worst of both</span> <span class="loe">4–8 mo · high risk</span></h3>
+  <ul>
+    <li class="cost">React-the-language, but renders to AppKit — <strong>no DOM</strong>. You pay native rewrite cost <em>and</em> don't get the browser-preview/screenshot loop. Embedded browser + CDP + node-pty still break.</li>
+  </ul>
+</div>
+
+<div class="stack-card">
+  <h3>H · Hybrids worth keeping on the table</h3>
+  <ul>
+    <li><strong>H1 — Design-kernel extraction (pairs with A, recommended):</strong> the structural form of A. <code>@duo/ui</code> becomes a permanent dual-target package; the design loop is a standing capability, not a one-off. ~+1–2 wk over A.</li>
+    <li><strong>H2 — Engine/shell split (strategic hedge):</strong> formalize CDP + pty + socket into a headless "Duo engine" so the UI shell could later swap (Electron → Tauri → native) without touching the engine. Big refactor; justified only if shell-portability becomes a real goal. Keep as an option, not a now-move.</li>
+    <li><strong>H3 — Tauri-shell + CEF "someday":</strong> if footprint ever becomes the dominant pain, a Tauri shell embedding Chromium for the browser pane could shrink app chrome while keeping CDP. High effort; revisit only on a footprint trigger.</li>
+  </ul>
+</div>
+
+<details class="deferred">
+  <summary>Measured lock-in numbers (from the codebase scan)</summary>
+  <div class="deferred-body">
+    <ul>
+      <li><strong>110k LOC total</strong> · renderer 53k (237 .tsx) · core 27k · electron 20k · shared 6k · cli 3.7k.</li>
+      <li><strong>7 files import from <code>electron</code></strong>; the heavy ones are main.ts (5.8k), cdp-bridge.ts (2.15k), browser-manager.ts (1.5k), preload.ts (1.1k).</li>
+      <li><strong>Browser control</strong> = WebContentsView (<code>browser-manager.ts:298</code>) + CDP via <code>webContents.debugger.attach('1.3')</code> (<code>cdp-bridge.ts:1180</code>). No equivalent on WebKit webviews.</li>
+      <li><strong>Renderer portability</strong> ≈ 50% pure presentational (survives any web stack) / ~48% coupled to <code>window.electron</code> IPC (needs a bridge abstraction).</li>
+      <li><strong>No existing</strong> Storybook / Ladle / standalone renderer entry — the gap that A fills.</li>
+    </ul>
+  </div>
+</details>
+
+<h2>6. Decisions to record</h2>
+
+<section class="decision-card">
+  <div class="q-title">DECISION 1 · Direction</div>
+  <h3 class="q-prompt">What's the near-term move on the stack?</h3>
+  <p class="q-context">The request's goal is a tighter Claude-design loop. The analysis says that goal is served by preview infrastructure, not migration — and that native/RN actively hurt it.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d1" value="unlock"><div class="q-option-body"><div class="q-option-title">Stay Electron, unlock the loop <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">~2–4 wk, near-zero risk, reversible. Gets the loop + makes Claude Design's import/round-trip work. Footprint unchanged.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="tauri"><div class="q-option-body"><div class="q-option-title">Plan a Tauri migration</div><div class="q-option-rationale">Footprint win, but breaks CDP browser control unless you bundle CEF. ~8–12 wk, high risk.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="native"><div class="q-option-body"><div class="q-option-title">Plan a native macOS rewrite</div><div class="q-option-rationale">Best polish/footprint, worst design loop, 6–12 mo, discards the React investment.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="hedge"><div class="q-option-body"><div class="q-option-title">Unlock now + start the engine/shell split</div><div class="q-option-rationale">A, plus invest in shell-portability so a future migration is cheap. More effort now for optionality.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="status-quo"><div class="q-option-body"><div class="q-option-title">Do nothing yet</div><div class="q-option-rationale">Keep researching; no infra changes.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d1" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">DECISION 2 · Build the design-loop harness</div>
+  <h3 class="q-prompt">If we unlock in-place, how far do we take it?</h3>
+  <p class="q-context">From cheapest to most durable. Each is a superset of the one above.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d2" value="full"><div class="q-option-body"><div class="q-option-title">Preview harness + <code>@duo/ui</code> kernel extraction <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">Storybook/Ladle + browser-runnable renderer + extract pure components into a dual-target package = a standing design-system import target.</div></div></label>
+    <label class="q-option"><input type="radio" name="d2" value="renderer"><div class="q-option-body"><div class="q-option-title">Browser-runnable renderer only</div><div class="q-option-rationale">Mock the IPC bridge so the whole renderer runs in a browser tab. Faster to land; no component isolation.</div></div></label>
+    <label class="q-option"><input type="radio" name="d2" value="storybook"><div class="q-option-body"><div class="q-option-title">Component preview only</div><div class="q-option-rationale">Storybook/Ladle for isolated components; doesn't run full screens.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d2" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">DECISION 3 · The real pain (calibration)</div>
+  <h3 class="q-prompt">What's the dominant motivation behind asking about stacks?</h3>
+  <p class="q-context">This re-weights everything. If it's purely the design loop, A wins cleanly. If footprint/perf is co-equal, the Tauri/native trade-offs deserve more air.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d3" value="design"><div class="q-option-body"><div class="q-option-title">Tighter Claude-design loop <span class="recommend-tag">As stated</span></div><div class="q-option-rationale">Then don't migrate — A/H1 is the answer.</div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="footprint"><div class="q-option-body"><div class="q-option-title">Memory / binary footprint / battery</div><div class="q-option-rationale">Then Tauri-with-CEF or native enter scope — but weigh against the browser-control risk.</div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="native-feel"><div class="q-option-body"><div class="q-option-title">Native macOS feel &amp; integration</div><div class="q-option-rationale">Only native delivers it; accept the design-loop and rewrite costs.</div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="maintain"><div class="q-option-body"><div class="q-option-title">Long-term maintainability / lock-in fear</div><div class="q-option-rationale">Then the engine/shell split (H2) is the hedge, independent of which shell.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d3" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">DECISION 4 · Strategic hedge</div>
+  <h3 class="q-prompt">How much do we invest in shell-portability now?</h3>
+  <p class="q-context">Independent of Decision 1 — this is about keeping a future migration cheap.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d4" value="ui-only"><div class="q-option-body"><div class="q-option-title">Extract <code>@duo/ui</code> only <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">Lands as part of A anyway; the UI layer becomes shell-agnostic for free. Don't refactor the engine yet.</div></div></label>
+    <label class="q-option"><input type="radio" name="d4" value="engine"><div class="q-option-body"><div class="q-option-title">Full engine/shell split</div><div class="q-option-rationale">Headless Duo engine + thin client. Real optionality; significant refactor of main.ts.</div></div></label>
+    <label class="q-option"><input type="radio" name="d4" value="none"><div class="q-option-body"><div class="q-option-title">No hedge</div><div class="q-option-rationale">Accept Electron lock-in; revisit only if a migration trigger appears.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d4" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<div class="gen-comments">
+  <label for="general-comments">Anything else / corrections to the framing</label>
+  <textarea id="general-comments" class="q-notes" placeholder="Free-form..."></textarea>
+</div>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 4 decisions answered</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  const cards = Array.from(document.querySelectorAll('.decision-card'));
+  const countEl = document.getElementById('answered-count');
+  function refreshCount() {
+    let answered = 0;
+    cards.forEach(card => { if (card.querySelector('input[type=radio]:checked')) answered++; });
+    countEl.textContent = answered;
+  }
+  document.addEventListener('change', function (e) {
+    if (e.target.matches('.decision-card input[type=radio]')) refreshCount();
+  });
+
+  const btn = document.getElementById('copy-btn');
+  btn.addEventListener('click', async function () {
+    const parts = ['# Stack alternatives (ENH-238) — decisions', ''];
+    cards.forEach(card => {
+      const title = (card.querySelector('.q-title')?.textContent || '').trim();
+      const prompt = (card.querySelector('.q-prompt')?.textContent || '').trim();
+      const checked = card.querySelector('input[type=radio]:checked');
+      const notes = (card.querySelector('.q-notes')?.value || '').trim();
+      let line;
+      if (checked) {
+        const optTitle = (checked.closest('.q-option').querySelector('.q-option-title')?.textContent || '')
+          .replace(/Recommended.*/i, '').replace(/As stated.*/i, '').trim();
+        line = '[' + checked.value + '] ' + title + ' -- ' + optTitle;
+      } else {
+        line = '[--] ' + title + ' -- (unanswered)';
+      }
+      parts.push(line);
+      parts.push('    Q: ' + prompt);
+      if (notes) parts.push('    note: ' + notes);
+      parts.push('');
+    });
+    const general = (document.getElementById('general-comments')?.value || '').trim();
+    if (general) { parts.push('## General comments'); parts.push(general); parts.push(''); }
+    const payload = parts.join('\n');
+    let ok = false;
+    try { await navigator.clipboard.writeText(payload); ok = true; } catch (_) {
+      const ta = document.createElement('textarea');
+      ta.value = payload; document.body.appendChild(ta); ta.select();
+      try { ok = document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+    if (!ok) {
+      // Last-resort visible fallback so copy never silently no-ops.
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:999';
+      const inner = document.createElement('div');
+      inner.style.cssText = 'background:var(--paper);padding:18px;border-radius:8px;max-width:600px;width:90%';
+      inner.innerHTML = '<p style="margin:0 0 8px;font-weight:600">Press &#8984;C to copy, then paste back to Claude:</p>';
+      const ta2 = document.createElement('textarea');
+      ta2.value = payload; ta2.style.cssText = 'width:100%;height:240px;font-family:ui-monospace,monospace;font-size:12px';
+      inner.appendChild(ta2); modal.appendChild(inner);
+      modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+      document.body.appendChild(modal); ta2.select();
+      return;
+    }
+    btn.classList.add('copied');
+    const prev = btn.textContent; btn.textContent = 'Copied ✓';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = prev; }, 2000);
+  });
+
+  refreshCount();
+})();
+</script>
+
+</body>
+</html>

@@ -3,6 +3,23 @@
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
 
+### ENH-238: Stack-alternatives spike — off Electron? + the Claude-design loop (RESEARCH · awaiting owner decision)
+**Status:** 🟡 Awaiting-decision (filed 2026-06-28). **Review required — surfaces in smoke walks until owner closes.**
+
+Owner (2026-06-28): *"we built this app on electron … I want you to consider alternative stacks, including native macOS and different approaches to react … one thing I wish I had was a tighter feedback loop with claude design, which … requires react for a tight round trip loop. consider which alternative stacks exist, which benefits, the varied risks and LOE for migration. Also evaluate hybrid approaches."*
+
+**Artifacts:** [`docs/research/stack-alternatives-electron.html`](research/stack-alternatives-electron.html) — the stack comparison + direction decision (4 cards). [`docs/research/option-a-unlock-design-loop-plan.html`](research/option-a-unlock-design-loop-plan.html) — the **detailed build plan for Option A** (mock seam → browser-runnable renderer → Ladle CSF stories → `@duo/ui` + `/design-sync` DESIGN.md), phased w/ LOE, pros/cons, Claude-Design round-trip impact, design-ops changes, the Storybook answer (CSF stories run in Ladle), 5 decision cards. `duo open` either, or review via githack on mobile.
+
+**Core finding (the reframe).** Duo's React isn't the blocker on the Claude-design loop — its *packaging* is. The renderer (~53k LOC, 237 components) only runs inside Electron, with **no component-preview harness** (no Storybook/Ladle/standalone entry) and the dev Electron build is unobservable to the agent (computer-use can't reach it). Claude Design (Anthropic Labs) round-trips via "Handoff to Claude Code" + a design-system import that reads web components — it favors the web/React UI Duo already has. **Going native (SwiftUI / RN-macOS) would *degrade* the loop** (no DOM preview, Claude weaker at those, no import target) and **break the CDP browser-control premise**. Tauri's macOS webview is WebKit (no CDP) — it fights Duo's reason for existing unless you bundle CEF (erasing the footprint win).
+
+**Measured lock-in:** browser control = WebContentsView + CDP via `webContents.debugger` (`electron/cdp-bridge.ts`, ~2.15k LOC) — no equal outside Chromium. node-pty terminals + the Unix-socket CLI are re-implementable but real work. Renderer ≈ 50% pure-presentational / ~48% IPC-coupled.
+
+**Recommendation in the artifact:** don't migrate; spend ~2–4 wk unlocking the loop in place (preview harness + browser-runnable renderer + extract a `@duo/ui` design kernel). Keep the engine/shell split as a strategic hedge only if shell-portability becomes a real goal.
+
+**Decisions to close (paste-back from the playground):** D1 direction · D2 how far to take the harness · D3 the real pain (design-loop vs footprint vs native-feel vs maintainability — calibrates everything) · D4 strategic hedge. **If owner picks "unlock in place," spin a follow-on build ENH for the preview harness + `@duo/ui` extraction.**
+
+---
+
 ### ENH-232: Catch-up — rich re-entry for sessions whose worktree was removed
 **Status:** 🔵 Open (filed from ENH-231 walk #2, 2026-06-24). **P1.**
 

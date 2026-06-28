@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="duo-editable" content="false">
+<title>Option A — Unlock the Claude-design loop (implementation plan)</title>
+<style>
+/* ============================================================
+   Atelier CSS kernel (inlined verbatim — skill/references/duo-atelier.css)
+   ============================================================ */
+:root {
+  --paper: #fbf8f1; --paper-deep: #f3ede0; --paper-edge: #e8e0cb; --paper-rule: #d9cea8;
+  --ink: #2b2620; --ink-soft: #4a4238; --ink-mute: #6f6557; --ink-ghost: #9a9080;
+  --accent: #c46a1c; --accent-soft: #f4d9b6;
+  --pass: #4a7d3e; --fail: #b13e3a; --warn: #b07527;
+  --code-bg: #2b2823; --code-ink: #e8e0cb;
+  --project-pine: #2E7D74; --project-harbor: #3C6E93; --project-iris: #5B57A6;
+  --project-plum: #87508F; --project-rose: #A4506A; --project-moss: #69763A;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif; font-size: 14px; line-height: 1.55; }
+body { padding: 32px 40px 96px; max-width: 920px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px; }
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 6px; }
+.intro { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 14px 18px; margin-bottom: 28px; font-size: 13.5px; color: var(--ink-soft); }
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 600; margin: 36px 0 12px; font-size: 19px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px; }
+h3 { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+h4 { margin: 16px 0 6px; font-size: 13.5px; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; }
+pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; line-height: 1.5; background: var(--code-bg); color: var(--code-ink); padding: 14px 16px; border-radius: 6px; overflow-x: auto; }
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+.decision-card { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 16px 18px; margin: 18px 0; }
+.decision-card .q-title { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px; }
+.decision-card .q-prompt { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 500; font-size: 17px; color: var(--ink); margin: 0 0 12px; line-height: 1.35; }
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option { display: block; background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 10px 12px; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes { width: 100%; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px; }
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+details.deferred { margin: 22px 0; padding: 12px 16px; background: var(--paper-deep); border: 1px dashed var(--paper-rule); border-radius: 6px; }
+details.deferred summary { cursor: pointer; font-weight: 600; color: var(--ink-soft); font-size: 13.5px; }
+details.deferred[open] summary { color: var(--ink); }
+details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(--ink-soft); }
+.copy-bar { position: sticky; bottom: 0; margin: 32px -40px -96px; padding: 16px 40px; background: color-mix(in srgb, var(--paper-deep) 96%, transparent); border-top: 1.5px solid var(--paper-rule); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; justify-content: space-between; align-items: center; gap: 16px; z-index: 50; }
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button { background: var(--accent); color: white; border: none; border-radius: 5px; padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background 0.12s; }
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* ============================================================
+   Per-playground patterns (after the kernel)
+   ============================================================ */
+.tl-dr { background: color-mix(in srgb, var(--accent) 8%, var(--paper)); border: 1.5px solid var(--accent-soft); border-left: 4px solid var(--accent); border-radius: 6px; padding: 14px 18px; margin: 0 0 26px; }
+.tl-dr h3 { margin: 0 0 6px; color: var(--accent); font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; }
+.tl-dr p { margin: 6px 0; font-size: 13.5px; color: var(--ink-soft); }
+.tl-dr strong { color: var(--ink); }
+
+.phase { border: 1.5px solid var(--paper-rule); border-radius: 7px; padding: 14px 16px 14px 52px; margin: 12px 0; background: var(--paper); position: relative; }
+.phase .pnum { position: absolute; left: 12px; top: 14px; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+.phase.p0 .pnum { background: var(--ink-mute); }
+.phase h3 { margin: 0 0 2px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.phase .loe { font-size: 11px; color: var(--ink-mute); font-weight: 600; background: var(--paper-deep); padding: 1px 8px; border-radius: 9px; }
+.phase .out { font-size: 12px; color: var(--pass); font-weight: 600; margin-top: 6px; }
+.phase ul { margin: 8px 0 0; }
+
+.pc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
+.pc-grid .pros, .pc-grid .cons { border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 12px 14px; }
+.pc-grid .pros { background: color-mix(in srgb, var(--pass) 6%, var(--paper)); border-color: color-mix(in srgb, var(--pass) 40%, var(--paper-rule)); }
+.pc-grid .cons { background: color-mix(in srgb, var(--fail) 5%, var(--paper)); border-color: color-mix(in srgb, var(--fail) 35%, var(--paper-rule)); }
+.pc-grid h4 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+.pc-grid .pros h4 { color: var(--pass); }
+.pc-grid .cons h4 { color: var(--fail); }
+.pc-grid ul { margin: 0; padding-left: 18px; font-size: 12.5px; }
+
+table.cmp { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 12.5px; }
+table.cmp th, table.cmp td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--paper-rule); vertical-align: top; }
+table.cmp thead th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-mute); border-bottom: 1.5px solid var(--paper-rule); }
+table.cmp td.dim { color: var(--ink-mute); }
+table.cmp .yes { color: var(--pass); font-weight: 700; }
+table.cmp .no  { color: var(--fail); font-weight: 700; }
+table.cmp .meh { color: var(--warn); font-weight: 700; }
+table.cmp .feat { font-weight: 600; color: var(--ink); }
+table.cmp tr.rec td { background: color-mix(in srgb, var(--pass) 9%, var(--paper)); }
+
+.loop { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 12px 14px; margin: 12px 0; font-size: 12.5px; }
+.loop .leg { margin: 6px 0; }
+.loop .leg b { color: var(--accent); }
+.callout { border-left: 3px solid var(--accent); padding: 4px 0 4px 14px; margin: 12px 0; font-size: 13px; color: var(--ink-soft); }
+.gen-comments { margin: 22px 0; }
+.gen-comments label { font-weight: 600; font-size: 13px; color: var(--ink-soft); display: block; margin-bottom: 6px; }
+
+@media (max-width: 640px) {
+  body { padding: 18px 15px 96px; font-size: 14px; }
+  header.page-head h1 { font-size: 20px; }
+  h2 { font-size: 17px; }
+  .pc-grid { grid-template-columns: 1fr; }
+  table.cmp { font-size: 11px; display: block; overflow-x: auto; white-space: nowrap; }
+  .phase { padding: 12px 14px 12px 46px; }
+  .copy-bar { margin: 24px -15px -96px; padding: 13px 15px; flex-direction: column; align-items: stretch; gap: 10px; }
+  .copy-bar button { width: 100%; padding: 12px; }
+}
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Option A — Unlock the Claude-design loop (no migration)</h1>
+  <div class="meta">
+    <span class="pill">Plan · ENH-238</span>
+    2026-06-28 · Duo v0.13.1 · phone-reviewable
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> The detailed build plan for Option A from the stack study: make Duo's existing
+  React renderer previewable <em>outside</em> Electron so Claude (and Claude&nbsp;Design) get a tight
+  generate&nbsp;&rarr;&nbsp;render&nbsp;&rarr;&nbsp;observe&nbsp;&rarr;&nbsp;correct loop — without changing the stack,
+  losing CDP browser control, or touching distribution. Pros/cons, the Claude&nbsp;Design round-trip impact, the
+  broader design-ops changes, and the Storybook question are all answered below. Decisions to record are at the bottom.
+</div>
+
+<div class="tl-dr">
+  <h3>The shape in four moves</h3>
+  <p><strong>1 · Mock the boundary, don't refactor 30 files.</strong> There are 478 <code>window.electron.*</code>
+  call-sites and no abstraction layer. We add one <code>createMockElectron()</code> factory typed against the
+  existing <code>ElectronAPI</code> interface — so a bridge change breaks the mock at compile time.</p>
+  <p><strong>2 · Run the whole app in a browser tab.</strong> A preview entry sets the mock before mounting
+  <code>&lt;App/&gt;</code>. The full shell renders on localhost — Claude drives it with the preview tools immediately.</p>
+  <p><strong>3 · Add a fast component harness.</strong> Write <em>Storybook-format</em> (CSF) stories, run them in
+  <strong>Ladle</strong> (Vite-native, &lt;500ms HMR). Portable to Storybook later, zero rewrite.</p>
+  <p><strong>4 · Feed the round-trip.</strong> Run <code>/design-sync</code> to emit a committed <code>DESIGN.md</code>;
+  optionally extract a <code>@duo/ui</code> kernel so import + handoff are high-fidelity, not approximate.</p>
+</div>
+
+<h2>1. Why this is the right unlock (the seam, measured)</h2>
+<p>
+  The renderer is the portable half of Duo, but it's welded to Electron at runtime: 478 references to
+  <code>window.electron.*</code> across ~30 files, exposed by <code>electron/preload.ts</code> and typed by
+  <code>interface ElectronAPI</code> at <code>shared/host-api.ts:1066</code>. Crucially, there's
+  <strong>no <code>useBridge</code> hook or context</strong> — every component reaches the global directly. That
+  sounds bad, but it's actually the easy case: because access is global, we can satisfy <em>all</em> of it by
+  setting <code>window.electron</code> once, before React mounts. No call-site edits.
+</p>
+<p>
+  There's even a working template: <code>renderer/hooks/useNavigator.flicker.test.ts</code> already fakes
+  <code>window.electron.files.list()</code>/<code>.watch()</code> to drive a component under test. We generalize
+  that into a typed factory covering all ~30 sub-APIs.
+</p>
+<div class="callout">
+  Boot needs a real handful of mocks to not crash: <code>env.windowId</code> (read synchronously),
+  <code>sessionState.load()</code> &rarr; <code>files.exists()</code> batch (App.tsx:747), <code>pty.onData</code>
+  subscription (App.tsx:169), <code>vault.getDefault()</code>, <code>browser.onTabsChange()</code>. Everything
+  else can be a no-op stub. That's the entire Phase&nbsp;0 surface.
+</div>
+
+<h2>2. The plan, phased (with LOE)</h2>
+
+<div class="phase p0">
+  <div class="pnum">0</div>
+  <h3>Mock seam + browser-runnable renderer <span class="loe">1–2 days</span></h3>
+  <ul>
+    <li>Create <code>renderer/test-support/mock-electron.ts</code> &rarr; <code>createMockElectron(overrides?): ElectronAPI</code>. Typed against the real interface; subscriptions return no-op unsubscribers, async invokes resolve fixtures.</li>
+    <li>Add <code>renderer/preview/index.html</code> + <code>main.preview.tsx</code>: set <code>window.electron = createMockElectron(fixtures)</code> <em>before</em> importing <code>App</code>, then mount it. Add an <code>npm run preview:ui</code> Vite entry serving it as a plain web app.</li>
+    <li>Fixtures: a small <code>test-fixtures/</code> (sample <code>SessionState</code>, <code>DirEntry[]</code>, a markdown doc) so the shell boots into a realistic state.</li>
+  </ul>
+  <div class="out">Outcome: the full app shell renders in a normal browser tab. Claude uses <code>preview_start/screenshot/snapshot</code> on it — the tight loop exists before any component work.</div>
+</div>
+
+<div class="phase">
+  <div class="pnum">1</div>
+  <h3>Component preview harness — CSF stories in Ladle <span class="loe">2–3 days</span></h3>
+  <ul>
+    <li>Add <code>@ladle/react</code> (Vite-native; 1.2s cold start, &lt;500ms HMR — matches electron-vite's Vite).</li>
+    <li>Write CSF <code>*.stories.tsx</code> for leaf components first: <code>ThemeToggle</code>, <code>CollapsedPaneRail</code>, <code>AddressBar</code>, <code>Breadcrumb</code>, <code>ImageView</code> toolbar, <code>TabBar</code>.</li>
+    <li>One global Ladle decorator injects <code>createMockElectron()</code> so half-pure components (AddressBar &rarr; <code>browser.historySuggest</code>, Breadcrumb &rarr; <code>files.kind</code>) render with no per-story wiring.</li>
+    <li><code>npm run stories</code>. This is the per-component loop — far faster to iterate a button than to boot the whole shell.</li>
+  </ul>
+  <div class="out">Outcome: isolated, hot-reloading component canvas. Each story doubles as living documentation + (Phase 3) a test.</div>
+</div>
+
+<div class="phase">
+  <div class="pnum">2</div>
+  <h3><code>@duo/ui</code> kernel + <code>DESIGN.md</code> for the round-trip <span class="loe">3–5 days</span></h3>
+  <ul>
+    <li>Extract the pure-presentational components + the token layer (<code>renderer/styles/globals.css</code> CSS vars, already the single source of truth, bound into <code>tailwind.config.mjs</code>) into a <code>@duo/ui</code> package consumed by both Electron and the preview/Ladle.</li>
+    <li>Run <code>/design-sync</code> (Claude Code &rarr; Claude Design) to import the kernel and emit a committed <code>DESIGN.md</code> — color/type/spacing tokens, component inventory, dark-mode variants — as the round-trip source of truth.</li>
+    <li>Kill the token duplication: <code>globals.css</code> stays canonical; generate (or lint) <code>skill/references/duo-atelier.css</code> from it so playgrounds and app never drift.</li>
+  </ul>
+  <div class="out">Outcome: Claude Design imports a <em>real</em> kernel, not an approximation; handoffs land in components Claude can immediately preview.</div>
+</div>
+
+<div class="phase">
+  <div class="pnum">3</div>
+  <h3>Design-ops hardening <span class="loe">2–4 days · ongoing</span></h3>
+  <ul>
+    <li><strong>Visual regression:</strong> Lost Pixel (Ladle-native, free, CI) or Chromatic (needs Storybook). Catches the recurring-UI-regression class your retro keeps re-fixing — turns it into a gate.</li>
+    <li><strong>Agent-parity verb:</strong> a <code>duo preview</code> / <code>duo stories</code> CLI verb (or a <code>design-loop</code> skill) so the agent invokes the loop in one step — same as the human clicking it.</li>
+    <li><strong>Story-tests:</strong> run stories as Vitest tests (render + interaction assertions) — the harness doubles as coverage.</li>
+    <li><strong>CI:</strong> build stories on PR; fail on a broken story or a visual diff.</li>
+  </ul>
+  <div class="out">Outcome: the loop becomes a standing capability with a regression gate, not a one-off.</div>
+</div>
+
+<p style="font-size:12.5px;color:var(--ink-mute)">
+  <strong>Totals:</strong> the loop is usable after Phase 0 (~1–2 days). Phases 0–1 ≈ <strong>~1 week</strong>.
+  Through Phase 2 (round-trip-ready) ≈ <strong>~2 weeks</strong>. Phase 3 is incremental.
+</p>
+
+<h2>3. Pros &amp; cons</h2>
+<div class="pc-grid">
+  <div class="pros">
+    <h4>Pros</h4>
+    <ul>
+      <li>Keeps everything: CDP browser control, node-pty, the socket CLI, signed distribution — untouched.</li>
+      <li>~1–2 weeks, near-zero risk, fully reversible (additive files; no stack change).</li>
+      <li>Unlocks the agent design loop <em>and</em> the Claude Design round-trip at once.</li>
+      <li>Free byproducts: component test coverage, visual-regression gate, living docs, a token single-source-of-truth.</li>
+      <li>The mock is typed against <code>ElectronAPI</code> — drift from the real bridge becomes a compile error.</li>
+    </ul>
+  </div>
+  <div class="cons">
+    <h4>Cons / risks</h4>
+    <ul>
+      <li>Doesn't reduce Electron's memory/binary footprint (out of scope — that's a different goal).</li>
+      <li>The mock factory is real surface to maintain; un-typed, it would silently drift (mitigated above).</li>
+      <li>Two render paths to keep working (Electron + browser-preview); a CI smoke on the preview entry guards it.</li>
+      <li>Half-pure components need fixtures to look right; heavy ones (MarkdownEditor 2.9k LOC, FileTree 2k) are deferred, not free.</li>
+      <li><code>@duo/ui</code> extraction (Phase 2) is a moderate refactor — defer-able if you only want the loop.</li>
+    </ul>
+  </div>
+</div>
+
+<h2>4. Impact on the Claude Design round-trip</h2>
+<p>
+  Claude Design's loop has three legs: <em>import</em> the design system from your repo, <em>generate &amp; auto-correct</em>
+  against it, <em>hand off</em> to Claude Code which lands the change. Here's what each leg looks like today vs. after this plan:
+</p>
+<div class="loop">
+  <div class="leg"><b>Leg 1 — Import (repo &rarr; Design), via <code>/design-sync</code>.</b> <em>Today:</em> tokens are clean (<code>globals.css</code>), but components aren't isolated, so "checks output against your components / computed styles" approximates. <em>After:</em> isolated CSF stories + a committed <code>DESIGN.md</code> = high-fidelity import, not a guess.</div>
+  <div class="leg"><b>Leg 2 — Generate &amp; correct (in Design).</b> <em>Today:</em> builds against an inferred system. <em>After:</em> builds against the real <code>@duo/ui</code> kernel and auto-corrects against <code>DESIGN.md</code> before you see it.</div>
+  <div class="leg"><b>Leg 3 — Handoff (Design &rarr; Claude Code &rarr; repo).</b> <em>Today:</em> the change lands in an Electron app Claude can't screenshot — the loop dead-ends, unobservable. <em>After:</em> Claude Code edits the component, previews it in Ladle / the browser entry, screenshots, and iterates. The loop closes.</div>
+</div>
+<p>
+  Net: the round-trip goes from a <em>blind handoff into an unobservable app</em> to an
+  <em>observable, component-isolated, token-backed loop</em>. The single biggest unlock is Leg 3 — and it's
+  delivered by Phase 0 alone.
+</p>
+
+<h2>5. Should we make Storybook files?</h2>
+<p>
+  <strong>Yes — write Storybook-<em>format</em> stories, but run them in Ladle.</strong> The format (CSF —
+  Component Story Format, the <code>*.stories.tsx</code> convention) is the industry standard, and Ladle consumes
+  the exact same files. So you get the portable, well-understood story format <em>and</em> Ladle's Vite-native speed —
+  which matters because a slow harness kills the agent loop. If you later need Chromatic, addons, or an enterprise
+  ecosystem, point Storybook at the same stories with zero rewrite. Don't pick Storybook-the-tool now; pick
+  Storybook-the-format + Ladle-the-runner.
+</p>
+<table class="cmp">
+  <thead><tr><th>Dimension</th><th>Ladle</th><th>Storybook 8/10</th></tr></thead>
+  <tbody>
+    <tr class="rec"><td class="feat">Cold start / HMR</td><td class="yes">1.2s / &lt;500ms</td><td class="meh">~8s / ~2s</td></tr>
+    <tr class="rec"><td class="feat">Build tool</td><td class="yes">Vite (matches electron-vite)</td><td class="meh">Vite builder available; heavier</td></tr>
+    <tr><td class="feat">Story format</td><td class="yes">CSF (same files)</td><td class="yes">CSF (same files)</td></tr>
+    <tr><td class="feat">Ecosystem / addons</td><td class="meh">Minimal</td><td class="yes">Large</td></tr>
+    <tr><td class="feat">Visual regression</td><td class="yes">Lost Pixel (free)</td><td class="yes">Chromatic (paid/hosted)</td></tr>
+    <tr><td class="feat">Scope fit for Duo</td><td class="yes">Right-sized</td><td class="meh">More than needed now</td></tr>
+  </tbody>
+</table>
+
+<h2>6. Other design-ops changes worth making</h2>
+<ul>
+  <li><strong>Token single-source-of-truth, enforced.</strong> <code>globals.css</code> is canonical; lint/generate <code>duo-atelier.css</code> from it so the app and the playgrounds (this very page!) can't drift. Today they're hand-kept-in-sync copies.</li>
+  <li><strong>Commit <code>DESIGN.md</code> and treat it as a tracked artifact.</strong> It's the round-trip contract; review changes to it in PRs like any spec.</li>
+  <li><strong>Make the loop CLI-addressable.</strong> A <code>duo preview</code>/<code>duo stories</code> verb (CLI-parity rule) so the agent starts the harness the same way the human does — and the smoke-walk can assert on it.</li>
+  <li><strong>Fold visual-regression into the existing gate.</strong> Your retro already flags recurring UI regressions needing durable coverage — a per-story pixel diff is exactly that, automatically.</li>
+  <li><strong>Stories as the smoke-walk substrate.</strong> Many smoke-walk items are "does this component look/behave right" — a story is a faster, repeatable home for those than booting the whole app.</li>
+  <li><strong>Keep Electron as the integration surface.</strong> The browser preview is for <em>look &amp; interaction</em>; anything touching CDP/pty/sockets still gets verified in the real app. Don't let the mock lull you into skipping integration checks.</li>
+</ul>
+
+<details class="deferred">
+  <summary>Files this plan adds (nothing existing gets rewritten)</summary>
+  <div class="deferred-body">
+    <ul>
+      <li><code>renderer/test-support/mock-electron.ts</code> — typed <code>createMockElectron()</code> factory.</li>
+      <li><code>renderer/test-support/test-fixtures/</code> — sample SessionState / DirEntry / docs.</li>
+      <li><code>renderer/preview/{index.html, main.preview.tsx}</code> — browser-runnable entry.</li>
+      <li><code>renderer/components/*.stories.tsx</code> — CSF stories (start with ~6 leaf components).</li>
+      <li><code>.ladle/</code> config + a global mock decorator.</li>
+      <li><code>DESIGN.md</code> (Phase 2, from <code>/design-sync</code>); <code>packages/duo-ui/</code> (Phase 2).</li>
+      <li>package.json scripts: <code>preview:ui</code>, <code>stories</code>; (Phase 3) a visual-diff CI job.</li>
+    </ul>
+  </div>
+</details>
+
+<h2>7. Decisions to record</h2>
+
+<section class="decision-card">
+  <div class="q-title">DECISION 1 · Harness</div>
+  <h3 class="q-prompt">Which component-preview harness?</h3>
+  <p class="q-context">Stories are CSF either way, so this is reversible — but it sets the default runner + speed.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d1" value="ladle"><div class="q-option-body"><div class="q-option-title">Ladle, running CSF stories <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">Vite-native (matches electron-vite), &lt;500ms HMR. Stories portable to Storybook later.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="storybook"><div class="q-option-body"><div class="q-option-title">Storybook 8/10</div><div class="q-option-rationale">Heavier, but Chromatic + addons + Vitest story-tests out of the box.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="renderer-only"><div class="q-option-body"><div class="q-option-title">Browser-runnable renderer only (no per-component harness)</div><div class="q-option-rationale">Just Phase 0. Cheapest; gives the whole-app loop but not isolated components.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d1" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">DECISION 2 · v1 scope</div>
+  <h3 class="q-prompt">How far do we build in the first cut?</h3>
+  <p class="q-context">Each option is a superset of the one above.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d2" value="p0-1"><div class="q-option-body"><div class="q-option-title">Phases 0–1 (mock + browser render + first stories) <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">~1 week. Proves the loop end-to-end before committing to the kernel extraction.</div></div></label>
+    <label class="q-option"><input type="radio" name="d2" value="p0-2"><div class="q-option-body"><div class="q-option-title">Phases 0–2 (through <code>@duo/ui</code> + DESIGN.md)</div><div class="q-option-rationale">~2 weeks. Round-trip-ready immediately, but more upfront refactor.</div></div></label>
+    <label class="q-option"><input type="radio" name="d2" value="p0"><div class="q-option-body"><div class="q-option-title">Phase 0 only (browser-runnable shell)</div><div class="q-option-rationale">~1–2 days. Just unblock the agent loop; defer all harness/kernel work.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d2" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">DECISION 3 · Stories — yes/no &amp; how many</div>
+  <h3 class="q-prompt">Do we author CSF <code>*.stories.tsx</code> files?</h3>
+  <p class="q-context">Direct answer to "should we make Storybook files?"</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d3" value="seed"><div class="q-option-body"><div class="q-option-title">Yes — seed ~6 leaf components, grow opportunistically <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">Stories follow design work; don't backfill the whole tree up front.</div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="systematic"><div class="q-option-body"><div class="q-option-title">Yes — systematically story the whole component library</div><div class="q-option-rationale">Best coverage/docs, but a real authoring investment (237 components).</div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="none"><div class="q-option-body"><div class="q-option-title">No stories — whole-app preview only</div><div class="q-option-rationale">Skip CSF; rely on the browser-runnable shell for all iteration.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d3" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">DECISION 4 · Round-trip artifacts</div>
+  <h3 class="q-prompt">Do we run <code>/design-sync</code> + extract <code>@duo/ui</code> now?</h3>
+  <p class="q-context">These are what make the Claude Design import/handoff high-fidelity rather than approximate.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d4" value="designmd-now"><div class="q-option-body"><div class="q-option-title"><code>/design-sync</code> + commit DESIGN.md now; <code>@duo/ui</code> later <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">DESIGN.md is cheap and high-value; defer the kernel refactor until the loop proves itself.</div></div></label>
+    <label class="q-option"><input type="radio" name="d4" value="both-now"><div class="q-option-body"><div class="q-option-title">Both now (DESIGN.md + <code>@duo/ui</code>)</div><div class="q-option-rationale">Fastest path to a fully high-fidelity round-trip; more upfront work.</div></div></label>
+    <label class="q-option"><input type="radio" name="d4" value="later"><div class="q-option-body"><div class="q-option-title">Neither yet — just the preview loop</div><div class="q-option-rationale">Get the agent loop working; revisit Claude Design wiring after.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d4" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">DECISION 5 · Design-ops gate</div>
+  <h3 class="q-prompt">Add visual-regression testing?</h3>
+  <p class="q-context">Turns the recurring-UI-regression class into an automated gate.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d5" value="lostpixel"><div class="q-option-body"><div class="q-option-title">Lost Pixel (Ladle-native, free, CI) <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">Pairs with the Ladle choice; no hosted dependency.</div></div></label>
+    <label class="q-option"><input type="radio" name="d5" value="chromatic"><div class="q-option-body"><div class="q-option-title">Chromatic (hosted; implies Storybook)</div><div class="q-option-rationale">Richer review UI, but a paid hosted service + Storybook.</div></div></label>
+    <label class="q-option"><input type="radio" name="d5" value="none"><div class="q-option-body"><div class="q-option-title">Not yet</div><div class="q-option-rationale">Land the loop first; add the gate in a later pass.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d5" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<div class="gen-comments">
+  <label for="general-comments">Anything else / corrections to the plan</label>
+  <textarea id="general-comments" class="q-notes" placeholder="Free-form..."></textarea>
+</div>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 5 decisions answered</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  const cards = Array.from(document.querySelectorAll('.decision-card'));
+  const countEl = document.getElementById('answered-count');
+  function refreshCount() {
+    let answered = 0;
+    cards.forEach(card => { if (card.querySelector('input[type=radio]:checked')) answered++; });
+    countEl.textContent = answered;
+  }
+  document.addEventListener('change', function (e) {
+    if (e.target.matches('.decision-card input[type=radio]')) refreshCount();
+  });
+
+  const btn = document.getElementById('copy-btn');
+  btn.addEventListener('click', async function () {
+    const parts = ['# Option A plan (ENH-238) — decisions', ''];
+    cards.forEach(card => {
+      const title = (card.querySelector('.q-title')?.textContent || '').trim();
+      const prompt = (card.querySelector('.q-prompt')?.textContent || '').trim();
+      const checked = card.querySelector('input[type=radio]:checked');
+      const notes = (card.querySelector('.q-notes')?.value || '').trim();
+      let line;
+      if (checked) {
+        const optTitle = (checked.closest('.q-option').querySelector('.q-option-title')?.textContent || '')
+          .replace(/Recommended.*/i, '').trim();
+        line = '[' + checked.value + '] ' + title + ' -- ' + optTitle;
+      } else {
+        line = '[--] ' + title + ' -- (unanswered)';
+      }
+      parts.push(line);
+      parts.push('    Q: ' + prompt);
+      if (notes) parts.push('    note: ' + notes);
+      parts.push('');
+    });
+    const general = (document.getElementById('general-comments')?.value || '').trim();
+    if (general) { parts.push('## General comments'); parts.push(general); parts.push(''); }
+    const payload = parts.join('\n');
+    let ok = false;
+    try { await navigator.clipboard.writeText(payload); ok = true; } catch (_) {
+      const ta = document.createElement('textarea');
+      ta.value = payload; document.body.appendChild(ta); ta.select();
+      try { ok = document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+    if (!ok) {
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:999;padding:16px';
+      const inner = document.createElement('div');
+      inner.style.cssText = 'background:var(--paper);padding:18px;border-radius:8px;max-width:600px;width:100%';
+      inner.innerHTML = '<p style="margin:0 0 8px;font-weight:600">Press &#8984;C / long-press to copy, then paste back to Claude:</p>';
+      const ta2 = document.createElement('textarea');
+      ta2.value = payload; ta2.style.cssText = 'width:100%;height:240px;font-family:ui-monospace,monospace;font-size:12px';
+      inner.appendChild(ta2); modal.appendChild(inner);
+      modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+      document.body.appendChild(modal); ta2.select();
+      return;
+    }
+    btn.classList.add('copied');
+    const prev = btn.textContent; btn.textContent = 'Copied ✓';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = prev; }, 2000);
+  });
+
+  refreshCount();
+})();
+</script>
+
+</body>
+</html>
