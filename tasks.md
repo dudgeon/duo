@@ -5,6 +5,7 @@
 
 ### ENH-239: Design preview harness — unlock the Claude-design loop (Option A build)
 **Status:** 🚧 In-progress (started 2026-06-28). **PRD:** [`docs/prd/enh-239-design-preview-harness.md`](prd/enh-239-design-preview-harness.md).
+**Progress:** ✅ Phase 0 (browser-runnable renderer + mock seam) — verified live, full shell renders in a plain browser, 0 render errors (`bfc3c12`). ✅ Phase 1 infra (Storybook on the Vite builder + global mock decorator + first exemplar CSF stories) — verified, `ThemeToggle` story renders in isolation. **Next:** Phase 2 (`@duo/ui` + `/design-sync` DESIGN.md), then the parallel-workflow bulk story pass (D3, owner opted in).
 
 The build of ENH-238 Option A. Make the renderer previewable OUTSIDE Electron so the Claude-design loop + Claude Design's `/design-sync` round-trip become observable — no migration, CDP browser control untouched. **Locked owner decisions (2026-06-28):** D1 Storybook (Vite builder, CSF stories) · D2 scope Phases 0–2 · D3 systematically story the whole library (sequenced after the harness; bulk pass parallelizable — PRD § Rollout) · D4 `/design-sync` DESIGN.md + `@duo/ui` both now · D5 Lost Pixel visual-regression gate.
 
