@@ -17,6 +17,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
+    "preview:ui": "vite --config vite.preview.config.ts",
     "postinstall": "electron-rebuild",
     "build:cli": "node scripts/build-cli.mjs",
     "build:all": "npm run build && npm run build:cli",

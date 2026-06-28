@@ -3,8 +3,17 @@
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
 
-### ENH-238: Stack-alternatives spike — off Electron? + the Claude-design loop (RESEARCH · awaiting owner decision)
-**Status:** 🟡 Awaiting-decision (filed 2026-06-28). **Review required — surfaces in smoke walks until owner closes.**
+### ENH-239: Design preview harness — unlock the Claude-design loop (Option A build)
+**Status:** 🚧 In-progress (started 2026-06-28). **PRD:** [`docs/prd/enh-239-design-preview-harness.md`](prd/enh-239-design-preview-harness.md).
+
+The build of ENH-238 Option A. Make the renderer previewable OUTSIDE Electron so the Claude-design loop + Claude Design's `/design-sync` round-trip become observable — no migration, CDP browser control untouched. **Locked owner decisions (2026-06-28):** D1 Storybook (Vite builder, CSF stories) · D2 scope Phases 0–2 · D3 systematically story the whole library (sequenced after the harness; bulk pass parallelizable — PRD § Rollout) · D4 `/design-sync` DESIGN.md + `@duo/ui` both now · D5 Lost Pixel visual-regression gate.
+
+**Architecture:** 478 `window.electron.*` call-sites, no abstraction → mock the boundary once (`createMockElectron()` Proxy typed against `ElectronAPI`, `shared/host-api.ts:1066`), not 30-file refactor. **Phase 0 (this PR):** `renderer/test-support/mock-electron.ts` + `fixtures.ts` + `renderer/preview/{index.html,main.preview.tsx}` + `vite.preview.config.ts` + `npm run preview:ui` → full shell renders in a plain browser. **Phase 1:** Storybook + CSF stories + mock decorator. **Phase 2:** `@duo/ui` + committed `DESIGN.md`. **Phase 3:** Lost Pixel CI + `duo preview` verb. Verified in-browser (no Electron); integration paths stay in-app.
+
+---
+
+### ENH-238: Stack-alternatives spike — off Electron? + the Claude-design loop (RESEARCH · DECIDED → ENH-239)
+**Status:** 🟢 Decided (2026-06-28). Direction: **Option A (stay Electron, unlock the loop)**; build tracked under ENH-239. Kept here for the research + the decision record.
 
 Owner (2026-06-28): *"we built this app on electron … I want you to consider alternative stacks, including native macOS and different approaches to react … one thing I wish I had was a tighter feedback loop with claude design, which … requires react for a tight round trip loop. consider which alternative stacks exist, which benefits, the varied risks and LOE for migration. Also evaluate hybrid approaches."*
 

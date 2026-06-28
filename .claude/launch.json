@@ -6,6 +6,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["--yes", "serve", "docs", "-p", "8765", "--no-clipboard", "--no-port-switching"],
       "port": 8765
+    },
+    {
+      "name": "ui-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "preview:ui"],
+      "port": 5199
     }
   ]
 }
