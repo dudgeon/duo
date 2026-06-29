@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>ENH-242 · "Choose Vault…" should initialize an uninitialized folder</title>
+<style>
+/* duo-atelier.css — canonical Atelier kernel (inlined per CLAUDE.md § 11). */
+:root {
+  --paper: #fbf8f1; --paper-deep: #f3ede0; --paper-edge: #e8e0cb; --paper-rule: #d9cea8;
+  --ink: #2b2620; --ink-soft: #4a4238; --ink-mute: #6f6557; --ink-ghost: #9a9080;
+  --accent: #c46a1c; --accent-soft: #f4d9b6;
+  --pass: #4a7d3e; --fail: #b13e3a; --warn: #b07527;
+  --code-bg: #2b2823; --code-ink: #e8e0cb;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif; font-size: 14px; line-height: 1.55; }
+body { padding: 32px 40px 96px; max-width: 920px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px; }
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 6px; }
+.intro { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 14px 18px; margin-bottom: 28px; font-size: 13.5px; color: var(--ink-soft); }
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 600; margin: 36px 0 12px; font-size: 19px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px; }
+h3 { font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+p { margin: 8px 0; } ul, ol { margin: 8px 0; padding-left: 24px; } li { margin: 4px 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; }
+pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; line-height: 1.5; background: var(--code-bg); color: var(--code-ink); padding: 14px 16px; border-radius: 6px; overflow-x: auto; }
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+.decision-card { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 16px 18px; margin: 18px 0; }
+.decision-card .q-title { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px; }
+.decision-card .q-prompt { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 500; font-size: 17px; color: var(--ink); margin: 0 0 12px; line-height: 1.35; }
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option { display: block; background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 10px 12px; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes { width: 100%; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px; }
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+details.deferred { margin: 22px 0; padding: 12px 16px; background: var(--paper-deep); border: 1px dashed var(--paper-rule); border-radius: 6px; }
+details.deferred summary { cursor: pointer; font-weight: 600; color: var(--ink-soft); font-size: 13.5px; }
+details.deferred[open] summary { color: var(--ink); }
+details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(--ink-soft); }
+.copy-bar { position: sticky; bottom: 0; margin: 32px -40px -96px; padding: 16px 40px; background: color-mix(in srgb, var(--paper-deep) 96%, transparent); border-top: 1.5px solid var(--paper-rule); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button { background: var(--accent); color: white; border: none; border-radius: 5px; padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background 0.12s; }
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* per-playground */
+.flow { background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 12px 16px; margin: 12px 0; }
+.flow .now { color: var(--fail); font-weight: 600; }
+.flow .want { color: var(--pass); font-weight: 600; }
+.rec { color: var(--pass); }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>"Choose Vault…" should initialize an uninitialized folder</h1>
+  <div class="meta">
+    <span class="pill">ENH-242</span>
+    <span class="pill">Decisions</span>
+    Spike · 2026-06-28 · pick a radio per card, add notes, hit <strong>Copy decisions</strong>, paste back
+  </div>
+</header>
+
+<div class="intro">
+  <strong>The problem.</strong> Today <strong>Settings ▸ Default Vault ▸ Choose Vault…</strong> opens a folder
+  picker and calls <code>setDefaultVault(picked)</code>. If the folder isn't already a vault (no OKF
+  <code>index.md</code> with <code>okf_version</code>, no <code>.obsidian/</code>), that call <em>throws</em> and you
+  get a dead-end dialog: <em>"Not a vault… Ask Claude to run <code>duo vault init</code> there first."</em>
+  <strong>The intent:</strong> "Choose Vault…" should be able to <strong>create</strong> a vault from the chosen
+  folder, not just select an existing one — so a non-technical user never has to drop to the CLI.
+</div>
+
+<h2>Current vs intended flow</h2>
+<div class="flow">
+  <p><span class="now">Now:</span> Choose Vault… → folder picker → <code>setDefaultVault</code> →
+  <strong>throws on non-vault</strong> → warning dialog "run <code>duo vault init</code> first" → dead end.</p>
+  <p><span class="want">Intended:</span> Choose Vault… → folder picker → if it's a vault, set as default
+  (unchanged); <strong>if not, initialize it as a vault, then set as default.</strong></p>
+</div>
+<p>Relevant prior art already in the tree (decisions below lean on reusing it):</p>
+<ul>
+  <li><strong>New Vault dialog</strong> — File ▸ New Vault… already does pick-location + format (OKF/Obsidian) +
+  name, calling <code>initVault(root, {format, name})</code> (<code>core/vault/scaffold.ts</code>,
+  <code>renderer/components/NewVaultModal.tsx</code>). Format defaults to <strong>OKF</strong>.</li>
+  <li><code>initVault</code> writes only marker/scaffold files (OKF: a root <code>index.md</code> + static-listing
+  seed; Obsidian: <code>.obsidian/</code> + a <code>.base</code> + README). It throws on an already-a-vault folder
+  unless <code>--force</code>, and <strong>never touches your own notes</strong>.</li>
+  <li><code>duo vault default &lt;path&gt;</code> (CLI) fails the same way the menu does today.</li>
+</ul>
+
+<h2>Decisions to lock</h2>
+
+<section class="decision-card">
+  <div class="q-title">Decision 1 — Behavior on a non-vault folder</div>
+  <h3 class="q-prompt">When "Choose Vault…" picks a folder that isn't a vault yet, what happens?</h3>
+  <p class="q-context">Initializing writes files (markers/scaffold), so this is the core UX call: how much
+  ceremony before we create the vault, and how much control over format/name.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d1" value="reuse-modal">
+      <div class="q-option-body">
+        <div class="q-option-title">Open the New Vault dialog, prefilled with the chosen folder <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Reuses the existing modal (best altitude — no parallel init path): format picker + name field, both prefilled (folder, OKF, basename), one confirm → init + set default. Most control, consistent with File ▸ New Vault.</div>
+      </div></label>
+    <label class="q-option"><input type="radio" name="d1" value="confirm-then-init">
+      <div class="q-option-body">
+        <div class="q-option-title">Lightweight confirm, then init with defaults</div>
+        <div class="q-option-rationale">A native "Not a vault — initialize as OKF here?" confirm → init (OKF, basename) + set default. Fewer surfaces than the modal, but no inline format/name choice (would need the modal for that).</div>
+      </div></label>
+    <label class="q-option"><input type="radio" name="d1" value="auto-silent">
+      <div class="q-option-body">
+        <div class="q-option-title">Auto-init silently, no prompt</div>
+        <div class="q-option-rationale">Zero clicks: init (OKF, basename) + set default immediately. Fastest, but silently writes scaffold files into the chosen folder with no confirmation.</div>
+      </div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d1" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 2 — Default format</div>
+  <h3 class="q-prompt">Which at-rest format does the init path default to?</h3>
+  <p class="q-context">OKF (standard markdown relative links, GitHub-portable) vs Obsidian (wikilinks + <code>.obsidian/</code>). If D1 = the modal, this just sets the picker's default selection; if D1 = confirm/auto, it's the format used outright.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d2" value="okf">
+      <div class="q-option-body"><div class="q-option-title">OKF <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Matches the New Vault dialog default + the "broadly-portable, GitHub-renderable KB" thesis.</div></div></label>
+    <label class="q-option"><input type="radio" name="d2" value="obsidian">
+      <div class="q-option-body"><div class="q-option-title">Obsidian</div>
+        <div class="q-option-rationale">Wikilinks + <code>.obsidian/</code> + <code>.base</code> rollups; for users staying inside Obsidian.</div></div></label>
+    <label class="q-option"><input type="radio" name="d2" value="remember">
+      <div class="q-option-body"><div class="q-option-title">Remember last-used</div>
+        <div class="q-option-rationale">Default to whatever format you last initialized. More state to track; small benefit.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d2" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 3 — Vault name</div>
+  <h3 class="q-prompt">What's the new vault's name (title)?</h3>
+  <p class="q-context"><code>initVault</code> takes an optional <code>name</code> (defaults to the folder basename).</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d3" value="basename-editable">
+      <div class="q-option-body"><div class="q-option-title">Folder basename, editable <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">D1=modal prefills the name field with the basename (editable); D1=confirm/auto uses the basename silently.</div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="prompt">
+      <div class="q-option-body"><div class="q-option-title">Always prompt for a name</div>
+        <div class="q-option-rationale">Forces a name entry even in the lightweight/auto paths (extra step).</div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="basename-silent">
+      <div class="q-option-body"><div class="q-option-title">Basename, no editing</div>
+        <div class="q-option-rationale">Simplest; rename later by editing the vault's index.md title.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d3" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 4 — Non-empty folder / collision guard</div>
+  <h3 class="q-prompt">What if the chosen folder already has files (e.g. an existing <code>index.md</code>)?</h3>
+  <p class="q-context">OKF init writes a root <code>index.md</code> as its marker. If a non-vault folder already has an
+  <code>index.md</code> (without <code>okf_version</code>), initializing could overwrite real content. <code>initVault</code>
+  only guards "already a vault", not "file collision".</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d4" value="safe-refuse-collision">
+      <div class="q-option-body"><div class="q-option-title">Proceed, but refuse if it would overwrite an existing index.md / marker; warn if otherwise non-empty <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Data-safe: never clobber an existing <code>index.md</code> (offer Obsidian format or a different folder instead); a folder with unrelated files is fine since init never touches your notes.</div></div></label>
+    <label class="q-option"><input type="radio" name="d4" value="always-proceed">
+      <div class="q-option-body"><div class="q-option-title">Always proceed</div>
+        <div class="q-option-rationale">Trust that init only adds markers. Risk: an existing <code>index.md</code> gets overwritten.</div></div></label>
+    <label class="q-option"><input type="radio" name="d4" value="refuse-nonempty">
+      <div class="q-option-body"><div class="q-option-title">Refuse any non-empty folder</div>
+        <div class="q-option-rationale">Safest but most restrictive — can't turn an existing notes folder into a vault.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d4" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 5 — Folder inside an existing vault</div>
+  <h3 class="q-prompt">What if the chosen folder is nested INSIDE an existing vault?</h3>
+  <p class="q-context"><code>findVaultRoot</code> can detect an enclosing vault. Nesting a vault inside a vault is
+  generally an anti-pattern (ambiguous link resolution, double-indexing).</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d5" value="set-enclosing">
+      <div class="q-option-body"><div class="q-option-title">Set the enclosing vault as the default (don't nest) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Detect the ancestor vault and select it instead of initializing a nested one; tell the user what happened.</div></div></label>
+    <label class="q-option"><input type="radio" name="d5" value="nest-anyway">
+      <div class="q-option-body"><div class="q-option-title">Initialize the subfolder as a nested vault anyway</div>
+        <div class="q-option-rationale">Honors the literal pick; risks nested-vault ambiguity.</div></div></label>
+    <label class="q-option"><input type="radio" name="d5" value="warn-cancel">
+      <div class="q-option-body"><div class="q-option-title">Warn and cancel</div>
+        <div class="q-option-rationale">Refuse with an explanation; user re-picks.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d5" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 6 — CLI parity</div>
+  <h3 class="q-prompt">Should <code>duo vault default &lt;path&gt;</code> gain the same init-on-missing?</h3>
+  <p class="q-context">CLI-parity rule (#4): if the human can create-on-choose from the menu, the agent should be
+  able to from the CLI. Today <code>duo vault default &lt;non-vault&gt;</code> throws like the menu did.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d6" value="add-init-flag">
+      <div class="q-option-body"><div class="q-option-title">Add <code>duo vault default &lt;path&gt; --init[=okf|obsidian]</code> <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Opt-in init for parity; bare <code>default &lt;path&gt;</code> still errors on a non-vault (no surprise writes from a typo'd path). 4-surface synced.</div></div></label>
+    <label class="q-option"><input type="radio" name="d6" value="keep-explicit">
+      <div class="q-option-body"><div class="q-option-title">Keep CLI explicit (<code>vault init</code> then <code>vault default</code>)</div>
+        <div class="q-option-rationale">Deliberate UI-only asymmetry (noted in the PRD); the agent already has <code>duo vault init</code>.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d6" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<details class="deferred">
+  <summary>Recommended bundle (if you just want to say "yes, do the sensible thing")</summary>
+  <div class="deferred-body">
+    D1 reuse-modal · D2 OKF · D3 basename-editable · D4 safe-refuse-collision · D5 set-enclosing · D6 add-init-flag.
+    Net: "Choose Vault…" (likely relabeled "Choose or Create Vault…") on a non-vault folder opens the New Vault
+    dialog prefilled (OKF, basename), refuses to clobber an existing index.md, sets an enclosing vault instead of
+    nesting, and <code>duo vault default --init</code> gives the agent the same power. Build follows once locked.
+  </div>
+</details>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 6 decisions answered</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  var DECISIONS = ['d1','d2','d3','d4','d5','d6'];
+  function titleFor(name) {
+    var card = document.querySelector('input[name="' + name + '"]').closest('.decision-card');
+    return card.querySelector('.q-title').textContent.trim();
+  }
+  function update() {
+    var n = 0;
+    DECISIONS.forEach(function (d) { if (document.querySelector('input[name="' + d + '"]:checked')) n++; });
+    document.getElementById('answered-count').textContent = String(n);
+  }
+  function build() {
+    var lines = ['ENH-242 — "Choose Vault…" init-on-choose — DECISIONS', '======================================================', ''];
+    DECISIONS.forEach(function (d) {
+      var sel = document.querySelector('input[name="' + d + '"]:checked');
+      var val = sel ? sel.value : '(unanswered)';
+      lines.push('[' + val + '] ' + titleFor(d));
+      var notes = (document.querySelector('textarea[data-decision="' + d + '"]') || {}).value || '';
+      notes.trim().split('\n').forEach(function (ln) { if (ln.trim()) lines.push('    ' + ln); });
+      lines.push('');
+    });
+    return lines.join('\n');
+  }
+  document.addEventListener('change', function (e) {
+    if (e.target && e.target.matches && e.target.matches('input[type=radio]')) update();
+  });
+  var btn = document.getElementById('copy-btn');
+  btn.addEventListener('click', function () {
+    var text = build();
+    navigator.clipboard.writeText(text).then(function () {
+      btn.textContent = 'Copied!'; btn.classList.add('copied');
+      setTimeout(function () { btn.textContent = 'Copy decisions'; btn.classList.remove('copied'); }, 2000);
+    }, function () {
+      // Clipboard blocked (focus) — show a selectable prompt fallback.
+      window.prompt('Copy the decisions below (Cmd+C):', text);
+    });
+  });
+  update();
+})();
+</script>
+
+</body>
+</html>

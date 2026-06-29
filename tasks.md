@@ -3,6 +3,18 @@
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
 
+### ENH-242: "Choose Vault…" should initialize an uninitialized folder (init-on-choose)
+
+**Status:** 🟡 Awaiting-decision (filed 2026-06-28, owner spike). **Priority:** P2. **Effort:** S–M. **Decision artifact:** [`docs/research/vault-init-on-choose.html`](docs/research/vault-init-on-choose.html) (interactive — 6 decision cards). **Ticket note:** allocated above ENH-241; sibling `angry-golick-03a970` holds 238/239 — 242 avoids collision.
+
+**Provenance.** Owner (2026-06-28): *"currently, 'settings >> default vault >> choose vault…' fails if the selected folder has not been initialized as a vault — 'choose vault' should in itself init a given folder as a vault."*
+
+**Today.** `chooseDefaultVaultViaDialog()` ([electron/main.ts](electron/main.ts) ~4007) → folder picker → `setDefaultVault(picked)`, which **throws** on a non-vault folder ([core/vault/default-vault.ts](core/vault/default-vault.ts) `isVaultRoot` guard) → dead-end warning dialog telling the user to run `duo vault init` first. Prior art to reuse: the **New Vault dialog** (File ▸ New Vault…, `NewVaultModal.tsx` + `initVault(root,{format,name})` in `core/vault/scaffold.ts`, format defaults OKF).
+
+**The change (pending decisions).** Make "Choose Vault…" create-on-choose: if the picked folder is a vault, set it (unchanged); if not, initialize it (then set as default). 6 decisions to lock in the artifact: D1 behavior on non-vault (reuse New Vault modal prefilled / lightweight confirm / silent), D2 default format (OKF), D3 name (basename editable), D4 collision guard (refuse overwriting an existing index.md), D5 nested-inside-a-vault (set the enclosing one), D6 CLI parity (`duo vault default <path> --init`). **Recommended bundle:** D1 reuse-modal · D2 OKF · D3 basename-editable · D4 safe-refuse-collision · D5 set-enclosing · D6 add-init-flag (+ likely relabel to "Choose or Create Vault…").
+
+**This entry is a DECISION GATE** — it stays in every smoke-walk manifest until the owner walks the artifact and pastes decisions back; build is blocked until then. **Build owed after decisions:** init-on-choose path (reusing the New Vault modal/`initVault`) + collision/nesting guards + the CLI `--init` flag (4-surface sync) + tests + live-verify + smoke-walk.
+
 ### ENH-240: Frontmatter Properties panel — user-configurable default collapsed/expanded (View menu)
 
 **Status:** 🚧 In-progress (filed 2026-06-28, owner-initiated). **Priority:** P2. **Effort:** M. **Ticket note:** allocated above this worktree's committed max (ENH-235); sibling worktree `angry-golick-03a970` holds uncommitted ENH-238/239 — this claims ENH-240 to avoid collision (paired with ENH-241).
