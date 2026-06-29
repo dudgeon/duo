@@ -100,6 +100,39 @@ export async function findVaultRootAndMode(
 }
 
 /**
+ * Resolve the vault for an in-editor surface (the `[[ ]]` suggester, the `@`
+ * mention popover, the silent-stub create row) with a DEFAULT-VAULT FALLBACK.
+ *
+ * Order: the active file's ENCLOSING vault first (walk-up via
+ * {@link findVaultRootAndMode}), else the global default vault (Settings →
+ * Default Vault / `duo vault default`, stored in `~/.claude/duo/vault.json`,
+ * read live via `window.electron.vault.getDefault`). Returns null only when the
+ * file is in no vault AND no default is set.
+ *
+ * Enclosing-first / default-second mirrors the CLI's `resolveVaultOrDefault`
+ * (`core/vault/default-vault.ts`): a note INSIDE vault A links within A; a note
+ * in an arbitrary folder borrows the default so `[[` autocomplete still works
+ * outside any vault (BUG-212). Without the fallback, `[[` silently showed
+ * nothing for every file not physically inside a vault, and setting a default
+ * (UI or CLI) appeared to do nothing — making the default look "lost".
+ */
+export async function findVaultRootWithDefault(
+  startPath: string | null,
+): Promise<{ root: string; mode: VaultMode } | null> {
+  const enclosing = await findVaultRootAndMode(startPath)
+  if (enclosing) return enclosing
+  try {
+    const { defaultVault } = await window.electron.vault.getDefault()
+    if (defaultVault) {
+      return { root: defaultVault, mode: await detectVaultMode(defaultVault) }
+    }
+  } catch {
+    // No default set / IPC failure → no vault (callers surface guidance).
+  }
+  return null
+}
+
+/**
  * Resolve a standard markdown relative link `href` (the `(./rel.md)`
  * portion of an OKF `[Display](./rel.md)`) to an ABSOLUTE on-disk path,
  * for cmd+click navigation. `docPath` is the source note's absolute path.

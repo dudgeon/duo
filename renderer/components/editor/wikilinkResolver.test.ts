@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest'
-import { normalizeWikilinkName } from './wikilinkResolver'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { findVaultRootWithDefault, normalizeWikilinkName } from './wikilinkResolver'
 
 describe('normalizeWikilinkName', () => {
   it('lowercases', () => {
@@ -44,5 +44,77 @@ describe('normalizeWikilinkName', () => {
     expect(normalizeWikilinkName('')).toBe('')
     expect(normalizeWikilinkName('   ')).toBe('')
     expect(normalizeWikilinkName('\t\n')).toBe('')
+  })
+})
+
+describe('findVaultRootWithDefault — default-vault fallback (BUG-212)', () => {
+  // `findVaultRootAndMode` walks up via `window.electron.vault.detect`, and the
+  // fallback reads `window.electron.vault.getDefault`. Stub both per test.
+  const stubElectron = (opts: {
+    detect: (dir: string) => 'okf' | 'obsidian' | null
+    defaultVault?: string | null
+  }) => {
+    ;(globalThis as unknown as { window: { electron: unknown } }).window.electron = {
+      vault: {
+        detect: vi.fn(({ vaultRoot }: { vaultRoot: string }) =>
+          Promise.resolve(opts.detect(vaultRoot)),
+        ),
+        getDefault: vi.fn(() =>
+          Promise.resolve({ defaultVault: opts.defaultVault ?? null, knownVaults: [] }),
+        ),
+      },
+    }
+  }
+
+  afterEach(() => {
+    delete (globalThis as unknown as { window: { electron?: unknown } }).window.electron
+  })
+
+  it('returns the active file’s ENCLOSING vault first (default is not consulted)', async () => {
+    const getDefault = vi.fn(() =>
+      Promise.resolve({ defaultVault: '/other/default', knownVaults: [] }),
+    )
+    ;(globalThis as unknown as { window: { electron: unknown } }).window.electron = {
+      vault: {
+        detect: vi.fn(({ vaultRoot }: { vaultRoot: string }) =>
+          Promise.resolve(vaultRoot === '/vaultA' ? 'okf' : null),
+        ),
+        getDefault,
+      },
+    }
+    const res = await findVaultRootWithDefault('/vaultA/notes/foo.md')
+    expect(res).toEqual({ root: '/vaultA', mode: 'okf' })
+    expect(getDefault).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the DEFAULT vault when the file is in an arbitrary folder', async () => {
+    stubElectron({
+      // Walk-up finds no vault; only the default path detects as a vault.
+      detect: (dir) => (dir === '/home/me/myvault' ? 'obsidian' : null),
+      defaultVault: '/home/me/myvault',
+    })
+    const res = await findVaultRootWithDefault('/home/me/random/scratch.md')
+    expect(res).toEqual({ root: '/home/me/myvault', mode: 'obsidian' })
+  })
+
+  it('returns null when no enclosing vault AND no default set', async () => {
+    stubElectron({ detect: () => null, defaultVault: null })
+    expect(await findVaultRootWithDefault('/home/me/random/scratch.md')).toBeNull()
+  })
+
+  it('returns null for a null active path with no default', async () => {
+    stubElectron({ detect: () => null, defaultVault: null })
+    expect(await findVaultRootWithDefault(null)).toBeNull()
+  })
+
+  it('uses the default even when the active path is null (no file open)', async () => {
+    stubElectron({
+      detect: (dir) => (dir === '/home/me/myvault' ? 'okf' : null),
+      defaultVault: '/home/me/myvault',
+    })
+    expect(await findVaultRootWithDefault(null)).toEqual({
+      root: '/home/me/myvault',
+      mode: 'okf',
+    })
   })
 })

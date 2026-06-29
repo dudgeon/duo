@@ -51,7 +51,7 @@ import { useAuthor } from './hooks/useAuthor'
 import { useSelectionFormat } from './hooks/useSelectionFormat'
 import { htmlBoilerplate } from './components/Page/htmlBoilerplate'
 import { encodeUtf8 } from './components/editor/markdown-io'
-import { findVaultRootAndMode, resolveWikilinkInVault } from './components/editor/wikilinkResolver'
+import { findVaultRootWithDefault, resolveWikilinkInVault } from './components/editor/wikilinkResolver'
 import type { TabSession, DirEntry, TerminalTabKind, NewTabResult, PinEntry, SessionState, BrowserTab, ActiveWorkspace, HomeSnapshot, CheckoutTarget, CheckoutResult } from '@shared/types'
 import { reorderVisible } from '@shared/reorderTabs'
 import { pruneByTab } from './state/perTabPrune'
@@ -3237,7 +3237,11 @@ export function App() {
       // .obsidian/), not the legacy `.obsidian/`-only findVaultRoot. Otherwise
       // cmd-clicking a pre-existing / imported `[[ ]]` literal in an OKF vault
       // (which has no .obsidian/) dead-ends with "No vault root found".
-      const found = await findVaultRootAndMode(startPath)
+      // BUG-212 — fall back to the DEFAULT vault when the file is in an
+      // arbitrary folder, so a `[[ ]]` inserted via the default-vault
+      // autocomplete also resolves on cmd+click (same resolution as the
+      // suggester that created it).
+      const found = await findVaultRootWithDefault(startPath)
       if (!found) {
         console.warn('[ENH-096] No vault root found; cannot resolve wikilink:', wikilinkTarget)
         return
