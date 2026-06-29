@@ -103,6 +103,10 @@ export type DuoCommandName =
   | 'history'
   // Stage 11 § D33d — theme
   | 'theme'
+  // ENH-240 — read/set the app-global DEFAULT frontmatter-panel collapse state.
+  // `duo frontmatter-default` reads { expanded }; `… expanded|collapsed` sets it
+  // (parity with View ▸ "Expand frontmatter by default"). Per-path overrides win.
+  | 'frontmatter-default'
   // Sprint 16 / v0.6.15 — Claude-tab Enter key preferences. Both
   // accept optional `mode` to set, no arg to read. See
   // ClaudeKeyPrefsSnapshot for semantics.
@@ -2771,6 +2775,11 @@ export const IPC = {
   HOME_MODE_GET: 'home:mode-get',        // renderer → main: read app-global mode
   HOME_MODE_SET: 'home:mode-set',        // renderer → main: persist mode
   HOME_MODE_PUSH: 'home:mode-push',      // main → ALL renderers: mode changed elsewhere
+  // ENH-240 — app-global DEFAULT collapse state for the frontmatter Properties
+  // panel (per-path override still wins). Read at editor mount; pushed to every
+  // window when the View menu / `duo frontmatter-default` changes it.
+  FRONTMATTER_DEFAULT_GET: 'frontmatter:default-get',   // renderer → main: read default
+  FRONTMATTER_DEFAULT_PUSH: 'frontmatter:default-push', // main → ALL renderers: default changed
   SESSION_DIGEST: 'session:digest',      // renderer → main: materialize digest for a tab
   // ENH-223 Tier 2 — cron Home surface. One invoke channel (renderer → main)
   // delegating to CronService.handleCli (list/add/run/pause/resume/rm/show —

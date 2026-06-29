@@ -1675,6 +1675,14 @@ app.whenReady().then(async () => {
       await setHomeModeAndBroadcast(mode)
       return { ok: true }
     },
+    // ENH-240 — `duo frontmatter-default [expanded|collapsed]` (parity with the
+    // View menu). Read = current default; set = persist + fan to every window.
+    getFrontmatterDefaultExpanded: () => settingsService.get().frontmatterDefaultExpanded,
+    setFrontmatterDefaultExpanded: async (expanded) => {
+      await setFrontmatterDefaultAndBroadcast(expanded)
+      rebuildAppMenu()
+      return { ok: true }
+    },
     sessionDigest: (tabId, youAskedOnly) => materializeDigestForTab(tabId, youAskedOnly),
     getSessionNote: (tabId) => getSessionAnnotationField(tabId, 'note'),
     getSessionNext: (tabId) => getSessionAnnotationField(tabId, 'next'),
@@ -3290,6 +3298,12 @@ function setupIPC(): void {
     await setHomeModeAndBroadcast(mode)
     return { ok: true }
   })
+  // ENH-240 — the markdown editor reads the app-global frontmatter-panel default
+  // at mount (fallback for files with no per-path override). Writes go through
+  // the View menu / `duo frontmatter-default` (→ setFrontmatterDefaultAndBroadcast).
+  ipcMain.handle(IPC.FRONTMATTER_DEFAULT_GET, (): { expanded: boolean } => ({
+    expanded: settingsService.get().frontmatterDefaultExpanded
+  }))
   ipcMain.handle(IPC.SESSION_DIGEST, async (_event, args: { tabId: string; youAskedOnly?: boolean }) => {
     return materializeDigestForTab(args.tabId, args.youAskedOnly)
   })
@@ -3684,6 +3698,23 @@ function installAppMenu(): void {
           accelerator: 'CmdOrCtrl+Shift+.',
           click: () => {
             setHiddenFiles('toggle', focusedWindowId())
+          }
+        },
+        {
+          // ENH-240 — app-global DEFAULT collapse state for the markdown
+          // editor's frontmatter Properties panel. Default ON (expanded; owner
+          // decision). A file the user manually collapsed/expanded keeps its
+          // per-path choice (localStorage); this only sets the fallback for
+          // files with no override. Persisted in ~/.claude/duo/settings.json;
+          // fanned to every window live (FRONTMATTER_DEFAULT_PUSH), CLI twin
+          // `duo frontmatter-default`.
+          label: 'Expand frontmatter by default',
+          type: 'checkbox',
+          checked: settingsService.get().frontmatterDefaultExpanded,
+          click: (item) => {
+            // Persist + broadcast to every window, then rebuild so this
+            // checkbox's own checked state reflects the new value immediately.
+            void setFrontmatterDefaultAndBroadcast(item.checked).then(() => rebuildAppMenu())
           }
         },
         {
@@ -4628,6 +4659,15 @@ async function materializeDigestForTab(
 async function setHomeModeAndBroadcast(mode: HomeMode): Promise<void> {
   await settingsService.set({ homeMode: mode })
   broadcastAll(registry, IPC.HOME_MODE_PUSH, mode)
+}
+
+/** ENH-240 — persist the app-global frontmatter-panel default and fan it out to
+ *  EVERY window (an app-global pref only the calling window hears is pointless,
+ *  per the homeMode precedent). Each editor live-updates open tabs that have no
+ *  per-path override; per-path-overridden tabs keep their choice. */
+async function setFrontmatterDefaultAndBroadcast(expanded: boolean): Promise<void> {
+  await settingsService.set({ frontmatterDefaultExpanded: expanded })
+  broadcastAll(registry, IPC.FRONTMATTER_DEFAULT_PUSH, expanded)
 }
 
 /** Read a Duo-owned annotation field (`note`/`next`) for a tab's session. */

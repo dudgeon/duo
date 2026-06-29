@@ -457,6 +457,11 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // BUG-139 — collapsed state for the Properties panel; synced from
   // sidecar.frontmatterPanelCollapsed on load, persists on toggle.
   const [frontmatterCollapsed, setFrontmatterCollapsed] = useState(false)
+  // ENH-240 — the app-global DEFAULT collapse state (true = expanded). The
+  // load path uses this as the fallback when a file has no per-path override;
+  // a live FRONTMATTER_DEFAULT_PUSH updates it + re-applies to open,
+  // non-overridden tabs. Default expanded (owner decision) until main answers.
+  const frontmatterDefaultExpandedRef = useRef(true)
   const eolRef = useRef<'\n' | '\r\n'>('\n')
   // ENH-195 D5 — the on-disk reconciliation baselines (the serialized-view
   // baseline for the dirty check, the BUG-166 byte-exact baseline for the
@@ -1117,12 +1122,22 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     // these ran in parallel with the body rendering immediately and the
     // sidecar layering marks in when it resolved, but the migration is
     // a body-mutating step that must happen BEFORE setContent.
+    // ENH-240 — read the app-global frontmatter-panel default FRESH alongside
+    // the file, so the collapse fallback below is correct regardless of whether
+    // this editor instance was reused across files or the mount-time get() has
+    // resolved yet (a stale ref otherwise loaded the wrong default). The ref +
+    // onSet subscription still drive LIVE changes to already-open editors.
+    const fmDefaultP: Promise<{ expanded: boolean } | null> = window.electron.frontmatterDefault
+      ? window.electron.frontmatterDefault.get().catch(() => null)
+      : Promise.resolve(null)
     Promise.all([
       window.electron.files.read(path),
-      readSidecar(path)
+      readSidecar(path),
+      fmDefaultP
     ]).then(
-      ([res, sc]) => {
+      ([res, sc, fmDefault]) => {
         if (cancelled || pathRef.current !== path) return
+        if (fmDefault) frontmatterDefaultExpandedRef.current = fmDefault.expanded
         const text = decodeUtf8(res.bytes)
         const split = splitFrontmatter(text)
         frontmatterRef.current = split.frontmatter
@@ -1157,14 +1172,16 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           setSuggestingMode(effective)
           if (stored === null && legacy) writeSuggestingPref(path, true)
         }
-        // BUG-139 v1.1 / BUG-207 — Properties-panel collapse now lives in
-        // per-path localStorage. Q4 default stays COLLAPSED when unset
-        // (true). A legacy sidecar `frontmatterPanelCollapsed === false`
-        // (user explicitly expanded) migrates forward.
+        // BUG-139 v1.1 / BUG-207 — Properties-panel collapse lives in per-path
+        // localStorage. ENH-240: when unset, fall back to the app-global default
+        // (View ▸ "Expand frontmatter by default" / `duo frontmatter-default`),
+        // not the old hardcoded COLLAPSED. A legacy sidecar
+        // `frontmatterPanelCollapsed === false` (user explicitly expanded) still
+        // migrates forward and takes precedence over the global default.
         {
           const stored = readFrontmatterCollapsedPref(path)
           const legacyExpanded = migration.sidecar.frontmatterPanelCollapsed === false
-          const effective = stored ?? !legacyExpanded
+          const effective = stored ?? (legacyExpanded ? false : !frontmatterDefaultExpandedRef.current)
           setFrontmatterCollapsed(effective)
           if (stored === null && legacyExpanded) writeFrontmatterCollapsedPref(path, false)
         }
@@ -1571,6 +1588,23 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       writeFrontmatterCollapsedPref(pathRef.current, next)
       return next
     })
+  }, [])
+
+  // ENH-240 — live-update THIS editor when the app-global default changes (View
+  // menu / `duo frontmatter-default`). The INITIAL value is read FRESH in the
+  // file-load Promise.all below (which also seeds the ref), so no redundant
+  // mount-time get() here — this effect only handles live pushes. Re-applies to
+  // THIS tab ONLY when the file has no per-path override — the user's explicit
+  // chevron choice (localStorage) always wins.
+  useEffect(() => {
+    const apply = (expanded: boolean) => {
+      frontmatterDefaultExpandedRef.current = expanded
+      if (readFrontmatterCollapsedPref(pathRef.current) === null) {
+        setFrontmatterCollapsed(!expanded)
+      }
+    }
+    const off = window.electron.frontmatterDefault?.onSet(expanded => apply(expanded))
+    return () => { off?.() }
   }, [])
 
   /** Update [data-duo-comment-active] on every comment span so the
@@ -2551,6 +2585,8 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           vaultLoading={vaultIndex.loading}
           vaultRoot={vaultIndex.vaultRoot}
           onVaultRefresh={vaultIndex.refresh}
+          // ENH-241 — resolve `[md](rel.md)` frontmatter links relative to this doc.
+          docPath={pathRef.current}
         />
       )}
       {/* BUG-138 Phase 4d — bulk banner above the editor body when

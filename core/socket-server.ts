@@ -329,6 +329,14 @@ export interface NavBridge {
   /** ENH-231 — `duo home mode <projects|catchup>` (write). Persists app-global
    *  and fans HOME_MODE_PUSH out to every window. */
   setHomeMode: (mode: import('../shared/types').HomeMode) => Promise<{ ok: boolean; error?: string }>
+  /** ENH-240 — `duo frontmatter-default` (read). The app-global DEFAULT
+   *  collapse state for the markdown editor's frontmatter panel (true =
+   *  expanded). Per-path overrides still win in the editor. */
+  getFrontmatterDefaultExpanded: () => boolean
+  /** ENH-240 — `duo frontmatter-default <expanded|collapsed>` (write). Persists
+   *  app-global + fans FRONTMATTER_DEFAULT_PUSH out to every window + rebuilds
+   *  the View-menu checkbox. */
+  setFrontmatterDefaultExpanded: (expanded: boolean) => Promise<{ ok: boolean; error?: string }>
   /** ENH-231 — `duo session digest <tab> [--you-asked-only]`. Materialize the
    *  tab's session digest into the rebuildable cache (the Stop-hook ping). */
   sessionDigest: (tabId: string, youAskedOnly?: boolean) => Promise<{ ok: boolean; uuid?: string; error?: string }>
@@ -2292,6 +2300,24 @@ export class SocketServer {
             result = await this.nav.getCatchupBoard()
           } else {
             throw new Error(`Unknown home op: ${op}. Expected show|state|refresh|mode|catchup.`)
+          }
+          break
+        }
+
+        case 'frontmatter-default': {
+          // ENH-240 — read (no value) or set the app-global DEFAULT collapse
+          // state for the markdown editor's frontmatter Properties panel. Parity
+          // with View ▸ "Expand frontmatter by default". Per-path overrides win.
+          const value = args['value'] as string | undefined
+          if (value === undefined) {
+            result = { expanded: this.nav.getFrontmatterDefaultExpanded() }
+          } else if (value !== 'expanded' && value !== 'collapsed') {
+            throw new Error(`duo frontmatter-default: expected expanded|collapsed, got ${value}`)
+          } else {
+            const expanded = value === 'expanded'
+            const r = await this.nav.setFrontmatterDefaultExpanded(expanded)
+            if (!r.ok) throw new Error(r.error ?? 'frontmatter-default set failed')
+            result = { ok: true, expanded }
           }
           break
         }

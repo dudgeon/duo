@@ -57,4 +57,23 @@ describe('SettingsService (ENH-191 P5a S1)', () => {
     snap.multiWindow = false
     expect(svc.get().multiWindow).toBe(true)
   })
+
+  // ENH-240 — frontmatter-panel default: expanded ON by default (owner
+  // decision), persists, and a wrong-typed value degrades to the default.
+  it('defaults frontmatterDefaultExpanded ON (expanded) with no settings file', async () => {
+    const loaded = await svc.load()
+    expect(loaded.frontmatterDefaultExpanded).toBe(true)
+    expect(DEFAULT_SETTINGS.frontmatterDefaultExpanded).toBe(true)
+  })
+
+  it('frontmatterDefaultExpanded persists across a fresh instance', async () => {
+    await svc.set({ frontmatterDefaultExpanded: false })
+    const reloaded = new SettingsService(file)
+    expect((await reloaded.load()).frontmatterDefaultExpanded).toBe(false)
+  })
+
+  it('a wrong-typed frontmatterDefaultExpanded falls back to the default (true)', async () => {
+    await fs.writeFile(file, JSON.stringify({ frontmatterDefaultExpanded: 'nope' }))
+    expect((await svc.load()).frontmatterDefaultExpanded).toBe(true)
+  })
 })

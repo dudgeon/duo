@@ -133,6 +133,7 @@ These four answer "what is the user looking at right now?" — reach for them be
 | Command | Purpose | Output |
 |---|---|---|
 | `duo theme [system\|light\|dark]` | Read the current theme (no arg → JSON `{mode, effective}`) or set it. Usually only changed on explicit user request. | JSON |
+| `duo frontmatter-default [expanded\|collapsed]` | Read or set the app-global DEFAULT collapse state for the markdown editor's frontmatter Properties panel. CLI parity with View → "Expand frontmatter by default". A file the user manually collapses/expands keeps its own per-file choice; this only sets the fallback for files with no override. Persists in `~/.claude/duo/settings.json`; a change live-updates open editors. No arg = print `{ expanded: boolean }`. | JSON: `{expanded: boolean}` |
 | `duo author [<name>]` | Read or set the **human author identity** used to stamp CriticMarkup marks (track-changes insertions / deletions / substitutions / comments). No arg → JSON `{author}` (defaults to `$USER` on a fresh install). With a name → persist + print. Persists in renderer localStorage. Agents stamp their own attribution via the `DUO_AUTHOR` env var on per-op verbs (`duo doc insert/comment/...`); this verb is for the human user. | JSON: `{author}` |
 
 ## Files on disk

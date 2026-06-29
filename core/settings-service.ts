@@ -31,11 +31,19 @@ export interface DuoSettings {
    *  "remember last used"; fanned out to every window on change. Default
    *  `projects` (least disruptive; Catch-up is opt-in). */
   homeMode: HomeMode
+  /** ENH-240 — the app-global DEFAULT collapse state for the markdown editor's
+   *  frontmatter Properties panel, applied to any file with no per-path
+   *  override (the per-path chevron choice in localStorage still wins). Default
+   *  TRUE = expanded (owner decision 2026-06-28). Surfaced as View ▸ "Expand
+   *  frontmatter by default" + `duo frontmatter-default`; fanned to every
+   *  window on change (FRONTMATTER_DEFAULT_PUSH). */
+  frontmatterDefaultExpanded: boolean
 }
 
 export const DEFAULT_SETTINGS: DuoSettings = {
   multiWindow: true,
   homeMode: 'projects',
+  frontmatterDefaultExpanded: true,
 }
 
 const SETTINGS_DIR = path.join(os.homedir(), '.claude', 'duo')
@@ -67,6 +75,10 @@ export class SettingsService {
           parsed.homeMode === 'projects' || parsed.homeMode === 'catchup'
             ? parsed.homeMode
             : DEFAULT_SETTINGS.homeMode,
+        frontmatterDefaultExpanded:
+          typeof parsed.frontmatterDefaultExpanded === 'boolean'
+            ? parsed.frontmatterDefaultExpanded
+            : DEFAULT_SETTINGS.frontmatterDefaultExpanded,
       }
     } catch {
       // ENOENT first launch (the common path) or a corrupt file → defaults.

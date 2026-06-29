@@ -16,14 +16,14 @@
 //   - The collapsed/expanded state is driven by props so it can
 //     persist in the sidecar (BUG-139c).
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   parseFrontmatter,
   displayValue,
   type FrontmatterValue
 } from '../../../core/markdown/frontmatterParser'
 import { useFrontmatterWikilink } from './useFrontmatterWikilink'
-import type { VaultFile } from './wikilinkResolver'
+import { resolveMdLinkInVault, type VaultFile } from './wikilinkResolver'
 
 /**
  * BUG-139 v1.1 Q5 — expanded-row display formatter.
@@ -42,6 +42,107 @@ function expandedValue(value: FrontmatterValue): string {
   } catch {
     return String(value)
   }
+}
+
+// ENH-241 — frontmatter vault-link navigation. `[[wikilink]]` (alt 1) and
+// `[label](href)` markdown links (alt 2). Wikilinks are matched FIRST so a
+// `[[Foo]]` is never mis-parsed as a `[…]( … )` md-link.
+const FM_LINK_RE = /\[\[([^\]\n]+)\]\]|\[([^\]\n]*)\]\(([^)\n]+)\)/g
+
+export type FmLinkToken =
+  | { kind: 'text'; text: string }
+  | { kind: 'wikilink'; raw: string; target: string }
+  | { kind: 'mdlink'; raw: string; label: string; href: string }
+
+/**
+ * ENH-241 — split a frontmatter value string into plain-text + vault-link
+ * tokens. Pure (no DOM, no fs) so the parsing is unit-testable independently of
+ * React. The md-link's in-vault resolvability is decided at render time (needs
+ * the doc path); here we only classify the syntax.
+ */
+export function tokenizeFrontmatterLinks(text: string): FmLinkToken[] {
+  const tokens: FmLinkToken[] = []
+  let last = 0
+  let m: RegExpExecArray | null
+  FM_LINK_RE.lastIndex = 0
+  while ((m = FM_LINK_RE.exec(text)) !== null) {
+    if (m.index > last) tokens.push({ kind: 'text', text: text.slice(last, m.index) })
+    if (m[1] !== undefined) {
+      tokens.push({ kind: 'wikilink', raw: m[0], target: m[1] })
+    } else {
+      tokens.push({ kind: 'mdlink', raw: m[0], label: m[2], href: m[3] })
+    }
+    last = m.index + m[0].length
+  }
+  if (last < text.length) tokens.push({ kind: 'text', text: text.slice(last) })
+  return tokens
+}
+
+/** cmd/ctrl+click navigates; a plain click falls through to the row's
+ *  expand/collapse toggle — the same modifier convention as the body editor
+ *  (WikilinkDecorations / MarkdownEditor handleClickOn). Structural param type
+ *  so we don't shadow the file's DOM-`MouseEvent` usage. */
+function navigateFmLink(
+  e: { metaKey: boolean; ctrlKey: boolean; preventDefault: () => void; stopPropagation: () => void },
+  detail: { target: string; resolvedPath?: string }
+): void {
+  if (!(e.metaKey || e.ctrlKey)) return
+  e.preventDefault()
+  e.stopPropagation()
+  // The SAME event App.tsx's global handler resolves (mode-aware, create-on-
+  // missing). `[[ ]]` → { target }; md-link → { target: href, resolvedPath }.
+  window.dispatchEvent(new CustomEvent('duo-wikilink-open', { detail }))
+}
+
+/**
+ * ENH-241 — render a frontmatter value string with cmd+click-navigable vault
+ * links, mirroring the body-link convention. `[[wikilinks]]` always render as
+ * links; `[label](href)` md-links render as links only when they resolve INSIDE
+ * the vault (external / anchor-only hrefs → `resolveMdLinkInVault` returns null
+ * → left as literal text, never hijacked). Reuses the `.duo-wikilink` style.
+ */
+function renderLinkedText(text: string, docPath: string | undefined): ReactNode {
+  const nodes: ReactNode[] = []
+  let key = 0
+  for (const tok of tokenizeFrontmatterLinks(text)) {
+    if (tok.kind === 'text') {
+      nodes.push(tok.text)
+    } else if (tok.kind === 'wikilink') {
+      nodes.push(
+        <span
+          key={`fl${key++}`}
+          className="duo-wikilink cursor-pointer"
+          data-duo-frontmatter-link="wikilink"
+          data-duo-wikilink-target={tok.target}
+          title="⌘-click to open"
+          onClick={(e) => navigateFmLink(e, { target: tok.target })}
+        >
+          {tok.raw}
+        </span>
+      )
+    } else {
+      // md-link — clickable only when it resolves INSIDE the vault; external /
+      // anchor-only hrefs (resolveMdLinkInVault → null) stay literal text.
+      const resolved = docPath ? resolveMdLinkInVault(tok.href, docPath) : null
+      if (resolved) {
+        nodes.push(
+          <span
+            key={`fl${key++}`}
+            className="duo-wikilink cursor-pointer"
+            data-duo-frontmatter-link="mdlink"
+            data-duo-mdlink-href={tok.href}
+            title="⌘-click to open"
+            onClick={(e) => navigateFmLink(e, { target: tok.href, resolvedPath: resolved })}
+          >
+            {tok.label || tok.href}
+          </span>
+        )
+      } else {
+        nodes.push(tok.raw)
+      }
+    }
+  }
+  return nodes
 }
 
 interface Props {
@@ -67,6 +168,10 @@ interface Props {
   vaultLoading?: boolean
   vaultRoot?: string | null
   onVaultRefresh?: () => void
+  /** ENH-241 — the open doc's absolute path, used to resolve `[md](rel.md)`
+   *  frontmatter links relative to it (the `[[ ]]` path doesn't need it; App.tsx
+   *  walks from the active doc). Absent → md-links render as plain text. */
+  docPath?: string
 }
 
 export function FrontmatterPanel({
@@ -77,7 +182,8 @@ export function FrontmatterPanel({
   vaultFiles,
   vaultLoading,
   vaultRoot,
-  onVaultRefresh
+  onVaultRefresh,
+  docPath
 }: Props) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<string>('')
@@ -191,6 +297,7 @@ export function FrontmatterPanel({
       <div
         className="flex items-center h-7 px-3 border-b border-border bg-surface-1 text-[11px] text-zinc-500 shrink-0"
         data-duo-frontmatter-panel="empty"
+        data-duo-frontmatter-path={docPath ?? ''}
       >
         <button
           type="button"
@@ -214,6 +321,7 @@ export function FrontmatterPanel({
       className="flex flex-col border-b border-border bg-surface-1 shrink-0"
       data-duo-frontmatter-panel={editing ? 'editing' : 'view'}
       data-duo-frontmatter-collapsed={collapsed ? 'true' : 'false'}
+      data-duo-frontmatter-path={docPath ?? ''}
     >
       {/* Header — chevron + count + edit toggle */}
       <div className="flex items-center h-7 px-3 gap-2 text-[11px]">
@@ -325,6 +433,7 @@ export function FrontmatterPanel({
                   v={value}
                   expanded={expandedRows.has(key)}
                   onToggle={() => toggleRow(key)}
+                  docPath={docPath}
                 />
               ))
             )}
@@ -340,9 +449,11 @@ interface RowProps {
   v: FrontmatterValue
   expanded: boolean
   onToggle: () => void
+  /** ENH-241 — open doc path, for resolving `[md](rel.md)` links in values. */
+  docPath?: string
 }
 
-function PropertyRow({ k, v, expanded, onToggle }: RowProps) {
+function PropertyRow({ k, v, expanded, onToggle, docPath }: RowProps) {
   // BUG-139 v1.1 Q5 — clicking the row toggles expanded state.
   // Collapsed: existing single-line truncated display.
   // Expanded: multi-line view with a left accent border; arrays /
@@ -366,10 +477,10 @@ function PropertyRow({ k, v, expanded, onToggle }: RowProps) {
       <span className="font-medium text-zinc-300 min-w-[100px] shrink-0">{k}</span>
       {expanded ? (
         <pre className="text-zinc-300 font-mono flex-1 whitespace-pre-wrap break-words m-0 leading-snug">
-          {expandedValue(v)}
+          {renderLinkedText(expandedValue(v), docPath)}
         </pre>
       ) : (
-        <span className="text-zinc-400 font-mono truncate flex-1">{displayValue(v)}</span>
+        <span className="text-zinc-400 font-mono truncate flex-1">{renderLinkedText(displayValue(v), docPath)}</span>
       )}
     </div>
   )

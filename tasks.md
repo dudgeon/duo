@@ -3,6 +3,54 @@
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
 
+### ENH-242: "Choose Vault…" should initialize an uninitialized folder (init-on-choose)
+
+**Status:** 🟡 Awaiting-decision (filed 2026-06-28, owner spike). **Priority:** P2. **Effort:** S–M. **Decision artifact:** [`docs/research/vault-init-on-choose.html`](docs/research/vault-init-on-choose.html) (interactive — 6 decision cards). **Ticket note:** allocated above ENH-241; sibling `angry-golick-03a970` holds 238/239 — 242 avoids collision.
+
+**Provenance.** Owner (2026-06-28): *"currently, 'settings >> default vault >> choose vault…' fails if the selected folder has not been initialized as a vault — 'choose vault' should in itself init a given folder as a vault."*
+
+**Today.** `chooseDefaultVaultViaDialog()` ([electron/main.ts](electron/main.ts) ~4007) → folder picker → `setDefaultVault(picked)`, which **throws** on a non-vault folder ([core/vault/default-vault.ts](core/vault/default-vault.ts) `isVaultRoot` guard) → dead-end warning dialog telling the user to run `duo vault init` first. Prior art to reuse: the **New Vault dialog** (File ▸ New Vault…, `NewVaultModal.tsx` + `initVault(root,{format,name})` in `core/vault/scaffold.ts`, format defaults OKF).
+
+**The change (pending decisions).** Make "Choose Vault…" create-on-choose: if the picked folder is a vault, set it (unchanged); if not, initialize it (then set as default). 6 decisions to lock in the artifact: D1 behavior on non-vault (reuse New Vault modal prefilled / lightweight confirm / silent), D2 default format (OKF), D3 name (basename editable), D4 collision guard (refuse overwriting an existing index.md), D5 nested-inside-a-vault (set the enclosing one), D6 CLI parity (`duo vault default <path> --init`). **Recommended bundle:** D1 reuse-modal · D2 OKF · D3 basename-editable · D4 safe-refuse-collision · D5 set-enclosing · D6 add-init-flag (+ likely relabel to "Choose or Create Vault…").
+
+**This entry is a DECISION GATE** — it stays in every smoke-walk manifest until the owner walks the artifact and pastes decisions back; build is blocked until then. **Build owed after decisions:** init-on-choose path (reusing the New Vault modal/`initVault`) + collision/nesting guards + the CLI `--init` flag (4-surface sync) + tests + live-verify + smoke-walk.
+
+### ENH-240: Frontmatter Properties panel — user-configurable default collapsed/expanded (View menu)
+
+**Status:** 🚧 In-progress (filed 2026-06-28, owner-initiated). **Priority:** P2. **Effort:** M. **Ticket note:** allocated above this worktree's committed max (ENH-235); sibling worktree `angry-golick-03a970` holds uncommitted ENH-238/239 — this claims ENH-240 to avoid collision (paired with ENH-241).
+
+**Provenance.** Owner (2026-06-28): *"user configurable setting (in view menu) when a markdown file has frontmatter, load collapsed or expanded — default expanded until user sets otherwise."*
+
+**Today.** The Properties panel ([FrontmatterPanel.tsx](renderer/components/editor/FrontmatterPanel.tsx)) already collapses/expands per file, persisted per absolute path in localStorage ([docUiPrefs.ts](renderer/components/editor/docUiPrefs.ts)). But the hardcoded default when a file has **no** stored preference is COLLAPSED ([MarkdownEditor.tsx:1160](renderer/components/editor/MarkdownEditor.tsx:1160), BUG-139 v1.1 Q4) and there's no way to change it.
+
+**The change.** (a) Flip the unset default to **expanded** (owner ask). (b) Add an app-global setting `frontmatterDefaultExpanded` (default `true`) to `DuoSettings` ([settings-service.ts](core/settings-service.ts)), surfaced as a **View ▸ "Expand frontmatter by default"** checkbox, mirroring the `homeMode` GET/PUSH IPC pattern (app-global, fanned to every window live). (c) CLI parity (rule 4): `duo frontmatter-default [expanded|collapsed]` reads/sets — 4-surface synced.
+
+**Decision (owner AUQ 2026-06-28):** **global default + per-file override wins.** The View-menu setting is the default for files with no stored per-file pref; clicking a file's chevron still creates a sticky per-file choice that overrides the global default. Changing the global setting live-updates open editors that have no per-file pref; per-file-overridden tabs are left untouched.
+
+**Acceptance.** (1) A fresh markdown file with frontmatter loads EXPANDED by default. (2) View ▸ "Expand frontmatter by default" toggles the global default; checkmark reflects state; persists across restart (`~/.claude/duo/settings.json`). (3) Toggling live-updates already-open editors that have no per-file override; a tab the user manually collapsed/expanded keeps its per-file choice. (4) `duo frontmatter-default` reads, `duo frontmatter-default expanded|collapsed` sets, in sync with the menu. (5) typecheck + tests + `check:skill-currency` PASS; live-verified; smoke-walk.
+
+---
+
+### ENH-241: Frontmatter Properties panel — cmd+click navigation on vault links
+
+**Status:** 🚧 In-progress (filed 2026-06-28, owner-initiated). **Priority:** P2. **Effort:** M. **Ticket note:** paired with ENH-240; see its collision note.
+
+**Provenance.** Owner (2026-06-28): *"in frontmatter, vault links (e.g. to linked entities) need to be click navigable — follow same convention as body links where clicking navigates there."*
+
+**Today.** Body `[[wikilinks]]` ([WikilinkDecorations.ts](renderer/components/editor/extensions/WikilinkDecorations.ts)) and OKF `[text](rel.md)` links ([MarkdownEditor.tsx:753](renderer/components/editor/MarkdownEditor.tsx:753)) are cmd+click-navigable — both dispatch a `duo-wikilink-open` event that [App.tsx](renderer/App.tsx)'s global handler resolves + opens (mode-aware: Obsidian basename walk vs OKF pre-resolved path; create-on-missing parity). Frontmatter has `[[ ]]` **autocomplete** (FOLLOWUP-050/051) but the `PropertyRow` view renders values as **plain text** — no click-navigation.
+
+**The change.** In the Properties panel's structured view (collapsed `displayValue` + expanded `expandedValue`), tokenize each rendered value string into plain / `[[wikilink]]` / `[label](href)` segments and render the link segments as clickable spans. cmd/ctrl+click dispatches the SAME `duo-wikilink-open` event (no resolver change): `[[ ]]` → `{ target }`; md-link → `{ target: href, resolvedPath: resolveMdLinkInVault(href, docPath) }`. Thread `docPath` into the panel. cmd+click (not plain click) avoids conflict with the existing row expand/collapse click and matches the body convention.
+
+**Decision (owner AUQ 2026-06-28):** support **both `[[wikilinks]]` and `[md](rel.md)` links** (full parity with body). Scope to the structured VIEW (the rendered analog of the body); the raw-YAML edit textarea stays plain source (you click the rendered view, not the source — same as the body). External `http(s)`/anchor-only hrefs are not navigated (resolveMdLinkInVault returns null).
+
+**Editor/canvas parity (renderer-surfaces.md):** **(b) Skipped — surface-specific.** The HTML canvas (Page, `renderer/components/Page/`) has no YAML-frontmatter Properties panel — it renders HTML, with a sidecar for comments/scripts, not a `type:`/`owner:` key:value panel. There is no frontmatter-link surface on the canvas to mirror. Same disposition for ENH-240.
+
+**Acceptance.** (1) cmd+click on a `[[Entity]]` in a frontmatter property navigates to/creates that note (Obsidian + OKF). (2) cmd+click on a `[text](./rel.md)` frontmatter value navigates to the resolved file. (3) Works in both the collapsed single-line row and the expanded multi-line view, including links inside list/object values. (4) Plain click still toggles row expand; an external URL value isn't hijacked. (5) Editor/canvas parity disposition = (b) skipped (above). typecheck + tests PASS; live-verified; smoke-walk.
+
+**Known minor limitations (review pass, accepted for v1):** (i) **cmd+click a non-existent `[[name]]` in frontmatter CREATES an empty note** — this is deliberate body-link/Obsidian parity (the App.tsx handler create-on-missing), but frontmatter populations include aliases/typos, so a stray file is possible; owner-confirm whether to keep create-on-missing for frontmatter wikilinks or gate to resolve-only. (ii) md-link hrefs containing `)` (e.g. Wikipedia `..._(disambiguation)` URLs) truncate at the first paren — standard markdown-link limitation; external hrefs stay plain text so benign, an in-vault path with parens would mis-resolve (rare). (iii) `renderLinkedText` runs the tokenizer per-render incl. the truncated collapsed row — negligible for typical frontmatter; memoize if a hot path emerges.
+
+---
+
 ### ENH-232: Catch-up — rich re-entry for sessions whose worktree was removed
 **Status:** 🔵 Open (filed from ENH-231 walk #2, 2026-06-24). **P1.**
 
