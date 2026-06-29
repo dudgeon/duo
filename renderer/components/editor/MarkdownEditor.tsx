@@ -1590,27 +1590,21 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     })
   }, [])
 
-  // ENH-240 — track the app-global frontmatter-panel default. Read once at mount
-  // (the file-load path uses the ref as its unset fallback) and subscribe to
-  // live FRONTMATTER_DEFAULT_PUSH from the View menu / `duo frontmatter-default`.
-  // Either way, only re-apply to THIS tab when the file has no per-path override
-  // — the user's explicit chevron choice (localStorage) always wins.
+  // ENH-240 — live-update THIS editor when the app-global default changes (View
+  // menu / `duo frontmatter-default`). The INITIAL value is read FRESH in the
+  // file-load Promise.all below (which also seeds the ref), so no redundant
+  // mount-time get() here — this effect only handles live pushes. Re-applies to
+  // THIS tab ONLY when the file has no per-path override — the user's explicit
+  // chevron choice (localStorage) always wins.
   useEffect(() => {
-    let alive = true
     const apply = (expanded: boolean) => {
       frontmatterDefaultExpandedRef.current = expanded
       if (readFrontmatterCollapsedPref(pathRef.current) === null) {
         setFrontmatterCollapsed(!expanded)
       }
     }
-    void window.electron.frontmatterDefault?.get().then(r => {
-      if (alive && r) apply(r.expanded)
-    })
     const off = window.electron.frontmatterDefault?.onSet(expanded => apply(expanded))
-    return () => {
-      alive = false
-      off?.()
-    }
+    return () => { off?.() }
   }, [])
 
   /** Update [data-duo-comment-active] on every comment span so the
