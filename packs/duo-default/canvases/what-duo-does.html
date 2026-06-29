@@ -285,12 +285,12 @@
   </div>
 </article>
 
-<article class="item" data-keys="frontmatter properties panel yaml metadata title author published collapsible edit raw bug-139">
+<article class="item" data-keys="frontmatter properties panel yaml metadata title author published collapsible edit raw expand default clickable vault links wikilink bug-139 enh-240 enh-241">
   <div class="num">22</div>
   <div>
-    <h3>See and edit YAML frontmatter as Properties</h3>
-    <p class="why">Every <code>.md</code> with a frontmatter block shows a Properties panel above the prose. Structured key:value rows render the parsed YAML; click the chevron to collapse (state persists per-doc); click "Edit raw" to flip to a YAML textarea with live parse-error feedback. Files without frontmatter show a "+ Add properties" call-to-action. Closes the architectural gap where the markdown editor used to hide the YAML block entirely.</p>
-    <p class="how"><strong>UI</strong>Open any <code>.md</code> with frontmatter — panel mounts automatically. Click "Edit raw" for free-form YAML edits.</p>
+    <h3>See and edit YAML frontmatter as Properties — expand-by-default + clickable vault links</h3>
+    <p class="why">Every <code>.md</code> with a frontmatter block shows a Properties panel above the prose. Structured key:value rows render the parsed YAML; click the chevron to collapse (your per-doc choice persists); click "Edit raw" for a YAML textarea with live parse-error feedback. Files without frontmatter show a "+ Add properties" call-to-action. <strong>v0.13.1</strong> adds two upgrades: the panel now <strong>defaults to expanded</strong>, and that default is a setting — <strong>View ▸ "Expand frontmatter by default"</strong> (a per-doc chevron choice still wins). And <code>[[wikilinks]]</code> / <code>[Display](./rel.md)</code> links you put in frontmatter values are now <strong>⌘-click navigable</strong>, just like links in the body (external <code>http(s)</code> links stay plain text).</p>
+    <p class="how"><strong>UI</strong>Open any <code>.md</code> with frontmatter — panel mounts automatically. Toggle View ▸ "Expand frontmatter by default"; ⌘-click a frontmatter link to follow it; "Edit raw" for free-form YAML. <strong>CLI</strong><code>duo frontmatter-default [expanded|collapsed]</code> reads/sets the default.</p>
   </div>
 </article>
 
@@ -1343,7 +1343,7 @@
 </article>
 
 <footer>
-  <p>This is Duo v0.13.0. Last updated 2026-06-27. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
+  <p>This is Duo v0.13.1. Last updated 2026-06-28. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
   <p style="margin-top:6px; color: var(--ink-ghost); font-size: 11px;">Find an item that should be here? Tell Claude — the cut-version skill updates this file with each release.</p>
 </footer>
 

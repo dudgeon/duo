@@ -25,6 +25,18 @@
 
 ---
 
+## v0.13.1 — 2026-06-28 — Frontmatter that opens up: expand-by-default + clickable links
+
+The markdown editor's frontmatter "Properties" panel got two quality-of-life upgrades. First, the panel that used to start collapsed now **defaults to expanded** — and that default is a real setting: **View ▸ "Expand frontmatter by default"** (CLI twin `duo frontmatter-default`), persisted app-global and fanned to every open window live. Second, the `[[wikilinks]]` and `[Display](./rel.md)` links you put *in* frontmatter (an entity's `owner`, a note's `related`, a task's `spec`) are now **⌘-click navigable** — exactly like links in the body — so a typed knowledge graph is traversable from its metadata, not just its prose.
+
+**Why a patch, not a minor.** Both are small, additive polish on one existing surface (the frontmatter panel) — no new top-level surface, no schema change — so this lands as **v0.13.1**, the in-progress version, rather than reserving a minor.
+
+**Design decisions baked in.** (1) **Per-file override wins.** The View-menu setting only sets the *fallback* for files with no remembered choice; clicking a panel's chevron still sticks per-file, so the global default never clobbers a deliberate per-doc state. (2) **Reuse the body's link machinery, don't fork it.** Frontmatter links dispatch the same `duo-wikilink-open` event App.tsx already resolves (mode-aware Obsidian/OKF, create-on-missing parity) — no second resolver. (3) **External links stay inert.** Only in-vault targets render as links; an `[Anthropic](https://…)` value is left as plain text, and navigation is ⌘/Ctrl-gated so a plain click still toggles the row.
+
+**What this is and isn't.** A focused editor-polish cut — two enhancements on one surface, unit-tested (link tokenizer, socket routing, settings default/persistence) and agent-walked live via the CLI/DOM (default-expanded, per-file-override-wins, live-toggle, both link types actually opening their targets, external-excluded). It carries a self-review pass folded in (editor/canvas-parity recorded as surface-specific — the HTML canvas has no YAML frontmatter panel — and a redundant default-fetch removed). The native View-menu *visual* was agent-verified only at the behavior layer (computer-use was unavailable this session, so the native menu item itself is owner-eyes-pending), and the related **"Choose Vault… should initialize an uninitialized folder"** spike (ENH-242) ships only as a decision artifact this cut — its build is deferred until the owner walks the decisions.
+
+---
+
 ## v0.13.0 — 2026-06-27 — Cron grows a second job kind: run a command, skip the LLM
 
 ENH-223's scheduler only knew one trick: open an interactive Claude session on a schedule. But plenty of scheduled work — reindex a vault, rebuild an embedding store, `qmd update && qmd embed` — needs no model, and wrapping it in a Claude session was pure waste. v0.13.0 makes `CronJob` a discriminated union on `kind`: a **claude** job (the original interactive behavior, untouched) or a **shell** job (`duo cron add --run "<command>"`) that types a raw single-line command into a background terminal tab and lets the PTY run it — no session, no session bookkeeping, no D4 headless gate.

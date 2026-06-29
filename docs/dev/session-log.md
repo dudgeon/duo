@@ -18,6 +18,41 @@
 
 ---
 
+## 2026-06-28 — v0.13.1 CUT — Frontmatter Properties: expand-by-default + clickable vault links
+
+Two editor enhancements on the markdown frontmatter "Properties" panel (PATCH —
+small additive polish on one existing surface, per owner: "+0.0.1"). Built on the
+`claude/eloquent-curran-203433` worktree, **merged to main, then cut from main**
+(signed DMG + push). **ENH-240:** the panel's unset default flips collapsed →
+**expanded**, controlled by a new app-global setting — View ▸ "Expand frontmatter
+by default" + `duo frontmatter-default [expanded|collapsed]`, persisted in
+`~/.claude/duo/settings.json`, fanned to every window via a new
+`FRONTMATTER_DEFAULT_PUSH` (mirrors the homeMode GET/PUSH pattern). The editor
+reads the default fresh per file-load and live-updates open editors with no
+per-file override; a per-file chevron choice (localStorage) still wins. **ENH-241:**
+`[[wikilinks]]` and in-vault `[label](./rel.md)` links inside frontmatter values
+render as clickable spans; ⌘/Ctrl-click dispatches the existing `duo-wikilink-open`
+event (no resolver change) — external/anchor hrefs stay plain text, plain click
+still toggles the row.
+
+**Process notes.** A first cut mistakenly went out as v0.14.0 on the feature branch;
+owner corrected it to a PATCH cut from main (this entry). Verification was hampered
+twice: the session tore down mid-walk (work re-secured via local commits), and an
+unscoped `[data-duo-frontmatter-panel]` DOM probe read *other* mounted tabs' panels
+— nearly producing both a false bug and a false pass — fixed by scoping every probe
+to a `data-duo-frontmatter-path` hook (memory `feedback_scope_dom_probes_to_specific_tab`).
+A 4-angle self-review (`/review` on the branch diff) folded in two fixes: recording
+the editor/canvas parity disposition as **(b) surface-specific** (the HTML canvas has
+no YAML frontmatter panel) and removing a redundant mount-time
+`frontmatterDefault.get()`. Agent-walked live via CLI/DOM (default-expanded,
+per-file-override-wins, live-toggle, both link types opening their targets,
+external-excluded) — the **native View-menu visual is owner-eyes-pending**
+(computer-use was disconnected this session). 4-surface CLI sync +
+`check:skill-currency` PASS; typecheck + ~2085 tests green. **ENH-242** ("Choose
+Vault…" should init an uninitialized folder) was filed as a 🟡 decision artifact
+(`docs/research/vault-init-on-choose.html`) and deferred past this cut by owner
+override; build awaits decisions.
+
 ## 2026-06-27 — v0.13.0 CUT — Shell-command cron jobs + Send→agent focus fix
 
 Cut **v0.13.0**, a focused follow-up sprint of two user-visible items merged this session via the review→merge loop. **ENH-237** (#112) — a second cron job `kind`. `CronJob` becomes a discriminated union on `kind`: a `claude` job (the original ENH-223 interactive session, untouched) or a `shell` job that runs a raw single-line command in a background terminal tab via the existing `dispatchNewTabToWindow({ kind:'shell' })` path — no Claude session, no session bookkeeping, no D4 headless gate. CLI: `duo cron add --run "<command>"` / `cron edit --run`, mutually exclusive with `--say`/`--session`. Commands are validated single-line + non-empty at both add/edit and fire (`validateShellCommand`/`buildShellCommand`). Legacy `cron-jobs.json` records with no `kind` load as `claude` (back-compat via `coerceJob`, no migration; file version unchanged). Shell jobs are CLI-created + natively UI-edited in the Home `NewCronJobModal` (the edit branch swaps instruction/session for a command field, preserving `kind:shell` on save) — a deliberate CLI-create/UI-edit asymmetry (ENH-223 PRD § 12). 66 cron core tests green. **ENH-236** (#113) — Send → agent left OS keyboard focus stranded in a browser-mode playground (its `WebContentsView` holds OS focus, so a bare `textarea.focus()` was a no-op); the shared `onSendToDuo` handler now routes its focus leg through the canonical `focusPane('terminal')` helper (which calls `keyboard.reclaimFocus()` before focusing the xterm input), collapsing a drifted inline copy into the one helper and correcting all three send surfaces at once. Owner-verified live; smoke-walk waived (WCV OS-focus isn't observable via DOM probes).

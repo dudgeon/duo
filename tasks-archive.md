@@ -3,6 +3,26 @@
 > Closed entries (✅ shipped / ❌ won't-do / 🟢 done) split out of [`tasks.md`](tasks.md) on 2026-05-31 (ENH-191 / D1) to keep the live backlog lean. **Open work lives in [tasks.md](tasks.md).** Section headers mirror the original; the cut-version skill appends newly-closed entries here.
 
 
+## v0.13.1 — Frontmatter Properties: expand-by-default + clickable vault links (shipped 2026-06-28)
+
+### ENH-240: Frontmatter Properties panel — user-configurable default collapsed/expanded (View menu)
+
+**Status:** ✅ Shipped v0.13.1 (2026-06-28). **Priority:** P2. **Effort:** M.
+
+**Provenance.** Owner (2026-06-28): *"user configurable setting (in view menu) when a markdown file has frontmatter, load collapsed or expanded — default expanded until user sets otherwise."*
+
+**What shipped.** (a) The unset default flipped collapsed → **expanded**. (b) New app-global `frontmatterDefaultExpanded` (default `true`) in `DuoSettings` ([settings-service.ts](core/settings-service.ts)), surfaced as a **View ▸ "Expand frontmatter by default"** checkbox; mirrors the `homeMode` GET/PUSH IPC (`FRONTMATTER_DEFAULT_GET`/`PUSH`), fanned to every window live. (c) CLI twin `duo frontmatter-default [expanded|collapsed]` (socket case + NavBridge get/set, 4-surface synced). The editor reads the default fresh per file-load and live-updates open editors with no per-file override; **per-file chevron choice (localStorage) wins** (owner AUQ decision). Review fix: dropped a redundant mount-time `get()` racing the per-load fetch. Tests: settings default/persistence, socket routing. Agent-walked live (default-expanded, override-wins, live-toggle); the native View-menu visual was owner-eyes-pending at cut (computer-use down).
+
+### ENH-241: Frontmatter Properties panel — cmd+click navigation on vault links
+
+**Status:** ✅ Shipped v0.13.1 (2026-06-28). **Priority:** P2. **Effort:** M.
+
+**Provenance.** Owner (2026-06-28): *"in frontmatter, vault links (e.g. to linked entities) need to be click navigable — follow same convention as body links where clicking navigates there."*
+
+**What shipped.** The Properties panel's structured view tokenizes each value (`tokenizeFrontmatterLinks`, unit-tested) into plain / `[[wikilink]]` / `[label](href)` segments and renders the link segments as clickable spans. ⌘/Ctrl-click dispatches the existing `duo-wikilink-open` event (no resolver change): `[[ ]]` → `{ target }`; md-link → `{ target: href, resolvedPath: resolveMdLinkInVault(href, docPath) }`. External/anchor hrefs stay plain text; plain click still toggles the row. Both `[[wikilinks]]` and `[md](rel.md)` supported (owner AUQ). **Editor/canvas parity = (b) Skipped — surface-specific** (the HTML canvas has no YAML frontmatter panel). Agent-walked live: ⌘-click wikilink → opened the note; ⌘-click md-link → opened the file; external excluded; plain click no-nav.
+
+**Known minor limitations (accepted v1):** (i) ⌘-click a non-existent `[[name]]` CREATES an empty note (deliberate body/Obsidian parity — owner may later gate frontmatter wikilinks to resolve-only); (ii) md-link hrefs containing `)` truncate (standard markdown limitation; external → plain so benign); (iii) `renderLinkedText` runs the tokenizer per-render incl. the truncated collapsed row (negligible; memoize if hot).
+
 ## v0.13.0 — Shell-command cron jobs + Send→agent focus fix (shipped 2026-06-27)
 
 ### ENH-237: Shell-command cron jobs (a second cron job `kind`)

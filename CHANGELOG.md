@@ -19,7 +19,28 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.13.0 cut 2026-06-27.
+> Empty — v0.13.1 cut 2026-06-28.
+
+## [0.13.1] — 2026-06-28 — Frontmatter Properties: expand-by-default + clickable vault links
+
+### Added
+- **Clickable frontmatter vault links (ENH-241).** `[[wikilinks]]` and relative
+  `[label](./rel.md)` markdown links inside a markdown file's frontmatter (the
+  "Properties" panel) are now ⌘/Ctrl-click navigable, the same convention as body
+  links — they dispatch the existing `duo-wikilink-open` resolver (mode-aware:
+  Obsidian basename walk vs OKF relative path, with create-on-missing parity).
+  External `http(s)` links stay plain text; a plain click still toggles the row.
+- **"Expand frontmatter by default" — a configurable View-menu setting (ENH-240).**
+  View ▸ "Expand frontmatter by default" sets the app-global default collapse
+  state for the Properties panel; persisted in `~/.claude/duo/settings.json` and
+  fanned to every open window live. A file you manually collapse/expand keeps its
+  own per-file choice (the menu only sets the fallback). CLI twin:
+  `duo frontmatter-default [expanded|collapsed]`.
+
+### Changed
+- **The frontmatter Properties panel now defaults to EXPANDED on first open
+  (ENH-240)** — reversing the prior hardcoded collapsed default. Per-file choices
+  and the new global setting both override it.
 
 ## [0.13.0] — 2026-06-27 — Shell-command cron jobs + Send→agent focus fix
 
@@ -2089,7 +2110,8 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.13.1...HEAD
+[0.13.1]: https://github.com/dudgeon/duo/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/dudgeon/duo/compare/v0.12.2...v0.13.0
 [0.12.2]: https://github.com/dudgeon/duo/compare/v0.12.1...v0.12.2
 [0.12.1]: https://github.com/dudgeon/duo/compare/v0.12.0...v0.12.1
