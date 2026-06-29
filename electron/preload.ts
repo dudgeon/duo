@@ -1063,6 +1063,21 @@ const api: ElectronAPI = {
       ipcRenderer.invoke(IPC.SESSION_DIGEST, { tabId, youAskedOnly }) as Promise<{ ok: boolean; uuid?: string; error?: string }>
   },
 
+  // ENH-240 — app-global DEFAULT collapse state for the markdown editor's
+  // frontmatter Properties panel. The editor reads it at mount (fallback when
+  // a file has no per-path override) and subscribes to onSet so a View-menu /
+  // CLI change live-updates open editors. Mirrors home.getMode / onModeSet.
+  frontmatterDefault: {
+    get: () => ipcRenderer.invoke(IPC.FRONTMATTER_DEFAULT_GET) as Promise<{ expanded: boolean }>,
+    // main → renderer: the default changed in some window. Subscription →
+    // teardown (omit the removeListener and the listener leaks across remounts).
+    onSet: (cb: (expanded: boolean) => void) => {
+      const handler = (_e: unknown, expanded: boolean) => cb(expanded)
+      ipcRenderer.on(IPC.FRONTMATTER_DEFAULT_PUSH, handler)
+      return () => ipcRenderer.removeListener(IPC.FRONTMATTER_DEFAULT_PUSH, handler)
+    }
+  },
+
   // ENH-223 Tier 2 — scheduled ("cron") sessions on Home. One invoke channel
   // delegates to CronService.handleCli; onJobsChanged streams live updates.
   cron: {

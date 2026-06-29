@@ -310,6 +310,12 @@ const VERBS: VerbSpec[] = [
     args: '[show|hide|toggle]',
     summary: 'Show or hide dotfiles in the navigator (parity with View → Show Hidden Files, ⌘⇧.). .claude + .obsidian stay visible regardless. No arg prints { showDotfiles }.'
   },
+  {
+    name: 'frontmatter-default',
+    group: 'Markdown editor (doc)',
+    args: '[expanded|collapsed]',
+    summary: 'Read or set the app-global DEFAULT collapse state for the markdown editor\'s frontmatter Properties panel (parity with View → "Expand frontmatter by default"). A file you manually collapse/expand keeps its own per-file choice; this only sets the fallback. No arg prints { expanded }.'
+  },
 
   // ── Markdown editor (doc) ──
   {
@@ -1334,6 +1340,21 @@ async function main(): Promise<void> {
             die('Usage: duo theme [system|light|dark]')
           }
           out(await send('theme', { mode }))
+        }
+        break
+      }
+      case 'frontmatter-default': {
+        // ENH-240 — `duo frontmatter-default`        → print { expanded } (JSON)
+        //           `duo frontmatter-default <state>` → set (expanded|collapsed)
+        // Parity with View → "Expand frontmatter by default". Per-file overrides win.
+        const value = rest[0]
+        if (value === undefined) {
+          out(await send('frontmatter-default'))
+        } else {
+          if (value !== 'expanded' && value !== 'collapsed') {
+            die('Usage: duo frontmatter-default [expanded|collapsed]')
+          }
+          out(await send('frontmatter-default', { value }))
         }
         break
       }

@@ -33,7 +33,7 @@ var import_crypto = require("crypto");
 var import_node_fs = __toESM(require("node:fs"));
 var import_node_path = __toESM(require("node:path"));
 
-// node_modules/js-yaml/dist/js-yaml.mjs
+// ../../../node_modules/js-yaml/dist/js-yaml.mjs
 function isNothing(subject) {
   return typeof subject === "undefined" || subject === null;
 }
@@ -5603,7 +5603,7 @@ async function removeWorktree(worktreePath, opts = {}) {
 }
 
 // cli/duo.ts
-var VERSION = true ? "0.13.0" : "0.0.0-dev";
+var VERSION = true ? "0.13.1" : "0.0.0-dev";
 var VERBS = [
   // ── Browser & tabs ──
   {
@@ -5850,6 +5850,12 @@ var VERBS = [
     group: "Files & navigator",
     args: "[show|hide|toggle]",
     summary: "Show or hide dotfiles in the navigator (parity with View \u2192 Show Hidden Files, \u2318\u21E7.). .claude + .obsidian stay visible regardless. No arg prints { showDotfiles }."
+  },
+  {
+    name: "frontmatter-default",
+    group: "Markdown editor (doc)",
+    args: "[expanded|collapsed]",
+    summary: `Read or set the app-global DEFAULT collapse state for the markdown editor's frontmatter Properties panel (parity with View \u2192 "Expand frontmatter by default"). A file you manually collapse/expand keeps its own per-file choice; this only sets the fallback. No arg prints { expanded }.`
   },
   // ── Markdown editor (doc) ──
   {
@@ -6628,6 +6634,18 @@ async function main() {
             die("Usage: duo theme [system|light|dark]");
           }
           out(await send("theme", { mode }));
+        }
+        break;
+      }
+      case "frontmatter-default": {
+        const value = rest[0];
+        if (value === void 0) {
+          out(await send("frontmatter-default"));
+        } else {
+          if (value !== "expanded" && value !== "collapsed") {
+            die("Usage: duo frontmatter-default [expanded|collapsed]");
+          }
+          out(await send("frontmatter-default", { value }));
         }
         break;
       }

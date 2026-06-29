@@ -1124,6 +1124,9 @@ export interface ElectronAPI {
   // expander, the session click contract, and the `duo home` /
   // `duo term tab` push subscriptions.
   home: ElectronHomeAPI
+  // ENH-240 — app-global DEFAULT collapse state for the frontmatter Properties
+  // panel: read at editor mount + subscribe for live View-menu / CLI changes.
+  frontmatterDefault: ElectronFrontmatterDefaultAPI
   // ENH-223 Tier 2 — scheduled ("cron") sessions on Home: invoke the
   // lifecycle (list/add/run/pause/resume/rm) + subscribe to live job changes.
   cron: ElectronCronAPI
@@ -1642,6 +1645,18 @@ export interface ElectronHomeAPI {
   /** ENH-231 — materialize a tab's session digest (the renderer twin of the
    *  Stop-hook `duo session digest`; e.g. a future "refresh this card"). */
   sessionDigest(tabId: string, youAskedOnly?: boolean): Promise<{ ok: boolean; uuid?: string; error?: string }>
+}
+
+/** ENH-240 — app-global DEFAULT collapse state for the markdown editor's
+ *  frontmatter Properties panel. The per-path chevron choice (localStorage)
+ *  still wins; this is only the fallback for files with no override. */
+export interface ElectronFrontmatterDefaultAPI {
+  /** Read the current default. `{ expanded: true }` = panels start expanded. */
+  get(): Promise<{ expanded: boolean }>
+  /** main → renderer push when the default changes (View menu / `duo
+   *  frontmatter-default`). The editor live-updates open tabs that have no
+   *  per-path override. Returns a cleanup function. */
+  onSet(cb: (expanded: boolean) => void): () => void
 }
 
 declare global {

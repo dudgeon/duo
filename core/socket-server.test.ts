@@ -394,6 +394,51 @@ describe('SocketServer — ENH-231 Async Catch-Up CLI routing', () => {
   })
 })
 
+// ENH-240 — `duo frontmatter-default` routing (read / set / bad-value guard).
+// Same "IPC handler gap is invisible to typecheck" class as the catch-up block:
+// a missing case or arg-name typo only surfaces at runtime.
+describe('SocketServer — ENH-240 frontmatter-default CLI routing', () => {
+  it('`duo frontmatter-default` (no value) READS getFrontmatterDefaultExpanded', async () => {
+    const d = stubDeps()
+    const getFrontmatterDefaultExpanded = vi.fn(() => true)
+    const nav = { getFrontmatterDefaultExpanded } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'frontmatter-default')
+    expect(res.ok).toBe(true)
+    expect(res.result).toEqual({ expanded: true })
+    expect(getFrontmatterDefaultExpanded).toHaveBeenCalled()
+  })
+
+  it('`duo frontmatter-default collapsed` SETS expanded=false', async () => {
+    const d = stubDeps()
+    const setFrontmatterDefaultExpanded = vi.fn(async () => ({ ok: true }))
+    const nav = { setFrontmatterDefaultExpanded } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'frontmatter-default', { value: 'collapsed' })
+    expect(res.ok).toBe(true)
+    expect(res.result).toEqual({ ok: true, expanded: false })
+    expect(setFrontmatterDefaultExpanded).toHaveBeenCalledWith(false)
+  })
+
+  it('`duo frontmatter-default expanded` SETS expanded=true', async () => {
+    const d = stubDeps()
+    const setFrontmatterDefaultExpanded = vi.fn(async () => ({ ok: true }))
+    const nav = { setFrontmatterDefaultExpanded } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    await dispatch(server, 'frontmatter-default', { value: 'expanded' })
+    expect(setFrontmatterDefaultExpanded).toHaveBeenCalledWith(true)
+  })
+
+  it('`duo frontmatter-default <bogus>` is rejected', async () => {
+    const d = stubDeps()
+    const nav = { setFrontmatterDefaultExpanded: vi.fn() } as never
+    const server = new SocketServer(THROW_CDP, THROW_BROWSER, d.files, nav, d.navPins, d.events, d.packs, '9.9.9')
+    const res = await dispatch(server, 'frontmatter-default', { value: 'maybe' })
+    expect(res.ok).toBe(false)
+    expect(res.error).toMatch(/expected expanded\|collapsed/)
+  })
+})
+
 // ENH-224 D14 — `duo recent` routing + record-on-open. Pins the socket-side
 // contract the UI Open bar can't reach: `recent` lists via the NavBridge, and
 // a SUCCESSFUL `open` records a derived pointer (a failed open does NOT). Same
