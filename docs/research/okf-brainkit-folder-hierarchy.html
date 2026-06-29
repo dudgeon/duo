@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="duo-editable" content="false">
+<title>Folder hierarchy across five knowledge models — Obsidian · LLM Wiki · OKF · Duo vault · brainkit</title>
+<style>
+/* ===== Atelier CSS kernel (inlined verbatim) ===== */
+:root {
+  --paper: #fbf8f1; --paper-deep: #f3ede0; --paper-edge: #e8e0cb; --paper-rule: #d9cea8;
+  --ink: #2b2620; --ink-soft: #4a4238; --ink-mute: #6f6557; --ink-ghost: #9a9080;
+  --accent: #c46a1c; --accent-soft: #f4d9b6;
+  --pass: #4a7d3e; --fail: #b13e3a; --warn: #b07527;
+  --code-bg: #2b2823; --code-ink: #e8e0cb;
+  --project-pine: #2E7D74; --project-harbor: #3C6E93; --project-iris: #5B57A6;
+  --project-plum: #87508F; --project-rose: #A4506A; --project-moss: #69763A;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0; background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+body { padding: 32px 40px 96px; max-width: 1080px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px; }
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 6px; }
+.intro { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 14px 18px; margin-bottom: 28px; font-size: 13.5px; color: var(--ink-soft); }
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 600; margin: 36px 0 12px; font-size: 19px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px; }
+h3 { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+h4 { margin: 16px 0 6px; font-size: 13.5px; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; }
+pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; line-height: 1.5; background: var(--code-bg); color: var(--code-ink); padding: 14px 16px; border-radius: 6px; overflow-x: auto; }
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+.decision-card { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 16px 18px; margin: 18px 0; }
+.decision-card .q-title { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px; }
+.decision-card .q-prompt { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 500; font-size: 17px; color: var(--ink); margin: 0 0 12px; line-height: 1.35; }
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option { display: block; background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 10px 12px; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes { width: 100%; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px; }
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+details.deferred { margin: 22px 0; padding: 12px 16px; background: var(--paper-deep); border: 1px dashed var(--paper-rule); border-radius: 6px; }
+details.deferred summary { cursor: pointer; font-weight: 600; color: var(--ink-soft); font-size: 13.5px; }
+details.deferred[open] summary { color: var(--ink); }
+details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(--ink-soft); }
+.copy-bar { position: sticky; bottom: 0; margin: 32px -40px -96px; padding: 16px 40px; background: color-mix(in srgb, var(--paper-deep) 96%, transparent); border-top: 1.5px solid var(--paper-rule); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button { background: var(--accent); color: white; border: none; border-radius: 5px; padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background 0.12s; }
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* ===== Per-page additions ===== */
+.legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 14px 0 4px; font-size: 12.5px; }
+.legend .chip { display: inline-flex; align-items: center; gap: 6px; }
+.legend .dot { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+.dot-obs { background: var(--project-iris); }
+.dot-karpathy { background: var(--project-moss); }
+.dot-okf { background: var(--project-harbor); }
+.dot-duo { background: var(--project-pine); }
+.dot-brainkit { background: var(--project-plum); }
+.tag-obs { color: var(--project-iris); font-weight: 700; }
+.tag-karpathy { color: var(--project-moss); font-weight: 700; }
+.tag-okf { color: var(--project-harbor); font-weight: 700; }
+.tag-duo { color: var(--project-pine); font-weight: 700; }
+.tag-brainkit { color: var(--project-plum); font-weight: 700; }
+
+/* glossary callout */
+.gloss { background: color-mix(in srgb, var(--project-iris) 6%, var(--paper)); border: 1px solid var(--paper-rule); border-left: 4px solid var(--project-iris); border-radius: 6px; padding: 12px 16px; margin: 14px 0; font-size: 12.5px; }
+.gloss b { color: var(--ink); }
+
+/* approach cards */
+.approach-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 14px 0; }
+.approach-card { background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 12px 14px; border-top: 4px solid var(--paper-rule); }
+.approach-card.span { grid-column: 1 / -1; }
+.approach-card.obs { border-top-color: var(--project-iris); }
+.approach-card.karpathy { border-top-color: var(--project-moss); }
+.approach-card.okf { border-top-color: var(--project-harbor); }
+.approach-card.duo { border-top-color: var(--project-pine); }
+.approach-card.brainkit { border-top-color: var(--project-plum); }
+.approach-card h4 { margin: 0 0 2px; font-size: 14px; }
+.approach-card .sub { font-size: 11px; color: var(--ink-ghost); margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.03em; }
+.approach-card p { font-size: 12px; color: var(--ink-soft); margin: 6px 0; }
+.approach-card .essence { color: var(--ink); font-weight: 600; }
+
+/* spectrum */
+.spectrum { margin: 22px 0 30px; }
+.spectrum .bar { height: 10px; border-radius: 5px; background: linear-gradient(90deg, var(--project-iris) 0%, var(--project-pine) 52%, var(--project-plum) 100%); }
+.spectrum .ends { display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; font-weight: 700; color: var(--ink); }
+.spectrum .ends .r { text-align: right; }
+.spectrum .ends small { display: block; font-weight: 400; color: var(--ink-mute); font-size: 11px; }
+.spectrum .stops { display: grid; grid-template-columns: 1.1fr 1fr 1.3fr; gap: 12px; margin-top: 16px; }
+.spectrum .stop { background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 11px 13px; font-size: 12px; }
+.spectrum .stop.obs { border-top: 4px solid var(--project-iris); }
+.spectrum .stop.mid { border-top: 4px solid var(--project-pine); }
+.spectrum .stop.flat { border-top: 4px solid var(--project-plum); }
+.spectrum .stop h4 { margin: 0 0 4px; font-size: 13px; }
+.spectrum .stop p { margin: 4px 0; color: var(--ink-soft); }
+
+/* lineage */
+.lineage { background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 8px; padding: 18px; margin: 16px 0; overflow-x: auto; }
+.lineage pre { background: transparent; color: var(--ink-soft); font-size: 12px; line-height: 1.65; padding: 0; }
+.lineage .b-obs { color: var(--project-iris); font-weight: 700; }
+.lineage .b-okf { color: var(--project-harbor); font-weight: 700; }
+.lineage .b-k { color: var(--project-moss); font-weight: 700; }
+.lineage .b-duo { color: var(--project-pine); font-weight: 700; }
+.lineage .b-bk { color: var(--project-plum); font-weight: 700; }
+
+/* two-axis 2x2 */
+.axis-wrap { margin: 16px 0; }
+.axis2x2 { display: grid; grid-template-columns: 150px 1fr 1fr; grid-auto-rows: auto; gap: 8px; }
+.axis2x2 .cell { background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 10px 12px; font-size: 12px; }
+.axis2x2 .corner { background: transparent; border: none; }
+.axis2x2 .colh, .axis2x2 .rowh { background: var(--paper-deep); font-weight: 700; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-mute); display: flex; align-items: center; justify-content: center; text-align: center; }
+.axis2x2 .cell .lbl { font-weight: 700; color: var(--ink); display: block; margin-bottom: 3px; }
+.axis2x2 .cell.hot { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+
+/* matrices */
+.matrix-scroll { overflow-x: auto; margin: 12px 0; }
+table.matrix { border-collapse: collapse; width: 100%; min-width: 960px; font-size: 11px; table-layout: fixed; }
+table.matrix th, table.matrix td { border: 1px solid var(--paper-rule); padding: 7px 8px; vertical-align: top; text-align: left; }
+table.matrix thead th { background: var(--paper-deep); font-size: 11px; }
+table.matrix th.dim, table.matrix td.dim { width: 150px; font-weight: 700; color: var(--ink); background: var(--paper-deep); }
+table.matrix td.dim { font-size: 11.5px; }
+table.matrix td.dim .sub { display:block; font-weight: 400; color: var(--ink-mute); font-size: 10.5px; margin-top: 3px; }
+table.matrix .col-obs { border-top: 3px solid var(--project-iris); }
+table.matrix .col-karpathy { border-top: 3px solid var(--project-moss); }
+table.matrix .col-okf { border-top: 3px solid var(--project-harbor); }
+table.matrix .col-duo { border-top: 3px solid var(--project-pine); }
+table.matrix .col-brainkit { border-top: 3px solid var(--project-plum); }
+table.matrix td b { color: var(--ink); }
+table.matrix td.dissent { background: color-mix(in srgb, var(--project-iris) 10%, var(--paper)); }
+
+/* tensions */
+.tension { background: var(--paper); border: 1.5px solid var(--paper-rule); border-left: 4px solid var(--warn); border-radius: 6px; padding: 12px 14px; margin: 12px 0; }
+.tension.fundamental { border-left-color: var(--fail); }
+.tension.significant { border-left-color: var(--warn); }
+.tension.minor { border-left-color: var(--ink-ghost); }
+.tension h4 { margin: 0 0 4px; font-size: 13.5px; }
+.tension .sev { font-size: 9.5px; text-transform: uppercase; font-weight: 800; letter-spacing: 0.05em; padding: 1px 7px; border-radius: 8px; margin-left: 8px; vertical-align: middle; color: white; }
+.sev.fundamental { background: var(--fail); }
+.sev.significant { background: var(--warn); }
+.sev.minor { background: var(--ink-ghost); }
+.tension p { font-size: 12px; color: var(--ink-soft); margin: 6px 0; }
+.tension .why { color: var(--ink); }
+
+/* paths */
+.path { background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 13px 15px; margin: 12px 0; }
+.path.recommended { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.path h4 { margin: 0 0 4px; font-size: 14px; }
+.path .rec { font-size: 9.5px; text-transform: uppercase; font-weight: 800; letter-spacing: 0.05em; padding: 1px 7px; border-radius: 8px; margin-left: 8px; vertical-align: middle; }
+.rec.recommended { background: var(--accent-soft); color: var(--accent); }
+.rec.viable { background: var(--paper-deep); color: var(--ink-mute); border: 1px solid var(--paper-rule); }
+.path .affects { font-size: 10.5px; color: var(--ink-ghost); text-transform: uppercase; letter-spacing: 0.03em; }
+.path p { font-size: 12px; color: var(--ink-soft); margin: 6px 0; }
+.path .resolves { color: var(--pass); }
+.path .cost { color: var(--fail); }
+
+.note-inline { font-size: 11.5px; color: var(--ink-mute); font-style: italic; }
+
+/* rev 3 additions — authoritative vs derived, OKF §3, two approaches */
+.pro { color: var(--pass); }
+.con { color: var(--fail); }
+.callout { border-radius: 6px; padding: 13px 16px; margin: 14px 0; font-size: 12.5px; background: var(--paper-deep); border: 1px solid var(--paper-rule); border-left: 4px solid var(--ink-ghost); }
+.callout.okf { border-left-color: var(--project-harbor); background: color-mix(in srgb, var(--project-harbor) 5%, var(--paper)); }
+.callout.win { border-left-color: var(--pass); background: color-mix(in srgb, var(--pass) 6%, var(--paper)); }
+.callout p { margin: 6px 0; color: var(--ink-soft); }
+.callout b { color: var(--ink); }
+.v { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; background: var(--paper); padding: 1px 4px; border-radius: 3px; }
+.ad-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0; }
+.ad-card { background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 12px 14px; font-size: 12px; }
+.ad-card.cost { border-top: 4px solid var(--fail); }
+.ad-card.free { border-top: 4px solid var(--pass); }
+.ad-card h4 { margin: 0 0 6px; font-size: 13px; }
+.ad-card p { margin: 5px 0; color: var(--ink-soft); }
+.ad-card ul { margin: 6px 0; padding-left: 18px; }
+.ad-card li { color: var(--ink-soft); margin: 4px 0; }
+.approach2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
+.approach2 .a2 { background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 13px 15px; }
+.approach2 .a2.lean { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.approach2 .a2 h4 { margin: 0 0 4px; font-size: 13.5px; }
+.approach2 .a2 .tag { font-size: 9.5px; text-transform: uppercase; font-weight: 800; letter-spacing: 0.04em; padding: 1px 7px; border-radius: 8px; margin-left: 6px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+.approach2 .a2 p { font-size: 12px; margin: 5px 0; color: var(--ink-soft); }
+
+/* phone / narrow viewport */
+@media (max-width: 640px) {
+  body { padding: 18px 16px 90px; }
+  header.page-head h1 { font-size: 20px; }
+  h2 { font-size: 17px; margin: 28px 0 10px; }
+  .approach-grid, .ad-grid, .approach2, .spectrum .stops { grid-template-columns: 1fr; }
+  .approach-card.span { grid-column: auto; }
+  .axis-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .axis2x2 { min-width: 540px; }
+  table.matrix { min-width: 680px; }
+  .matrix-scroll, .lineage { -webkit-overflow-scrolling: touch; }
+  .copy-bar { margin: 24px -16px -90px; padding: 14px 16px; }
+  .legend { gap: 8px 14px; font-size: 12px; }
+  pre { font-size: 11px; }
+  .q-option-title { font-size: 13px; }
+}
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Folder hierarchy across five knowledge models</h1>
+  <div class="meta">
+    <span class="pill">Research + decisions</span>
+    <span class="pill">rev 4 · OKF blog incorporated</span>
+    Obsidian · Karpathy's LLM Wiki · Google OKF · Duo OKF vault · looplibrary brainkit &nbsp;·&nbsp; 2026-06-28
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> A contrast of how five knowledge-corpus models lay out folders — and a decision
+  aid for how you approach this in <em>Duo's OKF vaults</em> and <em>looplibrary's brainkit</em>.
+  <strong>The first fork is the one you flagged:</strong> does the folder a note lives in <em>carry meaning</em>
+  (Obsidian — the tree IS a human hierarchy you browse, like an initiative's work-breakdown or an org chart), or
+  is it <em>just a drawer</em> (the OKF family — meaning lives in <code>type:</code> + links, folders are tidiness)?
+  Obsidian sits at one pole; Karpathy, Google OKF, Duo OKF and brainkit cluster at the other. <strong>Nothing in your
+  current stack actually implements Obsidian's semantic-folder model</strong> — even Duo's own "Obsidian mode" files flat.
+  <strong>But that fork is narrower than it first looks:</strong> the cost is <em>authoritative</em> folders, not
+  folders at all — keep the graph canonical and <em>derive</em> the tree from it (Approach 2 below) and you get the
+  human view and the agent view at once. And OKF, read firsthand, plainly <em>permits</em> nested folders and even
+  makes the file path the concept's ID — so a derived primary-axis path is the most OKF-native option, not a deviation.
+  <br><br>
+  The <em>second</em> fork only matters once you've chosen "flat + typed": there, Duo OKF and brainkit diverge less on
+  folders than on the <strong>content model above placement</strong> (maturity ladders, a task primitive, provenance,
+  deliverable-coupling). Decisions at the bottom cover both forks.
+  <br><br>
+  <span class="note-inline">Findings fan-out researched + adversarially fact-checked (Obsidian added in rev 2 from
+  well-established behavior + Duo's own vault docs). Interpretation vs. primary-source quotes is marked; see
+  <strong>Confidence &amp; corrections</strong>.</span>
+</div>
+
+<div class="legend">
+  <span class="chip"><span class="dot dot-obs"></span> <span class="tag-obs">Obsidian</span> — folders carry meaning (human-first)</span>
+  <span class="chip"><span class="dot dot-karpathy"></span> <span class="tag-karpathy">Karpathy LLM Wiki</span> — flat, the originating gist</span>
+  <span class="chip"><span class="dot dot-okf"></span> <span class="tag-okf">Google OKF</span> — flat, the published spec</span>
+  <span class="chip"><span class="dot dot-duo"></span> <span class="tag-duo">Duo OKF vault</span> — flat+rules, your shipped impl</span>
+  <span class="chip"><span class="dot dot-brainkit"></span> <span class="tag-brainkit">brainkit</span> — flat, your looplibrary kit (0.1)</span>
+</div>
+
+<div class="gloss">
+  <b>Plain-language glossary (no jargon).</b> Two ways a folder can work:
+  <ul>
+    <li><b>A folder that <em>means</em> something (Obsidian-style):</b> where a note sits <em>is</em> information.
+      <code>Initiatives/Apollo/Phase-1/tasks/</code> tells you this task belongs to Apollo's Phase-1 work-breakdown;
+      <code>Org/Eng/Platform/</code> mirrors the org chart. You navigate by <em>browsing the tree</em>, and the
+      structure is legible to a human at a glance. Moving a note <em>changes what it means</em>.</li>
+    <li><b>A folder that's just a <em>drawer</em> (OKF-style):</b> the folder is only a tidy place to keep the file.
+      The note's meaning comes entirely from its <code>type:</code> field and its links — so moving it between
+      folders changes <em>nothing</em>. You navigate by querying type/links or reading a generated index.</li>
+  </ul>
+  (Earlier draft called these "semantic" vs "ergonomic" — same idea, worse words.)
+</div>
+
+<h2>The five models, in one breath each</h2>
+
+<div class="approach-grid">
+  <div class="approach-card obs span">
+    <h4>Obsidian (native / idiomatic) — the divergent one</h4>
+    <div class="sub">PKM app since 2020 · folders + [[wikilinks]] + graph · human-first</div>
+    <p class="essence">Folders are a real, human-navigable hierarchy; the file tree is the primary way you understand and browse the corpus.</p>
+    <p>A vault is a folder of markdown. In idiomatic use, <b>folders carry organizational meaning</b> — PARA, folder-per-project, a nested initiative WBS, a folder tree that mirrors an org chart — and Dataview can even query <em>by folder</em> (<code>FROM "Projects/Apollo"</code>), so placement can be a first-class axis. Crucially, links are <code>[[wikilinks]]</code> resolved by note <em>name</em>, and Obsidian rewrites them on move — so you get <b>meaningful folders AND move-safety at the same time</b>. The cost: it's tool-coupled (<code>.obsidian/</code>, wikilinks aren't standard GitHub markdown) and the folder tree competes with the link graph as "the" structure. <span class="note-inline">Note: vanilla Obsidian doesn't <em>force</em> semantic folders — this is the idiomatic practice + Dataview, which is the philosophy worth weighing.</span></p>
+  </div>
+  <div class="approach-card karpathy">
+    <h4>Karpathy's "LLM Wiki"</h4>
+    <div class="sub">gist · llm-wiki.md · ~Apr 2026 · the ancestor</div>
+    <p class="essence">Compile raw sources once into a flat, interlinked markdown wiki the LLM maintains forever.</p>
+    <p>Prescribes only <code>raw/</code> + <code>wiki/</code> (a flat "directory of markdown files") + root <code>index.md</code>/<code>log.md</code> + a schema file. Navigation is the <b>backlink mesh + index</b>, not nesting. Renders his wiki <em>in Obsidian</em> ("Obsidian is the IDE") — but keeps it <b>flat</b>, rejecting Obsidian's semantic-folder practice.</p>
+  </div>
+  <div class="approach-card okf">
+    <h4>Google "Open Knowledge Format" v0.1</h4>
+    <div class="sub">GoogleCloudPlatform/knowledge-catalog · Jun 2026</div>
+    <p class="essence">Formalizes the flat LLM-wiki pattern into a portable, vendor-neutral interchange format.</p>
+    <p>Only required field is <code>type:</code>. "<i>The directory structure is independent of the domain</i>" — folders are explicitly <b>drawers</b>, flat or nested both fine. Relationships are untyped markdown links. Consumers <b>must tolerate</b> broken links, unknown types, missing indexes.</p>
+  </div>
+  <div class="approach-card duo">
+    <h4>Duo OKF vault</h4>
+    <div class="sub">core/vault/** · ENH-208/216 · shipped</div>
+    <p class="essence">A faithful OKF impl that adds a deterministic filing algorithm + stable IDs.</p>
+    <p>"<i>Folder layout is ergonomics only.</i>" The <b>D19 algorithm</b> computes shallow placement from per-type templates (registry / parented / folder-note / time-bucket). Stable <code>id:</code> → <b>loss-free relink</b> on move. <b>Both</b> its OKF and Obsidian modes file flat — neither embraces semantic folders (the one concession: an initiative <em>owns</em> a folder).</p>
+  </div>
+  <div class="approach-card brainkit">
+    <h4>looplibrary brainkit</h4>
+    <div class="sub">dist/brainkit · karpathy-core → loopkit → brainkit · 0.1 candidate</div>
+    <p class="essence">A "second brain for work" — a flat typed graph that compounds toward a declared deliverable.</p>
+    <p><code>knowledge/</code> is a <b>flat bag</b> of typed notes. Folders encode <b>ownership + lifecycle</b> (writable vs locked vs type-defs vs deliverables), never subject. Adds what the others lack: <b>status ladders, a task model, provenance (<code>## Raw</code>), deliverable-coupling</b>. Ships as a Duo vault; Duo optional. <span class="note-inline">Unvalidated 0.1, empty knowledge/.</span></p>
+  </div>
+</div>
+
+<h2>The first fork: do folders mean anything?</h2>
+<p>This is the spectrum your feedback surfaced. One pole treats the folder tree as the human hierarchy; the other
+treats folders as drawers and pushes all meaning into <code>type:</code> + links. Your four "flat" models cluster
+hard at the right; <span class="tag-obs">Obsidian</span> stands alone at the left.</p>
+
+<div class="spectrum">
+  <div class="bar"></div>
+  <div class="ends">
+    <div>Folders <em>mean</em> things<small>browse the tree; placement is information</small></div>
+    <div class="r">Folders are <em>drawers</em><small>meaning = type + links; move-without-consequence</small></div>
+  </div>
+  <div class="stops">
+    <div class="stop obs">
+      <h4><span class="tag-obs">Obsidian</span></h4>
+      <p><b>Folders ARE the hierarchy.</b> Nested WBS, org charts, PARA. Human-browsable at a glance; Dataview can query by folder.</p>
+      <p class="note-inline">Best for: a person navigating structure. Worst for: portability + a single canonical graph.</p>
+    </div>
+    <div class="stop mid">
+      <h4><span class="tag-duo">Duo OKF</span> (rule-bounded middle)</h4>
+      <p>Mostly drawers, but with <b>one semantic concession</b>: a folder-note type (initiative) owns a folder, and only those can be filing parents. Shallow, computed, self-healing.</p>
+      <p class="note-inline">The only model with a foot in both camps — its folder-note idea is a seed of WBS-style nesting.</p>
+    </div>
+    <div class="stop flat">
+      <h4><span class="tag-karpathy">Karpathy</span> · <span class="tag-okf">OKF</span> · <span class="tag-brainkit">brainkit</span></h4>
+      <p><b>Flat drawers.</b> Meaning lives entirely in <code>type:</code> + links (+ for Karpathy, the backlink mesh). Folders never queried; moving a note is a no-op.</p>
+      <p class="note-inline">Best for: agents + portability. Worst for: a human browsing to <em>understand</em> structure.</p>
+    </div>
+  </div>
+</div>
+
+<p><strong>Why this matters for your decision.</strong> The flat models buy agent-friendliness and portability by
+<em>giving up</em> the thing Obsidian is best at: a human opening the file tree and immediately understanding the
+work-breakdown or the org. If a populated brainkit or okf-vault will be <em>browsed by a person</em> to grasp
+structure (an initiative's WBS, a team map), the flat model makes that harder — you're relying on generated indexes
+and rollups to reconstruct what a folder tree would have shown for free. The honest gap: <strong>Duo has no true
+semantic-folder mode today</strong> — its "Obsidian mode" only swaps link syntax (<code>[[ ]]</code>) and rollup
+mechanism; it still files flat via D19. So "use Obsidian mode" does <em>not</em> currently get you Obsidian's folders.</p>
+
+<h2>Sharpening it — the cost to an agent isn't folders, it's <em>authoritative</em> folders</h2>
+<p>An earlier draft of this argued "a tree is less expressive than a graph." That was a category error, worth
+retracting cleanly: <strong>nobody is proposing a tree <em>instead of</em> the graph.</strong> The link graph
+(frontmatter + links) is present either way. So the real comparison is <strong>graph + meaningless folders</strong>
+vs <strong>graph + meaningful folders</strong> — and on expressiveness those are <em>identical</em>. A semantic
+folder adds an index over one chosen edge and removes nothing. It's never "hierarchy OR graph"; it's "graph, with or
+without a primary-axis projection."</p>
+<p>What flat folders actually buy an agent is one hard <strong>invariant: "a file's location is meaningless."</strong>
+That invariant is load-bearing — it makes a move a pure relocation (zero semantic consequence), makes "misfiled"
+impossible (only untidy), and keeps every edge readable/writable in exactly one place. Semantic folders break that
+invariant for one axis. <strong>But the cost lives entirely in whether the folder is the <em>source of truth</em> —
+not in whether folders carry meaning.</strong></p>
+<div class="ad-grid">
+  <div class="ad-card cost">
+    <h4>Authoritative folders <span class="con">— you pay</span></h4>
+    <p>The path is the truth for an edge, or placement is a free-form judgment call.</p>
+    <ul>
+      <li>Path duplicates a frontmatter edge → a <b>mirror that can drift</b> (what D9 / "no mirrors" forbid); or the path is the <b>sole</b> encoding of one edge → that edge is special-cased vs every other.</li>
+      <li>Every create/move is a "where does this <em>belong</em>?" judgment → drift across sessions &amp; multiple agents.</li>
+      <li>Moves become semantic acts; path-coupled queries (<span class="v">FROM "folder"</span>) silently break on reorg.</li>
+    </ul>
+  </div>
+  <div class="ad-card free">
+    <h4>Derived folders <span class="pro">— ≈ free</span></h4>
+    <p>The folder is a <b>projection of one frontmatter edge</b>, kept in sync mechanically.</p>
+    <ul>
+      <li>Graph stays canonical; the agent still treats the path as meaningless-to-read.</li>
+      <li>One source of truth → no drift; placement is computed, never "wrong."</li>
+      <li>Moves stay free because the tool re-derives the path. <b>This is exactly what Duo's D19 already does</b> — the folder is computed from the <span class="v">filingParent</span> edge and kept in sync by <span class="v">vault mv</span> / <span class="v">relink</span>.</li>
+    </ul>
+  </div>
+</div>
+<p><strong>So: no expressiveness loss, and the operational cost is fully avoidable by <em>deriving</em> the folder from
+the graph rather than treating it as the truth.</strong> The one residue is on the <em>human</em> side, not the
+agent's: a tree forces each note into one primary parent, so for genuinely cross-cutting notes (a meeting touching
+three initiatives) the browsable tree <em>lies by omission</em> about the other parents. Semantic folders therefore
+pay off cleanest where the data really is a tree (a WBS, an org chart) and mislead where it's a graph — an argument
+for applying them <em>selectively</em>, not globally.</p>
+
+<h2>Does OKF forbid nested folders? No — and the path <em>is</em> the ID</h2>
+<p>You flagged that OKF §3 itself uses folder hierarchy, and that OKF may be <em>agnostic</em> on nesting rather than
+anti-nesting. Read firsthand against the spec: <strong>you're right — with one nuance that strengthens Approach 2.</strong></p>
+<div class="callout okf">
+  <p><b>OKF permits nesting; mandates none; forbids none.</b> §3 verbatim: "<i>A bundle is a directory tree of
+  markdown files. The directory structure is independent of the domain — producers organize concepts however makes
+  sense for the knowledge being captured.</i>" Nesting is allowed at any depth (§6: an <span class="v">index.md</span>
+  "<i>MAY appear in any directory</i>"); Google's own blog nests <span class="v">sales/{datasets,tables,metrics}/</span>.
+  So OKF is <b>agnostic</b> — folders are not a <em>query</em> axis (relationships live in links; the tree only
+  <em>implies</em> parent/child — see the blog quote below), but they are not discouraged.</p>
+  <p><b>The nuance my earlier draft got wrong:</b> OKF folders are <em>not</em> "pure drawers." §4 verbatim:
+  "<i>Concept ID — the path of the concept's file within the bundle, with the <span class="v">.md</span> suffix
+  removed</i>" (<span class="v">tables/users.md</span> → ID <span class="v">tables/users</span>). In OKF the folder a
+  concept sits in <b>is part of its stable identity / address</b> — load-bearing for <em>addressing</em>, just not for
+  queries. That's why bundle-absolute links (<span class="v">/tables/users.md</span>) are the recommended form, and why
+  moving a concept in bare OKF <em>changes its ID</em>.</p>
+</div>
+<div class="callout win">
+  <p><b>And the authors state the two-layer model outright — this is the whole synthesis in Google's own words.</b>
+  From the launch blog (Sam McVeety &amp; Amir Hormati, Jun 12 2026): concepts "<i>link to each other with normal
+  markdown links, turning the directory into a <b>graph of relationships that is richer than the parent/child links
+  implied by the file system</b>.</i>" So the <b>file system supplies the parent/child axis</b>, and the <b>link graph
+  supplies the richer cross-cutting relationships</b> on top — exactly Approach 2 + the graph. (This also corrects my
+  earlier over-claim that OKF folders carry <em>no</em> relationship meaning: the tree <em>does</em> imply parent/child;
+  the graph is simply richer.) Their own example even files concepts under <span class="v">tables/</span> /
+  <span class="v">datasets/</span> / <span class="v">metrics/</span> folders that mirror the <span class="v">type:</span>
+  field — a real folder-as-<em>derived-projection</em>. And the reference <em>consumer</em> they ship is a graph
+  visualizer, not a folder browser: for reading, the graph is primary; folders are addressing + progressive disclosure.</p>
+</div>
+<p><strong>Why this strengthens Approach 2.</strong> A derived primary-axis path isn't bolted <em>onto</em> OKF — it's
+leaning <em>into</em> OKF's native model, where the path already <em>is</em> the identity. The one thing that makes
+bare-OKF path-identity painful (a move re-IDs the file and breaks links) is exactly what Duo's stable content-hash
+<span class="v">id:</span> already fixes — it decouples identity from path, so you get a meaningful derived folder tree
+<em>and</em> loss-free moves. So <strong>Approach 2 (a derived parent/child tree) + the link graph is simply OKF used
+exactly as its authors describe it</strong> — and Duo has already shipped its hard part (the stable <span class="v">id:</span>).</p>
+
+<h2>Two ways to get hierarchy without losing the graph</h2>
+<p>Both keep the link graph canonical; they differ in <em>where the human-browsable tree lives</em>.</p>
+<div class="approach2">
+  <div class="a2">
+    <h4>Approach 1 — flat files, hierarchy in the <span class="v">index</span></h4>
+    <p>Files stay flat (OKF IDs flat &amp; stable). The tree is a <b>generated nested-bullet outline</b> in
+    <span class="v">index.md</span> — and you can project <em>several</em> outlines along different axes (by initiative,
+    by person, by quarter), since none is privileged on disk.</p>
+    <p class="pro"><b>Pro:</b> the disk stays a pure graph; zero path-identity coupling; moves never an issue;
+    multiple hierarchies coexist as views; trivially OKF / Karpathy / brainkit-native (it's just their <span class="v">index.md</span>).</p>
+    <p class="con"><b>Con:</b> the "tree" lives <em>inside one markdown file</em>, not the filesystem — you browse a
+    generated outline, not a Finder/Obsidian/GitHub folder tree (no expand-collapse, no drag); the outline can outgrow
+    the "one screen" budget at scale.</p>
+  </div>
+  <div class="a2 lean">
+    <h4>Approach 2 — derived path along one primary axis <span class="tag">Your lean · recommended</span></h4>
+    <p>The graph is canonical; <b>one chosen axis</b> (e.g. the initiative WBS) is materialized as the <b>real folder
+    path</b>, derived from a frontmatter edge and kept in sync mechanically. Duo's stable <span class="v">id:</span>
+    keeps moves loss-free.</p>
+    <p class="pro"><b>Pro:</b> you get the <em>actual</em> filesystem tree (Finder/Obsidian/GitHub) for the axis that's
+    genuinely a tree — real human browsability; OKF-native (path = identity); literally generalizes Duo's D19
+    folder-note; cross-cutting edges stay links, so the graph survives.</p>
+    <p class="con"><b>Con:</b> privileges ONE axis (the tree hides cross-cutting parents); needs the sync machinery
+    (Duo has it; bare brainkit does not — it never mints <span class="v">id:</span>); secondary axes still need
+    <span class="v">index</span>/rollup views.</p>
+  </div>
+</div>
+<div class="callout win">
+  <p><b>They're not exclusive — and the best answer is probably both.</b> Use <b>Approach 2</b> for the one axis that
+  is genuinely a tree (the WBS / org), and <b>Approach 1</b> (index outlines) for the secondary axes that aren't. That
+  directly cancels Approach 2's only real residue — the tree privileging one axis — because the other axes get their
+  own generated views. The graph stays the single source of truth under both. This is also <b>OKF's own stance</b> —
+  per the launch blog, the file system carries parent/child, the link graph carries the richer rest.</p>
+</div>
+
+<h2>Lineage — Obsidian is the human substrate the flat models build on</h2>
+<div class="lineage">
+<pre>
+   <span class="b-obs">Obsidian</span>  (2020 — human-first PKM: a browsable folder tree + [[wikilinks]] + graph view)
+       │   the human IDE everyone renders markdown in...
+       │   ...but Karpathy &amp; the OKF family adopt the TOOL while rejecting its SEMANTIC FOLDERS
+       ▼
+   <span class="b-k">Karpathy "LLM Wiki" gist</span>  (flat wiki, LLM-compiled, rendered in Obsidian)
+       │   formalized into a spec by Google ─────────────────────┐
+       ▼                                                          ▼
+   <span class="b-okf">Google OKF v0.1</span>  (portable interchange: type: +              <span class="b-k">karpathy-core</span>  (the LLM-wiki primitive)
+    rel-md links + index/log; "dir independent of domain")        │
+       │   implemented (+ a dialect) by Duo                        ▼
+       ▼                                                  <span class="b-bk">loopkit</span>  (typed entity graph, payload edges)
+   <span class="b-duo">Duo OKF vault</span>  (D19 filing + stable id: + static               │
+    listings; also has an Obsidian-MODE that still files flat)     ▼
+       │                                                  <span class="b-bk">brainkit</span>  (policy: intake, status ladders,
+       └──────────────  both carry okf_version  ───────────────   tasks, deliverable loop)
+</pre>
+</div>
+<p class="note-inline">brainkit's own framing: "<strong>OKF is the contract; Karpathy is the operating model; provenance is
+the addition both lack.</strong>" Obsidian is the human-facing tool all of them assume — yet every one of the four
+flat models <em>declines</em> Obsidian's folders-carry-meaning philosophy. That decline is the choice you're re-examining.</p>
+
+<h2>Matrix A — how each model handles folders (plain-language questions)</h2>
+<p>Cells tinted <span class="tag-obs">indigo</span> are where <span class="tag-obs">Obsidian</span> is the outlier —
+the visual point being that on folders, the flat family agrees and Obsidian dissents.</p>
+<div class="matrix-scroll">
+<table class="matrix">
+  <thead>
+    <tr>
+      <th class="dim">Question</th>
+      <th class="col-obs"><span class="tag-obs">Obsidian</span></th>
+      <th class="col-karpathy"><span class="tag-karpathy">Karpathy</span></th>
+      <th class="col-okf"><span class="tag-okf">Google OKF</span></th>
+      <th class="col-duo"><span class="tag-duo">Duo OKF</span></th>
+      <th class="col-brainkit"><span class="tag-brainkit">brainkit</span></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="dim">Does the folder a note sits in carry meaning? <span class="sub">(hierarchy vs drawer)</span></td>
+      <td class="dissent"><b>Yes — folders ARE the hierarchy.</b> A WBS / org tree; placement is information.</td>
+      <td>No — only <code>raw/</code> vs <code>wiki/</code>. Meaning = backlinks.</td>
+      <td>No — "<i>directory independent of the domain</i>." Meaning = type + links.</td>
+      <td>Almost no — "ergonomics only," except an initiative <em>owns</em> a folder.</td>
+      <td>No — folders mean ownership/lifecycle, not subject.</td>
+    </tr>
+    <tr>
+      <td class="dim">Can a human browse it and <em>understand</em> the structure, no tooling? <span class="sub">(your key question)</span></td>
+      <td class="dissent"><b>Yes — strongest.</b> The file tree mirrors your mental model; WBS/org legible at a glance.</td>
+      <td>Weakly — read <code>index.md</code> or the graph view, not a tree.</td>
+      <td>Partly — optional per-folder <code>index.md</code> gives a table of contents.</td>
+      <td>Partly — shallow skeleton (<code>people/</code>, <code>initiatives/&lt;name&gt;/</code>) + generated <code>index.md</code>.</td>
+      <td>Weakly — read the one-screen <code>index.md</code>; flat bag underneath.</td>
+    </tr>
+    <tr>
+      <td class="dim">How deep does the tree go?</td>
+      <td class="dissent">As deep as you nest — unbounded, human-chosen.</td>
+      <td>Shallow; <code>wiki/</code> flat. <span class="note-inline">(inferred)</span></td>
+      <td>Unbounded but non-prescriptive — flat or nested both valid.</td>
+      <td>Shallow &amp; <b>rule-bounded</b> (1–3 levels, whatever D19 yields).</td>
+      <td>Flat for knowledge; shallow splits for deliverables only.</td>
+    </tr>
+    <tr>
+      <td class="dim">What decides where a note goes?</td>
+      <td class="dissent">The human, by hand, into the meaningful tree.</td>
+      <td>The LLM, under a plain-language schema; emergent.</td>
+      <td>The producer, freely; path = identity.</td>
+      <td>A per-type <b>rule set</b> (D19, deterministic, code-applied).</td>
+      <td>The agent at capture, under <code>CLAUDE.md</code>; convention, not code.</td>
+    </tr>
+    <tr>
+      <td class="dim">What happens to links when you move a file?</td>
+      <td class="dissent"><b>Nothing breaks</b> — wikilinks resolve by name; Obsidian rewrites on move. Reorganize freely.</td>
+      <td>The tireless LLM re-links on a pass. No stable id.</td>
+      <td>Breaks <b>tolerated</b> ("not malformed"); absolute links recommended.</td>
+      <td><b>Strongest for path-links</b>: stable <code>id:</code> → loss-free id-first relink.</td>
+      <td>Plain rel links break; healed by <code>distill</code>. <b>Agent never mints <code>id:</code></b>.</td>
+    </tr>
+    <tr>
+      <td class="dim">Can an agent file &amp; move notes mechanically?</td>
+      <td class="dissent">Not really its design — it's a human GUI tool first.</td>
+      <td>Agent-first, but a prompt-pattern, not a toolchain.</td>
+      <td>Format-only; permissive consumption makes generation safe.</td>
+      <td><b>Highest</b>: <code>createEntityStub</code>, <code>vault schema</code>, <code>mv</code>, <code>relink</code> — in-process CLI.</td>
+      <td>Agent-first via 3 skills + machine-checkable rules; no placement fn.</td>
+    </tr>
+    <tr>
+      <td class="dim">Does it render on GitHub / ship without the app?</td>
+      <td class="dissent">Partly — <code>[[wikilinks]]</code> aren't standard GH markdown; <code>.obsidian/</code> is tool-specific. <b>Least portable.</b></td>
+      <td>Yes — "just a git repo of markdown files."</td>
+      <td>The whole point — "cat a file… git clone a repo." Vendor-neutral.</td>
+      <td>Yes (OKF mode) — rel-md links, never persists <code>[[ ]]</code>.</td>
+      <td>Yes — plain md + plain rel links; never <code>[[ ]]</code> or absolute paths.</td>
+    </tr>
+    <tr>
+      <td class="dim">How does it hold up at thousands of notes?</td>
+      <td class="dissent">Deep trees get rigid (a note that belongs in two places); folder + graph compete.</td>
+      <td>Scale-bounded — re-adds search (qmd) past the context window.</td>
+      <td>Risks: silent link-rot, index staleness, sloppy <code>type:</code> values.</td>
+      <td>Per-call recompute; residue-backlog risk. <span class="note-inline">Shipped, scale-untested.</span></td>
+      <td>Biased against growth; <b>unvalidated</b> — empty <code>knowledge/</code>.</td>
+    </tr>
+    <tr>
+      <td class="dim">Where does it come from?</td>
+      <td class="dissent">The human-first PKM tool (2020) the others all build on.</td>
+      <td>The originating gist OKF credits.</td>
+      <td>The upstream spec (credits Karpathy).</td>
+      <td>Faithful OKF impl + a documented dialect.</td>
+      <td>karpathy-core → loopkit → brainkit; ships as a Duo vault.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2>The second fork (only within "flat"): format vs content model</h2>
+<p>If you stay at the flat pole for okf-vaults + brainkit, the remaining choice is <em>not</em> about folders at all —
+it splits into two orthogonal axes. Treating it as one decision is the trap.</p>
+
+<div class="axis-wrap">
+<div class="axis2x2">
+  <div class="cell corner"></div>
+  <div class="colh">Content model<br>SHARED</div>
+  <div class="colh">Content model<br>DIVERGENT</div>
+
+  <div class="rowh">Format<br>SHARED</div>
+  <div class="cell"><span class="lbl">One unified system</span>Converge format <em>and</em> content. Most power, hardest merge (deliverable-anchored vs agnostic).</div>
+  <div class="cell hot"><span class="lbl">Shared substrate, distinct tools ★</span>Both speak bare-OKF (+ a shared <code>id:</code> primitive); each keeps its filing + content policy. The pragmatic sweet spot.</div>
+
+  <div class="rowh">Format<br>DIVERGENT</div>
+  <div class="cell"><span class="lbl">Portable ideas, separate files</span>Share status-ladder / task / provenance <em>conventions</em> but not the format. Coherent if you port brainkit's policy into Duo.</div>
+  <div class="cell"><span class="lbl">Fully separate</span>Share only "both are OKF-ish." Two mental models forever.</div>
+</div>
+</div>
+
+<h2>Matrix B — the content model (where Duo OKF &amp; brainkit truly diverge)</h2>
+<p>Folders aside, this is where your two systems are different. brainkit fills the column; everyone else is mostly empty.
+(Obsidian, like OKF/Karpathy, mandates no content model — it's a tool, not a methodology.)</p>
+<div class="matrix-scroll">
+<table class="matrix">
+  <thead>
+    <tr>
+      <th class="dim">Content question</th>
+      <th class="col-obs"><span class="tag-obs">Obsidian</span></th>
+      <th class="col-karpathy"><span class="tag-karpathy">Karpathy</span></th>
+      <th class="col-okf"><span class="tag-okf">Google OKF</span></th>
+      <th class="col-duo"><span class="tag-duo">Duo OKF</span></th>
+      <th class="col-brainkit"><span class="tag-brainkit">brainkit</span></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="dim">Is there a maturity / trust ladder?</td>
+      <td>No (tags by hand).</td>
+      <td>No (lint flags orphans).</td>
+      <td>No.</td>
+      <td>Thin — a <code>status</code> field by convention.</td>
+      <td><b>Load-bearing</b>: source <code>unread→read→processed</code>; note <code>draft→solid→canonical</code>.</td>
+    </tr>
+    <tr>
+      <td class="dim">Is there a task / actionability primitive?</td>
+      <td>Plugins (Tasks), not core.</td>
+      <td>No.</td>
+      <td>No.</td>
+      <td><b>None</b>.</td>
+      <td>A whole <code>task_policy</code> (node | pointer | off), parent-edge cycle-checked.</td>
+    </tr>
+    <tr>
+      <td class="dim">Is provenance / source fidelity enforced?</td>
+      <td>No.</td>
+      <td><code>raw/</code> immutable.</td>
+      <td>Citations (§8).</td>
+      <td>Links carry source; no rule.</td>
+      <td>Enriched body + verbatim <code>## Raw</code> quarantine; durable-link rule.</td>
+    </tr>
+    <tr>
+      <td class="dim">Is the corpus aimed at a deliverable?</td>
+      <td>No — general PKM.</td>
+      <td>No — own use.</td>
+      <td>No — interchange.</td>
+      <td><b>No</b> — work-notes graph, no work-product sink.</td>
+      <td><b>Yes</b>: <code>work/</code>, gap-analysis, task→work edges.</td>
+    </tr>
+    <tr>
+      <td class="dim">Are references resolved at capture?</td>
+      <td>Manual.</td>
+      <td>Emergent.</td>
+      <td>Unspecified.</td>
+      <td><code>vault schema</code> = live alias table.</td>
+      <td>Resolved <b>with the user at capture</b>, aliases written back (compounding).</td>
+    </tr>
+    <tr>
+      <td class="dim">Are there write-safety / lock tiers?</td>
+      <td>No.</td>
+      <td>raw/ read-only.</td>
+      <td>No.</td>
+      <td>Query-excludes <code>templates/</code>, <code>out/</code>.</td>
+      <td>Tiers: free <code>knowledge/</code> · confirm <code>golden/</code>/<code>locked:</code> · propose <code>PROJECT.md</code>.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Tensions</h2>
+
+<div class="tension fundamental">
+  <h4>Human-navigable folders vs the "location is meaningless" invariant — dissolved by <em>derived</em> folders <span class="sev fundamental">Fundamental</span></h4>
+  <p>The fork your feedback put back on the table — but narrower than it first looks. It is <em>not</em> "tree vs graph" (the graph is present either way), and it is <em>not</em> "folders cost agents." The only real cost is breaking the invariant that <b>a file's location is meaningless</b>, and that cost is incurred <em>only</em> when folders are <b>authoritative</b> (the source of truth for an edge). Make the folder a <b>derived projection</b> of a frontmatter edge and the cost ≈ 0 — which is exactly what Duo's D19 already does.</p>
+  <p class="why"><b>Why it matters:</b> you can have the human-browsable tree <em>and</em> the agent-friendly graph; the real decision is just "keep the graph canonical, derive the folder." The residue is human-side — a tree privileges one axis and hides cross-cutting parents — so use it where the data really is a tree. (See <em>Sharpening it</em> and the two approaches above.)</p>
+</div>
+
+<div class="tension significant">
+  <h4>Deliverable-anchored (brainkit) vs deliverable-agnostic (Duo) corpus <span class="sev significant">Significant</span></h4>
+  <p><span class="tag-brainkit">brainkit</span> exists to advance a declared work product; <span class="tag-duo">Duo's</span> vault is a general work-notes graph with no deliverable sink. Converging formats does nothing to reconcile "organized around producing X" with "organized around remembering things."</p>
+  <p class="why"><b>Why it matters:</b> if you want Duo's vault to ever <em>produce</em> work products, that argues for porting brainkit's content layer into Duo — which none of the "push brainkit toward Duo" paths do.</p>
+</div>
+
+<div class="tension significant">
+  <h4>Deterministic placement (D19) vs emergent agent convention <span class="sev significant">Significant</span></h4>
+  <p><span class="tag-duo">Duo</span> computes placement from per-type template meta-keys — reproducible, CLI-driveable, but front-loads schema work. <span class="tag-brainkit">brainkit</span>/<span class="tag-karpathy">Karpathy</span> push placement to agent judgment under a manual, types emerging from use — lighter to start, but unverifiable and drift-prone without a recurring health pass.</p>
+  <p class="why"><b>Why it matters:</b> the core architectural fork inside the flat pole. You can't have both purities in one corpus.</p>
+</div>
+
+<div class="tension significant">
+  <h4>Stable-id integrity vs tolerate-and-repair vs tolerate-and-break <span class="sev significant">Significant</span></h4>
+  <p>Four postures on the same move. <span class="tag-obs">Obsidian</span>: basename links + auto-rewrite → safe by tool. <span class="tag-duo">Duo OKF</span>: stable <code>id:</code> → loss-free. <span class="tag-brainkit">brainkit</span>: plain rel links break, healed by <code>distill</code> — and the <b>agent never mints <code>id:</code></b>, so Duo's relink is dormant in a brainkit vault. <span class="tag-okf">OKF</span>: broken links are explicitly fine.</p>
+  <p class="why"><b>Why it matters:</b> brainkit ships as a Duo vault but inherits the <em>weaker</em> move contract. Reconciling the no-mint rule with Duo's minting is the highest-leverage, lowest-cost change available.</p>
+</div>
+
+<div class="tension significant">
+  <h4>Duo's OKF <em>dialect</em> vs the bare Google-OKF spec (two dialects under one roof) <span class="sev significant">Significant</span></h4>
+  <p><span class="tag-duo">Duo</span> layers heading-per-type indexes, D19, <code>id:</code> minting, <code>listing:</code> specs on top of OKF. A <span class="tag-brainkit">brainkit</span> vault (or a Google sample) is <em>also</em> valid OKF but follows different conventions. If "open any OKF bundle in Duo and it just works" is a goal, Duo must decide whether a foreign bundle is read as-is or silently Duo-ized.</p>
+  <p class="why"><b>Why it matters:</b> a brainkit vault opened in Duo should not be re-filed by D19 behind your back.</p>
+</div>
+
+<div class="tension significant">
+  <h4>brainkit is unvalidated 0.1 — even its spec docs are stubs <span class="sev significant">Significant</span></h4>
+  <p><span class="tag-brainkit">brainkit</span>'s <code>knowledge/</code> is empty, and <code>DESIGN.md</code>/<code>FOUNDATION.md</code> contain only "Version ONE of the doc." The loopkit <em>contract</em> it claims to "keep unchanged" is unwritten; loopkit/karpathy-core weren't on disk.</p>
+  <p class="why"><b>Why it matters:</b> a maturity gap in the <em>spec</em>, not just usage — a prerequisite blocker for any convergence path.</p>
+</div>
+
+<div class="tension minor">
+  <h4>"No mirrors" (brainkit) is stronger and differently-scoped than D9 (Duo) <span class="sev minor">Minor</span></h4>
+  <p><span class="tag-brainkit">brainkit</span> polices mirrors at the <em>content</em> level (no synced task list, no clean-twin of a source); <span class="tag-duo">Duo's</span> D9 is about not caching the <em>schema/index</em>. Collapsing them into "they agree" hides what brainkit forbids that D9 doesn't.</p>
+</div>
+
+<h2>Paths forward</h2>
+
+<div class="path recommended">
+  <h4>Decide the folder-meaning fork first — and offer a semantic-folder overlay where humans browse <span class="rec recommended">Recommended · first</span></h4>
+  <div class="affects">Affects: both (upstream of all other paths)</div>
+  <p>Before any format/content work, answer: will a person browse this corpus to understand structure? If <em>yes</em> for some surfaces (an initiative WBS, an org/team map), keep the flat typed graph as the substrate but allow a <b>semantic-folder overlay</b> there — generalize Duo's folder-note idea (an entity owns a folder; children nest under it) into an opt-in, human-navigable subtree, while the graph underneath stays canonical and move-safe via <code>id:</code>. If <em>no</em>, commit to flat and lean on generated indexes/rollups for the human view.</p>
+  <p class="resolves"><b>Resolves:</b> the fundamental human-vs-machine folder tension without abandoning the typed graph — you get WBS/org browsability where it pays, flatness everywhere else.</p>
+  <p class="cost"><b>Cost:</b> a second filing mode to design; risk of premature nesting. And note this is <em>new build</em> — neither Duo mode offers it today.</p>
+</div>
+
+<div class="path recommended">
+  <h4>Hybrid: shared OKF format + a shared <code>id:</code> primitive, divergent placement <span class="rec recommended">Recommended</span></h4>
+  <div class="affects">Affects: both</div>
+  <p>Standardize the <em>format</em> (bare OKF) and the one thing that hurts at scale — link integrity — by making stable <code>id:</code> a tool-agnostic primitive both honor (Duo mints + heals; brainkit preserves + may request). Leave <em>placement</em> divergent: Duo keeps D19, brainkit keeps emergent filing.</p>
+  <p class="resolves"><b>Resolves:</b> the highest-severity practical tension (moves) without forcing a placement merge. brainkit vaults opened in Duo get loss-free moves.</p>
+  <p class="cost"><b>Cost:</b> changes brainkit's "agent never mints <code>id:</code>" rule; two index generators remain.</p>
+</div>
+
+<div class="path recommended">
+  <h4>Port brainkit's content layer <em>into</em> Duo OKF (not the other way) <span class="rec recommended">Recommended</span></h4>
+  <div class="affects">Affects: Duo OKF (unifies your content model)</div>
+  <p>Every other path pushes brainkit toward Duo's <em>format</em>. The higher-value reverse: Duo's vault has no maturity ladder, no task primitive, no <code>## Raw</code> provenance — brainkit has all three. Adopt them as <em>optional</em> Duo vault conventions (template <code>statuses:</code>, a <code>task</code> type, a <code>## Raw</code> convention, deliverable gap-analysis).</p>
+  <p class="resolves"><b>Resolves:</b> the content-model gap + deliverable-coupling fork — one richer content model instead of two thin ones; makes Duo's vault deliverable-capable.</p>
+  <p class="cost"><b>Cost:</b> real build in Duo; pair with the prerequisite below to avoid importing unvalidated conventions.</p>
+</div>
+
+<div class="path">
+  <h4>Use Obsidian mode where browsing matters, OKF mode where automation matters <span class="rec viable">Viable</span></h4>
+  <div class="affects">Affects: Duo</div>
+  <p>Duo already supports two serializers. <em>If</em> you first make Obsidian mode honor semantic folders (today it doesn't — it files flat), you could route human-browse-heavy vaults to Obsidian mode (wikilinks, move-safe, semantic tree) and agent/automation-heavy vaults to OKF mode. A lower-build alternative to a brand-new overlay.</p>
+  <p class="cost"><b>Cost:</b> requires changing Duo's "folders are ergonomics only" stance for Obsidian mode — a philosophy shift, not just a flag.</p>
+</div>
+
+<div class="path recommended">
+  <h4>Write the loopkit contract + brainkit DESIGN <em>before</em> any convergence <span class="rec recommended">Prerequisite</span></h4>
+  <div class="affects">Affects: brainkit (gating)</div>
+  <p>Both rationale docs are stubs and the loopkit contract is unwritten. No path can target brainkit's conventions reliably until they're specified. Write the loopkit FOUNDATION (the seam/contract) and brainkit DESIGN (the deliberate exclusions) first.</p>
+  <p class="resolves"><b>Resolves:</b> the spec-maturity blocker; prevents drift before brainkit accretes debt.</p>
+</div>
+
+<div class="path">
+  <h4>Keep them separate; share only bare-OKF; Duo never re-files a foreign bundle <span class="rec viable">Viable</span></h4>
+  <div class="affects">Affects: both</div>
+  <p>Treat Google OKF v0.1 as the only shared contract; each tool owns its policy above it. When Duo opens a foreign OKF bundle it reads it as-is and <b>never auto-applies D19</b>. Honors brainkit's "Duo is an accelerator, never a dependency." Compatible with the Hybrid <code>id:</code> path.</p>
+  <p class="cost"><b>Cost:</b> two mental models; needs explicit "foreign-OKF, do-not-re-file" detection in Duo.</p>
+</div>
+
+<div class="path">
+  <h4>Do nothing structural yet — let Duo OKF be brainkit's proving ground <span class="rec viable">Viable</span></h4>
+  <div class="affects">Affects: both</div>
+  <p>Hold both as-is; surface real scaling lessons in Duo OKF (residue discipline, recompute cost, whether id-first relink is load-bearing), then feed only what survives into brainkit. Best paired with adopting the <code>id:</code> primitive now.</p>
+</div>
+
+<h2>Decisions</h2>
+<p>Decision 1 is the folder-meaning fork you raised; 2–8 only bite once you've chosen "flat." Recommendations marked; "Other" / notes welcome.</p>
+
+<section class="decision-card">
+  <div class="q-title">Decision 1 · How do you express hierarchy over the graph?</div>
+  <h3 class="q-prompt">Where should the human-browsable hierarchy live?</h3>
+  <p class="q-context">The graph stays canonical either way. The choice is whether the tree is a generated outline in the index (flat files) or a derived real folder path along one axis. (See the two approaches above.)</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d1" value="derived-path"><div class="q-option-body"><div class="q-option-title">Approach 2 — derived path along one primary axis, over a canonical graph <span class="recommend-tag">Recommended · your lean</span></div><div class="q-option-rationale">Real filesystem tree for the true-tree axis (WBS/org); OKF-native (path = identity); generalizes D19; stable <code>id:</code> keeps moves free. Pair with index outlines for secondary axes (the "both" option).</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="index-outline"><div class="q-option-body"><div class="q-option-title">Approach 1 — flat files, hierarchy as nested bullets in <code>index.md</code></div><div class="q-option-rationale">Disk stays a pure graph; multiple hierarchies as views; but you browse an outline doc, not a real folder tree.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="both"><div class="q-option-body"><div class="q-option-title">Both — derived path for the one true-tree axis + index outlines for the rest</div><div class="q-option-rationale">Cancels Approach 2's only residue (privileging one axis); secondary axes get their own generated views.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="flat"><div class="q-option-body"><div class="q-option-title">Stay fully flat — no expressed hierarchy; rely on type/link queries</div><div class="q-option-rationale">Maximal agent-simplicity + portability; weakest human browse-to-understand.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d1" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 2 · Top-line framing (within flat)</div>
+  <h3 class="q-prompt">How do you want to treat the okf-vaults / brainkit relationship?</h3>
+  <p class="q-context">Sets whether the rest are all-or-nothing or two independent axes.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d2" value="two-axes"><div class="q-option-body"><div class="q-option-title">Two orthogonal axes — decide format &amp; content-model separately <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">Lets you share a format while keeping divergent content models (or vice-versa).</div></div></label>
+    <label class="q-option"><input type="radio" name="d2" value="unified"><div class="q-option-body"><div class="q-option-title">One unified system — converge format and content</div><div class="q-option-rationale">Most power, hardest merge, most upfront schema.</div></div></label>
+    <label class="q-option"><input type="radio" name="d2" value="separate"><div class="q-option-body"><div class="q-option-title">Fully separate — share only "both are OKF-ish"</div><div class="q-option-rationale">Two mental models forever; honors brainkit independence; no leverage.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d2" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 3 · Format axis — shared contract scope</div>
+  <h3 class="q-prompt">What is the shared at-rest contract across Duo OKF and brainkit?</h3>
+  <p class="q-context">How much of the on-disk format the two must agree on.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d3" value="okf-plus-id"><div class="q-option-body"><div class="q-option-title">Bare Google-OKF + a shared <code>id:</code> integrity primitive <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">Standardize format + the one thing that hurts on moves. Smallest change, biggest payoff.</div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="okf-only"><div class="q-option-body"><div class="q-option-title">Bare Google-OKF only</div><div class="q-option-rationale">Maximum portability; brainkit keeps the weaker move contract.</div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="full-dialect"><div class="q-option-body"><div class="q-option-title">Full Duo dialect (id: + D19 + heading-per-type)</div><div class="q-option-rationale">One filing model under Duo's roof; couples brainkit tightly to Duo.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d3" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 4 · The <code>id:</code> minting rule</div>
+  <h3 class="q-prompt">Should brainkit relax "the agent NEVER mints an <code>id:</code>"?</h3>
+  <p class="q-context">Until this changes, Duo's loss-free id-first relink is dormant in a brainkit vault.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d4" value="yes"><div class="q-option-body"><div class="q-option-title"><code>id:</code> is a tool-mintable key the agent preserves &amp; may request <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">Unlocks loss-free moves; minimal extra frontmatter.</div></div></label>
+    <label class="q-option"><input type="radio" name="d4" value="conditional"><div class="q-option-body"><div class="q-option-title">Conditional — mint only for notes with inbound links</div><div class="q-option-rationale">Protects exactly the links a move would break.</div></div></label>
+    <label class="q-option"><input type="radio" name="d4" value="defer"><div class="q-option-body"><div class="q-option-title">Defer — Duo mints on first open; agent never deletes it</div><div class="q-option-rationale">Status quo; weakest integrity until Duo touches the file.</div></div></label>
+    <label class="q-option"><input type="radio" name="d4" value="no"><div class="q-option-body"><div class="q-option-title">No — stay id-optional; rely on distill</div><div class="q-option-rationale">Maximally minimal; accepts break-then-repair.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d4" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 5 · Foreign-OKF behavior in Duo</div>
+  <h3 class="q-prompt">When Duo opens a non-Duo OKF bundle, what does it do?</h3>
+  <p class="q-context">Guards against a brainkit vault being silently re-filed by D19.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d5" value="as-is"><div class="q-option-body"><div class="q-option-title">Read strictly as-is — never re-file a foreign bundle <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">Respects independence; Duo-ization only as explicit opt-in.</div></div></label>
+    <label class="q-option"><input type="radio" name="d5" value="id-only"><div class="q-option-body"><div class="q-option-title">Mint <code>id:</code> only (safe, additive); never re-file folders</div><div class="q-option-rationale">Grants loss-free moves without imposing Duo's taxonomy.</div></div></label>
+    <label class="q-option"><input type="radio" name="d5" value="marker"><div class="q-option-body"><div class="q-option-title">Apply D19 only when a <code>duo-dialect: true</code> marker is present</div><div class="q-option-rationale">Explicit, per-vault opt-in to the full dialect.</div></div></label>
+    <label class="q-option"><input type="radio" name="d5" value="confirm"><div class="q-option-body"><div class="q-option-title">Full Duo-ization behind a one-time confirm</div><div class="q-option-rationale">Convenient but risks lossy re-filing.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d5" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 6 · Content axis — direction of travel</div>
+  <h3 class="q-prompt">Which way does the content model move?</h3>
+  <p class="q-context">The under-explored, higher-value direction is porting brainkit's validated policy INTO Duo.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d6" value="bk-into-duo"><div class="q-option-body"><div class="q-option-title">Port brainkit's content layer (status / task / <code>## Raw</code> / gap-analysis) into Duo <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">One richer content model; makes Duo's vault deliverable-capable.</div></div></label>
+    <label class="q-option"><input type="radio" name="d6" value="duo-into-bk"><div class="q-option-body"><div class="q-option-title">Push brainkit toward Duo's format only; keep content models divergent</div><div class="q-option-rationale">Lower effort; leaves Duo's vault thin.</div></div></label>
+    <label class="q-option"><input type="radio" name="d6" value="neither"><div class="q-option-body"><div class="q-option-title">Neither — keep both content models as-is for now</div><div class="q-option-rationale">Defer until brainkit is validated.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d6" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 7 · Spec-maturity prerequisite</div>
+  <h3 class="q-prompt">Do you write the loopkit contract + brainkit DESIGN before converging anything?</h3>
+  <p class="q-context"><code>DESIGN.md</code>/<code>FOUNDATION.md</code> are "Version ONE of the doc." stubs; loopkit isn't on disk.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d7" value="write-first"><div class="q-option-body"><div class="q-option-title">Yes — pin the contract + deliberate-exclusions first (blocker) <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">Makes "keeps the contract unchanged" checkable before harmonizing.</div></div></label>
+    <label class="q-option"><input type="radio" name="d7" value="validate-first"><div class="q-option-body"><div class="q-option-title">Validate on a real corpus first, THEN write the contract</div><div class="q-option-rationale">Let lived use shape the spec; drift risk meanwhile.</div></div></label>
+    <label class="q-option"><input type="radio" name="d7" value="harden-now"><div class="q-option-body"><div class="q-option-title">Harden now from first principles + Duo's lessons</div><div class="q-option-rationale">Fastest; riskiest — converges onto an unspecified target.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d7" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 8 · Upstream Google-OKF relationship</div>
+  <h3 class="q-prompt">What relationship do you declare with the Google OKF v0.1 spec?</h3>
+  <p class="q-context">Whether you promise conformance, track loosely, or push ideas upstream.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d8" value="superset"><div class="q-option-body"><div class="q-option-title">Strict superset — both are valid bare-OKF + documented dialects <span class="recommend-tag">Recommended</span></div><div class="q-option-rationale">Maximum interop; any OKF consumer can read your vaults.</div></div></label>
+    <label class="q-option"><input type="radio" name="d8" value="duo-primary"><div class="q-option-body"><div class="q-option-title">Duo dialect is primary; brainkit is a Duo-dialect consumer</div><div class="q-option-rationale">Tighter integration, less portable.</div></div></label>
+    <label class="q-option"><input type="radio" name="d8" value="loose"><div class="q-option-body"><div class="q-option-title">Track loosely — match marker + links, don't promise conformance</div><div class="q-option-rationale">Freedom to diverge; weaker interop.</div></div></label>
+    <label class="q-option"><input type="radio" name="d8" value="upstream"><div class="q-option-body"><div class="q-option-title">Contribute <code>id:</code> / D19 ideas upstream as OKF extensions</div><div class="q-option-rationale">Shapes the standard; slow, external dependency.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d8" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<details class="deferred">
+  <summary>Confidence &amp; corrections — what's verbatim vs. interpretation (read before citing)</summary>
+  <div class="deferred-body">
+    <p>Findings were adversarially fact-checked; overall reliability <b>solid</b>. Notes:</p>
+    <ul>
+      <li><b>Obsidian (added rev 2)</b> — from well-established behavior + Duo's own vault docs, not a new web pass. Accurate nuance: vanilla Obsidian does <em>not</em> enforce semantic folders (folders are optional; links resolve by basename regardless). The "folders carry meaning" reading is the <em>idiomatic practice</em> (PARA, folder-per-project, WBS/org trees) plus Dataview's ability to query <code>FROM "folder"</code>. The move-safety point (wikilinks resolve by name; Obsidian rewrites links on rename/move) is core behavior. Duo's "Obsidian mode" only changes link syntax + rollup mechanism — it still files flat via D19, so it is <em>not</em> idiomatic semantic-folder Obsidian.</li>
+      <li><b>Google OKF is real and Google-published.</b> Spec at <code>GoogleCloudPlatform/knowledge-catalog/okf/SPEC.md</code> (v0.1), announced Jun 12 2026 (Sam McVeety, Amir Hormati). "<i>The directory structure is independent of the domain</i>" (§3) is verbatim-confirmed. §6 = Index, §7 = Log. <b>Launch blog read in full (rev 4):</b> confirms path-is-identity ("<i>the file path is the concept's identity</i>") and states the two-layer framing verbatim — the link graph is "<i>richer than the parent/child links implied by the file system</i>." The blog name-checks <b>Obsidian, Notion, Hugo</b> + the AGENTS.md/CLAUDE.md family as the familiar shapes OKF formalizes for interop, and ships a graph-view visualizer (not a folder browser) as its reference consumer.</li>
+      <li><b>OKF §3/§4 read firsthand (rev 3).</b> "<i>The directory structure is independent of the domain</i>" (§3) confirms OKF is <b>agnostic</b> on nesting — it permits any depth, mandates/forbids none. But §4 is verbatim "<i>Concept ID — the path of the concept's file within the bundle, with the <code>.md</code> suffix removed</i>" — so OKF folders are <b>not pure drawers</b>: the path is the concept's stable <em>identity/address</em> (load-bearing for addressing, not for queries). "Drawer / tidiness" remains an accurate gloss for the <em>query</em> dimension only; corrected from the earlier blanket "drawers" framing. ("Ergonomic" was the same query-dimension gloss.)</li>
+      <li><b>Karpathy's "LLM Wiki"</b> is the gist <code>karpathy/442a6bf…</code> (Apr 4 2026). Folder core (<code>raw/</code> + <code>wiki/</code> + schema + root index/log) and the quotes are verbatim. The gist has <b>no explicit "flat good / nested bad" rule</b> — flat-over-nested is a well-supported structural inference. "LLM-as-compiler" is researcher framing; his metaphor is "<i>Obsidian is the IDE; the LLM is the programmer; the wiki is the codebase</i>." (That metaphor is also why Obsidian sits at the head of the lineage.)</li>
+      <li><b>brainkit</b> — from <code>dist/brainkit/{README,CLAUDE}.md</code> + templates. It is <b>0.1 "candidate, pending validation"</b> with empty <code>knowledge/</code>; <code>DESIGN.md</code>/<code>FOUNDATION.md</code> are "Version ONE of the doc." stubs; loopkit/karpathy-core not on disk — so "keeps loopkit's contract unchanged" is currently unverifiable.</li>
+      <li><b>Duo OKF</b> — code-verified (<code>filing.ts</code>, <code>listings.ts</code>, <code>move.ts</code>, <code>detect.ts</code>). Shipped + mechanism-verified, but <b>scale-untested</b> (watcher deferred). The known-parent re-file step is a documented processing concern, partly doc-asserted vs. code-located.</li>
+    </ul>
+  </div>
+</details>
+
+<details class="deferred">
+  <summary>Primary sources</summary>
+  <div class="deferred-body">
+    <p><b>Obsidian</b> — obsidian.md docs (vault = folder of markdown; wikilink resolution by basename; "Automatically update internal links" on move); Dataview <code>FROM "folder"</code> / <code>file.folder</code>; community methods (PARA, Johnny.Decimal). Plus Duo's own <code>skill/references/vault.md</code> on Obsidian mode.</p>
+    <p><b>Google OKF</b> — <code>github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md</code>; <code>cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing</code>.</p>
+    <p><b>Karpathy LLM Wiki</b> — <code>gist.github.com/karpathy/442a6bf555914893e9891c11519de94f</code>; launch post <code>x.com/karpathy/status/2039805659525644595</code>; <code>academy.dair.ai/blog/llm-knowledge-bases-karpathy</code>.</p>
+    <p><b>Duo OKF vault</b> — <code>skill/references/vault.md</code> · <code>docs/prd/enh-208-vault.md</code> · <code>.claude/rules/vault.md</code> · <code>core/vault/{filing,listings,move,detect,corpus,scaffold}.ts</code> · prior <code>docs/research/okf-vault-mode.html</code>.</p>
+    <p><b>brainkit</b> — <code>~/Documents/GitHub/loop-library/dist/brainkit/{README.md,CLAUDE.md,loop.manifest.json,CHANGELOG.md,knowledge/templates/*,work/README.md,PROJECT.md}</code> · <code>loop-library/README.md</code>.</p>
+  </div>
+</details>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 8 decisions answered</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  var DECISIONS = [
+    { id: 'd1', title: 'Folder-meaning fork (semantic overlay / flat / Obsidian)' },
+    { id: 'd2', title: 'Top-line framing within flat (axes vs unified vs separate)' },
+    { id: 'd3', title: 'Format axis — shared contract scope' },
+    { id: 'd4', title: 'brainkit id: minting rule' },
+    { id: 'd5', title: 'Duo behavior on foreign-OKF bundles' },
+    { id: 'd6', title: 'Content axis — direction of travel' },
+    { id: 'd7', title: 'Spec-maturity prerequisite' },
+    { id: 'd8', title: 'Upstream Google-OKF relationship' }
+  ];
+  var STORE_KEY = 'okf-brainkit-folder-hierarchy-r2';
+
+  function state() {
+    var s = {};
+    DECISIONS.forEach(function (d) {
+      var checked = document.querySelector('input[name="' + d.id + '"]:checked');
+      var notes = document.querySelector('.q-notes[data-decision="' + d.id + '"]');
+      s[d.id] = { value: checked ? checked.value : null, notes: notes ? notes.value : '' };
+    });
+    return s;
+  }
+  function save() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state())); } catch (e) {}
+    updateCount();
+  }
+  function restore() {
+    var raw = null;
+    try { raw = localStorage.getItem(STORE_KEY); } catch (e) {}
+    if (!raw) return;
+    var s; try { s = JSON.parse(raw); } catch (e) { return; }
+    DECISIONS.forEach(function (d) {
+      var saved = s[d.id]; if (!saved) return;
+      if (saved.value) {
+        var input = document.querySelector('input[name="' + d.id + '"][value="' + saved.value + '"]');
+        if (input) input.checked = true;
+      }
+      var notes = document.querySelector('.q-notes[data-decision="' + d.id + '"]');
+      if (notes && saved.notes) notes.value = saved.notes;
+    });
+  }
+  function updateCount() {
+    var s = state(), n = 0;
+    DECISIONS.forEach(function (d) { if (s[d.id].value) n++; });
+    document.getElementById('answered-count').textContent = String(n);
+  }
+  function payload() {
+    var s = state();
+    var lines = ['OKF / BRAINKIT FOLDER-HIERARCHY — DECISIONS (rev 2)', ''];
+    DECISIONS.forEach(function (d) {
+      var v = s[d.id].value ? s[d.id].value.toUpperCase() : 'UNANSWERED';
+      lines.push('[' + v + '] ' + d.title);
+      if (s[d.id].notes && s[d.id].notes.trim()) { lines.push('    notes: ' + s[d.id].notes.trim()); }
+      lines.push('');
+    });
+    return lines.join('\n');
+  }
+  document.querySelectorAll('input[type="radio"]').forEach(function (el) { el.addEventListener('change', save); });
+  document.querySelectorAll('.q-notes').forEach(function (el) { el.addEventListener('input', save); });
+  document.getElementById('copy-btn').addEventListener('click', function () {
+    var btn = this;
+    navigator.clipboard.writeText(payload()).then(function () {
+      btn.classList.add('copied'); var orig = btn.textContent; btn.textContent = 'Copied ✓';
+      setTimeout(function () { btn.classList.remove('copied'); btn.textContent = orig; }, 1800);
+    }).catch(function () {
+      var ta = document.createElement('textarea'); ta.value = payload();
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(ta);
+      btn.classList.add('copied'); var orig2 = btn.textContent; btn.textContent = 'Copied ✓';
+      setTimeout(function () { btn.classList.remove('copied'); btn.textContent = orig2; }, 1800);
+    });
+  });
+  restore(); updateCount();
+})();
+</script>
+
+</body>
+</html>
