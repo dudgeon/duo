@@ -52,6 +52,28 @@ export function isVaultRoot(dir: string): boolean {
   return detectVaultMode(dir) !== null
 }
 
+/** D5 (ENH-216 follow-up) — provenance heuristic: should Duo treat this vault
+ *  as FOREIGN (not its own to auto-mutate)?
+ *
+ *  A vault carrying a root `loop.manifest.json` belongs to a loopkit-family
+ *  kit (e.g. brainkit) — Duo did NOT create it. A brainkit vault is
+ *  byte-compatible OKF (same `okf_version` marker), so without this check Duo
+ *  would auto-rewrite its links on open. Returns true when the marker file is
+ *  present at the vault root.
+ *
+ *  DELIBERATE LIMITATION (owner decision "a"): this detects loopkit/brainkit-
+ *  family vaults only. A GENERIC third-party OKF bundle (no `loop.manifest.json`)
+ *  reads as native and is NOT protected — accepted to avoid stamping/migrating
+ *  Duo's own vaults. This gates the AUTO-relink-on-open path only; the explicit
+ *  `duo vault relink` verb is unaffected. */
+export function isForeignVault(dir: string): boolean {
+  try {
+    return fs.statSync(path.join(dir, 'loop.manifest.json')).isFile()
+  } catch {
+    return false
+  }
+}
+
 /** Walk up from `startPath` (a file or directory) to the nearest enclosing
  *  vault root, or null if none. Stops at the filesystem root. */
 export function findVaultRoot(startPath: string): string | null {
