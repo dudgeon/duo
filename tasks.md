@@ -19,7 +19,16 @@
 
 ### ENH-242: "Choose Vault…" should initialize an uninitialized folder (init-on-choose)
 
-**Status:** 🟡 Awaiting-decision (filed 2026-06-28, owner spike). **Priority:** P2. **Effort:** S–M. **Decision artifact:** [`docs/research/vault-init-on-choose.html`](docs/research/vault-init-on-choose.html) (interactive — 6 decision cards). **Ticket note:** allocated above ENH-241; sibling `angry-golick-03a970` holds 238/239 — 242 avoids collision.
+**Status:** 🆕 Decisions locked (2026-06-30) — gate cleared, ready to build, **deferred to AFTER the v0.13.2 cut**. Owner: build **starts with a prototype of the proposed dialog box**. **Priority:** P2. **Effort:** S–M. **Decision artifact:** [`docs/research/vault-init-on-choose.html`](docs/research/vault-init-on-choose.html) (owner walked it 2026-06-30). **Ticket note:** allocated above ENH-241; sibling `angry-golick-03a970` holds 238/239 — 242 avoids collision.
+
+**Decisions (locked 2026-06-30 — owner walked the artifact + confirmed in chat):**
+- **D1 — non-vault folder → open the New Vault dialog, prefilled** (folder + format + basename); one confirm → init + set default. Reuse `NewVaultModal` + `initVault`, no parallel init path. *(Owner left the radio unticked but confirmed "yes — my mistake"; D2/D3 only cohere with the modal.)*
+- **D2 — default format: OKF, but remember last-used** — first init OKF; thereafter default to the last format the user initialized.
+- **D3 — vault name: folder basename, editable** in the dialog.
+- **D4 — collision guard: create the vault, but REFUSE if it would overwrite an existing `index.md`** (data-safety). Owner OK'd keeping this one guard despite calling collisions a near-non-issue.
+- **D5 — folder inside an existing vault → set the ENCLOSING vault** as default (never nest a vault in a vault).
+- **D6 — CLI parity: add an init flag** (`duo vault default <path> --init`) for create-on-choose (4-surface sync).
+- **Likely relabel** the menu item to "Choose or Create Vault…".
 
 **Provenance.** Owner (2026-06-28): *"currently, 'settings >> default vault >> choose vault…' fails if the selected folder has not been initialized as a vault — 'choose vault' should in itself init a given folder as a vault."*
 
@@ -27,7 +36,7 @@
 
 **The change (pending decisions).** Make "Choose Vault…" create-on-choose: if the picked folder is a vault, set it (unchanged); if not, initialize it (then set as default). 6 decisions to lock in the artifact: D1 behavior on non-vault (reuse New Vault modal prefilled / lightweight confirm / silent), D2 default format (OKF), D3 name (basename editable), D4 collision guard (refuse overwriting an existing index.md), D5 nested-inside-a-vault (set the enclosing one), D6 CLI parity (`duo vault default <path> --init`). **Recommended bundle:** D1 reuse-modal · D2 OKF · D3 basename-editable · D4 safe-refuse-collision · D5 set-enclosing · D6 add-init-flag (+ likely relabel to "Choose or Create Vault…").
 
-**This entry is a DECISION GATE** — it stays in every smoke-walk manifest until the owner walks the artifact and pastes decisions back; build is blocked until then. **Build owed after decisions:** init-on-choose path (reusing the New Vault modal/`initVault`) + collision/nesting guards + the CLI `--init` flag (4-surface sync) + tests + live-verify + smoke-walk.
+**Gate CLEARED 2026-06-30** (owner walked the artifact + locked the decisions above) — no longer blocks a cut. **Build owed (post-v0.13.2-cut, START WITH A DIALOG PROTOTYPE per owner):** the init-on-choose path (reuse `NewVaultModal` + `initVault`) + the D4 collision guard + D5 enclosing-vault handling + the CLI `--init` flag (4-surface sync) + tests + live-verify + smoke-walk.
 
 ### ENH-232: Catch-up — rich re-entry for sessions whose worktree was removed
 **Status:** 🔵 Open (filed from ENH-231 walk #2, 2026-06-24). **P1.**

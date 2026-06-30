@@ -12,6 +12,26 @@
 > Live-validated via computer-use on a v0.13.2 local build. Will ship in the next
 > cut (currently v0.13.2 in-progress).
 
+> **D5 foreign-OKF guard** (#117, merged 2026-06-30, commit `83f1602`) — Duo's boot
+> auto-relink (`maybeAutoRelinkVault`) rewrote a FOREIGN OKF bundle's links because
+> it only checked `mode==='okf'`, not provenance. Now `isForeignVault` detects a
+> foreign bundle by a root `loop.manifest.json` (a loopkit/brainkit-family marker
+> Duo never writes) and skips the boot rewrite — respect the bundle as-is. Explicit
+> `duo vault relink` unaffected. 248/248 vault tests + typecheck clean. (From the
+> OKF/brainkit folder-hierarchy work — brainkit **v0.3.0** contract-v2 shipped to
+> the separate **loop-library** repo `main` via PR #14; decision docs live at
+> `docs/research/okf-brainkit-folder-hierarchy.html` + `docs/research/duo-changes-plain.html`.)
+
+> **ENH-242 gate CLEARED 2026-06-30** — owner walked the decision artifact + locked
+> all 6 decisions (recorded in `tasks.md` ENH-242). Build is DEFERRED to after the
+> cut and **starts with a prototype of the New-Vault-style dialog** (owner instruction).
+
+> **NEXT ACTION (post-compaction):** run the **v0.13.2 cut** (cut-version skill — the
+> ENH-242 🟡 gate is now clear, so Step 0 won't block). It bundles BUG-212 (`[[` fix),
+> ENH-240/241 (frontmatter expand-default + clickable vault links), the ENH-242 *spike
+> artifact only*, and the **D5 guard**. **ENH-242 build is NOT in this cut.** AFTER the
+> cut: build ENH-242 — **dialog prototype first**.
+
 ## v0.13.0 cut 2026-06-27 — Shell-command cron jobs + the Send→agent focus fix
 
 > **Shipped & cut (NOT yet pushed/tagged unless noted):** **ENH-237** (#112)
