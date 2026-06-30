@@ -19,7 +19,7 @@
 
 ### ENH-242: "Choose Vault…" should initialize an uninitialized folder (init-on-choose)
 
-**Status:** 🆕 Decisions locked (2026-06-30) — gate cleared, ready to build, **deferred to AFTER the v0.13.2 cut**. Owner: build **starts with a prototype of the proposed dialog box**. **Priority:** P2. **Effort:** S–M. **Decision artifact:** [`docs/research/vault-init-on-choose.html`](docs/research/vault-init-on-choose.html) (owner walked it 2026-06-30). **Ticket note:** allocated above ENH-241; sibling `angry-golick-03a970` holds 238/239 — 242 avoids collision.
+**Status:** 🚧 Built 2026-06-30 (branch `claude/enh-242-init-on-choose`, 3 commits) — typecheck + full suite (2095) green; **core + CLI verified end-to-end** (D4/D5/D2/init exercised against the real core via an isolated-HOME CLI run); **owes the live UI walk** (native folder-picker → prefilled modal → create — not DOM-probe-able, lands at the cut's `/smoke-walk`). Owner approved the dialog prototype (Atelier render) 2026-06-30. **Priority:** P2. **Effort:** S–M. **Decision artifact:** [`docs/research/vault-init-on-choose.html`](docs/research/vault-init-on-choose.html) (owner walked it 2026-06-30). **Ticket note:** allocated above ENH-241; sibling `angry-golick-03a970` holds 238/239 — 242 avoids collision.
 
 **Decisions (locked 2026-06-30 — owner walked the artifact + confirmed in chat):**
 - **D1 — non-vault folder → open the New Vault dialog, prefilled** (folder + format + basename); one confirm → init + set default. Reuse `NewVaultModal` + `initVault`, no parallel init path. *(Owner left the radio unticked but confirmed "yes — my mistake"; D2/D3 only cohere with the modal.)*
@@ -36,7 +36,14 @@
 
 **The change (pending decisions).** Make "Choose Vault…" create-on-choose: if the picked folder is a vault, set it (unchanged); if not, initialize it (then set as default). 6 decisions to lock in the artifact: D1 behavior on non-vault (reuse New Vault modal prefilled / lightweight confirm / silent), D2 default format (OKF), D3 name (basename editable), D4 collision guard (refuse overwriting an existing index.md), D5 nested-inside-a-vault (set the enclosing one), D6 CLI parity (`duo vault default <path> --init`). **Recommended bundle:** D1 reuse-modal · D2 OKF · D3 basename-editable · D4 safe-refuse-collision · D5 set-enclosing · D6 add-init-flag (+ likely relabel to "Choose or Create Vault…").
 
-**Gate CLEARED 2026-06-30** (owner walked the artifact + locked the decisions above) — no longer blocks a cut. **Build owed (post-v0.13.2-cut, START WITH A DIALOG PROTOTYPE per owner):** the init-on-choose path (reuse `NewVaultModal` + `initVault`) + the D4 collision guard + D5 enclosing-vault handling + the CLI `--init` flag (4-surface sync) + tests + live-verify + smoke-walk.
+**Gate CLEARED 2026-06-30** (owner walked the artifact + locked the decisions above) — no longer blocks a cut.
+
+**Built 2026-06-30** (owner reversed order: build → then cut). Three commits on `claude/enh-242-init-on-choose`:
+- **`0514977` (D4)** — `initVault` refuses an OKF init over an existing `index.md` (was a silent skip → confusing downstream `setDefaultVault` throw); `--force` escape hatch; +3 scaffold tests.
+- **`946bdf1` (D1/D2/D5)** — `chooseDefaultVaultViaDialog` rewrite: vault-root/enclosing → set (D5, never nests, info dialog), else open `NewVaultModal` PREFILLED (folder+basename+last-used format) for one-confirm init+set (D1); `DuoSettings.lastVaultFormat` sticky memory (D2); prefill threaded through `openNewVaultModal`→`NAV_OPEN_NEW_VAULT_MODAL`→preload→App→modal; menu relabel "Choose **or Create** Vault…"; picker gains `createDirectory`; +3 settings tests.
+- **`46f1bb8` (D6)** — `duo vault default <path> --init` (CLI twin) + 4-surface sync + binary; verified end-to-end (5 isolated-HOME scenarios, real `vault.json` untouched).
+
+**Owes:** the live UI walk (native-picker → prefilled modal → create round-trip), which is not DOM-probe-able — fits the cut's `/smoke-walk`. The dialog *look + copy* were owner-approved via the Atelier prototype render.
 
 ### ENH-232: Catch-up — rich re-entry for sessions whose worktree was removed
 **Status:** 🔵 Open (filed from ENH-231 walk #2, 2026-06-24). **P1.**

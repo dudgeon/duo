@@ -22,15 +22,21 @@
 > the separate **loop-library** repo `main` via PR #14; decision docs live at
 > `docs/research/okf-brainkit-folder-hierarchy.html` + `docs/research/duo-changes-plain.html`.)
 
-> **ENH-242 gate CLEARED 2026-06-30** — owner walked the decision artifact + locked
-> all 6 decisions (recorded in `tasks.md` ENH-242). Build is DEFERRED to after the
-> cut and **starts with a prototype of the New-Vault-style dialog** (owner instruction).
+> **ENH-242 BUILT 2026-06-30** (owner reversed order: build → then cut). Dialog
+> prototype rendered in Atelier + owner-approved (look + copy), then built on
+> `claude/enh-242-init-on-choose` (3 commits: D4 collision guard · D1/D2/D5 init-on-
+> choose UI flow + "Choose **or Create** Vault…" + last-used-format memory · D6 CLI
+> `vault default --init` + 4-surface sync). typecheck + full suite (2095) green;
+> core + CLI verified end-to-end (isolated-HOME, real `vault.json` untouched).
+> **Owes:** the live UI walk (native-picker → prefilled modal — not DOM-probe-able)
+> → folds into the cut's `/smoke-walk`. Details in `tasks.md` ENH-242.
 
-> **NEXT ACTION (post-compaction):** run the **v0.13.2 cut** (cut-version skill — the
-> ENH-242 🟡 gate is now clear, so Step 0 won't block). It bundles BUG-212 (`[[` fix),
-> ENH-240/241 (frontmatter expand-default + clickable vault links), the ENH-242 *spike
-> artifact only*, and the **D5 guard**. **ENH-242 build is NOT in this cut.** AFTER the
-> cut: build ENH-242 — **dialog prototype first**.
+> **NEXT ACTION:** (1) push `claude/enh-242-init-on-choose` + open the PR; (2) live
+> UI walk of the create-on-choose flow; (3) merge to main; (4) run the **v0.13.2 cut**
+> (cut-version skill — ENH-242 🟡 gate already clear) bundling BUG-212 (`[[` fix),
+> ENH-240/241 (frontmatter expand-default + clickable vault links), the **D5 guard**,
+> **and now the full ENH-242 feature** (the prior "spike artifact only" plan is
+> superseded — the feature is built).
 
 ## v0.13.0 cut 2026-06-27 — Shell-command cron jobs + the Send→agent focus fix
 
