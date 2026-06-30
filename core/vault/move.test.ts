@@ -14,6 +14,7 @@ import {
   moveNote,
   relinkVault,
 } from './move'
+import { isForeignVault } from './detect'
 
 let root: string
 beforeEach(() => {
@@ -192,5 +193,25 @@ describe('relinkVault — out-of-band repair (D5)', () => {
     const r = relinkVault(root, { dryRun: true })
     expect(r.repaired).toHaveLength(1)
     expect(read('m.md')).toBe(before) // unchanged
+  })
+})
+
+describe('D5 — foreign-vault auto-relink guard (isForeignVault)', () => {
+  it('flags a vault carrying loop.manifest.json as foreign (a Duo-native OKF vault is not)', () => {
+    write('index.md', '---\nokf_version: "0.1"\ntype: index\n---\n')
+    expect(isForeignVault(root)).toBe(false) // Duo-native OKF vault
+    write('loop.manifest.json', '{ "name": "brainkit", "version": "0.2.0" }')
+    expect(isForeignVault(root)).toBe(true) // loopkit/brainkit-family vault
+  })
+
+  it('flags a foreign bundle whose links Duo WOULD rewrite, so the boot gate skips the write', () => {
+    // A loopkit/brainkit-family OKF bundle with a dangling link relinkVault WOULD repair.
+    write('loop.manifest.json', '{ "name": "brainkit", "version": "0.2.0" }')
+    write('people/customer-orders.md', '---\nid: c1\ntype: note\n---\nOrders.\n')
+    write('m.md', '---\ntype: note\n---\n[Orders](./docs/customer-orders.md)\n')
+    // Proof Duo WOULD mutate this bundle if the boot write ran:
+    expect(relinkVault(root, { dryRun: true }).repaired).toHaveLength(1)
+    // ...but it's foreign, so maybeAutoRelinkVault (electron/main.ts) returns early.
+    expect(isForeignVault(root)).toBe(true)
   })
 })

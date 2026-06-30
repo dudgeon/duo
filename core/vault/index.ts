@@ -19,6 +19,7 @@ export {
   detectVaultMode,
   readOkfVersion,
   findVaultWithMode,
+  isForeignVault,
 } from './detect'
 // ENH-216 — the single node-free link helper (core/markdown/vaultLinks.ts).
 // Re-exported here so vault consumers import rel-path/slug/extract logic

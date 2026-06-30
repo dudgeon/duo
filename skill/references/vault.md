@@ -105,6 +105,12 @@ needs link repair. Two paths:
 - **Auto-relink on vault open** — Duo runs `relink` automatically when a vault
   opens, so out-of-band moves self-heal as far as the keys allow; the explicit
   verb is for headless/CI runs and for inspecting the ambiguous/broken report.
+  **D5 exception:** Duo NEVER auto-relinks a **foreign** OKF bundle on open — one
+  carrying a root `loop.manifest.json` (a loopkit/brainkit-family vault, e.g. a
+  brainkit graphbook, that Duo did not create). It's respected as-is, never
+  link-rewritten; the explicit `duo vault relink` verb still works on it if you
+  ask. (A generic third-party OKF bundle without that marker is not detected — a
+  deliberate limitation to avoid stamping/migrating Duo's own vaults.)
 
 ## Capture by narration
 

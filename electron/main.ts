@@ -4062,6 +4062,18 @@ function maybeAutoRelinkVault(root: string | null, opts: { write?: boolean } = {
     return // unreadable root — nothing to repair
   }
   if (mode !== 'okf') return
+  // D5 (owner decision "a") — a FOREIGN OKF bundle (one carrying a root
+  // `loop.manifest.json`, i.e. a loopkit/brainkit-family vault Duo did NOT
+  // create) is respected as-is: NEVER auto-rewrite its links on open. The
+  // explicit `duo vault relink` verb is unaffected — this gates the AUTO path
+  // only. (Generic third-party OKF bundles without the marker are not detected
+  // — accepted to avoid stamping/migrating Duo's own vaults; see detect.ts.)
+  if (vaultCore.isForeignVault(root)) {
+    if (write) {
+      console.log(`[ENH-216] auto-relink skipped — foreign vault (loop.manifest.json present): ${root}`)
+    }
+    return
+  }
   // Mark BEFORE scheduling so a second trigger in the same window is dropped;
   // the entry self-clears after the dedupe window so a later genuine re-open
   // (e.g. a note moved, then the vault re-picked) relinks again.
