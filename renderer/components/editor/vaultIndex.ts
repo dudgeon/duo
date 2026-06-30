@@ -109,11 +109,15 @@ export function useVaultIndex(activePath: string | null): VaultIndex {
     setRefreshTick((n) => n + 1)
   }, [])
 
-  // Re-resolve when the global default vault changes (BUG-212). The header
-  // switcher, Settings → Default Vault, and `duo vault default` all broadcast
-  // `duo-vault-default-changed` (same event App.tsx listens to). Bumping the
-  // tick re-runs Effect 1, so a file open in an arbitrary folder picks up a
-  // freshly-set default for `[[` autocomplete without being reopened.
+  // Re-resolve when the global default vault changes (BUG-212). The IN-APP
+  // surfaces — the VaultView header switcher and NewVaultModal — broadcast
+  // `duo-vault-default-changed` (same event App.tsx listens to), so bumping the
+  // tick re-runs Effect 1 and a file open in an arbitrary folder picks up the
+  // freshly-set default for `[[` autocomplete WITHOUT being reopened. A
+  // `duo vault default` CLI change does NOT dispatch this event (it writes
+  // ~/.claude/duo/vault.json in-process with no main→renderer broadcast); that
+  // path is instead picked up on the next (re)open, since Effect 1 reads
+  // `getDefault` live on every `activePath` change.
   useEffect(() => {
     const onChanged = () => setRefreshTick((n) => n + 1)
     window.addEventListener('duo-vault-default-changed', onChanged)
