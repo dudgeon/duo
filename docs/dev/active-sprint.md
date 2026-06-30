@@ -1,4 +1,29 @@
-# Active sprint state — v0.13.0 shipped (shell cron jobs + Send→agent focus fix); next: triage
+# Active sprint state — v0.13.0 shipped (shell cron jobs + Send→agent focus fix); in-flight: ENH-239 design preview harness
+
+## ENH-239 (in-flight, branch `claude/angry-golick-03a970`) — design preview harness + 202-story pass
+
+> **Why:** ENH-238 stack study → Option A (stay Electron, unlock the Claude-design
+> loop) instead of migrating. The renderer now runs **outside Electron** so Claude
+> can iterate UI in a plain browser + screenshot it. Guide:
+> [`storybook-harness.md`](storybook-harness.md). PRD:
+> [`../prd/enh-239-design-preview-harness.md`](../prd/enh-239-design-preview-harness.md).
+>
+> **Shipped to the branch (not yet PR'd):** Phase 0 — `createMockElectron()` typed
+> mock seam + a browser-runnable renderer (`npm run preview:ui`). Phase 1 —
+> Storybook on the Vite builder + global mock decorator. D3 — a parallel 9-agent
+> workflow authored **67 story files / 202 stories** across the whole component
+> library (MarkdownEditor deferred). Verified exhaustively: typecheck +
+> `build-storybook` clean + all 202 stories render-checked (0 errors). 5 commits
+> (`bfc3c12` → `e4a412f` + this doc commit). Dev-tooling only — **no version cut**
+> (nothing ships in the Electron bundle).
+>
+> **Deferred (tracked in tasks.md § ENH-239, not dropped):** `/design-sync`
+> round-trip (owner-gated — needs `/design-login` in an interactive terminal +
+> the card-bundle build); `@duo/ui` extraction (recommend defer — churns story
+> imports for marginal gain); Lost Pixel (recommend defer until CI exists).
+>
+> **Next move:** owner decision on the deferrals, then open the PR. Two pre-existing
+> doc-debt items still stand (RESUME.md stale; ~10 ✅ entries un-archived).
 
 ## v0.13.0 cut 2026-06-27 — Shell-command cron jobs + the Send→agent focus fix
 
