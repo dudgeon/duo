@@ -2874,9 +2874,15 @@ async function main(): Promise<void> {
           // Vaults detected from the cwd (enclosing + nested).
           out(vault.listVaults(process.cwd()))
         } else if (sub === 'default') {
-          // `duo vault default`        → print the current default (JSON)
-          // `duo vault default <path>` → set it (validates it's a vault)
-          // `duo vault default --clear` → unset it
+          // `duo vault default`                 → print the current default (JSON)
+          // `duo vault default <path>`          → set it (validates it's a vault)
+          // `duo vault default <path> --init`   → ENH-242 D6: create-on-choose —
+          //     init a bare folder then set it as default (CLI twin of the
+          //     "Choose or Create Vault…" dialog). [--format=okf|obsidian]
+          //     (defaults to OKF, the dialog default) [--name "…"]. If <path>
+          //     is already a vault or sits INSIDE one, set the ENCLOSING vault
+          //     instead (D5 — never nest a vault in a vault).
+          // `duo vault default --clear`         → unset it
           // Every shape echoes `knownVaults` too (the self-healed list the
           // Settings picker offers): setting records the vault there, and
           // --clear preserves the list — the echo makes both visible.
@@ -2884,9 +2890,50 @@ async function main(): Promise<void> {
             vault.clearDefaultVault()
             out({ defaultVault: null, knownVaults: vault.listKnownVaults() })
           } else {
-            const target = positionalArgs(subRest, [])[0]
-            if (target) {
+            const target = positionalArgs(subRest, ['--format', '--name'])[0]
+            if (target && subRest.includes('--init')) {
+              const abs = path.resolve(process.cwd(), target)
+              // D5 — findVaultRoot is self-inclusive: if <path> is a vault root
+              // or sits inside one, set the enclosing vault (never nest).
+              const enclosing = vault.findVaultRoot(abs)
+              if (enclosing) {
+                out({
+                  defaultVault: vault.setDefaultVault(enclosing),
+                  knownVaults: vault.listKnownVaults(),
+                  created: [],
+                  note:
+                    enclosing === abs
+                      ? 'already a vault — set as default'
+                      : `inside existing vault — set ${enclosing} as default (a vault is never nested inside another)`,
+                })
+              } else {
+                // Bare folder → init then set. Format defaults to OKF (the
+                // dialog default; the bare `vault init` verb REQUIRES --format,
+                // but create-on-choose mirrors the dialog's OKF default).
+                const formatRaw =
+                  subRest.find((a) => a.startsWith('--format='))?.slice('--format='.length) ??
+                  flagValue(subRest, '--format')
+                if (formatRaw && formatRaw !== 'okf' && formatRaw !== 'obsidian') {
+                  die(`unknown --format "${formatRaw}" (expected okf or obsidian)`)
+                }
+                const name =
+                  subRest.find((a) => a.startsWith('--name='))?.slice('--name='.length) ??
+                  flagValue(subRest, '--name')
+                const result = vault.initVault(abs, { format: formatRaw || undefined, name })
+                vault.rememberVault(result.root)
+                vault.setDefaultVault(result.root)
+                for (const w of result.warnings) process.stderr.write(`duo: warning — ${w}\n`)
+                out({
+                  ...result,
+                  defaultVault: result.root,
+                  knownVaults: vault.listKnownVaults(),
+                  madeDefault: true,
+                })
+              }
+            } else if (target) {
               out({ defaultVault: vault.setDefaultVault(target), knownVaults: vault.listKnownVaults() })
+            } else if (subRest.includes('--init')) {
+              die('Usage: duo vault default <path> --init [--format=okf|obsidian] [--name "…"]')
             } else {
               out({ defaultVault: vault.readDefaultVault(), knownVaults: vault.listKnownVaults() })
             }

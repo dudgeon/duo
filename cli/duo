@@ -3702,6 +3702,11 @@ function initVault(folder, opts = {}) {
       `${root} is already a vault (has an okf_version index.md or .obsidian/). Pass --force to (re)write the starter scaffold files \u2014 it overwrites edited starter templates / processing.base / README / index.md, but never touches your own notes.`
     );
   }
+  if (mode === "okf" && !opts.force && import_node_fs8.default.existsSync(import_node_path8.default.join(root, "index.md"))) {
+    throw new Error(
+      `${root} already contains an index.md (not an OKF vault marker). Refusing to initialize an OKF vault here \u2014 it would shadow or overwrite your file. Pick an empty folder, choose Obsidian format, or pass --force to overwrite.`
+    );
+  }
   const created = [];
   const warnings = [];
   const title = opts.name ?? import_node_path8.default.basename(root);
@@ -7792,9 +7797,39 @@ ${res.pr.url}`);
             clearDefaultVault();
             out({ defaultVault: null, knownVaults: listKnownVaults() });
           } else {
-            const target = positionalArgs(subRest, [])[0];
-            if (target) {
+            const target = positionalArgs(subRest, ["--format", "--name"])[0];
+            if (target && subRest.includes("--init")) {
+              const abs = path16.resolve(process.cwd(), target);
+              const enclosing = findVaultRoot(abs);
+              if (enclosing) {
+                out({
+                  defaultVault: setDefaultVault(enclosing),
+                  knownVaults: listKnownVaults(),
+                  created: [],
+                  note: enclosing === abs ? "already a vault \u2014 set as default" : `inside existing vault \u2014 set ${enclosing} as default (a vault is never nested inside another)`
+                });
+              } else {
+                const formatRaw = subRest.find((a) => a.startsWith("--format="))?.slice("--format=".length) ?? flagValue(subRest, "--format");
+                if (formatRaw && formatRaw !== "okf" && formatRaw !== "obsidian") {
+                  die(`unknown --format "${formatRaw}" (expected okf or obsidian)`);
+                }
+                const name = subRest.find((a) => a.startsWith("--name="))?.slice("--name=".length) ?? flagValue(subRest, "--name");
+                const result = initVault(abs, { format: formatRaw || void 0, name });
+                rememberVault(result.root);
+                setDefaultVault(result.root);
+                for (const w of result.warnings) process.stderr.write(`duo: warning \u2014 ${w}
+`);
+                out({
+                  ...result,
+                  defaultVault: result.root,
+                  knownVaults: listKnownVaults(),
+                  madeDefault: true
+                });
+              }
+            } else if (target) {
               out({ defaultVault: setDefaultVault(target), knownVaults: listKnownVaults() });
+            } else if (subRest.includes("--init")) {
+              die('Usage: duo vault default <path> --init [--format=okf|obsidian] [--name "\u2026"]');
             } else {
               out({ defaultVault: readDefaultVault(), knownVaults: listKnownVaults() });
             }
