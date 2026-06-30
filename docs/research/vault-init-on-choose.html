@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="duo-editable" content="false">
 <title>ENH-242 · "Choose Vault…" should initialize an uninitialized folder</title>
 <style>
@@ -60,6 +61,11 @@ details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(
 .flow .now { color: var(--fail); font-weight: 600; }
 .flow .want { color: var(--pass); font-weight: 600; }
 .rec { color: var(--pass); }
+@media (max-width: 640px) {
+  body { padding: 18px 16px 90px; }
+  header.page-head h1 { font-size: 20px; }
+  .copy-bar { margin: 24px -16px -90px; padding: 14px 16px; }
+}
 </style>
 </head>
 <body>
