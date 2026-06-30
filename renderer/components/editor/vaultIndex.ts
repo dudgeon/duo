@@ -10,7 +10,7 @@
 // the returned `refresh` callback when the user adds/removes files.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { findVaultRootAndMode, walkVaultFiles, type VaultFile } from './wikilinkResolver'
+import { findVaultRootWithDefault, walkVaultFiles, type VaultFile } from './wikilinkResolver'
 import type { VaultMode } from '../../../core/markdown/vaultLinks'
 
 export interface VaultIndex {
@@ -60,11 +60,18 @@ export function useVaultIndex(activePath: string | null): VaultIndex {
   const [refreshTick, setRefreshTick] = useState(0)
   const cancelledRef = useRef(false)
 
-  // Effect 1: resolve the vault root + mode for the active path (D4).
+  // Effect 1: resolve the vault root + mode for the active path (D4), with a
+  // DEFAULT-VAULT FALLBACK (BUG-212). `findVaultRootWithDefault` returns the
+  // active file's enclosing vault, else the global default vault — so `[[`
+  // autocomplete (and the silent-stub create row) work in files that live
+  // OUTSIDE any vault, exactly as ⌘⇧F search / ⇧⌘N capture already do via
+  // `resolveVaultForUi`. Depends on `refreshTick` so a `duo-vault-default-changed`
+  // broadcast re-resolves the root (a newly-set default lights up live, without
+  // reopening the file).
   useEffect(() => {
     cancelledRef.current = false
     let cancelled = false
-    void findVaultRootAndMode(activePath).then((result) => {
+    void findVaultRootWithDefault(activePath).then((result) => {
       if (cancelled) return
       const root = result?.root ?? null
       // Only update when the root actually changes — avoids triggering
@@ -75,7 +82,7 @@ export function useVaultIndex(activePath: string | null): VaultIndex {
       setMode(result?.mode ?? 'obsidian')
     })
     return () => { cancelled = true }
-  }, [activePath])
+  }, [activePath, refreshTick])
 
   // Effect 2: walk the vault root.
   useEffect(() => {
@@ -100,6 +107,21 @@ export function useVaultIndex(activePath: string | null): VaultIndex {
 
   const refresh = useCallback(() => {
     setRefreshTick((n) => n + 1)
+  }, [])
+
+  // Re-resolve when the global default vault changes (BUG-212). The IN-APP
+  // surfaces — the VaultView header switcher and NewVaultModal — broadcast
+  // `duo-vault-default-changed` (same event App.tsx listens to), so bumping the
+  // tick re-runs Effect 1 and a file open in an arbitrary folder picks up the
+  // freshly-set default for `[[` autocomplete WITHOUT being reopened. A
+  // `duo vault default` CLI change does NOT dispatch this event (it writes
+  // ~/.claude/duo/vault.json in-process with no main→renderer broadcast); that
+  // path is instead picked up on the next (re)open, since Effect 1 reads
+  // `getDefault` live on every `activePath` change.
+  useEffect(() => {
+    const onChanged = () => setRefreshTick((n) => n + 1)
+    window.addEventListener('duo-vault-default-changed', onChanged)
+    return () => window.removeEventListener('duo-vault-default-changed', onChanged)
   }, [])
 
   return { vaultRoot, mode, files, loading, refresh }
