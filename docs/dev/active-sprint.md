@@ -1,5 +1,17 @@
 # Active sprint state — v0.13.0 shipped (shell cron jobs + Send→agent focus fix); next: triage
 
+## Post-v0.13.0 merges to `main` (unreleased — no cut yet)
+
+> **BUG-212** (#115, merged 2026-06-29) — `[[` autocomplete now falls back to the
+> **default vault** in files outside any vault (the suggester + `@` mention popover
+> + `⌘O` switcher share one index that previously resolved the vault *solely* by
+> walking up from the active file → empty popover everywhere outside a vault, which
+> made the persisted default *look* "lost on restart"). New
+> `findVaultRootWithDefault` (enclosing-vault-first / default-second, mirroring the
+> CLI's `resolveVaultOrDefault`); cmd+click wikilink-open uses the same resolver.
+> Live-validated via computer-use on a v0.13.2 local build. Will ship in the next
+> cut (currently v0.13.2 in-progress).
+
 ## v0.13.0 cut 2026-06-27 — Shell-command cron jobs + the Send→agent focus fix
 
 > **Shipped & cut (NOT yet pushed/tagged unless noted):** **ENH-237** (#112)
