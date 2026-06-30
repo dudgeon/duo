@@ -76,3 +76,6 @@ docs/dev/worksheets/*
 # file. Not a commit-worthy artifact (gets emptied as items move
 # to Processed and eventually pruned).
 idle-thoughts.md
+
+# Storybook static build output (ENH-239)
+storybook-static/
