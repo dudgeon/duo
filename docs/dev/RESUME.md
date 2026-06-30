@@ -1,4 +1,5 @@
 # Resume after compaction — current state (2026-06-21)
+# ⚠ STALE (pre-v0.13.0) — pending a from-scratch refresh. For latest `main` state see `docs/dev/active-sprint.md`. Most recent merge: BUG-212 ([[ default-vault fallback, #115, 2026-06-29).
 # ⚠ THIS WORKTREE (serene-lumiere-3cccdd) = ENH-224 FILE-OPEN FLOW — full state in `docs/prd/enh-224-file-open-flow.md`
 
 > **Post-compaction orientation (2026-06-21).** This worktree builds **ENH-224**
