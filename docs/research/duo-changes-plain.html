@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="duo-editable" content="false">
+<title>Duo changes — what's actually needed (plain English)</title>
+<style>
+:root {
+  --paper: #fbf8f1; --paper-deep: #f3ede0; --paper-edge: #e8e0cb; --paper-rule: #d9cea8;
+  --ink: #2b2620; --ink-soft: #4a4238; --ink-mute: #6f6557; --ink-ghost: #9a9080;
+  --accent: #c46a1c; --accent-soft: #f4d9b6;
+  --pass: #4a7d3e; --fail: #b13e3a; --warn: #b07527;
+  --code-bg: #2b2823; --code-ink: #e8e0cb;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif; font-size: 15px; line-height: 1.55; }
+body { padding: 28px 36px 80px; max-width: 860px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 14px; margin-bottom: 20px; }
+header.page-head h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 23px; }
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 6px; }
+.intro { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 14px 16px; margin-bottom: 26px; font-size: 14px; color: var(--ink-soft); }
+.intro strong { color: var(--ink); }
+h2 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 600; margin: 32px 0 12px; font-size: 19px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px; }
+p { margin: 9px 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; }
+ul { margin: 8px 0; padding-left: 22px; } li { margin: 5px 0; }
+
+/* your-words quote */
+.yourwords { border-left: 4px solid var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--paper)); border-radius: 0 6px 6px 0; padding: 9px 13px; margin: 9px 0; font-size: 13.5px; }
+.yourwords .lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 800; color: var(--accent); display: block; margin-bottom: 3px; }
+.yourwords q { font-style: italic; color: var(--ink); }
+.yourwords q:before { content: "\201C"; } .yourwords q:after { content: "\201D"; }
+
+/* decision cards */
+.dcard { background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 13px 15px; margin: 12px 0; }
+.dcard h3 { margin: 0 0 6px; font-size: 15.5px; }
+.dcard p { margin: 6px 0; font-size: 13.5px; color: var(--ink-soft); }
+.dcard p strong, .dcard .plain { color: var(--ink); }
+
+/* change cards with badge */
+.change { background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 14px 16px; margin: 14px 0; border-top: 4px solid var(--paper-rule); }
+.change.necessary { border-top-color: var(--accent); }
+.change.optional { border-top-color: var(--ink-ghost); }
+.change.docs { border-top-color: var(--pass); }
+.change h3 { margin: 0 0 4px; font-size: 16px; }
+.change .badges { margin: 2px 0 8px; }
+.badge { display: inline-block; font-size: 10px; text-transform: uppercase; font-weight: 800; letter-spacing: 0.05em; padding: 2px 8px; border-radius: 9px; margin-right: 5px; }
+.b-need { background: var(--accent-soft); color: var(--accent); }
+.b-opt { background: var(--paper-deep); color: var(--ink-mute); border: 1px solid var(--paper-rule); }
+.b-docs { background: color-mix(in srgb, var(--pass) 18%, var(--paper)); color: var(--pass); }
+.b-parked { background: color-mix(in srgb, var(--warn) 20%, var(--paper)); color: var(--warn); }
+.change p { margin: 7px 0; font-size: 13.5px; color: var(--ink-soft); }
+.change .line { color: var(--ink); }
+.change .pro { color: var(--pass); font-weight: 600; }
+.change .con { color: var(--fail); font-weight: 600; }
+.change .plainlead { color: var(--ink); font-weight: 600; }
+
+.bottomline { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 14px 16px; margin: 16px 0; }
+.bottomline ul { margin: 6px 0; }
+
+@media (max-width: 640px) {
+  body { padding: 18px 15px 70px; font-size: 15px; }
+  header.page-head h1 { font-size: 20px; }
+  h2 { font-size: 17.5px; }
+}
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Duo changes — what's actually needed</h1>
+  <div class="meta"><span class="pill">Plain English</span><span class="pill">For your review</span> 2026-06-29 · brainkit v0.3.0 already merged</div>
+</header>
+
+<div class="intro">
+  <strong>You said:</strong> <em>"the duo changes honestly seem more like a side quest you invented than
+  something we've aligned on."</em> Fair hit. So here it is straight: exactly which Duo changes come from
+  decisions <strong>you</strong> made, which are optional, and which are just paperwork — with your own
+  words quoted so you can check I understood you. <strong>Nothing is shipped</strong> except one small
+  thing I got ahead of myself on, and that's parked, not on Duo's main.
+</div>
+
+<h2>1 · The decisions you made (in your words)</h2>
+<p>Four of your choices touch Duo. Here's each in plain English, with what you actually typed.</p>
+
+<div class="dcard">
+  <h3>Leave other people's folders alone</h3>
+  <p class="plain">When Duo opens a notes folder it didn't create — like a brainkit graphbook — it shouldn't quietly edit what's inside.</p>
+  <div class="yourwords"><span class="lbl">Your words</span><q>[ID-ONLY] Duo behavior on foreign-OKF bundles</q> — and when I asked how Duo should tell its own folders from someone else's, you picked the simple option: <q>a</q>.</div>
+</div>
+
+<div class="dcard">
+  <h3>Bring brainkit's good parts into Duo's own notes</h3>
+  <p class="plain">brainkit tracks things Duo's notebook doesn't (how trustworthy a note is, real tasks, keeping the original wording). You chose to pull those <em>into</em> Duo — not the other way around.</p>
+  <div class="yourwords"><span class="lbl">Your words</span><q>[BK-INTO-DUO] Content axis — direction of travel</q></div>
+</div>
+
+<div class="dcard">
+  <h3>Folders follow the parent</h3>
+  <p class="plain">A note that belongs to something nests inside it, building a folder tree that mirrors the work-breakdown — automatically.</p>
+  <div class="yourwords"><span class="lbl">Your words</span><q>g7 - new default; if an entity has a parent (this is the primary axis), that drives sub-pathing</q> — plus <q>[DERIVED-PATH]</q> on the folder question.</div>
+</div>
+
+<div class="dcard">
+  <h3>Same file format — make it official</h3>
+  <p class="plain">Duo and brainkit use the same plain-markdown format plus a shared "id" tag; say so officially so they're known to interoperate.</p>
+  <div class="yourwords"><span class="lbl">Your words</span><q>[OKF-PLUS-ID] Format axis</q> and <q>[SUPERSET] Upstream Google-OKF relationship</q></div>
+</div>
+
+<h2>2 · What each means for Duo — and how big it really is</h2>
+<p>This is the honest accounting. The badge tells you whether it's a real must-do, optional, or just docs.</p>
+
+<div class="change necessary">
+  <h3>A · The foreign-folder guard</h3>
+  <div class="badges"><span class="badge b-need">Necessary</span><span class="badge b-opt">Small (~30 lines)</span><span class="badge b-parked">Built &amp; parked</span></div>
+  <p class="plainlead">What it is, plainly:</p>
+  <p>Today, when Duo starts up, it "tidies the links" in your default notes folder. That's fine for folders Duo made — but it does it to a <em>brainkit</em> folder you open too, quietly rewriting data that isn't Duo's. Your <q>ID-ONLY</q> choice = don't touch a folder Duo didn't create.</p>
+  <p>The fix: Duo recognizes a brainkit folder by a file Duo never makes (<code>loop.manifest.json</code>) and skips the tidy-up for it.</p>
+  <p class="pro">Benefit: opening a brainkit graphbook in Duo no longer silently edits it.</p>
+  <p class="con">Risk: low. It only changes start-up behavior, and only for folders Duo didn't make. A test proves Duo's own folders still get tidied. One accepted limit (your option "a"): a generic third-party folder with no marker file isn't recognized — fine, because the alternative was re-tagging every Duo vault you already have.</p>
+  <p><strong>Status:</strong> I already wrote this and it passes its tests — but it's <strong>parked</strong> (not pushed to Duo's main) until you say go. This is the bit I jumped ahead on.</p>
+</div>
+
+<div class="change optional">
+  <h3>B · Bring brainkit's "trust" features into Duo</h3>
+  <div class="badges"><span class="badge b-opt">Optional</span><span class="badge b-opt">Big · not scoped</span><span class="badge b-opt">Not started</span></div>
+  <p class="plainlead">What it is, plainly:</p>
+  <p>brainkit has four things Duo's notebook lacks: a <strong>maturity ladder</strong> (draft → solid → canonical, so you know what's trustworthy enough to use), a real <strong>task type</strong>, a <strong>"keep the original wording"</strong> rule (a <code>## Raw</code> section), and a <strong>"what's still missing for this deliverable?"</strong> check. Your <q>BK-INTO-DUO</q> choice = teach Duo's own notes these.</p>
+  <p class="pro">Benefit: Duo's notebook becomes as trustworthy and deliverable-focused as a brainkit vault — one good system instead of two thin ones.</p>
+  <p class="con">Risk: this is the <strong>biggest</strong> piece and we have <strong>not scoped it.</strong> It's four features, not one — easy to balloon. Real new code in Duo (note templates, a task type).</p>
+  <p><strong>Status:</strong> you chose the <em>direction</em>; nothing is built. Genuinely optional — best done later, in stages, as its own deliberate piece of work.</p>
+</div>
+
+<div class="change optional">
+  <h3>C · Make Duo's own folders nest the full chain</h3>
+  <div class="badges"><span class="badge b-opt">Optional</span><span class="badge b-opt">Nice-to-have</span><span class="badge b-opt">My inference — your call</span></div>
+  <p class="plainlead">What it is, plainly:</p>
+  <p>brainkit (just merged) now nests a note under its parent, all the way up the chain. Duo already does a <em>one-level</em> version of this (a milestone sits under its initiative). Going to the full deep chain in Duo is an enhancement — and Duo and brainkit already read each other's files fine <em>without</em> it.</p>
+  <p class="pro">Benefit: Duo's own filing would match brainkit's exactly — one mental model across both.</p>
+  <p class="con">Risk: touches Duo's filing logic for a "nice to have." Not required for anything to work.</p>
+  <p><strong>Status:</strong> this is the one most fairly called a "side quest." You decided folders-follow-parent for the <em>vaults/brainkit</em>; whether <em>Duo's own</em> filing should change to match is genuinely an open, optional call we have <strong>not</strong> made. Flagging that honestly.</p>
+</div>
+
+<div class="change docs">
+  <h3>D · Write down "Duo and brainkit are the same format"</h3>
+  <div class="badges"><span class="badge b-docs">Just paperwork</span><span class="badge b-docs">No code</span></div>
+  <p class="plainlead">What it is, plainly:</p>
+  <p>Your <q>OKF-PLUS-ID</q> and <q>SUPERSET</q> choices. Duo already does the technical part — its existing "id" tagging already fits the shared rule. This is purely writing it into Duo's docs so the interoperability is official.</p>
+  <p class="pro">Benefit: clarity — anyone can see the two work together.</p>
+  <p class="con">Risk: none. No behavior change at all.</p>
+</div>
+
+<h2>3 · So, honestly</h2>
+<div class="bottomline">
+  <ul>
+    <li><strong>One small NECESSARY fix</strong> — the foreign-folder guard (A). Built, parked, ~30 lines.</li>
+    <li><strong>One BIG OPTIONAL initiative</strong> — bring brainkit's content into Duo (B). You chose the direction; it's not scoped; do it later, in stages.</li>
+    <li><strong>One OPTIONAL nice-to-have</strong> — Duo's own folders nesting deeper (C). Not required; your call, not yet made.</li>
+    <li><strong>Some docs</strong> (D) — no code.</li>
+  </ul>
+  <p>So the "side quest" feeling is fair — especially for C, and for the <em>scale</em> of B. The genuinely must-do Duo change is just <strong>A</strong>, and it's tiny.</p>
+</div>
+
+<h2>4 · What I'd actually do</h2>
+<ul>
+  <li><strong>Push A</strong> (the foreign-folder guard) — it's a real bug fix, done, low-risk. Or leave it parked if you want to read the code first.</li>
+  <li><strong>Park B and C</strong> as their own future conversations — don't bolt them onto this.</li>
+  <li><strong>Write D's docs</strong> whenever — trivial, no rush.</li>
+</ul>
+<p>Tell me which of these you want, and I'll do exactly that — nothing more.</p>
+
+</body>
+</html>
