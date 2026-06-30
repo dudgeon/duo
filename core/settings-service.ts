@@ -20,6 +20,7 @@ import * as path from 'path'
 import * as os from 'os'
 import { uniqueTmpPath } from './write-queue'
 import type { HomeMode } from '../shared/types'
+import type { VaultFormat } from '../shared/host-api'
 
 export interface DuoSettings {
   /** ENH-191 P5a — multi-window opening. Default ON (owner decision). Gates
@@ -38,12 +39,18 @@ export interface DuoSettings {
    *  frontmatter by default" + `duo frontmatter-default`; fanned to every
    *  window on change (FRONTMATTER_DEFAULT_PUSH). */
   frontmatterDefaultExpanded: boolean
+  /** ENH-242 (D2) — the last vault format the user initialized, used to
+   *  pre-select the New Vault / "Choose or Create Vault…" dialog's format
+   *  radio (first init OKF; sticky thereafter). A Duo-owned UI preference, not
+   *  a pointer to external state (§D9-clean). */
+  lastVaultFormat: VaultFormat
 }
 
 export const DEFAULT_SETTINGS: DuoSettings = {
   multiWindow: true,
   homeMode: 'projects',
   frontmatterDefaultExpanded: true,
+  lastVaultFormat: 'okf',
 }
 
 const SETTINGS_DIR = path.join(os.homedir(), '.claude', 'duo')
@@ -79,6 +86,10 @@ export class SettingsService {
           typeof parsed.frontmatterDefaultExpanded === 'boolean'
             ? parsed.frontmatterDefaultExpanded
             : DEFAULT_SETTINGS.frontmatterDefaultExpanded,
+        lastVaultFormat:
+          parsed.lastVaultFormat === 'okf' || parsed.lastVaultFormat === 'obsidian'
+            ? parsed.lastVaultFormat
+            : DEFAULT_SETTINGS.lastVaultFormat,
       }
     } catch {
       // ENOENT first launch (the common path) or a corrupt file → defaults.

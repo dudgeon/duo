@@ -76,4 +76,23 @@ describe('SettingsService (ENH-191 P5a S1)', () => {
     await fs.writeFile(file, JSON.stringify({ frontmatterDefaultExpanded: 'nope' }))
     expect((await svc.load()).frontmatterDefaultExpanded).toBe(true)
   })
+
+  // ENH-242 (D2) — last-used vault format: OKF until the user initializes one,
+  // sticky thereafter, with a wrong-typed value degrading to OKF.
+  it('defaults lastVaultFormat to okf with no settings file', async () => {
+    const loaded = await svc.load()
+    expect(loaded.lastVaultFormat).toBe('okf')
+    expect(DEFAULT_SETTINGS.lastVaultFormat).toBe('okf')
+  })
+
+  it('lastVaultFormat persists across a fresh instance', async () => {
+    await svc.set({ lastVaultFormat: 'obsidian' })
+    const reloaded = new SettingsService(file)
+    expect((await reloaded.load()).lastVaultFormat).toBe('obsidian')
+  })
+
+  it('a wrong-typed lastVaultFormat falls back to the default (okf)', async () => {
+    await fs.writeFile(file, JSON.stringify({ lastVaultFormat: 'markdown' }))
+    expect((await svc.load()).lastVaultFormat).toBe('okf')
+  })
 })

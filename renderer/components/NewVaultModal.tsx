@@ -17,7 +17,7 @@
 // then sets the editor's link dialect (detected via vault.detect, U7/App).
 
 import { useEffect, useRef, useState } from 'react'
-import type { VaultFormat } from '@shared/types'
+import type { VaultFormat, VaultModalPrefill } from '@shared/types'
 
 interface NewVaultModalProps {
   open: boolean
@@ -27,6 +27,12 @@ interface NewVaultModalProps {
    *  Parent (App.tsx, U7) decides whether to navigate the tree + open the
    *  file. */
   onCreated: (root: string, openPath?: string) => void
+  /** ENH-242 — when the modal is opened from "Choose or Create Vault…" on a
+   *  non-vault folder, the picked folder, its basename, and the last-used
+   *  format are prefilled, and the copy shifts to the create-on-choose framing
+   *  (one confirm → init + set default). Absent/null for the plain
+   *  File ▸ New Vault… path, which opens blank. */
+  prefill?: VaultModalPrefill | null
 }
 
 /** Type for one Format radio option. */
@@ -61,27 +67,63 @@ type CreateResult =
   | { ok: true; root: string; created?: string[]; warnings?: string[]; openPath?: string }
   | { ok: false; error: string }
 
-export function NewVaultModal({ open, onClose, onCreated }: NewVaultModalProps) {
+export function NewVaultModal({ open, onClose, onCreated, prefill }: NewVaultModalProps) {
   const [folder, setFolder] = useState('')
   const [name, setName] = useState('')
-  // D2 — OKF pre-selected on every open-transition.
+  // D2 — OKF pre-selected on every open-transition (overridden by prefill.format
+  // in the create-on-choose flow, which carries the last-used format).
   const [format, setFormat] = useState<VaultFormat>('okf')
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<CreateResult | null>(null)
+  // ENH-242 — whether this open is a create-on-choose (prefilled) invocation;
+  // latched at the open-transition, drives the create-on-choose copy.
+  const [createOnChoose, setCreateOnChoose] = useState(false)
   const nameInputRef = useRef<HTMLInputElement>(null)
+  // ENH-242 — read the latest prefill inside the open-transition effect (keeps
+  // the "reset only on open" discipline; avoids a stale closure if prefill
+  // identity changes between renders while the modal is already open).
+  const prefillRef = useRef(prefill)
+  prefillRef.current = prefill
 
   // Reset state on the open-transition (false → true) ONLY — same scoping
   // discipline as CloneModal (don't nuke the success panel on unrelated
   // re-renders). Focus the Name field once mount completes.
   useEffect(() => {
     if (!open) return
-    setFolder('')
-    setName('')
-    setFormat('okf')
+    let cancelled = false
+    // ENH-242 — seed from prefill when opened via "Choose or Create Vault…" on
+    // a non-vault folder; otherwise the plain blank New Vault state.
+    const pf = prefillRef.current
+    setFolder(pf?.folder ?? '')
+    setName(pf?.name ?? '')
+    setCreateOnChoose(pf != null)
     setResult(null)
     setBusy(false)
-    const h = setTimeout(() => nameInputRef.current?.focus(), 0)
-    return () => clearTimeout(h)
+    // Format (D2): the create-on-choose prefill carries the last-used format
+    // (resolved in main); on the plain New Vault path, read the sticky
+    // last-used format from settings, defaulting to OKF until a vault exists.
+    if (pf?.format) {
+      setFormat(pf.format)
+    } else {
+      setFormat('okf')
+      void window.electron.vault
+        .getLastFormat()
+        .then((f) => {
+          if (!cancelled && (f === 'okf' || f === 'obsidian')) setFormat(f)
+        })
+        .catch(() => {})
+    }
+    // Focus the Name field; in the prefilled flow it carries the folder
+    // basename pre-selected, so a tweak overwrites cleanly and a bare Enter
+    // confirms (one-confirm create-on-choose).
+    const h = setTimeout(() => {
+      nameInputRef.current?.focus()
+      if (pf != null) nameInputRef.current?.select()
+    }, 0)
+    return () => {
+      cancelled = true
+      clearTimeout(h)
+    }
   }, [open])
 
   // Close on Escape, submit on Enter (when not busy + a folder is chosen).
@@ -170,7 +212,9 @@ export function NewVaultModal({ open, onClose, onCreated }: NewVaultModalProps) 
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-semibold text-ink">New Vault</h2>
+          <h2 className="text-base font-semibold text-ink">
+            {createOnChoose ? 'Create Vault' : 'New Vault'}
+          </h2>
           <button
             type="button"
             className="text-ink-mute hover:text-ink"
@@ -181,6 +225,15 @@ export function NewVaultModal({ open, onClose, onCreated }: NewVaultModalProps) 
             ✕
           </button>
         </div>
+
+        {/* ENH-242 — create-on-choose explainer: the picked folder isn't a vault
+            yet, so this dialog will initialize it and set it as the default. */}
+        {createOnChoose && (
+          <p className="text-xs text-ink-mute mb-3 leading-relaxed">
+            <span className="font-mono text-ink-soft break-all">{folder}</span> isn't a vault yet —
+            Duo will initialize it and set it as your default.
+          </p>
+        )}
 
         {/* Location — read-only path + Choose… button (native dir picker). */}
         <label className="block text-xs text-ink-mute mb-1" htmlFor="newvault-location">
@@ -348,7 +401,13 @@ export function NewVaultModal({ open, onClose, onCreated }: NewVaultModalProps) 
             disabled={!canCreate}
             className="px-3 py-1 text-sm bg-accent text-white rounded hover:bg-accent/90 disabled:opacity-50"
           >
-            {busy ? 'Creating…' : result?.ok ? 'Create another' : 'Create Vault'}
+            {busy
+              ? 'Creating…'
+              : result?.ok
+                ? 'Create another'
+                : createOnChoose
+                  ? 'Create & Set Default'
+                  : 'Create Vault'}
           </button>
         </div>
       </div>

@@ -2270,6 +2270,7 @@ export const IPC = {
   VAULT_LIST_ROLLUPS: 'vault:list-rollups',
   VAULT_GET_DEFAULT: 'vault:get-default',
   VAULT_SET_DEFAULT: 'vault:set-default',
+  VAULT_GET_LAST_FORMAT: 'vault:get-last-format', // ENH-242 (D2) — last-used vault format
 
   // Stage 24 — pinned WorkingPane tabs persisted to ~/.claude/duo/pins.json.
   PINS_LIST: 'pins:list',

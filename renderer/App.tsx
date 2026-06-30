@@ -52,7 +52,7 @@ import { useSelectionFormat } from './hooks/useSelectionFormat'
 import { htmlBoilerplate } from './components/Page/htmlBoilerplate'
 import { encodeUtf8 } from './components/editor/markdown-io'
 import { findVaultRootWithDefault, resolveWikilinkInVault } from './components/editor/wikilinkResolver'
-import type { TabSession, DirEntry, TerminalTabKind, NewTabResult, PinEntry, SessionState, BrowserTab, ActiveWorkspace, HomeSnapshot, CheckoutTarget, CheckoutResult } from '@shared/types'
+import type { TabSession, DirEntry, TerminalTabKind, NewTabResult, PinEntry, SessionState, BrowserTab, ActiveWorkspace, HomeSnapshot, CheckoutTarget, CheckoutResult, VaultModalPrefill } from '@shared/types'
 import { reorderVisible } from '@shared/reorderTabs'
 import { pruneByTab } from './state/perTabPrune'
 import {
@@ -429,6 +429,10 @@ export function App() {
   // ENH-216 (U7) — File → New Vault… modal visibility. Opened by the native
   // File menu entry's IPC push (window.electron.nav.onOpenNewVaultModal).
   const [newVaultModalOpen, setNewVaultModalOpen] = useState(false)
+  // ENH-242 — prefill for the New Vault dialog when opened from "Choose or
+  // Create Vault…" on a non-vault folder; null on the plain File ▸ New Vault…
+  // path (blank dialog).
+  const [newVaultPrefill, setNewVaultPrefill] = useState<VaultModalPrefill | null>(null)
   // ENH-223 Tier 2 (D7) — New/Edit Scheduled Job dialog. Opened by File ▸ New
   // Scheduled Job… (IPC push), the Home "+ New" / Edit actions, and the
   // project-rail right-click (a `duo-open-cron-modal` window CustomEvent),
@@ -2997,7 +3001,10 @@ export function App() {
   // modal's menu-driven open. The native menu item sends
   // NAV_OPEN_NEW_VAULT_MODAL; this opens the dialog (OKF default — D2).
   useEffect(() => {
-    return window.electron.nav.onOpenNewVaultModal(() => {
+    return window.electron.nav.onOpenNewVaultModal((prefill) => {
+      // ENH-242 — carry the create-on-choose prefill (or null for the plain
+      // New Vault path) into the dialog.
+      setNewVaultPrefill(prefill ?? null)
       setNewVaultModalOpen(true)
     })
   }, [])
@@ -4728,6 +4735,7 @@ export function App() {
           index.md / Obsidian entry note) when one was produced. */}
       <NewVaultModal
         open={newVaultModalOpen}
+        prefill={newVaultPrefill}
         onClose={() => setNewVaultModalOpen(false)}
         onCreated={(root, openPath) => {
           nav.actions.navigateTo(root)

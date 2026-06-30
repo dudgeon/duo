@@ -43,7 +43,8 @@ import type {
   WorkspaceHistoryEntry,
   ActiveWorkspace,
   ClaudePresenceState,
-  BrowserFindResult
+  BrowserFindResult,
+  VaultModalPrefill
 } from '../shared/types'
 
 // app version + dev/prod flag come from main process via
@@ -353,7 +354,10 @@ const api: ElectronAPI = {
     listInbox: (opts) => ipcRenderer.invoke(IPC.VAULT_LIST_INBOX, opts ?? {}),
     listRollups: (opts) => ipcRenderer.invoke(IPC.VAULT_LIST_ROLLUPS, opts ?? {}),
     getDefault: () => ipcRenderer.invoke(IPC.VAULT_GET_DEFAULT),
-    setDefault: (opts) => ipcRenderer.invoke(IPC.VAULT_SET_DEFAULT, opts)
+    setDefault: (opts) => ipcRenderer.invoke(IPC.VAULT_SET_DEFAULT, opts),
+    // ENH-242 (D2) — the last vault format the user initialized (sticky format
+    // pre-select in the New Vault / Choose-or-Create dialog).
+    getLastFormat: () => ipcRenderer.invoke(IPC.VAULT_GET_LAST_FORMAT)
   },
 
   nav: {
@@ -440,9 +444,12 @@ const api: ElectronAPI = {
 
     // ENH-216 (VAULT MODE) — File → New Vault… menu click. Renderer's
     // App.tsx subscribes and opens the New Vault dialog (OKF default —
-    // D2). Mirrors onOpenCloneModal's menu-trigger pattern.
-    onOpenNewVaultModal: (cb: () => void) => {
-      const handler = () => cb()
+    // D2). Mirrors onOpenCloneModal's menu-trigger pattern. ENH-242 — the
+    // payload carries an optional prefill (folder/name/format) when opened
+    // from "Choose or Create Vault…" on a non-vault folder; null on the plain
+    // File ▸ New Vault… path.
+    onOpenNewVaultModal: (cb: (prefill?: VaultModalPrefill | null) => void) => {
+      const handler = (_e: unknown, prefill?: VaultModalPrefill | null) => cb(prefill ?? null)
       ipcRenderer.on(IPC.NAV_OPEN_NEW_VAULT_MODAL, handler)
       return () => ipcRenderer.removeListener(IPC.NAV_OPEN_NEW_VAULT_MODAL, handler)
     },

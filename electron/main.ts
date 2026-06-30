@@ -2452,6 +2452,10 @@ function setupIPC(): void {
         // which fires the pref-file watcher → single menu rebuild trigger.
         vaultCore.rememberVault(result.root)
         vaultCore.setDefaultVault(result.root)
+        // ENH-242 (D2) — remember the format just initialized so the next New
+        // Vault / "Choose or Create Vault…" dialog pre-selects it (fire-and-
+        // forget; result.mode is the actual scaffolded mode).
+        void settingsService.set({ lastVaultFormat: result.mode })
         const indexPath = nodePath.join(result.root, 'index.md')
         const openPath = fsExistsSync(indexPath)
           ? indexPath
@@ -2537,6 +2541,10 @@ function setupIPC(): void {
       return { defaultVault: null, knownVaults: [] }
     }
   })
+
+  // ENH-242 (D2) — the last vault format the user initialized (the New Vault /
+  // Choose-or-Create dialog reads this to pre-select its format radio).
+  ipcMain.handle(IPC.VAULT_GET_LAST_FORMAT, () => settingsService.get().lastVaultFormat)
 
   // Re-point the default vault (the header switcher). Validates the target via
   // setDefaultVault (refuses a non-vault); the pref-file write reflects live and
@@ -3995,7 +4003,7 @@ function buildDefaultVaultSubmenu(): MenuItemConstructorOptions[] {
     ),
     { type: 'separator' },
     {
-      label: 'Choose Vault…',
+      label: 'Choose or Create Vault…',
       click: () => {
         void chooseDefaultVaultViaDialog()
       },
@@ -4004,28 +4012,59 @@ function buildDefaultVaultSubmenu(): MenuItemConstructorOptions[] {
   return items
 }
 
+// ENH-242 (init-on-choose) — "Choose or Create Vault…" no longer dead-ends on a
+// non-vault folder. Three outcomes from one folder pick:
+//   • picked IS a vault root         → set it as default (unchanged)
+//   • picked is INSIDE a vault (D5)  → set the ENCLOSING vault (never nest)
+//   • picked is neither (D1)         → open the New Vault dialog PREFILLED
+//                                       (folder + basename + last-used format);
+//                                       one confirm inits it + sets default.
 async function chooseDefaultVaultViaDialog(): Promise<void> {
-  const win = windowByIdOrPrimary(focusedWindowId())
+  const windowId = focusedWindowId()
+  const win = windowByIdOrPrimary(windowId)
   if (!win || win.isDestroyed()) return
   const result = await dialog.showOpenDialog(win, {
-    title: 'Choose Default Vault',
-    message: 'Pick a vault folder (an OKF root index.md or an .obsidian/ directory)',
-    properties: ['openDirectory'],
+    title: 'Choose or Create Vault',
+    message: 'Pick a vault folder, or a folder to initialize as a new vault',
+    properties: ['openDirectory', 'createDirectory'],
   })
   if (result.canceled || result.filePaths.length === 0) return
   const picked = result.filePaths[0]
-  try {
-    vaultCore.setDefaultVault(picked)
-    // No rebuildAppMenu() — the pref-file write just made fires the
-    // watcher, the single rebuild trigger (see buildDefaultVaultSubmenu).
-  } catch {
-    // No write happened, so no rebuild is needed — nothing changed.
-    await dialog.showMessageBox(win, {
-      type: 'warning',
-      message: 'Not a vault',
-      detail: `${picked} is not a vault (no OKF root index.md with okf_version, and no .obsidian/ directory). Ask Claude to run \`duo vault init\` there first, or pick an existing vault.`,
-    })
+
+  // findVaultRoot is self-inclusive: it returns `picked` when picked is itself
+  // a vault root, else the nearest enclosing ancestor vault, else null. So a
+  // single check covers both the "picked is a vault" happy path and D5.
+  const enclosing = vaultCore.findVaultRoot(picked)
+  if (enclosing) {
+    try {
+      vaultCore.setDefaultVault(enclosing)
+      // No rebuildAppMenu() — the pref-file write fires the watcher (the single
+      // rebuild trigger; see buildDefaultVaultSubmenu).
+    } catch {
+      // setDefaultVault validates the root we just detected, so a throw here is
+      // unexpected; nothing changed, so there's nothing to surface.
+      return
+    }
+    if (enclosing !== picked) {
+      // D5 — tell the user we set the enclosing vault, not the exact folder.
+      await dialog.showMessageBox(win, {
+        type: 'info',
+        message: 'Set the enclosing vault',
+        detail: `${picked} is inside the vault ${enclosing}. Duo set ${enclosing} as your default vault — a vault is never nested inside another.`,
+      })
+    }
+    return
   }
+
+  // D1 — not a vault and not inside one → open the New Vault dialog prefilled.
+  openNewVaultModal({
+    windowId,
+    prefill: {
+      folder: picked,
+      name: nodePath.basename(picked),
+      format: settingsService.get().lastVaultFormat,
+    },
+  })
 }
 
 // ENH-216 (U-RELINK, owner D5) — AUTO-RELINK for an OKF-mode default vault.
@@ -5584,12 +5623,19 @@ export function openCloneModal(opts?: { path?: string; windowId?: number }): { o
 // menu item. Tells the renderer (Stage 4) to open the New Vault dialog, which
 // then collects { folder, format, name? } and round-trips through VAULT_CREATE.
 // windowId targets a specific window (File menu → focused); omitted → primary.
-export function openNewVaultModal({ windowId }: { windowId?: number } = {}): { ok: boolean; error?: string } {
+export function openNewVaultModal(
+  {
+    windowId,
+    prefill,
+  }: { windowId?: number; prefill?: import('../shared/host-api').VaultModalPrefill | null } = {},
+): { ok: boolean; error?: string } {
   const win = windowByIdOrPrimary(windowId)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  win.webContents.send(IPC.NAV_OPEN_NEW_VAULT_MODAL, null)
+  // ENH-242 — the payload is the prefill (folder/name/format) for the
+  // create-on-choose flow, or null for the plain File ▸ New Vault… path.
+  win.webContents.send(IPC.NAV_OPEN_NEW_VAULT_MODAL, prefill ?? null)
   return { ok: true }
 }
 
