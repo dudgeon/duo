@@ -278,6 +278,12 @@ export function initVault(
 ): InitResult {
   const mode: VaultMode = opts.format ?? 'okf'
   const root = path.resolve(folder)
+  // ENH-242 review — fail early + clearly if the target exists but is NOT a
+  // directory (else the D4 index.md probe passes and a later mkdir throws a
+  // confusing ENOTDIR). A non-existent path is fine — it gets created.
+  if (fs.existsSync(root) && !fs.statSync(root).isDirectory()) {
+    throw new Error(`${root} exists but is not a directory — cannot initialize a vault there.`)
+  }
   if (isVaultRoot(root) && !opts.force) {
     throw new Error(
       `${root} is already a vault (has an okf_version index.md or .obsidian/). Pass --force to ` +

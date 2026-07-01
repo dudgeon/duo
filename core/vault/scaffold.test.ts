@@ -177,6 +177,12 @@ describe('vault init (ENH-242 D4 — OKF index.md collision guard)', () => {
     expect(isVaultRoot(v)).toBe(true)
     expect(fs.readFileSync(path.join(v, 'index.md'), 'utf8')).toBe('# my notes\n')
   })
+
+  it('refuses to initialize when the target exists but is a file (clear error, not ENOTDIR)', () => {
+    const f = path.join(root, 'a-file')
+    fs.writeFileSync(f, 'not a directory')
+    expect(() => initVault(f, { format: 'okf' })).toThrow(/not a directory/)
+  })
 })
 
 describe('vault capture', () => {

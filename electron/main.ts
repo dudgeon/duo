@@ -2444,7 +2444,7 @@ function setupIPC(): void {
   // (D4/D8), else the legacy README.md (Obsidian mode), absolute either way.
   ipcMain.handle(
     IPC.VAULT_CREATE,
-    (_event, { folder, format, name }: { folder: string; format?: import('../core/vault').VaultMode; name?: string }) => {
+    async (_event, { folder, format, name }: { folder: string; format?: import('../core/vault').VaultMode; name?: string }) => {
       try {
         const result = vaultCore.initVault(folder, { format, name })
         // Register in the picker, then make it the default (parity with the
@@ -2453,9 +2453,11 @@ function setupIPC(): void {
         vaultCore.rememberVault(result.root)
         vaultCore.setDefaultVault(result.root)
         // ENH-242 (D2) — remember the format just initialized so the next New
-        // Vault / "Choose or Create Vault…" dialog pre-selects it (fire-and-
-        // forget; result.mode is the actual scaffolded mode).
-        void settingsService.set({ lastVaultFormat: result.mode })
+        // Vault / "Choose or Create Vault…" dialog pre-selects it. AWAITED
+        // (review fix) so the pref is durably on disk before the dialog closes;
+        // a fire-and-forget write could be lost to an app exit/crash. (settings
+        // .set is best-effort — it never rejects — so this can't fail the create.)
+        await settingsService.set({ lastVaultFormat: result.mode })
         const indexPath = nodePath.join(result.root, 'index.md')
         const openPath = fsExistsSync(indexPath)
           ? indexPath
@@ -4041,8 +4043,14 @@ async function chooseDefaultVaultViaDialog(): Promise<void> {
       // No rebuildAppMenu() — the pref-file write fires the watcher (the single
       // rebuild trigger; see buildDefaultVaultSubmenu).
     } catch {
-      // setDefaultVault validates the root we just detected, so a throw here is
-      // unexpected; nothing changed, so there's nothing to surface.
+      // Race (review fix): the folder was moved/deleted between the
+      // findVaultRoot probe and the write. Don't fail silently on a
+      // user-initiated action — tell them nothing changed.
+      await dialog.showMessageBox(win, {
+        type: 'warning',
+        message: 'Could not set the default vault',
+        detail: `${enclosing} could not be set as your default vault — it may have been moved or deleted.`,
+      })
       return
     }
     if (enclosing !== picked) {

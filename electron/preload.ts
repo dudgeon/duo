@@ -448,7 +448,7 @@ const api: ElectronAPI = {
     // payload carries an optional prefill (folder/name/format) when opened
     // from "Choose or Create Vault…" on a non-vault folder; null on the plain
     // File ▸ New Vault… path.
-    onOpenNewVaultModal: (cb: (prefill?: VaultModalPrefill | null) => void) => {
+    onOpenNewVaultModal: (cb: (prefill: VaultModalPrefill | null) => void) => {
       const handler = (_e: unknown, prefill?: VaultModalPrefill | null) => cb(prefill ?? null)
       ipcRenderer.on(IPC.NAV_OPEN_NEW_VAULT_MODAL, handler)
       return () => ipcRenderer.removeListener(IPC.NAV_OPEN_NEW_VAULT_MODAL, handler)

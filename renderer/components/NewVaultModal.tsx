@@ -79,31 +79,26 @@ export function NewVaultModal({ open, onClose, onCreated, prefill }: NewVaultMod
   // latched at the open-transition, drives the create-on-choose copy.
   const [createOnChoose, setCreateOnChoose] = useState(false)
   const nameInputRef = useRef<HTMLInputElement>(null)
-  // ENH-242 — read the latest prefill inside the open-transition effect (keeps
-  // the "reset only on open" discipline; avoids a stale closure if prefill
-  // identity changes between renders while the modal is already open).
-  const prefillRef = useRef(prefill)
-  prefillRef.current = prefill
 
-  // Reset state on the open-transition (false → true) ONLY — same scoping
-  // discipline as CloneModal (don't nuke the success panel on unrelated
-  // re-renders). Focus the Name field once mount completes.
+  // Reset state on the open-transition (false → true) — and re-seed if the
+  // prefill changes (a re-trigger while already open; review fix — prefill is
+  // in the deps). Same scoping discipline as CloneModal (don't nuke the success
+  // panel on unrelated re-renders). Focus the Name field once mount completes.
   useEffect(() => {
     if (!open) return
     let cancelled = false
     // ENH-242 — seed from prefill when opened via "Choose or Create Vault…" on
     // a non-vault folder; otherwise the plain blank New Vault state.
-    const pf = prefillRef.current
-    setFolder(pf?.folder ?? '')
-    setName(pf?.name ?? '')
-    setCreateOnChoose(pf != null)
+    setFolder(prefill?.folder ?? '')
+    setName(prefill?.name ?? '')
+    setCreateOnChoose(prefill != null)
     setResult(null)
     setBusy(false)
     // Format (D2): the create-on-choose prefill carries the last-used format
     // (resolved in main); on the plain New Vault path, read the sticky
     // last-used format from settings, defaulting to OKF until a vault exists.
-    if (pf?.format) {
-      setFormat(pf.format)
+    if (prefill?.format) {
+      setFormat(prefill.format)
     } else {
       setFormat('okf')
       void window.electron.vault
@@ -111,20 +106,22 @@ export function NewVaultModal({ open, onClose, onCreated, prefill }: NewVaultMod
         .then((f) => {
           if (!cancelled && (f === 'okf' || f === 'obsidian')) setFormat(f)
         })
-        .catch(() => {})
+        .catch((err) => {
+          console.warn('[NewVaultModal] getLastFormat failed:', err)
+        })
     }
     // Focus the Name field; in the prefilled flow it carries the folder
     // basename pre-selected, so a tweak overwrites cleanly and a bare Enter
     // confirms (one-confirm create-on-choose).
     const h = setTimeout(() => {
       nameInputRef.current?.focus()
-      if (pf != null) nameInputRef.current?.select()
+      if (prefill != null) nameInputRef.current?.select()
     }, 0)
     return () => {
       cancelled = true
       clearTimeout(h)
     }
-  }, [open])
+  }, [open, prefill])
 
   // Close on Escape, submit on Enter (when not busy + a folder is chosen).
   // Window-level listener so the gesture works regardless of focus — and

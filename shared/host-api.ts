@@ -350,7 +350,7 @@ export interface ElectronNavAPI {
   /** ENH-216 (VAULT MODE) — File → New Vault… menu trigger. Renderer
    *  opens the New Vault dialog (OKF the default format — D2). Mirrors
    *  onOpenCloneModal's menu-driven pattern. */
-  onOpenNewVaultModal: (cb: (prefill?: VaultModalPrefill | null) => void) => () => void
+  onOpenNewVaultModal: (cb: (prefill: VaultModalPrefill | null) => void) => () => void
   /** ENH-224 D1/D18 — File → Open… menu trigger. Renderer opens the
    *  merged Open bar (the same surface ⌘O opens). */
   onOpenBar: (cb: () => void) => () => void
