@@ -18,6 +18,37 @@
 
 ---
 
+## 2026-07-01 — v0.13.2 CUT — Init-on-choose vault + default-vault autocomplete + foreign-vault guard
+
+Three vault-surface changes bundled into a PATCH cut. The headline is **ENH-242
+(init-on-choose, #118)**: "Settings ▸ Default Vault ▸ Choose Vault…" (renamed
+**"Choose or Create Vault…"**) no longer dead-ends on a non-vault folder — it opens
+the existing `NewVaultModal` **prefilled** (folder + basename + last-used format) so
+one confirm initializes the vault (OKF by default) and sets it as the default. Two
+guardrails from the decision walk: a folder *inside* an existing vault sets the
+**enclosing** vault (D5 — never nests), and OKF-initializing over an existing
+`index.md` **refuses** rather than silently skipping it (D4 — the pre-fix behavior
+left the folder un-marked so `setDefaultVault` then threw confusingly). D2 adds a
+sticky **last-used-format** memory (`DuoSettings.lastVaultFormat`). CLI parity:
+`duo vault default <path> --init`.
+
+Built on `claude/enh-242-init-on-choose` (5 commits), off main. Process this session
+was **prototype → build → live-verify → self-review → merge → cut**: an Atelier
+mockup of the prefilled dialog was owner-approved for look + copy first; the feature
+was then built (D4 core guard · D1/D2/D5 main dialog + prefill IPC plumbing + relabel
+· D6 CLI + 4-surface sync); the **full create-on-choose flow was walked LIVE via
+computer-use** on the dev build (Settings menu → native picker → prefilled modal →
+create → default set + `lastVaultFormat` written — the memory that computer-use
+can't drive a secondary-monitor dev build was refuted: `switch_display` first, then
+clicks map); a **multi-agent adversarial self-review** (16 raised → 11 confirmed; 5
+med + 3 low fixed pre-merge — silent D5 set-default catch, initVault non-dir guard,
+awaited settings write, `--clear`/`--init` conflict, VERB-summary doc). Riding along:
+**BUG-212 (#115)** — the `[[` autocomplete (+ `@` mentions + `⌘O` switcher) now falls
+back to the default vault in files outside any vault (was: showed nothing, which made
+a set default look "lost on restart"); and the **D5 foreign-vault guard (#117)** —
+Duo skips auto-relink-on-open for a bundle carrying a root `loop.manifest.json` (a
+loopkit/brainkit kit). 2096 tests green; signed + notarized DMG.
+
 ## 2026-06-28 — v0.13.1 CUT — Frontmatter Properties: expand-by-default + clickable vault links
 
 Two editor enhancements on the markdown frontmatter "Properties" panel (PATCH —

@@ -21,7 +21,48 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.13.0 cut 2026-06-27)*
+> *(empty — v0.13.2 cut 2026-07-01)*
+
+---
+
+## v0.13.2 — 2026-07-01 — Pick a folder, get a vault: init-on-choose + default-vault autocomplete
+
+Three vault-surface fixes that together make "set up a vault" a one-click affair
+and make the default vault actually *do* something everywhere.
+
+The headline is **ENH-242 (init-on-choose)**. Before this, "Settings ▸ Default
+Vault ▸ Choose Vault…" only accepted a folder that was *already* a vault — pick a
+plain directory and you hit a dead-end warning telling you to go run `duo vault
+init` in a terminal first. Now the menu item is **"Choose or Create Vault…"** and
+a non-vault folder opens the existing New Vault dialog **prefilled** (the folder,
+its basename as the name, and your last-used format), so one confirm both
+initializes the vault and sets it as your default. The reuse is deliberate — no
+parallel init path; the create-on-choose flow rides the same `NewVaultModal` +
+`initVault` the "New Vault…" menu already used, just prefilled. Two guardrails
+fell out of the decision walk: a folder that sits *inside* an existing vault sets
+the **enclosing** vault (Duo never nests a vault in a vault), and initializing
+over an existing `index.md` **refuses** rather than clobbering it (D4 —
+data-safety; `--force` overrides). CLI parity is `duo vault default <path>
+--init`. The whole flow was walked live (native picker → prefilled modal →
+create) and passed a multi-agent adversarial self-review (5 med findings fixed
+before merge).
+
+Riding alongside it, **BUG-212** fixes the reason the default vault felt "lost on
+restart": the `[[` autocomplete (and `@` mentions + the `⌘O` switcher) resolved
+its vault *only* by walking up from the active file, so in a file outside any
+vault it showed nothing — and setting a default changed nothing. It now falls
+back to the global default, so a default you set is a default that works
+everywhere. And **the D5 foreign-vault guard** stops Duo from auto-rewriting the
+links of a bundle it didn't create: a vault carrying a root `loop.manifest.json`
+(a loopkit/brainkit kit) is treated as foreign and skipped on the auto-relink
+path.
+
+**What this is and isn't.** This is a polish-and-safety release on the vault
+surface — no new tab type, no new store, no schema change. The graphbook model,
+the rollup/`.base` machinery, and the OKF/Obsidian serializers are all unchanged.
+It's the release that makes the default-vault primitive coherent end-to-end (UI,
+CLI, and the editor's autocomplete all agree on what "the default vault" means)
+and makes first-time vault setup a single dialog instead of a terminal detour.
 
 ---
 

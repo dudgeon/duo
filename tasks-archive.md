@@ -3,6 +3,52 @@
 > Closed entries (✅ shipped / ❌ won't-do / 🟢 done) split out of [`tasks.md`](tasks.md) on 2026-05-31 (ENH-191 / D1) to keep the live backlog lean. **Open work lives in [tasks.md](tasks.md).** Section headers mirror the original; the cut-version skill appends newly-closed entries here.
 
 
+## v0.13.2 — Init-on-choose vault + default-vault autocomplete + foreign-vault guard (shipped 2026-07-01)
+
+### ENH-242: "Choose Vault…" should initialize an uninitialized folder (init-on-choose)
+
+**Status:** ✅ Shipped v0.13.2 (2026-07-01, PR #118). Built on `claude/enh-242-init-on-choose` (5 commits); typecheck + full suite (2096) green; core + CLI verified end-to-end (D4/D5/D2/init via isolated-HOME CLI); **the full create-on-choose UI walked live via computer-use** on the dev build (walk log below); multi-agent adversarial self-review (16 raised → 11 confirmed; 5 med + 3 low fixed pre-merge). Owner approved the dialog prototype (Atelier render) 2026-06-30. **Priority:** P2. **Effort:** S–M. **Decision artifact:** [`docs/research/vault-init-on-choose.html`](docs/research/vault-init-on-choose.html) (owner walked it 2026-06-30). **Ticket note:** allocated above ENH-241; sibling `angry-golick-03a970` holds 238/239 — 242 avoids collision.
+
+**Live walk (computer-use, dev build v0.13.2, 2026-07-01) — ALL PASS:** (1) Settings ▸ Default Vault submenu last item reads **"Choose or Create Vault…"** (relabel). (2) The native picker opened with the new message *"Pick a vault folder, or a folder to initialize as a new vault"* + a **New Folder** button (`createDirectory`). (3) Picking an empty `/private/tmp/…` folder opened the **prefilled** "Create Vault" modal — title, explainer *"…isn't a vault yet — Duo will initialize it and set it as your default"*, Location filled, **Name = folder basename** (focused), **OKF** selected w/ DEFAULT badge, CTA **"Create & Set Default"** (confirms the whole main→renderer prefill IPC round-trip). (4) One confirm → **OKF scaffold on disk** (`index.md` w/ `okf_version: "0.1"` + `inbox/initiatives/notes/out/people/templates/themes`, no `.obsidian`/`bases`/README), navigator switched to it, `index.md` opened. (5) **Default vault set** to the folder (D1); (6) `settings.json` `lastVaultFormat: okf` written (D2). Original default (`enh228-vault`) restored + temp vault removed after the walk.
+
+**Decisions (locked 2026-06-30 — owner walked the artifact + confirmed in chat):**
+- **D1 — non-vault folder → open the New Vault dialog, prefilled** (folder + format + basename); one confirm → init + set default. Reuse `NewVaultModal` + `initVault`, no parallel init path. *(Owner left the radio unticked but confirmed "yes — my mistake"; D2/D3 only cohere with the modal.)*
+- **D2 — default format: OKF, but remember last-used** — first init OKF; thereafter default to the last format the user initialized.
+- **D3 — vault name: folder basename, editable** in the dialog.
+- **D4 — collision guard: create the vault, but REFUSE if it would overwrite an existing `index.md`** (data-safety). Owner OK'd keeping this one guard despite calling collisions a near-non-issue.
+- **D5 — folder inside an existing vault → set the ENCLOSING vault** as default (never nest a vault in a vault).
+- **D6 — CLI parity: add an init flag** (`duo vault default <path> --init`) for create-on-choose (4-surface sync).
+- **Likely relabel** the menu item to "Choose or Create Vault…".
+
+**Provenance.** Owner (2026-06-28): *"currently, 'settings >> default vault >> choose vault…' fails if the selected folder has not been initialized as a vault — 'choose vault' should in itself init a given folder as a vault."*
+
+**Today.** `chooseDefaultVaultViaDialog()` ([electron/main.ts](electron/main.ts) ~4007) → folder picker → `setDefaultVault(picked)`, which **throws** on a non-vault folder ([core/vault/default-vault.ts](core/vault/default-vault.ts) `isVaultRoot` guard) → dead-end warning dialog telling the user to run `duo vault init` first. Prior art to reuse: the **New Vault dialog** (File ▸ New Vault…, `NewVaultModal.tsx` + `initVault(root,{format,name})` in `core/vault/scaffold.ts`, format defaults OKF).
+
+**The change (pending decisions).** Make "Choose Vault…" create-on-choose: if the picked folder is a vault, set it (unchanged); if not, initialize it (then set as default). 6 decisions to lock in the artifact: D1 behavior on non-vault (reuse New Vault modal prefilled / lightweight confirm / silent), D2 default format (OKF), D3 name (basename editable), D4 collision guard (refuse overwriting an existing index.md), D5 nested-inside-a-vault (set the enclosing one), D6 CLI parity (`duo vault default <path> --init`). **Recommended bundle:** D1 reuse-modal · D2 OKF · D3 basename-editable · D4 safe-refuse-collision · D5 set-enclosing · D6 add-init-flag (+ likely relabel to "Choose or Create Vault…").
+
+**Gate CLEARED 2026-06-30** (owner walked the artifact + locked the decisions above) — no longer blocks a cut.
+
+**Built 2026-06-30** (owner reversed order: build → then cut). Three commits on `claude/enh-242-init-on-choose`:
+- **`0514977` (D4)** — `initVault` refuses an OKF init over an existing `index.md` (was a silent skip → confusing downstream `setDefaultVault` throw); `--force` escape hatch; +3 scaffold tests.
+- **`946bdf1` (D1/D2/D5)** — `chooseDefaultVaultViaDialog` rewrite: vault-root/enclosing → set (D5, never nests, info dialog), else open `NewVaultModal` PREFILLED (folder+basename+last-used format) for one-confirm init+set (D1); `DuoSettings.lastVaultFormat` sticky memory (D2); prefill threaded through `openNewVaultModal`→`NAV_OPEN_NEW_VAULT_MODAL`→preload→App→modal; menu relabel "Choose **or Create** Vault…"; picker gains `createDirectory`; +3 settings tests.
+- **`46f1bb8` (D6)** — `duo vault default <path> --init` (CLI twin) + 4-surface sync + binary; verified end-to-end (5 isolated-HOME scenarios, real `vault.json` untouched).
+
+**Shipped in v0.13.2** (2026-07-01). Live UI walk + adversarial self-review both done pre-merge; the dialog look + copy were owner-approved via the Atelier prototype.
+
+### BUG-212: `[[` autocomplete dead in files outside any vault — never falls back to the default vault
+
+**Status:** ✅ Shipped v0.13.2 (merged to main 2026-06-29 via #115; unreleased — no version cut yet). **Priority:** P1. **Branch:** `claude/default-vault-lost-restart-b80x2j`.
+
+**Symptom (owner).** "On restart/new install, the default vault (Settings → Default Vault) is cleared and lost. I noticed because vault entity autofill was broken (again). On setting the default vault (via Settings, or via CLI), autofill still did not work — even after closing and reopening a file. Appears to be an issue with `[[` autocomplete not working in files in arbitrary folders."
+
+**Root cause.** The editor's `[[` suggester (and the `@` mention popover + `⌘O` switcher, which share the same index) resolves its vault SOLELY by walking UP from the active file's path — `useVaultIndex` → `findVaultRootAndMode(activePath)` ([renderer/components/editor/vaultIndex.ts](renderer/components/editor/vaultIndex.ts), [renderer/components/editor/wikilinkResolver.ts](renderer/components/editor/wikilinkResolver.ts)). For a file NOT physically inside a vault, the walk returns null → `vaultRoot = null` → `files = []` → the popover shows nothing and the "New:" create row is suppressed. **The default vault is never consulted.** This is the asymmetry: `⌘⇧F` search and `⇧⌘N` capture route through `resolveVaultForUi` (default-aware) in main; the `[[` path went straight to `vault.detect` on walked dirs (a pure "is-this-a-vault" probe). So setting a default — UI or CLI — changed nothing for autocomplete, which made the persisted default *look* "lost on restart." The pref itself persists fine (`~/.claude/duo/vault.json`, read live in main; no startup code clears it — verified).
+
+**Fix.** New `findVaultRootWithDefault(activePath)` in `wikilinkResolver.ts`: the active file's enclosing vault FIRST, else the global default vault (`window.electron.vault.getDefault` → `detectVaultMode`) — enclosing-first/default-second, mirroring the CLI's `resolveVaultOrDefault`. `useVaultIndex` now uses it and re-resolves on a `duo-vault-default-changed` broadcast (an IN-APP default change — VaultView switcher / NewVaultModal — lights up live, no reopen; a `duo vault default` CLI change has no main→renderer broadcast, so it's picked up on the next file reopen, where Effect 1 reads `getDefault` live). The cmd+click wikilink-open handler ([renderer/App.tsx](renderer/App.tsx)) uses the same resolver so a `[[ ]]` inserted via the default-vault autocomplete also resolves on click. Tests: `wikilinkResolver.test.ts` (5 new cases — enclosing-first, arbitrary-folder fallback, null/no-default, null-path-uses-default). No CLI/4-surface change (renderer-only behavior; the default-vault verbs were already correct).
+
+**Editor/canvas parity (renderer-surfaces rule).** (b) Skipped — surface-specific: the HTML canvas has no `[[` wikilink suggester / vault index, so there is no analog to mirror.
+
+**Live-validated (computer-use, v0.13.2 local build, 2026-06-29).** Opened a markdown file in `/private/tmp/pr115-scratch` (outside any vault) with the default vault set to `enh228-vault`; typing `[[` listed the default vault's entities (`inbox/…`, `all-initiatives`, `Beta`, `index`, `initiative`) and a novel name showed the `New: "…" — pick type…` create row. Pre-fix both were empty.
+
 ## v0.13.1 — Frontmatter Properties: expand-by-default + clickable vault links (shipped 2026-06-28)
 
 ### ENH-240: Frontmatter Properties panel — user-configurable default collapsed/expanded (View menu)

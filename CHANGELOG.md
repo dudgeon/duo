@@ -19,7 +19,34 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.13.1 cut 2026-06-28.
+> Empty — v0.13.2 cut 2026-07-01.
+
+## [0.13.2] — 2026-07-01 — Init-on-choose vault + default-vault autocomplete + foreign-vault guard
+
+### Added
+- **"Choose or Create Vault…" initializes an uninitialized folder (ENH-242, #118).**
+  Settings ▸ Default Vault ▸ "Choose or Create Vault…" (renamed from "Choose
+  Vault…") no longer dead-ends on a non-vault folder. Pick one and Duo opens the
+  New Vault dialog **prefilled** (folder + basename + last-used format) — one
+  confirm initializes it (OKF by default) and sets it as your default. A folder
+  **inside** an existing vault sets the enclosing vault instead (never nests a
+  vault in a vault). The dialog now remembers your **last-used format** (OKF for
+  the first vault, sticky after). CLI parity: `duo vault default <path> --init`.
+
+### Fixed
+- **`[[` autocomplete now falls back to the default vault (BUG-212, #115).** In a
+  markdown file that isn't physically inside a vault, the `[[` wikilink suggester
+  (and the `@` mention popover + `⌘O` switcher, which share the index) now
+  resolves the global **default vault** instead of showing nothing — so setting a
+  default (UI or CLI) makes autocomplete work everywhere. This is what had made
+  the persisted default *look* "lost on restart."
+- **Duo no longer rewrites a foreign OKF bundle's links on open (#117).** A vault
+  carrying a root `loop.manifest.json` (a loopkit/brainkit-family kit) is treated
+  as **foreign** — Duo skips its auto-relink-on-open, so it never mutates a bundle
+  it didn't create. The explicit `duo vault relink` verb is unaffected.
+- **Init-on-choose data-safety guard (ENH-242 D4).** Initializing an OKF vault
+  now **refuses** with a clear error rather than silently skipping (and stranding)
+  an existing `index.md`; `--force` overrides.
 
 ## [0.13.1] — 2026-06-28 — Frontmatter Properties: expand-by-default + clickable vault links
 
@@ -2110,7 +2137,8 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.13.1...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.13.2...HEAD
+[0.13.2]: https://github.com/dudgeon/duo/compare/v0.13.1...v0.13.2
 [0.13.1]: https://github.com/dudgeon/duo/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/dudgeon/duo/compare/v0.12.2...v0.13.0
 [0.12.2]: https://github.com/dudgeon/duo/compare/v0.12.1...v0.12.2
