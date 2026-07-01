@@ -19,7 +19,9 @@
 
 ### ENH-242: "Choose Vault…" should initialize an uninitialized folder (init-on-choose)
 
-**Status:** 🆕 Decisions locked (2026-06-30) — gate cleared, ready to build, **deferred to AFTER the v0.13.2 cut**. Owner: build **starts with a prototype of the proposed dialog box**. **Priority:** P2. **Effort:** S–M. **Decision artifact:** [`docs/research/vault-init-on-choose.html`](docs/research/vault-init-on-choose.html) (owner walked it 2026-06-30). **Ticket note:** allocated above ENH-241; sibling `angry-golick-03a970` holds 238/239 — 242 avoids collision.
+**Status:** 🚧 Built + **LIVE-VERIFIED 2026-07-01** (branch `claude/enh-242-init-on-choose`, 4 commits) — ready to merge + cut. typecheck + full suite (2095) green; core + CLI verified end-to-end (D4/D5/D2/init via isolated-HOME CLI); **the full create-on-choose UI walked live via computer-use** on the dev build (see the walk log below). Owner approved the dialog prototype (Atelier render) 2026-06-30. **Priority:** P2. **Effort:** S–M. **Decision artifact:** [`docs/research/vault-init-on-choose.html`](docs/research/vault-init-on-choose.html) (owner walked it 2026-06-30). **Ticket note:** allocated above ENH-241; sibling `angry-golick-03a970` holds 238/239 — 242 avoids collision.
+
+**Live walk (computer-use, dev build v0.13.2, 2026-07-01) — ALL PASS:** (1) Settings ▸ Default Vault submenu last item reads **"Choose or Create Vault…"** (relabel). (2) The native picker opened with the new message *"Pick a vault folder, or a folder to initialize as a new vault"* + a **New Folder** button (`createDirectory`). (3) Picking an empty `/private/tmp/…` folder opened the **prefilled** "Create Vault" modal — title, explainer *"…isn't a vault yet — Duo will initialize it and set it as your default"*, Location filled, **Name = folder basename** (focused), **OKF** selected w/ DEFAULT badge, CTA **"Create & Set Default"** (confirms the whole main→renderer prefill IPC round-trip). (4) One confirm → **OKF scaffold on disk** (`index.md` w/ `okf_version: "0.1"` + `inbox/initiatives/notes/out/people/templates/themes`, no `.obsidian`/`bases`/README), navigator switched to it, `index.md` opened. (5) **Default vault set** to the folder (D1); (6) `settings.json` `lastVaultFormat: okf` written (D2). Original default (`enh228-vault`) restored + temp vault removed after the walk.
 
 **Decisions (locked 2026-06-30 — owner walked the artifact + confirmed in chat):**
 - **D1 — non-vault folder → open the New Vault dialog, prefilled** (folder + format + basename); one confirm → init + set default. Reuse `NewVaultModal` + `initVault`, no parallel init path. *(Owner left the radio unticked but confirmed "yes — my mistake"; D2/D3 only cohere with the modal.)*
@@ -36,7 +38,14 @@
 
 **The change (pending decisions).** Make "Choose Vault…" create-on-choose: if the picked folder is a vault, set it (unchanged); if not, initialize it (then set as default). 6 decisions to lock in the artifact: D1 behavior on non-vault (reuse New Vault modal prefilled / lightweight confirm / silent), D2 default format (OKF), D3 name (basename editable), D4 collision guard (refuse overwriting an existing index.md), D5 nested-inside-a-vault (set the enclosing one), D6 CLI parity (`duo vault default <path> --init`). **Recommended bundle:** D1 reuse-modal · D2 OKF · D3 basename-editable · D4 safe-refuse-collision · D5 set-enclosing · D6 add-init-flag (+ likely relabel to "Choose or Create Vault…").
 
-**Gate CLEARED 2026-06-30** (owner walked the artifact + locked the decisions above) — no longer blocks a cut. **Build owed (post-v0.13.2-cut, START WITH A DIALOG PROTOTYPE per owner):** the init-on-choose path (reuse `NewVaultModal` + `initVault`) + the D4 collision guard + D5 enclosing-vault handling + the CLI `--init` flag (4-surface sync) + tests + live-verify + smoke-walk.
+**Gate CLEARED 2026-06-30** (owner walked the artifact + locked the decisions above) — no longer blocks a cut.
+
+**Built 2026-06-30** (owner reversed order: build → then cut). Three commits on `claude/enh-242-init-on-choose`:
+- **`0514977` (D4)** — `initVault` refuses an OKF init over an existing `index.md` (was a silent skip → confusing downstream `setDefaultVault` throw); `--force` escape hatch; +3 scaffold tests.
+- **`946bdf1` (D1/D2/D5)** — `chooseDefaultVaultViaDialog` rewrite: vault-root/enclosing → set (D5, never nests, info dialog), else open `NewVaultModal` PREFILLED (folder+basename+last-used format) for one-confirm init+set (D1); `DuoSettings.lastVaultFormat` sticky memory (D2); prefill threaded through `openNewVaultModal`→`NAV_OPEN_NEW_VAULT_MODAL`→preload→App→modal; menu relabel "Choose **or Create** Vault…"; picker gains `createDirectory`; +3 settings tests.
+- **`46f1bb8` (D6)** — `duo vault default <path> --init` (CLI twin) + 4-surface sync + binary; verified end-to-end (5 isolated-HOME scenarios, real `vault.json` untouched).
+
+**Owes:** merge to `main` + the v0.13.2 cut. (The live UI walk is DONE — see the walk log in the Status block above; the dialog look + copy were owner-approved via the Atelier prototype.)
 
 ### ENH-232: Catch-up — rich re-entry for sessions whose worktree was removed
 **Status:** 🔵 Open (filed from ENH-231 walk #2, 2026-06-24). **P1.**

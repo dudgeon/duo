@@ -66,7 +66,7 @@ fields, no invented syntax, regardless of format. Then, per format:
 | `duo vault schema [--vault p]` | get the **corpus** — types, entities, aliases, props-per-type, observed enums, templates. **Run this before authoring a base or filing a note** — it's the resolution table |
 | `duo vault capture [--template t] [--text …] [--title …]` | drop an atomic inbox note (the ⇧⌘N twin — bare capture matches the chord exactly) |
 | `duo vault stub <type> <name> [--open]` | create a typed entity stub from its template, D19-filed; idempotent (the type-picker's twin — same code path) |
-| `duo vault default [<path>\|--clear]` | read/set the default vault (the Settings → Default Vault twin — one pref file, writes reflect live) |
+| `duo vault default [<path> [--init] \| --clear]` | read/set the default vault (the Settings → Default Vault twin — one pref file, writes reflect live). `--init` (ENH-242, create-on-choose) inits a bare `<path>` then sets it, or sets the enclosing vault if `<path>` is inside one (never nests) — `--format` defaults to OKF, `--name` optional |
 | `duo vault search <query>` | full-text search (the ⌘⇧F palette's twin) |
 | `duo vault mv <from> <to>` | **move a note + rewrite inbound links** (the D5 clean path — see *Moving a note* below). Prefer over `duo file rename` for OKF vault notes |
 | `duo vault relink [--dry-run]` | **repair links broken by an out-of-band move** (Finder/git) — re-resolve by stable `id:` → slug, rewrite the unambiguous, report ambiguous + broken |

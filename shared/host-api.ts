@@ -350,7 +350,7 @@ export interface ElectronNavAPI {
   /** ENH-216 (VAULT MODE) — File → New Vault… menu trigger. Renderer
    *  opens the New Vault dialog (OKF the default format — D2). Mirrors
    *  onOpenCloneModal's menu-driven pattern. */
-  onOpenNewVaultModal: (cb: () => void) => () => void
+  onOpenNewVaultModal: (cb: (prefill: VaultModalPrefill | null) => void) => () => void
   /** ENH-224 D1/D18 — File → Open… menu trigger. Renderer opens the
    *  merged Open bar (the same surface ⌘O opens). */
   onOpenBar: (cb: () => void) => () => void
@@ -1193,6 +1193,16 @@ export interface ElectronPrAPI {
 // 'okf' (D2); detect() probes an existing vault's in-vault marker (D4).
 export type VaultFormat = 'okf' | 'obsidian'
 
+/** ENH-242 — prefill payload for the New Vault dialog when it's opened from
+ *  "Choose or Create Vault…" on a non-vault folder (D1). Carries the picked
+ *  folder, its basename as the suggested name (D3, editable), and the
+ *  last-used format (D2). Absent/null on the plain File ▸ New Vault… path. */
+export interface VaultModalPrefill {
+  folder: string
+  name?: string
+  format?: VaultFormat
+}
+
 // ENH-208 Phase 2 — vault UI host API. Result shapes mirror core/vault's
 // CaptureResult / SearchHit / StubResult, declared inline because
 // core/vault is not in the renderer tsconfig until Phase 3 shares the
@@ -1356,6 +1366,10 @@ export interface ElectronVaultAPI {
   setDefault: (opts: { root: string }) => Promise<
     { ok: true; defaultVault: string } | { ok: false; error: string }
   >
+  /** ENH-242 (D2) — the last vault format the user initialized, used to
+   *  pre-select the New Vault / "Choose or Create Vault…" dialog's format
+   *  radio. Resolves to 'okf' before any vault has been created. */
+  getLastFormat: () => Promise<VaultFormat>
 }
 
 export interface ElectronProjectsAPI {

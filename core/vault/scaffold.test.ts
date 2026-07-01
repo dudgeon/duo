@@ -148,6 +148,43 @@ describe('vault init (OKF — the new default, ENH-216 D2)', () => {
   })
 })
 
+describe('vault init (ENH-242 D4 — OKF index.md collision guard)', () => {
+  it('refuses to OKF-init a folder that already holds a plain index.md', () => {
+    const v = path.join(root, 'has-index')
+    fs.mkdirSync(v, { recursive: true })
+    fs.writeFileSync(path.join(v, 'index.md'), '# my notes\n')
+    expect(() => initVault(v, { format: 'okf' })).toThrow(/already contains an index\.md/)
+    // the user's file is untouched …
+    expect(fs.readFileSync(path.join(v, 'index.md'), 'utf8')).toBe('# my notes\n')
+    // … and the folder did NOT become a vault (the bug this guards: a silent
+    // skip that left the folder un-marked, then setDefaultVault threw).
+    expect(isVaultRoot(v)).toBe(false)
+  })
+
+  it('--force overrides the collision guard (overwrites index.md with the OKF marker)', () => {
+    const v = path.join(root, 'has-index-force')
+    fs.mkdirSync(v, { recursive: true })
+    fs.writeFileSync(path.join(v, 'index.md'), '# my notes\n')
+    expect(() => initVault(v, { format: 'okf', force: true })).not.toThrow()
+    expect(isVaultRoot(v)).toBe(true)
+  })
+
+  it('Obsidian init is unaffected by an existing index.md (never writes index.md)', () => {
+    const v = path.join(root, 'has-index-obsidian')
+    fs.mkdirSync(v, { recursive: true })
+    fs.writeFileSync(path.join(v, 'index.md'), '# my notes\n')
+    expect(() => initVault(v, { format: 'obsidian' })).not.toThrow()
+    expect(isVaultRoot(v)).toBe(true)
+    expect(fs.readFileSync(path.join(v, 'index.md'), 'utf8')).toBe('# my notes\n')
+  })
+
+  it('refuses to initialize when the target exists but is a file (clear error, not ENOTDIR)', () => {
+    const f = path.join(root, 'a-file')
+    fs.writeFileSync(f, 'not a directory')
+    expect(() => initVault(f, { format: 'okf' })).toThrow(/not a directory/)
+  })
+})
+
 describe('vault capture', () => {
   it('drops an untyped, captured-stamped inbox note by default (Obsidian)', () => {
     // OBSIDIAN capture is untyped-by-default. (PR#98 F4: captureNote now

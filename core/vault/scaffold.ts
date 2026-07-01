@@ -278,11 +278,32 @@ export function initVault(
 ): InitResult {
   const mode: VaultMode = opts.format ?? 'okf'
   const root = path.resolve(folder)
+  // ENH-242 review — fail early + clearly if the target exists but is NOT a
+  // directory (else the D4 index.md probe passes and a later mkdir throws a
+  // confusing ENOTDIR). A non-existent path is fine — it gets created.
+  if (fs.existsSync(root) && !fs.statSync(root).isDirectory()) {
+    throw new Error(`${root} exists but is not a directory — cannot initialize a vault there.`)
+  }
   if (isVaultRoot(root) && !opts.force) {
     throw new Error(
       `${root} is already a vault (has an okf_version index.md or .obsidian/). Pass --force to ` +
         `(re)write the starter scaffold files — it overwrites edited starter templates / ` +
         `processing.base / README / index.md, but never touches your own notes.`,
+    )
+  }
+  // ENH-242 (D4) — refuse to OKF-init a folder that already holds a plain
+  // index.md (no okf_version marker, so the isVaultRoot guard above doesn't
+  // catch it). Without this, the writeFile helper SILENTLY SKIPS the marker
+  // index.md (it never overwrites without --force), leaving the folder
+  // un-marked — and the caller's setDefaultVault then throws confusingly. This
+  // is the data-safety guard: never clobber the user's existing index.md.
+  // Obsidian mode marks via `.obsidian/` and never writes index.md, so it's
+  // unaffected. `--force` is the documented escape hatch (overwrites it).
+  if (mode === 'okf' && !opts.force && fs.existsSync(path.join(root, 'index.md'))) {
+    throw new Error(
+      `${root} already contains an index.md (not an OKF vault marker). Refusing to initialize ` +
+        `an OKF vault here — it would shadow or overwrite your file. Pick an empty folder, choose ` +
+        `Obsidian format, or pass --force to overwrite.`,
     )
   }
   const created: string[] = []
