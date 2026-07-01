@@ -1,6 +1,6 @@
-# Active sprint state — v0.13.0 shipped (shell cron jobs + Send→agent focus fix); next: triage
+# Active sprint state — v0.13.2 shipped (init-on-choose vault + default-vault autocomplete + foreign-vault guard); next: triage
 
-## Post-v0.13.0 merges to `main` (unreleased — no cut yet)
+## Shipped in v0.13.2 (cut 2026-07-01)
 
 > **BUG-212** (#115, merged 2026-06-29) — `[[` autocomplete now falls back to the
 > **default vault** in files outside any vault (the suggester + `@` mention popover
@@ -22,21 +22,17 @@
 > the separate **loop-library** repo `main` via PR #14; decision docs live at
 > `docs/research/okf-brainkit-folder-hierarchy.html` + `docs/research/duo-changes-plain.html`.)
 
-> **ENH-242 BUILT 2026-06-30** (owner reversed order: build → then cut). Dialog
-> prototype rendered in Atelier + owner-approved (look + copy), then built on
-> `claude/enh-242-init-on-choose` (3 commits: D4 collision guard · D1/D2/D5 init-on-
-> choose UI flow + "Choose **or Create** Vault…" + last-used-format memory · D6 CLI
-> `vault default --init` + 4-surface sync). typecheck + full suite (2095) green;
-> core + CLI verified end-to-end (isolated-HOME, real `vault.json` untouched).
-> **Owes:** the live UI walk (native-picker → prefilled modal — not DOM-probe-able)
-> → folds into the cut's `/smoke-walk`. Details in `tasks.md` ENH-242.
-
-> **NEXT ACTION:** (1) push `claude/enh-242-init-on-choose` + open the PR; (2) live
-> UI walk of the create-on-choose flow; (3) merge to main; (4) run the **v0.13.2 cut**
-> (cut-version skill — ENH-242 🟡 gate already clear) bundling BUG-212 (`[[` fix),
-> ENH-240/241 (frontmatter expand-default + clickable vault links), the **D5 guard**,
-> **and now the full ENH-242 feature** (the prior "spike artifact only" plan is
-> superseded — the feature is built).
+> **v0.13.2 CUT + PUSHED 2026-07-01.** ENH-242 (init-on-choose vault, PR #118),
+> BUG-212 (`[[` default-vault autocomplete, #115), and the D5 foreign-OKF guard
+> (#117) all shipped. **ENH-242 process this session:** Atelier prototype
+> (owner-approved look+copy) → build (D4 core guard · D1/D2/D5 main dialog + prefill
+> IPC + relabel · D6 CLI + 4-surface sync) → **live UI walk via computer-use**
+> (native picker → prefilled modal → create, all PASS; the "can't drive
+> secondary-monitor dev" memory was refuted — `switch_display` first) → **multi-agent
+> adversarial self-review** (16 raised → 11 confirmed; 5 med + 3 low fixed pre-merge)
+> → PR #118 merged → cut. Signed + notarized DMG + GitHub Release published;
+> `package.json` bumped to **v0.13.3** for next sprint; 2096 tests green; branch
+> deleted (merged). Next: triage.
 
 ## v0.13.0 cut 2026-06-27 — Shell-command cron jobs + the Send→agent focus fix
 
