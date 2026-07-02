@@ -31,6 +31,16 @@ Let the user drop a reviewed/abandoned session off the Catch-up board. **Owner l
 
 ---
 
+### ENH-243: Rollup viewer &amp; editor GUI — a Rollups tab beside the vault surface
+
+**Status:** 🚧 Built 2026-07-02 (decisions locked via playground paste-back: layout A + collapsible rails + "Roll Up" panel name; instant flip + undo; doctor → new terminal at vault parent). PRD: [docs/prd/enh-243-rollup-gui.md](docs/prd/enh-243-rollup-gui.md). Core+IPC+UI+CLI shipped on this branch; typecheck + 2114 tests green; 4-surface sync PASS. **Live-verified in dev 2026-07-02** (DOM-probe walk: tab gate · list · nested 2-level grouping · flip→file-write→regroup→undo · builder live-save · row click-open · doctor card + parent-cwd Claude spawn — all PASS). **Owed:** owner smoke-walk, then cut. **Deferral (D5):** engine-side n-level groupBy emitters — GUI groups client-side v1. **Ticket note:** allocated after grepping sibling worktrees (max was ENH-242); renumber on collision.
+
+**What.** In any workspace with a detected vault (OKF included), a Rollups tab beside the vault surface: list all rollups, view one, and construct/reshape it entirely GUI-driven — entity type(s) → **ordered multi-depth group-by** (e.g. status → org) → filters — with live save + re-render, a refresh action, a **frontmatter flip subpane** in the inspector (typed one-click value flips, e.g. `blocked: false ⇄ true`, undoable — replaces the earlier drag-across-groups idea), hover-reveals-path + click-opens-in-Duo on every entity row, and a "Fix with Claude" doctor for broken configs. Config file rides in the repo, never hand-edited. Builds on the ENH-228/229 rollup engine (`duo rollup render|list|diff`) + `duo vault schema` for builder vocabulary and flip-control typing. CLI parity will need roughly `duo rollup new|set|show|doctor`.
+
+**Decision playground (rev 2, owner leans Layout A):** [docs/research/rollup-viewer-layouts.html](docs/research/rollup-viewer-layouts.html) — four layout directions (library rail · gallery+toolbar · designer split · board-first) + flip-edit apply semantics + doctor surfacing. Surfaces in smoke walks until the owner pastes decisions back.
+
+---
+
 ### ENH-235: `duo base new` — scaffold a lint-clean `.base` so agents stop hand-writing rollup YAML
 
 **Status:** 🆕 Filed 2026-06-24 (owner-approved Q4 of ENH-234). **Priority:** P2 (removes the most error-prone step of the rollup workflow). **Effort:** S–M. **Ticket note:** allocated above ENH-234; sibling worktree `vigorous-chandrasekhar-7d2fb6` holds uncommitted ENH-231/232/233 — renumber on collision.

@@ -253,6 +253,20 @@ A **rollup** is a first-class **`type: rollup` note** (ENH-228 D1) that owns its
 spec + its render provenance, so it's discoverable by `duo rollup list` and
 shows up in the Vault view's Rollups column. The loop:
 
+**Shortcut (ENH-243) — the builder verbs.** For a straightforward rollup
+(types → group-by → filters → columns, no formulas), skip hand-writing YAML:
+`duo rollup new --type task --title "Open tasks" --group status,org
+--filter 'status!=done' --columns owner,due` scaffolds a lint-clean,
+GUI-editable note in one shot (the ordered `--group` list gives multi-depth
+grouping in the Rollups tab). Inspect with `duo rollup show <note>`, mutate
+with `duo rollup set <note> …`, diagnose a broken one with `duo rollup
+doctor <note>`. These are the CLI twins of the app's **Rollups tab** (beside
+the Vault tab), where the user shapes the same note through UI — a rollup
+you scaffold this way stays editable there, and one whose spec uses features
+outside the builder dialect (formulas, view filters, OR groups) is shown
+view-only in the GUI (still renders fine). The hand-authoring loop below
+remains the path for anything richer:
+
 1. **Understand the ask** in prose ("open tasks for this initiative, grouped
    by owner, with a due chip").
 2. **Get the corpus**: `duo vault schema`. It tells you the real type names,

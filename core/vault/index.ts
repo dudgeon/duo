@@ -80,6 +80,27 @@ export {
   type ResolvedRollupNote,
 } from './rollup-notes'
 export { listInbox, type InboxEntry } from './inbox'
+// ENH-243 — the Rollups tab's builder layer (canonical base dialect + live
+// view data + frontmatter flips). Shared by the GUI IPC handlers and the
+// `duo rollup new|show|set|doctor` CLI verbs.
+export {
+  serializeBuilderBase,
+  parseBuilderBase,
+  createRollupNote,
+  updateRollupNote,
+  setFrontmatterFields,
+  entityPanel,
+  rollupViewData,
+  type RollupBuilderModel,
+  type BuilderFilter,
+  type BuilderFilterOp,
+  type CreateRollupResult,
+  type EntityPanel,
+  type EntityField,
+  type FieldKind,
+  type RollupViewData,
+  type RollupViewRow,
+} from './builder'
 export {
   lintVault,
   lintBaseDef,

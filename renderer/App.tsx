@@ -27,6 +27,7 @@ import {
   isHomeTab
 } from './components/Home/homeTab'
 import { VAULT_TAB_ID, isVaultTab, syncVaultTab } from './components/Vault/vaultTab'
+import { ROLLUPS_TAB_ID, isRollupsTab, syncRollupsTab } from './components/Rollups/rollupsTab'
 import { classifyFile } from './components/fileClassifier'
 import { absolutizeOpenPath } from './components/openPathResolve'
 import { FilesPane, type FilesPaneHandle } from './components/FilesPane'
@@ -259,6 +260,24 @@ const ROLLUP_AUTHORING_PROMPT =
   "(4) run `duo base lint <note>` until it's clean; " +
   "(5) run `duo rollup render <note> --html --open` to render the HTML artifact and stamp its provenance. " +
   "Keep the spec inside the locked Bases subset (filters, groupBy, formulas, summaries)."
+
+// ENH-243 (D3) — the Rollups tab's doctor prompt. The spawned session's cwd is
+// the VAULT'S PARENT (owner lock), so the vault is a visible child folder and
+// the prompt names both the vault and the broken note explicitly.
+function rollupDoctorPrompt(vaultRoot: string, note: string, error: string): string {
+  const vaultName = vaultRoot.slice(vaultRoot.lastIndexOf('/') + 1) || vaultRoot
+  return (
+    'A rollup config in my vault is broken and the Duo Rollups tab cannot read it. ' +
+    'The vault is the ' + JSON.stringify(vaultName) + ' folder in this directory (' + vaultRoot + '). ' +
+    'The broken rollup note is ' + note + ' (vault-relative). ' +
+    'The error was: ' + (error || 'unknown parse/evaluate failure') + '. ' +
+    'Please repair it: (1) read the note and its embedded ```base block; ' +
+    '(2) run `duo vault schema --vault ' + vaultRoot + '` to get the real types/fields/enum values; ' +
+    '(3) fix the YAML so `duo base lint` is clean and the query matches my intent (ask me if the intent is unclear); ' +
+    '(4) verify with `duo rollup show ' + note + ' --vault ' + vaultRoot + '` and `duo rollup render ' + note + ' --vault ' + vaultRoot + '`. ' +
+    'Keep the spec inside the locked Bases subset; do not restructure the vault.'
+  )
+}
 
 /**
  * A terminal's persisted launch cwd may have been deleted between
@@ -666,10 +685,13 @@ export function App() {
   // If the tab is removed while it was the active surface, fall back to Home.
   useEffect(() => {
     if (!sessionHydrated) return
-    setFileTabs(prev => syncVaultTab(prev, hasDefaultVault))
+    // ENH-243 — the Rollups tab rides the same gate, pinned right after Vault.
+    setFileTabs(prev => syncRollupsTab(syncVaultTab(prev, hasDefaultVault), hasDefaultVault))
     if (!hasDefaultVault) {
       setActiveWorking(prev =>
-        prev.kind === 'file' && prev.id === VAULT_TAB_ID ? { kind: 'file', id: HOME_TAB_ID } : prev
+        prev.kind === 'file' && (prev.id === VAULT_TAB_ID || prev.id === ROLLUPS_TAB_ID)
+          ? { kind: 'file', id: HOME_TAB_ID }
+          : prev
       )
     }
   }, [hasDefaultVault, sessionHydrated])
@@ -979,8 +1001,8 @@ export function App() {
       // 'duo://vault') is also never persisted: it's re-synthesized from
       // `vault.getDefault` at mount, present only when a default vault exists.
       fileTabs: filterPersistableFileTabs(fileTabs)
-        .filter(f => !isVaultTab(f))
-        .map(f => ({ path: f.path, type: f.type as Exclude<typeof f.type, 'home' | 'vault'>, mime: f.mime })),
+        .filter(f => !isVaultTab(f) && !isRollupsTab(f))
+        .map(f => ({ path: f.path, type: f.type as Exclude<typeof f.type, 'home' | 'vault' | 'rollups'>, mime: f.mime })),
       // ENH-212 — when Home is the active surface, persist `activeWorking:
       // null` rather than {kind:'file', path:'duo://home'}: the sentinel
       // must never reach disk (it would round-trip through the restore
@@ -2659,13 +2681,30 @@ export function App() {
       setFocusedColumn('terminal')
       void dispatchPostSpawnWrite(tab.id, 'claude', ROLLUP_AUTHORING_PROMPT)
     }
+    // ENH-243 (D3) — the Rollups tab's doctor: spawn a Claude session in the
+    // vault's PARENT directory (owner lock), seeded with the repair prompt.
+    const onRollupsDoctor = (e: Event) => {
+      const d = (e as CustomEvent<{ vaultRoot: string; note: string; error: string }>).detail
+      if (!d?.vaultRoot || !d?.note) return
+      const trimmed = d.vaultRoot.replace(/\/+$/, '')
+      const parent = trimmed.slice(0, trimmed.lastIndexOf('/')) || '/'
+      const tab = makeTab(parent, 'claude', home)
+      setTabs(prev => [...prev, tab])
+      setActiveTabId(tab.id)
+      setLastTabKind('claude')
+      saveLastTabKind('claude')
+      setFocusedColumn('terminal')
+      void dispatchPostSpawnWrite(tab.id, 'claude', rollupDoctorPrompt(trimmed, d.note, d.error ?? ''))
+    }
     window.addEventListener('duo-vault-open-note', onOpenNote)
     window.addEventListener('duo-vault-open-rollup', onOpenRollup)
     window.addEventListener('duo-vault-new-rollup', onNewRollup)
+    window.addEventListener('duo-rollups-doctor', onRollupsDoctor)
     return () => {
       window.removeEventListener('duo-vault-open-note', onOpenNote)
       window.removeEventListener('duo-vault-open-rollup', onOpenRollup)
       window.removeEventListener('duo-vault-new-rollup', onNewRollup)
+      window.removeEventListener('duo-rollups-doctor', onRollupsDoctor)
     }
   }, [openFileSmart, dispatchPostSpawnWrite, home, setFocusedColumn])
 

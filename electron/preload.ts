@@ -357,7 +357,14 @@ const api: ElectronAPI = {
     setDefault: (opts) => ipcRenderer.invoke(IPC.VAULT_SET_DEFAULT, opts),
     // ENH-242 (D2) — the last vault format the user initialized (sticky format
     // pre-select in the New Vault / Choose-or-Create dialog).
-    getLastFormat: () => ipcRenderer.invoke(IPC.VAULT_GET_LAST_FORMAT)
+    getLastFormat: () => ipcRenderer.invoke(IPC.VAULT_GET_LAST_FORMAT),
+    // ENH-243 — the Rollups tab: builder schema, live view data, save, flip
+    // subpane. Same core/vault builder layer as `duo rollup new|show|set`.
+    schema: (opts) => ipcRenderer.invoke(IPC.VAULT_SCHEMA, opts),
+    rollupView: (opts) => ipcRenderer.invoke(IPC.VAULT_ROLLUP_VIEW, opts),
+    rollupSave: (opts) => ipcRenderer.invoke(IPC.VAULT_ROLLUP_SAVE, opts),
+    entityPanel: (opts) => ipcRenderer.invoke(IPC.VAULT_ENTITY_PANEL, opts),
+    setFrontmatter: (opts) => ipcRenderer.invoke(IPC.VAULT_SET_FRONTMATTER, opts)
   },
 
   nav: {

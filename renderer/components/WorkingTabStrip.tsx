@@ -372,7 +372,7 @@ export function WorkingTabStrip({
             // permanent slots; never render their close glyph. closeFileTab
             // also hard-refuses f:home / f:vault, but suppressing the
             // affordance keeps the contract visible to the user.
-            canClose={tabs.length > 1 && tab.type !== 'home' && tab.type !== 'vault'}
+            canClose={tabs.length > 1 && tab.type !== 'home' && tab.type !== 'vault' && tab.type !== 'rollups'}
             // ENH-024 — only the active tab gets the ref so the
             // useEffect above can scroll it into view.
             buttonRef={tab.isActive ? activeTabRef : undefined}
@@ -619,6 +619,8 @@ function tabLabel(tab: WorkingTab): string {
   if (tab.type === 'home') return tab.title || 'Home'
   // ENH-228 — same for the synthesized Vault tab.
   if (tab.type === 'vault') return tab.title || 'Vault'
+  // ENH-243 — same for the synthesized Rollups tab.
+  if (tab.type === 'rollups') return tab.title || 'Rollups'
   return tab.title
 }
 
@@ -676,6 +678,8 @@ function buildTabMenuTemplate(opts: {
   // `path: 'duo://vault'` is a non-file, and pinning / moving-to-split would
   // persist the sentinel and break restore.
   if (tab?.type === 'vault') return items
+  // ENH-243 — the Rollups tab: same sentinel treatment as Vault.
+  if (tab?.type === 'rollups') return items
 
   if (path) {
     if (onRevealInNavigator) {
@@ -846,6 +850,15 @@ function TypeIcon({ type, active }: { type: WorkingTabType; active: boolean }) {
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
             <path d="M5 2.4C4.2 1.9 2.9 1.7 1.5 1.9V7.7c1.4-.2 2.7 0 3.5.5.8-.5 2.1-.7 3.5-.5V1.9C7.1 1.7 5.8 1.9 5 2.4Z" stroke="currentColor" strokeWidth="0.9" strokeLinejoin="round" />
             <path d="M5 2.4V8.2" stroke="currentColor" strokeWidth="0.9" strokeLinecap="round" />
+          </svg>
+        )
+      case 'rollups':
+        // ENH-243 — stacked-rows glyph for the Rollups tab.
+        return (
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+            <rect x="1.4" y="1.6" width="7.2" height="1.8" rx="0.5" stroke="currentColor" strokeWidth="0.9" />
+            <rect x="2.6" y="4.3" width="6" height="1.8" rx="0.5" stroke="currentColor" strokeWidth="0.9" />
+            <rect x="3.8" y="7" width="4.8" height="1.8" rx="0.5" stroke="currentColor" strokeWidth="0.9" />
           </svg>
         )
       case 'image':

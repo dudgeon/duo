@@ -2560,6 +2560,111 @@ function setupIPC(): void {
     }
   })
 
+  // ENH-243 — the Rollups tab. Every handler runs the same core/vault builder
+  // layer as the `duo rollup new|show|set|doctor` CLI verbs (one-engine rule,
+  // PRD D10). The subject vault must be a real vault root — no default-vault
+  // fallback here (the tab only exists while a default is set, and a stale
+  // arg silently reading a DIFFERENT vault would be worse than an error).
+  const requireVault = (vaultRoot: string): string => {
+    if (!vaultRoot || !vaultCore.isVaultRoot(vaultRoot)) {
+      throw new Error(`not a vault root: ${vaultRoot || '(empty)'}`)
+    }
+    return vaultRoot
+  }
+
+  ipcMain.handle(IPC.VAULT_SCHEMA, (_event, { vaultRoot }: { vaultRoot: string }) => {
+    try {
+      const corpus = vaultCore.buildCorpus(requireVault(vaultRoot))
+      return {
+        ok: true,
+        schema: {
+          types: corpus.types,
+          propsByType: corpus.propsByType,
+          enumsByType: corpus.enumsByType,
+        },
+      }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
+  ipcMain.handle(
+    IPC.VAULT_ROLLUP_VIEW,
+    (_event, { vaultRoot, note }: { vaultRoot: string; note: string }) => {
+      try {
+        return { ok: true, data: vaultCore.rollupViewData(requireVault(vaultRoot), note) }
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      }
+    },
+  )
+
+  ipcMain.handle(
+    IPC.VAULT_ROLLUP_SAVE,
+    (
+      _event,
+      {
+        vaultRoot,
+        note,
+        model,
+      }: { vaultRoot: string; note?: string; model: vaultCore.RollupBuilderModel },
+    ) => {
+      try {
+        const root = requireVault(vaultRoot)
+        if (note) {
+          const abs = nodePath.isAbsolute(note) ? note : nodePath.resolve(root, note)
+          vaultCore.updateRollupNote(abs, model)
+          return { ok: true, note, absPath: abs }
+        }
+        const created = vaultCore.createRollupNote(root, model)
+        return { ok: true, note: created.noteRel, absPath: created.absPath }
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      }
+    },
+  )
+
+  ipcMain.handle(
+    IPC.VAULT_ENTITY_PANEL,
+    (_event, { vaultRoot, notePath }: { vaultRoot: string; notePath: string }) => {
+      try {
+        return { ok: true, panel: vaultCore.entityPanel(requireVault(vaultRoot), notePath) }
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      }
+    },
+  )
+
+  ipcMain.handle(
+    IPC.VAULT_SET_FRONTMATTER,
+    (
+      _event,
+      {
+        vaultRoot,
+        notePath,
+        updates,
+      }: {
+        vaultRoot: string
+        notePath: string
+        updates: Record<string, string | number | boolean | null>
+      },
+    ) => {
+      try {
+        const root = requireVault(vaultRoot)
+        const abs = nodePath.isAbsolute(notePath) ? notePath : nodePath.resolve(root, notePath)
+        // Confine flips to notes INSIDE the subject vault — the flip subpane
+        // only ever shows vault entities, so an outside path is a bug or abuse.
+        if (abs !== root && !abs.startsWith(root + nodePath.sep)) {
+          throw new Error(`note is outside the vault: ${notePath}`)
+        }
+        vaultCore.setFrontmatterFields(abs, updates)
+        return { ok: true }
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      }
+    },
+  )
+
   // ENH-224 D17 — native Browse… picker behind the Open bar. ONE dialog with
   // both openFile + openDirectory enabled (a picked file opens in its viewer;
   // a picked folder roots the navigator). Parented on the SENDER window (the

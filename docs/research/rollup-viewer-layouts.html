@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>Rollup viewer &amp; editor — four layout directions</title>
+<style>
+/* duo-atelier.css — canonical Atelier kernel for Duo HTML playgrounds. */
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+  --project-pine:   #2E7D74;
+  --project-harbor: #3C6E93;
+  --project-iris:   #5B57A6;
+  --project-plum:   #87508F;
+  --project-rose:   #A4506A;
+  --project-moss:   #69763A;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+body { padding: 32px 40px 96px; max-width: 920px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px;
+}
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill {
+  display: inline-block; padding: 2px 8px; border-radius: 10px;
+  background: var(--accent-soft); color: var(--accent);
+  font-weight: 600; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.04em; margin-right: 6px;
+}
+.intro {
+  background: var(--paper-deep); border: 1px solid var(--paper-rule);
+  border-radius: 6px; padding: 14px 18px; margin-bottom: 28px;
+  font-size: 13.5px; color: var(--ink-soft);
+}
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 600; margin: 36px 0 12px; font-size: 19px;
+  border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px;
+}
+h3 { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+h4 { margin: 16px 0 6px; font-size: 13.5px; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px;
+  background: var(--paper-deep); padding: 1px 5px; border-radius: 3px;
+}
+pre {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px;
+  line-height: 1.5; background: var(--code-bg); color: var(--code-ink);
+  padding: 14px 16px; border-radius: 6px; overflow-x: auto;
+}
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+.decision-card {
+  background: var(--paper-deep); border: 1.5px solid var(--paper-rule);
+  border-radius: 6px; padding: 16px 18px; margin: 18px 0;
+}
+.decision-card .q-title {
+  font-weight: 700; font-size: 13px; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px;
+}
+.decision-card .q-prompt {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 500; font-size: 17px; color: var(--ink);
+  margin: 0 0 12px; line-height: 1.35;
+}
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option {
+  display: block; background: var(--paper); border: 1.5px solid var(--paper-rule);
+  border-radius: 5px; padding: 10px 12px; cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--paper));
+}
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag {
+  font-size: 10px; background: var(--accent-soft); color: var(--accent);
+  text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em;
+  padding: 1px 6px; border-radius: 8px; margin-left: 6px;
+}
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes {
+  width: 100%; background: var(--paper); border: 1px solid var(--paper-rule);
+  border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px;
+  color: var(--ink); resize: vertical; min-height: 50px;
+}
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+details.deferred {
+  margin: 22px 0; padding: 12px 16px; background: var(--paper-deep);
+  border: 1px dashed var(--paper-rule); border-radius: 6px;
+}
+details.deferred summary { cursor: pointer; font-weight: 600; color: var(--ink-soft); font-size: 13.5px; }
+details.deferred[open] summary { color: var(--ink); }
+details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(--ink-soft); }
+.copy-bar {
+  position: sticky; bottom: 0; margin: 32px -40px -96px; padding: 16px 40px;
+  background: color-mix(in srgb, var(--paper-deep) 96%, transparent);
+  border-top: 1.5px solid var(--paper-rule);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+}
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button {
+  background: var(--accent); color: white; border: none; border-radius: 5px;
+  padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600;
+  cursor: pointer; transition: background 0.12s;
+}
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* ————— Per-playground: vibrant complementary palette —————
+   Livelier siblings of the six project hues: same hue positions
+   (orange band still reserved for --accent) at higher chroma, so
+   they sit with Atelier's cream/orange instead of fighting it. */
+:root {
+  --vib-teal:   #14907F;
+  --vib-blue:   #2B7FC4;
+  --vib-indigo: #6A5FD4;
+  --vib-violet: #A653B4;
+  --vib-rose:   #C74E77;
+  --vib-moss:   #7C942F;
+}
+
+/* ————— Wireframe mockups ————— */
+.layout-card {
+  border: 1.5px solid var(--paper-rule); border-radius: 8px;
+  padding: 18px 20px; margin: 24px 0; background: #fff9ee;
+  border-top: 4px solid var(--lc, var(--accent));
+}
+.layout-card .layout-tag {
+  font-weight: 700; font-size: 12px; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--lc, var(--accent));
+}
+.layout-card h3 { margin-top: 4px; font-size: 16px; }
+.layout-card .thesis {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-style: italic; color: var(--ink-soft); font-size: 14px; margin: 2px 0 14px;
+}
+.layout-card .lean-tag {
+  font-size: 10px; background: color-mix(in srgb, var(--lc, var(--accent)) 16%, #fff);
+  color: var(--lc, var(--accent)); border: 1px solid color-mix(in srgb, var(--lc, var(--accent)) 45%, transparent);
+  text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em;
+  padding: 1px 7px; border-radius: 8px; margin-left: 8px; vertical-align: 2px;
+}
+.wf {
+  border: 1.5px solid var(--ink-ghost); border-radius: 6px;
+  background: var(--paper); overflow: hidden; margin: 10px 0 14px;
+  font-size: 10.5px; line-height: 1.3; color: var(--ink-mute);
+  user-select: none;
+}
+.wf .wf-titlebar {
+  background: var(--paper-deep); border-bottom: 1px solid var(--paper-edge);
+  padding: 4px 10px; display: flex; gap: 6px; align-items: center;
+  font-size: 10px; color: var(--ink-ghost);
+}
+.wf .wf-tab {
+  padding: 2px 10px; border-radius: 4px 4px 0 0;
+  border: 1px solid var(--paper-rule); border-bottom: none;
+  background: var(--paper);
+}
+.wf .wf-tab.active { background: #fff; color: var(--ink); font-weight: 600; border-color: var(--ink-ghost); }
+.wf-body { display: flex; min-height: 210px; }
+.wf-pane { padding: 8px 10px; }
+.wf-pane + .wf-pane { border-left: 1px solid var(--paper-edge); }
+.wf-label {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--ink-ghost); margin-bottom: 4px;
+}
+.wf-item {
+  border: 1px solid var(--paper-rule); border-radius: 3px;
+  background: #fff; padding: 3px 6px; margin: 3px 0;
+}
+.wf-item.sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, #fff); color: var(--ink); font-weight: 600; }
+.wf-chip {
+  display: inline-block; border: 1px solid var(--paper-rule); border-radius: 9px;
+  background: var(--paper-deep); padding: 1px 8px; margin: 2px 3px 2px 0; font-size: 9.5px;
+}
+.wf-chip.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.wf-chip.t1 { border-color: var(--vib-blue); color: var(--vib-blue); background: color-mix(in srgb, var(--vib-blue) 10%, #fff); font-weight: 600; }
+.wf-chip.t2 { border-color: var(--vib-violet); color: var(--vib-violet); background: color-mix(in srgb, var(--vib-violet) 10%, #fff); font-weight: 600; }
+.wf-btn {
+  display: inline-block; border-radius: 3px; background: var(--accent);
+  color: #fff; padding: 1px 8px; font-size: 9.5px; font-weight: 600; margin: 2px 2px 2px 0;
+}
+.wf-btn.ghost { background: transparent; border: 1px solid var(--ink-ghost); color: var(--ink-mute); }
+.wf-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+.wf-table th, .wf-table td {
+  border: 1px solid var(--paper-edge); padding: 2px 6px;
+  font-size: 9.5px; text-align: left; background: #fff;
+}
+.wf-table th { background: var(--paper-deep); font-weight: 600; color: var(--ink-soft); }
+/* group headers: depth-1 carries a vibrant hue bar; depth-2 indents */
+.wf-group-h {
+  font-weight: 700; margin: 6px 0 2px; font-size: 10px;
+  color: var(--gh, var(--ink-soft));
+  border-left: 3px solid var(--gh, var(--paper-rule));
+  padding-left: 6px;
+}
+.wf-group-h.d2 {
+  margin-left: 14px; font-weight: 600; font-size: 9.5px;
+  border-left-width: 2px; opacity: 0.85;
+}
+.wf-indent2 { margin-left: 14px; }
+.wf-cols { display: flex; gap: 6px; margin-top: 6px; }
+.wf-col { flex: 1; border: 1px solid var(--paper-edge); border-radius: 4px; background: var(--paper-deep); padding: 4px; }
+.wf-col .wf-col-h { font-size: 9.5px; font-weight: 700; margin-bottom: 3px; padding-left: 2px; }
+.wf-card { border: 1px solid var(--paper-rule); border-radius: 3px; background: #fff; padding: 3px 5px; margin: 3px 0; font-size: 9.5px; }
+.wf-note { font-size: 9.5px; color: var(--ink-ghost); font-style: italic; margin-top: 4px; }
+/* frontmatter flip subpane */
+.wf-fm { border: 1px solid var(--paper-rule); border-radius: 4px; background: #fff; padding: 5px 6px; margin-top: 4px; }
+.wf-fm-row { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 2px 0; border-bottom: 1px dotted var(--paper-edge); }
+.wf-fm-row:last-child { border-bottom: none; }
+.wf-fm-key { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 9px; color: var(--ink-soft); }
+.wf-fm-val {
+  font-size: 9px; font-weight: 700; border-radius: 8px; padding: 0 7px;
+  background: color-mix(in srgb, var(--fv, var(--vib-teal)) 14%, #fff);
+  color: var(--fv, var(--vib-teal));
+  border: 1px solid color-mix(in srgb, var(--fv, var(--vib-teal)) 40%, transparent);
+}
+/* hover-path demo: entity rows reveal their vault path */
+.wf-ent { position: relative; cursor: pointer; }
+.wf-ent:hover { border-color: var(--vib-blue); background: color-mix(in srgb, var(--vib-blue) 6%, #fff); }
+.wf-ent:hover::after {
+  content: attr(data-path) "  ·  click opens in Duo";
+  position: absolute; left: 4px; top: calc(100% + 2px); z-index: 5;
+  background: var(--code-bg); color: var(--code-ink);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 8.5px;
+  padding: 2px 7px; border-radius: 3px; white-space: nowrap;
+  pointer-events: none;
+}
+td.wf-ent:hover::after { left: 0; }
+/* pros / cons */
+.pc { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
+.pc div { font-size: 12.5px; }
+.pc .pro strong { color: var(--pass); }
+.pc .con strong { color: var(--fail); }
+.pc ul { margin: 4px 0; padding-left: 18px; }
+.pc li { margin: 2px 0; }
+.fitrow { font-size: 12px; color: var(--ink-mute); margin-top: 8px; }
+.fitrow strong { color: var(--ink-soft); }
+table.ops { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12.5px; }
+table.ops th, table.ops td { border: 1px solid var(--paper-rule); padding: 5px 9px; text-align: left; vertical-align: top; }
+table.ops th { background: var(--paper-deep); font-weight: 600; }
+@media (max-width: 700px) { .pc { grid-template-columns: 1fr; } .wf-body { flex-direction: column; } .wf-pane + .wf-pane { border-left: none; border-top: 1px solid var(--paper-edge); } }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Rollup viewer &amp; editor — four layout directions</h1>
+  <div class="meta">
+    <span class="pill">ENH-243</span>
+    <span class="pill">Rev 2</span>
+    2026-07-02 · vault workspaces · builds on the ENH-228/229 rollup engine
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> A GUI for viewing and building rollups in any workspace with a
+  detected vault (OKF included). It appears as a tab beside the vault surface, lists all rollups,
+  and lets the user create or reshape one entirely through UI — entity types, <em>multi-depth</em>
+  group-by (e.g. status → org), and filters — with live re-render and live save. The config file
+  rides in the repo but is never hand-edited; a <em>doctor</em> action hands a broken config to
+  Claude. Entity attributes are edited by <strong>flipping typed frontmatter values</strong> in an
+  inspector subpane (replacing the earlier drag idea). Hovering an entity reveals its path; clicking
+  opens it in Duo — <strong>try it on the wireframes below</strong>, the hover is live.
+  <strong>Rev 2</strong> folds in the owner's lean toward Layout A.
+</div>
+
+<h2>What every layout must house</h2>
+<table class="ops">
+  <tr><th>Requirement</th><th>Notes</th></tr>
+  <tr><td>Rollup list + create</td><td>Enumerate every rollup in the vault (engine: <code>duo rollup list</code>); “New rollup” starts from a picked entity type.</td></tr>
+  <tr><td>Rendered view</td><td>Table / grouped listing rendered live from the corpus (engine: <code>duo rollup render</code>).</td></tr>
+  <tr><td>GUI builder</td><td>Entity type(s) → <strong>ordered group-by levels</strong> (1..n deep, reorderable) → filters. No YAML ever shown; config file is machine-owned.</td></tr>
+  <tr><td>Live save + refresh</td><td>Every builder change persists immediately and re-renders; a manual refresh re-reads the corpus.</td></tr>
+  <tr><td>Frontmatter flip subpane</td><td>Select an entity → inspector shows its typed attributes with one-click flips (bool toggle, enum cycle/pick, date/text inline) — each flip writes the note’s frontmatter, undoable.</td></tr>
+  <tr><td>Hover path · click opens</td><td>Hovering any entity row reveals its vault-relative path; clicking opens the note in Duo (<code>duo open</code> semantics).</td></tr>
+  <tr><td>Doctor</td><td>When the config fails to parse/lint, a “Fix with Claude” action replaces the broken view.</td></tr>
+</table>
+
+<!-- ————————————————— LAYOUT A ————————————————— -->
+<section class="layout-card" style="--lc: var(--vib-blue)">
+  <div class="layout-tag">Layout A</div>
+  <h3>Library rail — master–detail <span class="lean-tag">Owner lean</span></h3>
+  <p class="thesis">The mail-client shape: rollups on the left, one rollup at a time in the center, builder + frontmatter editor stacked in a right inspector.</p>
+
+  <div class="wf">
+    <div class="wf-titlebar">
+      <span class="wf-tab">Vault</span><span class="wf-tab active">Rollups</span>
+    </div>
+    <div class="wf-body">
+      <div class="wf-pane" style="width:24%">
+        <div class="wf-label">Rollups</div>
+        <div class="wf-item sel">Open tasks by status</div>
+        <div class="wf-item">Initiatives by org</div>
+        <div class="wf-item">Stale decisions</div>
+        <span class="wf-btn">+ New rollup</span>
+      </div>
+      <div class="wf-pane" style="flex:1">
+        <div class="wf-label">Open tasks · status ▸ org &nbsp;·&nbsp; <span class="wf-btn ghost">↻ Refresh</span></div>
+        <div class="wf-group-h" style="--gh: var(--vib-blue)">status: open (4)</div>
+        <div class="wf-group-h d2" style="--gh: var(--vib-violet)">org: platform (2)</div>
+        <table class="wf-table wf-indent2">
+          <tr><th>title</th><th>owner</th><th>due</th></tr>
+          <tr><td class="wf-ent" data-path="tasks/ship-vault-guide.md">Ship vault guide ← hover me</td><td>geoff</td><td>Jul 10</td></tr>
+          <tr><td class="wf-ent" data-path="tasks/relink-edge-case.md">Fix relink edge case</td><td>—</td><td>—</td></tr>
+        </table>
+        <div class="wf-group-h d2" style="--gh: var(--vib-violet)">org: growth (2)</div>
+        <table class="wf-table wf-indent2">
+          <tr><td class="wf-ent" data-path="tasks/distro-pack-signing.md">Distro pack signing</td><td>geoff</td><td>Jul 3</td></tr>
+        </table>
+        <div class="wf-group-h" style="--gh: var(--vib-blue)">status: blocked (1)</div>
+      </div>
+      <div class="wf-pane" style="width:30%">
+        <div class="wf-label">Definition</div>
+        <div class="wf-chip t1">type: task</div>
+        <div class="wf-chip">+ type</div>
+        <div style="margin-top:4px" class="wf-label">Group by (ordered)</div>
+        <div class="wf-chip t1">1 · status</div>
+        <div class="wf-chip t2">2 · org</div>
+        <div class="wf-chip">+ level</div>
+        <div style="margin-top:4px" class="wf-label">Filters</div>
+        <div class="wf-chip">due &lt; 30d</div>
+        <div class="wf-chip">+ filter</div>
+        <div style="margin-top:8px" class="wf-label">Selected · ship-vault-guide</div>
+        <div class="wf-fm">
+          <div class="wf-fm-row"><span class="wf-fm-key">status</span><span class="wf-fm-val" style="--fv: var(--vib-blue)">open ▾</span></div>
+          <div class="wf-fm-row"><span class="wf-fm-key">blocked</span><span class="wf-fm-val" style="--fv: var(--vib-rose)">false ⇄</span></div>
+          <div class="wf-fm-row"><span class="wf-fm-key">owner</span><span class="wf-fm-val" style="--fv: var(--vib-teal)">geoff ▾</span></div>
+          <div class="wf-fm-row"><span class="wf-fm-key">due</span><span class="wf-fm-val" style="--fv: var(--vib-moss)">Jul 10 ✎</span></div>
+        </div>
+        <div class="wf-note">one click flips a typed value → frontmatter write → undo toast</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="fitrow"><strong>Doctor:</strong> a broken rollup renders as an error card in the center pane with “Fix with Claude”; its list row gets a red dot. <strong>Flip editing:</strong> select any row → the inspector’s frontmatter subpane shows its typed attributes; flipping <code>status</code> re-files the row into its new group live.</div>
+  <div class="pc">
+    <div class="pro"><strong>For</strong><ul>
+      <li>Most familiar shape — zero learning curve; scales to many rollups.</li>
+      <li>The stacked inspector naturally hosts both the definition <em>and</em> the selected-entity frontmatter editor — the flip subpane gets a permanent home.</li>
+      <li>Maps 1:1 onto existing VaultView idioms (rows, freshness chips).</li></ul></div>
+    <div class="con"><strong>Against</strong><ul>
+      <li>Three columns get tight beside the terminal column — the inspector needs disciplined collapse behavior.</li>
+      <li>Builder feels secondary — “construction” is boxed into a sidebar.</li>
+      <li>Deep group nesting (3+ levels) eats horizontal room in the center pane.</li></ul></div>
+  </div>
+</section>
+
+<!-- ————————————————— LAYOUT B ————————————————— -->
+<section class="layout-card" style="--lc: var(--vib-teal)">
+  <div class="layout-tag">Layout B</div>
+  <h3>Gallery + full-bleed viewer, toolbar builder</h3>
+  <p class="thesis">The Airtable shape: a card gallery to choose a rollup, then the whole surface is the data with the definition living as always-editable toolbar chips.</p>
+
+  <div class="wf">
+    <div class="wf-titlebar">
+      <span class="wf-tab">Vault</span><span class="wf-tab active">Rollups</span>
+      <span style="margin-left:auto">‹ All rollups</span>
+    </div>
+    <div class="wf-body" style="flex-direction:column">
+      <div class="wf-pane" style="border-bottom:1px solid var(--paper-edge)">
+        <span class="wf-chip t1">Tasks + Initiatives ▾</span>
+        <span class="wf-chip t1">Group 1: org ▾</span>
+        <span class="wf-chip t2">Group 2: status ▾</span>
+        <span class="wf-chip">+ level</span>
+        <span class="wf-chip">Filter: status ≠ done ▾</span>
+        <span style="float:right"><span class="wf-btn ghost">↻</span> <span class="wf-btn ghost">⋯</span></span>
+      </div>
+      <div class="wf-pane" style="flex:1">
+        <div class="wf-group-h" style="--gh: var(--vib-blue)">org: platform (3)</div>
+        <div class="wf-group-h d2" style="--gh: var(--vib-violet)">status: open (2)</div>
+        <table class="wf-table wf-indent2"><tr><th>title</th><th>type</th><th>due</th></tr>
+          <tr><td class="wf-ent" data-path="tasks/ship-vault-guide.md">Ship vault guide</td><td>task</td><td>Jul 10</td></tr>
+          <tr><td class="wf-ent" data-path="initiatives/graphbook-v2.md">Graphbook v2</td><td>initiative</td><td>Q3</td></tr></table>
+        <div class="wf-group-h" style="--gh: var(--vib-blue)">org: growth (2)</div>
+        <div class="wf-group-h d2" style="--gh: var(--vib-violet)">status: blocked (1)</div>
+        <table class="wf-table wf-indent2"><tr><td class="wf-ent" data-path="tasks/distro-pack-signing.md">Distro pack signing</td><td>task</td><td>Jul 3</td></tr></table>
+        <div class="wf-note">gallery (not shown): card grid of all rollups + “New rollup” card. Flip editing: clicking a row opens the note in Duo; a value-flip popover on the status/owner cells covers quick edits — no permanent inspector in this layout.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="fitrow"><strong>Doctor:</strong> the broken rollup’s gallery card flips to an error card with “Fix with Claude” right on it.</div>
+  <div class="pc">
+    <div class="pro"><strong>For</strong><ul>
+      <li>Maximum room for the data — best reading experience of the four; nested groups breathe.</li>
+      <li>No modes: the chips <em>are</em> the config, so “view” and “edit” never diverge; group levels are just an ordered chip run.</li>
+      <li>Gallery gives new rollups a first-class, inviting front door.</li></ul></div>
+    <div class="con"><strong>Against</strong><ul>
+      <li>No natural home for the frontmatter flip subpane — cell popovers are fiddlier than a persistent panel.</li>
+      <li>Two levels of navigation (gallery → rollup) — switching rollups costs a hop.</li>
+      <li>Complex definitions overflow a single chip row.</li></ul></div>
+  </div>
+</section>
+
+<!-- ————————————————— LAYOUT C ————————————————— -->
+<section class="layout-card" style="--lc: var(--vib-indigo)">
+  <div class="layout-tag">Layout C</div>
+  <h3>Designer split — config left, live preview right</h3>
+  <p class="thesis">The report-builder shape: the definition is a permanent structured form beside an always-live preview; viewing is just the builder with the form collapsed.</p>
+
+  <div class="wf">
+    <div class="wf-titlebar">
+      <span class="wf-tab">Vault</span><span class="wf-tab active">Rollups</span>
+      <span style="margin-left:auto">Open tasks by status ▾ &nbsp; + New</span>
+    </div>
+    <div class="wf-body">
+      <div class="wf-pane" style="width:32%">
+        <div class="wf-label">1 · Entities</div>
+        <div class="wf-chip t1">task</div><div class="wf-chip">+ type</div>
+        <div class="wf-label" style="margin-top:7px">2 · Group by (ordered)</div>
+        <div class="wf-item sel">1 · status</div>
+        <div class="wf-item">2 · org</div>
+        <div class="wf-chip">+ level</div>
+        <div class="wf-label" style="margin-top:7px">3 · Filters</div>
+        <div class="wf-item">due &lt; 30 days</div>
+        <div class="wf-chip">+ filter</div>
+        <div class="wf-label" style="margin-top:7px">4 · Columns &amp; sort</div>
+        <div class="wf-chip">title</div><div class="wf-chip">owner</div><div class="wf-chip">due ↑</div>
+        <div class="wf-note">every change saves + re-renders →</div>
+      </div>
+      <div class="wf-pane" style="flex:1">
+        <div class="wf-label">Live preview · <span class="wf-btn ghost">↻ Refresh</span> · <span class="wf-btn ghost">⟨⟨ collapse form</span></div>
+        <div class="wf-group-h" style="--gh: var(--vib-blue)">status: open (4)</div>
+        <div class="wf-group-h d2" style="--gh: var(--vib-violet)">org: platform (2)</div>
+        <table class="wf-table wf-indent2"><tr><th>title</th><th>owner</th><th>due</th></tr>
+          <tr><td class="wf-ent" data-path="tasks/ship-vault-guide.md">Ship vault guide</td><td>geoff</td><td>Jul 10</td></tr>
+          <tr><td class="wf-ent" data-path="tasks/refresh-cli-docs.md">Refresh CLI docs</td><td>—</td><td>Jul 18</td></tr></table>
+        <div class="wf-group-h" style="--gh: var(--vib-blue)">status: blocked (1)</div>
+        <div class="wf-note">selecting a row swaps the form pane to that note’s frontmatter flip panel (breadcrumb back to the definition)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="fitrow"><strong>Doctor:</strong> a broken config renders the form pane as a diagnosis card (“3 unknown fields — Fix with Claude”); preview shows last good render, greyed. <strong>Flip editing:</strong> the left pane is a two-mode panel — definition form ⇄ selected-note frontmatter.</div>
+  <div class="pc">
+    <div class="pro"><strong>For</strong><ul>
+      <li>“GUI-driven construction” is the star: the whole multi-level definition is visible and legible at once.</li>
+      <li>Cause → effect is instant and spatial (touch the form, watch the preview) — the strongest live-save story.</li>
+      <li>The numbered form doubles as the “New rollup” flow with zero extra UI.</li></ul></div>
+    <div class="con"><strong>Against</strong><ul>
+      <li>Definition form and frontmatter editor compete for the same pane — mode-swapping is a real cost the stacked inspector in A doesn’t pay.</li>
+      <li>Rollup <em>list</em> is demoted to a dropdown — weaker browse/overview than A or B.</li>
+      <li>Feels like a tool, not a document — heavier than needed for glance-and-go use.</li></ul></div>
+  </div>
+</section>
+
+<!-- ————————————————— LAYOUT D ————————————————— -->
+<section class="layout-card" style="--lc: var(--vib-rose)">
+  <div class="layout-tag">Layout D</div>
+  <h3>Board-first workspace</h3>
+  <p class="thesis">The kanban shape: the first group-by level becomes columns; deeper levels become swimlane bands inside each column; editing happens in a slide-over inspector.</p>
+
+  <div class="wf">
+    <div class="wf-titlebar">
+      <span class="wf-tab">Vault</span><span class="wf-tab active">Rollups</span>
+      <span style="margin-left:auto">Open tasks ▾ · Board | Table · ⚙ Configure · ↻</span>
+    </div>
+    <div class="wf-body" style="flex-direction:column">
+      <div class="wf-pane" style="flex:1">
+        <div class="wf-cols">
+          <div class="wf-col"><div class="wf-col-h" style="color:var(--vib-blue)">open · 4</div>
+            <div class="wf-note" style="margin:0 0 2px">— platform —</div>
+            <div class="wf-card wf-ent" data-path="tasks/ship-vault-guide.md">Ship vault guide</div>
+            <div class="wf-note" style="margin:2px 0">— growth —</div>
+            <div class="wf-card wf-ent" data-path="tasks/refresh-cli-docs.md">Refresh CLI docs</div></div>
+          <div class="wf-col"><div class="wf-col-h" style="color:var(--vib-violet)">blocked · 1</div>
+            <div class="wf-card wf-ent" data-path="tasks/distro-pack-signing.md">Distro pack signing</div></div>
+          <div class="wf-col"><div class="wf-col-h" style="color:var(--vib-teal)">done · 7</div>
+            <div class="wf-card wf-ent" data-path="tasks/relink-edge-case.md">Fix relink edge case</div></div>
+        </div>
+        <div class="wf-note">clicking a card opens a slide-over: frontmatter flip panel (status flip re-columns the card) + “Open in Duo”. ⚙ opens the builder slide-over; Table toggle renders the same config as nested groups.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="fitrow"><strong>Doctor:</strong> broken config replaces the board with a full-surface diagnosis + “Fix with Claude”. <strong>Rollup list:</strong> header dropdown, like C. <strong>Note:</strong> with drag retired in favor of flip-editing, the board is now a <em>read</em> shape rather than an interaction shape — its main argument has weakened.</div>
+  <div class="pc">
+    <div class="pro"><strong>For</strong><ul>
+      <li>Instantly legible status-at-a-glance; the most “alive” of the four.</li>
+      <li>Column + swimlane maps two group levels to two visual axes — no other layout does that.</li>
+      <li>Board/Table toggle covers both work-management and reporting reads from one config.</li></ul></div>
+    <div class="con"><strong>Against</strong><ul>
+      <li>Its hero interaction (drag) was just retired — flip-editing lives equally well in any layout.</li>
+      <li>Only shines when group level 1 is a small enum; collapses for org-first or 3-level rollups.</li>
+      <li>Builder and editor both hidden behind slide-overs — most modal of the four; most new rendering work.</li></ul></div>
+  </div>
+</section>
+
+<details class="deferred">
+  <summary>Shared plumbing (applies to whichever layout wins)</summary>
+  <div class="deferred-body">
+    <ul>
+      <li><strong>Engine, not new query code:</strong> the GUI reads/writes the ENH-228/229 rollup config (machine-owned; OKF-compatible) and renders through the same evaluator as <code>duo rollup render</code>. Multi-depth group-by = an ordered <code>groupBy</code> list in the config. The builder's vocabulary (types, fields, enum values) comes from <code>duo vault schema</code>, which also types the flip controls (bool → toggle, enum → picker, date → date field).</li>
+      <li><strong>CLI parity (rule 4):</strong> everything clickable needs verbs — roughly <code>duo rollup new/set/show/doctor</code> plus a frontmatter-flip verb (or reuse of the existing note-write path).</li>
+      <li><strong>Undo:</strong> frontmatter flips land through the normal note-write path, so file-history (ENH-221) already gives restore; the toast is a convenience wrapper.</li>
+      <li><strong>Hover path / click-open:</strong> every rendered entity row carries its vault-relative path (tooltip on hover) and opens via the <code>duo open</code> path on click — same affordance in all four layouts.</li>
+      <li><strong>Doctor:</strong> “Fix with Claude” sends the broken config + lint errors to the active terminal session as a prepared prompt.</li>
+    </ul>
+  </div>
+</details>
+
+<h2>Decisions</h2>
+
+<section class="decision-card">
+  <div class="q-title">Decision 1 · Primary layout</div>
+  <h3 class="q-prompt">Confirm the layout direction for the rollup viewer/editor.</h3>
+  <p class="q-context">You leaned Layout A — it's marked recommended and its wireframe now shows the stacked inspector (definition + frontmatter flip subpane) and two-level grouping. Confirm or override; hybrid notes welcome.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d1" value="A-library-rail">
+      <div class="q-option-body"><div class="q-option-title">A · Library rail (master–detail) <span class="recommend-tag">Owner lean</span></div>
+      <div class="q-option-rationale">Familiar and browsable; the stacked right inspector is the natural home for both the definition and the flip subpane.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="B-gallery-toolbar">
+      <div class="q-option-body"><div class="q-option-title">B · Gallery + toolbar chips</div>
+      <div class="q-option-rationale">Data-maximal, modeless; but no persistent home for the flip subpane.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="C-designer-split">
+      <div class="q-option-body"><div class="q-option-title">C · Designer split (form + live preview)</div>
+      <div class="q-option-rationale">Strongest builder legibility; pays a mode-swap between definition form and frontmatter editor.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="D-board-first">
+      <div class="q-option-body"><div class="q-option-title">D · Board-first workspace</div>
+      <div class="q-option-rationale">Most visual; weakened now that drag is retired, and weakest for deep/non-enum grouping.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d1" placeholder="Notes — e.g. steal B's gallery as A's empty state, or D's board as a later view toggle…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 2 · Flip-edit apply semantics</div>
+  <h3 class="q-prompt">When a frontmatter value is flipped in the inspector, how does it apply?</h3>
+  <p class="q-context">Flips are typed and scoped (one field, one note), so they're lower-risk than drag was — but they still rewrite a file and can re-file the row into another group mid-read.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d2" value="instant-undo">
+      <div class="q-option-body"><div class="q-option-title">Instant apply + undo toast <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">One click, immediate write + live re-group, toast with Undo (file-history backs it). Matches "live save" everywhere else.</div></div></label>
+    <label class="q-option"><input type="radio" name="d2" value="confirm-each">
+      <div class="q-option-body"><div class="q-option-title">Confirm each flip</div>
+      <div class="q-option-rationale">Popover per change ("status: open → done?"). Safest, but adds a click to every edit.</div></div></label>
+    <label class="q-option"><input type="radio" name="d2" value="batch-apply">
+      <div class="q-option-body"><div class="q-option-title">Stage flips, apply as a batch</div>
+      <div class="q-option-rationale">Edits queue in the subpane with an Apply button — one write, one undo unit. Heavier UI, good for multi-field edits.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d2" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 3 · Doctor surfacing</div>
+  <h3 class="q-prompt">Where does “Fix with Claude” run when a rollup config is broken?</h3>
+  <p class="q-context">The config is machine-owned, so the GUI must never dead-end on a broken file. All options show the diagnosis in place of the rollup.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d3" value="send-to-terminal">
+      <div class="q-option-body"><div class="q-option-title">Send prepared prompt to the active terminal <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Reuses the session the user is already pairing with; transparent, steerable, no hidden inference.</div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="background-tab">
+      <div class="q-option-body"><div class="q-option-title">Spawn a background fix session</div>
+      <div class="q-option-rationale">One click, hands-off; result lands via the attention badge. Heavier machinery.</div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="cli-only">
+      <div class="q-option-body"><div class="q-option-title">CLI-first (<code>duo rollup doctor</code>), button just runs it</div>
+      <div class="q-option-rationale">Deterministic lint auto-fixes where possible; escalates to Claude only when lint can't repair.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d3" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 3 decisions answered</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  var TITLES = {
+    d1: 'D1 Primary layout',
+    d2: 'D2 Flip-edit apply semantics',
+    d3: 'D3 Doctor surfacing'
+  };
+  var names = Object.keys(TITLES);
+  var counter = document.getElementById('answered-count');
+  function answered() {
+    return names.filter(function (n) {
+      return document.querySelector('input[name="' + n + '"]:checked');
+    });
+  }
+  function refresh() { counter.textContent = String(answered().length); }
+  document.addEventListener('change', refresh);
+  refresh();
+
+  document.getElementById('copy-btn').addEventListener('click', function () {
+    var lines = names.map(function (n) {
+      var sel = document.querySelector('input[name="' + n + '"]:checked');
+      var notes = document.querySelector('.q-notes[data-decision="' + n + '"]');
+      var out = '[' + (sel ? sel.value : 'UNANSWERED') + '] ' + TITLES[n];
+      if (notes && notes.value.trim()) out += '\n    ' + notes.value.trim().replace(/\n/g, '\n    ');
+      return out;
+    });
+    var payload = 'Rollup viewer/editor layout decisions (ENH-243, rev 2):\n\n' + lines.join('\n\n');
+    var btn = this;
+    navigator.clipboard.writeText(payload).then(function () {
+      btn.classList.add('copied'); btn.textContent = 'Copied';
+      setTimeout(function () { btn.classList.remove('copied'); btn.textContent = 'Copy decisions'; }, 2000);
+    }, function () {
+      window.prompt('Copy manually:', payload);
+    });
+  });
+})();
+</script>
+
+</body>
+</html>
