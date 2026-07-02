@@ -4,16 +4,21 @@
 // corpus — no live query engine at rest, just plain markdown an editor or
 // agent can read:
 //
-//   index.md  — OKF section-6: a heading per Type (or folder Group) then
-//               bullets `* [Title](rel) - description`. The ROOT index.md is
-//               ALSO the OKF mode marker (its `okf_version` frontmatter, D4),
-//               so its frontmatter block is preserved BYTE-IDENTICALLY — we
-//               regex-replace ONLY the body after the closing `---`, between
-//               the shared `<!-- duo:listing -->` fence (co-owned with U2's
-//               scaffold, which writes the frontmatter + the empty fence).
-//   log.md    — OKF section-7: `## YYYY-MM-DD` groups, newest first, each note
-//               a bullet. Dates come from file mtimes (cheap + offline; git
-//               authorship would need a spawn — noted in the stamp).
+//   _index.md — OKF section-6: a heading per Type (or folder Group) then
+//   (index.md)  bullets `* [Title](rel) - description`. The ROOT index file
+//               is ALSO the OKF mode marker (its `okf_version` frontmatter,
+//               D4), so its frontmatter block is preserved BYTE-IDENTICALLY —
+//               we regex-replace ONLY the body after the closing `---`,
+//               between the shared `<!-- duo:listing -->` fence (co-owned
+//               with U2's scaffold, which writes the frontmatter + the empty
+//               fence). ENH-243: `_index.md` is the default for new vaults;
+//               `index.md` (parenthesized above) is the legacy filename,
+//               still detected and honored for vaults that already use it —
+//               see `./okf-filenames.ts` for the resolution order.
+//   _log.md   — OKF section-7: `## YYYY-MM-DD` groups, newest first, each note
+//   (log.md)    a bullet. Dates come from file mtimes (cheap + offline; git
+//               authorship would need a spawn — noted in the stamp). Same
+//               ENH-243 dual-convention resolution as the index.
 //
 // Every write is OKF-mode-GATED (`detectVaultMode`; throws in Obsidian mode —
 // Obsidian stays byte-identical, the frozen-fixture invariant). Each generated
@@ -37,6 +42,12 @@ import { sourceHash, evaluateBaseDef, buildLinkCtx, type BaseDef } from './rende
 import { renderBaseMarkdown } from './render-markdown'
 import { buildEngineFiles, defaultAsOf } from './engine'
 import { relLink, serializeOkfLink, serializeWikilink } from '../markdown/vaultLinks'
+import {
+  isGeneratedListingBasename,
+  resolveIndexFilename,
+  resolveIndexFilenameForDir,
+  resolveLogFilename,
+} from './okf-filenames'
 import type { VaultFile, VaultMode } from './types'
 
 // ── frontmatter readers (display/description) ─────────────────────────────────
@@ -73,21 +84,25 @@ function groupLabel(note: VaultFile): string {
 // ── index.md (OKF section-6) ──────────────────────────────────────────────────
 
 /** Should a note be excluded from listings entirely? The generated listing
- *  files themselves, and anything under the always-skipped dirs the walk
- *  already drops. (`readNotes` already skips templates/out/.obsidian/.trash.) */
+ *  files themselves (either convention — ENH-243), and anything under the
+ *  always-skipped dirs the walk already drops. (`readNotes` already skips
+ *  templates/out/.obsidian/.trash.) */
 function isGeneratedListing(relPath: string): boolean {
   const base = relPath.includes('/') ? relPath.slice(relPath.lastIndexOf('/') + 1) : relPath
-  return base === 'index.md' || base === 'log.md'
+  return isGeneratedListingBasename(base)
 }
 
 /** Generate the OKF section-6 listing body (no frontmatter, no stamp) for the
  *  notes under `dir` (vault-relative; `''` / undefined → the whole vault).
  *  A heading per Type/Group, then `* [Title](rel) - description` bullets,
- *  links relative to the index file that will hold this body. */
-export function generateIndex(root: string, dir = ''): string {
+ *  links relative to the index file that will hold this body.
+ *  `indexFilename` (ENH-243) is the actual filename the body will be spliced
+ *  into — defaults to the vault's already-resolved convention. */
+export function generateIndex(root: string, dir = '', indexFilename?: string): string {
   const dirNorm = dir.replace(/^\/+|\/+$/g, '')
-  // The index file these links are relative TO: <dir>/index.md.
-  const indexRel = dirNorm ? `${dirNorm}/index.md` : 'index.md'
+  const filename = indexFilename ?? resolveIndexFilename(root)
+  // The index file these links are relative TO: <dir>/<filename>.
+  const indexRel = dirNorm ? `${dirNorm}/${filename}` : filename
 
   const notes = readNotes(root)
     .filter((n) => !isGeneratedListing(n.relPath))
@@ -151,12 +166,12 @@ export function engineIndexBody(
   // An authored-but-unusable spec falls back too, but WARNS (D4): the user
   // clearly intended a custom listing, so a silent default would be confusing.
   if (!spec || typeof spec !== 'object' || Array.isArray(spec)) {
-    warn('the root `index.md` `listing:` is not a YAML mapping with a `views:` list — using the group-by-type default')
+    warn('the root index `listing:` is not a YAML mapping with a `views:` list — using the group-by-type default')
     return null
   }
   const def = spec as BaseDef
   if (!Array.isArray(def.views) || def.views.length === 0) {
-    warn('the root `index.md` `listing:` has no `views:` — using the group-by-type default')
+    warn('the root index `listing:` has no `views:` — using the group-by-type default')
     return null
   }
   try {
@@ -174,7 +189,7 @@ export function engineIndexBody(
     // default rather than breaking `duo vault publish` (D4). A bad *expression*
     // never reaches here (it degrades to a ⚠ cell inside the engine); this
     // catches only a structural surprise, so it's worth a (non-silent) warning.
-    warn('the root `index.md` `listing:` spec threw while evaluating (' + (err instanceof Error ? err.message : String(err)) + ') — using the group-by-type default')
+    warn('the root index `listing:` spec threw while evaluating (' + (err instanceof Error ? err.message : String(err)) + ') — using the group-by-type default')
     return null
   }
 }
@@ -191,7 +206,7 @@ function ymd(ms: number): string {
  *  MM-DD` day groups, newest first, each note a `* [Title](rel)` bullet.
  *  Dates come from file mtimes (offline-cheap; the stamp records the source). */
 export function generateLog(root: string): string {
-  const logRel = 'log.md'
+  const logRel = resolveLogFilename(root)
   const notes = readNotes(root).filter((n) => !isGeneratedListing(n.relPath))
 
   const byDay = new Map<string, VaultFile[]>()
@@ -257,12 +272,12 @@ function writeIfChanged(abs: string, content: string): boolean {
 }
 
 export interface WriteListingsOptions {
-  /** Also write a per-directory `index.md` for each subfolder that holds
-   *  notes (default false — only the root index.md + root log.md). */
+  /** Also write a per-directory index file for each subfolder that holds
+   *  notes (default false — only the root index + root log). */
   perDir?: boolean
   /** Which listing files to (re)write (default `'both'`). `'index'` writes
-   *  ONLY index.md (root + per-dir under `perDir`); `'log'` writes ONLY
-   *  log.md. The narrowing is honored in the WRITE — a file outside the scope
+   *  ONLY the index file (root + per-dir under `perDir`); `'log'` writes ONLY
+   *  the log file. The narrowing is honored in the WRITE — a file outside the scope
    *  is left byte-identical (no fresh stamp → no git churn), and `written`
    *  reflects only what was actually written (PR#98 review cluster B). */
   scope?: 'index' | 'log' | 'both'
@@ -299,9 +314,12 @@ function spliceRootIndex(existingRaw: string, stamp: string, body: string): stri
 
 /** Generate + write the OKF static listings (D8). OKF-mode-GATED: throws in
  *  Obsidian mode (Obsidian stays byte-identical — the frozen-fixture
- *  invariant). Writes the root `index.md` (frontmatter byte-preserved) + the
- *  root `log.md`; with `perDir`, also a per-subfolder `index.md`. Each file
- *  carries a `<!-- duo:generated … source-hash … -->` stamp. */
+ *  invariant). Writes the root index (frontmatter byte-preserved) + the root
+ *  log; with `perDir`, also a per-subfolder index. Filenames follow whichever
+ *  convention the vault already uses — `_index.md`/`_log.md` for a fresh
+ *  vault, `index.md`/`log.md` for one that predates ENH-243 (resolved once
+ *  per call via {@link resolveIndexFilename}/{@link resolveLogFilename}).
+ *  Each file carries a `<!-- duo:generated … source-hash … -->` stamp. */
 export function writeListings(root: string, opts: WriteListingsOptions = {}): WriteListingsResult {
   const mode = detectVaultMode(root)
   if (mode !== 'okf') {
@@ -316,49 +334,54 @@ export function writeListings(root: string, opts: WriteListingsOptions = {}): Wr
   const wantLog = scope !== 'index'
   const written: string[] = []
   const warnings: string[] = []
+  const indexFilename = resolveIndexFilename(root)
 
-  // Root index.md — preserve its okf_version frontmatter byte-identically.
+  // Root index — preserve its okf_version frontmatter byte-identically.
   // Skipped entirely under `--log-only` so the file is left byte-identical
   // (no fresh stamp → no git churn); we don't even read it. The byte-guard
   // (writeIfChanged) additionally skips the write when the regenerated listing
   // is identical to what's on disk, so a no-op `publish` writes nothing.
   if (wantIndex) {
-    const rootIndexAbs = path.join(root, 'index.md')
+    const rootIndexAbs = path.join(root, indexFilename)
     const existing = fs.readFileSync(rootIndexAbs, 'utf8') // OKF root always has it
     // ENH-230 — a `listing:` base spec in the frontmatter drives the body
     // through the shared engine; otherwise the group-by-type default (D3).
     const fm = splitFrontmatter(existing).frontmatter
-    const indexBody = engineIndexBody(root, fm, (reason) => warnings.push(reason)) ?? generateIndex(root, '')
+    const indexBody = engineIndexBody(root, fm, (reason) => warnings.push(reason)) ?? generateIndex(root, '', indexFilename)
     const indexStamp = generatedStamp(root, 'index', 'corpus')
     if (writeIfChanged(rootIndexAbs, spliceRootIndex(existing, indexStamp, indexBody))) {
-      written.push('index.md')
+      written.push(indexFilename)
     }
   }
 
-  // Root log.md — a standalone generated file (no preserved frontmatter).
+  // Root log — a standalone generated file (no preserved frontmatter).
   // Skipped under `--index-only`.
   if (wantLog) {
-    const logAbs = path.join(root, 'log.md')
+    const logFilename = resolveLogFilename(root)
+    const logAbs = path.join(root, logFilename)
     const logStamp = generatedStamp(root, 'log', 'file mtimes')
     if (writeIfChanged(logAbs, `${logStamp}\n\n# Log\n\n${generateLog(root)}\n`)) {
-      written.push('log.md')
+      written.push(logFilename)
     }
   }
 
-  // Per-dir index.md files are INDEX listings, so they follow the index scope:
+  // Per-dir index files are INDEX listings, so they follow the index scope:
   // written under `--index-only` (+ default), suppressed under `--log-only`.
   if (opts.perDir && wantIndex) {
-    // Each subfolder that contains notes gets its own index.md.
+    // Each subfolder that contains notes gets its own index file, inheriting
+    // the root's resolved convention unless the subfolder already has its
+    // own (a legacy per-dir file that predates a root migration).
     const dirs = new Set<string>()
     for (const n of readNotes(root)) {
       if (isGeneratedListing(n.relPath)) continue
       if (n.folder) dirs.add(n.folder)
     }
     for (const dir of [...dirs].sort()) {
-      const abs = path.join(root, dir, 'index.md')
+      const dirIndexFilename = resolveIndexFilenameForDir(path.join(root, dir), indexFilename)
+      const abs = path.join(root, dir, dirIndexFilename)
       const stamp = generatedStamp(root, 'index', 'corpus')
-      if (writeIfChanged(abs, `${stamp}\n\n${generateIndex(root, dir)}\n`)) {
-        written.push(`${dir}/index.md`)
+      if (writeIfChanged(abs, `${stamp}\n\n${generateIndex(root, dir, dirIndexFilename)}\n`)) {
+        written.push(`${dir}/${dirIndexFilename}`)
       }
     }
   }

@@ -21,6 +21,12 @@ export {
   findVaultWithMode,
   isForeignVault,
 } from './detect'
+// ENH-243 — the OKF generated-listing filename resolution (dual convention:
+// `_index.md`/`_log.md` default, `index.md`/`log.md` legacy).
+export { resolveIndexFilename, resolveLogFilename, OKF_INDEX_FILENAME_DEFAULT } from './okf-filenames'
+// ENH-244 — the rendered-artifact output folder (dual convention: `output/`
+// default, legacy `out/`).
+export { resolveOutputDir, OUTPUT_DIR_DEFAULT } from './output-dir'
 // ENH-216 — the single node-free link helper (core/markdown/vaultLinks.ts).
 // Re-exported here so vault consumers import rel-path/slug/extract logic
 // from one place and never reimplement it.

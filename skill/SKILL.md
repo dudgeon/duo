@@ -240,8 +240,10 @@ filesystem directly — no running app needed):
   `duo vault schema` to see which you're in):
   - **Obsidian mode** → live **`.base`** files (Obsidian Bases YAML),
     rendered with `duo base render`.
-  - **OKF mode** → at-rest **static listings** (`index.md` / `log.md`)
-    via `duo vault publish` (the root `index.md` can carry a `listing:` spec
+  - **OKF mode** → at-rest **static listings** (`_index.md`/`index.md` +
+    `_log.md`/`log.md` — ENH-243: underscore-prefixed is the default, plain
+    is the legacy form, both detected) via `duo vault publish` (the root
+    index can carry a `listing:` spec
     for a grouped, engine-driven body — ENH-230). OKF doesn't *auto-render*
     `.base` files like Obsidian — but you still **author a `.base` as a query
     and render on demand** with `duo rollup render <base> --md|--html` (both
@@ -286,8 +288,10 @@ remains the path for anything richer:
    opt-in), and stamps `out`/`last_generated`/`last_hash` back into the note
    surgically. (`duo base render` is the lower-level twin with no stamp.)
 
-**In OKF mode, the at-rest listings are `index.md` / `log.md`** — `duo vault
-publish` (re)generates them from the corpus (the root `index.md` can carry a
+**In OKF mode, the at-rest listings are `_index.md`/`index.md` +
+`_log.md`/`log.md`** (ENH-243 dual convention, whichever the vault already
+uses) — `duo vault publish` (re)generates them from the corpus (the root
+index can carry a
 `listing:` spec for a grouped, engine-driven body — ENH-230). OKF doesn't
 auto-render `.base` files like Obsidian, but **authoring a `.base` (or a
 ` ```base ` block) as a query and running `duo rollup render <base> --md|--html`
@@ -356,7 +360,7 @@ Each pointer loads a complete file — open the one that matches your task.
   inbound-link rewrite) or `duo vault relink` (repairs out-of-band moves
   slug-first, with `id:` as a same-slug tiebreak); `duo vault publish`
   (re)generates the static
-  `index.md` + `log.md` listings; `duo vault promote` splits a section into
+  the root index + log listings; `duo vault promote` splits a section into
   its own entity, leaving a markdown link. The end-user walkthrough with
   diagrams ships with this skill — open it with `duo open
   ~/.claude/skills/duo/references/vault-guide.html`.

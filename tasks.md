@@ -3,6 +3,32 @@
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
 
+### ENH-244: Vault — rename the rendered-artifact folder `out/` → `output/` (dual convention, same pattern as ENH-243)
+
+**Status:** ✅ Shipped (this branch, 2026-07-02). **Priority:** P2 (owner request, same session as ENH-243).
+
+**Problem.** `out/` is Duo's rendered-rollup-artifact folder (both OKF and Obsidian modes, `duo base render`/`duo rollup render`'s default write target). The owner asked for a clearer name — `out` reads as a generic word, easy to overlook or misread when eyeballing a vault folder listing.
+
+**Fix — same dual-convention pattern as [ENH-243](#enh-243-okf-vault--dual-_indexmdindexmd--_logmdlogmd-convention).** New `core/vault/output-dir.ts` (`OUTPUT_DIR_CANDIDATES = ['output', 'out']`, `resolveOutputDir(root)`) is the single source of truth, wired into every place that previously hardcoded `'out'`: `parse.ts`'s `SKIP_DIRS` (corpus/graph walk), `detect.ts`'s `SCAN_SKIP` (`vault list` note-count), `render.ts`'s `sourceHash` skip-set, `search.ts`'s `SEARCH_SKIP_DIRS` (⌘⇧F palette), `scaffold.ts`'s `initVault` (both OKF and Obsidian branches + the README bullet), and `cli/duo.ts`'s `base render` default `--out` target. New vaults get `output/`; a vault that already has `out/` keeps writing there — never a mixed `out/` + `output/` split in the same vault. 10 new tests in `core/vault/output-dir.test.ts` (resolution, skip-set membership, scaffold defaults, detection unaffected). Full suite 266 → 276 vault tests / 2110 → 2120 overall, all green; typecheck clean; `check:skill-currency` PASS; `build:cli` + `sync:claude` run.
+
+**Verified live:** rebuilt CLI's `vault init` scaffolds `output/`, not `out/`; `base render` with no `--out` flag writes into `output/` on a fresh vault; a hand-renamed `out/` folder (simulating a legacy vault) keeps receiving new artifacts in `out/` on the next render, with no `output/` folder spuriously created alongside it.
+
+---
+
+### ENH-243: OKF vault — dual `_index.md`/`index.md` + `_log.md`/`log.md` convention
+
+**Status:** ✅ Shipped (this branch, 2026-07-02). **Priority:** P1 (owner updated the primary work vault's convention live; blocked `duo vault publish` on that vault until fixed).
+
+**Problem.** The owner switched the primary work OKF vault's root-marker convention from `index.md` to `_index.md` (easier to spot as "generated" — sorts to the top of a folder). Duo's OKF mode hardcoded `index.md`/`log.md` as literal strings scattered across ~6 production files (`core/vault/detect.ts`, `scaffold.ts`, `listings.ts`, `render.ts`, `default-vault.ts`, `cli/duo.ts`) with two independently-drifted "is this a generated listing" checks (`listings.ts`'s `isGeneratedListing` vs. `render.ts`'s `GENERATED` set) — no single source of truth to rename.
+
+**Owner decisions (AUQ, 2026-07-02):** (1) **support both conventions** — detect either `_index.md`/`index.md` per-vault, default new writes to the underscore-prefixed form (never break an existing vault); (2) **`log.md` gets the same treatment** (`_log.md`), staying paired with whichever index convention the vault root already uses — a legacy `index.md` vault's first `publish` writes `log.md`, never a mixed `index.md` + `_log.md`; (3) **global default** — `_index.md`/`_log.md` is Duo's default for every new OKF vault, not a per-vault opt-in flag.
+
+**The fix.** New single source of truth `core/vault/okf-filenames.ts` (paired `{index, log}` convention table, preference-ordered underscore-first) — every other vault module resolves the filename through it instead of hardcoding either string. `detect.ts`'s OKF marker probe (`readOkfVersion`) checks both; `scaffold.ts`'s `initVault` writes `_index.md` for new vaults, its collision guard checks both; `listings.ts`'s `writeListings` resolves the vault's actual on-disk convention once per call and writes root + per-dir index/log through it (per-dir files also honor their own pre-existing legacy filename if one exists); `render.ts`'s `sourceHash` now shares `isGeneratedListingBasename` with `listings.ts` instead of a second, independently-hardcoded `Set`; `cli/duo.ts`'s `publish --open` resolves the actual filename instead of assuming `index.md`. 14 new tests in `core/vault/okf-filenames.test.ts` cover detection, resolution, and the log-pairs-with-index rule; all 9 pre-existing tests that assumed the old default filename were updated (252 → 266 vault tests, full 2110-test suite green). 4-surface CLI-doc sync (`skill/references/vault.md`, `.claude/rules/vault.md`, `docs/CLI-COVERAGE.md`, `agents/duo.md`, `skill/SKILL.md`) + `npm run check:skill-currency` PASS + `npm run build:cli` + `sync:claude`.
+
+**Verified live:** rebuilt CLI `vault init` writes `_index.md`; a hand-simulated legacy vault (`index.md` present, no `_index.md`) round-trips through `vault publish` staying on `index.md`/`log.md`; a fresh vault's `publish` writes `_index.md`/`_log.md`. No mixed-convention output observed in either case.
+
+---
+
 ### ENH-232: Catch-up — rich re-entry for sessions whose worktree was removed
 **Status:** 🔵 Open (filed from ENH-231 walk #2, 2026-06-24). **P1.**
 

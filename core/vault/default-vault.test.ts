@@ -240,7 +240,7 @@ describe('PR#98 review — --no-default contract (C1) + mode-aware rejection (C2
     const notAVault = path.join(dir, 'nope')
     fs.mkdirSync(notAVault, { recursive: true })
     expect(() => setDefaultVault(notAVault, prefFile)).toThrow(
-      /okf_version index\.md or \.obsidian\//,
+      /okf_version _index\.md\/index\.md or \.obsidian\//,
     )
   })
 })

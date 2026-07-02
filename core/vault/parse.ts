@@ -8,17 +8,19 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { load as yamlLoad } from 'js-yaml'
 import { extractLinkRefs, extractLinkKeys } from '../markdown/vaultLinks'
+import { OUTPUT_DIR_NAMES } from './output-dir'
 import type { VaultFile } from './types'
 
 /** Directories never walked for entities or queries. `templates/` is
  *  query-excluded per D5 (read separately as the schema registry);
- *  `out/` holds rendered artifacts; `.obsidian`/`.trash` are Obsidian
- *  internals. `archive/` is NOT skipped here — bases opt in/out per view
- *  (D20), so the walk surfaces it and filters decide. */
-// `out/` (base render) and `rollups/` (ENH-229 rollup artifacts) hold GENERATED
-// views, not source notes — skip them so artifacts never pollute the corpus or
-// roll up into themselves.
-export const SKIP_DIRS = new Set(['.obsidian', '.trash', 'out', 'rollups', 'templates'])
+ *  `output/` (or legacy `out/`, ENH-244) holds rendered artifacts;
+ *  `.obsidian`/`.trash` are Obsidian internals. `archive/` is NOT skipped
+ *  here — bases opt in/out per view (D20), so the walk surfaces it and
+ *  filters decide. */
+// `output/`/`out/` (base render) and `rollups/` (ENH-229 rollup artifacts)
+// hold GENERATED views, not source notes — skip them so artifacts never
+// pollute the corpus or roll up into themselves.
+export const SKIP_DIRS = new Set(['.obsidian', '.trash', ...OUTPUT_DIR_NAMES, 'rollups', 'templates'])
 
 /** Recursively list files under `dir`, skipping {@link SKIP_DIRS}. Returns
  *  absolute paths. Symlinks are not followed (withFileTypes). */

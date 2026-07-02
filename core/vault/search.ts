@@ -12,15 +12,16 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { walk } from './parse'
+import { OUTPUT_DIR_NAMES } from './output-dir'
 import type { SearchHit } from './types'
 
 /** ENH-214 — the ⌘⇧F palette (and its `duo vault search` twin) must SEE
  *  template files. The graph/parse walk excludes `templates/` (parse.ts
  *  SKIP_DIRS, D5) — but search wants them. This search-only skip-set omits
- *  `templates` while still skipping Obsidian internals and rendered output.
- *  Do NOT broaden parse.ts's SKIP_DIRS to match — graph behavior must not
- *  change. */
-export const SEARCH_SKIP_DIRS = new Set(['.obsidian', '.trash', 'out'])
+ *  `templates` while still skipping Obsidian internals and rendered output
+ *  (`output/`/`out/`, ENH-244). Do NOT broaden parse.ts's SKIP_DIRS to
+ *  match — graph behavior must not change. */
+export const SEARCH_SKIP_DIRS = new Set(['.obsidian', '.trash', ...OUTPUT_DIR_NAMES])
 
 /** True when a vault-relative POSIX path lives under a `templates/` directory
  *  — drives the palette's inline "Template" badge (ENH-214). Matches a

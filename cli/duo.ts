@@ -551,7 +551,7 @@ const VERBS: VerbSpec[] = [
     group: 'Vault',
     args: '<init|list|schema|capture|stub|search|default|mv|relink|publish|promote> [args]',
     summary:
-      'Work-notes vault. Two at-rest formats: OKF (standard markdown relative links, [Display](./rel.md)) and Obsidian (wikilinks, [[Display]]) — one graph model, two serializers. init <path> --format=okf|obsidian [--name "…"] [--no-default] [--force]: scaffold a vault; --format is REQUIRED on the CLI (the New Vault dialog defaults to OKF). OKF mode marks the root with an okf_version index.md + static listings; Obsidian writes the legacy .obsidian/ + bases/processing.base + README. The fresh vault becomes the default unless --no-default is passed (a throwaway scaffold can opt out of the global-default hijack; it still lands in the picker\'s known list). list: vaults detected from the cwd (JSON). schema [--vault p]: the live corpus — types/entities/aliases/props-per-type/observed-enums, a pure function over frontmatter (the vault IS the schema; never cached). capture [--template t] [--text "…"] [--title "…"] [--open]: drop a timestamped inbox note (untyped by default; --template stamps a type). stub <type> <name> [--open]: create a typed entity stub from its template, filed by the D19 rule (the CLI twin of the silent-stub [[New Name]]⇥ gesture; idempotent — never clobbers). search <query> [--vault p]: full-text hits (file, line, excerpt) — the CLI twin of ⌘⇧F. default [<path> [--init [--format=okf|obsidian] [--name "…"]] | --clear]: read or set the default vault (Phase-2 D11; the CLI twin of the Settings field). --init (ENH-242 create-on-choose) inits a bare <path> then sets it, or sets the ENCLOSING vault if <path> is inside one (never nests; --format defaults to OKF). mv <from> <to>: move a note (vault-relative) and rewrite every inbound markdown link to its new path, re-basing the moved note\'s own outbound links (D5 clean path). relink [--dry-run]: repair out-of-band moves (Finder/git) — re-resolve dangling markdown links by slug/basename first, using the stable frontmatter id: only to tiebreak when >1 note shares a slug, rewriting the unambiguous ones and reporting ambiguous + broken (D5; auto-runs on vault open). publish [--index-only|--log-only] [--dir] [--open]: (re)generate the OKF static listings from the corpus — root index.md (frontmatter byte-preserved) + log.md, --dir adds per-folder index.md (D8; OKF-mode only). --index-only / --log-only narrow the WRITE to just that file (the other is left byte-identical — no churn), not just the reported set. promote <note> --heading "<h>" --type <t>: split a ## section into its own typed entity, leaving a markdown link behind (a wikilink in Obsidian) — never an embed (D9). Verbs resolve --vault → the enclosing vault → the default → error, so a set default lets them run from outside any vault.'
+      'Work-notes vault. Two at-rest formats: OKF (standard markdown relative links, [Display](./rel.md)) and Obsidian (wikilinks, [[Display]]) — one graph model, two serializers. init <path> --format=okf|obsidian [--name "…"] [--no-default] [--force]: scaffold a vault; --format is REQUIRED on the CLI (the New Vault dialog defaults to OKF). OKF mode marks the root with an okf_version _index.md (or legacy index.md) + static listings; Obsidian writes the legacy .obsidian/ + bases/processing.base + README. The fresh vault becomes the default unless --no-default is passed (a throwaway scaffold can opt out of the global-default hijack; it still lands in the picker\'s known list). list: vaults detected from the cwd (JSON). schema [--vault p]: the live corpus — types/entities/aliases/props-per-type/observed-enums, a pure function over frontmatter (the vault IS the schema; never cached). capture [--template t] [--text "…"] [--title "…"] [--open]: drop a timestamped inbox note (untyped by default; --template stamps a type). stub <type> <name> [--open]: create a typed entity stub from its template, filed by the D19 rule (the CLI twin of the silent-stub [[New Name]]⇥ gesture; idempotent — never clobbers). search <query> [--vault p]: full-text hits (file, line, excerpt) — the CLI twin of ⌘⇧F. default [<path> [--init [--format=okf|obsidian] [--name "…"]] | --clear]: read or set the default vault (Phase-2 D11; the CLI twin of the Settings field). --init (ENH-242 create-on-choose) inits a bare <path> then sets it, or sets the ENCLOSING vault if <path> is inside one (never nests; --format defaults to OKF). mv <from> <to>: move a note (vault-relative) and rewrite every inbound markdown link to its new path, re-basing the moved note\'s own outbound links (D5 clean path). relink [--dry-run]: repair out-of-band moves (Finder/git) — re-resolve dangling markdown links by slug/basename first, using the stable frontmatter id: only to tiebreak when >1 note shares a slug, rewriting the unambiguous ones and reporting ambiguous + broken (D5; auto-runs on vault open). publish [--index-only|--log-only] [--dir] [--open]: (re)generate the OKF static listings from the corpus — root index (frontmatter byte-preserved, `_index.md` default / `index.md` legacy) + log (`_log.md`/`log.md`), --dir adds per-folder index files (D8; OKF-mode only). --index-only / --log-only narrow the WRITE to just that file (the other is left byte-identical — no churn), not just the reported set. promote <note> --heading "<h>" --type <t>: split a ## section into its own typed entity, leaving a markdown link behind (a wikilink in Obsidian) — never an embed (D9). Verbs resolve --vault → the enclosing vault → the default → error, so a set default lets them run from outside any vault.'
   },
   {
     name: 'graph',
@@ -3007,10 +3007,12 @@ async function main(): Promise<void> {
           out(vault.relinkVault(root, { dryRun: subRest.includes('--dry-run') }))
         } else if (sub === 'publish') {
           // ENH-216 D8 — (re)generate the OKF static listings from the corpus:
-          // root index.md (frontmatter byte-preserved) + log.md, and per-dir
-          // index.md with --dir. --index-only / --log-only restrict the write.
-          // --open surfaces index.md as a tab. OKF-mode-gated (throws in
-          // Obsidian mode — Obsidian stays byte-identical).
+          // root index (frontmatter byte-preserved) + log, and per-dir index
+          // with --dir. --index-only / --log-only restrict the write. --open
+          // surfaces the root index as a tab. OKF-mode-gated (throws in
+          // Obsidian mode — Obsidian stays byte-identical). ENH-243: the
+          // filename follows whichever convention the vault already uses
+          // (`_index.md` default, `index.md` legacy).
           const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
           // --index-only / --log-only narrow the WRITE, not just the echo:
           // writeListings leaves the out-of-scope file byte-identical (no fresh
@@ -3029,7 +3031,7 @@ async function main(): Promise<void> {
           for (const w of result.warnings) process.stderr.write(`duo: warning — ${w}\n`)
           let opened: unknown = null
           if (subRest.includes('--open')) {
-            const indexAbs = path.join(root, 'index.md')
+            const indexAbs = path.join(root, vault.resolveIndexFilename(root))
             try {
               opened = await send('open', { url: resolveOpenTarget(indexAbs), mode: 'browser', reveal: true })
             } catch (e) {
@@ -3102,7 +3104,7 @@ async function main(): Promise<void> {
           let outPath: string
           if (outFlag) outPath = path.resolve(process.cwd(), outFlag)
           else if (open) outPath = path.join(os.tmpdir(), `duo-rollup-${stem}-${Date.now()}.html`)
-          else outPath = path.join(root, 'out', `${stem}.html`)
+          else outPath = path.join(root, vault.resolveOutputDir(root), `${stem}.html`)
           // ENH-229 — outDir so entity-link hrefs resolve relative to where the
           // artifact lands (not the vault root). Must be computed before render.
           const result = vault.renderTarget(root, target, { outDir: path.dirname(outPath) })
