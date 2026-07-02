@@ -1907,6 +1907,25 @@ export function App() {
     if (payload === null) return
     await waitForPtyReady(id)
     void window.electron.pty.write(id, payload)
+    // ENH-243 follow-up — the stdin-buffer trick above races claude's boot:
+    // when claude enters raw mode BEFORE the cmd lands, the trailing \n
+    // renders as literal text in its input box instead of submitting, and
+    // the seeded prompt (new-rollup loop, rollup doctor) sits un-sent until
+    // a human presses Enter. Chase the payload with delayed Enters across
+    // claude's boot window. Every timing is safe: a \r before raw mode is
+    // consumed as an empty shell/buffer line; after the prompt already
+    // submitted, an empty Enter into claude's input box is a no-op; while
+    // the prompt sits drafted, the \r submits it (verified live — a \r via
+    // the same pty.write path submits a drafted prompt).
+    if (kind === 'claude' && cmd && cmd.length > 0) {
+      // Retries stretch to 45s because claude's boot-to-raw-mode can exceed
+      // 20s on a cold start; every earlier \r is harmlessly swallowed.
+      for (const delay of [4000, 10000, 20000, 32000, 45000]) {
+        setTimeout(() => {
+          void window.electron.pty.write(id, '\r')
+        }, delay)
+      }
+    }
   }, [])
 
   // Stage 10 § D9 + Stage 19c — new terminal tabs inherit the focused
