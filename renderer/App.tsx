@@ -271,10 +271,13 @@ function rollupDoctorPrompt(vaultRoot: string, note: string, error: string): str
     'The vault is the ' + JSON.stringify(vaultName) + ' folder in this directory (' + vaultRoot + '). ' +
     'The broken rollup note is ' + note + ' (vault-relative). ' +
     'The error was: ' + (error || 'unknown parse/evaluate failure') + '. ' +
-    'Please repair it: (1) read the note and its embedded ```base block; ' +
+    'Please repair it DECISIVELY — this config file is machine-owned, so I clicked "Fix with Claude" expecting a working rollup back, not a questionnaire: ' +
+    '(1) read the note and its embedded ```base block; ' +
     '(2) run `duo vault schema --vault ' + vaultRoot + '` to get the real types/fields/enum values; ' +
-    '(3) fix the YAML so `duo base lint` is clean and the query matches my intent (ask me if the intent is unclear); ' +
-    '(4) verify with `duo rollup show ' + note + ' --vault ' + vaultRoot + '` and `duo rollup render ' + note + ' --vault ' + vaultRoot + '`. ' +
+    '(3) recover the intent from what survives — the note\'s title:/group_by: frontmatter, whatever filter fragments still parse, sibling rollups in rollups/ as style examples. ' +
+    'If parts are unrecoverable, choose a sensible default (the primary entity type, grouped by group_by: or the most enum-like field) and APPLY IT — do not stop to ask; ' +
+    '(4) fix the YAML so `duo base lint` is clean, then verify with `duo rollup show ' + note + ' --vault ' + vaultRoot + '` (healthy:true) and `duo rollup render ' + note + ' --vault ' + vaultRoot + '`. ' +
+    '(5) end by telling me in 2-3 sentences what the repaired rollup now shows and which parts you had to guess, so I can reshape them in the Rollups tab if I want something else. ' +
     'Keep the spec inside the locked Bases subset; do not restructure the vault.'
   )
 }
