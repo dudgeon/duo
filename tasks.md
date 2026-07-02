@@ -31,6 +31,14 @@ Let the user drop a reviewed/abandoned session off the Catch-up board. **Owner l
 
 ---
 
+### BUG-213: Managed hook scripts can vanish; settings.json keeps referencing them (noisy every session)
+
+**Status:** 🆕 Filed 2026-07-02 (surfaced during the ENH-243 doctor walk). **Ticket note:** allocated after grepping sibling worktrees (max was BUG-212); renumber on collision.
+
+The entire `~/.claude/duo/hooks/` dir was missing while `~/.claude/settings.json` still registered `duo-attention.sh` (Stop/Notification/UserPromptSubmit) and the PreToolUse open-file guard — so EVERY Claude session in every project emitted "No such file or directory" hook errors. One-off repair applied (scripts re-copied from `skill/scripts/` + chmod). **Systemic fix needed:** the install-service only re-runs on version bump, so a deleted script stays broken indefinitely. Options: (a) install-service (or the app at boot) probes that every `_duo`-marker hook's script exists and re-materializes missing ones; (b) `duo doctor` checks hook-script existence and offers the fix. Lean (a) — self-healing, no user action.
+
+---
+
 ### ENH-243: Rollup viewer &amp; editor GUI — a Rollups tab beside the vault surface
 
 **Status:** 🚧 Built 2026-07-02 (decisions locked via playground paste-back: layout A + collapsible rails + "Roll Up" panel name; instant flip + undo; doctor → new terminal at vault parent). PRD: [docs/prd/enh-243-rollup-gui.md](docs/prd/enh-243-rollup-gui.md). Core+IPC+UI+CLI shipped on this branch; typecheck + 2114 tests green; 4-surface sync PASS. **Live-verified in dev 2026-07-02** (DOM-probe walk: tab gate · list · nested 2-level grouping · flip→file-write→regroup→undo · builder live-save · row click-open · doctor card + parent-cwd Claude spawn — all PASS). **Owed:** owner smoke-walk, then cut. **Deferral (D5):** engine-side n-level groupBy emitters — GUI groups client-side v1. **Ticket note:** allocated after grepping sibling worktrees (max was ENH-242); renumber on collision.
