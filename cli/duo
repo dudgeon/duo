@@ -2771,9 +2771,16 @@ var import_node_path = __toESM(require("node:path"));
 var OUTPUT_DIR_CANDIDATES = ["output", "out"];
 var OUTPUT_DIR_DEFAULT = OUTPUT_DIR_CANDIDATES[0];
 var OUTPUT_DIR_NAMES = OUTPUT_DIR_CANDIDATES;
+function isDir(p) {
+  try {
+    return import_node_fs.default.statSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+}
 function resolveOutputDir(root) {
   for (const name of OUTPUT_DIR_CANDIDATES) {
-    if (import_node_fs.default.existsSync(import_node_path.default.join(root, name))) return name;
+    if (isDir(import_node_path.default.join(root, name))) return name;
   }
   return OUTPUT_DIR_DEFAULT;
 }
@@ -2864,23 +2871,29 @@ var ALL_GENERATED = /* @__PURE__ */ new Set([...OKF_INDEX_FILENAMES, ...OKF_LOG_
 function isGeneratedListingBasename(basename4) {
   return ALL_GENERATED.has(basename4);
 }
+function isRegularFile(p) {
+  try {
+    return import_node_fs3.default.statSync(p).isFile();
+  } catch {
+    return false;
+  }
+}
 function resolveIndexFilename(root) {
   for (const name of OKF_INDEX_FILENAMES) {
-    if (import_node_fs3.default.existsSync(import_node_path3.default.join(root, name))) return name;
+    if (isRegularFile(import_node_path3.default.join(root, name))) return name;
   }
   return OKF_INDEX_FILENAME_DEFAULT;
 }
 function resolveLogFilename(root) {
   for (const name of OKF_LOG_FILENAMES) {
-    if (import_node_fs3.default.existsSync(import_node_path3.default.join(root, name))) return name;
+    if (isRegularFile(import_node_path3.default.join(root, name))) return name;
   }
   const indexFilename = resolveIndexFilename(root);
-  const paired = CONVENTIONS.find((c) => c.index === indexFilename);
-  return paired ? paired.log : OKF_LOG_FILENAME_DEFAULT;
+  return CONVENTIONS.find((c) => c.index === indexFilename).log;
 }
 function resolveIndexFilenameForDir(dirAbs, fallback) {
   for (const name of OKF_INDEX_FILENAMES) {
-    if (import_node_fs3.default.existsSync(import_node_path3.default.join(dirAbs, name))) return name;
+    if (isRegularFile(import_node_path3.default.join(dirAbs, name))) return name;
   }
   return fallback;
 }
@@ -2898,7 +2911,6 @@ function readOkfVersion(dir) {
     const v = frontmatter.okf_version;
     if (typeof v === "string") return v;
     if (typeof v === "number") return String(v);
-    return null;
   }
   return null;
 }
@@ -5258,8 +5270,8 @@ function ymd(ms) {
   const pad3 = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad3(d.getMonth() + 1)}-${pad3(d.getDate())}`;
 }
-function generateLog(root) {
-  const logRel = resolveLogFilename(root);
+function generateLog(root, logFilename) {
+  const logRel = logFilename ?? resolveLogFilename(root);
   const notes = readNotes(root).filter((n) => !isGeneratedListing(n.relPath));
   const byDay = /* @__PURE__ */ new Map();
   for (const n of notes) {
@@ -5345,7 +5357,7 @@ function writeListings(root, opts = {}) {
 
 # Log
 
-${generateLog(root)}
+${generateLog(root, logFilename)}
 `)) {
       written.push(logFilename);
     }

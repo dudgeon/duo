@@ -19,8 +19,13 @@ import { OUTPUT_DIR_NAMES } from './output-dir'
 
 /** Read the `okf_version` field from a vault root's index frontmatter (the
  *  OKF marker, D4 — the ROOT index ONLY). Checks `_index.md` then the legacy
- *  `index.md` (ENH-243), returning the version string from whichever is
- *  found first, or null when neither is present / has no `okf_version`. */
+ *  `index.md` (ENH-243), returning the version string from whichever candidate
+ *  carries `okf_version` first, or null when NEITHER does. A candidate that
+ *  exists but lacks `okf_version` (e.g. a stray `_index.md` note with no
+ *  frontmatter) does NOT short-circuit the search — review fix: the original
+ *  version `return null`'d on the first existing-but-non-conformant candidate,
+ *  which meant a legacy `index.md` marker sitting alongside an unrelated
+ *  `_index.md` file would be missed entirely. */
 export function readOkfVersion(dir: string): string | null {
   for (const name of OKF_INDEX_FILENAMES) {
     let raw: string
@@ -33,7 +38,7 @@ export function readOkfVersion(dir: string): string | null {
     const v = frontmatter.okf_version
     if (typeof v === 'string') return v
     if (typeof v === 'number') return String(v)
-    return null // the marker file exists but carries no okf_version
+    // This candidate exists but has no okf_version — try the next one.
   }
   return null
 }

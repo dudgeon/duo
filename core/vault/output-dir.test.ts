@@ -73,6 +73,24 @@ describe('initVault scaffolds output/, not out/', () => {
   })
 })
 
+// Regression test — review fix: resolveOutputDir used bare fs.existsSync,
+// which also matches a FILE (not just a directory). A stray file literally
+// named `output` sitting at the vault root would be selected as the
+// "resolved" output folder, and a caller's later mkdirSync/writeFileSync
+// into that path would throw an unguarded ENOTDIR/EEXIST far from here.
+describe('resolveOutputDir only matches a directory, not a file', () => {
+  it('skips a file literally named output and falls through to the legacy out/ dir', () => {
+    fs.writeFileSync(path.join(root, 'output'), 'not a folder\n')
+    fs.mkdirSync(path.join(root, 'out'))
+    expect(resolveOutputDir(root)).toBe('out')
+  })
+
+  it('falls back to the default filename when only a file-vs-dir collision exists', () => {
+    fs.writeFileSync(path.join(root, 'output'), 'not a folder\n')
+    expect(resolveOutputDir(root)).toBe('output') // the default name, not a match against the file
+  })
+})
+
 describe('vault detection is unaffected by either output-folder name', () => {
   it('a legacy vault with an out/ folder still detects fine', () => {
     fs.mkdirSync(path.join(root, '.obsidian'), { recursive: true })

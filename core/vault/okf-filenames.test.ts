@@ -18,7 +18,7 @@ import {
 } from './okf-filenames'
 import { detectVaultMode, readOkfVersion, isVaultRoot } from './detect'
 import { initVault } from './scaffold'
-import { writeListings, LISTING_FENCE } from './listings'
+import { writeListings, generateLog, LISTING_FENCE } from './listings'
 
 let root: string
 beforeEach(() => {
@@ -65,6 +65,44 @@ describe('detection accepts either convention', () => {
     write('_index.md', '---\nokf_version: "2"\ntitle: New\ntype: index\n---\n')
     write('index.md', '---\nokf_version: "1"\ntitle: Old\ntype: index\n---\n')
     expect(readOkfVersion(root)).toBe('2')
+  })
+
+  // Regression test — review fix: readOkfVersion used to `return null` on the
+  // FIRST existing candidate that lacked `okf_version`, never trying the
+  // next one. A stray `_index.md` (no frontmatter, e.g. a user's own note)
+  // sitting next to a real legacy `index.md` marker made the vault
+  // undetectable.
+  it('falls through to the next candidate when the first exists but has no okf_version (a stray _index.md note)', () => {
+    write('_index.md', 'Just a note, no frontmatter at all.\n')
+    write('index.md', '---\nokf_version: "0.1"\ntitle: Legacy\ntype: index\n---\n')
+    expect(readOkfVersion(root)).toBe('0.1')
+    expect(detectVaultMode(root)).toBe('okf')
+    expect(isVaultRoot(root)).toBe(true)
+  })
+
+  it('still returns null when NEITHER candidate has okf_version', () => {
+    write('_index.md', 'Just a note, no frontmatter at all.\n')
+    write('index.md', '---\ntitle: Also not a marker\n---\n')
+    expect(readOkfVersion(root)).toBeNull()
+    expect(detectVaultMode(root)).toBeNull()
+  })
+})
+
+// Regression tests — review fix: resolveIndexFilename/resolveOutputDir used
+// bare fs.existsSync, which also matches a directory. A directory literally
+// named `_index.md` (or a file literally named `output`) would be selected
+// as the "resolved" marker/folder, and a caller's later readFileSync/mkdirSync
+// on that path would throw an unguarded EISDIR/ENOTDIR far from the resolver.
+describe('resolvers only match the correct filesystem entry type', () => {
+  it('resolveIndexFilename skips a directory literally named _index.md', () => {
+    fs.mkdirSync(path.join(root, '_index.md'), { recursive: true })
+    write('index.md', '---\nokf_version: "0.1"\n---\n')
+    expect(resolveIndexFilename(root)).toBe('index.md')
+  })
+
+  it('resolveIndexFilename falls back to the default when only a directory collision exists', () => {
+    fs.mkdirSync(path.join(root, '_index.md'), { recursive: true })
+    expect(resolveIndexFilename(root)).toBe('_index.md') // the default filename, not a match against the dir
   })
 })
 

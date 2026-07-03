@@ -39,12 +39,25 @@ export function isGeneratedListingBasename(basename: string): boolean {
   return ALL_GENERATED.has(basename)
 }
 
+/** True only for a REGULAR FILE at `p` (review fix — a bare `existsSync`
+ *  would also match a directory, e.g. a stray folder literally named
+ *  `_index.md`, and get returned as the resolved marker filename; the
+ *  caller's later `readFileSync`/`writeFileSync` on that path then throws an
+ *  unguarded `EISDIR` far from this resolver). Never throws. */
+function isRegularFile(p: string): boolean {
+  try {
+    return fs.statSync(p).isFile()
+  } catch {
+    return false
+  }
+}
+
 /** Which index filename a vault ROOT already uses, checked in preference
  *  order — the first candidate found on disk wins. Falls back to the
  *  default (`_index.md`) when neither is present (a brand-new vault). */
 export function resolveIndexFilename(root: string): string {
   for (const name of OKF_INDEX_FILENAMES) {
-    if (fs.existsSync(path.join(root, name))) return name
+    if (isRegularFile(path.join(root, name))) return name
   }
   return OKF_INDEX_FILENAME_DEFAULT
 }
@@ -53,14 +66,16 @@ export function resolveIndexFilename(root: string): string {
  *  wins outright (explicit state is never overridden); otherwise the log
  *  PAIRS with the root's resolved index convention (via
  *  {@link resolveIndexFilename}) so a legacy `index.md` vault's first
- *  `publish` writes `log.md`, not a mixed-convention `_log.md`. */
+ *  `publish` writes `log.md`, not a mixed-convention `_log.md`. The pairing
+ *  lookup can't miss: `indexFilename` is always a value `resolveIndexFilename`
+ *  returned, which is always a member of `OKF_INDEX_FILENAMES` (or the
+ *  default) — both derived from `CONVENTIONS` — so `.find` always succeeds. */
 export function resolveLogFilename(root: string): string {
   for (const name of OKF_LOG_FILENAMES) {
-    if (fs.existsSync(path.join(root, name))) return name
+    if (isRegularFile(path.join(root, name))) return name
   }
   const indexFilename = resolveIndexFilename(root)
-  const paired = CONVENTIONS.find((c) => c.index === indexFilename)
-  return paired ? paired.log : OKF_LOG_FILENAME_DEFAULT
+  return CONVENTIONS.find((c) => c.index === indexFilename)!.log
 }
 
 /** Per-directory index filename: prefers whatever ALREADY exists in `dirAbs`
@@ -69,7 +84,7 @@ export function resolveLogFilename(root: string): string {
  *  convention, so a whole vault stays on one convention by default. */
 export function resolveIndexFilenameForDir(dirAbs: string, fallback: string): string {
   for (const name of OKF_INDEX_FILENAMES) {
-    if (fs.existsSync(path.join(dirAbs, name))) return name
+    if (isRegularFile(path.join(dirAbs, name))) return name
   }
   return fallback
 }

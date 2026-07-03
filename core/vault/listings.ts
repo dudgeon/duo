@@ -204,9 +204,13 @@ function ymd(ms: number): string {
 
 /** Generate the OKF section-7 log body (no frontmatter, no stamp): `## YYYY-
  *  MM-DD` day groups, newest first, each note a `* [Title](rel)` bullet.
- *  Dates come from file mtimes (offline-cheap; the stamp records the source). */
-export function generateLog(root: string): string {
-  const logRel = resolveLogFilename(root)
+ *  Dates come from file mtimes (offline-cheap; the stamp records the source).
+ *  `logFilename` (review fix, mirrors {@link generateIndex}'s `indexFilename`)
+ *  is the actual filename the body will be written to — defaults to a fresh
+ *  {@link resolveLogFilename} lookup when omitted, so callers that already
+ *  resolved it (e.g. `writeListings`) don't pay for a second disk scan. */
+export function generateLog(root: string, logFilename?: string): string {
+  const logRel = logFilename ?? resolveLogFilename(root)
   const notes = readNotes(root).filter((n) => !isGeneratedListing(n.relPath))
 
   const byDay = new Map<string, VaultFile[]>()
@@ -360,7 +364,7 @@ export function writeListings(root: string, opts: WriteListingsOptions = {}): Wr
     const logFilename = resolveLogFilename(root)
     const logAbs = path.join(root, logFilename)
     const logStamp = generatedStamp(root, 'log', 'file mtimes')
-    if (writeIfChanged(logAbs, `${logStamp}\n\n# Log\n\n${generateLog(root)}\n`)) {
+    if (writeIfChanged(logAbs, `${logStamp}\n\n# Log\n\n${generateLog(root, logFilename)}\n`)) {
       written.push(logFilename)
     }
   }
