@@ -269,6 +269,20 @@ outside the builder dialect (formulas, view filters, OR groups) is shown
 view-only in the GUI (still renders fine). The hand-authoring loop below
 remains the path for anything richer:
 
+**Lifecycle + sharing (ENH-244/ENH-248).** `duo rollup markdown <note>` —
+"Copy as Markdown" twin: prints one GFM table to stdout, title cells linked
+to the entity's GitHub blob (vault root is a GitHub-remote repo) or a
+vault-relative `./path` otherwise (works in OKF too) — pipe to `pbcopy` or a
+file. `duo rollup delete <note> --force` removes the definition note AND its
+rendered artifact (dry-run without `--force`; file history is the note's undo
+net). `duo rollup duplicate <note>` copies it as "<Title> (copy)" with
+provenance (`out`/`last_generated`/`last_hash`) stripped — the copy renders
+its own artifact on the next save/render. `duo rollup render --github` (or
+`duo rollup set <note> --links github|relative`, persisted to `links:`
+frontmatter) renders entity links as GitHub blob URLs instead of relative
+paths — probe failure (no GitHub remote) degrades to relative links with a
+stderr warning, never a hard error.
+
 1. **Understand the ask** in prose ("open tasks for this initiative, grouped
    by owner, with a due chip").
 2. **Get the corpus**: `duo vault schema`. It tells you the real type names,

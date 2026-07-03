@@ -11,6 +11,20 @@ import { useSelectionFormat } from '../hooks/useSelectionFormat'
 import { SendToDuoPill, type PillAnchorRect } from './editor/primitives/SendToDuoPill'
 import { formatBrowserSendPayload, formatBrowserInspectPayload } from './editor/sendFormat'
 import type { BrowserFindResult } from '@shared/types'
+import type { RollupArtifactInfoDto } from '@shared/host-api'
+
+/** Compact relative-time label for the rollup toolbar ("2h ago"). */
+function fmtAgo(iso: string): string {
+  const ms = Date.now() - Date.parse(iso)
+  if (!Number.isFinite(ms) || ms < 0) return 'just now'
+  const min = Math.floor(ms / 60_000)
+  if (min < 1) return 'just now'
+  if (min < 60) return `${min}m ago`
+  const h = Math.floor(min / 60)
+  if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24)
+  return d === 1 ? 'yesterday' : `${d}d ago`
+}
 
 interface BrowserRendererProps {
   /** Stage 15.2 — same `onSendToDuo` callback the editor uses; writes
@@ -28,6 +42,100 @@ export function BrowserRenderer({ onSendToDuo, pillLabel }: BrowserRendererProps
   const contentRef = useRef<HTMLDivElement>(null)
   const browserSelection = useBrowserSelection()
   const { format: selectionFormat } = useSelectionFormat()
+
+  // ENH-248 R2 — the Duo-native rollup-artifact toolbar. Behavior used to be
+  // baked into each artifact's embedded buttons at render time, so every fix
+  // only reached artifacts rendered AFTER it (the "old artifact, dead button"
+  // class). Now the pane itself detects a rollup artifact (main matches the
+  // file:// path against every rollup's `out:`) and overlays app-owned
+  // chrome — Refresh (grey when fresh, R4) + Edit in Rollups tab — that works
+  // for every artifact vintage. Copy-as-Markdown stays IN the artifact: it's
+  // useful outside Duo (owner lock, 2026-07-03).
+  const [artifact, setArtifact] = useState<RollupArtifactInfoDto | null>(null)
+  const [artifactBusy, setArtifactBusy] = useState(false)
+  // Migration one-shot: guards against re-triggering the auto-heal below for
+  // a path that's already mid-heal (the render+reload it kicks off takes a
+  // load cycle to land, during which a stray probe tick could otherwise fire
+  // a second one).
+  const healingPathRef = useRef<string | null>(null)
+  const artifactPath = useMemo(() => {
+    if (!state.url.startsWith('file://')) return null
+    try {
+      const p = decodeURIComponent(new URL(state.url).pathname)
+      return /\.(html?|md)$/i.test(p) ? p : null
+    } catch {
+      return null
+    }
+  }, [state.url])
+  useEffect(() => {
+    let alive = true
+    if (!artifactPath) {
+      setArtifact(null)
+      return
+    }
+    // Re-probed on every navigation, every load-complete (so a refresh's
+    // reload lands back here), AND a 30s tick — so a note edited while the
+    // page is open flips the bar to "vault has changed" without any
+    // navigation (the same cadence the Vault/Rollups tabs poll at; R4's
+    // grey-out must never claim "up to date" against a changed vault).
+    if (state.isLoading) return
+    const probe = () => {
+      window.electron.vault
+        .artifactInfo({ path: artifactPath })
+        .then((r) => {
+          if (!alive) return
+          const info = r.ok ? r.info : null
+          setArtifact(info)
+          // Migration: a pre-R2 artifact still carries the old embedded
+          // Refresh button — its handler is gone, so it'd sit dead next to
+          // this pane's own overlay toolbar until someone clicked Refresh.
+          // One silent re-render migrates it to the current template.
+          if (info?.legacyTemplate && healingPathRef.current !== artifactPath) {
+            healingPathRef.current = artifactPath
+            void window.electron.vault
+              .rollupRender({ vaultRoot: info.vaultRoot, note: info.note })
+              .then((res) => {
+                if (alive && res.ok) window.electron.browser.reload()
+              })
+          }
+        })
+        .catch(() => {
+          if (alive) setArtifact(null)
+        })
+    }
+    probe()
+    const id = setInterval(probe, 30_000)
+    return () => {
+      alive = false
+      clearInterval(id)
+    }
+  }, [artifactPath, state.isLoading])
+
+  const onArtifactRefresh = useCallback(async () => {
+    if (!artifact || artifactBusy) return
+    setArtifactBusy(true)
+    try {
+      const res = await window.electron.vault.rollupRender({
+        vaultRoot: artifact.vaultRoot,
+        note: artifact.note,
+      })
+      if (res.ok) {
+        window.electron.browser.reload() // load-complete re-probes freshness
+        // ENH-248 walk-2 — freshen the Vault tab's chips immediately (its
+        // 30s poll otherwise keeps saying "stale" after a re-render).
+        window.dispatchEvent(new CustomEvent('duo-vault-refresh'))
+      }
+    } finally {
+      setArtifactBusy(false)
+    }
+  }, [artifact, artifactBusy])
+
+  const onArtifactEdit = useCallback(() => {
+    if (!artifact) return
+    // Same event the Vault tab's Edit button dispatches — App switches to
+    // the Rollups tab and selects this rollup there.
+    window.dispatchEvent(new CustomEvent('duo-vault-edit-rollup', { detail: { note: artifact.note } }))
+  }, [artifact])
 
   useEffect(() => {
     const el = contentRef.current
@@ -332,6 +440,48 @@ export function BrowserRenderer({ onSendToDuo, pillLabel }: BrowserRendererProps
           isLoading={state.isLoading}
         />
       </div>
+
+      {/* ENH-248 R2 — Duo-owned rollup-artifact toolbar (see the state block
+          above). Sits in the pane's flex column, so the WCV bounds shrink
+          around it automatically via the contentRef ResizeObserver. */}
+      {artifact && (
+        <div className="flex items-center h-8 px-3 gap-2 border-b border-border shrink-0 text-[11.5px] text-zinc-500">
+          <span className="font-serif italic text-[12.5px] text-ink truncate shrink-0" title={artifact.note}>
+            {artifact.title}
+          </span>
+          <span className="truncate">
+            {artifact.lastGenerated ? `rendered ${fmtAgo(artifact.lastGenerated)}` : 'never rendered'}
+            {artifact.stale ? ' · the vault has changed since' : ' · up to date'}
+          </span>
+          <span className="flex-1" />
+          <button
+            type="button"
+            onClick={() => void onArtifactRefresh()}
+            disabled={(!artifact.stale && artifact.lastGenerated != null) || artifactBusy}
+            title={
+              artifact.stale || artifact.lastGenerated == null
+                ? 'Re-render this page from the live vault'
+                : 'Already up to date — no notes have changed since this render'
+            }
+            className={
+              'px-2 py-0.5 rounded border text-[11px] shrink-0 ' +
+              (artifact.stale
+                ? 'border-accent/50 text-accent hover:bg-accent/10'
+                : 'border-border disabled:opacity-40 disabled:cursor-default')
+            }
+          >
+            {artifactBusy ? 'Refreshing…' : '↻ Refresh'}
+          </button>
+          <button
+            type="button"
+            onClick={onArtifactEdit}
+            title="Open this rollup in the Rollups tab"
+            className="px-2 py-0.5 rounded border border-border text-[11px] shrink-0 hover:border-zinc-400"
+          >
+            Edit
+          </button>
+        </div>
+      )}
 
       <div className="flex-1 relative min-w-0">
         <div ref={contentRef} className="absolute inset-0" />

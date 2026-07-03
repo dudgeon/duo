@@ -88,7 +88,10 @@ the lowest-id "primary" window, by identity — never focus).
   the rollup authoring loop), then
   [`skill/references/vault-guide.html`](skill/references/vault-guide.html)
   (the human walkthrough — ships with the skill so installed users get it;
-  `duo open` it), `docs/prd/enh-208-vault.md` (the PRD), and
+  `duo open` it) +
+  [`skill/references/rollup-guide.html`](skill/references/rollup-guide.html)
+  (its rollup companion — note/artifact/surfaces model, freshness, refresh,
+  GitHub sharing; ENH-247), `docs/prd/enh-208-vault.md` (the PRD), and
   `docs/research/graphbook-intent.html` (the product intent). **The typing
   key is `type:` (not `class:`); rollups are `.base` views in Obsidian mode
   vs static listings via `duo vault publish` in OKF mode.**

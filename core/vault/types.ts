@@ -100,6 +100,10 @@ export interface Corpus {
   aliases: Record<string, string>
   /** type → observed frontmatter property names. */
   propsByType: Record<string, string[]>
+  /** ENH-248 R7 — type → live entity count. A template-only type (declared
+   *  but unused) counts 0, so the Vault tab's Entities section can still
+   *  list it as creatable. */
+  countsByType: Record<string, number>
   /** `${type}.${prop}` → observed scalar (non-link) values — the live
    *  enum domain used by lint's "did you mean" and the type picker. */
   enumsByType: Record<string, string[]>

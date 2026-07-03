@@ -2586,6 +2586,8 @@ function setupIPC(): void {
           types: corpus.types,
           propsByType: corpus.propsByType,
           enumsByType: corpus.enumsByType,
+          // ENH-248 R7 — the Vault tab's Entities section counts.
+          countsByType: corpus.countsByType,
         },
       }
     } catch (e) {
@@ -2606,23 +2608,145 @@ function setupIPC(): void {
 
   ipcMain.handle(
     IPC.VAULT_ROLLUP_SAVE,
-    (
+    async (
       _event,
       {
         vaultRoot,
         note,
         model,
-      }: { vaultRoot: string; note?: string; model: vaultCore.RollupBuilderModel },
+        links,
+      }: {
+        vaultRoot: string
+        note?: string
+        model: vaultCore.RollupBuilderModel
+        links?: 'github' | 'relative'
+      },
     ) => {
       try {
         const root = requireVault(vaultRoot)
+        let noteRel: string
+        let absPath: string
         if (note) {
-          const abs = nodePath.isAbsolute(note) ? note : nodePath.resolve(root, note)
-          vaultCore.updateRollupNote(abs, model)
-          return { ok: true, note, absPath: abs }
+          absPath = nodePath.isAbsolute(note) ? note : nodePath.resolve(root, note)
+          vaultCore.updateRollupNote(absPath, model)
+          noteRel = note
+        } else {
+          const created = vaultCore.createRollupNote(root, model)
+          noteRel = created.noteRel
+          absPath = created.absPath
         }
-        const created = vaultCore.createRollupNote(root, model)
-        return { ok: true, note: created.noteRel, absPath: created.absPath }
+        // ENH-248 R8 — persist the entity-link mode ('relative' deletes the
+        // key rather than writing the default) BEFORE the render below, so
+        // this save's artifact already reflects the flipped mode.
+        if (links) {
+          vaultCore.setFrontmatterFields(absPath, { links: links === 'github' ? 'github' : null })
+        }
+        // ENH-250 (gap #1) — a builder-driven note write with no matching
+        // artifact was a dead end: nothing in the GUI could ever produce
+        // rollups/<slug>.html short of a terminal. Every live-save now
+        // renders + stamps immediately, same as `duo rollup render --html`.
+        // A render failure never loses the note write that triggered it —
+        // it's surfaced so the caller can show a banner, not thrown.
+        const rendered = await vaultCore.renderAndStampRollup(root, noteRel)
+        return {
+          ok: true,
+          note: noteRel,
+          absPath,
+          rendered: rendered.ok,
+          renderError: rendered.ok ? null : rendered.error,
+          linksDegraded: rendered.linksDegraded,
+        }
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      }
+    },
+  )
+
+  // ENH-250 (gap #2) — the rendered artifact's own "Refresh" button routes
+  // here via the duo:event bridge (renderer's handleCanvasAction). No
+  // watching Claude required — a re-render is a pure deterministic op.
+  ipcMain.handle(
+    IPC.VAULT_ROLLUP_RENDER,
+    async (_event, { vaultRoot, note }: { vaultRoot: string; note: string }) => {
+      try {
+        const root = requireVault(vaultRoot)
+        const result = await vaultCore.renderAndStampRollup(root, note)
+        if (!result.ok || result.outRel == null) {
+          return { ok: false, error: result.error ?? 'could not render' }
+        }
+        return { ok: true, outRel: result.outRel, stamped: result.stamped, linksDegraded: result.linksDegraded }
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      }
+    },
+  )
+
+  // ENH-248 R2 — the browser pane asks "is this file a rollup artifact?"
+  // on every file:// navigation; non-null info mounts the Duo-native
+  // toolbar. Pure live read (walk up to the vault root + one listRollups).
+  ipcMain.handle(IPC.VAULT_ARTIFACT_INFO, (_event, { path: absPath }: { path: string }) => {
+    try {
+      if (typeof absPath !== 'string' || !absPath) return { ok: true, info: null }
+      const info = vaultCore.rollupArtifactInfo(absPath, (dir) => vaultCore.isVaultRoot(dir))
+      return { ok: true, info }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
+  // ENH-248 R6 — lifecycle. Delete removes the note + its artifact (the
+  // RENDERER confirms via the native dialog first); duplicate copies the
+  // note with provenance stripped. Both are the same core functions the
+  // `duo rollup delete|duplicate` CLI twins call.
+  ipcMain.handle(
+    IPC.VAULT_ROLLUP_DELETE,
+    (_event, { vaultRoot, note }: { vaultRoot: string; note: string }) => {
+      try {
+        const res = vaultCore.deleteRollup(requireVault(vaultRoot), note)
+        // `ok: true` with `error` set means the note was removed but the
+        // artifact removal afterward failed — surface it as a warning
+        // rather than dropping it now that `ok` reads as full success.
+        return res.ok
+          ? { ok: true, deleted: res.deleted, warning: res.error }
+          : { ok: false, error: res.error ?? 'delete failed' }
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      }
+    },
+  )
+  ipcMain.handle(
+    IPC.VAULT_ROLLUP_DUPLICATE,
+    (_event, { vaultRoot, note }: { vaultRoot: string; note: string }) => {
+      try {
+        const res = vaultCore.duplicateRollup(requireVault(vaultRoot), note)
+        return res.ok && res.note
+          ? { ok: true, note: res.note }
+          : { ok: false, error: res.error ?? 'duplicate failed' }
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      }
+    },
+  )
+
+  // ENH-248 R7 — ad-hoc single-type view for the Vault tab's Entities
+  // click-through: a synthetic builder model over one type, evaluated by
+  // the same engine as a saved rollup (one-engine rule), never persisted.
+  ipcMain.handle(
+    IPC.VAULT_TYPE_VIEW,
+    (_event, { vaultRoot, type }: { vaultRoot: string; type: string }) => {
+      try {
+        const root = requireVault(vaultRoot)
+        const corpus = vaultCore.buildCorpus(root)
+        const NOISE = new Set(['type', 'title', 'aliases', 'out', 'last_generated', 'last_hash', 'group_by', 'links'])
+        const columns = (corpus.propsByType[type] ?? []).filter((p) => !NOISE.has(p)).slice(0, 4)
+        const data = vaultCore.modelViewData(root, {
+          title: type,
+          types: [type],
+          groupBy: [],
+          filters: [],
+          columns,
+        })
+        return { ok: true, data }
       } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : String(e) }
       }
@@ -2664,6 +2788,25 @@ function setupIPC(): void {
         }
         vaultCore.setFrontmatterFields(abs, updates)
         return { ok: true }
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      }
+    },
+  )
+
+  // ENH-244 — "Copy as Markdown" for a rollup: title-linked GitHub blob URLs
+  // when the vault root is inside a GitHub-remote repo, vault-relative links
+  // otherwise (one git probe for the whole table, not per row).
+  ipcMain.handle(
+    IPC.VAULT_ROLLUP_MARKDOWN,
+    async (_event, { vaultRoot, note }: { vaultRoot: string; note: string }) => {
+      try {
+        const root = requireVault(vaultRoot)
+        const result = await vaultCore.rollupMarkdownTable(root, note)
+        if (result.error || result.markdown == null) {
+          return { ok: false, error: result.error ?? 'could not render markdown' }
+        }
+        return { ok: true, markdown: result.markdown }
       } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : String(e) }
       }
@@ -4283,12 +4426,23 @@ function installDefaultVaultPrefWatcher(): void {
       if (timer) clearTimeout(timer)
       timer = setTimeout(() => {
         void rebuildAppMenu()
+        const newDefault = vaultCore.readDefaultVault()
         // ENH-216 — a default-vault write just landed; if the new default is an
         // OKF vault, check for out-of-band-moved links. PR#98 F5 — DRY-RUN
         // (report only): this fires for a `duo vault default` from ANY terminal,
         // so it must not silently rewrite the target vault's notes / banner an
         // open buffer. The heal-write happens on the next boot or `duo vault relink`.
-        maybeAutoRelinkVault(vaultCore.readDefaultVault())
+        maybeAutoRelinkVault(newDefault)
+        // BUG-214 — this watcher was previously a renderer dead-end: a CLI
+        // `duo vault default <path>` (or a hand-edit, or another window)
+        // rebuilt the menu but left every window's Vault/Rollups tab gate
+        // and mounted views on stale state until the user manually
+        // switched tabs or restarted. Broadcast so every window's App.tsx
+        // re-dispatches the SAME `duo-vault-default-changed` CustomEvent
+        // the in-app switcher already fires — one push, every existing
+        // listener (tab gate, VaultView, RollupsView, editor vaultIndex)
+        // picks it up for free.
+        broadcastAll(registry, IPC.VAULT_DEFAULT_CHANGED, newDefault)
       }, 150)
     })
   } catch {

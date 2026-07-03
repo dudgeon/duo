@@ -2279,6 +2279,23 @@ export const IPC = {
   VAULT_ROLLUP_SAVE: 'vault:rollup-save', // create/update a builder-owned rollup note
   VAULT_ENTITY_PANEL: 'vault:entity-panel', // typed attribute panel (flip subpane)
   VAULT_SET_FRONTMATTER: 'vault:set-frontmatter', // surgical flip write (+ undo)
+  VAULT_ROLLUP_MARKDOWN: 'vault:rollup-markdown', // ENH-244 — Copy as Markdown
+  // ENH-250 — deterministic render+stamp (no Claude required): the
+  // artifact's own Refresh button routes here via the duo:event bridge.
+  VAULT_ROLLUP_RENDER: 'vault:rollup-render',
+  // ENH-248 — R2 artifact introspection (the browser pane's Duo-native
+  // rollup toolbar), R6 lifecycle (delete/duplicate), R7 ad-hoc type view
+  // (the Vault tab's Entities section click-through).
+  VAULT_ARTIFACT_INFO: 'vault:artifact-info',
+  VAULT_ROLLUP_DELETE: 'vault:rollup-delete',
+  VAULT_ROLLUP_DUPLICATE: 'vault:rollup-duplicate',
+  VAULT_TYPE_VIEW: 'vault:type-view',
+  // BUG-214 — main → renderer push when ~/.claude/duo/vault.json's default
+  // changes from OUTSIDE the app's own switcher (CLI `duo vault default`,
+  // hand-edit, another window, VAULT_CREATE). Previously only the native
+  // menu rebuilt on this write; the renderer's Vault/Rollups tab gate and
+  // views had no live-refresh path. Payload is the new default (or null).
+  VAULT_DEFAULT_CHANGED: 'vault:default-changed',
 
   // Stage 24 — pinned WorkingPane tabs persisted to ~/.claude/duo/pins.json.
   PINS_LIST: 'pins:list',

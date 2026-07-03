@@ -282,6 +282,28 @@ function rollupDoctorPrompt(vaultRoot: string, note: string, error: string): str
   )
 }
 
+// ENH-248 R5 — the "Normalize with Claude" prompt: the spec is VALID but
+// hand-authored beyond the GUI builder's canonical dialect, so the Rollups
+// tab shows it view-only. Normalizing rewrites the spec canonically with
+// IDENTICAL semantics so it becomes GUI-editable. Same parent-cwd spawn as
+// the doctor; the contract differs (preserve rows, don't repair).
+function rollupNormalizePrompt(vaultRoot: string, note: string): string {
+  const vaultName = vaultRoot.slice(vaultRoot.lastIndexOf('/') + 1) || vaultRoot
+  return (
+    'A rollup in my vault renders fine but is hand-authored, so the Duo Rollups tab shows it VIEW-ONLY. ' +
+    'Please NORMALIZE it into the GUI builder\'s canonical dialect so I can edit it in the Rollups tab — without changing what it shows. ' +
+    'The vault is the ' + JSON.stringify(vaultName) + ' folder in this directory (' + vaultRoot + '); the note is ' + note + ' (vault-relative). ' +
+    'The canonical dialect (what `duo rollup new` writes and `duo rollup show` parses into model != null): ' +
+    'ONE embedded ```base block; filters: a single and: list of `type == "t"` (or one or: group of type equalities), `prop == "v"`, `prop != "v"`, `file.hasProperty("prop")`, `!file.hasProperty("prop")`; ' +
+    'ONE table view with order: [file.name, …columns] and groupBy mirroring level 1 of the note\'s group_by: frontmatter. ' +
+    'Steps: (1) record the CURRENT row set: `duo rollup show ' + note + ' --vault ' + vaultRoot + '` (note rowCount) and `duo rollup render ' + note + ' --vault ' + vaultRoot + '`; ' +
+    '(2) rewrite the spec canonically — anything the dialect cannot express (formulas, computed columns, view-level filters, extra views) moves to a plain markdown note in the BODY under a "Preserved from the original spec" heading, never silently dropped; ' +
+    '(3) verify: `duo base lint` clean, `duo rollup show` now returns model != null, and the re-rendered row set matches step 1 (use `duo rollup diff ' + note + ' --vault ' + vaultRoot + '` — an empty delta is the goal; explain any unavoidable difference); ' +
+    '(4) tell me in 2-3 sentences what changed and what (if anything) was preserved-but-demoted, so I know what the builder now covers. ' +
+    'Do not change which entities the rollup shows; do not restructure the vault.'
+  )
+}
+
 /**
  * A terminal's persisted launch cwd may have been deleted between
  * sessions. Restoring it verbatim spawns a PTY in a dead directory
@@ -576,9 +598,19 @@ export function App() {
     void refresh()
     const onChanged = () => void refresh()
     window.addEventListener('duo-vault-default-changed', onChanged)
+    // BUG-214 — main's pref-file watcher is the single trigger for a
+    // default-vault write from ANY source (CLI, hand-edit, another
+    // window). Re-dispatch its push as the SAME in-renderer CustomEvent
+    // the in-app switcher already fires, so this effect's own listener
+    // above — and VaultView's / RollupsView's / the editor's — all pick
+    // it up without each needing its own IPC subscription.
+    const unsubscribeMain = window.electron.vault.onDefaultChanged(() => {
+      window.dispatchEvent(new CustomEvent('duo-vault-default-changed'))
+    })
     return () => {
       alive = false
       window.removeEventListener('duo-vault-default-changed', onChanged)
+      unsubscribeMain()
     }
   }, [])
   // (The Vault-tab presence reconciliation lives BELOW the session-restore
@@ -2570,6 +2602,30 @@ export function App() {
         // owns the bus; we push via `window.electron.events.emit`. The
         // CLI streams subscribers (`duo events --follow`).
         case 'duo:event': {
+          // ENH-250 (gap #2) — a rendered rollup artifact's own "Refresh"
+          // button dispatches this. It used to be a dead end: the bus emit
+          // below only reaches a Claude session actively running
+          // `duo events --follow` — nothing in Duo itself consumed it. A
+          // re-render is a pure deterministic operation and needs no
+          // Claude at all, so self-handle it here: render+stamp, then
+          // reload the browser pane so the click's effect is visible
+          // immediately. Still emits to the bus afterward (unchanged) for
+          // a watching Claude that wants to add a change-summary narrative.
+          if (action.event === 'rollup:refresh') {
+            const payload = action.payload as { base?: string; vaultRoot?: string } | undefined
+            if (payload?.vaultRoot && payload?.base) {
+              const vaultRoot = payload.vaultRoot
+              const base = payload.base
+              void (async () => {
+                try {
+                  const res = await window.electron.vault.rollupRender({ vaultRoot, note: base })
+                  if (res.ok) window.electron.browser.reload()
+                } catch {
+                  /* best-effort — the button stays clickable; worst case this click is a no-op */
+                }
+              })()
+            }
+          }
           window.electron.events.emit({
             source: 'canvas',
             name: action.event,
@@ -2718,17 +2774,79 @@ export function App() {
       setFocusedColumn('terminal')
       void dispatchPostSpawnWrite(tab.id, 'claude', rollupDoctorPrompt(trimmed, d.note, d.error ?? ''))
     }
+    // ENH-250 (gap #5) — "Edit" on a rollup row in the Vault tab: switch to
+    // the Rollups tab and select that note there, instead of opening its
+    // raw markdown source. The Rollups tab is always present alongside
+    // Vault (same present-when-default gate), so it's guaranteed to exist.
+    const onEditRollup = (e: Event) => {
+      const d = (e as CustomEvent<{ note: string }>).detail
+      if (!d?.note) return
+      setActiveWorking({ kind: 'file', id: ROLLUPS_TAB_ID })
+      window.dispatchEvent(new CustomEvent('duo-rollups-select', { detail: { note: d.note } }))
+    }
+    // ENH-248 R5 — "Normalize with Claude" on a view-only rollup: same
+    // parent-cwd spawn as the doctor, different prompt (the spec is VALID —
+    // rewrite it into the builder dialect with identical semantics).
+    const onRollupsNormalize = (e: Event) => {
+      const d = (e as CustomEvent<{ vaultRoot: string; note: string }>).detail
+      if (!d?.vaultRoot || !d?.note) return
+      const trimmed = d.vaultRoot.replace(/\/+$/, '')
+      const parent = trimmed.slice(0, trimmed.lastIndexOf('/')) || '/'
+      const tab = makeTab(parent, 'claude', home)
+      setTabs(prev => [...prev, tab])
+      setActiveTabId(tab.id)
+      setLastTabKind('claude')
+      saveLastTabKind('claude')
+      setFocusedColumn('terminal')
+      void dispatchPostSpawnWrite(tab.id, 'claude', rollupNormalizePrompt(trimmed, d.note))
+    }
+    // ENH-248 R6 — "Reveal in navigator" from the Rollups rail's menu.
+    const onRollupsReveal = (e: Event) => {
+      const d = (e as CustomEvent<{ absPath: string }>).detail
+      if (!d?.absPath) return
+      nav.actions.revealAndSelect(d.absPath)
+      setFocusedColumn('files')
+    }
+    // ENH-248 R7 — an Entities tile in the Vault tab: switch to the Rollups
+    // tab and mount the instant type view there (unconditional listener on
+    // the Rollups side, same commit-timing rationale as duo-rollups-select).
+    const onBrowseType = (e: Event) => {
+      const d = (e as CustomEvent<{ vaultRoot?: string; type?: string }>).detail
+      if (!d?.type) return
+      setActiveWorking({ kind: 'file', id: ROLLUPS_TAB_ID })
+      window.dispatchEvent(new CustomEvent('duo-rollups-browse-type', { detail: d }))
+    }
+    // ENH-251 (owner walk feedback) — "+ New rollup"'s NEW default: jump to
+    // the Rollups tab and run ITS "+ New rollup" (instant GUI-builder)
+    // flow there, instead of spawning a Claude session (that flow moved to
+    // a right-click context menu on the same button — still dispatches the
+    // ORIGINAL 'duo-vault-new-rollup' event above, unchanged).
+    const onNewRollupGui = (e: Event) => {
+      const d = (e as CustomEvent<{ vaultRoot?: string }>).detail
+      setActiveWorking({ kind: 'file', id: ROLLUPS_TAB_ID })
+      window.dispatchEvent(new CustomEvent('duo-rollups-new', { detail: d }))
+    }
     window.addEventListener('duo-vault-open-note', onOpenNote)
     window.addEventListener('duo-vault-open-rollup', onOpenRollup)
     window.addEventListener('duo-vault-new-rollup', onNewRollup)
     window.addEventListener('duo-rollups-doctor', onRollupsDoctor)
+    window.addEventListener('duo-vault-edit-rollup', onEditRollup)
+    window.addEventListener('duo-vault-new-rollup-gui', onNewRollupGui)
+    window.addEventListener('duo-rollups-normalize', onRollupsNormalize)
+    window.addEventListener('duo-rollups-reveal', onRollupsReveal)
+    window.addEventListener('duo-vault-browse-type', onBrowseType)
     return () => {
       window.removeEventListener('duo-vault-open-note', onOpenNote)
       window.removeEventListener('duo-vault-open-rollup', onOpenRollup)
       window.removeEventListener('duo-vault-new-rollup', onNewRollup)
       window.removeEventListener('duo-rollups-doctor', onRollupsDoctor)
+      window.removeEventListener('duo-vault-edit-rollup', onEditRollup)
+      window.removeEventListener('duo-vault-new-rollup-gui', onNewRollupGui)
+      window.removeEventListener('duo-rollups-normalize', onRollupsNormalize)
+      window.removeEventListener('duo-rollups-reveal', onRollupsReveal)
+      window.removeEventListener('duo-vault-browse-type', onBrowseType)
     }
-  }, [openFileSmart, dispatchPostSpawnWrite, home, setFocusedColumn])
+  }, [openFileSmart, dispatchPostSpawnWrite, home, setFocusedColumn, nav.actions])
 
   // Stage 11 § D33a — \u2318N opens a new editor tab in the navigator's CWD.
   // Auto-pick `untitled.md`, fall back to `untitled-2.md`, etc., to dodge

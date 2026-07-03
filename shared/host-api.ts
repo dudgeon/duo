@@ -1306,6 +1306,14 @@ export interface RollupViewDataDto {
   model: RollupModelDto | null
   /** Set when the spec failed to parse/evaluate — the doctor's case. */
   error: string | null
+  /** ENH-248 — artifact provenance: vault-relative `out:` (null = never
+   *  rendered), freshness vs the corpus now (null = never rendered), and
+   *  the last render's timestamp. Powers the under-title artifact link. */
+  out: string | null
+  stale: boolean | null
+  lastGenerated: string | null
+  /** R8 — entity-link mode for artifact renders ('github' = blob URLs). */
+  links: 'github' | 'relative'
 }
 
 /** Corpus schema slice the builder's dropdowns draw from (the corpus IS
@@ -1314,6 +1322,21 @@ export interface VaultSchemaDto {
   types: string[]
   propsByType: Record<string, string[]>
   enumsByType: Record<string, string[]>
+  /** ENH-248 R7 — type → live entity count (template-only types count 0). */
+  countsByType: Record<string, number>
+}
+
+/** ENH-248 R2 — what the browser pane needs to overlay the Duo-native
+ *  rollup toolbar on a rendered artifact. Null result = not an artifact. */
+export interface RollupArtifactInfoDto {
+  vaultRoot: string
+  note: string
+  title: string
+  lastGenerated: string | null
+  stale: boolean
+  /** True when this artifact still carries the pre-R2 embedded (now dead)
+   *  Refresh button — the caller should trigger one silent re-render. */
+  legacyTemplate: boolean
 }
 
 export type RollupFieldKindDto = 'bool' | 'enum' | 'number' | 'text'
@@ -1452,9 +1475,30 @@ export interface ElectronVaultAPI {
   >
   /** ENH-243 (D4/D9) — create (`note` absent) or rewrite (`note` present) a
    *  builder-owned rollup note from the model. Live-save path: the GUI calls
-   *  this on every builder mutation. */
-  rollupSave: (opts: { vaultRoot: string; note?: string; model: RollupModelDto }) => Promise<
-    { ok: true; note: string; absPath: string } | { ok: false; error: string }
+   *  this on every builder mutation. ENH-248 R8 — `links` persists the
+   *  note's entity-link mode (`links:` frontmatter) alongside the save. */
+  rollupSave: (opts: {
+    vaultRoot: string
+    note?: string
+    model: RollupModelDto
+    links?: 'github' | 'relative'
+  }) => Promise<
+    | {
+        ok: true
+        note: string
+        absPath: string
+        rendered: boolean
+        renderError: string | null
+        /** True when `links: github` is set but the GitHub-remote probe
+         *  failed, so this render fell back to relative links. */
+        linksDegraded: boolean
+      }
+    | { ok: false; error: string }
+  >
+  /** ENH-250 — deterministic render+stamp for one rollup (no Claude
+   *  required). The rendered artifact's own "Refresh" button routes here. */
+  rollupRender: (opts: { vaultRoot: string; note: string }) => Promise<
+    { ok: true; outRel: string; stamped: boolean; linksDegraded: boolean } | { ok: false; error: string }
   >
   /** ENH-243 — the flip subpane's data: one entity's typed attributes +
    *  the flip affordance each supports (corpus-derived). */
@@ -1469,6 +1513,37 @@ export interface ElectronVaultAPI {
     notePath: string
     updates: Record<string, string | number | boolean | null>
   }) => Promise<{ ok: true } | { ok: false; error: string }>
+  /** ENH-244 — "Copy as Markdown": the rollup as one GFM table, title-linked
+   *  to the entity's GitHub blob (vault root is a GitHub-remote repo) or a
+   *  vault-relative link otherwise (works in OKF too). */
+  rollupMarkdown: (opts: { vaultRoot: string; note: string }) => Promise<
+    { ok: true; markdown: string } | { ok: false; error: string }
+  >
+  /** ENH-248 R2 — is this absolute file path a rendered rollup artifact?
+   *  Non-null → the browser pane overlays the Duo-native rollup toolbar. */
+  artifactInfo: (opts: { path: string }) => Promise<
+    { ok: true; info: RollupArtifactInfoDto | null } | { ok: false; error: string }
+  >
+  /** ENH-248 R6 — delete a rollup: the note AND its rendered artifact.
+   *  Callers confirm first (native dialog); file history is the undo net. */
+  rollupDelete: (opts: { vaultRoot: string; note: string }) => Promise<
+    | { ok: true; deleted: string[]; warning: string | null }
+    | { ok: false; error: string }
+  >
+  /** ENH-248 R6 — duplicate a rollup note as "<Title> (copy)" (provenance
+   *  stripped; the copy renders its own artifact on first save/render). */
+  rollupDuplicate: (opts: { vaultRoot: string; note: string }) => Promise<
+    { ok: true; note: string } | { ok: false; error: string }
+  >
+  /** ENH-248 R7 — evaluate an ad-hoc single-type view (no note behind it):
+   *  the Vault tab's Entities section click-through. */
+  typeView: (opts: { vaultRoot: string; type: string }) => Promise<
+    { ok: true; data: RollupViewDataDto } | { ok: false; error: string }
+  >
+  /** BUG-214 — subscribe to default-vault changes from OUTSIDE this window's
+   *  own switcher (CLI `duo vault default`, a hand-edit, another window,
+   *  VAULT_CREATE). Fires with the new default (or null when cleared). */
+  onDefaultChanged: (cb: (defaultVault: string | null) => void) => () => void
 }
 
 export interface ElectronProjectsAPI {

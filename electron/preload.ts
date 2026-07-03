@@ -364,7 +364,21 @@ const api: ElectronAPI = {
     rollupView: (opts) => ipcRenderer.invoke(IPC.VAULT_ROLLUP_VIEW, opts),
     rollupSave: (opts) => ipcRenderer.invoke(IPC.VAULT_ROLLUP_SAVE, opts),
     entityPanel: (opts) => ipcRenderer.invoke(IPC.VAULT_ENTITY_PANEL, opts),
-    setFrontmatter: (opts) => ipcRenderer.invoke(IPC.VAULT_SET_FRONTMATTER, opts)
+    setFrontmatter: (opts) => ipcRenderer.invoke(IPC.VAULT_SET_FRONTMATTER, opts),
+    rollupMarkdown: (opts) => ipcRenderer.invoke(IPC.VAULT_ROLLUP_MARKDOWN, opts),
+    // ENH-248 — R2 artifact toolbar, R6 lifecycle, R7 type views.
+    artifactInfo: (opts) => ipcRenderer.invoke(IPC.VAULT_ARTIFACT_INFO, opts),
+    rollupDelete: (opts) => ipcRenderer.invoke(IPC.VAULT_ROLLUP_DELETE, opts),
+    rollupDuplicate: (opts) => ipcRenderer.invoke(IPC.VAULT_ROLLUP_DUPLICATE, opts),
+    typeView: (opts) => ipcRenderer.invoke(IPC.VAULT_TYPE_VIEW, opts),
+    rollupRender: (opts) => ipcRenderer.invoke(IPC.VAULT_ROLLUP_RENDER, opts),
+    // BUG-214 — push when the default vault changes from OUTSIDE this
+    // window's own switcher (CLI, hand-edit, another window).
+    onDefaultChanged: (cb) => {
+      const handler = (_: IpcRendererEvent, defaultVault: string | null) => cb(defaultVault)
+      ipcRenderer.on(IPC.VAULT_DEFAULT_CHANGED, handler)
+      return () => ipcRenderer.removeListener(IPC.VAULT_DEFAULT_CHANGED, handler)
+    }
   },
 
   nav: {

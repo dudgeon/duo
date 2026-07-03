@@ -8,6 +8,11 @@ artifact** with three things base render alone doesn't give you: a **format
 choice** (HTML or Markdown), **entity links** on every row, and an optional
 **change summary** on regenerate.
 
+> **The human walkthrough is [rollup-guide.html](rollup-guide.html)** (ENH-247;
+> `duo open` it for the user) — the note/artifact/surfaces model, freshness
+> ("stale" = `last_hash` ≠ current corpus hash), the two Refresh buttons, and
+> GitHub sharing. This file stays the agent-facing verb reference.
+
 **A rollup is a first-class `type: rollup` NOTE (ENH-228 D1).** Don't think of a
 rollup as "a rendered file somewhere" — it's a typed note (from
 `templates/rollup.md`, filed in `rollups/`) that owns its **spec** (an embedded
@@ -26,8 +31,12 @@ time"*. Reach for `duo rollup`, not a hand-built table.
 
 ## The authoring loop (ENH-228) — write the note, render HTML
 
-The headline path. The Vault view's **"+ New rollup"** button drops you into a
-seeded Claude session that runs exactly this:
+The freeform path — for anything richer than the GUI builder models
+(formulas, view-level filters, multi-view specs). ENH-251: the Vault tab's
+"+ New rollup" now **defaults** to the instant GUI-builder flow in the
+Rollups tab (below); **right-click it** for "Start a Claude authoring
+session…", which drops you into a seeded Claude session that runs exactly
+this:
 
 1. **Derive the corpus** — `duo vault schema` (real type names, entity names,
    observed enum values). Write the spec against *those*, not guesses.
@@ -121,10 +130,18 @@ On regenerate, you diff against that snapshot and add a narrative.
    Markdown variant.)
 4. If a tab is open on the artifact, it reloads on the rewrite.
 
-**Reacting to a Refresh.** Both the HTML rollup's Refresh button AND the
-Markdown rollup's `[↻ Refresh](duo://rollup/refresh?base=…)` link (clicked in
-Duo's editor) emit the same `rollup:refresh` event with payload `{ base }`.
-Subscribe and run the loop above:
+**Reacting to a Refresh.** The HTML rollup's Refresh button (ENH-250) now
+**self-renders** — clicking it re-evaluates the spec against the live corpus
+and rewrites the artifact IMMEDIATELY, no watching Claude required (a
+re-render is a pure deterministic operation; only the optional narrative
+below needs one). It still ALSO emits `rollup:refresh` (payload now `{ base,
+vaultRoot }`) onto the bus afterward, so a session running `duo events
+--follow` can layer a change-summary narrative on top. The Markdown rollup's
+`[↻ Refresh](duo://rollup/refresh?base=…)` link (clicked in Duo's editor) is
+a **separate code path that still only emits the bus event** (payload `{
+base }`, no `vaultRoot`) — it has NOT been wired to self-render; a click
+there is still a no-op without a watching Claude session. Subscribe and run
+the loop above to react to either:
 
 ```bash
 duo events --follow | while IFS= read -r line; do
@@ -166,8 +183,12 @@ diff→summarize→re-render loop on each refresh.
 | `duo rollup diff <note\|base> [--against <prior-artifact>] [--vault <path>]` | Deterministic JSON delta vs the prior artifact's embedded snapshot (newest of the two formats by default) — the material you turn into a narrative |
 | `duo rollup new --type <t[,t2]> [--title "<t>"] [--group a,b] [--filter <k=v\|k!=v\|k?\|k!?>]... [--columns a,b] [--vault <path>]` | ENH-243 — scaffold a builder-canonical rollup note in one shot (no hand YAML). Ordered `--group` = multi-depth grouping; the note stays editable in the app's Rollups tab |
 | `duo rollup show <note> [--vault <path>]` | The parsed builder model + row/group summary (`model: null` = hand-authored, view-only in the GUI; `error` set = broken) |
-| `duo rollup set <note> [--title\|--type\|--group\|--columns] [--filter …]... [--clear-filters] [--vault <path>]` | Mutate a builder-canonical rollup (filters append unless `--clear-filters`); refuses a hand-authored spec rather than clobbering it |
+| `duo rollup set <note> [--title\|--type\|--group\|--columns] [--filter …]... [--clear-filters] [--links github\|relative] [--vault <path>]` | Mutate a builder-canonical rollup (filters append unless `--clear-filters`); refuses a hand-authored spec rather than clobbering it. `--links github` persists the entity-link mode (works alone + on hand-authored notes) |
 | `duo rollup doctor <note> [--vault <path>]` | Diagnosis for a broken rollup: parse/eval error + advisory lint + repair guidance (what the GUI's "Fix with Claude" seeds) |
+| `duo rollup markdown <note> [--vault <path>]` | ENH-244 — "Copy as Markdown" CLI twin. Prints one GFM table to stdout — title cells link to the GitHub blob when the vault root is in a GitHub-remote repo, else a vault-relative `./path` link. Pipe to `pbcopy` |
+| `duo rollup delete <note> --force [--vault <path>]` | ENH-248 — remove the definition note AND its rendered artifact. Without `--force`: dry run (prints `wouldDelete`). GUI twin: the rail row's ⋯ / right-click menu |
+| `duo rollup duplicate <note> [--vault <path>]` | ENH-248 — copy as `"<Title> (copy)"`, provenance stripped (the copy renders its own artifact on next save/render) |
+| `duo rollup render … --github` | ENH-248 — entity links as GitHub blob URLs for this render (falls back to relative without a GitHub remote); `links: github` frontmatter makes EVERY render do it |
 
 All read the filesystem directly (no running app); only `--open` reaches the
 app to surface a tab.
@@ -182,4 +203,29 @@ inspector with the definition builder + a frontmatter **flip subpane**
 reveals its vault path; clicking opens the note. A rollup whose spec can't be
 parsed shows a doctor card whose "Fix with Claude" spawns a repair session in
 the vault's parent directory. Builder-canonical notes (what `duo rollup new`
-writes) are GUI-editable; richer hand-authored specs render view-only.
+writes) are GUI-editable; richer hand-authored specs render view-only — with
+a **Normalize with Claude** button (ENH-248 R5) that spawns a session to
+rewrite the spec into the canonical dialect (identical rows, verified via
+`duo rollup diff`) so it becomes GUI-editable. **Copy as Markdown** lives in
+the RENDERED ARTIFACT only (ENH-248 — it was removed from the tab header;
+it's useful anywhere the page opens); CLI twin `duo rollup markdown <note>`.
+Under the title, the artifact's path is a click-to-open link; the header
+Refresh reports what it found ("no changes · checked just now"). Rail rows
+carry a ⋯ / right-click menu (Duplicate · Reveal in navigator · Open
+definition note · Delete…). ENH-248 R2: when the BROWSER PANE shows a
+rendered rollup artifact, Duo overlays its own toolbar (title · freshness ·
+Refresh greyed-when-fresh · Edit) — detected via the artifact's marker
+comment, so it works on artifacts of any vintage; the artifact itself embeds
+only the Copy button.
+
+**ENH-250 — reconciling the Rollups tab with the Vault tab's Rollups
+column.** Every builder-driven note write (create, or any live-save edit)
+now **auto-renders + stamps** the HTML artifact (same write `duo rollup
+render <note> --html` does) — a GUI-created rollup was previously a note
+with no artifact, unopenable from the Vault tab's "View" without a terminal.
+"+ New rollup" auto-focuses + selects the Title field (renaming is the
+natural first action after creating an "Untitled rollup"). In the **Vault
+tab's** Rollups column, a row's name now opens the rendered artifact (was:
+the raw note); a new **Edit** button switches to the Rollups tab with that
+note selected there (was: also opened the raw note) — construction now
+lives exclusively in the Rollups tab, reading lives in either.

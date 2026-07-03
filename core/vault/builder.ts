@@ -31,7 +31,7 @@ import { parseFile, readNotes, splitFrontmatter } from './parse'
 import { buildCorpus } from './corpus'
 import { safeName } from './filing'
 import { resolveRollupNote } from './rollup-notes'
-import { evaluateBaseDef, readCol, plainCell, type BaseDef } from './render'
+import { evaluateBaseDef, readCol, plainCell, sourceHash, type BaseDef } from './render'
 import { buildEngineFiles, defaultAsOf } from './engine'
 
 // ── the builder model ───────────────────────────────────────────────────────
@@ -108,8 +108,18 @@ const EXPR_SET = /^(!?)file\.hasProperty\("([\w-]+)"\)$/
 function parseFilterExpr(expr: string): BuilderFilter | { type: string } | null {
   const eq = expr.match(EXPR_EQ)
   if (eq) {
-    if (eq[1] === 'type' && eq[2] === '==') return { type: eq[3] }
-    return { property: eq[1], op: eq[2] === '==' ? 'eq' : 'ne', value: eq[3] }
+    // filterExpr serializes the value via JSON.stringify; eq[3] is only the
+    // de-fenced quoted body, so it must go back through JSON.parse to undo
+    // that escaping (a raw `\"` would otherwise survive as literal backslash
+    // characters instead of a decoded quote).
+    let value: string
+    try {
+      value = JSON.parse(`"${eq[3]}"`)
+    } catch {
+      value = eq[3]
+    }
+    if (eq[1] === 'type' && eq[2] === '==') return { type: value }
+    return { property: eq[1], op: eq[2] === '==' ? 'eq' : 'ne', value }
   }
   const set = expr.match(EXPR_SET)
   if (set) return { property: set[2], op: set[1] ? 'notset' : 'set' }
@@ -390,6 +400,15 @@ export interface RollupViewData {
   model: RollupBuilderModel | null
   /** Set when the spec failed to parse/evaluate — the doctor's case. */
   error: string | null
+  /** ENH-248 — the artifact's vault-relative path (`out:`), null when never
+   *  rendered. Powers the editor's under-title artifact link. */
+  out: string | null
+  /** Artifact freshness (`last_hash` vs the corpus hash now — the chip's
+   *  rule); null when never rendered. Drives R4's grey-out. */
+  stale: boolean | null
+  lastGenerated: string | null
+  /** R8 — the note's entity-link mode for artifact renders. */
+  links: 'github' | 'relative'
 }
 
 /** Evaluate one rollup live for the Rollups tab. Never throws for a spec
@@ -407,12 +426,24 @@ export function rollupViewData(root: string, target: string, asOf?: Date): Rollu
       rows: [],
       model: null,
       error: `not a \`type: rollup\` note: ${target}`,
+      out: null,
+      stale: null,
+      lastGenerated: null,
+      links: 'relative',
     }
   }
+  // Artifact provenance for the under-title link + R4 freshness. One extra
+  // sourceHash walk per view fetch — same cost class as the evaluate below.
+  const lastHash = typeof resolved.frontmatter.last_hash === 'string' ? resolved.frontmatter.last_hash : null
   const base: Omit<RollupViewData, 'columns' | 'groupBy' | 'rows' | 'model' | 'error'> = {
     note: resolved.noteRel,
     noteAbs: resolved.noteAbs,
     title: resolved.title,
+    out: resolved.outRel,
+    stale: lastHash == null ? null : lastHash !== sourceHash(root),
+    lastGenerated:
+      typeof resolved.frontmatter.last_generated === 'string' ? resolved.frontmatter.last_generated : null,
+    links: resolved.links,
   }
   const fail = (error: string): RollupViewData => ({
     ...base,
@@ -489,5 +520,51 @@ export function rollupViewData(root: string, target: string, asOf?: Date): Rollu
     return { ...base, columns, groupBy, rows, model, error: null }
   } catch (e) {
     return fail(e instanceof Error ? e.message : String(e))
+  }
+}
+
+/** ENH-248 R7 — evaluate an AD-HOC builder model with no note behind it: the
+ *  Vault tab's Entities section clicks through to an instant, unsaved view
+ *  over one type. Same engine, same row shape as {@link rollupViewData};
+ *  `note`/`noteAbs`/`out` stay empty so the GUI knows it's ephemeral (its
+ *  "Save as rollup" affordance calls createRollupNote with this model). */
+export function modelViewData(root: string, model: RollupBuilderModel, asOf?: Date): RollupViewData {
+  const at = asOf ?? defaultAsOf()
+  const empty = {
+    note: '',
+    noteAbs: '',
+    title: model.title,
+    out: null,
+    stale: null,
+    lastGenerated: null,
+    links: 'relative' as const,
+  }
+  try {
+    const def = yamlLoad(serializeBuilderBase(model)) as BaseDef
+    const notes = readNotes(root)
+    const files = buildEngineFiles(notes, at)
+    const evaluated = evaluateBaseDef(def, files, null, at)
+    const view = evaluated.views[0]
+    const groupBy = model.groupBy
+    const columns = view.order
+    const rows: RollupViewRow[] = view.rows.map((f) => {
+      const cells: Record<string, string> = {}
+      for (const p of columns) cells[p] = plainCell(readCol(p, f, null, evaluated.formulas, at))
+      const groups = groupBy.map((p) => {
+        const v = plainCell(readCol(p, f, null, evaluated.formulas, at))
+        return v === '' ? '—' : v
+      })
+      return { path: f.path, absPath: path.resolve(root, f.path), title: f.name, groups, cells }
+    })
+    return { ...empty, columns, groupBy, rows, model, error: null }
+  } catch (e) {
+    return {
+      ...empty,
+      columns: [],
+      groupBy: [],
+      rows: [],
+      model,
+      error: e instanceof Error ? e.message : String(e),
+    }
   }
 }

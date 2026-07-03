@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Rollup Guide — Duo</title>
+<style>
+/* duo-atelier.css kernel (shared with the Vault Guide). */
+:root {
+  --paper:#fbf8f1; --paper-deep:#f3ede0; --paper-edge:#e8e0cb; --paper-rule:#d9cea8;
+  --ink:#2b2620; --ink-soft:#4a4238; --ink-mute:#6f6557; --ink-ghost:#9a9080;
+  --accent:#c46a1c; --accent-soft:#f4d9b6; --pass:#4a7d3e; --fail:#b13e3a; --warn:#b07527;
+  --code-bg:#2b2823; --code-ink:#e8e0cb; --harbor:#3C6E93; --moss:#69763A;
+}
+* { box-sizing:border-box; }
+html, body { margin:0; padding:0; background:var(--paper); color:var(--ink);
+  font-family:-apple-system,"SF Pro Text","Segoe UI",system-ui,sans-serif; font-size:14px; line-height:1.55; }
+body { padding:32px 40px 96px; max-width:920px; margin:0 auto; }
+header.page-head { border-bottom:1px solid var(--paper-rule); padding-bottom:16px; margin-bottom:24px; }
+header.page-head h1 { font-family:"New York","Iowan Old Style",Georgia,serif; font-style:italic; font-weight:500; margin:0 0 4px; font-size:26px; }
+header.page-head .meta { color:var(--ink-mute); font-size:13px; }
+.pill { display:inline-block; padding:2px 8px; border-radius:10px; background:var(--accent-soft); color:var(--accent);
+  font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.04em; margin-right:6px; }
+.intro { background:var(--paper-deep); border:1px solid var(--paper-rule); border-radius:6px;
+  padding:14px 18px; margin-bottom:28px; font-size:13.5px; color:var(--ink-soft); }
+.intro strong { color:var(--ink); font-weight:600; }
+h2 { font-family:"New York","Iowan Old Style",Georgia,serif; font-weight:600; margin:40px 0 6px; font-size:20px;
+  border-bottom:1px solid var(--paper-rule); padding-bottom:6px; }
+h2 .chno { color:var(--ink-ghost); font-style:normal; font-size:15px; margin-right:8px; }
+h3 { font-weight:600; margin:20px 0 8px; font-size:14.5px; }
+p { margin:8px 0; } ul,ol { margin:8px 0; padding-left:24px; } li { margin:4px 0; }
+code { font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:12.5px; background:var(--paper-deep); padding:1px 5px; border-radius:3px; }
+pre { font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:11.5px; line-height:1.5;
+  background:var(--code-bg); color:var(--code-ink); padding:14px 16px; border-radius:6px; overflow-x:auto; }
+pre code { background:transparent; padding:0; color:inherit; font-size:inherit; }
+/* TOC */
+.toc { background:var(--paper-deep); border:1px solid var(--paper-rule); border-radius:6px; padding:14px 20px; margin:0 0 12px; }
+.toc ol { columns:2; column-gap:28px; margin:6px 0 0; padding-left:20px; font-size:13px; }
+.toc a { color:var(--ink-soft); text-decoration:none; } .toc a:hover { color:var(--accent); }
+.takeaway { background:color-mix(in srgb,var(--accent) 6%,var(--paper)); border-left:3px solid var(--accent);
+  border-radius:4px; padding:8px 12px; margin:14px 0; font-size:12.5px; color:var(--ink-soft); }
+.takeaway strong { color:var(--accent); }
+/* actor legend */
+.legend { display:flex; gap:10px; margin:8px 0 0; font-size:11px; color:var(--ink-mute); align-items:center; flex-wrap:wrap; }
+.legend .who, .who { flex:0 0 auto; padding:2px 8px; border-radius:8px; color:white; font-weight:700; font-size:9.5px; letter-spacing:.05em; }
+.who.you { background:var(--accent); } .who.claude { background:var(--harbor); }
+.who.script { background:var(--moss); } .who.files { background:var(--ink-ghost); }
+/* mini UI mocks */
+.mock { border:1.5px solid var(--ink-ghost); border-radius:6px; background:var(--paper); overflow:hidden; margin:12px 0; font-size:11px; color:var(--ink-mute); }
+.mock .mk-title { background:var(--paper-deep); border-bottom:1px solid var(--paper-edge); padding:4px 10px; font-size:10px; color:var(--ink-ghost); }
+.mock .mk-body { padding:10px 12px; }
+.mk-row { display:flex; align-items:center; gap:8px; padding:4px 6px; border:1px solid var(--paper-edge); border-radius:4px; background:#fff; margin:4px 0; }
+.mk-row .grow { flex:1; }
+.chip { display:inline-block; padding:0 7px; border-radius:8px; font-size:9.5px; font-weight:700; color:white; }
+.chip.fresh { background:var(--pass); } .chip.stale { background:var(--warn); }
+.chip.ghost { background:transparent; color:var(--ink-ghost); border:1px solid var(--paper-rule); font-weight:600; }
+.mk-btn { display:inline-block; border:1px solid var(--paper-rule); background:var(--paper-deep); color:var(--ink-soft);
+  border-radius:4px; padding:1px 8px; font-size:10px; }
+.mk-btn.primary { background:var(--accent); border-color:var(--accent); color:white; }
+.mk-btn.disabled { opacity:.45; }
+.mk-note { font-size:10px; color:var(--ink-ghost); font-style:italic; margin-top:6px; }
+.mk-group-h { font-weight:700; color:var(--ink-soft); margin:7px 0 2px; font-size:10.5px; }
+.mock table { width:100%; border-collapse:collapse; }
+.mock th, .mock td { border:1px solid var(--paper-edge); padding:2px 7px; font-size:10px; text-align:left; background:#fff; }
+.mock th { background:var(--paper-deep); color:var(--ink-soft); }
+/* lifecycle lanes */
+.lifecycle { margin:14px 0; background:var(--paper); border:1.5px solid var(--paper-rule); border-radius:6px; padding:14px 16px; }
+.lstep { display:flex; gap:9px; margin:7px 0; font-size:12.5px; align-items:flex-start; }
+.lstep .who { flex:0 0 64px; text-align:center; margin-top:2px; }
+.lstep .what { flex:1; color:var(--ink-soft); line-height:1.45; } .lstep .what code { font-size:11px; }
+.larrow { color:var(--ink-ghost); font-size:11px; margin:-1px 0 -1px 73px; }
+/* tables */
+table.locked { border-collapse:collapse; width:100%; margin:12px 0; font-size:12.5px; }
+table.locked th, table.locked td { border:1px solid var(--paper-rule); padding:7px 10px; text-align:left; vertical-align:top; }
+table.locked th { background:var(--paper-deep); font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:var(--ink-mute); }
+footer { margin-top:48px; border-top:1px solid var(--paper-rule); padding-top:14px; font-size:12px; color:var(--ink-mute); }
+svg text { font-family:-apple-system,"SF Pro Text",system-ui,sans-serif; }
+@media (max-width:760px) { .toc ol { columns:1; } }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>The Rollup Guide</h1>
+  <div class="meta"><span class="pill">Duo</span> Living views over your notes — companion to the <strong>Vault Guide</strong></div>
+</header>
+
+<div class="intro">
+  <strong>What is a rollup?</strong> A rollup is a question you ask your notes once and keep
+  asking forever: <em>“every open task, grouped by status”</em> · <em>“milestones by
+  initiative”</em> · <em>“who owns what.”</em> You build it by pointing and clicking — pick the
+  kind of notes, how to group them, what to filter out — and Duo keeps the answer current as
+  your notes change. Each rollup is also a <strong>web page you can share</strong>, and it lives
+  in your vault as a plain file, so it travels with your repo like everything else. No database,
+  no export step, nothing to maintain.
+</div>
+
+<nav class="toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#ch1">One rollup, three places you'll meet it</a></li>
+    <li><a href="#ch2">Creating your first rollup</a></li>
+    <li><a href="#ch3">Shaping it — groups, filters, columns</a></li>
+    <li><a href="#ch4">Editing your notes from a rollup</a></li>
+    <li><a href="#ch5">The rollup page</a></li>
+    <li><a href="#ch6">Fresh and stale</a></li>
+    <li><a href="#ch7">Managing your collection</a></li>
+    <li><a href="#ch8">When Claude writes the rollup</a></li>
+    <li><a href="#ch9">Sharing — Markdown &amp; GitHub</a></li>
+    <li><a href="#ch10">Under the hood (and the command line)</a></li>
+  </ol>
+</nav>
+
+<!-- ── 1 ───────────────────────────────────────────── -->
+<section id="ch1">
+<h2><span class="chno">1</span>One rollup, three places you'll meet it</h2>
+
+<p>Every rollup is a single saved question that shows up in three ways:</p>
+
+<svg viewBox="0 0 840 300" style="width:100%;max-width:840px;margin:10px 0" role="img" aria-label="One rollup definition feeding three faces">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9a9080"/>
+    </marker>
+  </defs>
+  <rect x="20" y="100" width="200" height="96" rx="8" fill="#fff" stroke="#c46a1c" stroke-width="2"/>
+  <text x="120" y="124" text-anchor="middle" font-size="12" font-weight="700" fill="#2b2620">THE QUESTION</text>
+  <text x="120" y="142" text-anchor="middle" font-size="11" fill="#4a4238">“open tasks, by status”</text>
+  <text x="120" y="160" text-anchor="middle" font-size="10" fill="#6f6557">saved as a small file in your</text>
+  <text x="120" y="174" text-anchor="middle" font-size="10" fill="#6f6557">vault's rollups/ folder</text>
+  <rect x="300" y="116" width="130" height="64" rx="8" fill="#f3ede0" stroke="#d9cea8" stroke-width="1.5"/>
+  <text x="365" y="141" text-anchor="middle" font-size="11" font-weight="700" fill="#4a4238">DUO</text>
+  <text x="365" y="157" text-anchor="middle" font-size="9.5" fill="#6f6557">answers it by reading</text>
+  <text x="365" y="169" text-anchor="middle" font-size="9.5" fill="#6f6557">every note's front matter</text>
+  <line x1="220" y1="148" x2="298" y2="148" stroke="#9a9080" stroke-width="1.5" marker-end="url(#arr)"/>
+  <rect x="510" y="20" width="310" height="70" rx="8" fill="#fff" stroke="#3C6E93" stroke-width="1.5"/>
+  <text x="524" y="42" font-size="11" font-weight="700" fill="#3C6E93">The Rollups tab — where you work</text>
+  <text x="524" y="58" font-size="10" fill="#4a4238">always live; build and reshape the question,</text>
+  <text x="524" y="72" font-size="10" fill="#4a4238">edit the notes it shows, one click at a time.</text>
+  <rect x="510" y="112" width="310" height="70" rx="8" fill="#fff" stroke="#69763A" stroke-width="1.5"/>
+  <text x="524" y="134" font-size="11" font-weight="700" fill="#69763A">The rollup page — what you share</text>
+  <text x="524" y="150" font-size="10" fill="#4a4238">a self-contained web page (rollups/….html),</text>
+  <text x="524" y="164" font-size="10" fill="#4a4238">good in any browser, on GitHub, in your repo.</text>
+  <rect x="510" y="204" width="310" height="70" rx="8" fill="#fff" stroke="#5B57A6" stroke-width="1.5"/>
+  <text x="524" y="226" font-size="11" font-weight="700" fill="#5B57A6">The Vault tab row — the glance</text>
+  <text x="524" y="242" font-size="10" fill="#4a4238">title + a fresh/stale chip; click the name to open</text>
+  <text x="524" y="256" font-size="10" fill="#4a4238">the page, Edit to jump to the Rollups tab.</text>
+  <line x1="430" y1="136" x2="506" y2="58" stroke="#9a9080" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="430" y1="148" x2="506" y2="147" stroke="#9a9080" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="430" y1="160" x2="506" y2="236" stroke="#9a9080" stroke-width="1.5" marker-end="url(#arr)"/>
+</svg>
+
+<div class="takeaway"><strong>The one thing worth remembering:</strong> the Rollups <em>tab</em>
+is always live — it re-answers the question every time you look. The rollup <em>page</em> is a
+snapshot from the moment it was rendered. That difference is all “fresh” and “stale” ever mean
+(§ 6).</div>
+</section>
+
+<!-- ── 2 ───────────────────────────────────────────── -->
+<section id="ch2">
+<h2><span class="chno">2</span>Creating your first rollup</h2>
+
+<p>Three ways in, easiest first:</p>
+
+<h3>Start from what you have — the Entities section</h3>
+<p>The Vault tab ends with <strong>Entities</strong>: every kind of note in your vault with a
+live count (<em>task 14 · person 7 · initiative 3…</em>). Click one. Duo opens the Rollups tab
+showing every note of that kind, instantly — nothing saved yet. If the view is useful, click
+<strong>Save as rollup</strong> and it becomes permanent; then shape it (§ 3).</p>
+
+<h3>Start from scratch — “+ New rollup”</h3>
+<p>On either the Vault tab or the Rollups tab. Duo creates an untitled rollup over your vault's
+main note type, opens it in the Rollups tab, and puts your cursor in the Title field — name it
+and go.</p>
+
+<h3>Start from a conversation — right-click “+ New rollup”</h3>
+<p>Choose <strong>Start a Claude authoring session…</strong> and describe what you want in
+plain language. Claude writes the rollup for you — the way to get things the point-and-click
+builder doesn't do, like computed columns (§ 8).</p>
+</section>
+
+<!-- ── 3 ───────────────────────────────────────────── -->
+<section id="ch3">
+<h2><span class="chno">3</span>Shaping it — groups, filters, columns</h2>
+
+<div class="mock">
+  <div class="mk-title">The Rollups tab</div>
+  <div class="mk-body" style="display:grid;grid-template-columns:120px 1fr 150px;gap:10px">
+    <div>
+      <div style="font-weight:700;font-size:10px;margin-bottom:4px">ROLLUPS</div>
+      <div class="mk-row" style="border-color:var(--accent)">Open tasks <span class="grow"></span><span style="opacity:.6">⋯</span></div>
+      <div class="mk-row">Milestones <span class="grow"></span><span style="opacity:.6">⋯</span></div>
+      <span class="mk-btn primary">+ New rollup</span>
+    </div>
+    <div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <strong style="font-size:12px;color:var(--ink)">Open tasks</strong>
+        <span class="grow"></span>
+        <span style="font-size:9px;color:var(--ink-ghost)">no changes · checked just now</span>
+        <span class="mk-btn">↻ Refresh</span>
+      </div>
+      <div style="font-size:9px;font-family:ui-monospace,Menlo,monospace;color:var(--ink-ghost);margin-bottom:4px">rollups/open-tasks.html</div>
+      <div class="mk-group-h">status: open (2)</div>
+      <table><tr><th>title</th><th>owner</th></tr><tr><td>Ship the guide</td><td>geoff</td></tr><tr><td>Fix relink</td><td>—</td></tr></table>
+      <div class="mk-group-h">status: blocked (1)</div>
+      <table><tr><td>Pack signing</td><td>sam</td></tr></table>
+      <div class="mk-note">hover a row → where the note lives · click → open the note · ✎ → edit its fields</div>
+    </div>
+    <div>
+      <div style="font-weight:700;font-size:10px;margin-bottom:4px">ROLL UP</div>
+      <div class="mk-row">Title <span class="grow"></span>✏️</div>
+      <div class="mk-row">Types: <span class="chip ghost">task</span></div>
+      <div class="mk-row">Group: <span class="chip ghost">status</span> <span class="chip ghost">+ level</span></div>
+      <div class="mk-row">Filters: <span class="chip ghost">status ≠ done</span></div>
+      <div class="mk-note">every change saves and re-renders — there is no Save button</div>
+    </div>
+  </div>
+</div>
+
+<p>The <strong>Roll Up</strong> panel on the right is the whole definition, always visible:</p>
+<ul>
+  <li><strong>Title</strong> — the rollup's name everywhere. Renaming is just typing here.</li>
+  <li><strong>Types</strong> — which kinds of notes to include (tasks, milestones, people… one or several).</li>
+  <li><strong>Group by</strong> — how rows bundle. Add more than one level and groups nest —
+  <em>by initiative, then by status</em>.</li>
+  <li><strong>Filters</strong> — keep only what matters: a field <em>is</em> / <em>is not</em> a
+  value, or <em>is set</em> / <em>is not set</em>. Value pickers offer only values that actually
+  appear in your notes.</li>
+  <li><strong>Columns</strong> — which fields show in the table.</li>
+</ul>
+<p>Every change takes effect immediately: the view re-computes, the file is saved, and the
+shareable page is re-rendered. There is nothing to remember to do.</p>
+</section>
+
+<!-- ── 4 ───────────────────────────────────────────── -->
+<section id="ch4">
+<h2><span class="chno">4</span>Editing your notes from a rollup</h2>
+
+<p>A rollup isn't read-only — it's a workbench over the notes it shows:</p>
+<ul>
+  <li><strong>Hover</strong> a row to see where that note lives in the vault.</li>
+  <li><strong>Click</strong> a row to open the note itself.</li>
+  <li><strong>Select</strong> a row (the ✎ mark) and its fields appear in the panel — flip a
+  status, reassign an owner, tick a checkbox. The change writes straight into the note, the row
+  re-files into its new group, and an <strong>Undo</strong> chip waits in case you fat-fingered
+  it. (Duo's file history keeps every prior version regardless.)</li>
+</ul>
+<div class="takeaway"><strong>So a triage session looks like:</strong> open “Open tasks” →
+select a row → flip <code>status</code> → watch it move to the right group → next row. No
+files opened, no YAML touched.</div>
+</section>
+
+<!-- ── 5 ───────────────────────────────────────────── -->
+<section id="ch5">
+<h2><span class="chno">5</span>The rollup page</h2>
+
+<p>Under the rollup's title in the Rollups tab sits a small path —
+<code>rollups/open-tasks.html</code>. That's the rollup's <strong>page</strong>: a
+self-contained web page with the same grouped tables, a “What changed” log, and a
+<strong>Copy as Markdown</strong> button. Click the path to open it. It needs nothing but a
+browser, so it's the thing you commit, push, and send to people (§ 9).</p>
+
+<p>When a rollup page is open in Duo's browser, Duo adds a slim bar above it:</p>
+<div class="mock">
+  <div class="mk-title">Duo's browser pane, showing a rollup page</div>
+  <div class="mk-body">
+    <div class="mk-row"><span style="font-style:italic;font-family:Georgia,serif;color:var(--ink)">Open tasks</span><span style="font-size:9px">rendered 2h ago · the vault has changed since</span><span class="grow"></span><span class="mk-btn" style="border-color:var(--accent);color:var(--accent)">↻ Refresh</span><span class="mk-btn">Edit</span></div>
+    <div class="mk-note">Refresh re-makes the page from your notes as they are right now · Edit jumps to the Rollups tab</div>
+  </div>
+</div>
+<p>The bar always tells you when the page was made and whether your notes have changed since.
+Refresh is greyed out when there's nothing to do; it lights up the moment the page falls
+behind. This bar comes from Duo, not the page — it works even on pages rendered long ago.</p>
+</section>
+
+<!-- ── 6 ───────────────────────────────────────────── -->
+<section id="ch6">
+<h2><span class="chno">6</span>Fresh and stale</h2>
+
+<p><strong>“Stale” means one thing: some note changed after this rollup's page was last
+made.</strong> The live view in the Rollups tab can't be stale — it's recomputed every time you
+look. Only the page can fall behind, the way any printout does.</p>
+
+<svg viewBox="0 0 840 150" style="width:100%;max-width:840px;margin:8px 0" role="img" aria-label="Staleness comparison diagram">
+  <rect x="20" y="30" width="230" height="88" rx="8" fill="#fff" stroke="#d9cea8" stroke-width="1.5"/>
+  <text x="135" y="56" text-anchor="middle" font-size="11" font-weight="700" fill="#4a4238">the page remembers</text>
+  <text x="135" y="74" text-anchor="middle" font-size="10" fill="#6f6557">“the vault, as I saw it</text>
+  <text x="135" y="88" text-anchor="middle" font-size="10" fill="#6f6557">when I was rendered”</text>
+  <rect x="590" y="30" width="230" height="88" rx="8" fill="#fff" stroke="#d9cea8" stroke-width="1.5"/>
+  <text x="705" y="56" text-anchor="middle" font-size="11" font-weight="700" fill="#4a4238">the vault right now</text>
+  <text x="705" y="74" text-anchor="middle" font-size="10" fill="#6f6557">every note, checked live</text>
+  <text x="705" y="88" text-anchor="middle" font-size="10" fill="#6f6557">whenever Duo looks</text>
+  <text x="420" y="66" text-anchor="middle" font-size="20" font-weight="700" fill="#b07527">≠</text>
+  <text x="420" y="92" text-anchor="middle" font-size="11" font-weight="700" fill="#b07527">→ stale</text>
+  <text x="420" y="108" text-anchor="middle" font-size="10" fill="#4a7d3e">( equal → fresh )</text>
+</svg>
+
+<p>Three things to know:</p>
+<ul>
+  <li><strong>Stale is normal.</strong> You and Claude edit notes all day; pages fall behind.
+  It just means “refresh before you share this file.”</li>
+  <li><strong>Any Refresh fixes it.</strong> The Rollups tab's Refresh and the page bar's
+  Refresh both bring the page current in one click, and every fresh/stale chip updates
+  immediately.</li>
+  <li><strong>It's deliberately strict.</strong> Duo compares against the whole vault, so an
+  edit to an unrelated note can mark a page stale even though its rows wouldn't change.
+  Refreshing such a page is instant and harmless.</li>
+</ul>
+</section>
+
+<!-- ── 7 ───────────────────────────────────────────── -->
+<section id="ch7">
+<h2><span class="chno">7</span>Managing your collection</h2>
+
+<p>Each row in the Rollups tab's list carries a <strong>⋯</strong> menu (also on right-click):</p>
+<table class="locked">
+  <tr><th>Action</th><th>What it does</th></tr>
+  <tr><td>Duplicate</td><td>Copies the rollup as “<em>Title</em> (copy)” — the quickest way to make a variant.</td></tr>
+  <tr><td>Reveal in navigator</td><td>Shows the rollup's file in the file tree.</td></tr>
+  <tr><td>Open definition note</td><td>Opens the underlying file (§ 10) — read-only curiosity; you never need to edit it.</td></tr>
+  <tr><td>Delete…</td><td>Removes the rollup and its page, after a confirmation. File history keeps a restorable copy.</td></tr>
+</table>
+
+<p>For the collection at a glance, the <strong>Vault tab</strong> lists every rollup with its
+freshness chip — click a name to read the page, click <strong>Edit</strong> to work on it —
+and the <strong>Entities</strong> section below shows what your vault contains, ready to
+become new rollups (§ 2).</p>
+</section>
+
+<!-- ── 8 ───────────────────────────────────────────── -->
+<section id="ch8">
+<h2><span class="chno">8</span>When Claude writes the rollup</h2>
+
+<p>The point-and-click builder covers the common shapes. For anything richer — computed
+columns, unusual queries, multiple views in one page — ask Claude (right-click “+ New rollup”
+→ <strong>Start a Claude authoring session…</strong>, or just describe what you want in any
+Duo terminal).</p>
+
+<p>A Claude-written rollup is a first-class citizen: it lists, renders, refreshes, and shares
+like any other. The one difference: if its query uses features the builder doesn't have, the
+Roll Up panel shows it as <strong>view-only</strong> instead of editable — with two ways
+forward:</p>
+<ul>
+  <li><strong>Normalize with Claude</strong> — a button on the view-only notice. Claude
+  rewrites the rollup into the builder's simpler form <em>without changing what it shows</em>
+  (anything that can't be expressed is preserved as a note inside the file, and Claude reports
+  what moved). After that, it's fully editable in the panel.</li>
+  <li>Leave it — and keep evolving it through Claude.</li>
+</ul>
+
+<p>And if a rollup's file ever gets damaged (a bad hand edit, a merge conflict), Duo shows a
+<strong>doctor card</strong> instead of an error wall: one click on <strong>Fix with
+Claude</strong> spawns a session that repairs it and reports what it did.</p>
+</section>
+
+<!-- ── 9 ───────────────────────────────────────────── -->
+<section id="ch9">
+<h2><span class="chno">9</span>Sharing — Markdown &amp; GitHub</h2>
+
+<h3>Copy as Markdown</h3>
+<p>On every rollup page. One click puts the whole rollup on your clipboard as a Markdown
+table, ready to paste into an issue, a PR description, a doc, a chat. If your vault lives in a
+GitHub repo, each row links to the note's GitHub page automatically.</p>
+
+<h3>Publishing the page itself</h3>
+<table class="locked">
+  <tr><th>Where</th><th>What to expect</th></tr>
+  <tr><td>Sent as a file / opened anywhere</td><td>The page is self-contained — it renders in any browser, styling included.</td></tr>
+  <tr><td>In a GitHub repo</td><td>GitHub shows HTML files as source code, not pages. For reading <em>inside</em> a repo, paste the Copy-as-Markdown output into a <code>.md</code> file instead.</td></tr>
+  <tr><td>On GitHub Pages</td><td>The page renders fully. Turn on <strong>“GitHub links in rendered page”</strong> in the Roll Up panel first — then every row links to the note's GitHub page (otherwise links point at raw files).</td></tr>
+</table>
+</section>
+
+<!-- ── 10 ──────────────────────────────────────────── -->
+<section id="ch10">
+<h2><span class="chno">10</span>Under the hood (and the command line)</h2>
+
+<p>There's no magic to trust: each rollup is one small markdown file in your vault's
+<code>rollups/</code> folder holding the question, next to the rendered page. Both travel with
+your repo; both are rebuildable at any time. You never need to edit the file by hand — the
+builder, Claude, and the command line all write it for you (and the doctor fixes it if
+something else breaks it).</p>
+
+<div class="legend">
+  <span class="who you">YOU</span> ask &amp; shape
+  <span class="who claude">CLAUDE</span> edits notes, authors &amp; repairs rollups
+  <span class="who script">DUO</span> computes views, renders pages
+  <span class="who files">FILES</span> plain markdown + HTML in your repo
+</div>
+
+<div class="lifecycle">
+  <div class="lstep"><span class="who you">YOU</span><div class="what">Shape the question in the Rollups tab; flip fields from rows as you triage.</div></div>
+  <div class="larrow">▼ every change</div>
+  <div class="lstep"><span class="who script">DUO</span><div class="what">Saves the definition, re-computes the view, re-renders the page.</div></div>
+  <div class="larrow">▼ meanwhile</div>
+  <div class="lstep"><span class="who claude">CLAUDE</span><div class="what">Files notes, updates statuses, authors richer rollups on request — pages drift stale as notes change.</div></div>
+  <div class="larrow">▼ when you look</div>
+  <div class="lstep"><span class="who you">YOU</span><div class="what">Vault tab for the glance; any Refresh makes a page current again.</div></div>
+</div>
+
+<h3>Command-line equivalents</h3>
+<p>Everything above has a terminal twin (useful for agents and automation — they work in any
+shell, no app needed):</p>
+<pre><code>duo rollup list                 # every rollup + freshness
+duo rollup new --type task --group status --title "Open tasks"
+duo rollup show &lt;note&gt;          # the parsed definition
+duo rollup set &lt;note&gt; --filter 'status!=done' [--links github|relative]
+duo rollup render &lt;note&gt; [--github]   # re-make the page
+duo rollup markdown &lt;note&gt;      # the Copy-as-Markdown table, to stdout
+duo rollup diff &lt;note&gt;          # what changed since the last page
+duo rollup duplicate &lt;note&gt;
+duo rollup delete &lt;note&gt; --force
+duo rollup doctor &lt;note&gt;        # diagnose a broken one</code></pre>
+<p>Full verb documentation: <code>rollup.md</code> in this folder (the agent-facing
+reference), or <code>duo --help</code>.</p>
+</section>
+
+<footer>
+  The Rollup Guide · ships with the Duo skill
+  (<code>~/.claude/skills/duo/references/rollup-guide.html</code>) — <code>duo open</code> it any
+  time. Companion: the <strong>Vault Guide</strong> (vault-guide.html) for the vault itself —
+  types, capture, linking, search. Agent-facing verb reference: <code>rollup.md</code>.
+</footer>
+
+</body>
+</html>
