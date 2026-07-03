@@ -11,6 +11,8 @@ import os from 'node:os'
 import { isVaultRoot, detectVaultMode } from './detect'
 import { loadTemplates } from './corpus'
 import { ensureNoteId } from './move'
+import { OKF_INDEX_FILENAMES, OKF_INDEX_FILENAME_DEFAULT } from './okf-filenames'
+import { OUTPUT_DIR_DEFAULT } from './output-dir'
 import type { TypeTemplate, VaultMode } from './types'
 
 const TB = '`'.repeat(3) // ``` — the markdown code fence
@@ -217,7 +219,7 @@ function readmeText(name: string): string {
     '  whose parent is not yet known.',
     '- `bases/` — vault-wide rollups (`processing.base` is the work-list',
     '  dashboard).',
-    '- `out/` — rendered rollup artifacts (regenerable; safe to delete).',
+    '- `output/` — rendered rollup artifacts (regenerable; safe to delete).',
     '',
     '## Filing rules (D19)',
     '',
@@ -231,7 +233,8 @@ function readmeText(name: string): string {
   ].join('\n')
 }
 
-// The OKF root index.md (ENH-216, D4 + D8). Its frontmatter is the OKF
+// The OKF root index (ENH-216, D4 + D8; ENH-245: `_index.md` default,
+// `index.md` legacy). Its frontmatter is the OKF
 // in-vault MARKER (`okf_version` — what `detectVaultMode` keys on) plus the
 // vault title + `type: index` (D10: every OKF note is type-stamped, root is
 // the index). The body starts with the EXACT listing fence `<!-- duo:listing
@@ -270,7 +273,7 @@ export interface InitResult {
  *  deliberate asymmetry with the CLI, where `--format` is REQUIRED (the CLI
  *  layer enforces that, not this fn). `obsidian` reproduces the legacy
  *  scaffold BYTE-FOR-BYTE (a `.obsidian/` marker, `.base` rollups, a README);
- *  `okf` writes a root `index.md` marker + static-listing seed, the same
+ *  `okf` writes a root index marker (ENH-245 default `_index.md`) + static-listing seed, the same
  *  templates minus the embedded `.base` block, and NO README / NO `bases/`. */
 export function initVault(
   folder: string,
@@ -286,25 +289,30 @@ export function initVault(
   }
   if (isVaultRoot(root) && !opts.force) {
     throw new Error(
-      `${root} is already a vault (has an okf_version index.md or .obsidian/). Pass --force to ` +
+      `${root} is already a vault (has an okf_version _index.md/index.md or .obsidian/). Pass --force to ` +
         `(re)write the starter scaffold files — it overwrites edited starter templates / ` +
-        `processing.base / README / index.md, but never touches your own notes.`,
+        `processing.base / README / the root index, but never touches your own notes.`,
     )
   }
   // ENH-242 (D4) — refuse to OKF-init a folder that already holds a plain
-  // index.md (no okf_version marker, so the isVaultRoot guard above doesn't
-  // catch it). Without this, the writeFile helper SILENTLY SKIPS the marker
-  // index.md (it never overwrites without --force), leaving the folder
-  // un-marked — and the caller's setDefaultVault then throws confusingly. This
-  // is the data-safety guard: never clobber the user's existing index.md.
-  // Obsidian mode marks via `.obsidian/` and never writes index.md, so it's
-  // unaffected. `--force` is the documented escape hatch (overwrites it).
-  if (mode === 'okf' && !opts.force && fs.existsSync(path.join(root, 'index.md'))) {
-    throw new Error(
-      `${root} already contains an index.md (not an OKF vault marker). Refusing to initialize ` +
-        `an OKF vault here — it would shadow or overwrite your file. Pick an empty folder, choose ` +
-        `Obsidian format, or pass --force to overwrite.`,
-    )
+  // index file with no okf_version marker (the isVaultRoot guard above
+  // doesn't catch it, since it's not yet a vault). Without this, the
+  // writeFile helper SILENTLY SKIPS the marker file (it never overwrites
+  // without --force), leaving the folder un-marked — and the caller's
+  // setDefaultVault then throws confusingly. This is the data-safety guard:
+  // never clobber the user's existing file. Checks BOTH conventions
+  // (ENH-245: `_index.md` and legacy `index.md`). Obsidian mode marks via
+  // `.obsidian/` and never writes an index file, so it's unaffected.
+  // `--force` is the documented escape hatch (overwrites it).
+  if (mode === 'okf' && !opts.force) {
+    const collision = OKF_INDEX_FILENAMES.find((name) => fs.existsSync(path.join(root, name)))
+    if (collision) {
+      throw new Error(
+        `${root} already contains a ${collision} file (not an OKF vault marker). Refusing to initialize ` +
+          `an OKF vault here — it would shadow or overwrite your file. Pick an empty folder, choose ` +
+          `Obsidian format, or pass --force to overwrite.`,
+      )
+    }
   }
   const created: string[] = []
   const warnings: string[] = []
@@ -327,7 +335,7 @@ export function initVault(
 
   if (mode === 'obsidian') {
     // Legacy default — kept verbatim (byte-identical regression guard, ENH-216).
-    for (const d of ['.obsidian', 'templates', 'inbox', 'people', 'themes', 'initiatives', 'notes', 'bases', 'out'])
+    for (const d of ['.obsidian', 'templates', 'inbox', 'people', 'themes', 'initiatives', 'notes', 'bases', OUTPUT_DIR_DEFAULT])
       mkdir(d)
 
     writeFile('.obsidian/app.json', APP_JSON + '\n')
@@ -342,13 +350,14 @@ export function initVault(
   } else {
     // OKF (ENH-216) — same content folders, but NO .obsidian/ and NO bases/
     // (OKF has no `.base` machinery; listings are static generated markdown,
-    // D8). The OKF in-vault marker is the root index.md frontmatter (D4).
-    for (const d of ['templates', 'inbox', 'people', 'themes', 'initiatives', 'notes', 'out']) mkdir(d)
+    // D8). The OKF in-vault marker is the root index frontmatter (D4).
+    for (const d of ['templates', 'inbox', 'people', 'themes', 'initiatives', 'notes', OUTPUT_DIR_DEFAULT]) mkdir(d)
 
-    // The root index.md is co-owned: this writes the frontmatter marker +
-    // the `<!-- duo:listing -->` body seed; the listings generator (U3)
-    // regex-replaces ONLY the body after the frontmatter (D8).
-    writeFile('index.md', okfRootIndex(title))
+    // The root index is co-owned: this writes the frontmatter marker + the
+    // `<!-- duo:listing -->` body seed; the listings generator (U3)
+    // regex-replaces ONLY the body after the frontmatter (D8). ENH-245: new
+    // vaults default to the underscore-prefixed filename.
+    writeFile(OKF_INDEX_FILENAME_DEFAULT, okfRootIndex(title))
     // Same templates as Obsidian, type-stamped, MINUS the embedded `.base`
     // block in the initiative template (no `.base` machinery in OKF).
     writeFile('templates/person.md', PERSON_TPL)
@@ -357,7 +366,7 @@ export function initVault(
     writeFile('templates/milestone.md', MILESTONE_TPL)
     writeFile('templates/meeting.md', MEETING_TPL)
     writeFile('templates/rollup.md', ROLLUP_TPL)
-    // No README (D10: the root listing is index.md, not a frontmatter-less
+    // No README (D10: the root listing is the index file, not a frontmatter-less
     // README); no .obsidian/, no bases/.
   }
 

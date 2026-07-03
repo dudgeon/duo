@@ -213,12 +213,13 @@ describe('initVault — OKF scaffold + the D2 default flip', () => {
     expect(detectVaultMode(r.root)).toBe('okf')
   })
 
-  it('writes a root index.md marker with okf_version + type:index + the listing fence, and NO .obsidian/', () => {
+  it('writes a root _index.md marker with okf_version + type:index + the listing fence, and NO .obsidian/', () => {
     const v = initVault(path.join(root, 'v')).root
     expect(fs.existsSync(path.join(v, '.obsidian'))).toBe(false)
     expect(fs.existsSync(path.join(v, 'README.md'))).toBe(false)
     expect(fs.existsSync(path.join(v, 'bases'))).toBe(false)
-    const idx = fs.readFileSync(path.join(v, 'index.md'), 'utf8')
+    expect(fs.existsSync(path.join(v, 'index.md'))).toBe(false) // ENH-245: not the legacy name
+    const idx = fs.readFileSync(path.join(v, '_index.md'), 'utf8')
     expect(idx).toContain('okf_version:')
     expect(idx).toContain('type: index')
     expect(idx).toContain(LISTING_FENCE)

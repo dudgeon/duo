@@ -55,7 +55,7 @@ when no flag is given. Rollups default to **`<vault>/rollups/`** (`--out <path>`
 writes elsewhere); `--open` surfaces it as a tab. Every artifact opens with an
 agent-visible HTML comment explaining it's a generated rollup + how to
 regenerate it — so a fresh agent that finds the file isn't confused. The
-`rollups/` (and `out/`) folders are excluded from the corpus, so a rollup never
+`rollups/` (and `output/`/legacy `out/`, ENH-246) folders are excluded from the corpus, so a rollup never
 rolls up into itself (the rollup NOTES in `rollups/` are still discovered by
 `duo rollup list`, a `type == rollup` query — they're typed notes, not
 artifacts).
@@ -164,6 +164,22 @@ diff→summarize→re-render loop on each refresh.
 | `duo rollup render <note\|base> [--html\|--md] [--style <css>] [--summary "<text>"\|--no-summary] [--out <p>] [--open]` | Render the spec → one variant (HTML default — D2; `--md` opt-in) with entity links. For a `type: rollup` note: stamps `out`/`last_generated`/`last_hash` back surgically + defaults out to the note's `out:`. `--summary` adds the latest "What changed" (history kept), `--no-summary` disables it, `--style` layers CSS (HTML only) |
 | `duo rollup list [--vault <path>]` | The rollup inventory — every `type: rollup` note with `{note, title, out, format, last_generated, last_hash, stale}` (`stale = last_hash !== the live source hash`). A corpus query, no scan, no sidecar (D1) — the Vault view's Rollups column |
 | `duo rollup diff <note\|base> [--against <prior-artifact>] [--vault <path>]` | Deterministic JSON delta vs the prior artifact's embedded snapshot (newest of the two formats by default) — the material you turn into a narrative |
+| `duo rollup new --type <t[,t2]> [--title "<t>"] [--group a,b] [--filter <k=v\|k!=v\|k?\|k!?>]... [--columns a,b] [--vault <path>]` | ENH-243 — scaffold a builder-canonical rollup note in one shot (no hand YAML). Ordered `--group` = multi-depth grouping; the note stays editable in the app's Rollups tab |
+| `duo rollup show <note> [--vault <path>]` | The parsed builder model + row/group summary (`model: null` = hand-authored, view-only in the GUI; `error` set = broken) |
+| `duo rollup set <note> [--title\|--type\|--group\|--columns] [--filter …]... [--clear-filters] [--vault <path>]` | Mutate a builder-canonical rollup (filters append unless `--clear-filters`); refuses a hand-authored spec rather than clobbering it |
+| `duo rollup doctor <note> [--vault <path>]` | Diagnosis for a broken rollup: parse/eval error + advisory lint + repair guidance (what the GUI's "Fix with Claude" seeds) |
 
 All read the filesystem directly (no running app); only `--open` reaches the
 app to surface a tab.
+
+## The Rollups tab (ENH-243) — the GUI twin
+
+Beside the Vault tab (present when a default vault is set), the **Rollups
+tab** is a master–detail viewer/editor: rollup list rail · live grouped view
+(multi-depth via the note's ordered `group_by:` frontmatter) · a "Roll Up"
+inspector with the definition builder + a frontmatter **flip subpane**
+(instant, undoable typed value flips on the ✎-selected row). Hovering a row
+reveals its vault path; clicking opens the note. A rollup whose spec can't be
+parsed shows a doctor card whose "Fix with Claude" spawns a repair session in
+the vault's parent directory. Builder-canonical notes (what `duo rollup new`
+writes) are GUI-editable; richer hand-authored specs render view-only.

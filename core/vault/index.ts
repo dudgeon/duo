@@ -21,6 +21,12 @@ export {
   findVaultWithMode,
   isForeignVault,
 } from './detect'
+// ENH-245 — the OKF generated-listing filename resolution (dual convention:
+// `_index.md`/`_log.md` default, `index.md`/`log.md` legacy).
+export { resolveIndexFilename, resolveLogFilename, OKF_INDEX_FILENAME_DEFAULT } from './okf-filenames'
+// ENH-246 — the rendered-artifact output folder (dual convention: `output/`
+// default, legacy `out/`).
+export { resolveOutputDir, OUTPUT_DIR_DEFAULT } from './output-dir'
 // ENH-216 — the single node-free link helper (core/markdown/vaultLinks.ts).
 // Re-exported here so vault consumers import rel-path/slug/extract logic
 // from one place and never reimplement it.
@@ -80,6 +86,27 @@ export {
   type ResolvedRollupNote,
 } from './rollup-notes'
 export { listInbox, type InboxEntry } from './inbox'
+// ENH-243 — the Rollups tab's builder layer (canonical base dialect + live
+// view data + frontmatter flips). Shared by the GUI IPC handlers and the
+// `duo rollup new|show|set|doctor` CLI verbs.
+export {
+  serializeBuilderBase,
+  parseBuilderBase,
+  createRollupNote,
+  updateRollupNote,
+  setFrontmatterFields,
+  entityPanel,
+  rollupViewData,
+  type RollupBuilderModel,
+  type BuilderFilter,
+  type BuilderFilterOp,
+  type CreateRollupResult,
+  type EntityPanel,
+  type EntityField,
+  type FieldKind,
+  type RollupViewData,
+  type RollupViewRow,
+} from './builder'
 export {
   lintVault,
   lintBaseDef,

@@ -52,7 +52,7 @@ const FORMAT_OPTIONS: FormatOption[] = [
     title: 'OKF bundle',
     subcopy:
       'Standard markdown + relative links. Renders on GitHub, opens in any editor and in Obsidian. Best for shareable / published KBs.',
-    preview: ['[Alice](./people/alice.md)', 'index.md']
+    preview: ['[Alice](./people/alice.md)', '_index.md']
   },
   {
     value: 'obsidian',

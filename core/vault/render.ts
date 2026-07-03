@@ -28,6 +28,8 @@ import {
   defaultAsOf,
   type EngineFile,
 } from './engine'
+import { isGeneratedListingBasename } from './okf-filenames'
+import { OUTPUT_DIR_NAMES } from './output-dir'
 
 // ── structured evaluation ──────────────────────────────────────────────────
 
@@ -421,16 +423,15 @@ export interface RenderTargetResult {
 /** Stable source hash over the vault's note + base content — the staleness
  *  key stamped into rendered artifacts AND into the OKF generated listings
  *  (U3 `writeListings`). Exported (ENH-216) so `listings.ts` is the only
- *  consumer; the generated `index.md` / `log.md` themselves are EXCLUDED
- *  from the walk so a regenerated listing never perturbs its own hash. */
+ *  consumer; the generated listing files themselves (ENH-245: either
+ *  `_index.md`/`index.md` or `_log.md`/`log.md`) are EXCLUDED from the walk
+ *  so a regenerated listing never perturbs its own hash. Shares the same
+ *  `isGeneratedListingBasename` check as `listings.ts` so the two never
+ *  drift apart on what counts as "generated" (they had, pre-ENH-245). */
 export function sourceHash(root: string): string {
   const all: string[] = []
   const stack = [root]
-  const SKIP = new Set(['.obsidian', '.trash', 'out', 'rollups', '.git', 'node_modules'])
-  // Generated OKF listings (root + per-dir index.md, root log.md) are build
-  // artifacts derived FROM the corpus — hashing them would make the hash
-  // depend on its own previous output (a feedback loop), so they're skipped.
-  const GENERATED = new Set(['index.md', 'log.md'])
+  const SKIP = new Set(['.obsidian', '.trash', ...OUTPUT_DIR_NAMES, 'rollups', '.git', 'node_modules'])
   while (stack.length) {
     const dir = stack.pop()!
     let entries: fs.Dirent[]
@@ -443,7 +444,7 @@ export function sourceHash(root: string): string {
       const full = path.join(dir, e.name)
       if (e.isDirectory()) {
         if (!SKIP.has(e.name)) stack.push(full)
-      } else if ((e.name.endsWith('.md') || e.name.endsWith('.base')) && !GENERATED.has(e.name)) {
+      } else if ((e.name.endsWith('.md') || e.name.endsWith('.base')) && !isGeneratedListingBasename(e.name)) {
         try {
           all.push(fs.readFileSync(full, 'utf8'))
         } catch {

@@ -98,12 +98,13 @@ describe('vault init (OKF — the new default, ENH-216 D2)', () => {
     expect(isVaultRoot(r.root)).toBe(true)
   })
 
-  it('scaffolds an OKF marker (root index.md w/ okf_version + type:index), NO .obsidian/ / README / bases', () => {
+  it('scaffolds an OKF marker (root _index.md w/ okf_version + type:index), NO .obsidian/ / README / bases', () => {
     const v = initVault(path.join(root, 'v')).root
     expect(fs.existsSync(path.join(v, '.obsidian'))).toBe(false)
     expect(fs.existsSync(path.join(v, 'README.md'))).toBe(false)
     expect(fs.existsSync(path.join(v, 'bases'))).toBe(false)
-    const idx = fs.readFileSync(path.join(v, 'index.md'), 'utf8')
+    expect(fs.existsSync(path.join(v, 'index.md'))).toBe(false) // ENH-245: not the legacy name
+    const idx = fs.readFileSync(path.join(v, '_index.md'), 'utf8')
     expect(idx).toContain('okf_version:')
     expect(idx).toContain('type: index')
     // the co-owned listing fence seed (U2 writes it; U3 fills the body)
@@ -153,7 +154,7 @@ describe('vault init (ENH-242 D4 — OKF index.md collision guard)', () => {
     const v = path.join(root, 'has-index')
     fs.mkdirSync(v, { recursive: true })
     fs.writeFileSync(path.join(v, 'index.md'), '# my notes\n')
-    expect(() => initVault(v, { format: 'okf' })).toThrow(/already contains an index\.md/)
+    expect(() => initVault(v, { format: 'okf' })).toThrow(/already contains a index\.md file/)
     // the user's file is untouched …
     expect(fs.readFileSync(path.join(v, 'index.md'), 'utf8')).toBe('# my notes\n')
     // … and the folder did NOT become a vault (the bug this guards: a silent

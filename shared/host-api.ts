@@ -1264,6 +1264,75 @@ export interface VaultRollupDto {
   stale: boolean
 }
 
+// ENH-243 — the Rollups tab DTOs. Mirror core/vault/builder.ts shapes
+// (RollupBuilderModel / RollupViewData / EntityPanel), declared inline for
+// the same reason as the DTOs above (core/vault is main-process-only).
+export type RollupFilterOpDto = 'eq' | 'ne' | 'set' | 'notset'
+
+export interface RollupFilterDto {
+  property: string
+  op: RollupFilterOpDto
+  value?: string
+}
+
+/** The builder model — the GUI-shaped rollup definition (PRD D4). */
+export interface RollupModelDto {
+  title: string
+  types: string[]
+  /** Ordered group-by levels, outermost first (D5). */
+  groupBy: string[]
+  filters: RollupFilterDto[]
+  columns: string[]
+}
+
+export interface RollupViewRowDto {
+  /** Vault-relative path — hover tooltip + click-open target (D6). */
+  path: string
+  absPath: string
+  title: string
+  /** Plain-rendered group value per effective level ('—' when unset). */
+  groups: string[]
+  cells: Record<string, string>
+}
+
+export interface RollupViewDataDto {
+  note: string
+  noteAbs: string
+  title: string
+  columns: string[]
+  groupBy: string[]
+  rows: RollupViewRowDto[]
+  /** Parsed builder model, or null → view-only (hand-authored spec). */
+  model: RollupModelDto | null
+  /** Set when the spec failed to parse/evaluate — the doctor's case. */
+  error: string | null
+}
+
+/** Corpus schema slice the builder's dropdowns draw from (the corpus IS
+ *  the schema — computed live per call, never cached). */
+export interface VaultSchemaDto {
+  types: string[]
+  propsByType: Record<string, string[]>
+  enumsByType: Record<string, string[]>
+}
+
+export type RollupFieldKindDto = 'bool' | 'enum' | 'number' | 'text'
+
+export interface EntityFieldDto {
+  key: string
+  kind: RollupFieldKindDto
+  value: string
+  options?: string[]
+}
+
+export interface EntityPanelDto {
+  note: string
+  absPath: string
+  title: string
+  type: string | null
+  fields: EntityFieldDto[]
+}
+
 export interface ElectronVaultAPI {
   /** ⇧⌘N — create an untyped inbox note in the UI-resolved vault
    *  (default vault first, else the active file's vault — D11). Same
@@ -1370,6 +1439,36 @@ export interface ElectronVaultAPI {
    *  pre-select the New Vault / "Choose or Create Vault…" dialog's format
    *  radio. Resolves to 'okf' before any vault has been created. */
   getLastFormat: () => Promise<VaultFormat>
+  /** ENH-243 — corpus schema for the Rollups builder's vocabulary (types,
+   *  fields per type, observed enum values). Live read per call. */
+  schema: (opts: { vaultRoot: string }) => Promise<
+    { ok: true; schema: VaultSchemaDto } | { ok: false; error: string }
+  >
+  /** ENH-243 (D10) — evaluate one rollup against the live corpus via the
+   *  shared engine; structured rows, never rendered HTML. A spec problem
+   *  lands in `data.error` (the doctor card), not a rejection. */
+  rollupView: (opts: { vaultRoot: string; note: string }) => Promise<
+    { ok: true; data: RollupViewDataDto } | { ok: false; error: string }
+  >
+  /** ENH-243 (D4/D9) — create (`note` absent) or rewrite (`note` present) a
+   *  builder-owned rollup note from the model. Live-save path: the GUI calls
+   *  this on every builder mutation. */
+  rollupSave: (opts: { vaultRoot: string; note?: string; model: RollupModelDto }) => Promise<
+    { ok: true; note: string; absPath: string } | { ok: false; error: string }
+  >
+  /** ENH-243 — the flip subpane's data: one entity's typed attributes +
+   *  the flip affordance each supports (corpus-derived). */
+  entityPanel: (opts: { vaultRoot: string; notePath: string }) => Promise<
+    { ok: true; panel: EntityPanelDto } | { ok: false; error: string }
+  >
+  /** ENH-243 (D2) — surgical frontmatter write for flips (and their undo):
+   *  only the touched keys change, the body stays byte-untouched. `null`
+   *  deletes a key. */
+  setFrontmatter: (opts: {
+    vaultRoot: string
+    notePath: string
+    updates: Record<string, string | number | boolean | null>
+  }) => Promise<{ ok: true } | { ok: false; error: string }>
 }
 
 export interface ElectronProjectsAPI {

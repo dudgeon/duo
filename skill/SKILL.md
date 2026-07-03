@@ -240,8 +240,10 @@ filesystem directly — no running app needed):
   `duo vault schema` to see which you're in):
   - **Obsidian mode** → live **`.base`** files (Obsidian Bases YAML),
     rendered with `duo base render`.
-  - **OKF mode** → at-rest **static listings** (`index.md` / `log.md`)
-    via `duo vault publish` (the root `index.md` can carry a `listing:` spec
+  - **OKF mode** → at-rest **static listings** (`_index.md`/`index.md` +
+    `_log.md`/`log.md` — ENH-245: underscore-prefixed is the default, plain
+    is the legacy form, both detected) via `duo vault publish` (the root
+    index can carry a `listing:` spec
     for a grouped, engine-driven body — ENH-230). OKF doesn't *auto-render*
     `.base` files like Obsidian — but you still **author a `.base` as a query
     and render on demand** with `duo rollup render <base> --md|--html` (both
@@ -252,6 +254,20 @@ filesystem directly — no running app needed):
 A **rollup** is a first-class **`type: rollup` note** (ENH-228 D1) that owns its
 spec + its render provenance, so it's discoverable by `duo rollup list` and
 shows up in the Vault view's Rollups column. The loop:
+
+**Shortcut (ENH-243) — the builder verbs.** For a straightforward rollup
+(types → group-by → filters → columns, no formulas), skip hand-writing YAML:
+`duo rollup new --type task --title "Open tasks" --group status,org
+--filter 'status!=done' --columns owner,due` scaffolds a lint-clean,
+GUI-editable note in one shot (the ordered `--group` list gives multi-depth
+grouping in the Rollups tab). Inspect with `duo rollup show <note>`, mutate
+with `duo rollup set <note> …`, diagnose a broken one with `duo rollup
+doctor <note>`. These are the CLI twins of the app's **Rollups tab** (beside
+the Vault tab), where the user shapes the same note through UI — a rollup
+you scaffold this way stays editable there, and one whose spec uses features
+outside the builder dialect (formulas, view filters, OR groups) is shown
+view-only in the GUI (still renders fine). The hand-authoring loop below
+remains the path for anything richer:
 
 1. **Understand the ask** in prose ("open tasks for this initiative, grouped
    by owner, with a due chip").
@@ -272,8 +288,10 @@ shows up in the Vault view's Rollups column. The loop:
    opt-in), and stamps `out`/`last_generated`/`last_hash` back into the note
    surgically. (`duo base render` is the lower-level twin with no stamp.)
 
-**In OKF mode, the at-rest listings are `index.md` / `log.md`** — `duo vault
-publish` (re)generates them from the corpus (the root `index.md` can carry a
+**In OKF mode, the at-rest listings are `_index.md`/`index.md` +
+`_log.md`/`log.md`** (ENH-245 dual convention, whichever the vault already
+uses) — `duo vault publish` (re)generates them from the corpus (the root
+index can carry a
 `listing:` spec for a grouped, engine-driven body — ENH-230). OKF doesn't
 auto-render `.base` files like Obsidian, but **authoring a `.base` (or a
 ` ```base ` block) as a query and running `duo rollup render <base> --md|--html`
@@ -342,7 +360,7 @@ Each pointer loads a complete file — open the one that matches your task.
   inbound-link rewrite) or `duo vault relink` (repairs out-of-band moves
   slug-first, with `id:` as a same-slug tiebreak); `duo vault publish`
   (re)generates the static
-  `index.md` + `log.md` listings; `duo vault promote` splits a section into
+  the root index + log listings; `duo vault promote` splits a section into
   its own entity, leaving a markdown link. The end-user walkthrough with
   diagrams ships with this skill — open it with `duo open
   ~/.claude/skills/duo/references/vault-guide.html`.

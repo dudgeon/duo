@@ -551,7 +551,7 @@ const VERBS: VerbSpec[] = [
     group: 'Vault',
     args: '<init|list|schema|capture|stub|search|default|mv|relink|publish|promote> [args]',
     summary:
-      'Work-notes vault. Two at-rest formats: OKF (standard markdown relative links, [Display](./rel.md)) and Obsidian (wikilinks, [[Display]]) — one graph model, two serializers. init <path> --format=okf|obsidian [--name "…"] [--no-default] [--force]: scaffold a vault; --format is REQUIRED on the CLI (the New Vault dialog defaults to OKF). OKF mode marks the root with an okf_version index.md + static listings; Obsidian writes the legacy .obsidian/ + bases/processing.base + README. The fresh vault becomes the default unless --no-default is passed (a throwaway scaffold can opt out of the global-default hijack; it still lands in the picker\'s known list). list: vaults detected from the cwd (JSON). schema [--vault p]: the live corpus — types/entities/aliases/props-per-type/observed-enums, a pure function over frontmatter (the vault IS the schema; never cached). capture [--template t] [--text "…"] [--title "…"] [--open]: drop a timestamped inbox note (untyped by default; --template stamps a type). stub <type> <name> [--open]: create a typed entity stub from its template, filed by the D19 rule (the CLI twin of the silent-stub [[New Name]]⇥ gesture; idempotent — never clobbers). search <query> [--vault p]: full-text hits (file, line, excerpt) — the CLI twin of ⌘⇧F. default [<path> [--init [--format=okf|obsidian] [--name "…"]] | --clear]: read or set the default vault (Phase-2 D11; the CLI twin of the Settings field). --init (ENH-242 create-on-choose) inits a bare <path> then sets it, or sets the ENCLOSING vault if <path> is inside one (never nests; --format defaults to OKF). mv <from> <to>: move a note (vault-relative) and rewrite every inbound markdown link to its new path, re-basing the moved note\'s own outbound links (D5 clean path). relink [--dry-run]: repair out-of-band moves (Finder/git) — re-resolve dangling markdown links by slug/basename first, using the stable frontmatter id: only to tiebreak when >1 note shares a slug, rewriting the unambiguous ones and reporting ambiguous + broken (D5; auto-runs on vault open). publish [--index-only|--log-only] [--dir] [--open]: (re)generate the OKF static listings from the corpus — root index.md (frontmatter byte-preserved) + log.md, --dir adds per-folder index.md (D8; OKF-mode only). --index-only / --log-only narrow the WRITE to just that file (the other is left byte-identical — no churn), not just the reported set. promote <note> --heading "<h>" --type <t>: split a ## section into its own typed entity, leaving a markdown link behind (a wikilink in Obsidian) — never an embed (D9). Verbs resolve --vault → the enclosing vault → the default → error, so a set default lets them run from outside any vault.'
+      'Work-notes vault. Two at-rest formats: OKF (standard markdown relative links, [Display](./rel.md)) and Obsidian (wikilinks, [[Display]]) — one graph model, two serializers. init <path> --format=okf|obsidian [--name "…"] [--no-default] [--force]: scaffold a vault; --format is REQUIRED on the CLI (the New Vault dialog defaults to OKF). OKF mode marks the root with an okf_version _index.md (or legacy index.md) + static listings; Obsidian writes the legacy .obsidian/ + bases/processing.base + README. The fresh vault becomes the default unless --no-default is passed (a throwaway scaffold can opt out of the global-default hijack; it still lands in the picker\'s known list). list: vaults detected from the cwd (JSON). schema [--vault p]: the live corpus — types/entities/aliases/props-per-type/observed-enums, a pure function over frontmatter (the vault IS the schema; never cached). capture [--template t] [--text "…"] [--title "…"] [--open]: drop a timestamped inbox note (untyped by default; --template stamps a type). stub <type> <name> [--open]: create a typed entity stub from its template, filed by the D19 rule (the CLI twin of the silent-stub [[New Name]]⇥ gesture; idempotent — never clobbers). search <query> [--vault p]: full-text hits (file, line, excerpt) — the CLI twin of ⌘⇧F. default [<path> [--init [--format=okf|obsidian] [--name "…"]] | --clear]: read or set the default vault (Phase-2 D11; the CLI twin of the Settings field). --init (ENH-242 create-on-choose) inits a bare <path> then sets it, or sets the ENCLOSING vault if <path> is inside one (never nests; --format defaults to OKF). mv <from> <to>: move a note (vault-relative) and rewrite every inbound markdown link to its new path, re-basing the moved note\'s own outbound links (D5 clean path). relink [--dry-run]: repair out-of-band moves (Finder/git) — re-resolve dangling markdown links by slug/basename first, using the stable frontmatter id: only to tiebreak when >1 note shares a slug, rewriting the unambiguous ones and reporting ambiguous + broken (D5; auto-runs on vault open). publish [--index-only|--log-only] [--dir] [--open]: (re)generate the OKF static listings from the corpus — root index (frontmatter byte-preserved, `_index.md` default / `index.md` legacy) + log (`_log.md`/`log.md`), --dir adds per-folder index files (D8; OKF-mode only). --index-only / --log-only narrow the WRITE to just that file (the other is left byte-identical — no churn), not just the reported set. promote <note> --heading "<h>" --type <t>: split a ## section into its own typed entity, leaving a markdown link behind (a wikilink in Obsidian) — never an embed (D9). Verbs resolve --vault → the enclosing vault → the default → error, so a set default lets them run from outside any vault.'
   },
   {
     name: 'graph',
@@ -570,9 +570,9 @@ const VERBS: VerbSpec[] = [
   {
     name: 'rollup',
     group: 'Vault',
-    args: '<render <note|base>|list|diff <note|base>> [--md|--html] [--style css] [--summary "t"|--no-summary] [--against p] [--out p] [--open] [--vault p]',
+    args: '<render <note|base>|list|diff <note|base>|new --type t|show <note>|set <note>|doctor <note>> [--md|--html] [--style css] [--summary "t"|--no-summary] [--against p] [--title "t"] [--group a,b] [--filter k=v]... [--columns a,b] [--out p] [--open] [--vault p]',
     summary:
-      'ENH-229/ENH-228 — rollups. A rollup is a first-class `type: rollup` NOTE (templates/rollup.md, filed in rollups/) that owns its spec (an embedded ```base block or a `spec:` .base path) + render provenance. render <note|base> [--md|--html]: render the spec and emit ONE variant — a stamped HTML artifact (--html; the DEFAULT for a rollup note — D2, HTML-first) OR Markdown (--md; GitHub-portable). For a `type: rollup` note the out path defaults to its `out:` (else rollups/<slug>.html) and `out`/`last_generated`/`last_hash` are stamped back into the note surgically (body untouched) — but ONLY for the note\'s canonical format; an ad-hoc --md/--html override renders a side artifact and leaves the note\'s provenance untouched. A bare `.base`/non-rollup target keeps the legacy MD-default, no-stamp behavior. Every row LINKS the entities it rolls up (the note + owner/group links resolved from frontmatter, incl. OKF rel-md). --style <css-file> layers a custom stylesheet over the Atelier base (HTML only). list: the rollup inventory — every `type: rollup` note with {note,title,out,format,last_generated,last_hash,stale} (stale = last_hash !== the live source hash); a corpus query, no scan, no sidecar. Change summary (req #7): the artifact self-embeds a rows snapshot + a summary log (HTML comments — §D9-clean, no sidecar); --summary "<text>" adds a new latest "What changed" entry (an interactive Claude writes the narrative+notables from `duo rollup diff`), prior entries drop into a collapsible history; --no-summary clears it. diff <note|base> [--against <prior>]: deterministic JSON delta (added/removed/changed rows) vs the prior artifact\'s embedded snapshot — the material Claude summarizes. --out writes elsewhere; --open surfaces it as a tab.'
+      'ENH-243 — the builder verbs (the Rollups tab\'s CLI twins; same core layer). new --type <t[,t2]> [--title "t"] [--group a,b] [--filter \'k=v\'|\'k!=v\'|\'k?\'|\'k!?\']... [--columns a,b]: scaffold a builder-canonical `type: rollup` note at rollups/<slug>.md — multi-depth grouping via the ordered --group list (level 1 mirrors into the base block\'s groupBy; the full list lives in the note\'s group_by: frontmatter, grouped GUI-side). show <note>: the parsed builder model + row/group summary as stable JSON (model:null = hand-authored/view-only; error set = broken). set <note> [--title|--type|--group|--columns] [--filter …]... [--clear-filters]: mutate a builder-canonical note (appends filters unless --clear-filters; refuses a hand-authored spec rather than clobbering it). doctor <note>: diagnosis — parse/eval error + advisory lint findings + repair guidance (the same prompt the GUI\'s "Fix with Claude" seeds). ENH-229/ENH-228 — rollups. A rollup is a first-class `type: rollup` NOTE (templates/rollup.md, filed in rollups/) that owns its spec (an embedded ```base block or a `spec:` .base path) + render provenance. render <note|base> [--md|--html]: render the spec and emit ONE variant — a stamped HTML artifact (--html; the DEFAULT for a rollup note — D2, HTML-first) OR Markdown (--md; GitHub-portable). For a `type: rollup` note the out path defaults to its `out:` (else rollups/<slug>.html) and `out`/`last_generated`/`last_hash` are stamped back into the note surgically (body untouched) — but ONLY for the note\'s canonical format; an ad-hoc --md/--html override renders a side artifact and leaves the note\'s provenance untouched. A bare `.base`/non-rollup target keeps the legacy MD-default, no-stamp behavior. Every row LINKS the entities it rolls up (the note + owner/group links resolved from frontmatter, incl. OKF rel-md). --style <css-file> layers a custom stylesheet over the Atelier base (HTML only). list: the rollup inventory — every `type: rollup` note with {note,title,out,format,last_generated,last_hash,stale} (stale = last_hash !== the live source hash); a corpus query, no scan, no sidecar. Change summary (req #7): the artifact self-embeds a rows snapshot + a summary log (HTML comments — §D9-clean, no sidecar); --summary "<text>" adds a new latest "What changed" entry (an interactive Claude writes the narrative+notables from `duo rollup diff`), prior entries drop into a collapsible history; --no-summary clears it. diff <note|base> [--against <prior>]: deterministic JSON delta (added/removed/changed rows) vs the prior artifact\'s embedded snapshot — the material Claude summarizes. --out writes elsewhere; --open surfaces it as a tab.'
   }
 ]
 
@@ -3007,10 +3007,12 @@ async function main(): Promise<void> {
           out(vault.relinkVault(root, { dryRun: subRest.includes('--dry-run') }))
         } else if (sub === 'publish') {
           // ENH-216 D8 — (re)generate the OKF static listings from the corpus:
-          // root index.md (frontmatter byte-preserved) + log.md, and per-dir
-          // index.md with --dir. --index-only / --log-only restrict the write.
-          // --open surfaces index.md as a tab. OKF-mode-gated (throws in
-          // Obsidian mode — Obsidian stays byte-identical).
+          // root index (frontmatter byte-preserved) + log, and per-dir index
+          // with --dir. --index-only / --log-only restrict the write. --open
+          // surfaces the root index as a tab. OKF-mode-gated (throws in
+          // Obsidian mode — Obsidian stays byte-identical). ENH-245: the
+          // filename follows whichever convention the vault already uses
+          // (`_index.md` default, `index.md` legacy).
           const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
           // --index-only / --log-only narrow the WRITE, not just the echo:
           // writeListings leaves the out-of-scope file byte-identical (no fresh
@@ -3029,7 +3031,7 @@ async function main(): Promise<void> {
           for (const w of result.warnings) process.stderr.write(`duo: warning — ${w}\n`)
           let opened: unknown = null
           if (subRest.includes('--open')) {
-            const indexAbs = path.join(root, 'index.md')
+            const indexAbs = path.join(root, vault.resolveIndexFilename(root))
             try {
               opened = await send('open', { url: resolveOpenTarget(indexAbs), mode: 'browser', reveal: true })
             } catch (e) {
@@ -3102,7 +3104,7 @@ async function main(): Promise<void> {
           let outPath: string
           if (outFlag) outPath = path.resolve(process.cwd(), outFlag)
           else if (open) outPath = path.join(os.tmpdir(), `duo-rollup-${stem}-${Date.now()}.html`)
-          else outPath = path.join(root, 'out', `${stem}.html`)
+          else outPath = path.join(root, vault.resolveOutputDir(root), `${stem}.html`)
           // ENH-229 — outDir so entity-link hrefs resolve relative to where the
           // artifact lands (not the vault root). Must be computed before render.
           const result = vault.renderTarget(root, target, { outDir: path.dirname(outPath) })
@@ -3154,7 +3156,7 @@ async function main(): Promise<void> {
         const subRest = rest.slice(1)
         const vaultFlag = flagValue(subRest, '--vault')
         const USAGE =
-          'Usage: duo rollup <render|list|diff> <note|base> [--md|--html] [--style <css-file>] [--summary "<text>"|--no-summary] [--against <path>] [--out <path>] [--open] [--vault <path>]'
+          'Usage: duo rollup <render|list|diff|new|show|set|doctor> [<note|base>] [--md|--html] [--style <css-file>] [--summary "<text>"|--no-summary] [--against <path>] [--type <t[,t2]>] [--title "<t>"] [--group a,b] [--filter <k=v|k!=v|k?|k!?>]... [--columns a,b] [--clear-filters] [--out <path>] [--open] [--vault <path>]'
         // Newest existing path by mtime — so summary history + diff read the
         // freshest artifact even after an --md↔--html switch.
         const newestExisting = (paths: string[]): string | null => {
@@ -3338,6 +3340,126 @@ async function main(): Promise<void> {
           const prior = priorContent ? vault.extractSnapshot(priorContent) : null
           const current = vault.renderTarget(root, target).snapshot
           out({ priorArtifact: priorPath, diff: vault.diffSnapshots(prior, current) })
+        } else if (sub === 'new' || sub === 'set') {
+          // ENH-243 — the Rollups tab's builder verbs. `new` scaffolds a
+          // builder-canonical rollup note from flags; `set` mutates one (only
+          // if its spec round-trips into the builder model — a hand-authored
+          // spec is view-only and `set` refuses rather than clobbering it).
+          // Same core/vault builder layer as the GUI (one-engine rule).
+          const NEW_USAGE =
+            'Usage: duo rollup new --type <t[,t2]> [--title "<t>"] [--group a,b] [--filter \'k=v\' | \'k!=v\' | \'k?\' | \'k!?\']... [--columns a,b] [--vault <path>]'
+          const SET_USAGE =
+            'Usage: duo rollup set <note> [--title "<t>"] [--type <t[,t2]>] [--group a,b] [--filter …]... [--columns a,b] [--clear-filters] [--vault <path>]'
+          const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
+          const list = (flag: string): string[] | null => {
+            const v = flagValue(subRest, flag)
+            return v == null ? null : v.split(',').map((s) => s.trim()).filter(Boolean)
+          }
+          // Every --filter occurrence (flagValue reads only the first).
+          const filterArgs: string[] = []
+          for (let i = 0; i < subRest.length; i++) {
+            if (subRest[i] === '--filter' && subRest[i + 1] != null) filterArgs.push(subRest[++i])
+          }
+          const parseFilterFlag = (s: string): vault.BuilderFilter => {
+            let m = s.match(/^([\w-]+)!=(.+)$/)
+            if (m) return { property: m[1], op: 'ne', value: m[2] }
+            m = s.match(/^([\w-]+)=(.+)$/)
+            if (m) return { property: m[1], op: 'eq', value: m[2] }
+            m = s.match(/^([\w-]+)!\?$/)
+            if (m) return { property: m[1], op: 'notset' }
+            m = s.match(/^([\w-]+)\?$/)
+            if (m) return { property: m[1], op: 'set' }
+            die(`duo rollup ${sub}: unrecognized --filter ${JSON.stringify(s)} (use k=v, k!=v, k? or k!?)`)
+            throw new Error('unreachable')
+          }
+          if (sub === 'new') {
+            const types = list('--type') ?? list('--types')
+            if (!types || types.length === 0) die(NEW_USAGE)
+            const model: vault.RollupBuilderModel = {
+              title: flagValue(subRest, '--title') ?? `${types.join(' + ')} rollup`,
+              types,
+              groupBy: list('--group') ?? [],
+              filters: filterArgs.map(parseFilterFlag),
+              columns: list('--columns') ?? [],
+            }
+            const created = vault.createRollupNote(root, model)
+            out({ root, note: created.noteRel, absPath: created.absPath, model })
+          } else {
+            const target = positionalArgs(subRest, ['--vault', '--title', '--type', '--types', '--group', '--filter', '--columns'])[0]
+            if (!target) die(SET_USAGE)
+            const data = vault.rollupViewData(root, target)
+            if (data.error) die(`duo rollup set: ${data.error} (run duo rollup doctor ${target})`)
+            if (!data.model)
+              die(
+                `duo rollup set: ${data.note} has a hand-authored spec the builder doesn't model — edit the note directly (the GUI shows it view-only too)`,
+              )
+            const model: vault.RollupBuilderModel = {
+              title: flagValue(subRest, '--title') ?? data.model.title,
+              types: list('--type') ?? list('--types') ?? data.model.types,
+              groupBy: list('--group') ?? data.model.groupBy,
+              filters: subRest.includes('--clear-filters')
+                ? filterArgs.map(parseFilterFlag)
+                : filterArgs.length > 0
+                  ? [...data.model.filters, ...filterArgs.map(parseFilterFlag)]
+                  : data.model.filters,
+              columns: list('--columns') ?? data.model.columns,
+            }
+            vault.updateRollupNote(data.noteAbs, model)
+            out({ root, note: data.note, model })
+          }
+        } else if (sub === 'show') {
+          // ENH-243 — the parsed builder model + row/group summary as stable
+          // JSON. `model: null` = view-only (hand-authored); `error` set =
+          // the doctor's case.
+          const target = positionalArgs(subRest, ['--vault'])[0]
+          if (!target) die('Usage: duo rollup show <note> [--vault <path>]')
+          const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
+          const data = vault.rollupViewData(root, target)
+          out({
+            root,
+            note: data.note,
+            title: data.title,
+            model: data.model,
+            groupBy: data.groupBy,
+            columns: data.columns,
+            rowCount: data.rows.length,
+            error: data.error,
+          })
+        } else if (sub === 'doctor') {
+          // ENH-243 (D3) — diagnose a rollup the GUI can't read: parse/eval
+          // error + lint findings + the same repair guidance the Rollups tab
+          // seeds into its "Fix with Claude" session.
+          const target = positionalArgs(subRest, ['--vault'])[0]
+          if (!target) die('Usage: duo rollup doctor <note> [--vault <path>]')
+          const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
+          const data = vault.rollupViewData(root, target)
+          let lint: vault.LintFinding[] = []
+          try {
+            const resolved = vault.resolveRollupNote(root, target)
+            if (resolved && !resolved.specPath) {
+              const body = fs.readFileSync(resolved.noteAbs, 'utf8')
+              const block = body.match(/```base\n([\s\S]*?)```/)
+              const def = block ? vault.parseBaseYaml(block[1]) : null
+              if (def) lint = vault.lintBaseDef(def, vault.buildCorpus(root))
+            }
+          } catch {
+            /* lint is advisory (D15) — a lint failure never masks the diagnosis */
+          }
+          out({
+            root,
+            note: data.note,
+            healthy: data.error == null,
+            editable: data.model != null,
+            error: data.error,
+            lint,
+            fix:
+              data.error == null
+                ? 'No parse/evaluate error. ' +
+                  (data.model == null
+                    ? 'The spec is hand-authored (view-only in the GUI) — that is legitimate, not broken.'
+                    : 'This rollup is healthy and GUI-editable.')
+                : `Repair the embedded \`\`\`base block in ${data.note}: run \`duo vault schema\` for real types/fields/enums, fix the YAML until \`duo base lint\` is clean, then verify with \`duo rollup show ${data.note}\`.`,
+          })
         } else {
           die(USAGE)
         }

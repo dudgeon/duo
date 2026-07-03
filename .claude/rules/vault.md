@@ -21,12 +21,22 @@ depends on the vault's format. The format marker is the source of truth:
 
 | Format | Marker | Links at rest | Rollups |
 |---|---|---|---|
-| **OKF** | root `index.md` with `okf_version:` frontmatter | standard markdown rel links `[Display](./<note>.md)` | static `index.md` / `log.md` listings via `duo vault publish` (ENH-230: a `listing:` base spec in `index.md` frontmatter drives the index body through the SHARED engine — same `evaluateBaseDef` + `render-markdown.ts` as the `.base` path) |
+| **OKF** | root `_index.md` (or legacy `index.md`) with `okf_version:` frontmatter | standard markdown rel links `[Display](./<note>.md)` | static `_index.md`/`index.md` + `_log.md`/`log.md` listings via `duo vault publish` (ENH-230: a `listing:` base spec in the root index's frontmatter drives the index body through the SHARED engine — same `evaluateBaseDef` + `render-markdown.ts` as the `.base` path) |
 | **Obsidian** | a `.obsidian/` directory | `[[wikilinks]]` | live `.base` files via `duo base render` |
 
 `okf_version` wins if both markers are present (D4). The `[[Name]]` GESTURE
 is input-only everywhere; on resolve, OKF rewrites it to a rel-md link,
 Obsidian keeps the wikilink. **No `[[wikilink]]` ever persists in OKF mode.**
+
+**Dual index/log filename convention (ENH-245).** `_index.md`/`_log.md` is the
+default for any listing Duo writes fresh (sorts to the top of a folder, reads
+unambiguously as generated); `index.md`/`log.md` is the legacy ENH-216/D4/D8
+pair, still detected and honored for vaults that already use it. Detection
+always checks both; a vault never gets a mixed pair (a legacy `index.md` root
+still resolving to `log.md`, not `_log.md`, on first publish). The single
+source of truth is `core/vault/okf-filenames.ts` — every other vault module
+(`detect.ts`, `scaffold.ts`, `listings.ts`, `render.ts`, `cli/duo.ts`) resolves
+the filename through it rather than hardcoding either string.
 
 ## Vocabulary contract — the two recurring traps
 

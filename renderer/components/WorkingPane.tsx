@@ -17,6 +17,7 @@ import { ImageView } from './ImageView'
 import { JsonView } from './Json/JsonView'
 import { HomeView } from './Home/HomeView'
 import { VaultView } from './Vault/VaultView'
+import { RollupsView } from './Rollups/RollupsView'
 import { WorkingTabStrip } from './WorkingTabStrip'
 import { useBrowserState } from '../hooks/useBrowserState'
 import { classifyFile } from './fileClassifier'
@@ -395,10 +396,14 @@ export function WorkingPane({
   // ENH-228 — the Vault tab sorts right after Home, before pins (same
   // permanent-slot treatment: excluded from the pinned/unpinned reorder zones).
   const vaultTabs = unsortedTabs.filter(t => t.type === 'vault')
-  const otherTabs = unsortedTabs.filter(t => t.type !== 'home' && t.type !== 'vault')
+  // ENH-243 — the Rollups tab sorts right after Vault (same permanent-slot
+  // treatment: excluded from the pinned/unpinned reorder zones).
+  const rollupsTabs = unsortedTabs.filter(t => t.type === 'rollups')
+  const otherTabs = unsortedTabs.filter(t => t.type !== 'home' && t.type !== 'vault' && t.type !== 'rollups')
   const mergedTabsAll: WorkingTab[] = [
     ...homeTabs,
     ...vaultTabs,
+    ...rollupsTabs,
     ...otherTabs.filter(t => t.pinned).sort(byOrder),
     ...otherTabs.filter(t => !t.pinned).sort(byOrder)
   ]
@@ -410,9 +415,9 @@ export function WorkingPane({
   // below stay full-sized so editor state isn't lost for hidden tabs.
   const mergedTabs: WorkingTab[] = visibleFileTabIds
     ? mergedTabsAll.filter((t) => {
-        // ENH-212/ENH-228 — Home + the Vault tab are permanent slots; never
-        // filtered by project focus.
-        if (t.type === 'home' || t.type === 'vault') return true
+        // ENH-212/ENH-228/ENH-243 — Home + the Vault/Rollups tabs are
+        // permanent slots; never filtered by project focus.
+        if (t.type === 'home' || t.type === 'vault' || t.type === 'rollups') return true
         if (t.pinned) return true
         if (t.type === 'browser') {
           // Phase 2b: gate browser tabs by visibleBrowserTabIds when
@@ -655,6 +660,11 @@ export function WorkingPane({
       // isActive-gated fetching discipline as Home; self-contained (talks to
       // main directly + routes tab-opens through window CustomEvents App owns).
       return <VaultView isActive={isFileActive(tab.id)} />
+    }
+    if (tab.type === 'rollups') {
+      // ENH-243 — the Rollups viewer/editor (slot 2, same present-when-default
+      // gate + isActive-gated fetching + CustomEvent routing as Vault).
+      return <RollupsView isActive={isFileActive(tab.id)} />
     }
     return <UnknownFilePreview tab={asWorkingTab(tab)} />
   }

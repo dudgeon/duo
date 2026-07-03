@@ -555,6 +555,7 @@ export type WorkingTabType =
   | 'json'               // ENH-110 — JSON / YAML viewer-editor (Tier 3 tree + raw-text toggle). Format (json|yaml) is implicit from the path extension.
   | 'home'               // ENH-212 — permanent re-entry surface; sentinel path 'duo://home', constant id 'f:home'. Never persisted, non-closable.
   | 'vault'              // ENH-228 — the Vault view (inbox + rollups); sentinel path 'duo://vault', constant id 'f:vault'. Pinned after Home, present only when a default vault is set. Never persisted.
+  | 'rollups'            // ENH-243 — the Rollups viewer/editor; sentinel path 'duo://rollups', constant id 'f:rollups'. Pinned after Vault, same present-when-default gate. Never persisted.
   | 'unknown'
 
 export interface WorkingTab {
@@ -2271,6 +2272,13 @@ export const IPC = {
   VAULT_GET_DEFAULT: 'vault:get-default',
   VAULT_SET_DEFAULT: 'vault:set-default',
   VAULT_GET_LAST_FORMAT: 'vault:get-last-format', // ENH-242 (D2) — last-used vault format
+  // ENH-243 — the Rollups tab. Same core/vault builder layer as the
+  // `duo rollup new|show|set|doctor` CLI verbs (one-engine rule, D10).
+  VAULT_SCHEMA: 'vault:schema', // corpus schema — the builder's vocabulary
+  VAULT_ROLLUP_VIEW: 'vault:rollup-view', // evaluate a rollup → structured rows
+  VAULT_ROLLUP_SAVE: 'vault:rollup-save', // create/update a builder-owned rollup note
+  VAULT_ENTITY_PANEL: 'vault:entity-panel', // typed attribute panel (flip subpane)
+  VAULT_SET_FRONTMATTER: 'vault:set-frontmatter', // surgical flip write (+ undo)
 
   // Stage 24 — pinned WorkingPane tabs persisted to ~/.claude/duo/pins.json.
   PINS_LIST: 'pins:list',
