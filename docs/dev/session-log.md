@@ -18,6 +18,49 @@
 
 ---
 
+## 2026-07-03 — v0.13.3 CUT — Rollups tab: a full GUI rollup viewer/editor
+
+Two PRs merged in sequence: **#120** (ENH-245/246, the OKF vault dual
+`_index.md`/`_log.md` + `output/`/`out/` filename convention) landed first
+after retargeting its base from #119's branch to `main` directly (git
+ancestry showed it was already sitting on `main`'s tip — no rebase actually
+needed, just a metadata retarget). **#119** (ENH-243, the Rollups tab GUI)
+merged second, carrying same-day fast-follows ENH-244 (Copy as Markdown),
+BUG-214 (default-vault broadcast fix), ENH-250 (Vault/Rollups IA
+reconciliation), ENH-251 ("+ New rollup" defaults to the Rollups tab), and
+ENH-248 (a nine-item owner-walk gap batch, R2–R8 built).
+
+Before merging #119, it went through a full `/review` pass (8 finder angles
++ 12 independent verifications) against the diff as it stood post-#120.
+10 of 12 candidates confirmed, 1 downgraded to plausible, 1 refuted. All 7
+distinct fixes applied directly (filterExpr JSON round-trip corruption,
+GitHub-link silent fallback now warns, delete partial-failure now warns, a
+legacy-artifact auto-heal for the dead pre-R2 embedded Refresh button, the
+Vault tab's Entities count/tile mismatch, `skill/SKILL.md`'s missing
+4-surface CLI documentation, and splitting ENH-244/250/251 out of the
+`tasks.md` ENH-243 entry into first-class ledger rows) — a Workflow-based
+adversarial re-verification pass caught one real regression in the fix
+itself (an un-awaited `fetchList()` clobbering the new `linksDegraded`
+warning back to `null` before it rendered), which was corrected and
+re-verified. A candidate finding (duplicateRollup's CRLF-frontmatter regex)
+was investigated and found unreachable — `resolveRollupNote`'s upstream
+gate uses the identical regex, so no fix was applied there.
+
+Live-verified in dev via computer-use: the Entities count/tile match against
+a real vault with 6 rollups, and the legacy-artifact auto-heal by hand-
+injecting the dead-button marker into a real rendered artifact and watching
+it self-heal on open (confirmed via file mtime + grep — marker gone,
+toolbar correct, Refresh greyed-out/fresh). Full suite 2173 tests green,
+typecheck clean, `check:skill-currency` PASS.
+
+**Discovered, deferred as a follow-on task (not blocking this cut):**
+`docs/roadmap.html`'s sidebar "Status" stat counts haven't been refreshed
+since v0.7.1 (2026-05-18) — 20+ cuts of drift despite the cut-version
+skill's D4 hard-gate mandating a refresh every cut. Filed as a tracked bug
+rather than guessed at under this cut's time pressure.
+
+---
+
 ## 2026-07-01 — v0.13.2 CUT — Init-on-choose vault + default-vault autocomplete + foreign-vault guard
 
 Three vault-surface changes bundled into a PATCH cut. The headline is **ENH-242

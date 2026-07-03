@@ -21,7 +21,61 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.13.2 cut 2026-07-01)*
+> *(empty — v0.13.3 cut 2026-07-03)*
+
+---
+
+## v0.13.3 — 2026-07-03 — Rollups tab: a full GUI rollup viewer/editor
+
+Duo's rollups — saved, evaluated views over vault frontmatter — get a proper
+home. Before this release, building or editing one meant hand-authoring a
+`.base` YAML block and re-rendering from a terminal; the Vault tab could show
+a rollup's freshness but not construct one. Now there's a full **Rollups
+tab**: a rail of every rollup, a live center view that regroups instantly as
+you change the definition, and an inspector where the builder (types →
+ordered group levels → filters → columns) and a per-row frontmatter flip
+subpane live side by side — every change saves and re-renders without
+leaving the GUI.
+
+Landing alongside the core tab, a same-day gap-closing batch (**ENH-244,
+ENH-250, ENH-251, ENH-248 R2–R8**) reconciled the IA between the Vault tab's
+Rollups column and the new tab (a GUI-created rollup previously had no way
+to produce an artifact without a terminal), added rail lifecycle management
+(Delete with confirm + artifact removal, Duplicate, Reveal, Open definition
+note), a Vault-tab **Entities** section (live per-type counts, click-through
+to an instant unsaved view), and `--github`/`--links` for GitHub blob-URL
+entity links. A full **Rollup Guide** ships in the skill as the user-facing
+manual for the whole ecosystem.
+
+This tab merged as two sequential PRs (#120 for the OKF vault dual-filename
+convention riding underneath, #119 for the Rollups GUI itself), and #119
+went through a full independent `/review` pass after landing on `main` — 8
+findings confirmed and fixed before this cut: a filter-value round-trip
+corruption, two silent-failure paths (a GitHub-links probe failure, a
+partial-delete artifact-removal failure) that now surface as warnings
+instead of vanishing, a migration self-heal for artifacts rendered by
+pre-release builds, a Vault-tab count/tile mismatch, and two
+documentation-currency fixes (`skill/SKILL.md`'s 4-surface CLI sync, and
+splitting three same-day fast-follows out of `tasks.md`'s `ENH-243` entry
+into their own first-class ledger rows). One of the review's original
+candidates (a CRLF-frontmatter edge case in `duplicateRollup`) was
+investigated and found unreachable in practice — `resolveRollupNote`'s
+upstream gate uses the identical regex, so a note that could trigger the bug
+can never resolve as a rollup in the first place. No code change was made
+there; the correction is noted for the historical record instead of
+speculative-fixing a case that can't occur.
+
+**What this is and isn't.** This is the Rollups tab's v1 — GUI-driven
+construction and live editing for the common case (grouping, filtering,
+columns, entity-link mode). It is **not** an engine-level n-level `groupBy`
+emitter (deferred — the GUI currently groups client-side past the first
+level) and it does not fix the Markdown-format rollup's in-editor Refresh
+link, which is a known, deliberately-deferred no-op without a watching
+Claude session (documented in `skill/references/rollup.md`, tracked for a
+future pass). `ENH-249` (a human review pass over the rollup docs after
+several same-day bot-editing rounds) and `BUG-213` (managed hook scripts can
+vanish, one-off repair applied but no systemic fix yet) remain open for next
+sprint.
 
 ---
 

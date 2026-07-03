@@ -19,7 +19,55 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.13.2 cut 2026-07-01.
+> Empty — v0.13.3 cut 2026-07-03.
+
+## [0.13.3] — 2026-07-03 — Rollups tab: a full GUI rollup viewer/editor
+
+### Added
+- **Rollups tab — GUI rollup viewer/editor (ENH-243).** A new tab beside Vault:
+  a rail listing every rollup, a live-evaluated center view with multi-depth
+  `group_by:` grouping, and an inspector combining the definition builder
+  (types → group levels → filters → columns, every change live-saves +
+  re-renders) with a frontmatter flip subpane (typed one-click value flips,
+  undoable) and a "Fix with Claude" doctor for broken configs.
+- **Rollup lifecycle + sharing (ENH-244, ENH-248 R6/R8).** `duo rollup
+  markdown <note>` prints a GFM table (title cells linked to the entity's
+  GitHub blob when the vault sits in a GitHub-remote repo, else a
+  vault-relative link) — also embedded as a "Copy as Markdown" button on
+  every rendered artifact. `duo rollup delete <note> --force` removes a
+  rollup's note and its rendered artifact; `duo rollup duplicate <note>`
+  copies one with provenance stripped. `duo rollup render --github` (or
+  `duo rollup set --links github|relative`) renders entity links as GitHub
+  blob URLs instead of relative paths.
+- **Vault tab Entities section (ENH-248 R7).** Every entity type in the
+  vault, with a live count; click a tile to browse an instant (unsaved) view
+  of that type in the Rollups tab, then "Save as rollup" to keep it.
+- **Rollup Guide (ENH-247).** A full user manual for the rollup ecosystem —
+  the one-definition/three-faces model, freshness mechanics, the two Refresh
+  buttons, sharing on GitHub — ships in the skill (`duo open` reachable).
+
+### Fixed
+- **Default-vault changes now reach every window immediately (BUG-214).** A
+  vault re-point from the CLI, a hand-edit, or another window used to leave
+  the Vault/Rollups tabs stale until a manual tab-switch or restart — the
+  pref watcher now broadcasts the change live.
+- **Filter values containing quotes or backslashes now round-trip correctly**
+  in the rollup builder (previously corrupted on reopen).
+- **A `links: github` rollup that can't resolve a GitHub remote now warns**
+  instead of silently rendering relative links with no indication anything
+  degraded.
+- **Deleting a rollup whose artifact can't be removed (locked/permission
+  error) now surfaces that warning** instead of silently leaving the stale
+  artifact with no error shown.
+- **A rollup artifact rendered before this release self-heals its dead
+  embedded Refresh button** on next open, instead of showing it indefinitely
+  alongside the new toolbar.
+- **The Vault tab's Entities count now always matches its own tile grid.**
+
+### Changed
+- Copy-as-Markdown removed from the Rollups tab's own editor header — the
+  artifact's embedded button (and the CLI) remain the way to copy a rollup
+  as Markdown from outside Duo.
 
 ## [0.13.2] — 2026-07-01 — Init-on-choose vault + default-vault autocomplete + foreign-vault guard
 
@@ -2137,7 +2185,8 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.13.2...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.13.3...HEAD
+[0.13.3]: https://github.com/dudgeon/duo/compare/v0.13.2...v0.13.3
 [0.13.2]: https://github.com/dudgeon/duo/compare/v0.13.1...v0.13.2
 [0.13.1]: https://github.com/dudgeon/duo/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/dudgeon/duo/compare/v0.12.2...v0.13.0

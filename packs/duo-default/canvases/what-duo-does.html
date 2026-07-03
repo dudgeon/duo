@@ -1088,6 +1088,15 @@
   </div>
 </article>
 
+<article class="item" data-keys="rollups tab builder editor group by filter columns flip subpane doctor entities section github links copy as markdown duplicate delete enh-243">
+  <div class="num">130</div>
+  <div>
+    <h3>Build and edit a rollup entirely in the GUI</h3>
+    <p class="why">The <strong>Rollups</strong> tab (beside Vault) turns a rollup from "hand-write a <code>.base</code>, re-render from a terminal" into a fully GUI-driven surface: a rail of every rollup, a center view that re-groups live as you reshape the definition, and an inspector combining the builder (entity type(s) → ordered multi-depth group-by → filters → columns — every change saves and re-renders) with a per-row frontmatter flip subpane (one-click typed value flips, undoable) and a "Fix with Claude" doctor for anything broken. A <strong>Entities</strong> section on the Vault tab shows every type's live count — click one to browse an instant unsaved view in the Rollups tab, then "Save as rollup" to keep it. The rail's <strong>⋯</strong> menu handles lifecycle (Delete with confirm, Duplicate, Reveal in navigator, Open definition note), and a per-rollup toggle renders entity links as GitHub blob URLs instead of relative paths for sharing outside Duo.</p>
+    <p class="how"><strong>UI</strong>Click the Rollups tab; <strong>+ New rollup</strong> starts the GUI builder (right-click for the older seeded-Claude-session flow); click a rail row to open it, click the toolbar's Refresh/Edit on any rendered artifact. <strong>CLI</strong><code>duo rollup new --type task --group status,org --filter 'status!=done' --columns owner,due</code> scaffolds a GUI-editable note in one shot; <code>duo rollup markdown &lt;note&gt;</code> prints a GFM table for pasting elsewhere; <code>duo rollup delete &lt;note&gt; --force</code> / <code>duplicate &lt;note&gt;</code> handle lifecycle; <code>duo rollup set &lt;note&gt; --links github</code> switches entity links to GitHub blob URLs.</p>
+  </div>
+</article>
+
 <h2 class="cat">Workspace setup</h2>
 <p class="cat-tagline">Pin tabs you want always-available; install Duo's skill + agent + CLI in one click.</p>
 
@@ -1343,7 +1352,7 @@
 </article>
 
 <footer>
-  <p>This is Duo v0.13.2. Last updated 2026-07-01. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
+  <p>This is Duo v0.13.3. Last updated 2026-07-03. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
   <p style="margin-top:6px; color: var(--ink-ghost); font-size: 11px;">Find an item that should be here? Tell Claude — the cut-version skill updates this file with each release.</p>
 </footer>
 
