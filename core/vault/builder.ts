@@ -108,8 +108,18 @@ const EXPR_SET = /^(!?)file\.hasProperty\("([\w-]+)"\)$/
 function parseFilterExpr(expr: string): BuilderFilter | { type: string } | null {
   const eq = expr.match(EXPR_EQ)
   if (eq) {
-    if (eq[1] === 'type' && eq[2] === '==') return { type: eq[3] }
-    return { property: eq[1], op: eq[2] === '==' ? 'eq' : 'ne', value: eq[3] }
+    // filterExpr serializes the value via JSON.stringify; eq[3] is only the
+    // de-fenced quoted body, so it must go back through JSON.parse to undo
+    // that escaping (a raw `\"` would otherwise survive as literal backslash
+    // characters instead of a decoded quote).
+    let value: string
+    try {
+      value = JSON.parse(`"${eq[3]}"`)
+    } catch {
+      value = eq[3]
+    }
+    if (eq[1] === 'type' && eq[2] === '==') return { type: value }
+    return { property: eq[1], op: eq[2] === '==' ? 'eq' : 'ne', value }
   }
   const set = expr.match(EXPR_SET)
   if (set) return { property: set[2], op: set[1] ? 'notset' : 'set' }

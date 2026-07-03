@@ -34,6 +34,11 @@ export interface RenderRollupResult {
   /** True when provenance was stamped back into the note (canonical-format
    *  render only — mirrors the CLI's review #1 guard). */
   stamped: boolean
+  /** True when the note declares `links: github` but the GitHub-remote probe
+   *  failed (no repo / non-GitHub remote / git unavailable), so this render
+   *  silently fell back to relative links — surfaced so the caller can warn
+   *  instead of leaving the "GitHub links" toggle looking like it applied. */
+  linksDegraded: boolean
   error: string | null
 }
 
@@ -46,7 +51,14 @@ export interface RenderRollupResult {
 export async function renderAndStampRollup(root: string, target: string): Promise<RenderRollupResult> {
   const rollupNote = resolveRollupNote(root, target)
   if (!rollupNote) {
-    return { ok: false, outRel: null, absOut: null, stamped: false, error: `not a type: rollup note: ${target}` }
+    return {
+      ok: false,
+      outRel: null,
+      absOut: null,
+      stamped: false,
+      linksDegraded: false,
+      error: `not a type: rollup note: ${target}`,
+    }
   }
   try {
     const format = rollupNote.format
@@ -61,6 +73,7 @@ export async function renderAndStampRollup(root: string, target: string): Promis
         outRel: null,
         absOut: null,
         stamped: false,
+        linksDegraded: false,
         error: `artifact path ${outRel} collides with the rollup note ${rollupNote.noteRel}`,
       }
     }
@@ -72,8 +85,11 @@ export async function renderAndStampRollup(root: string, target: string): Promis
     const priorContent = fs.existsSync(absOut) ? fs.readFileSync(absOut, 'utf8') : ''
     const summaryLog = extractSummaryLog(priorContent)
     // R8 — `links: github` notes get blob-URL entity links; probe failure
-    // (no repo / non-GitHub remote) degrades silently to relative links.
-    const github = rollupNote.links === 'github' ? await probeGitHubLinkBase(root) : null
+    // (no repo / non-GitHub remote) degrades to relative links — reported
+    // back via `linksDegraded` rather than silently, so a caller can warn.
+    const wantsGithub = rollupNote.links === 'github'
+    const github = wantsGithub ? await probeGitHubLinkBase(root) : null
+    const linksDegraded = wantsGithub && github === null
     const result = renderTarget(root, renderTargetArg, {
       outDir: path.dirname(absOut),
       summaryLog,
@@ -94,8 +110,15 @@ export async function renderAndStampRollup(root: string, target: string): Promis
       stampRollupProvenance(rollupNote.noteAbs, stamp)
       stamped = true
     }
-    return { ok: true, outRel, absOut, stamped, error: null }
+    return { ok: true, outRel, absOut, stamped, linksDegraded, error: null }
   } catch (e) {
-    return { ok: false, outRel: null, absOut: null, stamped: false, error: e instanceof Error ? e.message : String(e) }
+    return {
+      ok: false,
+      outRel: null,
+      absOut: null,
+      stamped: false,
+      linksDegraded: false,
+      error: e instanceof Error ? e.message : String(e),
+    }
   }
 }

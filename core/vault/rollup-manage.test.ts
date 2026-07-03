@@ -88,6 +88,22 @@ describe('deleteRollup (R6)', () => {
     expect(res.ok).toBe(false)
     expect(fs.existsSync(path.join(v, 'tasks/a.md'))).toBe(true)
   })
+
+  it('reports ok:true with an error when the note is removed but the artifact removal fails', async () => {
+    const noteRel = await makeRenderedRollup()
+    const artifactAbs = path.join(v, 'rollups/open-tasks.html')
+    // Simulate an undeletable artifact (locked / permission-denied): swap it
+    // for a directory so the unconditional fs.rmSync (no `recursive`) throws.
+    fs.rmSync(artifactAbs)
+    fs.mkdirSync(artifactAbs)
+
+    const res = deleteRollup(v, noteRel)
+    expect(res.ok).toBe(true)
+    expect(res.deleted).toEqual([noteRel])
+    expect(res.error).toBeTruthy()
+    expect(fs.existsSync(path.join(v, noteRel))).toBe(false)
+    expect(fs.existsSync(artifactAbs)).toBe(true)
+  })
 })
 
 describe('duplicateRollup (R6)', () => {
@@ -127,6 +143,7 @@ describe('rollupArtifactInfo (R2)', () => {
     expect(info!.note).toBe(noteRel)
     expect(info!.title).toBe('Open tasks')
     expect(info!.stale).toBe(false)
+    expect(info!.legacyTemplate).toBe(false)
     // A note edit flips staleness on the NEXT probe (live read, no cache).
     task('tasks/c.md', 'status: open')
     expect(rollupArtifactInfo(artifactAbs, isVaultRoot)!.stale).toBe(true)
@@ -138,6 +155,19 @@ describe('rollupArtifactInfo (R2)', () => {
     const outside = path.join(root, 'elsewhere.html')
     fs.writeFileSync(outside, '<html></html>')
     expect(rollupArtifactInfo(outside, isVaultRoot)).toBeNull()
+  })
+
+  it('flags a pre-R2 artifact still carrying the old embedded Refresh button', async () => {
+    await makeRenderedRollup()
+    const artifactAbs = path.join(v, 'rollups/open-tasks.html')
+    const legacy = fs
+      .readFileSync(artifactAbs, 'utf8')
+      .replace(
+        '<div class="rl-toolbar">',
+        '<div class="rl-toolbar">\n<button class="rl-btn" type="button" data-duo-action="duo:event" data-event="rollup:refresh">Refresh</button>',
+      )
+    fs.writeFileSync(artifactAbs, legacy)
+    expect(rollupArtifactInfo(artifactAbs, isVaultRoot)!.legacyTemplate).toBe(true)
   })
 })
 

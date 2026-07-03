@@ -53,6 +53,11 @@ export function BrowserRenderer({ onSendToDuo, pillLabel }: BrowserRendererProps
   // useful outside Duo (owner lock, 2026-07-03).
   const [artifact, setArtifact] = useState<RollupArtifactInfoDto | null>(null)
   const [artifactBusy, setArtifactBusy] = useState(false)
+  // Migration one-shot: guards against re-triggering the auto-heal below for
+  // a path that's already mid-heal (the render+reload it kicks off takes a
+  // load cycle to land, during which a stray probe tick could otherwise fire
+  // a second one).
+  const healingPathRef = useRef<string | null>(null)
   const artifactPath = useMemo(() => {
     if (!state.url.startsWith('file://')) return null
     try {
@@ -78,7 +83,21 @@ export function BrowserRenderer({ onSendToDuo, pillLabel }: BrowserRendererProps
       window.electron.vault
         .artifactInfo({ path: artifactPath })
         .then((r) => {
-          if (alive) setArtifact(r.ok ? r.info : null)
+          if (!alive) return
+          const info = r.ok ? r.info : null
+          setArtifact(info)
+          // Migration: a pre-R2 artifact still carries the old embedded
+          // Refresh button — its handler is gone, so it'd sit dead next to
+          // this pane's own overlay toolbar until someone clicked Refresh.
+          // One silent re-render migrates it to the current template.
+          if (info?.legacyTemplate && healingPathRef.current !== artifactPath) {
+            healingPathRef.current = artifactPath
+            void window.electron.vault
+              .rollupRender({ vaultRoot: info.vaultRoot, note: info.note })
+              .then((res) => {
+                if (alive && res.ok) window.electron.browser.reload()
+              })
+          }
         })
         .catch(() => {
           if (alive) setArtifact(null)

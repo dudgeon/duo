@@ -80,6 +80,16 @@ describe('serializeBuilderBase ⇄ parseBuilderBase (D4 canonical dialect)', () 
   it('returns null when frontmatter level 1 disagrees with the block groupBy', () => {
     expect(parseBuilderBase(serializeBuilderBase(MODEL), { group_by: ['org', 'status'] })).toBeNull()
   })
+
+  it('round-trips a filter value containing a quote and a backslash', () => {
+    const m: RollupBuilderModel = {
+      ...MODEL,
+      groupBy: [],
+      filters: [{ property: 'title', op: 'eq', value: 'He said "hi" \\o/' }],
+    }
+    const parsed = parseBuilderBase(serializeBuilderBase(m), {})
+    expect(parsed?.filters).toEqual(m.filters)
+  })
 })
 
 describe('createRollupNote / updateRollupNote', () => {

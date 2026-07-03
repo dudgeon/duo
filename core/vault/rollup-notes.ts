@@ -262,6 +262,14 @@ export function duplicateRollup(root: string, target: string): DuplicateRollupRe
 
 // ── artifact introspection (ENH-248 R2) ─────────────────────────────────────
 
+// A dead giveaway that an .html artifact was rendered by a pre-ENH-248-R2
+// build: the OLD embedded Refresh button (removed from render.ts's template
+// in favor of the browser pane's own overlay toolbar). Its handler no longer
+// exists, so a file carrying this marker would show a dead button alongside
+// the new overlay until re-rendered — `legacyTemplate` lets the caller
+// self-heal that once instead of leaving it stuck until a manual click.
+const LEGACY_REFRESH_BUTTON_MARKER = 'data-event="rollup:refresh"'
+
 export interface RollupArtifactInfo {
   vaultRoot: string
   /** Vault-relative note path of the rollup this artifact renders. */
@@ -270,6 +278,11 @@ export interface RollupArtifactInfo {
   lastGenerated: string | null
   /** `last_hash` vs the corpus hash right now (same rule as the chip). */
   stale: boolean
+  /** True when the on-disk artifact still carries the pre-R2 embedded
+   *  Refresh button (dead — its handler no longer exists). The caller can
+   *  auto-trigger one silent re-render to migrate it to the current
+   *  template instead of leaving a confusing dead button in place. */
+  legacyTemplate: boolean
 }
 
 /** Given any absolute file path (e.g. the browser pane's current file:// URL),
@@ -292,12 +305,21 @@ export function rollupArtifactInfo(absPath: string, isRoot: (dir: string) => boo
   if (!root) return null
   for (const l of listRollups(root)) {
     if (l.out && path.resolve(root, l.out) === target) {
+      let legacyTemplate = false
+      if (/\.html?$/i.test(target)) {
+        try {
+          legacyTemplate = fs.readFileSync(target, 'utf8').includes(LEGACY_REFRESH_BUTTON_MARKER)
+        } catch {
+          legacyTemplate = false
+        }
+      }
       return {
         vaultRoot: root,
         note: l.note,
         title: l.title,
         lastGenerated: l.last_generated ?? null,
         stale: l.stale,
+        legacyTemplate,
       }
     }
   }

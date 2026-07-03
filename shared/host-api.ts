@@ -1334,6 +1334,9 @@ export interface RollupArtifactInfoDto {
   title: string
   lastGenerated: string | null
   stale: boolean
+  /** True when this artifact still carries the pre-R2 embedded (now dead)
+   *  Refresh button — the caller should trigger one silent re-render. */
+  legacyTemplate: boolean
 }
 
 export type RollupFieldKindDto = 'bool' | 'enum' | 'number' | 'text'
@@ -1480,13 +1483,22 @@ export interface ElectronVaultAPI {
     model: RollupModelDto
     links?: 'github' | 'relative'
   }) => Promise<
-    | { ok: true; note: string; absPath: string; rendered: boolean; renderError: string | null }
+    | {
+        ok: true
+        note: string
+        absPath: string
+        rendered: boolean
+        renderError: string | null
+        /** True when `links: github` is set but the GitHub-remote probe
+         *  failed, so this render fell back to relative links. */
+        linksDegraded: boolean
+      }
     | { ok: false; error: string }
   >
   /** ENH-250 — deterministic render+stamp for one rollup (no Claude
    *  required). The rendered artifact's own "Refresh" button routes here. */
   rollupRender: (opts: { vaultRoot: string; note: string }) => Promise<
-    { ok: true; outRel: string; stamped: boolean } | { ok: false; error: string }
+    { ok: true; outRel: string; stamped: boolean; linksDegraded: boolean } | { ok: false; error: string }
   >
   /** ENH-243 — the flip subpane's data: one entity's typed attributes +
    *  the flip affordance each supports (corpus-derived). */
@@ -1515,7 +1527,8 @@ export interface ElectronVaultAPI {
   /** ENH-248 R6 — delete a rollup: the note AND its rendered artifact.
    *  Callers confirm first (native dialog); file history is the undo net. */
   rollupDelete: (opts: { vaultRoot: string; note: string }) => Promise<
-    { ok: true; deleted: string[] } | { ok: false; error: string }
+    | { ok: true; deleted: string[]; warning: string | null }
+    | { ok: false; error: string }
   >
   /** ENH-248 R6 — duplicate a rollup note as "<Title> (copy)" (provenance
    *  stripped; the copy renders its own artifact on first save/render). */

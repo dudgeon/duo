@@ -283,31 +283,38 @@ export function VaultView({ isActive }: { isActive: boolean }) {
           Rollups tab; keep it from there with "Save as rollup". */}
       {typeCounts && Object.keys(typeCounts).length > 0 ? (
         <section className="duo-vault-entities">
-          <div className="duo-vault-col-head">
-            <h2 className="duo-vault-col-title font-serif">
-              Entities{' '}
-              <span className="duo-vault-count">
-                {Object.values(typeCounts).reduce((a, b) => a + b, 0)}
-              </span>
-            </h2>
-          </div>
-          <ul className="duo-vault-entity-grid">
-            {Object.entries(typeCounts)
-              .filter(([t]) => t !== 'rollup')
-              .map(([type, count]) => (
-                <li key={type}>
-                  <button
-                    type="button"
-                    className="duo-vault-entity-tile"
-                    onClick={() => onBrowseType(type)}
-                    title={`Browse every ${type} in the Rollups tab`}
-                  >
-                    <span className="duo-vault-entity-type">{type}</span>
-                    <span className="duo-vault-entity-count">{count}</span>
-                  </button>
-                </li>
-              ))}
-          </ul>
+          {(() => {
+            // Rollups get their own column above — exclude them from both
+            // the header total and the tile grid so the two always agree.
+            const entityCounts = Object.entries(typeCounts).filter(([t]) => t !== 'rollup')
+            return (
+              <>
+                <div className="duo-vault-col-head">
+                  <h2 className="duo-vault-col-title font-serif">
+                    Entities{' '}
+                    <span className="duo-vault-count">
+                      {entityCounts.reduce((a, [, count]) => a + count, 0)}
+                    </span>
+                  </h2>
+                </div>
+                <ul className="duo-vault-entity-grid">
+                  {entityCounts.map(([type, count]) => (
+                    <li key={type}>
+                      <button
+                        type="button"
+                        className="duo-vault-entity-tile"
+                        onClick={() => onBrowseType(type)}
+                        title={`Browse every ${type} in the Rollups tab`}
+                      >
+                        <span className="duo-vault-entity-type">{type}</span>
+                        <span className="duo-vault-entity-count">{count}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )
+          })()}
         </section>
       ) : null}
     </div>

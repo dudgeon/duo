@@ -351,9 +351,14 @@ export function RollupsView({ isActive }: { isActive: boolean }) {
           model,
         })
         if (res.ok) {
-          void fetchView()
-          void fetchList() // the title may have changed
+          // Await these before deciding on a warning banner — fetchList's
+          // success path clears the error, which would otherwise race a
+          // warning set beforehand and silently clobber it back to null.
+          await Promise.all([fetchView(), fetchList()]) // the title may have changed
           if (!res.rendered) setError(`Saved, but the re-render failed: ${res.renderError}`)
+          else if (res.linksDegraded) {
+            setError('Saved, but GitHub links could not be resolved (no repo / non-GitHub remote) — the rendered page uses relative links instead.')
+          }
         } else {
           setError(res.error)
         }
@@ -492,8 +497,14 @@ export function RollupsView({ isActive }: { isActive: boolean }) {
           model: view.model,
           links: github ? 'github' : 'relative',
         })
-        if (res.ok) void fetchView()
-        else setError(res.error)
+        if (res.ok) {
+          void fetchView()
+          if (res.linksDegraded) {
+            setError('GitHub links could not be resolved (no repo / non-GitHub remote) — the rendered page uses relative links instead.')
+          }
+        } else {
+          setError(res.error)
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))
       }
@@ -566,6 +577,7 @@ export function RollupsView({ isActive }: { isActive: boolean }) {
         if (d.ok) {
           setSelected((cur) => (cur === r.note ? null : cur))
           void fetchList()
+          if (d.warning) setError(`Deleted the note, but couldn't remove its rendered artifact: ${d.warning}`)
         } else {
           setError(d.error)
         }

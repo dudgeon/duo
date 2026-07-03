@@ -2654,6 +2654,7 @@ function setupIPC(): void {
           absPath,
           rendered: rendered.ok,
           renderError: rendered.ok ? null : rendered.error,
+          linksDegraded: rendered.linksDegraded,
         }
       } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : String(e) }
@@ -2673,7 +2674,7 @@ function setupIPC(): void {
         if (!result.ok || result.outRel == null) {
           return { ok: false, error: result.error ?? 'could not render' }
         }
-        return { ok: true, outRel: result.outRel, stamped: result.stamped }
+        return { ok: true, outRel: result.outRel, stamped: result.stamped, linksDegraded: result.linksDegraded }
       } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : String(e) }
       }
@@ -2702,7 +2703,12 @@ function setupIPC(): void {
     (_event, { vaultRoot, note }: { vaultRoot: string; note: string }) => {
       try {
         const res = vaultCore.deleteRollup(requireVault(vaultRoot), note)
-        return res.ok ? { ok: true, deleted: res.deleted } : { ok: false, error: res.error ?? 'delete failed' }
+        // `ok: true` with `error` set means the note was removed but the
+        // artifact removal afterward failed — surface it as a warning
+        // rather than dropping it now that `ok` reads as full success.
+        return res.ok
+          ? { ok: true, deleted: res.deleted, warning: res.error }
+          : { ok: false, error: res.error ?? 'delete failed' }
       } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : String(e) }
       }
