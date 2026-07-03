@@ -26,6 +26,7 @@ import type {
   VaultRollupDto,
   VaultSchemaDto,
 } from '@shared/host-api'
+import type { MenuTemplateItem } from '@shared/types'
 import './Rollups.css'
 
 function emit(name: string, detail: unknown): void {
@@ -42,6 +43,15 @@ function readCollapsed(): { left: boolean; right: boolean } {
   } catch {
     return { left: false, right: false }
   }
+}
+
+/** R3 — "checked just now / 40s ago / 3m ago" for the refresh feedback. */
+function fmtCheckedAgo(at: number): string {
+  const s = Math.floor((Date.now() - at) / 1000)
+  if (s < 5) return 'just now'
+  if (s < 60) return `${s}s ago`
+  const m = Math.floor(s / 60)
+  return m < 60 ? `${m}m ago` : `${Math.floor(m / 60)}h ago`
 }
 
 const OPS: { value: RollupFilterDto['op']; label: string }[] = [
@@ -68,6 +78,22 @@ export function RollupsView({ isActive }: { isActive: boolean }) {
   const [panel, setPanel] = useState<EntityPanelDto | null>(null)
   const [undo, setUndo] = useState<UndoMemo | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // ENH-248 R3 — the Refresh button's feedback: in-flight state, when the
+  // last check landed, and how the row count moved (a silent click was
+  // indistinguishable from a no-op — the owner's exact walk complaint).
+  const [refreshState, setRefreshState] = useState<{
+    busy: boolean
+    at: number | null
+    delta: number | null
+  }>({ busy: false, at: null, delta: null })
+  // ENH-248 R7 — an ephemeral type view (the Vault tab's Entities section
+  // click-through): every entity of ONE type, evaluated live, no note
+  // behind it until "Save as rollup".
+  const [browseType, setBrowseType] = useState<string | null>(null)
+  // ENH-250 (gap #3) — the note just created by "+ New rollup", so the
+  // builder can auto-focus + select its Title field once (renaming is
+  // the natural first action after creating an "Untitled rollup").
+  const [justCreatedNote, setJustCreatedNote] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState(readCollapsed)
 
   const aliveRef = useRef(true)
@@ -76,6 +102,40 @@ export function RollupsView({ isActive }: { isActive: boolean }) {
     return () => {
       aliveRef.current = false
     }
+  }, [])
+
+  // ENH-250 (gap #5) — "Edit" in the Vault tab's rollup row dispatches this
+  // (via App.tsx, which also switches the active tab to Rollups) so the
+  // just-clicked rollup is selected here. UNCONDITIONAL — not gated on
+  // isActive: the tab-switch and this dispatch happen in the same event
+  // handler, before React commits the isActive prop flip, so an
+  // isActive-gated listener would miss it. The component stays mounted
+  // (display:none when hidden), so this is safe to always attach.
+  useEffect(() => {
+    const onSelect = (e: Event) => {
+      const d = (e as CustomEvent<{ note: string }>).detail
+      if (d?.note) {
+        setBrowseType(null)
+        setSelected(d.note)
+      }
+    }
+    window.addEventListener('duo-rollups-select', onSelect)
+    return () => window.removeEventListener('duo-rollups-select', onSelect)
+  }, [])
+
+  // ENH-248 R7 — the Vault tab's Entities section click-through (relayed by
+  // App with the tab-switch, like duo-rollups-select above — unconditional
+  // for the same commit-timing reason).
+  useEffect(() => {
+    const onBrowse = (e: Event) => {
+      const d = (e as CustomEvent<{ vaultRoot?: string; type?: string }>).detail
+      if (!d?.type) return
+      if (d.vaultRoot) setDefaultVault((cur) => cur ?? d.vaultRoot ?? null)
+      setSelected(null)
+      setBrowseType(d.type)
+    }
+    window.addEventListener('duo-rollups-browse-type', onBrowse)
+    return () => window.removeEventListener('duo-rollups-browse-type', onBrowse)
   }, [])
 
   const setCollapse = useCallback((side: 'left' | 'right', v: boolean) => {
@@ -120,8 +180,9 @@ export function RollupsView({ isActive }: { isActive: boolean }) {
       if (listRes.ok) {
         setRollups(listRes.rollups)
         setError(null)
-        // Auto-select the first rollup when nothing is selected yet.
-        setSelected((cur) => cur ?? listRes.rollups[0]?.note ?? null)
+        // Auto-select the first rollup when nothing is selected yet — but
+        // never while an ephemeral type view (R7) holds the center.
+        if (!browseType) setSelected((cur) => cur ?? listRes.rollups[0]?.note ?? null)
       } else {
         setError(listRes.error)
       }
@@ -129,27 +190,61 @@ export function RollupsView({ isActive }: { isActive: boolean }) {
     } catch (e) {
       if (aliveRef.current) setError(e instanceof Error ? e.message : String(e))
     }
-  }, [defaultVault])
+  }, [defaultVault, browseType])
 
-  const fetchView = useCallback(async () => {
-    if (!defaultVault || !selected) {
+  // Returns the fetched row count (R3's delta feedback) or null on failure.
+  const fetchView = useCallback(async (): Promise<number | null> => {
+    if (!defaultVault || (!selected && !browseType)) {
       setView(null)
-      return
+      return null
     }
     try {
-      const res = await window.electron.vault.rollupView({ vaultRoot: defaultVault, note: selected })
-      if (!aliveRef.current) return
-      if (res.ok) setView(res.data)
-      else setError(res.error)
+      // R7 — an ephemeral type view has no note; it evaluates a synthetic
+      // single-type model through the same engine (vault:type-view).
+      const res = browseType
+        ? await window.electron.vault.typeView({ vaultRoot: defaultVault, type: browseType })
+        : await window.electron.vault.rollupView({ vaultRoot: defaultVault, note: selected! })
+      if (!aliveRef.current) return null
+      if (res.ok) {
+        setView(res.data)
+        return res.data.rows.length
+      }
+      setError(res.error)
+      return null
     } catch (e) {
       if (aliveRef.current) setError(e instanceof Error ? e.message : String(e))
+      return null
     }
-  }, [defaultVault, selected])
+  }, [defaultVault, selected, browseType])
 
-  const refreshAll = useCallback(() => {
-    void fetchList()
-    void fetchView()
-  }, [fetchList, fetchView])
+  // R3 — the header Refresh: same reads as the poll, but with visible
+  // feedback (busy state, "checked Xs ago", row-count delta).
+  // ENH-248 walk-2 fix — Refresh also RE-RENDERS the selected rollup's
+  // artifact when it has gone stale. The original split (editor Refresh =
+  // re-evaluate only; artifact re-render = the page toolbar's job) read as
+  // broken on the walk: "these rollups seem to stay stale, even when I
+  // click 'refresh'". The user's mental model of Refresh is "make this
+  // rollup current" — so one click now does exactly that, and the
+  // freshness chips (here + Vault tab, via duo-vault-refresh) follow.
+  const refreshAll = useCallback(async () => {
+    setRefreshState((s) => ({ ...s, busy: true }))
+    const prev = view?.rows.length ?? null
+    if (defaultVault && selected && view && !view.error && view.stale !== false) {
+      try {
+        await window.electron.vault.rollupRender({ vaultRoot: defaultVault, note: selected })
+        window.dispatchEvent(new CustomEvent('duo-vault-refresh'))
+      } catch {
+        /* the re-evaluate below still runs; a render failure shows via view.stale */
+      }
+    }
+    const [, count] = await Promise.all([fetchList(), fetchView()])
+    if (!aliveRef.current) return
+    setRefreshState({
+      busy: false,
+      at: Date.now(),
+      delta: prev != null && count != null ? count - prev : null,
+    })
+  }, [fetchList, fetchView, view, defaultVault, selected])
 
   useEffect(() => {
     if (!isActive || !defaultVault) return
@@ -165,34 +260,86 @@ export function RollupsView({ isActive }: { isActive: boolean }) {
     return () => clearInterval(id)
   }, [isActive, fetchView])
 
-  // Selecting a different rollup drops the row selection + any pending undo.
+  // Selecting a different rollup (or entering/leaving a type view) drops the
+  // row selection + any pending undo.
   useEffect(() => {
     setPanel(null)
     setUndo(null)
-  }, [selected])
+  }, [selected, browseType])
 
   // ── actions ──────────────────────────────────────────────────────────────
-  const onNewRollup = useCallback(async () => {
-    if (!defaultVault || !schema) return
+  // ENH-251 — the Vault tab's "+ New rollup" NOW defaults to triggering
+  // this (via the 'duo-rollups-new' listener below) instead of spawning a
+  // Claude session. That trigger can land BEFORE this tab was ever active
+  // — `defaultVault`/`schema` local state may still be unset (both are
+  // isActive-gated fetches). `vaultRootOverride` carries the vault the
+  // caller already knows is valid; schema is fetched live when missing
+  // rather than silently no-op'ing on a first-ever visit.
+  const onNewRollup = useCallback(async (vaultRootOverride?: string) => {
+    const root = vaultRootOverride ?? defaultVault
+    if (!root) return
+    // Sync local state so the isActive-gated fetchView/fetchList polling
+    // (which reads defaultVault from ITS OWN closure) works once this tab
+    // becomes active — without this, a first-ever-visit trigger leaves
+    // defaultVault null and the view stays stuck showing nothing.
+    if (root !== defaultVault) setDefaultVault(root)
+    let sch = schema
+    if (!sch) {
+      try {
+        const schemaRes = await window.electron.vault.schema({ vaultRoot: root })
+        if (!schemaRes.ok) {
+          setError(schemaRes.error)
+          return
+        }
+        sch = schemaRes.schema
+        if (aliveRef.current) setSchema(sch)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+        return
+      }
+    }
     const model: RollupModelDto = {
       title: 'Untitled rollup',
-      types: [schema.types.find((t) => t !== 'rollup') ?? schema.types[0] ?? 'note'],
+      types: [sch.types.find((t) => t !== 'rollup') ?? sch.types[0] ?? 'note'],
       groupBy: [],
       filters: [],
       columns: [],
     }
     try {
-      const res = await window.electron.vault.rollupSave({ vaultRoot: defaultVault, model })
+      const res = await window.electron.vault.rollupSave({ vaultRoot: root, model })
       if (res.ok && aliveRef.current) {
-        await fetchList()
+        // A direct listRollups (using `root`, not the outer fetchList's
+        // possibly-stale `defaultVault` closure) — this call can run before
+        // this tab's OWN defaultVault state has ever synced (see the
+        // vaultRootOverride note above), and fetchList would silently
+        // no-op in that case.
+        const listRes = await window.electron.vault.listRollups({ vaultRoot: root })
+        if (listRes.ok && aliveRef.current) setRollups(listRes.rollups)
+        setBrowseType(null)
         setSelected(res.note)
+        setJustCreatedNote(res.note)
+        if (!res.rendered) setError(`Created, but the rollup couldn't render yet: ${res.renderError}`)
       } else if (!res.ok) {
         setError(res.error)
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
-  }, [defaultVault, schema, fetchList])
+  }, [defaultVault, schema])
+
+  // ENH-251 — the Vault tab's "+ New rollup" (default click, not the
+  // right-click Claude option) triggers this. UNCONDITIONAL — not gated on
+  // isActive, for the same reason as the 'duo-rollups-select' listener
+  // above: App's tab-switch and this dispatch happen in the same handler,
+  // before React commits the isActive prop flip.
+  useEffect(() => {
+    const onNew = (e: Event) => {
+      const d = (e as CustomEvent<{ vaultRoot?: string }>).detail
+      void onNewRollup(d?.vaultRoot)
+    }
+    window.addEventListener('duo-rollups-new', onNew)
+    return () => window.removeEventListener('duo-rollups-new', onNew)
+  }, [onNewRollup])
 
   const saveModel = useCallback(
     async (model: RollupModelDto) => {
@@ -206,6 +353,7 @@ export function RollupsView({ isActive }: { isActive: boolean }) {
         if (res.ok) {
           void fetchView()
           void fetchList() // the title may have changed
+          if (!res.rendered) setError(`Saved, but the re-render failed: ${res.renderError}`)
         } else {
           setError(res.error)
         }
@@ -305,10 +453,126 @@ export function RollupsView({ isActive }: { isActive: boolean }) {
     }
   }, [defaultVault, undo, fetchView, onSelectRowByPath])
 
+  // (ENH-248 owner note — "Copy as Markdown" left this header: the rendered
+  // artifact carries it, and that's where copying belongs. The CLI twin
+  // `duo rollup markdown` remains.)
+
   const onDoctor = useCallback(() => {
     if (!defaultVault || !view) return
     emit('duo-rollups-doctor', { vaultRoot: defaultVault, note: view.note, error: view.error ?? '' })
   }, [defaultVault, view])
+
+  // ENH-248 R5 — a hand-authored (view-only) rollup is valid but beyond the
+  // builder's dialect. This primes a Claude session to NORMALIZE it —
+  // rewrite the spec canonically with identical semantics — so it becomes
+  // GUI-editable. App owns the spawn (same machinery as the doctor).
+  const onNormalize = useCallback(() => {
+    if (!defaultVault || !view) return
+    emit('duo-rollups-normalize', { vaultRoot: defaultVault, note: view.note })
+  }, [defaultVault, view])
+
+  // ENH-248 (new req) — the under-title artifact link: open the rendered
+  // rollup in Duo's browser pane.
+  const openArtifact = useCallback(() => {
+    if (!defaultVault || !view?.out) return
+    const name = view.out.slice(view.out.lastIndexOf('/') + 1) || view.out
+    emit('duo-vault-open-rollup', { path: `${defaultVault}/${view.out}`, name })
+  }, [defaultVault, view])
+
+  // ENH-248 R8 — persist the note's entity-link mode ('github' → blob URLs
+  // in the rendered page). Rides the normal save path, so the artifact
+  // re-renders with the new mode immediately.
+  const saveLinks = useCallback(
+    async (github: boolean) => {
+      if (!defaultVault || !selected || !view?.model) return
+      try {
+        const res = await window.electron.vault.rollupSave({
+          vaultRoot: defaultVault,
+          note: selected,
+          model: view.model,
+          links: github ? 'github' : 'relative',
+        })
+        if (res.ok) void fetchView()
+        else setError(res.error)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+      }
+    },
+    [defaultVault, selected, view, fetchView],
+  )
+
+  // ENH-248 R7 — keep an ephemeral type view as a real rollup.
+  const onSaveTypeView = useCallback(async () => {
+    if (!defaultVault || !view?.model || !browseType) return
+    try {
+      const res = await window.electron.vault.rollupSave({
+        vaultRoot: defaultVault,
+        model: { ...view.model, title: `All ${browseType}s` },
+      })
+      if (res.ok) {
+        setBrowseType(null)
+        setSelected(res.note)
+        setJustCreatedNote(res.note)
+        void fetchList()
+      } else {
+        setError(res.error)
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }, [defaultVault, view, browseType, fetchList])
+
+  // ENH-248 R6 — rail-row lifecycle menu (right-click + the ⋯ button):
+  // Duplicate / Reveal in navigator / Open definition note / Delete…
+  // Native menu + native confirm (the ENH-050 patterns).
+  const onRowMenu = useCallback(
+    async (r: VaultRollupDto, x: number, y: number) => {
+      if (!defaultVault) return
+      const items: MenuTemplateItem[] = [
+        { id: 'duplicate', label: 'Duplicate' },
+        { id: 'reveal', label: 'Reveal in navigator' },
+        { id: 'note', label: 'Open definition note' },
+        { type: 'separator' },
+        { id: 'delete', label: 'Delete…' },
+      ]
+      const res = await window.electron.menu.popup({ items, x, y })
+      if (!res.chosenId) return
+      if (res.chosenId === 'duplicate') {
+        const d = await window.electron.vault.rollupDuplicate({ vaultRoot: defaultVault, note: r.note })
+        if (d.ok) {
+          setBrowseType(null)
+          setSelected(d.note)
+          void fetchList()
+        } else {
+          setError(d.error)
+        }
+      } else if (res.chosenId === 'reveal') {
+        emit('duo-rollups-reveal', { absPath: r.absPath })
+      } else if (res.chosenId === 'note') {
+        const name = r.note.slice(r.note.lastIndexOf('/') + 1) || r.note
+        emit('duo-vault-open-note', { path: r.absPath, name })
+      } else if (res.chosenId === 'delete') {
+        const confirm = await window.electron.dialog.confirm({
+          title: `Delete rollup “${r.title}”?`,
+          message:
+            'Removes the definition note and its rendered page. File history keeps a restorable copy of the note.',
+          buttons: ['Cancel', 'Delete'],
+          defaultId: 1,
+          cancelId: 0,
+          type: 'warning',
+        })
+        if (confirm.response !== 1) return
+        const d = await window.electron.vault.rollupDelete({ vaultRoot: defaultVault, note: r.note })
+        if (d.ok) {
+          setSelected((cur) => (cur === r.note ? null : cur))
+          void fetchList()
+        } else {
+          setError(d.error)
+        }
+      }
+    },
+    [defaultVault, fetchList],
+  )
 
   // ── render ───────────────────────────────────────────────────────────────
   if (!defaultVault) {
@@ -349,14 +613,32 @@ export function RollupsView({ isActive }: { isActive: boolean }) {
           </div>
           <ul className="duo-rollups-list">
             {rollups.map((r) => (
-              <li key={r.note}>
+              <li key={r.note} className="duo-rollups-item-row">
                 <button
                   type="button"
-                  className={`duo-rollups-item${r.note === selected ? ' selected' : ''}`}
-                  onClick={() => setSelected(r.note)}
+                  className={`duo-rollups-item${r.note === selected && !browseType ? ' selected' : ''}`}
+                  onClick={() => {
+                    setBrowseType(null)
+                    setSelected(r.note)
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault()
+                    void onRowMenu(r, e.clientX, e.clientY)
+                  }}
                   title={r.note}
                 >
                   {r.title}
+                </button>
+                <button
+                  type="button"
+                  className="duo-rollups-item-menu"
+                  title="Duplicate, reveal, open note, delete…"
+                  onClick={(e) => {
+                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                    void onRowMenu(r, rect.left, rect.bottom)
+                  }}
+                >
+                  ⋯
                 </button>
               </li>
             ))}
@@ -370,10 +652,42 @@ export function RollupsView({ isActive }: { isActive: boolean }) {
       {/* ── center ── */}
       <section className="duo-rollups-main">
         <header className="duo-rollups-head">
-          <h1 className="duo-rollups-title font-serif">{view?.title ?? 'Rollups'}</h1>
+          <div className="duo-rollups-head-titles">
+            <h1 className="duo-rollups-title font-serif">
+              {browseType ? `type: ${browseType}` : (view?.title ?? 'Rollups')}
+            </h1>
+            {/* ENH-248 (new req) — the rendered artifact's path, clickable:
+                opens the rollup page in Duo's browser pane. */}
+            {!browseType && view?.out ? (
+              <button
+                type="button"
+                className="duo-rollups-outlink"
+                onClick={openArtifact}
+                title="Open the rendered rollup page in Duo"
+              >
+                {view.out}
+                {view.stale ? ' · stale' : ''}
+              </button>
+            ) : null}
+          </div>
           <div className="duo-rollups-head-actions">
-            <button type="button" className="duo-vault-btn" onClick={refreshAll} title="Re-read the vault">
-              ↻ Refresh
+            {/* R3 — refresh feedback: what the last check found, and when. */}
+            {refreshState.at != null && !refreshState.busy ? (
+              <span className="duo-rollups-checked" role="status">
+                {refreshState.delta != null && refreshState.delta !== 0
+                  ? `${refreshState.delta > 0 ? '+' : ''}${refreshState.delta} row${Math.abs(refreshState.delta) === 1 ? '' : 's'} · `
+                  : 'no changes · '}
+                checked {fmtCheckedAgo(refreshState.at)}
+              </span>
+            ) : null}
+            <button
+              type="button"
+              className="duo-vault-btn"
+              onClick={() => void refreshAll()}
+              disabled={refreshState.busy}
+              title="Re-read the vault and re-evaluate this view now (a background check also runs every 30s)"
+            >
+              {refreshState.busy ? 'Checking…' : '↻ Refresh'}
             </button>
             {collapsed.right ? (
               <button
@@ -389,7 +703,7 @@ export function RollupsView({ isActive }: { isActive: boolean }) {
         </header>
         {error ? <div className="duo-banner-warn duo-rollups-banner">{error}</div> : null}
 
-        {!selected ? (
+        {!selected && !browseType ? (
           <div className="duo-rollups-empty">
             No rollups yet — “+ New rollup” creates one you can shape in the Roll Up panel.
           </div>
@@ -427,14 +741,56 @@ export function RollupsView({ isActive }: { isActive: boolean }) {
               ▸
             </button>
           </div>
-          {view && !view.error ? (
+          {browseType && view && !view.error ? (
+            // R7 — an ephemeral type view: no note yet, so no builder. One
+            // action: keep it.
+            <div className="duo-rollups-typeview-card">
+              <p>
+                An instant view over every <code>{browseType}</code> in the vault — nothing is
+                saved yet.
+              </p>
+              <button type="button" className="duo-vault-btn" onClick={() => void onSaveTypeView()}>
+                Save as rollup
+              </button>
+            </div>
+          ) : view && !view.error ? (
             view.model ? (
-              <BuilderPanel model={view.model} schema={schema} onChange={(m) => void saveModel(m)} />
+              <>
+                <BuilderPanel
+                  model={view.model}
+                  schema={schema}
+                  onChange={(m) => void saveModel(m)}
+                  autoFocusTitle={justCreatedNote === view.note}
+                  onAutoFocusConsumed={() => setJustCreatedNote(null)}
+                />
+                {/* R8 — entity-link mode for the RENDERED page (blob URLs
+                    survive GitHub Pages; relative links only work locally). */}
+                <label
+                  className="duo-rollups-links-toggle"
+                  title="Rendered page: link entities to their GitHub page (needs the vault in a GitHub repo) instead of local relative paths"
+                >
+                  <input
+                    type="checkbox"
+                    checked={view.links === 'github'}
+                    onChange={(e) => void saveLinks(e.target.checked)}
+                  />
+                  GitHub links in rendered page
+                </label>
+              </>
             ) : (
               <div className="duo-rollups-viewonly">
                 This rollup’s spec is hand-authored (formulas or query features the builder doesn’t
-                model), so it’s view-only here. Reshape it in the editor or with the Claude
-                authoring loop.
+                model), so it’s view-only here.
+                {/* R5 — the path forward: a Claude session that rewrites the
+                    spec into the builder's dialect, semantics preserved. */}
+                <button
+                  type="button"
+                  className="duo-vault-btn duo-rollups-normalize-btn"
+                  onClick={onNormalize}
+                  title="Start a Claude session that rewrites this spec into the builder's dialect (same rows, verified) so it becomes editable here"
+                >
+                  Normalize with Claude
+                </button>
               </div>
             )
           ) : null}
@@ -565,14 +921,43 @@ function BuilderPanel({
   model,
   schema,
   onChange,
+  autoFocusTitle,
+  onAutoFocusConsumed,
 }: {
   model: RollupModelDto
   schema: VaultSchemaDto | null
   onChange: (m: RollupModelDto) => void
+  /** ENH-250 (gap #3) — true for exactly one render right after "+ New
+   *  rollup" creates this note, so renaming is the natural first action. */
+  autoFocusTitle?: boolean
+  onAutoFocusConsumed?: () => void
 }) {
   // Title edits buffer locally and commit on blur/Enter (every commit saves).
   const [title, setTitle] = useState(model.title)
   useEffect(() => setTitle(model.title), [model.title])
+
+  const titleInputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (!autoFocusTitle) return
+    // The sibling `setTitle(model.title)` effect above writes the input's
+    // controlled `.value` in this SAME commit (the just-created note's
+    // fetchView response lands as its own render), and a native `.value`
+    // write collapses any existing selection to the end — even one this
+    // effect just made. rAF defers focus+select past every same-tick DOM
+    // write so the highlight actually survives (verified live: without
+    // this, focus lands but the selection silently collapses to length).
+    const id = requestAnimationFrame(() => {
+      titleInputRef.current?.focus()
+      titleInputRef.current?.select()
+      // Consumed INSIDE the frame, not synchronously: calling this earlier
+      // flips the parent's state (autoFocusTitle → false) before the frame
+      // fires, which runs this effect's OWN cleanup and cancels the frame
+      // — a self-cancelling bug caught live.
+      onAutoFocusConsumed?.()
+    })
+    return () => cancelAnimationFrame(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoFocusTitle])
 
   const types = schema?.types.filter((t) => t !== 'rollup') ?? []
   const props = useMemo(() => {
@@ -607,6 +992,7 @@ function BuilderPanel({
       </label>
       <input
         id="duo-rollup-title"
+        ref={titleInputRef}
         className="duo-rollups-input"
         value={title}
         onChange={(e) => setTitle(e.target.value)}

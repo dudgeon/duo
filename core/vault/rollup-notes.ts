@@ -141,6 +141,10 @@ export interface ResolvedRollupNote {
   /** A `.base` path to render (from `spec:`), or null = render the note's own
    *  embedded ```base blocks. Vault-relative or absolute as authored. */
   specPath: string | null
+  /** ENH-248 R8 — the note's declared entity-link mode (`links:` frontmatter,
+   *  GUI-owned like `group_by:`): 'github' renders entity links as GitHub
+   *  blob URLs (when the vault's repo probe succeeds); default 'relative'. */
+  links: 'github' | 'relative'
   frontmatter: Record<string, unknown>
 }
 
@@ -179,14 +183,157 @@ export function resolveRollupNote(root: string, target: string): ResolvedRollupN
     format: normalizeFormat(frontmatter.format, outRel),
     outRel,
     specPath: asString(frontmatter.spec),
+    links: frontmatter.links === 'github' ? 'github' : 'relative',
     frontmatter,
   }
+}
+
+// ── lifecycle (ENH-248 R6) ───────────────────────────────────────────────────
+
+export interface DeleteRollupResult {
+  ok: boolean
+  /** Vault-relative paths actually removed (note first, then artifact). */
+  deleted: string[]
+  error: string | null
+}
+
+/** Delete a rollup: the definition note plus its rendered artifact (the
+ *  `out:` target, only when it resolves INSIDE the vault). File history
+ *  (ENH-221) remains the undo net for the note; the artifact is rebuildable
+ *  from nothing, so its removal is safe by construction. */
+export function deleteRollup(root: string, target: string): DeleteRollupResult {
+  const resolved = resolveRollupNote(root, target)
+  if (!resolved) return { ok: false, deleted: [], error: `not a \`type: rollup\` note: ${target}` }
+  const deleted: string[] = []
+  try {
+    const artifactRel = containedOut(resolved.outRel, root)
+    fs.rmSync(resolved.noteAbs)
+    deleted.push(resolved.noteRel)
+    if (artifactRel) {
+      const artifactAbs = path.resolve(root, artifactRel)
+      if (fs.existsSync(artifactAbs)) {
+        fs.rmSync(artifactAbs)
+        deleted.push(artifactRel)
+      }
+    }
+    return { ok: true, deleted, error: null }
+  } catch (e) {
+    return { ok: deleted.length > 0, deleted, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export interface DuplicateRollupResult {
+  ok: boolean
+  /** Vault-relative path of the new note. */
+  note: string | null
+  absPath: string | null
+  error: string | null
+}
+
+/** Duplicate a rollup note as `<slug>-copy.md` (uniqued) with "<Title>
+ *  (copy)". Provenance keys (out/last_generated/last_hash) are STRIPPED —
+ *  the copy has no artifact yet and must not point at the original's; the
+ *  next render/save stamps its own. Works for hand-authored notes too (raw
+ *  content copy — no model round-trip required). */
+export function duplicateRollup(root: string, target: string): DuplicateRollupResult {
+  const resolved = resolveRollupNote(root, target)
+  if (!resolved) return { ok: false, note: null, absPath: null, error: `not a \`type: rollup\` note: ${target}` }
+  try {
+    const dir = path.join(root, ROLLUPS_DIR)
+    const stem = `${resolved.slug}-copy`
+    let slug = stem
+    for (let n = 2; fs.existsSync(path.join(dir, `${slug}.md`)); n++) slug = `${stem}-${n}`
+    const raw = fs.readFileSync(resolved.noteAbs, 'utf8')
+    const abs = path.join(dir, `${slug}.md`)
+    fs.writeFileSync(abs, raw)
+    // Surgical field edits on the COPY: new title, no inherited provenance
+    // (null = delete the key — same line-level discipline as the stamp).
+    editFrontmatterLines(abs, {
+      title: yamlScalar(`${resolved.title} (copy)`),
+      out: null,
+      last_generated: null,
+      last_hash: null,
+    })
+    return { ok: true, note: `${ROLLUPS_DIR}/${slug}.md`, absPath: abs, error: null }
+  } catch (e) {
+    return { ok: false, note: null, absPath: null, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+// ── artifact introspection (ENH-248 R2) ─────────────────────────────────────
+
+export interface RollupArtifactInfo {
+  vaultRoot: string
+  /** Vault-relative note path of the rollup this artifact renders. */
+  note: string
+  title: string
+  lastGenerated: string | null
+  /** `last_hash` vs the corpus hash right now (same rule as the chip). */
+  stale: boolean
+}
+
+/** Given any absolute file path (e.g. the browser pane's current file:// URL),
+ *  decide whether it is a rendered rollup artifact: walk up to the nearest
+ *  enclosing vault root, then match the path against every rollup's `out:`.
+ *  Returns null for anything else — the caller shows no chrome. Pure live
+ *  read (no-sidecar §D9): worst case one listRollups scan per navigation. */
+export function rollupArtifactInfo(absPath: string, isRoot: (dir: string) => boolean): RollupArtifactInfo | null {
+  const target = path.resolve(absPath)
+  let root: string | null = null
+  for (let d = path.dirname(target); ; ) {
+    if (isRoot(d)) {
+      root = d
+      break
+    }
+    const parent = path.dirname(d)
+    if (parent === d) break
+    d = parent
+  }
+  if (!root) return null
+  for (const l of listRollups(root)) {
+    if (l.out && path.resolve(root, l.out) === target) {
+      return {
+        vaultRoot: root,
+        note: l.note,
+        title: l.title,
+        lastGenerated: l.last_generated ?? null,
+        stale: l.stale,
+      }
+    }
+  }
+  return null
 }
 
 /** YAML-safe double-quoted scalar — survives colons (ISO timestamps), spaces
  *  (paths), and quotes without corrupting the frontmatter block. */
 function yamlScalar(v: string): string {
   return JSON.stringify(v)
+}
+
+/** Line-level frontmatter edit: set a key to a PRE-SERIALIZED value, or
+ *  delete it with null. Same discipline as {@link stampRollupProvenance}
+ *  (only touched lines change), generalized with delete support for
+ *  {@link duplicateRollup}. */
+function editFrontmatterLines(noteAbs: string, updates: Record<string, string | null>): void {
+  const raw = fs.readFileSync(noteAbs, 'utf8')
+  const m = raw.match(/^---\n([\s\S]*?)\n---\n?/)
+  if (!m) return
+  const remaining = { ...updates }
+  const lines: string[] = []
+  for (const line of m[1].split('\n')) {
+    const key = line.match(/^([A-Za-z0-9_-]+)\s*:/)?.[1]
+    if (key && key in remaining) {
+      const v = remaining[key]
+      delete remaining[key]
+      if (v === null) continue
+      lines.push(`${key}: ${v}`)
+    } else {
+      lines.push(line)
+    }
+  }
+  for (const [k, v] of Object.entries(remaining)) if (v !== null) lines.push(`${k}: ${v}`)
+  const body = raw.slice(m[0].length)
+  fs.writeFileSync(noteAbs, `---\n${lines.join('\n')}\n---\n${body}`)
 }
 
 /** Surgically stamp render provenance into a rollup note's frontmatter —

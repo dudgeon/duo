@@ -18,6 +18,7 @@ import { readNotes, parseFile } from './parse'
 import { targetKey } from '../markdown/vaultLinks'
 import { renderBaseMarkdown, assembleMarkdownPage } from './render-markdown'
 import { snapshotComment, summaryLogComment, rollupDocComment, type RollupSnapshot, type SummaryEntry } from './rollup'
+import { gitHubBlobUrl, type GitHubLinkBase } from './rollup-markdown'
 import {
   buildEngineFiles,
   evalExpr,
@@ -128,11 +129,26 @@ export interface LinkCtx {
 }
 
 /** Build a {@link LinkCtx} for one render. `outDir` is where the artifact will
- *  be written (hrefs are relative to it); defaults to the vault root. */
-export function buildLinkCtx(files: EngineFile[], root: string, outDir: string): LinkCtx {
+ *  be written (hrefs are relative to it); defaults to the vault root.
+ *  ENH-248 R8 — with `github` set (a pre-probed {@link GitHubLinkBase}),
+ *  hrefs become GitHub blob URLs instead, so the artifact's entity links
+ *  land on GitHub's RENDERED markdown view when the page is viewed off-disk
+ *  (GitHub Pages serves raw .md; relative links there dead-end on plain
+ *  text). Falls back to the relative form per-path only if composition
+ *  fails (the probe already rejected non-GitHub hosts wholesale). */
+export function buildLinkCtx(
+  files: EngineFile[],
+  root: string,
+  outDir: string,
+  github?: GitHubLinkBase | null,
+): LinkCtx {
   const byKey = new Map(files.map((f) => [targetKey(f.name, 'wikilink'), f]))
   const rel = (noteRelPath: string): string => {
     const abs = path.resolve(root, noteRelPath)
+    if (github) {
+      const blob = gitHubBlobUrl(github, abs)
+      if (blob) return blob
+    }
     let r = path.relative(outDir, abs).split(path.sep).join('/')
     if (!r.startsWith('.') && !r.startsWith('/')) r = './' + r
     return r
@@ -485,6 +501,10 @@ export function renderTarget(
     summaryLog?: SummaryEntry[]
     /** Embed the rows snapshot + summary log as HTML comments for later diffing. */
     embedSnapshot?: boolean
+    /** ENH-248 R8 — pre-probed GitHub base: entity links become blob URLs.
+     *  The probe is async (git subprocesses) so the CALLER runs it
+     *  (`probeGitHubLinkBase`) and passes the result; renderTarget stays sync. */
+    github?: GitHubLinkBase | null
   } = {},
 ): RenderTargetResult {
   const asOf = opts.asOf ?? defaultAsOf()
@@ -493,7 +513,7 @@ export function renderTarget(
   const byName = new Map(files.map((f) => [f.name, f]))
   // ENH-229 — hrefs are relative to where the artifact will be written
   // (defaults to the vault root). Both serializers share this resolver.
-  const linkCtx = buildLinkCtx(files, root, opts.outDir ?? root)
+  const linkCtx = buildLinkCtx(files, root, opts.outDir ?? root, opts.github)
 
   const bases: RenderTargetResult['bases'] = []
   const sections: string[] = []
@@ -584,6 +604,11 @@ export function renderTarget(
     summaryHtml: summarySectionHtml(summaryLog),
     markdownSource: md,
     embedded,
+    // ENH-250 — the artifact's own Refresh button needs the vault root to
+    // self-render (no watching Claude required); embedded in a data
+    // attribute (never shown as visible text), same trust posture as the
+    // embedded markdown source already used for "Copy as Markdown".
+    root,
   })
   return { html, md, snapshot, bases, sourceHash: hash, generatedAt, asOfLabel }
 }
@@ -602,6 +627,9 @@ function assemblePage(
     summaryHtml?: string
     markdownSource?: string
     embedded?: string
+    /** ENH-250 — the vault root, embedded ONLY for the Refresh button's
+     *  data-payload (never rendered as visible text). */
+    root?: string
   },
 ): string {
   return `<!DOCTYPE html>
@@ -663,11 +691,13 @@ date-relative formulas as of ${esc(meta.asOfLabel)} ·
 ${meta.noteCount} notes, ${meta.baseCount} rendered base(s)</div>
 ${
   meta.rollup
-    ? '<div class="rl-toolbar">\n' +
+    ? // ENH-248 R2 — Copy as Markdown is the ONLY embedded button now: it's
+      // genuinely useful anywhere the file opens (owner lock), while Refresh /
+      // Edit are Duo-only verbs that live in Duo's OWN artifact toolbar (the
+      // browser pane detects the rollup marker comment and overlays native
+      // chrome) — behavior ships with Duo updates, never frozen into the file.
+      '<div class="rl-toolbar">\n' +
       '<button class="rl-btn" type="button" data-rollup-copy>Copy as Markdown</button>\n' +
-      '<button class="rl-btn" type="button" data-duo-action="duo:event" data-event="rollup:refresh" data-payload="' +
-      esc(JSON.stringify({ base: meta.target })).replace(/"/g, '&quot;') +
-      '" title="Requests a refresh — a watching Claude (duo events --follow) regenerates + summarizes">Refresh</button>\n' +
       '</div>'
     : ''
 }

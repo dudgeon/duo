@@ -63,6 +63,7 @@ export function buildCorpus(root: string): Corpus {
   const aliases: Record<string, string> = {}
   const propsByType = new Map<string, Set<string>>()
   const enumsByType = new Map<string, Set<string>>()
+  const countsByType = new Map<string, number>()
 
   for (const note of notes) {
     const fm = note.frontmatter
@@ -74,6 +75,7 @@ export function buildCorpus(root: string): Corpus {
 
     if (t) {
       types.add(t)
+      countsByType.set(t, (countsByType.get(t) ?? 0) + 1)
       if (!propsByType.has(t)) propsByType.set(t, new Set())
       for (const [k, v] of Object.entries(fm)) {
         propsByType.get(t)!.add(k)
@@ -96,12 +98,17 @@ export function buildCorpus(root: string): Corpus {
     return out
   }
 
+  // Template-only types count 0 (declared, unused) — R7 lists them anyway.
+  const counts: Record<string, number> = {}
+  for (const t of [...types].sort()) counts[t] = countsByType.get(t) ?? 0
+
   return {
     root,
     types: [...types].sort(),
     entities: entities.sort((a, b) => a.name.localeCompare(b.name)),
     aliases,
     propsByType: sortedRecord(propsByType),
+    countsByType: counts,
     enumsByType: sortedRecord(enumsByType),
     templates,
   }

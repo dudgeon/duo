@@ -181,13 +181,18 @@ describe('ENH-229 phase 2 — snapshot + summary + style (render wiring)', () =>
     }
   })
 
-  it('HTML artifact carries the Copy-as-Markdown + Refresh toolbar (req #4)', () => {
+  it('HTML artifact embeds ONLY Copy-as-Markdown — Refresh is Duo-native chrome (ENH-248 R2)', () => {
     const root = mk()
     try {
       const r = renderTarget(root, 'bases/t.base', { asOf: AS_OF, embedSnapshot: true })
+      // Copy works anywhere the file opens (GitHub Pages included) → embedded.
       expect(r.html).toContain('data-rollup-copy')
-      expect(r.html).toContain('data-event="rollup:refresh"')
       expect(r.html).toContain('window.__rollupMd')
+      // Refresh/Edit are Duo-only verbs → the browser pane overlays them
+      // (detected via the doc-comment marker), NEVER baked into the file —
+      // that's how pre-fix artifacts stayed broken forever (the walk bug).
+      expect(r.html).not.toContain('data-event="rollup:refresh"')
+      expect(r.html).not.toContain('data-duo-action')
     } finally {
       fs.rmSync(root, { recursive: true, force: true })
     }
@@ -219,11 +224,14 @@ describe('ENH-229 phase 2 — snapshot + summary + style (render wiring)', () =>
     }
   })
 
-  it('HTML Refresh carries a JSON-object data-payload {base} (parseActionFromAttrs requires JSON)', () => {
+  it('the doc-comment marker survives as the Duo-native toolbar detection hook (ENH-248 R2)', () => {
     const root = mk()
     try {
+      // The browser pane's artifact-info probe keys off this marker's
+      // presence in every rollup artifact — it is the contract that lets
+      // Duo overlay Refresh/Edit chrome on artifacts of ANY vintage.
       const r = renderTarget(root, 'bases/t.base', { asOf: AS_OF, embedSnapshot: true })
-      expect(r.html).toContain('data-payload="{&quot;base&quot;:&quot;bases/t.base&quot;}"')
+      expect(r.html).toContain('<!-- Duo rollup (generated')
     } finally {
       fs.rmSync(root, { recursive: true, force: true })
     }

@@ -570,9 +570,9 @@ const VERBS: VerbSpec[] = [
   {
     name: 'rollup',
     group: 'Vault',
-    args: '<render <note|base>|list|diff <note|base>|new --type t|show <note>|set <note>|doctor <note>> [--md|--html] [--style css] [--summary "t"|--no-summary] [--against p] [--title "t"] [--group a,b] [--filter k=v]... [--columns a,b] [--out p] [--open] [--vault p]',
+    args: '<render <note|base>|list|diff <note|base>|new --type t|show <note>|set <note>|doctor <note>|markdown <note>> [--md|--html] [--style css] [--summary "t"|--no-summary] [--against p] [--title "t"] [--group a,b] [--filter k=v]... [--columns a,b] [--out p] [--open] [--vault p]',
     summary:
-      'ENH-243 — the builder verbs (the Rollups tab\'s CLI twins; same core layer). new --type <t[,t2]> [--title "t"] [--group a,b] [--filter \'k=v\'|\'k!=v\'|\'k?\'|\'k!?\']... [--columns a,b]: scaffold a builder-canonical `type: rollup` note at rollups/<slug>.md — multi-depth grouping via the ordered --group list (level 1 mirrors into the base block\'s groupBy; the full list lives in the note\'s group_by: frontmatter, grouped GUI-side). show <note>: the parsed builder model + row/group summary as stable JSON (model:null = hand-authored/view-only; error set = broken). set <note> [--title|--type|--group|--columns] [--filter …]... [--clear-filters]: mutate a builder-canonical note (appends filters unless --clear-filters; refuses a hand-authored spec rather than clobbering it). doctor <note>: diagnosis — parse/eval error + advisory lint findings + repair guidance (the same prompt the GUI\'s "Fix with Claude" seeds). ENH-229/ENH-228 — rollups. A rollup is a first-class `type: rollup` NOTE (templates/rollup.md, filed in rollups/) that owns its spec (an embedded ```base block or a `spec:` .base path) + render provenance. render <note|base> [--md|--html]: render the spec and emit ONE variant — a stamped HTML artifact (--html; the DEFAULT for a rollup note — D2, HTML-first) OR Markdown (--md; GitHub-portable). For a `type: rollup` note the out path defaults to its `out:` (else rollups/<slug>.html) and `out`/`last_generated`/`last_hash` are stamped back into the note surgically (body untouched) — but ONLY for the note\'s canonical format; an ad-hoc --md/--html override renders a side artifact and leaves the note\'s provenance untouched. A bare `.base`/non-rollup target keeps the legacy MD-default, no-stamp behavior. Every row LINKS the entities it rolls up (the note + owner/group links resolved from frontmatter, incl. OKF rel-md). --style <css-file> layers a custom stylesheet over the Atelier base (HTML only). list: the rollup inventory — every `type: rollup` note with {note,title,out,format,last_generated,last_hash,stale} (stale = last_hash !== the live source hash); a corpus query, no scan, no sidecar. Change summary (req #7): the artifact self-embeds a rows snapshot + a summary log (HTML comments — §D9-clean, no sidecar); --summary "<text>" adds a new latest "What changed" entry (an interactive Claude writes the narrative+notables from `duo rollup diff`), prior entries drop into a collapsible history; --no-summary clears it. diff <note|base> [--against <prior>]: deterministic JSON delta (added/removed/changed rows) vs the prior artifact\'s embedded snapshot — the material Claude summarizes. --out writes elsewhere; --open surfaces it as a tab.'
+      'ENH-243 — the builder verbs (the Rollups tab\'s CLI twins; same core layer). new --type <t[,t2]> [--title "t"] [--group a,b] [--filter \'k=v\'|\'k!=v\'|\'k?\'|\'k!?\']... [--columns a,b]: scaffold a builder-canonical `type: rollup` note at rollups/<slug>.md — multi-depth grouping via the ordered --group list (level 1 mirrors into the base block\'s groupBy; the full list lives in the note\'s group_by: frontmatter, grouped GUI-side). show <note>: the parsed builder model + row/group summary as stable JSON (model:null = hand-authored/view-only; error set = broken). set <note> [--title|--type|--group|--columns] [--filter …]... [--clear-filters]: mutate a builder-canonical note (appends filters unless --clear-filters; refuses a hand-authored spec rather than clobbering it). doctor <note>: diagnosis — parse/eval error + advisory lint findings + repair guidance (the same prompt the GUI\'s "Fix with Claude" seeds). markdown <note> [--vault p]: ENH-244 — "Copy as Markdown" CLI twin; prints ONE GFM table to stdout with title cells linking to the entity\'s GitHub blob (vault root sits inside a GitHub-remote repo, branch = the current HEAD) or a vault-relative `./path` otherwise (one git probe for the whole table, works in OKF too) — pipe to `pbcopy` or a file. ENH-229/ENH-228 — rollups. A rollup is a first-class `type: rollup` NOTE (templates/rollup.md, filed in rollups/) that owns its spec (an embedded ```base block or a `spec:` .base path) + render provenance. render <note|base> [--md|--html]: render the spec and emit ONE variant — a stamped HTML artifact (--html; the DEFAULT for a rollup note — D2, HTML-first) OR Markdown (--md; GitHub-portable). For a `type: rollup` note the out path defaults to its `out:` (else rollups/<slug>.html) and `out`/`last_generated`/`last_hash` are stamped back into the note surgically (body untouched) — but ONLY for the note\'s canonical format; an ad-hoc --md/--html override renders a side artifact and leaves the note\'s provenance untouched. A bare `.base`/non-rollup target keeps the legacy MD-default, no-stamp behavior. Every row LINKS the entities it rolls up (the note + owner/group links resolved from frontmatter, incl. OKF rel-md). --style <css-file> layers a custom stylesheet over the Atelier base (HTML only). list: the rollup inventory — every `type: rollup` note with {note,title,out,format,last_generated,last_hash,stale} (stale = last_hash !== the live source hash); a corpus query, no scan, no sidecar. Change summary (req #7): the artifact self-embeds a rows snapshot + a summary log (HTML comments — §D9-clean, no sidecar); --summary "<text>" adds a new latest "What changed" entry (an interactive Claude writes the narrative+notables from `duo rollup diff`), prior entries drop into a collapsible history; --no-summary clears it. diff <note|base> [--against <prior>]: deterministic JSON delta (added/removed/changed rows) vs the prior artifact\'s embedded snapshot — the material Claude summarizes. --out writes elsewhere; --open surfaces it as a tab. ENH-248 — lifecycle + GitHub links. delete <note> --force: remove the definition note AND its rendered artifact (without --force: dry-run prints what would go; file history is the note\'s undo net). duplicate <note>: copy as "<Title> (copy)" with provenance stripped (the copy renders its own artifact on next save/render). render --github: entity links as GitHub blob URLs (probe = the markdown verb\'s; falls back to relative when no GitHub remote). set --links github|relative: persist the note\'s entity-link mode (`links:` frontmatter; works on hand-authored notes too) — renders honor it automatically, incl. the GUI\'s auto-render-on-save.'
   }
 ]
 
@@ -3156,7 +3156,7 @@ async function main(): Promise<void> {
         const subRest = rest.slice(1)
         const vaultFlag = flagValue(subRest, '--vault')
         const USAGE =
-          'Usage: duo rollup <render|list|diff|new|show|set|doctor> [<note|base>] [--md|--html] [--style <css-file>] [--summary "<text>"|--no-summary] [--against <path>] [--type <t[,t2]>] [--title "<t>"] [--group a,b] [--filter <k=v|k!=v|k?|k!?>]... [--columns a,b] [--clear-filters] [--out <path>] [--open] [--vault <path>]'
+          'Usage: duo rollup <render|list|diff|new|show|set|doctor|markdown|delete|duplicate> [<note|base>] [--md|--html] [--github] [--style <css-file>] [--summary "<text>"|--no-summary] [--against <path>] [--type <t[,t2]>] [--title "<t>"] [--group a,b] [--filter <k=v|k!=v|k?|k!?>]... [--columns a,b] [--clear-filters] [--links github|relative] [--out <path>] [--open] [--force] [--vault <path>]'
         // Newest existing path by mtime — so summary history + diff read the
         // freshest artifact even after an --md↔--html switch.
         const newestExisting = (paths: string[]): string | null => {
@@ -3252,12 +3252,22 @@ async function main(): Promise<void> {
             summaryLog = vault.prependSummary(summaryLog, { date: today, text: summaryText })
           }
 
+          // ENH-248 R8 — entity links as GitHub blob URLs: `--github` forces
+          // it for this render; otherwise the note's declared `links: github`
+          // opts in. Probe failure (no repo / non-GitHub remote) degrades to
+          // relative links silently — the artifact still renders.
+          const wantGitHubLinks = subRest.includes('--github') || rollupNote?.links === 'github'
+          const github = wantGitHubLinks ? await vault.probeGitHubLinkBase(root) : null
+          if (subRest.includes('--github') && !github)
+            process.stderr.write('duo rollup render: --github requested but no GitHub remote found — using relative links\n')
+
           // outDir makes the entity-link hrefs (req #6) relative to the artifact.
           const result = vault.renderTarget(root, renderTargetArg, {
             outDir: path.dirname(outPath),
             styleCss,
             summaryLog,
             embedSnapshot: true,
+            github,
           })
           fs.mkdirSync(path.dirname(outPath), { recursive: true })
           fs.writeFileSync(outPath, format === 'html' ? result.html : result.md)
@@ -3349,7 +3359,7 @@ async function main(): Promise<void> {
           const NEW_USAGE =
             'Usage: duo rollup new --type <t[,t2]> [--title "<t>"] [--group a,b] [--filter \'k=v\' | \'k!=v\' | \'k?\' | \'k!?\']... [--columns a,b] [--vault <path>]'
           const SET_USAGE =
-            'Usage: duo rollup set <note> [--title "<t>"] [--type <t[,t2]>] [--group a,b] [--filter …]... [--columns a,b] [--clear-filters] [--vault <path>]'
+            'Usage: duo rollup set <note> [--title "<t>"] [--type <t[,t2]>] [--group a,b] [--filter …]... [--columns a,b] [--clear-filters] [--links github|relative] [--vault <path>]'
           const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
           const list = (flag: string): string[] | null => {
             const v = flagValue(subRest, flag)
@@ -3385,10 +3395,33 @@ async function main(): Promise<void> {
             const created = vault.createRollupNote(root, model)
             out({ root, note: created.noteRel, absPath: created.absPath, model })
           } else {
-            const target = positionalArgs(subRest, ['--vault', '--title', '--type', '--types', '--group', '--filter', '--columns'])[0]
+            const target = positionalArgs(subRest, ['--vault', '--title', '--type', '--types', '--group', '--filter', '--columns', '--links'])[0]
             if (!target) die(SET_USAGE)
+            // ENH-248 R8 — `--links github|relative` persists the entity-link
+            // mode (a note-level frontmatter key, not part of the spec model)
+            // and works for hand-authored notes too, so it's applied BEFORE
+            // the model gate below.
+            const linksFlag = flagValue(subRest, '--links')
+            if (linksFlag != null && linksFlag !== 'github' && linksFlag !== 'relative')
+              die('duo rollup set: --links takes github or relative')
             const data = vault.rollupViewData(root, target)
             if (data.error) die(`duo rollup set: ${data.error} (run duo rollup doctor ${target})`)
+            if (linksFlag != null) {
+              vault.setFrontmatterFields(data.noteAbs, { links: linksFlag === 'github' ? 'github' : null })
+            }
+            const modelFlagsUsed =
+              flagValue(subRest, '--title') != null ||
+              list('--type') != null ||
+              list('--types') != null ||
+              list('--group') != null ||
+              list('--columns') != null ||
+              filterArgs.length > 0 ||
+              subRest.includes('--clear-filters')
+            if (!modelFlagsUsed) {
+              if (linksFlag == null) die(SET_USAGE)
+              out({ root, note: data.note, links: linksFlag })
+              break
+            }
             if (!data.model)
               die(
                 `duo rollup set: ${data.note} has a hand-authored spec the builder doesn't model — edit the note directly (the GUI shows it view-only too)`,
@@ -3405,7 +3438,7 @@ async function main(): Promise<void> {
               columns: list('--columns') ?? data.model.columns,
             }
             vault.updateRollupNote(data.noteAbs, model)
-            out({ root, note: data.note, model })
+            out({ root, note: data.note, model, ...(linksFlag != null ? { links: linksFlag } : {}) })
           }
         } else if (sub === 'show') {
           // ENH-243 — the parsed builder model + row/group summary as stable
@@ -3460,6 +3493,48 @@ async function main(): Promise<void> {
                     : 'This rollup is healthy and GUI-editable.')
                 : `Repair the embedded \`\`\`base block in ${data.note}: run \`duo vault schema\` for real types/fields/enums, fix the YAML until \`duo base lint\` is clean, then verify with \`duo rollup show ${data.note}\`.`,
           })
+        } else if (sub === 'markdown') {
+          // ENH-244 — the Rollups tab's "Copy as Markdown" CLI twin. Prints
+          // the raw GFM table to stdout (pipe to pbcopy / a file) — title
+          // links point at the entity's GitHub blob when the vault root is
+          // inside a GitHub-remote repo, else a vault-relative link.
+          const target = positionalArgs(subRest, ['--vault'])[0]
+          if (!target) die('Usage: duo rollup markdown <note> [--vault <path>]')
+          const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
+          const result = await vault.rollupMarkdownTable(root, target)
+          if (result.error || result.markdown == null) die(`duo rollup markdown: ${result.error ?? 'could not render'}`)
+          process.stdout.write(result.markdown)
+        } else if (sub === 'delete') {
+          // ENH-248 R6 — GUI twin of the rail's Delete: removes the
+          // definition note AND its rendered artifact. Destructive →
+          // mechanically guarded: without --force it only PRINTS what
+          // would go (file history, ENH-221, remains the note's undo net).
+          const target = positionalArgs(subRest, ['--vault'])[0]
+          if (!target) die('Usage: duo rollup delete <note> --force [--vault <path>]')
+          const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
+          if (!subRest.includes('--force')) {
+            const resolved = vault.resolveRollupNote(root, target)
+            if (!resolved) die(`duo rollup delete: not a \`type: rollup\` note: ${target}`)
+            out({
+              root,
+              wouldDelete: [resolved.noteRel, ...(resolved.outRel ? [resolved.outRel] : [])],
+              note: 'dry run — re-run with --force to delete',
+            })
+            process.exit(1)
+          }
+          const res = vault.deleteRollup(root, target)
+          if (!res.ok) die(`duo rollup delete: ${res.error ?? 'failed'}`)
+          out({ root, deleted: res.deleted })
+        } else if (sub === 'duplicate') {
+          // ENH-248 R6 — copy a rollup note as "<Title> (copy)"; provenance
+          // (out/last_generated/last_hash) is stripped so the copy renders
+          // its own artifact on the next save/render.
+          const target = positionalArgs(subRest, ['--vault'])[0]
+          if (!target) die('Usage: duo rollup duplicate <note> [--vault <path>]')
+          const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
+          const res = vault.duplicateRollup(root, target)
+          if (!res.ok || !res.note) die(`duo rollup duplicate: ${res.error ?? 'failed'}`)
+          out({ root, note: res.note, absPath: res.absPath })
         } else {
           die(USAGE)
         }

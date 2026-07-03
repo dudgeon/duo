@@ -107,6 +107,24 @@ export {
   type RollupViewData,
   type RollupViewRow,
 } from './builder'
+// ENH-244 — "Copy as Markdown" for a rollup (GitHub blob links when the
+// vault is in a GitHub-remote repo, vault-relative links otherwise).
+export { rollupMarkdownTable, type RollupMarkdownResult } from './rollup-markdown'
+// ENH-250 — deterministic render+stamp shared by the Rollups tab's live-save
+// and the rendered artifact's "Refresh" button (no Claude required).
+export { renderAndStampRollup, type RenderRollupResult } from './rollup-render'
+// ENH-248 — rollup lifecycle (R6), artifact introspection for the Duo-native
+// toolbar (R2), ad-hoc type views (R7), GitHub link probing (R8).
+export {
+  deleteRollup,
+  duplicateRollup,
+  rollupArtifactInfo,
+  type DeleteRollupResult,
+  type DuplicateRollupResult,
+  type RollupArtifactInfo,
+} from './rollup-notes'
+export { modelViewData } from './builder'
+export { probeGitHubLinkBase, gitHubBlobUrl, type GitHubLinkBase } from './rollup-markdown'
 export {
   lintVault,
   lintBaseDef,
