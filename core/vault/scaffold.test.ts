@@ -103,7 +103,7 @@ describe('vault init (OKF — the new default, ENH-216 D2)', () => {
     expect(fs.existsSync(path.join(v, '.obsidian'))).toBe(false)
     expect(fs.existsSync(path.join(v, 'README.md'))).toBe(false)
     expect(fs.existsSync(path.join(v, 'bases'))).toBe(false)
-    expect(fs.existsSync(path.join(v, 'index.md'))).toBe(false) // ENH-243: not the legacy name
+    expect(fs.existsSync(path.join(v, 'index.md'))).toBe(false) // ENH-245: not the legacy name
     const idx = fs.readFileSync(path.join(v, '_index.md'), 'utf8')
     expect(idx).toContain('okf_version:')
     expect(idx).toContain('type: index')

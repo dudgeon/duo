@@ -1,4 +1,4 @@
-// ENH-244 — dual output-folder convention: `output/` is the default for
+// ENH-246 — dual output-folder convention: `output/` is the default for
 // anything Duo scaffolds fresh; the legacy `out/` (ENH-208/ENH-229) is still
 // detected and honored for a vault that already has one. Covers resolution,
 // scaffold defaults, and skip-set membership for both names.

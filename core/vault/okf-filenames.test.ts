@@ -1,4 +1,4 @@
-// ENH-243 — dual OKF listing-filename convention: `_index.md`/`_log.md` is
+// ENH-245 — dual OKF listing-filename convention: `_index.md`/`_log.md` is
 // the default for anything Duo writes fresh; `index.md`/`log.md` (the
 // original ENH-216/D4/D8 marker) is still detected and honored for vaults
 // that already use it. Covers detection, scaffold defaults, writeListings'

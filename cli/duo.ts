@@ -3010,7 +3010,7 @@ async function main(): Promise<void> {
           // root index (frontmatter byte-preserved) + log, and per-dir index
           // with --dir. --index-only / --log-only restrict the write. --open
           // surfaces the root index as a tab. OKF-mode-gated (throws in
-          // Obsidian mode — Obsidian stays byte-identical). ENH-243: the
+          // Obsidian mode — Obsidian stays byte-identical). ENH-245: the
           // filename follows whichever convention the vault already uses
           // (`_index.md` default, `index.md` legacy).
           const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)

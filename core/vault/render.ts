@@ -423,11 +423,11 @@ export interface RenderTargetResult {
 /** Stable source hash over the vault's note + base content — the staleness
  *  key stamped into rendered artifacts AND into the OKF generated listings
  *  (U3 `writeListings`). Exported (ENH-216) so `listings.ts` is the only
- *  consumer; the generated listing files themselves (ENH-243: either
+ *  consumer; the generated listing files themselves (ENH-245: either
  *  `_index.md`/`index.md` or `_log.md`/`log.md`) are EXCLUDED from the walk
  *  so a regenerated listing never perturbs its own hash. Shares the same
  *  `isGeneratedListingBasename` check as `listings.ts` so the two never
- *  drift apart on what counts as "generated" (they had, pre-ENH-243). */
+ *  drift apart on what counts as "generated" (they had, pre-ENH-245). */
 export function sourceHash(root: string): string {
   const all: string[] = []
   const stack = [root]

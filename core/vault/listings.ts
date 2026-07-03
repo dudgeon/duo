@@ -11,14 +11,14 @@
 //               we regex-replace ONLY the body after the closing `---`,
 //               between the shared `<!-- duo:listing -->` fence (co-owned
 //               with U2's scaffold, which writes the frontmatter + the empty
-//               fence). ENH-243: `_index.md` is the default for new vaults;
+//               fence). ENH-245: `_index.md` is the default for new vaults;
 //               `index.md` (parenthesized above) is the legacy filename,
 //               still detected and honored for vaults that already use it —
 //               see `./okf-filenames.ts` for the resolution order.
 //   _log.md   — OKF section-7: `## YYYY-MM-DD` groups, newest first, each note
 //   (log.md)    a bullet. Dates come from file mtimes (cheap + offline; git
 //               authorship would need a spawn — noted in the stamp). Same
-//               ENH-243 dual-convention resolution as the index.
+//               ENH-245 dual-convention resolution as the index.
 //
 // Every write is OKF-mode-GATED (`detectVaultMode`; throws in Obsidian mode —
 // Obsidian stays byte-identical, the frozen-fixture invariant). Each generated
@@ -84,7 +84,7 @@ function groupLabel(note: VaultFile): string {
 // ── index.md (OKF section-6) ──────────────────────────────────────────────────
 
 /** Should a note be excluded from listings entirely? The generated listing
- *  files themselves (either convention — ENH-243), and anything under the
+ *  files themselves (either convention — ENH-245), and anything under the
  *  always-skipped dirs the walk already drops. (`readNotes` already skips
  *  templates/out/.obsidian/.trash.) */
 function isGeneratedListing(relPath: string): boolean {
@@ -96,7 +96,7 @@ function isGeneratedListing(relPath: string): boolean {
  *  notes under `dir` (vault-relative; `''` / undefined → the whole vault).
  *  A heading per Type/Group, then `* [Title](rel) - description` bullets,
  *  links relative to the index file that will hold this body.
- *  `indexFilename` (ENH-243) is the actual filename the body will be spliced
+ *  `indexFilename` (ENH-245) is the actual filename the body will be spliced
  *  into — defaults to the vault's already-resolved convention. */
 export function generateIndex(root: string, dir = '', indexFilename?: string): string {
   const dirNorm = dir.replace(/^\/+|\/+$/g, '')
@@ -321,7 +321,7 @@ function spliceRootIndex(existingRaw: string, stamp: string, body: string): stri
  *  invariant). Writes the root index (frontmatter byte-preserved) + the root
  *  log; with `perDir`, also a per-subfolder index. Filenames follow whichever
  *  convention the vault already uses — `_index.md`/`_log.md` for a fresh
- *  vault, `index.md`/`log.md` for one that predates ENH-243 (resolved once
+ *  vault, `index.md`/`log.md` for one that predates ENH-245 (resolved once
  *  per call via {@link resolveIndexFilename}/{@link resolveLogFilename}).
  *  Each file carries a `<!-- duo:generated … source-hash … -->` stamp. */
 export function writeListings(root: string, opts: WriteListingsOptions = {}): WriteListingsResult {

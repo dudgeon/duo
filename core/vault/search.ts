@@ -19,7 +19,7 @@ import type { SearchHit } from './types'
  *  template files. The graph/parse walk excludes `templates/` (parse.ts
  *  SKIP_DIRS, D5) — but search wants them. This search-only skip-set omits
  *  `templates` while still skipping Obsidian internals and rendered output
- *  (`output/`/`out/`, ENH-244). Do NOT broaden parse.ts's SKIP_DIRS to
+ *  (`output/`/`out/`, ENH-246). Do NOT broaden parse.ts's SKIP_DIRS to
  *  match — graph behavior must not change. */
 export const SEARCH_SKIP_DIRS = new Set(['.obsidian', '.trash', ...OUTPUT_DIR_NAMES])
 

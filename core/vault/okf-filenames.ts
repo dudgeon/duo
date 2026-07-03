@@ -1,4 +1,4 @@
-// ENH-243 — OKF generated-listing filenames (index + log). Two conventions
+// ENH-245 — OKF generated-listing filenames (index + log). Two conventions
 // coexist: the underscore-prefixed default (`_index.md` / `_log.md`, sorts
 // to the top of a folder and reads unambiguously as "generated," per the
 // owner's updated primary-vault convention) and the legacy plain form

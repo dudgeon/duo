@@ -28,7 +28,7 @@ depends on the vault's format. The format marker is the source of truth:
 is input-only everywhere; on resolve, OKF rewrites it to a rel-md link,
 Obsidian keeps the wikilink. **No `[[wikilink]]` ever persists in OKF mode.**
 
-**Dual index/log filename convention (ENH-243).** `_index.md`/`_log.md` is the
+**Dual index/log filename convention (ENH-245).** `_index.md`/`_log.md` is the
 default for any listing Duo writes fresh (sorts to the top of a folder, reads
 unambiguously as generated); `index.md`/`log.md` is the legacy ENH-216/D4/D8
 pair, still detected and honored for vaults that already use it. Detection

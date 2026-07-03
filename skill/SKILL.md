@@ -241,7 +241,7 @@ filesystem directly — no running app needed):
   - **Obsidian mode** → live **`.base`** files (Obsidian Bases YAML),
     rendered with `duo base render`.
   - **OKF mode** → at-rest **static listings** (`_index.md`/`index.md` +
-    `_log.md`/`log.md` — ENH-243: underscore-prefixed is the default, plain
+    `_log.md`/`log.md` — ENH-245: underscore-prefixed is the default, plain
     is the legacy form, both detected) via `duo vault publish` (the root
     index can carry a `listing:` spec
     for a grouped, engine-driven body — ENH-230). OKF doesn't *auto-render*
@@ -289,7 +289,7 @@ remains the path for anything richer:
    surgically. (`duo base render` is the lower-level twin with no stamp.)
 
 **In OKF mode, the at-rest listings are `_index.md`/`index.md` +
-`_log.md`/`log.md`** (ENH-243 dual convention, whichever the vault already
+`_log.md`/`log.md`** (ENH-245 dual convention, whichever the vault already
 uses) — `duo vault publish` (re)generates them from the corpus (the root
 index can carry a
 `listing:` spec for a grouped, engine-driven body — ENH-230). OKF doesn't

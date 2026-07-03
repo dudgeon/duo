@@ -233,7 +233,7 @@ function readmeText(name: string): string {
   ].join('\n')
 }
 
-// The OKF root index (ENH-216, D4 + D8; ENH-243: `_index.md` default,
+// The OKF root index (ENH-216, D4 + D8; ENH-245: `_index.md` default,
 // `index.md` legacy). Its frontmatter is the OKF
 // in-vault MARKER (`okf_version` — what `detectVaultMode` keys on) plus the
 // vault title + `type: index` (D10: every OKF note is type-stamped, root is
@@ -273,7 +273,7 @@ export interface InitResult {
  *  deliberate asymmetry with the CLI, where `--format` is REQUIRED (the CLI
  *  layer enforces that, not this fn). `obsidian` reproduces the legacy
  *  scaffold BYTE-FOR-BYTE (a `.obsidian/` marker, `.base` rollups, a README);
- *  `okf` writes a root index marker (ENH-243 default `_index.md`) + static-listing seed, the same
+ *  `okf` writes a root index marker (ENH-245 default `_index.md`) + static-listing seed, the same
  *  templates minus the embedded `.base` block, and NO README / NO `bases/`. */
 export function initVault(
   folder: string,
@@ -301,7 +301,7 @@ export function initVault(
   // without --force), leaving the folder un-marked — and the caller's
   // setDefaultVault then throws confusingly. This is the data-safety guard:
   // never clobber the user's existing file. Checks BOTH conventions
-  // (ENH-243: `_index.md` and legacy `index.md`). Obsidian mode marks via
+  // (ENH-245: `_index.md` and legacy `index.md`). Obsidian mode marks via
   // `.obsidian/` and never writes an index file, so it's unaffected.
   // `--force` is the documented escape hatch (overwrites it).
   if (mode === 'okf' && !opts.force) {
@@ -355,7 +355,7 @@ export function initVault(
 
     // The root index is co-owned: this writes the frontmatter marker + the
     // `<!-- duo:listing -->` body seed; the listings generator (U3)
-    // regex-replaces ONLY the body after the frontmatter (D8). ENH-243: new
+    // regex-replaces ONLY the body after the frontmatter (D8). ENH-245: new
     // vaults default to the underscore-prefixed filename.
     writeFile(OKF_INDEX_FILENAME_DEFAULT, okfRootIndex(title))
     // Same templates as Obsidian, type-stamped, MINUS the embedded `.base`

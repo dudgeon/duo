@@ -6,7 +6,7 @@
 // ENH-216 OKF mode — a vault now detects in one of TWO modes (D4). The
 // IN-VAULT marker is the source of truth (never a registry/prefs key):
 //   okf       — root index carries an `okf_version` frontmatter field
-//               (ENH-243: `_index.md` OR the legacy `index.md`).
+//               (ENH-245: `_index.md` OR the legacy `index.md`).
 //   obsidian  — the legacy default: a `.obsidian/` directory at the root.
 // `okf_version` WINS if both markers are present (D4 tie-break).
 
@@ -19,7 +19,7 @@ import { OUTPUT_DIR_NAMES } from './output-dir'
 
 /** Read the `okf_version` field from a vault root's index frontmatter (the
  *  OKF marker, D4 — the ROOT index ONLY). Checks `_index.md` then the legacy
- *  `index.md` (ENH-243), returning the version string from whichever candidate
+ *  `index.md` (ENH-245), returning the version string from whichever candidate
  *  carries `okf_version` first, or null when NEITHER does. A candidate that
  *  exists but lacks `okf_version` (e.g. a stray `_index.md` note with no
  *  frontmatter) does NOT short-circuit the search — review fix: the original
@@ -115,7 +115,7 @@ export function findVaultWithMode(startPath: string): { root: string; mode: Vaul
 
 // `templates` is excluded so `vault list`'s noteCount matches what the
 // corpus / search / graph count as entities (D5 query-exclusion) — the
-// PR1 review flagged the prior inconsistency. `output`/`out` (ENH-244) is
+// PR1 review flagged the prior inconsistency. `output`/`out` (ENH-246) is
 // the rendered-artifact folder, either convention.
 const SCAN_SKIP = new Set(['node_modules', '.git', '.obsidian', '.trash', ...OUTPUT_DIR_NAMES, 'templates'])
 

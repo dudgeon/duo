@@ -1,4 +1,4 @@
-// ENH-244 — the rendered-artifact output folder. `output/` is the default
+// ENH-246 — the rendered-artifact output folder. `output/` is the default
 // for any newly scaffolded vault (reads unambiguously vs. the generic word
 // "out"); the legacy `out/` (ENH-208/ENH-229) is still detected and honored
 // for a vault that already has one. Mode-agnostic: both OKF and Obsidian

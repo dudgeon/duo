@@ -55,7 +55,7 @@ when no flag is given. Rollups default to **`<vault>/rollups/`** (`--out <path>`
 writes elsewhere); `--open` surfaces it as a tab. Every artifact opens with an
 agent-visible HTML comment explaining it's a generated rollup + how to
 regenerate it — so a fresh agent that finds the file isn't confused. The
-`rollups/` (and `output/`/legacy `out/`, ENH-244) folders are excluded from the corpus, so a rollup never
+`rollups/` (and `output/`/legacy `out/`, ENH-246) folders are excluded from the corpus, so a rollup never
 rolls up into itself (the rollup NOTES in `rollups/` are still discovered by
 `duo rollup list`, a `type == rollup` query — they're typed notes, not
 artifacts).

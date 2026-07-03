@@ -2440,11 +2440,11 @@ function setupIPC(): void {
   // (initVault → rememberVault → setDefaultVault). `format` is required from
   // the dialog (the dialog defaults to OKF per D2; initVault's own default is
   // also OKF, so an omitted format is harmless). `openPath` is what Stage 4
-  // opens after a successful create: the OKF root index (D4/D8 — ENH-243:
+  // opens after a successful create: the OKF root index (D4/D8 — ENH-245:
   // `_index.md` for a fresh vault, `index.md` for a legacy one, resolved via
   // vaultCore.resolveIndexFilename rather than hardcoded — review fix; the
   // hardcoded literal silently broke this for every OKF vault created after
-  // ENH-243 shipped, since it never matched the new default and fell through
+  // ENH-245 shipped, since it never matched the new default and fell through
   // to a README.md that OKF mode never writes), else the legacy README.md
   // (Obsidian mode), absolute either way.
   ipcMain.handle(
