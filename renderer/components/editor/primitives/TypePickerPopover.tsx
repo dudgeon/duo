@@ -53,6 +53,12 @@ export function TypePickerPopover({ vaultRoot, name, anchorRect, onCreated, onCa
   // ref so the closure always sees the latest choices/busy state.
   const busyRef = useRef(busy)
   busyRef.current = busy
+  // BUG-254 — Enter/Tab pressed before `types` resolves used to be silently
+  // dropped (no pick, no feedback) and left the popover open, quietly
+  // capturing every keystroke typed afterward as a type filter. Queue it
+  // here instead; the effect after `pick` below fires it the instant the
+  // registry loads.
+  const pendingConfirmRef = useRef(false)
 
   // Load the vault's template registry once. {ok:false} renders the
   // error but keeps the picker open — the new-type row still works
@@ -138,6 +144,20 @@ export function TypePickerPopover({ vaultRoot, name, anchorRect, onCreated, onCa
     }
   }
 
+  // BUG-254 — fires a queued Enter/Tab (see pendingConfirmRef above) the
+  // instant the registry resolves, against whatever's filtered/highlighted
+  // at THAT moment. Only runs on the loading→loaded transition (the `types`
+  // dep); `choices`/`activeIdx` are read fresh from this render's closure,
+  // which is what we want — the pick reflects the latest filter, not a
+  // stale snapshot from when Enter was first pressed.
+  useEffect(() => {
+    if (types === null || !pendingConfirmRef.current) return
+    pendingConfirmRef.current = false
+    const picked = choices[activeIdx]
+    if (picked) void pick(picked)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [types])
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault()
@@ -154,6 +174,13 @@ export function TypePickerPopover({ vaultRoot, name, anchorRect, onCreated, onCa
       // never tab focus out of the open popover into the editor below.
       e.preventDefault()
       e.stopPropagation()
+      if (types === null) {
+        // BUG-254 — registry not loaded yet (a fast double-Enter right
+        // after the wikilink create-row routinely beats this IPC). Queue
+        // instead of silently dropping it — see the effect above.
+        pendingConfirmRef.current = true
+        return
+      }
       const picked = choices[activeIdx]
       if (picked) void pick(picked)
       return
@@ -233,6 +260,16 @@ export function TypePickerPopover({ vaultRoot, name, anchorRect, onCreated, onCa
           </button>
         ))}
       </div>
+      {/* BUG-254 (H2) — a "+ new type" template has no folder/folderNote
+          (createType() writes a minimal templates/<type>.md), so its
+          entities always residue to notes/YYYY/MM until someone edits the
+          template. Surface that up front rather than let it be a silent
+          surprise. */}
+      {choices.some((c) => c.kind === 'new') && (
+        <div className="duo-suggestion-more">
+          New types start without a folder — their notes file under notes/YYYY/MM until you add one to templates/&lt;type&gt;.md.
+        </div>
+      )}
       {error && (
         <div className="px-3 py-1.5 text-[11px] text-red-500">{error}</div>
       )}
