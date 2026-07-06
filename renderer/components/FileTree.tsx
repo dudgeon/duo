@@ -28,6 +28,7 @@ import { isClaudeContextPath } from './claudeContextPath'
 import type { NavigatorState, NavigatorActions } from '../hooks/useNavigator'
 import type { NavPinsApi } from '../hooks/useNavPins'
 import { DUO_FS_PATH_MIME, formatPathsForTerminal } from './dragPathPayload'
+import { PullModal } from './PullModal'
 
 /** Return the parent directory of an absolute POSIX-style path. */
 function parentDir(absPath: string): string {
@@ -109,6 +110,13 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
   // in rename mode; null means no row is being renamed. Local to the tree
   // because rename is a transient renderer-side state (no IPC mirror).
   const [renamingPath, setRenamingPath] = useState<string | null>(null)
+
+  // ENH-253 — "Pull latest changes" modal, opened from the repo-root
+  // right-click item. Local renderer state (no IPC round-trip needed —
+  // unlike Clone, this action only ever launches from FileTree's own
+  // right-click, never from the app menu or the Open bar).
+  const [pullModalOpen, setPullModalOpen] = useState(false)
+  const [pullModalCwd, setPullModalCwd] = useState<string | null>(null)
 
   // ENH-152a v2 — git status for the navigator's current cwd.
   // Refreshed on cwd change + on window focus. fsevents-driven
@@ -648,6 +656,20 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
       case 'open-in-split':
         if (!isFolder && onOpenInSplit) onOpenInSplit(target.path)
         return
+      case 'pull-latest': {
+        // ENH-253 — Navigator right-click → "Pull latest changes" on any
+        // git repo ROOT folder. Mirrors the peer-snap-preferred lookup
+        // "Open on GitHub" uses (BUG-132 rev2): when the navigator is at
+        // a parent dir, prefer the peer-repo's own snapshot over the
+        // outer cwd's.
+        if (!isFolder) return
+        const peerSnap = childRepoMap?.get(target.path)
+        const effectiveSnap = peerSnap?.isRepo ? peerSnap : gitSnap
+        if (!effectiveSnap?.workTreeRoot) return
+        setPullModalCwd(effectiveSnap.workTreeRoot)
+        setPullModalOpen(true)
+        return
+      }
       case 'clone-github-here':
         // FOLLOWUP-025 v2 — Navigator right-click → "Clone GitHub repo
         // here…". Open the modal with the target path as the default
@@ -736,13 +758,20 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
     // ACTUAL peer-repo root, the menu items still apply.
     const inGhRepo = (!!gitSnap?.isRepo && !ribbonSuppressed && !!gitSnap.workTreeRoot &&
       target.path.startsWith(gitSnap.workTreeRoot)) || !!peerSnap?.isRepo
+    // ENH-253 — target is a repo ROOT (stricter than inGhRepo's "inside a
+    // repo"): either it IS the cwd's own repo root (reachable via the
+    // ribbon/pill or whitespace on a repo-rooted cwd), or it's a peer-repo
+    // root row. "Pull latest changes" only makes sense on the root itself.
+    const isRepoRoot = (!!gitSnap?.isRepo && !ribbonSuppressed && !!gitSnap.workTreeRoot &&
+      target.path === gitSnap.workTreeRoot) || !!peerSnap?.isRepo
     const items = buildTreeMenuTemplate({
       target,
       whitespaceMode,
       navPins,
       onOpenInSplit,
       batchSize,
-      inGhRepo
+      inGhRepo,
+      isRepoRoot
     })
     if (items.length === 0) return
     const result = await window.electron.menu.popup({
@@ -1013,6 +1042,11 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
         activeFilePath={activeFilePath}
         childRepoMap={childRepoMap}
         dirtyFileMap={dirtyFileMap}
+      />
+      <PullModal
+        open={pullModalOpen}
+        cwd={pullModalCwd}
+        onClose={() => { setPullModalOpen(false); setPullModalCwd(null) }}
       />
     </div>
   )
@@ -1294,6 +1328,11 @@ function buildTreeMenuTemplate(opts: {
    *  right-click. When true, the menu adds "Open on GitHub" + "Copy
    *  GitHub URL" items. */
   inGhRepo?: boolean
+  /** ENH-253 — true when the right-clicked target IS a git repo root
+   *  (stricter than inGhRepo's "somewhere inside a repo"). Adds "Pull
+   *  latest changes". Caller computes this from the cached snapshot(s);
+   *  no per-right-click probe. */
+  isRepoRoot?: boolean
 }): MenuTemplateItem[] {
   const { target, whitespaceMode, navPins, onOpenInSplit, batchSize = 0 } = opts
   const isFolder = target.kind === 'directory'
@@ -1333,6 +1372,16 @@ function buildTreeMenuTemplate(opts: {
     items.push({ type: 'separator' })
     items.push({ id: 'open-on-github', label: 'Open on GitHub' })
     items.push({ id: 'copy-github-url', label: 'Copy GitHub URL' })
+  }
+
+  // ENH-253 — "Pull latest changes" on a git repo ROOT folder only
+  // (reachable via the ribbon/pill right-click or a peer-repo root row —
+  // see FileTree's isRepoRoot computation). Fetches + fast-forwards/
+  // merges; a dirty tree or a real conflict is handled by the PullModal
+  // this opens, not here.
+  if (opts.isRepoRoot) {
+    items.push({ type: 'separator' })
+    items.push({ id: 'pull-latest', label: 'Pull latest changes' })
   }
 
   // FOLLOWUP-025 v2 — "Clone GitHub repo here…" on folders and

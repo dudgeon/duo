@@ -18,3 +18,17 @@ export function looksLikeAuthFailure(stderr: string): boolean {
     s.includes('gh auth login')
   )
 }
+
+/** Heuristic: does this stderr read like "the remote/URL doesn't exist" (bad
+ *  URL / typo / private repo the user can't see) rather than a real failure?
+ *  Pure. ENH-253 — hoisted out of clone.ts's private copy so clone/pull share
+ *  one classifier instead of drifting. */
+export function looksLikeBadUrl(stderr: string): boolean {
+  const s = (stderr || '').toLowerCase()
+  return (
+    s.includes('repository not found') ||
+    s.includes('not found') ||
+    s.includes('does not exist') ||
+    s.includes('invalid url')
+  )
+}

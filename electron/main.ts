@@ -3045,6 +3045,17 @@ function setupIPC(): void {
     return createWorktree(cwd, { name, fromRef })
   })
 
+  // ENH-253 — "Pull latest changes" (renderer → main). The navigator's
+  // repo-root context-menu item calls this; it writes git state via the
+  // same core function the CLI `duo pull` uses.
+  ipcMain.handle(IPC.GIT_PULL, async (
+    _event,
+    { cwd, force }: { cwd: string; force?: boolean }
+  ) => {
+    const { runPull } = await import('../core/git/pull')
+    return runPull(cwd, { force })
+  })
+
   // ENH-182 — D2 marker probe (renderer → main). Returns true if
   // `dir` contains a CLAUDE.md file or a .claude/ subdirectory.
   // Used by useProjects to detect project markers for dirs the
