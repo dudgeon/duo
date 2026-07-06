@@ -269,6 +269,20 @@ outside the builder dialect (formulas, view filters, OR groups) is shown
 view-only in the GUI (still renders fine). The hand-authoring loop below
 remains the path for anything richer:
 
+**Membership + declared buckets (ENH-255).** Two per-track-rollup workhorses:
+`--filter 'tracks~=q3-launch'` keeps rows whose MULTI-VALUED `tracks` list
+contains that note — matched on the linked note's IDENTITY, so
+`[[Q3 Launch]]`, `[[q3-launch]]` and `[[q3-launch|Growth]]` all hit
+(expression form: `list(tracks).contains("q3-launch")`). And
+`--bucket 'primary=Primary track activity' --bucket 'monitored=Monitored'`
+(needs `--group`) declares level-1 buckets that ALWAYS render — even with
+zero rows (an empty bucket is signal) — in flag order, under those labels;
+undeclared values trail alphabetically. In hand-authored YAML this is the
+view's `groups:` key (`- value: primary` / `  label: …`). **A filter that
+can't be evaluated is now SURFACED** — ⚠ stderr + `warnings[]` in render/show
+JSON + a banner in the artifact — so always check `warnings` before trusting
+a zero-row rollup.
+
 **Lifecycle + sharing (ENH-244/ENH-248).** `duo rollup markdown <note>` —
 "Copy as Markdown" twin: prints one GFM table to stdout, title cells linked
 to the entity's GitHub blob (vault root is a GitHub-remote repo) or a

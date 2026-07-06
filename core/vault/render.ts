@@ -23,6 +23,7 @@ import {
   buildEngineFiles,
   evalExpr,
   passes,
+  memberEq,
   DuoDate,
   Link,
   isEvalError,
@@ -39,8 +40,43 @@ export interface BaseView {
   type: string
   order: string[]
   groupBy?: { property: string; direction?: string }
+  /** ENH-255 — declared buckets: with groupBy set, these groups always render
+   *  (even empty), in this order, under `label` (else the raw value). Entries
+   *  may be bare strings (value only) in hand-authored specs. Duo extension —
+   *  Obsidian ignores unknown view keys, so the .base stays loadable there. */
+  groups?: unknown
   summaries?: Record<string, string>
   filters?: unknown
+}
+
+/** A normalized declared bucket (ENH-255). */
+export interface DeclaredGroup {
+  value: string
+  label?: string
+}
+
+/** One filter expression that failed to evaluate, with how many rows it
+ *  failed on (ENH-255 — surfaced, never silently an empty view). */
+export interface FilterError {
+  expr: string
+  error: string
+  count: number
+}
+
+function normalizeDeclaredGroups(raw: unknown): DeclaredGroup[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const out: DeclaredGroup[] = []
+  for (const item of raw) {
+    if (typeof item === 'string') out.push({ value: item })
+    else if (item && typeof item === 'object' && typeof (item as { value?: unknown }).value === 'string') {
+      const label = (item as { label?: unknown }).label
+      out.push({
+        value: (item as { value: string }).value,
+        ...(typeof label === 'string' ? { label } : {}),
+      })
+    }
+  }
+  return out.length ? out : undefined
 }
 export interface BaseDef {
   filters?: unknown
@@ -54,8 +90,14 @@ export interface EvaluatedView {
   type: string
   order: string[]
   groupBy?: { property: string; direction?: string }
+  /** Declared buckets (ENH-255), normalized; undefined = derive from rows. */
+  groups?: DeclaredGroup[]
   summaries?: Record<string, string>
   rows: EngineFile[]
+  /** Filter expressions that errored while evaluating this view (ENH-255).
+   *  Non-empty means some rows were dropped WITHOUT being genuinely filtered
+   *  — every serializer must surface these. */
+  filterErrors: FilterError[]
 }
 export interface EvaluatedBase {
   formulas: Record<string, unknown>
@@ -93,19 +135,105 @@ export function evaluateBaseDef(
   const propCfg = def.properties || {}
   const views: EvaluatedView[] = []
   for (const view of def.views || []) {
+    // ENH-255 — collect filter eval-errors, deduped per expression (one entry
+    // per broken filter with a failed-row count, not one per row).
+    const errs = new Map<string, FilterError>()
+    const onError = (expr: string, error: string) => {
+      const cur = errs.get(expr)
+      if (cur) cur.count++
+      else errs.set(expr, { expr, error, count: 1 })
+    }
     const rows = files.filter(
-      (f) => passes(def.filters, f, thisFile, formulas, asOf) && passes(view.filters, f, thisFile, formulas, asOf),
+      (f) =>
+        passes(def.filters, f, thisFile, formulas, asOf, onError) &&
+        passes(view.filters, f, thisFile, formulas, asOf, onError),
     )
     views.push({
       name: view.name || view.type,
       type: view.type,
       order: view.order || ['file.name'],
       groupBy: view.groupBy,
+      groups: normalizeDeclaredGroups(view.groups),
       summaries: view.summaries,
       rows,
+      filterErrors: [...errs.values()],
     })
   }
   return { formulas, propCfg, views }
+}
+
+// ── grouping (shared by the HTML + Markdown serializers) ───────────────────
+
+/** One rendered group of a grouped view (ENH-255). `raw` is the group's
+ *  underlying value (a Link for entity groups — the header-link affordance);
+ *  null for a declared-but-empty bucket. */
+export interface GroupBucket {
+  /** The derived group key (display text) — stable across serializers. */
+  key: string
+  /** The header label: the declared bucket's `label`, else the key. */
+  label: string
+  raw: unknown
+  rows: EngineFile[]
+  /** True when this bucket came from the view's `groups:` declaration. */
+  declared: boolean
+}
+
+/** Group a view's rows (ENH-255 — ONE implementation for both serializers).
+ *  Declared buckets render first, in declaration order, under their labels —
+ *  and always render, even with zero rows. A declared value matches its
+ *  bucket by identity (memberEq — a Link group folds through targetKey, so
+ *  `value: q3-launch` matches rows whose field says `[[Q3 Launch]]`).
+ *  Undeclared buckets follow in the legacy alpha order (DESC honored).
+ *  Returns null for an ungrouped view. */
+export function bucketRows(
+  view: EvaluatedView,
+  formulas: Record<string, unknown>,
+  thisFile: EngineFile | null,
+  asOf: Date,
+): GroupBucket[] | null {
+  if (!view.groupBy) return null
+  const derived = new Map<string, { raw: unknown; rows: EngineFile[] }>()
+  for (const f of view.rows) {
+    const v = readCol(view.groupBy.property, f, thisFile, formulas, asOf)
+    const key = v == null ? '—' : String(v instanceof Link ? v.display : v)
+    if (!derived.has(key)) derived.set(key, { raw: v, rows: [] })
+    derived.get(key)!.rows.push(f)
+  }
+  const out: GroupBucket[] = []
+  const used = new Set<string>()
+  for (const g of view.groups ?? []) {
+    let matched: string | null = null
+    for (const [key, b] of derived) {
+      if (used.has(key)) continue
+      if (memberEq(b.raw ?? key, g.value)) {
+        matched = key
+        break
+      }
+    }
+    if (matched) {
+      used.add(matched)
+      const b = derived.get(matched)!
+      out.push({ key: matched, label: g.label ?? matched, raw: b.raw, rows: b.rows, declared: true })
+    } else {
+      out.push({ key: g.value, label: g.label ?? g.value, raw: null, rows: [], declared: true })
+    }
+  }
+  const rest = [...derived.keys()].filter((k) => !used.has(k)).sort((a, b) => a.localeCompare(b))
+  if (String(view.groupBy.direction).toUpperCase() === 'DESC') rest.reverse()
+  for (const k of rest) {
+    const b = derived.get(k)!
+    out.push({ key: k, label: k, raw: b.raw, rows: b.rows, declared: false })
+  }
+  return out
+}
+
+/** Human-readable lines for a view's filter errors (ENH-255) — shared wording
+ *  across the HTML banner, the Markdown blockquote, the GUI chip, and the CLI
+ *  stderr warning, so the four surfaces never drift. */
+export function filterErrorLines(view: EvaluatedView): string[] {
+  return view.filterErrors.map(
+    (e) => `filter \`${e.expr}\` failed on ${e.count} note${e.count === 1 ? '' : 's'}: ${e.error}`,
+  )
 }
 
 // ── HTML emitter (Duo-owned) ────────────────────────────────────────────────
@@ -282,35 +410,19 @@ function renderTable(
 ): string {
   const order = view.order
   const head = '<tr>' + order.map((p) => '<th>' + esc(colLabel(p, propCfg)) + '</th>').join('') + '</tr>'
-  const groups = new Map<string | null, EngineFile[]>()
-  const groupRaw = new Map<string | null, unknown>()
-  if (view.groupBy) {
-    for (const f of view.rows) {
-      const v = readCol(view.groupBy.property, f, thisFile, formulas, asOf)
-      const key = v == null ? '—' : String(v instanceof Link ? v.display : v)
-      if (!groups.has(key)) {
-        groups.set(key, [])
-        groupRaw.set(key, v)
-      }
-      groups.get(key)!.push(f)
-    }
-  } else {
-    groups.set(null, view.rows)
-  }
-  const keys = [...groups.keys()].sort((a, b) => String(a).localeCompare(String(b)))
-  if (view.groupBy && String(view.groupBy.direction).toUpperCase() === 'DESC') keys.reverse()
+  // ENH-255 — grouping (incl. declared buckets + their order/labels) is the
+  // shared bucketRows; this serializer only renders what it returns.
+  const buckets = bucketRows(view, formulas, thisFile, asOf)
 
   let html = '<table>' + head
-  for (const key of keys) {
-    const gRows = groups.get(key)!
-    if (key !== null) {
+  for (const b of buckets ?? [{ key: '', label: '', raw: null, rows: view.rows, declared: false }]) {
+    if (buckets) {
       // ENH-229 req #6 — link the group header to its entity note when the
       // grouped value is a Link that resolves to a corpus note.
-      const raw = groupRaw.get(key)
-      let label = esc(key)
-      if (linkCtx && raw instanceof Link) {
-        const href = linkCtx.resolveLink(raw)
-        if (href) label = '<a class="wikilink" href="' + esc(href) + '">' + esc(key) + '</a>'
+      let label = esc(b.label)
+      if (linkCtx && b.raw instanceof Link) {
+        const href = linkCtx.resolveLink(b.raw)
+        if (href) label = '<a class="wikilink" href="' + esc(href) + '">' + esc(b.label) + '</a>'
       }
       html +=
         '<tr class="group"><td colspan="' +
@@ -318,12 +430,16 @@ function renderTable(
         '">' +
         label +
         ' <span class="count">(' +
-        gRows.length +
+        b.rows.length +
         ')</span>' +
-        summaryInline(gRows, view, formulas, thisFile, asOf, linkCtx) +
+        summaryInline(b.rows, view, formulas, thisFile, asOf, linkCtx) +
         '</td></tr>'
+      // A declared-but-empty bucket still renders — the empty state IS signal.
+      if (b.declared && b.rows.length === 0) {
+        html += '<tr><td colspan="' + order.length + '" class="empty">— none —</td></tr>'
+      }
     }
-    for (const f of gRows) {
+    for (const f of b.rows) {
       html +=
         '<tr>' +
         order.map((p) => '<td>' + htmlCell(p, f, readCol(p, f, thisFile, formulas, asOf), linkCtx) + '</td>').join('') +
@@ -406,6 +522,10 @@ export function renderBaseSection(
   let html = '<section class="base"><h2>' + esc(label) + '</h2>'
   for (const view of evaluated.views) {
     html += '<h3>' + esc(view.name) + ' <span class="count">' + view.rows.length + ' rows</span></h3>'
+    // ENH-255 — a broken filter must never read as a legitimately-empty view.
+    for (const line of filterErrorLines(view)) {
+      html += '<div class="filter-warn">⚠ ' + esc(line) + '</div>'
+    }
     if (view.type === 'list') html += renderList(view, evaluated.formulas, thisFile, asOf, linkCtx)
     else if (view.type === 'cards') html += renderCards(view, evaluated.formulas, thisFile, asOf, linkCtx)
     else html += renderTable(view, evaluated.formulas, thisFile, evaluated.propCfg, asOf, linkCtx)
@@ -671,6 +791,8 @@ a.wikilink:hover { border-bottom-style:solid; }
 .rl-btn:hover { border-color:var(--ink-ghost); }
 .empty { color:var(--ink-ghost); }
 .err { color:var(--fail); font-size:11px; }
+.filter-warn { background:#fdf3f2; border:1px solid #e0b8b5; border-left:3px solid var(--fail);
+  border-radius:0 4px 4px 0; color:var(--fail); font-size:12px; padding:6px 10px; margin:4px 0 8px; }
 .baselist { margin:6px 0 14px; }
 .cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px; margin:6px 0 14px; }
 .card { background:white; border:1px solid var(--paper-rule); border-radius:6px; padding:10px 12px; }

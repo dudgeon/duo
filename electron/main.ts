@@ -2743,6 +2743,7 @@ function setupIPC(): void {
           title: type,
           types: [type],
           groupBy: [],
+          buckets: [],
           filters: [],
           columns,
         })

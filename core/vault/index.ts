@@ -60,10 +60,15 @@ export {
   renderTarget,
   evaluateBaseDef,
   readCol,
+  bucketRows,
+  filterErrorLines,
   type RenderTargetResult,
   type EvaluatedBase,
   type EvaluatedView,
   type BaseDef,
+  type DeclaredGroup,
+  type FilterError,
+  type GroupBucket,
 } from './render'
 // ENH-229 phase 2 — rollup product layer (change-summary diff + embedding).
 export {
@@ -98,6 +103,7 @@ export {
   entityPanel,
   rollupViewData,
   type RollupBuilderModel,
+  type BuilderBucket,
   type BuilderFilter,
   type BuilderFilterOp,
   type CreateRollupResult,

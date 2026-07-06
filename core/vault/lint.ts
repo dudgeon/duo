@@ -71,7 +71,7 @@ const VIEW_TYPES = ['table', 'cards', 'list', 'map']
 interface BaseDefLike {
   filters?: unknown
   formulas?: Record<string, unknown>
-  views?: { name?: string; type?: string; filters?: unknown }[]
+  views?: { name?: string; type?: string; filters?: unknown; groupBy?: unknown; groups?: unknown }[]
 }
 
 function collectExprs(node: unknown, out: string[]): void {
@@ -146,6 +146,20 @@ export function lintBaseDef(def: BaseDefLike, corpus: Corpus): LintFinding[] {
   // structural: view types
   for (const v of def.views || []) {
     if (v.type && !VIEW_TYPES.includes(v.type)) add('error', `view "${v.name || v.type}" — unknown view type "${v.type}"`)
+    // ENH-255 — declared buckets: only meaningful under a groupBy, and every
+    // entry needs a value (a bare string or {value, label}).
+    if (v.groups != null) {
+      const vn = v.name || v.type || 'view'
+      if (!v.groupBy) add('warn', `view "${vn}" — groups: declared without groupBy (buckets have nothing to group)`)
+      if (!Array.isArray(v.groups)) {
+        add('error', `view "${vn}" — groups: must be a list of values or {value, label} entries`)
+      } else {
+        for (const g of v.groups) {
+          const ok = typeof g === 'string' || (g && typeof g === 'object' && typeof (g as { value?: unknown }).value === 'string')
+          if (!ok) add('error', `view "${vn}" — groups: entry needs a string value (got ${JSON.stringify(g)})`)
+        }
+      }
+    }
   }
   return findings
 }

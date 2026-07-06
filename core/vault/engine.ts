@@ -115,6 +115,19 @@ function gbEq(a: unknown, b: unknown): boolean {
   return name(a) === name(b)
 }
 
+/** Identity-folded element equality for membership predicates (ENH-255).
+ *  When either side is a Link, both fold through targetKey so the match keys
+ *  off the linked note's IDENTITY (`Q3 Launch` ≡ `q3-launch`), never its
+ *  display alias. Plain scalars compare loosely by string so `"3" == 3`
+ *  frontmatter drift doesn't break membership. */
+export function memberEq(el: unknown, probe: unknown): boolean {
+  if (el instanceof Link || probe instanceof Link) {
+    const keyOf = (v: unknown) => targetKey(String(v instanceof Link ? v.target : v), 'wikilink')
+    return keyOf(el) === keyOf(probe)
+  }
+  return el === probe || String(el) === String(probe)
+}
+
 /** An engine-side note object — the shape `.base` expressions see as a row
  *  (`file.*`) and as link targets. Mirrors render.mjs's file objects. */
 export interface EngineFile {
@@ -309,6 +322,29 @@ function ensureEngineGlobals(): void {
       configurable: true,
     })
   }
+  // ENH-255 — Bases membership predicates. The lint vocabulary always listed
+  // contains/containsAll/containsAny, but the engine never implemented them,
+  // so a multi-valued filter linted clean yet errored at eval (and `passes`
+  // used to swallow that as an empty view). List membership folds Link
+  // identity via memberEq; string contains is a plain substring probe.
+  const def = (proto: object, name: string, value: unknown) => {
+    if (!(name in proto)) {
+      Object.defineProperty(proto, name, { value, enumerable: false, writable: true, configurable: true })
+    }
+  }
+  const probesOf = (args: unknown[]): unknown[] => (args.length === 1 && Array.isArray(args[0]) ? args[0] : args)
+  def(Array.prototype, 'contains', function (this: unknown[], probe: unknown) {
+    return this.some((el) => memberEq(el, probe))
+  })
+  def(Array.prototype, 'containsAny', function (this: unknown[], ...args: unknown[]) {
+    return probesOf(args).some((p) => this.some((el) => memberEq(el, p)))
+  })
+  def(Array.prototype, 'containsAll', function (this: unknown[], ...args: unknown[]) {
+    return probesOf(args).every((p) => this.some((el) => memberEq(el, p)))
+  })
+  def(String.prototype, 'contains', function (this: string, probe: unknown) {
+    return this.includes(String(probe))
+  })
 }
 
 export interface EvalError {
@@ -398,23 +434,31 @@ export function evalExpr(
   }
 }
 
-/** Evaluate a filter node (string expr, or `and`/`or`/`not` group). */
+/** Evaluate a filter node (string expr, or `and`/`or`/`not` group). A filter
+ *  expression that ERRORS still fails the row (warn-and-render, D15) — but it
+ *  reports through `onError` (ENH-255) so the caller can surface "this filter
+ *  couldn't be evaluated" instead of a silent zero-row view. */
 export function passes(
   filterNode: unknown,
   file: EngineFile,
   thisFile: EngineFile | null,
   formulas: Record<string, unknown>,
   asOf: Date,
+  onError?: (expr: string, error: string) => void,
 ): boolean {
   if (filterNode == null) return true
   if (typeof filterNode === 'string') {
     const r = evalExpr(filterNode, file, thisFile, formulas, asOf)
-    return Boolean(r) && !isEvalError(r)
+    if (isEvalError(r)) {
+      onError?.(filterNode, r.__error)
+      return false
+    }
+    return Boolean(r)
   }
   const node = filterNode as Record<string, unknown>
-  if (node.and) return (node.and as unknown[]).every((n) => passes(n, file, thisFile, formulas, asOf))
-  if (node.or) return (node.or as unknown[]).some((n) => passes(n, file, thisFile, formulas, asOf))
-  if (node.not) return !(node.not as unknown[]).every((n) => passes(n, file, thisFile, formulas, asOf))
+  if (node.and) return (node.and as unknown[]).every((n) => passes(n, file, thisFile, formulas, asOf, onError))
+  if (node.or) return (node.or as unknown[]).some((n) => passes(n, file, thisFile, formulas, asOf, onError))
+  if (node.not) return !(node.not as unknown[]).every((n) => passes(n, file, thisFile, formulas, asOf, onError))
   return true
 }
 

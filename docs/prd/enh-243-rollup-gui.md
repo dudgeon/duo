@@ -244,3 +244,47 @@ canonical (GUI-editable) rollups — hand-authored notes use `duo rollup set
   column vs the Rollups tab — recommend the column shrink to glance-only
   (freshness + open/edit) as construction now lives in the tab (open item
   (c) from ENH-250).
+
+## 13 · Requirements changed — ENH-255 (2026-07-06): membership filters, declared buckets, filter-error surfacing
+
+Driven by an external feature request (per-track initiative rollups; full
+context in the `tasks.md` ENH-255 entry). Three engine-level capabilities land
+across the whole rollup stack — engine, both serializers, builder dialect, CLI
+flags, and this GUI:
+
+- **D-255.1 — membership predicate.** The engine implements `contains` /
+  `containsAny` / `containsAll` on lists (and `contains` on strings) — the
+  lint vocabulary always listed them, the engine now honors them. A
+  list-of-links element matches by the linked note's IDENTITY (`targetKey`
+  fold: `[[Q3 Launch]]` ≡ `q3-launch`, aliases ignored), never display text.
+  Builder dialect: op `contains`, serialized as
+  `list(prop).contains("value")` (the `list()` wrap keeps single-valued /
+  missing fields error-free). GUI: "has member" in the filter-op picker; CLI:
+  `--filter 'k~=v'`.
+- **D-255.2 — filter errors are surfaced, never silent.** `passes()` reports
+  eval-errors through a sink; `evaluateBaseDef` dedupes them per expression
+  with a failed-row count (`EvaluatedView.filterErrors`). Surfaced in ALL
+  FOUR consumers via one shared formatter (`filterErrorLines`): ⚠ banner in
+  the HTML artifact, `> ⚠` blockquote in the Markdown artifact,
+  `duo-banner-warn` above the Rollups-tab table (`warnings[]` in the view
+  DTO + `rollup show`/`render` JSON), and a stderr line from the render
+  verbs. Semantics unchanged otherwise: an erroring filter still fails the
+  row (D15 warn-and-render).
+- **D-255.3 — declared buckets.** A grouped view may declare `groups:`
+  (ordered `value`/`label` entries; builder model `buckets`, level 1 only).
+  Declared buckets always render — even at zero rows ("— none —"
+  placeholder; an empty bucket is signal) — in declaration order under their
+  labels; a declared value matches its group by the same identity fold as
+  D-255.1; undeclared values trail in the legacy alpha order. One shared
+  implementation (`bucketRows` in `core/vault/render.ts`) feeds the HTML
+  serializer, the Markdown serializer, and the GUI's bucket DTO. `groups:`
+  is a Duo extension — Obsidian ignores unknown view keys, so the `.base`
+  stays loadable there (without the empty-bucket placeholder). GUI: a
+  "Buckets" chip row (shown when grouped; value input with observed-value
+  suggestions but free-text allowed — an empty bucket's value is by
+  definition unobserved); CLI: `--bucket 'value[=Label]'` (repeatable,
+  wholesale-replace on `set`, `--clear-buckets`).
+- **Dialect strictness kept:** `groups:` without `groupBy`, or entries other
+  than a string / `{value, label}`, drop the note to view-only
+  (`parseBuilderBase` → null) and lint warns/errors accordingly. Removing
+  the last group level in the GUI clears the buckets with it.

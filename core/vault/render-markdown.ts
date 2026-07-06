@@ -12,6 +12,8 @@ import { DuoDate, Link, isEvalError, type EngineFile } from './engine'
 import {
   readCol,
   colLabel,
+  bucketRows,
+  filterErrorLines,
   SUMMARY_FNS,
   type EvaluatedBase,
   type EvaluatedView,
@@ -119,36 +121,26 @@ function renderTableMarkdown(
   linkCtx?: LinkCtx,
 ): string {
   const order = view.order
-  if (!view.groupBy) {
+  // ENH-255 — grouping (incl. declared buckets + their order/labels) is the
+  // shared bucketRows; this serializer only renders what it returns.
+  const buckets = bucketRows(view, formulas, thisFile, asOf)
+  if (!buckets) {
     const sum = mdSummary(view.rows, view, formulas, thisFile, asOf, linkCtx)
     const table = tableFor(view.rows, order, formulas, thisFile, propCfg, asOf, linkCtx)
     return sum ? table + '\n\n' + sum : table
   }
-  const groups = new Map<string, EngineFile[]>()
-  const groupRaw = new Map<string, unknown>()
-  for (const f of view.rows) {
-    const v = readCol(view.groupBy.property, f, thisFile, formulas, asOf)
-    const key = v == null ? '—' : String(v instanceof Link ? v.display : v)
-    if (!groups.has(key)) {
-      groups.set(key, [])
-      groupRaw.set(key, v)
-    }
-    groups.get(key)!.push(f)
-  }
-  const keys = [...groups.keys()].sort((a, b) => a.localeCompare(b))
-  if (String(view.groupBy.direction).toUpperCase() === 'DESC') keys.reverse()
-  return keys
-    .map((key) => {
-      const gRows = groups.get(key)!
-      const raw = groupRaw.get(key)
-      let label = mdInline(key)
-      if (linkCtx && raw instanceof Link) {
-        const href = linkCtx.resolveLink(raw)
-        if (href) label = mdLink(key, href)
+  return buckets
+    .map((b) => {
+      let label = mdInline(b.label)
+      if (linkCtx && b.raw instanceof Link) {
+        const href = linkCtx.resolveLink(b.raw)
+        if (href) label = mdLink(b.label, href)
       }
-      const sum = mdSummary(gRows, view, formulas, thisFile, asOf, linkCtx)
-      const head = '#### ' + label + ' (' + gRows.length + ')' + (sum ? '\n' + sum : '')
-      return head + '\n\n' + tableFor(gRows, order, formulas, thisFile, propCfg, asOf, linkCtx)
+      const sum = mdSummary(b.rows, view, formulas, thisFile, asOf, linkCtx)
+      const head = '#### ' + label + ' (' + b.rows.length + ')' + (sum ? '\n' + sum : '')
+      // A declared-but-empty bucket still renders — the empty state IS signal.
+      if (b.declared && b.rows.length === 0) return head + '\n\n_— none —_'
+      return head + '\n\n' + tableFor(b.rows, order, formulas, thisFile, propCfg, asOf, linkCtx)
     })
     .join('\n\n')
 }
@@ -197,6 +189,8 @@ export function renderBaseMarkdown(
   const blocks: string[] = ['## ' + mdInline(label)]
   for (const view of evaluated.views) {
     blocks.push('### ' + mdInline(view.name) + ' (' + view.rows.length + ')')
+    // ENH-255 — a broken filter must never read as a legitimately-empty view.
+    for (const line of filterErrorLines(view)) blocks.push('> ⚠ ' + mdText(line))
     if (view.type === 'list') blocks.push(renderListMarkdown(view, evaluated.formulas, thisFile, asOf, linkCtx))
     else if (view.type === 'cards') blocks.push(renderCardsMarkdown(view, evaluated.formulas, thisFile, asOf, linkCtx))
     else blocks.push(renderTableMarkdown(view, evaluated.formulas, thisFile, evaluated.propCfg, asOf, linkCtx))

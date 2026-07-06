@@ -53,6 +53,7 @@ describe('rollupMarkdownTable — no git repo (fallback: vault-relative links)',
       title: 'All tasks',
       types: ['task'],
       groupBy: ['status'],
+      buckets: [],
       filters: [],
       columns: ['owner'],
     })
@@ -72,6 +73,7 @@ describe('rollupMarkdownTable — no git repo (fallback: vault-relative links)',
       title: 'Nothing',
       types: ['task'],
       groupBy: [],
+      buckets: [],
       filters: [{ property: 'status', op: 'eq', value: 'archived' }],
       columns: [],
     })
@@ -95,6 +97,7 @@ describe('rollupMarkdownTable — no git repo (fallback: vault-relative links)',
       title: 'Weird',
       types: ['task'],
       groupBy: ['status'],
+      buckets: [],
       filters: [],
       columns: ['owner'],
     })
@@ -112,6 +115,7 @@ describe('rollupMarkdownTable — GitHub remote (blob links)', () => {
       title: 'Open tasks',
       types: ['task'],
       groupBy: [],
+      buckets: [],
       filters: [],
       columns: ['owner'],
     })
@@ -144,6 +148,7 @@ describe('rollupMarkdownTable — GitHub remote (blob links)', () => {
       title: 'Open tasks',
       types: ['task'],
       groupBy: [],
+      buckets: [],
       filters: [],
       columns: [],
     })
@@ -159,6 +164,7 @@ describe('rollupMarkdownTable — GitHub remote (blob links)', () => {
       title: 'Open tasks',
       types: ['task'],
       groupBy: [],
+      buckets: [],
       filters: [],
       columns: [],
     })
@@ -174,6 +180,7 @@ describe('rollupMarkdownTable — GitHub remote (blob links)', () => {
       title: 'Open tasks',
       types: ['task'],
       groupBy: [],
+      buckets: [],
       filters: [],
       columns: [],
     })

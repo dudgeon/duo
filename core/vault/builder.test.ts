@@ -45,6 +45,7 @@ const MODEL: RollupBuilderModel = {
   title: 'Open tasks',
   types: ['task'],
   groupBy: ['status', 'org'],
+  buckets: [],
   filters: [
     { property: 'status', op: 'ne', value: 'done' },
     { property: 'owner', op: 'set' },
@@ -60,7 +61,7 @@ describe('serializeBuilderBase ⇄ parseBuilderBase (D4 canonical dialect)', () 
   })
 
   it('round-trips a multi-type model via the or-group', () => {
-    const m: RollupBuilderModel = { ...MODEL, types: ['task', 'initiative'], groupBy: [], filters: [] }
+    const m: RollupBuilderModel = { ...MODEL, types: ['task', 'initiative'], groupBy: [], buckets: [], filters: [] }
     const parsed = parseBuilderBase(serializeBuilderBase(m), {})
     expect(parsed).toEqual(m)
   })
@@ -85,6 +86,7 @@ describe('serializeBuilderBase ⇄ parseBuilderBase (D4 canonical dialect)', () 
     const m: RollupBuilderModel = {
       ...MODEL,
       groupBy: [],
+      buckets: [],
       filters: [{ property: 'title', op: 'eq', value: 'He said "hi" \\o/' }],
     }
     const parsed = parseBuilderBase(serializeBuilderBase(m), {})

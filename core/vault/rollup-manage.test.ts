@@ -47,6 +47,7 @@ async function makeRenderedRollup(title = 'Open tasks'): Promise<string> {
     title,
     types: ['task'],
     groupBy: ['status'],
+    buckets: [],
     filters: [],
     columns: ['owner'],
   })
@@ -74,6 +75,7 @@ describe('deleteRollup (R6)', () => {
       title: 'Bare',
       types: ['task'],
       groupBy: [],
+      buckets: [],
       filters: [],
       columns: [],
     })
@@ -188,6 +190,7 @@ describe('countsByType + modelViewData (R7)', () => {
       title: 'task',
       types: ['task'],
       groupBy: [],
+      buckets: [],
       filters: [],
       columns: ['owner', 'status'],
     })
@@ -212,6 +215,7 @@ describe('GitHub link mode (R8)', () => {
       title: 'GH',
       types: ['task'],
       groupBy: [],
+      buckets: [],
       filters: [],
       columns: [],
     })
@@ -239,6 +243,7 @@ describe('GitHub link mode (R8)', () => {
       title: 'Linked',
       types: ['task'],
       groupBy: [],
+      buckets: [],
       filters: [],
       columns: [],
     })
