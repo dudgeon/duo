@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Duo — pair with Claude on your actual work</title>
+<meta name="description" content="Duo is a free, open-source macOS workspace that pairs Claude Code with a file tree, a real browser, and a Google-Docs-like editor — so your agent sees what you see.">
+<meta property="og:title" content="Duo — pair with Claude on your actual work">
+<meta property="og:description" content="A free, open-source macOS workspace that gives Claude Code a file tree, a real browser, and an editor that feels like home.">
+<meta property="og:image" content="./assets/main-window.png">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="./assets/favicon.png">
+<style>
+  :root {
+    --paper: #fbf8f1;
+    --paper-deep: #f3ede0;
+    --paper-edge: #e8e0cb;
+    --paper-rule: #d9cea8;
+    --ink: #2b2620;
+    --ink-soft: #4a4238;
+    --ink-mute: #6f6557;
+    --ink-ghost: #9a9080;
+    --accent: #c46a1c;
+    --accent-soft: #f4d9b6;
+    --code-bg: #2b2823;
+    --code-ink: #e8e0cb;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 28px; }
+  a { color: var(--accent); }
+  img { max-width: 100%; display: block; }
+
+  h1, h2, h3 {
+    font-family: "New York", "Iowan Old Style", Georgia, serif;
+    font-weight: 500;
+    color: var(--ink);
+    margin: 0;
+  }
+
+  /* — Header — */
+  header.site-header {
+    padding: 20px 0;
+    border-bottom: 1px solid var(--paper-rule);
+  }
+  header.site-header .wrap {
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; color: var(--ink); text-decoration: none; }
+  .brand img { width: 28px; height: 28px; border-radius: 7px; }
+  nav.site-nav { display: flex; align-items: center; gap: 28px; }
+  nav.site-nav a.navlink { color: var(--ink-soft); text-decoration: none; font-size: 14.5px; font-weight: 500; }
+  nav.site-nav a.navlink:hover { color: var(--accent); }
+
+  /* — Buttons — */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 22px; border-radius: 8px;
+    font-weight: 600; font-size: 15px; text-decoration: none;
+    border: 1.5px solid transparent; white-space: nowrap;
+    transition: transform 0.08s ease, background 0.15s ease, border-color 0.15s ease;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: color-mix(in srgb, black 10%, var(--accent)); }
+  .btn-secondary { background: transparent; color: var(--ink); border-color: var(--paper-rule); }
+  .btn-secondary:hover { border-color: var(--ink-ghost); }
+  .btn-sm { padding: 8px 16px; font-size: 13.5px; }
+
+  /* — Hero — */
+  .hero { padding: 64px 0 40px; }
+  .hero .wrap { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 48px; align-items: center; }
+  .kicker {
+    display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: 0.09em;
+    text-transform: uppercase; color: var(--accent); background: var(--accent-soft);
+    padding: 4px 10px; border-radius: 20px; margin-bottom: 18px;
+  }
+  .hero h1 { font-size: 42px; line-height: 1.18; font-style: italic; margin-bottom: 18px; }
+  .hero .sub { font-size: 18px; color: var(--ink-soft); margin-bottom: 28px; max-width: 46ch; }
+  .cta-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  .fine-print { margin-top: 14px; font-size: 13px; color: var(--ink-mute); }
+  .hero-shot {
+    border-radius: 12px; border: 1px solid var(--paper-edge);
+    box-shadow: 0 24px 60px -20px rgba(43, 38, 32, 0.35);
+    overflow: hidden;
+  }
+
+  /* — Section rhythm — */
+  section { padding: 56px 0; }
+  section.alt { background: var(--paper-deep); }
+  .section-head { text-align: center; max-width: 640px; margin: 0 auto 44px; }
+  .section-head h2 { font-size: 30px; font-style: italic; margin-bottom: 12px; }
+  .section-head p { color: var(--ink-soft); font-size: 16.5px; margin: 0; }
+
+  /* — Positioning strip — */
+  .positioning { text-align: center; max-width: 700px; margin: 0 auto; }
+  .positioning p { font-size: 18px; color: var(--ink-soft); }
+  .positioning strong { color: var(--ink); }
+
+  /* — Feature rows — */
+  .feature-row {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center;
+    padding: 46px 0;
+  }
+  .feature-row + .feature-row { border-top: 1px solid var(--paper-rule); }
+  .feature-row.reverse .feature-copy { order: 2; }
+  .feature-row.reverse .feature-shot { order: 1; }
+  .feature-copy h3 { font-size: 24px; font-style: italic; margin-bottom: 12px; }
+  .feature-copy p { color: var(--ink-soft); font-size: 16px; }
+  .feature-shot { display: flex; justify-content: center; }
+  .feature-shot img {
+    max-height: 440px; width: auto;
+    border-radius: 10px; border: 1px solid var(--paper-edge);
+    box-shadow: 0 16px 40px -18px rgba(43, 38, 32, 0.3);
+  }
+
+  /* — Card grid — */
+  .card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .card {
+    background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 10px;
+    padding: 22px 22px 24px;
+  }
+  .card .card-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; border-radius: 50%;
+    background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: 13px;
+    margin-bottom: 14px;
+  }
+  .card h4 { margin: 0 0 8px; font-size: 16.5px; font-weight: 600; font-family: inherit; color: var(--ink); }
+  .card p { margin: 0; font-size: 14.5px; color: var(--ink-soft); }
+
+  /* — CLI section — */
+  .cli-section .wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+  .cli-copy h2 { font-size: 28px; font-style: italic; margin-bottom: 14px; }
+  .cli-copy p { color: var(--ink-soft); font-size: 16px; }
+  .code-panel {
+    background: var(--code-bg); border-radius: 12px; padding: 0; overflow: hidden;
+    box-shadow: 0 20px 50px -22px rgba(0,0,0,0.5);
+  }
+  .code-panel .code-titlebar { padding: 12px 16px; display: flex; gap: 7px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .code-panel .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .code-panel .dot.r { background: #e0645a; }
+  .code-panel .dot.y { background: #e0b34d; }
+  .code-panel .dot.g { background: #64b26a; }
+  .code-panel pre {
+    margin: 0; padding: 20px 22px 24px; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13.5px; line-height: 1.9; color: var(--code-ink); overflow-x: auto;
+  }
+  .code-panel .prompt { color: #7fbf7a; }
+  .code-panel .comment { color: #8a8275; }
+
+  /* — Trust strip — */
+  .trust-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; max-width: 900px; margin: 0 auto; }
+  .trust-grid .item { text-align: center; padding: 0 10px; }
+  .trust-grid .item .glyph {
+    width: 40px; height: 40px; margin: 0 auto 14px; border-radius: 10px;
+    background: var(--accent-soft); color: var(--accent); font-weight: 700;
+    display: flex; align-items: center; justify-content: center; font-size: 15px;
+  }
+  .trust-grid .item p { color: var(--ink-soft); font-size: 14.5px; margin: 0; }
+  .trust-grid .item strong { display: block; color: var(--ink); font-size: 15.5px; margin-bottom: 6px; }
+
+  /* — Final CTA — */
+  .final-cta { text-align: center; padding: 72px 0; }
+  .final-cta h2 { font-size: 34px; font-style: italic; margin-bottom: 14px; }
+  .final-cta .sub { color: var(--ink-soft); font-size: 16.5px; margin-bottom: 30px; }
+  .final-cta .links { margin-top: 22px; font-size: 14px; color: var(--ink-mute); }
+
+  /* — Footer — */
+  footer.site-footer {
+    border-top: 1px solid var(--paper-rule); padding: 28px 0; color: var(--ink-mute); font-size: 13.5px;
+  }
+  footer.site-footer .wrap { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+  footer.site-footer a { color: var(--ink-mute); }
+  footer.site-footer nav { display: flex; gap: 18px; }
+
+  @media (max-width: 860px) {
+    .hero .wrap { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 32px; }
+    .feature-row, .feature-row.reverse { grid-template-columns: 1fr; }
+    .feature-row.reverse .feature-copy, .feature-row.reverse .feature-shot { order: initial; }
+    .card-grid { grid-template-columns: 1fr; }
+    .cli-section .wrap { grid-template-columns: 1fr; }
+    .trust-grid { grid-template-columns: 1fr; }
+    nav.site-nav .navlink.hide-mobile { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="./assets/favicon.png" alt=""> Duo</a>
+    <nav class="site-nav">
+      <a class="navlink hide-mobile" href="#features">Features</a>
+      <a class="navlink hide-mobile" href="https://github.com/dudgeon/duo/blob/main/docs/about-duo.md">Full tour</a>
+      <a class="navlink" href="https://github.com/dudgeon/duo">GitHub</a>
+      <a class="btn btn-primary btn-sm" href="https://github.com/dudgeon/duo/releases/latest">Download</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero" id="top">
+  <div class="wrap">
+    <div class="hero-copy">
+      <span class="kicker">Free · Open source · macOS</span>
+      <h1>Pair with Claude on your actual work — not just your terminal.</h1>
+      <p class="sub">Duo gives Claude Code a file tree, a real browser, and an editor that feels like Google Docs — so working together never starts with explaining where things are.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="https://github.com/dudgeon/duo/releases/latest">Download for macOS</a>
+        <a class="btn btn-secondary" href="https://github.com/dudgeon/duo">View on GitHub</a>
+      </div>
+      <p class="fine-print">Signed &amp; notarized · Apple Silicon · Free forever · Nothing you write ever leaves your machine.</p>
+    </div>
+    <div class="hero-shot">
+      <img src="./assets/main-window.png" alt="Duo's main window — file navigator, a live Claude conversation, and a PRD open beside the prototype it specifies">
+    </div>
+  </div>
+</section>
+
+<section class="positioning">
+  <div class="wrap">
+    <p><strong>Duo is not an agent — it's a workspace for one.</strong> It's built primarily for product managers and other non-engineering knowledge workers who want to work with an agent the way they already work in Google Docs or Notion: beautifully, safely, and without learning the terminal or the file system first. The terminal is still there — Claude lives in it — but everything around the terminal is designed for someone who doesn't.</p>
+  </div>
+</section>
+
+<section id="features">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>One workspace, four surfaces</h2>
+      <p>Everything Claude needs to see is already open — you're not describing your screen, you're sharing it.</p>
+    </div>
+
+    <div class="feature-row">
+      <div class="feature-copy">
+        <h3>An editor that feels like home</h3>
+        <p>Open any markdown file and it reads like a document, not source code — a toolbar, click-to-edit tables, comments in the margin. Flip on Suggesting mode and Claude's edits arrive as tracked changes you accept or reject. When Claude changes something you have open, the text glows briefly, so you see what moved without re-reading the page. A running version history means autosave never feels risky.</p>
+      </div>
+      <div class="feature-shot"><img src="./assets/editor-cowriting.png" alt="A PRD open in the editor with a comment thread and Claude's tracked-change suggestions waiting for review"></div>
+    </div>
+
+    <div class="feature-row reverse">
+      <div class="feature-copy">
+        <h3>A terminal that's a conversation, not a command line</h3>
+        <p>Each tab is a Claude conversation. Come back the next morning and your recent threads show up as clickable pills, so Monday picks up where Friday stopped. Schedule a session to run on a cadence — a daily morning review, say — and catch up on everything that happened while you were away from one Home board: Needs you, In progress, Done.</p>
+      </div>
+      <div class="feature-shot"><img src="./assets/terminal-resume.png" alt="A fresh Duo terminal offering to resume recent Claude conversations"></div>
+    </div>
+
+    <div class="feature-row">
+      <div class="feature-copy">
+        <h3>A browser Claude can read over your shoulder</h3>
+        <p>A real Chromium browser lives inside Duo, logins and all. Highlight anything on a page and a <strong>Send → agent</strong> pill appears — click it and the selection lands in your conversation with a note about where it came from. It reads a Google Doc, Sheet, Slides deck, or Figma file the way you're already logged into it. No connectors, no exports, no copy-paste.</p>
+      </div>
+      <div class="feature-shot"><img src="./assets/browser-send-selection.png" alt="Text highlighted on a page in Duo's browser, with the Send to agent pill about to drop it into the conversation"></div>
+    </div>
+
+    <div class="feature-row reverse">
+      <div class="feature-copy">
+        <h3>Files and notes, connected</h3>
+        <p>The navigator finds files, flags what changed, and gets your team's shared project onto your machine with a pasted link — no git required, though the git awareness (branches, worktrees, GitHub links) is there when you want it. For work that's more web than document, point Duo at a folder of notes and it becomes a <strong>vault</strong>: linked notes with <code>[[autocomplete]]</code>, and a rollup that turns "what's the status of everything" into a live dashboard instead of a doc you update by hand.</p>
+      </div>
+      <div class="feature-shot"><img src="./assets/navigator-stoop.png" alt="A project in Duo's navigator — Claude context up top, folders expanded, pinned files kept handy below"></div>
+    </div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>And the smaller things that add up</h2>
+      <p>The details that make it feel like your desk, not a new tool to learn.</p>
+    </div>
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-num">1</div>
+        <h4>Playgrounds</h4>
+        <p>Ask for a dashboard or a triage worksheet and Claude builds an interactive HTML page — buttons and radio groups that send your clicks straight back into the conversation.</p>
+      </div>
+      <div class="card">
+        <div class="card-num">2</div>
+        <h4>Your desk, remembered</h4>
+        <p>Split view, pinned tabs, saved workspaces, a second window when one screen isn't enough. Quit and reopen — terminals, files, and layout all come back.</p>
+      </div>
+      <div class="card">
+        <div class="card-num">3</div>
+        <h4>A safety net</h4>
+        <p>Every save gets a durable version history with one-click restore. Spin up a separate worktree to try something risky without touching your main copy. ⌘Z reopens anything you closed by accident.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cli-section">
+  <div class="wrap">
+    <div class="cli-copy">
+      <h2>How Claude gets its hands on all of it</h2>
+      <p>Everything above, you can do with a mouse and keyboard — and so can Claude. A command-line tool called <code>duo</code> gives it the same hands you have: open a file, click a button, read what's on screen, drive the browser. Ask in plain English and the request gets carried out, not translated into a list of steps for you to run yourself.</p>
+      <p style="margin-top:16px;"><a href="https://github.com/dudgeon/duo/blob/main/packs/duo-default/canvases/what-duo-does.html" style="font-weight:600;">See the full capability reference →</a></p>
+    </div>
+    <div class="code-panel">
+      <div class="code-titlebar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
+      <pre><span class="comment"># "summarize the page open in my browser"</span>
+<span class="prompt">$</span> duo tabs
+<span class="prompt">$</span> duo dom ".pricing-table" --text
+
+<span class="comment"># "open the roadmap and jump to open questions"</span>
+<span class="prompt">$</span> duo open roadmap.md
+<span class="prompt">$</span> duo doc goto "Open questions"
+
+<span class="comment"># "roll up every open task across my projects"</span>
+<span class="prompt">$</span> duo rollup render --html</pre>
+    </div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Free. Open source. Your files stay yours.</h2>
+    </div>
+    <div class="trust-grid">
+      <div class="item">
+        <div class="glyph">MIT</div>
+        <strong>Open source</strong>
+        <p>MIT licensed, source on GitHub — fork it, audit it, or build your own distro pack for your team.</p>
+      </div>
+      <div class="item">
+        <div class="glyph">0</div>
+        <strong>No telemetry</strong>
+        <p>Nothing is captured or sent anywhere. The only network call Duo makes on its own is checking for app updates.</p>
+      </div>
+      <div class="item">
+        <div class="glyph">BYO</div>
+        <strong>Bring your own agent</strong>
+        <p>Claude Code is the supported harness today. The architecture is BYO-harness by design.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="final-cta">
+  <div class="wrap">
+    <h2>Get Duo</h2>
+    <p class="sub">macOS 13+ on Apple Silicon. Signed, notarized, and keeps itself up to date.</p>
+    <div class="cta-row" style="justify-content:center;">
+      <a class="btn btn-primary" href="https://github.com/dudgeon/duo/releases/latest">Download the latest release</a>
+      <a class="btn btn-secondary" href="https://github.com/dudgeon/duo/blob/main/docs/about-duo.md">Read the full tour</a>
+    </div>
+    <p class="links">Intel Mac? Stay on the v0.6.6 release. <a href="https://github.com/dudgeon/duo/issues">Tell me what's missing →</a></p>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>© 2026 Duo · MIT License</span>
+    <nav>
+      <a href="https://github.com/dudgeon/duo">GitHub</a>
+      <a href="https://github.com/dudgeon/duo/blob/main/docs/about-duo.md">About</a>
+      <a href="https://github.com/dudgeon/duo/blob/main/docs/PRIVACY.md">Privacy</a>
+      <a href="https://github.com/dudgeon/duo/blob/main/docs/HOW-TO-FORK.md">Fork it</a>
+      <a href="https://github.com/dudgeon/duo/issues">Issues</a>
+    </nav>
+  </div>
+</footer>
+
+</body>
+</html>
