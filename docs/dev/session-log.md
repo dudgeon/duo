@@ -18,6 +18,10 @@
 
 ---
 
+## 2026-07-06 — v0.13.4 CUT — Navigator pull + rollup buckets + hardened three-PR review pass
+
+Three parallel worktrees landed as one chapter, reviewed and merged in a single session. **ENH-253** (#121): navigator repo-root right-click "Pull latest changes" + PullModal + git-direct `duo pull [--force] [--json]`. **ENH-255** (#123): rollup membership filters (`contains`/`containsAny`/`containsAll`, `k~=` sugar), declared buckets (`groups:`/`--bucket`, `\=` escape, "— none —" empties), filter-error surfacing on every consumer. **BUG-254** (#122): type-picker Enter/Tab race — queued confirms, error-path drop, loading-state suppression, IME guard; tests 4→16. Before merging, all three PRs went through an adversarial multi-agent review (8 finder angles → 1-vote verify): ~30 CONFIRMED findings fixed on the branches — headline fixes: fail-closed git probes, untracked-aware dirty counts, honest merge-failure classification, TOCTOU force-consent guard, PullModal WCV parking (BUG-153 class), `not:`/`or:` filter-error semantics per D15, identity-folded bucket matching, `duo pull --json` non-zero exit, check-skill-currency A7 scanner scoped at the mechanism. Merge order #123→#122→#121 (empirically simulated; one tasks.md keep-both conflict); post-merge: rebuilt `cli/duo` byte-identical, typecheck clean, 2215/2215 tests, skill-currency 81 verbs. Also: stranded local-main commit 0cfd3a6 (BUG-252) pushed to origin; stale BUG-253 ticket notes fixed (#125; that ticket renumbered to BUG-256 in PR #124). **Owed:** live smoke-walk of PullModal + type-picker (both built headless).
+
 ## 2026-07-03 — v0.13.3 CUT — Rollups tab: a full GUI rollup viewer/editor
 
 Two PRs merged in sequence: **#120** (ENH-245/246, the OKF vault dual

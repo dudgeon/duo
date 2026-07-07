@@ -2,73 +2,6 @@
 
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
-
-### ENH-253: Navigator repo-root right-click → "Pull latest changes"
-
-**Status:** 🚧 Built on branch `claude/file-navigator-git-pull-kt3dv7` — PR open, pending owner review/merge. **No live UI verification** (cloud/headless session, no Electron/computer-use access) — typecheck clean, `check:skill-currency` PASS, 2159/2160 relevant tests green (the 2 pre-existing failures — `electron/browser-manager.test.ts` Electron-binary-download-blocked, and an unrelated `core/vault/rollup-markdown.test.ts` GitHub-link-resolution bug — reproduce identically on `main` without this branch's changes). **Owner smoke-walk owed before a cut.** **Priority:** requested directly by owner. **Effort:** M. **Ticket note:** allocated after grepping all ledgers (max was BUG-252).
-
-**Why.** Owner: *"allow context click in file navigator on any folder that is root for a GitHub repository to pull/fetch... resulting in syncing remote to local... needs to work without Claude... if pull is not clean, needs simple options for a non-GitHub-conversant PM to manage conflicts... even if it leaves many corner cases unaddressed."* Duo had git worktree create/remove (ENH-222) and clone (ENH-151) but no pull — a PM watching an agent's repo (or just wanting the latest) had no way to sync without a terminal.
-
-**The change (shipped).** A new `core/git/pull.ts` `runPull(cwd, {force})`: fetches, then picks the safest update path — clean + behind-only → fast-forward; clean + diverged (local commits not yet on the remote) → auto-merge (a real content conflict aborts the merge immediately, changing nothing, `errorKind: 'merge-conflict'` — genuine line-conflict resolution is explicitly out of scope for v1, per the owner's "leaves corner cases unaddressed" framing); dirty working tree → refuses with `errorKind: 'needs-confirmation'` (reporting `changedCount`/`aheadCount`/`behindCount`) until a follow-up call passes `force: true`, which hard-resets to the remote (discarding uncommitted changes AND any unpushed local commits — the one destructive path in the module, gated behind an explicit UI confirmation).
-
-**Surfaces:**
-- **Navigator context menu** (`FileTree.tsx`) — "Pull latest changes" appears on any folder that IS a git repo root (the cwd's own root via the git ribbon/pill or whitespace right-click, or a peer-repo root row when browsing a parent dir — mirrors the existing `inGhRepo` gate but stricter: root-only, not "anywhere inside a repo"). Opens `PullModal.tsx` (new), which fires the pull immediately (no form) and renders busy → success, or the warning panel (with the one-button "Discard my changes and pull" override) on `needs-confirmation`, or a plain error panel otherwise. No toast/notification system exists in Duo today — this reuses the existing "busy → duo-banner-{ok,warn,error} result panel" visual family `CloneModal.tsx` established, not a new pattern.
-- **CLI** — `duo pull [<path>] [--force] [--json]`, git-direct (no socket / running app needed), the same two-tier pattern as `duo worktree`. 4-surface synced (`cli/duo.ts`, `skill/references/cli-reference.md`, `agents/duo.md`, `docs/CLI-COVERAGE.md`); `check:skill-currency` PASS; `cli/duo` binary rebuilt.
-- **IPC** — `GIT_PULL` (`git:pull`), renderer → main → `core/git/pull.ts`, mirrors `GIT_CREATE_WORKTREE`.
-
-**Side cleanup (owner-requested, same PR):** consolidated `core/git/clone.ts`'s private `looksLikeAuthFailure`/`looksLikeBadUrl` duplicates into the shared `core/git/failure-sniff.ts` (already used by `push.ts`) — zero behavior change (the shared version is a strict superset), removes a documented-as-intentional-but-drifting duplication, and is what `pull.ts` itself uses. The bigger gh-auth gap (no Doctor panel yet — ENH-150, still unshipped) was investigated but explicitly left alone; out of scope for this PR.
-
-**Tests.** `core/git/pull.test.ts` — 7 live-git cases against a hermetic bare-origin + real clone (not mocks): not-a-repo, no-upstream, up-to-date, fast-forward, dirty→needs-confirmation→force-discard, clean-diverged auto-merge (non-overlapping files), and the genuine-conflict abort path (asserts no `MERGE_HEAD`, clean `git status`, HEAD unmoved). Also hand-verified the CLI verb end-to-end against real temp repos outside the test suite.
-
-**Deferred / corner cases explicitly punted (per the owner's "many-based, corner cases OK" framing):** real line-level merge-conflict resolution (abort + point at a human, no in-app resolution UI); a repo with no remote configured at all (falls through the `no-upstream` gate with a generic message); multi-remote repos (always operates on the tracked upstream, never prompts for a remote choice).
-
-**Review fixes applied (2026-07-06, PR #121 review).** Correctness: probe failures now fail CLOSED (a failed `git status` / `git rev-list` is `pull-failed`, never "clean"/"up-to-date"); untracked (`??`) files no longer count toward `changedCount` (a hard reset doesn't remove them, so the discard messaging was false); merge failures are classified (real `CONFLICT`/`Automatic merge failed` output → `merge-conflict`, everything else — index.lock, hooks, untracked-would-be-overwritten — → `pull-failed` with git's own stderr; a failed `merge --abort` is reported instead of claiming "Nothing was changed"); `force: true` takes an `expected: {changedCount, aheadCount}` TOCTOU guard (if the tree grew riskier since the user consented, it re-confirms instead of discarding — `PullModal` passes the counts it displayed); mutating ops (merge/reset) timeout raised 30s→300s. Reuse: pull's preflights now share ONE porcelain parser / ahead-behind probe with `core/git/status.ts` (`parsePorcelainCounts`/`probeWorkingTree`/`probeAheadBehind`; behind is checked FIRST so the common up-to-date path skips `git status`); the clone-vs-shared `looksLikeAuthFailure` drift is fixed via a `{strict}` flag preserving clone's pre-PR patterns; `duo pull --json` now exits non-zero on failure; unread `PullResult.dirty` dropped; `check-skill-currency`'s dispatched-verb scan is now scoped to the outer `switch (cmd)` (the A7 false-positive the PR had worked around); `FileTree.tsx` gained `resolveRepoRootSnap()` — the ONE root-gate resolver shared by the menu gate and the `pull-latest` handler (the handler previously skipped the ribbon-suppression/exact-root guards); `PullModal` parks the browser WCV while open (BUG-153-family occlusion), is dismissible mid-pull (run-token guards stale results), and shares a `BusyPanel` spinner component with `CloneModal`. Tests: +4 live-git cases (untracked-only fast-forward, corrupt-index → pull-failed, non-conflict merge failure preserves stderr, stale-expected force → fresh needs-confirmation) + strict-sniff cases.
-
----
-
-### BUG-254: Silent-stub type-picker can stamp the WRONG type (or none the user intended) — new entities land in `notes/YYYY/MM` even when the user means a folder-noted type (e.g. `initiative`)
-
-**Status:** 🚧 Fix implemented + live-verified + regression-tested — submitted as [PR #122](https://github.com/dudgeon/duo/pull/122) (2026-07-06), not yet merged. **Priority:** P1 (silent data-modeling corruption in the core vault-capture gesture — the file looks like a normal successful create, no error surfaced, but it's mistyped/misfiled, AND a corollary bug below can silently eat the user's actual prose). **Ticket note:** allocated after grepping sibling worktrees (max was BUG-253 in `zealous-germain-541cec` — an unrelated Rollup-editor title-rename bug; that ticket later renumbered itself to BUG-256 (PR #124) after PR #121 claimed ENH-253 in the shared number space).
-
-**Fix landed (`renderer/components/editor/primitives/TypePickerPopover.tsx`).** (1) A `pendingConfirmRef` + a `useEffect` keyed on `types`: an Enter/Tab that lands while `types === null` is queued instead of silently dropped, and fires the instant the registry resolves — against whatever's filtered/highlighted AT THAT MOMENT (reads fresh state, not a stale snapshot from keypress time), so it also closes the popover before any further keystroke can be misdirected into it (fixes the keystroke-trap corollary as the same change, no separate heuristic needed). (2) The "+ new type" row now renders a `.duo-suggestion-more` hint — "New types start without a folder — their notes file under notes/YYYY/MM until you add one to templates/&lt;type&gt;.md." — surfacing H2's consequence up front instead of as a silent surprise. **Live re-verified via computer-use** against the exact original repro (fast double-Enter + immediate continued typing): `TestInitiativeBeta`/`TestInitiativeGamma` both landed correctly at `initiatives/<name>/<name>.md` with `type: initiative`, and follow-on prose landed in the document, not a hidden filter box. **Regression test added:** `TypePickerPopover.test.tsx` (4 tests — queued-confirm fires on load, fires against LATEST filter text typed while still loading, happy path unchanged, H2 hint shows/hides correctly) — mocks `window.electron.vault.{types,stub,createType}` via a controlled deferred promise to make the race deterministic rather than timing-flaky. Full suite: **138 files / 2177 tests green**, typecheck clean. **Review fixes applied (2026-07-06, same PR):** (a) a queued Enter/Tab is now DROPPED (not fired) when the registry load errors/rejects — never auto-creates a type against a failed registry; error line renders, popover stays dismissible; (b) while `types === null` the '+ new type' row and its folder hint are suppressed (loading state only) so an existing type can't be mis-offered/clicked as new during load; (c) IME composition-commit Enter (`isComposing` / keyCode 229) neither confirms nor queues; (d) confirm gesture extracted to a single `confirmActive()` helper; (e) tests grew 4→8 (Tab-key race variant, registry-error queue drop, loading-state suppression, IME guard).
-
-**Live reproduction (2026-07-06, fresh standard-scaffolded `/tmp/bug254-vault`, confirms H1 below).** In the editor: typed `[[TestInitiativeAlpha`, Enter (picks the "New:" row — wikilink inserted, `TypePickerPopover` opens), Enter again immediately (same `computer_batch`, no round-trip between the two keypresses — the owner's exact double-Enter gesture). Result: the SECOND Enter was silently swallowed — screenshot confirmed the popover still open with the type list now populated (`initiative` highlighted/first) but nothing picked, and `find` confirmed no file had been written yet. Continuing to type as a user naturally would (`"meeting notes for Q3"`) revealed the WORSE half: none of that text reached the document — it silently filled the (still-focused, still-open) popover's type-filter input instead, which then offered `+ new type "meeting notes for q3"…`. Pressing Enter once more committed it. On disk: `notes/2026/07/TestInitiativeAlpha.md` (NOT `initiatives/`) with frontmatter `type: meeting notes for q3` (NOT `initiative`), plus a phantom `templates/meeting notes for q3.md` polluting the vault's type registry. `initiatives/` stayed empty the whole time. This is a byte-for-byte match of the owner's report (wrong folder for an intended folder-noted type) — root-caused, not merely suspected — AND surfaces an additional, more severe corollary: **once the race is lost, the picker keeps stealing every subsequent keystroke from the document with zero visual feedback**, so a user who doesn't notice can lose actual prose into a throwaway type-filter box, not just get the wrong type.
-
-**Owner report.** Creating a new entity via `[[entity-name` → Enter (picks the "New: …" row) → Enter (picks a type) sometimes succeeds but applies the wrong outcome: the resulting file isn't filed/typed as intended. Follow-up detail from live use: the file lands in `notes/YYYY/MM` (the D19 parentless-residue bucket) even when the intended type is a folder-noted one like `initiative` — which per `stubPathFor` (`core/vault/filing.ts:41-57`) should resolve to `initiatives/<name>/<name>.md`, never the time-bucket path.
-
-**Flow traced (static code read — no bug found in the core vault-write path itself, which is correct given a well-formed `TypeTemplate`):** `[[name` → `WikilinkSuggestion.ts` `command()` inserts the wikilink/placeholder text and calls `onCreateStub` (`renderer/components/editor/extensions/WikilinkSuggestion.ts:160-202` — no file write here) → `MarkdownEditor.tsx:688` `setStubPicker(payload)` mounts `<TypePickerPopover>` (`MarkdownEditor.tsx:2837-2868`) → its `useEffect`s autofocus the filter `<input>` via `requestAnimationFrame` AND separately kick off `window.electron.vault.types({vaultRoot})` (`TypePickerPopover.tsx:60-79` — async IPC; `types` starts `null`) → Enter/Tab calls `pick(choices[activeIdx])` (`TypePickerPopover.tsx:105-160`) → IPC `vault:stub` (`electron/main.ts:2390-2403`) → `createEntityStub` → `stubPathFor` (`core/vault/filing.ts:131-183`), a pure + correct function of whatever `TypeTemplate` it's handed.
-
-**Two candidate root causes, not mutually exclusive:**
-
-- **H1 — race in the async type registry (best fit for "sometimes").** `TypePickerPopover`'s Enter/Tab handler has NO guard for `types === null` (still loading) or an empty `choices` array — pressing Enter while `vault.types` IPC is still in flight is silently swallowed (`e.preventDefault()` + `e.stopPropagation()`, no `pick()` call, zero user feedback), and the popover stays mounted + focused. The owner's exact repro gesture (fast, muscle-memory double-Enter with no pause to read the type list) is precisely what would beat that IPC round-trip. Worse: the popover keeps capturing EVERY subsequent keystroke as its type filter — nothing routes unconsumed keys back to the document — so whatever the user types/presses next (including a later, unrelated Enter/Tab) is what actually gets applied via `buildTypeChoices(types, filter)`, with `activeIdx` defaulting to `0` (alphabetically-first type when the filter is still empty). This explains both the timing-dependence and a type applied with no relation to what the user intended.
-- **H2 — a type created via "+ new type" never gets a folder (deterministic, not timing-dependent).** `createType()` (`core/vault/filing.ts:86-101`) writes a minimal `templates/<type>.md` with ONLY `type:` — no `folder`/`folderNote`/`filingParent` — by design (own comment: "fresh stubs of the type land in the notes/YYYY/MM time-bucket, the D19 residue"). If the owner's actual "initiative" (or equivalent) type was ever defined through that quick-add row rather than the scaffolded default — or hand-edited without those fields — EVERY entity of that type will residue to `notes/YYYY/MM` every single time, no race required. Checked the scaffolded default (`core/vault/scaffold.ts` `INITIATIVE_TPL`): it correctly sets `folder: initiatives` + `folderNote: true`, so this hypothesis only bites a non-default/custom type definition — worth checking the owner's actual vault's `templates/initiative.md`.
-
-**Next steps.** H1 is the confirmed trigger; H2 (`createType()` never sets `folder`/`folderNote`) is the confirmed mechanism that turned the lost race into a wrong-folder file in the live repro — they compound (a race that instead landed on an EXISTING folder-noted type would still misfile, just less visibly, since the type stamped would still look "valid"). Fix, not yet built: **(1)** `TypePickerPopover` must not let Enter/Tab silently no-op while `types === null` — either block/queue the keystroke until the registry resolves and THEN act on it, or show a "still loading…" affordance; **(2)** once open, the popover must not indefinitely trap unconsumed keystrokes meant for the document — e.g. auto-cancel (return focus + keys to the editor) if the user resumes typing prose rather than filtering, or at minimum make "still capturing your keystrokes" visually unmistakable; **(3)** separately, the "+ new type" quick-add row should not create a permanently folder-less type with zero warning — surface that the type will residue to `notes/YYYY/MM` until someone edits its template, or prompt for a folder up front. Cross-ref `core/vault/filing.ts` (D19 filing rule + `createType`), `renderer/components/editor/primitives/TypePickerPopover.tsx`, ENH-208 D4 (silent-stub design origin).
-
----
-
-### BUG-252: `docs/roadmap.html` sidebar Status stat counts haven't been refreshed since v0.7.1 (20+ cuts of drift)
-
-**Status:** ✅ Shipped 2026-07-03 (owner picked option (b): remove). **Priority:** P3 (cosmetic — doesn't affect any shipped behavior). **Effort:** S–M. **Ticket note:** allocated after grepping sibling worktrees (max was ENH-251).
-
-The `cut-version` skill's Step 4 item 6 has a "D4 HARD-GATE" mandating the sidebar's `<div class="stats">` block (Done / In progress / Pending / Open issues counts) get recomputed on EVERY cut, even a stamp-only one. `git log -1 -L '/class="stats"/,+6:docs/roadmap.html'` showed the block was last touched at the v0.7.1 cut (2026-05-18) — every cut since (v0.7.2 through v0.13.3, 20+ releases) skipped this step. **Fix (owner chose remove over recompute):** the entire sidebar "Status" `<div class="side-panel">` — the stats block plus its attached legacy `<p>` notes (still describing the v0.5.4/v0.5.0 cuts) — was superseded by the header `.sub` running-history line, which is actively maintained on every cut and covers the same ground with far more detail. Recomputing the numbers alone (24 Done / 4 In progress / 9 Pending stages were mechanically countable via the existing `class="stage done|inprog|pending"` markup; 132 open `tasks.md` entries) would have left the stale attached prose note as a second, inevitably-drifting duplicate of the header line. Deleted the whole panel (`docs/roadmap.html` lines 1127-1142) instead — one running-history mechanism, not two.
-
----
-
-### ENH-255: Rollup engine — multi-valued membership filters, declared buckets, filter-error surfacing
-**Status:** 🚧 In progress 2026-07-06 — built on `claude/jovial-hypatia-3ed283` (owner picked full scope incl. GUI builder); all four gaps implemented + 13 new regression tests (`core/vault/enh255.test.ts`), CLI verified live against a scratch vault; GUI verified live 2026-07-06 (dev app, DOM-probed: bucket order/labels + "— none —" empty bucket + Buckets editor round-trip GUI→disk→re-render + broken-filter ⚠ banner); smoke-walk item still owed before cut; PR #123 review fixes applied 2026-07-06 (not:/or: error semantics, gbEq identity fold, array/alias bucket matching, markdown warnings + buckets, base render warnings JSON, --bucket \= escape, save guard — PRD § 13a). PRD: ENH-243 § 13 + § 13a. **Priority:** P1 (external requester blocked). **Effort:** M. **Ticket note:** allocated after grepping sibling worktrees (max was the ticket then numbered BUG-253, since renumbered to BUG-256 in PR #124).
-
-A user running ~7 per-track initiative rollups hit three engine gaps, all confirmed against `core/vault/engine.ts` / `render-markdown.ts`:
-
-1. **Membership filter on a multi-valued (list-of-links) field — the hard blocker.** `note.tracks` parses to an array of `Link` objects (`parseLinkish`), but the expression vocabulary has no membership predicate: `.contains()` isn't defined, JS `.includes(link(...))` fails on object identity, and `gbEq` only fires via the `== this` rewrite. Worse, `passes()` (engine.ts:410) folds an `EvalError` to `false` — so a broken filter **silently yields an empty rollup** instead of erroring (exactly what the requester saw). *Partial workaround today:* `file.hasLink(...)` IS identity-folded (targetKey) and frontmatter links are in `_rawLinks` — but it's note-scoped (over-matches body mentions), not field-scoped. **Fix:** add a `contains()` membership predicate to the engine + lint vocabulary that folds `Link` identity through `targetKey` (matches on the linked note's identity, not display text); make filter eval-errors *surface* (⚠ warning in the rendered artifact header + CLI stderr count) per D15 warn-and-render — never a silent zero-row view.
-2. **Empty groups disappear.** `render-markdown.ts` derives groups solely from matching rows — a declared bucket with zero rows never renders. **Fix:** an optional view-level `groups:` declaration (ordered list of `{value, label}`); declared groups always render (empty ⇒ an "— none —" placeholder row), undeclared values append after in today's alpha order. Obsidian ignores unknown `.base` view keys, so the file stays loadable there (native Obsidian rendering just won't show the placeholder — acceptable divergence, note in PRD).
-3. **Group headers are raw + alpha-sorted only.** Same `groups:` declaration carries the human label + explicit order (requester wants "Primary" before "Monitored").
-4. *(Nice-to-have, phase 2)* Rollups-tab builder (ENH-243) round-trips a membership-filter row + the `groups:` declaration so per-track rollups stay GUI-editable rather than falling to view-only (`builder.ts` currently recognizes only `type == "…"` or-groups).
-
-Requester will handle on their side: canonicalizing how track membership is recorded (their template + ingest routing), and unifying primary-vs-monitored into one derived filter. Touches: `core/vault/engine.ts`, `lint.ts`, `render-markdown.ts`, `render.ts`, `builder.ts` (+ Rollups tab), `skill/references/vault.md` + rollup guide, and — since `duo rollup render` runs in-process in the CLI bundle — `npm run build:cli`.
-
----
-
 ### ENH-232: Catch-up — rich re-entry for sessions whose worktree was removed
 **Status:** 🔵 Open (filed from ENH-231 walk #2, 2026-06-24). **P1.**
 
@@ -585,7 +518,6 @@ Non-blocking hardening/polish surfaced reviewing the multi-window capstone (wind
 
 > Sprint 24 anchor: close the v0.8.0 audit's deferred follow-ups (FOLLOWUP-031 through 040) before any new feature work. ENH-182 was the marquee chapter; Sprint 24 is its polish epilogue. Definition of done: all 10 FOLLOWUPs closed or explicitly deferred-with-reason. Expected cut shape: v0.8.1 PATCH (polish-only) OR v0.9.0 MINOR if a carry-forward capability lands alongside.
 
-
 ## Sprint 24 / v0.8.1 — v0.8.x polish wave (starting)
 ### ENH-191: Docs deep-clean — audit findings + owner-decision playground
 
@@ -601,7 +533,6 @@ Non-blocking hardening/polish surfaced reviewing the multi-window capstone (wind
 
 **Stays open until** the owner walks the playground (`duo open docs/research/docs-deep-clean-decisions.html`), copies decisions back, and the agent executes. Surfaces in every smoke walk until closed (rule 11 + research-report-review-task rule).
 
-
 ### ENH-196: Canvas change-highlight on reload (parity follow-on to ENH-195 D3)
 
 **Status:** 🆕 **Filed 2026-06-05 — deferred by owner** (ENH-195 D3 note: "only highlight in markdown; flag as ENH for canvas"). **Priority:** Medium. **Effort:** M. **Parity disposition (renderer-surfaces.md):** (c) **Deferred** — ENH-195 ships the markdown change-highlight (`JustAdded` decoration + `prosemirror-changeset` diff on the clean-buffer reload branch); the canvas (`PageTab` / `justAddedPage.ts`) does not get it in this cut.
@@ -613,8 +544,6 @@ Non-blocking hardening/polish surfaced reviewing the multi-window capstone (wind
 **Cross-refs.** [ENH-195](#enh-195) (parent), `renderer/components/Page/justAddedPage.ts`, `renderer/components/Page/PageTab.tsx` reload branch, DECISIONS.md:620 (editor/canvas parity — this is a deliberate, tracked deferral, not accidental drift).
 
 ---
-
-
 
 ### ENH-198: Agent-native track-changes for markdown — write CriticMarkup, not `<ins>` tags
 
@@ -697,7 +626,6 @@ Non-blocking hardening/polish surfaced reviewing the multi-window capstone (wind
 **Cross-refs.** [BUG-195](#bug-195) (aux-WCV stale-ref ghost), `renderer/App.tsx` (aux close/promote handlers), `electron/browser-manager.ts` (`releaseAuxTab`), `core/socket-server.ts`.
 
 ---
-
 
 ### ENH-189: Agent-agnostic Duo — Claude Code + Codex (research)
 
@@ -1102,9 +1030,7 @@ const handleCloseProject = useCallback(async (root: string) => {
 
 ---
 
-
 > Sprint 23 earned the MINOR. Six commits closed the project-as-filter-layer story end-to-end: ENH-182 Phases 3 + 4 + 2b + ENH-185 polish + ENH-184 workspace-pill defeaturing + a polish pass folding in 5 audit-found fixes (FOLLOWUP-030 + Phase 3c-browser + BUG-161/162/163/164). Smoke walk 5/5 PASS via computer-use pre-walk. v0.8.0 cut + tagged + released 2026-05-25.
-
 
 ## Sprint 23 / v0.8.0 — ENH-182 capstone (shipped)
 ### Deferred audit findings — file as v0.8.x follow-ups
@@ -1170,7 +1096,6 @@ Background audit (agent ac060771dc81e76f5) surfaced additional polish items that
 Sprint 22 finishing work for ENH-184 (handoff to whichever Claude picks it up): wire the flag to gate the pill's onClick, owner walk, optional CLI parity verb. See full plan at `docs/dev/active-sprint.md § ENH-184`.
 
 ---
-
 
 ## Sprint 21 / v0.7.9 — closed (ENH-183 walks)
 ### ENH-183 PARED 2026-05-25 (Option A) — S2 + C11 + T3 + force-rename dropped
@@ -1312,7 +1237,6 @@ Sprint 22 finishing work for ENH-184 (handoff to whichever Claude picks it up): 
 **No regression risk to v0.7.9.** The rev3 walk manifest doesn't exercise the workspace switcher dropdown's "+" button or the pill click. The 9 remaining unwalked items (S2 + S3 + C11-TIP + CLI) test ENH-183 paths only.
 
 ---
-
 
 ## Sprint 19 / v0.7.3 — in flight
 ### Bug cluster — `duo doc comment --reply-to` ergonomics + live-editor sync (BUG-142..147)
@@ -1535,7 +1459,6 @@ All 4  Mine  Agent 1  Others 1
 
 ---
 
-
 ## Recent (v0.7.2 cut — polish wave — 2026-05-18)
 ### ENH-165: Lock the screenshot-annotation style for Duo docs
 
@@ -1550,7 +1473,6 @@ All 4  Mine  Agent 1  Others 1
 **Carry-forward rule:** this entry surfaces in every smoke walk until the owner Copy-decisions back and closes the gate.
 
 ---
-
 
 ## Recent (v0.7.1 walk-1 fixes — 2026-05-18)
 ### BUG-138 walk-1 FAIL: Phase 4b — typed text wraps as one-CM-token-per-character
@@ -1581,9 +1503,7 @@ All 4  Mine  Agent 1  Others 1
 
 ---
 
-
 > **Forgetting-protection.** Each gate below is a playground that owner must walk (radio + Copy decisions) before the gated implementation work starts. These appear in every smoke walk manifest until owner closes them. The v0.7.0 cut is blocked until all four are walked. \*\***How to walk:** `duo open <path>` opens the playground in Duo's browser pane. Pick a radio for each decision card, add any notes, hit "Copy decisions" at the bottom, paste back to Claude. \*\***Status convention.** 🟡 = awaiting owner walk. Once walked + decisions copied, status flips to ⏳ In progress (Claude implementing), then ✅ Shipped after the smoke walk closes.
-
 
 ## 🟡 OPEN OWNER-DECISION GATES — v0.7.0 cut blocked until walked
 ### GATE-GH-CLUSTER-v2: GitHub-integration cluster (decisions captured; PROTOTYPE GATE OWED before code)
@@ -1611,9 +1531,7 @@ All 4  Mine  Agent 1  Others 1
 4. Ribbon must be right-clickable/interactable as proxy for the repo-root folder.
 5. Right-click on repo root → "Open on GitHub" option (already ENH-155 scope, confirmed by owner).
 
-
 > Filed during the v0.6.8 cut close-out sweep. Each entry below is a draft of an idea from `idle-thoughts.md` that needs sprint planning input before code work — chord conflicts, exact UX choice, scope boundaries. **Refine in the next sprint-plan session.**
-
 
 ## DRAFT — Sprint-9+ candidates from idle-thoughts sweep (2026-05-06)
 ### ENH-100: Lock/unlock context menu verb for filetypes that support editability
@@ -1830,7 +1748,6 @@ Recommended: option 1 for clean state + option 2 for dirty state — clean buffe
 
 **Pairs with FOLLOWUP-011** (cross-machine substrate validation) — a real enterprise pack builder following the workshop on a non-Geoff machine validates Stage 21d's substrate end-to-end.
 
-
 ## Missing features
 ### MISSING-001: Markdown editor — no way to add a comment
 
@@ -1862,7 +1779,6 @@ Promoted 2026-05-04 after owner asked "I thought we shipped comments a long time
 **Cross-ref:** BUG-081 (the canvas-side regression discovered in the same investigation). Stage 14 / 14a on `docs/roadmap.html`. Stage 17d-A (where the canvas-side first shipped).
 
 ---
-
 
 ## Follow-ups (open · process / docs)
 ### FOLLOWUP-002: Harden `agents/duo.md` session guard against Bash-allowlist denial
@@ -1920,11 +1836,9 @@ Promoted 2026-05-04 after owner asked "I thought we shipped comments a long time
 
 ---
 
-
 Owner installed the prebuilt v0.4.2 DMG and walked the surfaces. These came back as observations — a mix of bugs and enhancements. Filed together so the v0.4.3 patch (or v0.5.0 cut) can scoop them in one pass.
 
 ---
-
 
 ## v0.4.2 punch list (filed 2026-04-27 from owner-side smoke)
 ### ENH-022: `duo doc goto` — agent-driven editor navigation (heading / line / anchor)

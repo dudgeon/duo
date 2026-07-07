@@ -21,7 +21,17 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.13.3 cut 2026-07-03)*
+> *(empty — v0.13.4 cut 2026-07-06)*
+
+---
+
+## v0.13.4 — 2026-07-06 — Pull from the navigator, buckets in rollups, and a hardened review pass
+
+**Why now.** Three parallel worktrees landed as one chapter: the navigator gained its first *write* git verb (pull — ENH-253, #121), the rollup engine gained the membership-filter + declared-bucket semantics an external requester was blocked on (ENH-255, #123), and the vault's capture gesture lost its nastiest silent-corruption bug (BUG-254, #122). Before merging, all three PRs went through an adversarial multi-agent review — ~30 verified findings were fixed *on the branches*, so main never carried the known defects.
+
+**Key decisions baked in.** (1) Pull's safety probes fail closed — an unreadable repo can never masquerade as a clean or up-to-date one, and the destructive force path re-confirms if the tree changed after the user consented (TOCTOU guard). (2) Bucket membership is identity-based (targetKey fold), so `[[q3-launch]]`, `[[q3-launch|Growth]]`, and array-valued groups all land in the declared bucket — and `== this` now folds the same way `contains()` does. (3) Filter errors are honest everywhere: D15's "an erroring expression fails the row" holds through `not:`/`or:`, and every consumer (HTML, markdown copy, both JSON verbs) surfaces the warning rather than rendering a silent empty. (4) v1 pull explicitly punts real conflict resolution — a genuine content conflict aborts cleanly and points at a human.
+
+**What this is and isn't.** This is the sync-and-see release for PMs pairing with agents: pull the latest without a terminal, trust a rollup's empty state, and trust that a fast double-Enter files a note where you meant. It is NOT a conflict-resolution UI (pull v1 aborts on genuine conflicts), and the two new UI surfaces (PullModal, the type-picker fix) shipped from headless sessions — the live smoke-walk is owed at the next walk. Queued next: PR #124 (BUG-256/ENH-257 rollup rename + `duo goto`).
 
 ---
 

@@ -604,6 +604,15 @@
   </div>
 </article>
 
+<article class="item" data-keys="pull latest changes git fetch fast-forward sync remote navigator right-click repo root discard dirty merge conflict force enh-253">
+  <div class="num">131</div>
+  <div>
+    <h3>Pull the latest changes for a repo without typing git</h3>
+    <p class="why"><strong>v0.13.4:</strong> right-click any folder that is a git repo root in the navigator and choose <strong>Pull latest changes</strong> — Duo fetches and applies the safest update available: a silent fast-forward when your copy is clean and simply behind; an auto-merge when you have local commits (a genuine content conflict aborts cleanly, changing nothing); and if you have unsaved local changes, it refuses with an explicit warning until you press "Discard my changes and pull" — the one destructive path, always behind a confirm that re-checks nothing changed since you consented.</p>
+    <p class="how"><strong>UI</strong>Navigator → right-click a repo-root folder → Pull latest changes. <strong>CLI</strong><code>duo pull [&lt;path&gt;] [--force] [--json]</code> — git-direct, works even when Duo isn't running.</p>
+  </div>
+</article>
+
 
 <article class="item" data-keys="claude context fill highlight .claude folder CLAUDE.md terracotta wash navigator always-on which files agent reads project">
   <div class="num">122</div>
@@ -1097,6 +1106,15 @@
   </div>
 </article>
 
+<article class="item" data-keys="rollup membership filter contains multi-valued tracks declared buckets groups empty none filter error warning silent empty enh-255">
+  <div class="num">132</div>
+  <div>
+    <h3>Filter rollups by multi-valued fields, pin the buckets you expect, and never trust a silent empty</h3>
+    <p class="why"><strong>v0.13.4:</strong> rollups now filter on multi-valued frontmatter — "every task whose <code>tracks</code> contains <code>[[q3-launch]]</code>" — matching by link identity, so aliases and casing variants all count. Declared <em>buckets</em> pin the groups you expect in a fixed order and show "— none —" when a bucket is empty (an empty bucket is information, not an omission). And a broken filter can no longer render an innocent-looking empty view: every surface — the HTML artifact, Copy-as-Markdown, the JSON the agent reads — carries an explicit ⚠ warning naming the failing expression.</p>
+    <p class="how"><strong>UI</strong>Rollups tab → the builder's filter row (<code>contains</code> etc.) and the Buckets editor under group-by. <strong>CLI</strong><code>duo rollup set &lt;note&gt; --filter 'tracks~=q3-launch' --bucket q3-launch="Q3 Launch"</code> · warnings surface in <code>duo rollup render</code> / <code>duo base render</code> JSON as <code>warnings[]</code>.</p>
+  </div>
+</article>
+
 <h2 class="cat">Workspace setup</h2>
 <p class="cat-tagline">Pin tabs you want always-available; install Duo's skill + agent + CLI in one click.</p>
 
@@ -1352,7 +1370,7 @@
 </article>
 
 <footer>
-  <p>This is Duo v0.13.3. Last updated 2026-07-03. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
+  <p>This is Duo v0.13.4. Last updated 2026-07-06. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
   <p style="margin-top:6px; color: var(--ink-ghost); font-size: 11px;">Find an item that should be here? Tell Claude — the cut-version skill updates this file with each release.</p>
 </footer>
 

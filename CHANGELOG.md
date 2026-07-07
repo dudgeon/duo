@@ -19,7 +19,21 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.13.3 cut 2026-07-03.
+> Empty — v0.13.4 cut 2026-07-06.
+
+## [0.13.4] — 2026-07-06 — Navigator pull, rollup buckets, hardened review pass
+
+### Added
+- **Navigator "Pull latest changes" (ENH-253, #121)** — right-click any repo-root folder to sync remote→local via a new PullModal: silent fast-forward when clean; auto-merge when diverged (real conflicts abort untouched); dirty trees refuse with an explicit "Discard my changes and pull" override. CLI twin: `duo pull [<path>] [--force] [--json]` — git-direct, works without the app or Claude running.
+- **Rollup membership filters + declared buckets (ENH-255, #123)** — multi-valued frontmatter filters (`contains`/`containsAny`/`containsAll`, `k~=v` CLI sugar), declared group buckets (`groups:` in `.base` / `--bucket value=Label` with `\=` escaping; empty buckets render "— none —"), and filter-error surfacing across every consumer (HTML banner, markdown blockquote, `warnings[]` in both `rollup render` and `base render` JSON).
+
+### Fixed
+- **BUG-254 (#122)** — the type-picker no longer drops a fast Enter/Tab pressed while the type registry is loading (silent-mistype / keystroke-trap): confirms queue and fire on load; registry failures drop the queued confirm rather than auto-creating a stub; misleading "+ new type" rows suppressed while loading; IME composition-commit Enter ignored.
+- **BUG-252** — roadmap.html's 20-cuts-stale sidebar Status panel removed.
+- **Review hardening (post-review fixes on #121/#122/#123)** — pull's git probes fail *closed* (a failed `git status`/`rev-list` can no longer read as "clean"/"up to date"); untracked files no longer trigger the false destructive-discard warning; merge failures report git's real stderr instead of a canned "conflict"; force-discard re-confirms if the tree changed since consent (TOCTOU guard); PullModal parks the browser WebContentsView (BUG-153 class) and is dismissible mid-pull; `duo pull --json` exits non-zero on failure; rollup filter errors follow D15 exactly (`not:` errors fail the row instead of including everything; `or:` errors beside a passing branch no longer warn); buckets match by link identity (alias variants + array-valued groups); `== this` uses the same identity fold as `contains()`; clone's auth-failure sniffing kept its stricter pre-refactor patterns; check-skill-currency's verb scan scoped to the dispatch switch (A7 false-positive fixed at the mechanism).
+
+### Known issues
+- The PullModal flow and the type-picker fix shipped from headless sessions — no live smoke-walk yet; owed at the next walk.
 
 ## [0.13.3] — 2026-07-03 — Rollups tab: a full GUI rollup viewer/editor
 
@@ -2186,6 +2200,7 @@ the agent-driven HTML canvas, and the visual identity.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
 [Unreleased]: https://github.com/dudgeon/duo/compare/v0.13.3...HEAD
+[0.13.4]: https://github.com/dudgeon/duo/compare/v0.13.3...v0.13.4
 [0.13.3]: https://github.com/dudgeon/duo/compare/v0.13.2...v0.13.3
 [0.13.2]: https://github.com/dudgeon/duo/compare/v0.13.1...v0.13.2
 [0.13.1]: https://github.com/dudgeon/duo/compare/v0.13.0...v0.13.1
