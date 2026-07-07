@@ -1267,12 +1267,19 @@ export interface VaultRollupDto {
 // ENH-243 — the Rollups tab DTOs. Mirror core/vault/builder.ts shapes
 // (RollupBuilderModel / RollupViewData / EntityPanel), declared inline for
 // the same reason as the DTOs above (core/vault is main-process-only).
-export type RollupFilterOpDto = 'eq' | 'ne' | 'set' | 'notset'
+export type RollupFilterOpDto = 'eq' | 'ne' | 'contains' | 'set' | 'notset'
 
 export interface RollupFilterDto {
   property: string
   op: RollupFilterOpDto
   value?: string
+}
+
+/** ENH-255 — a declared level-1 bucket: always renders (even empty), in
+ *  declaration order, under `label` (else the raw value). */
+export interface RollupBucketDto {
+  value: string
+  label?: string
 }
 
 /** The builder model — the GUI-shaped rollup definition (PRD D4). */
@@ -1281,6 +1288,8 @@ export interface RollupModelDto {
   types: string[]
   /** Ordered group-by levels, outermost first (D5). */
   groupBy: string[]
+  /** Declared buckets for group level 1 (ENH-255); [] = derive from rows. */
+  buckets: RollupBucketDto[]
   filters: RollupFilterDto[]
   columns: string[]
 }
@@ -1301,6 +1310,12 @@ export interface RollupViewDataDto {
   title: string
   columns: string[]
   groupBy: string[]
+  /** ENH-255 — declared level-1 buckets in declaration order: header label +
+   *  the matched level-1 group key (null = empty bucket, GUI injects it). */
+  buckets: { label: string; key: string | null }[]
+  /** ENH-255 — filter eval-error lines (a broken filter must never read as
+   *  a legitimately-empty rollup). */
+  warnings: string[]
   rows: RollupViewRowDto[]
   /** Parsed builder model, or null → view-only (hand-authored spec). */
   model: RollupModelDto | null

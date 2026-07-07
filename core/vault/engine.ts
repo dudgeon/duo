@@ -110,9 +110,31 @@ function parseLinkish(v: unknown, asOf: Date): unknown {
   return v
 }
 
+/** `== this` / link-group equality. ENH-255 review fix: link-ish operands
+ *  fold through targetKey (same identity fold as {@link memberEq}), so
+ *  `parent == this` matches `[[Q3 Launch]]` / `[[q3-launch|Growth]]` alias +
+ *  case variants exactly like `contains()` does. Plain scalars stay strict. */
 function gbEq(a: unknown, b: unknown): boolean {
+  const linkish = (x: unknown) =>
+    x instanceof Link || (!!x && typeof x === 'object' && typeof (x as { name?: unknown }).name === 'string')
   const name = (x: any) => (x instanceof Link ? x.target : x && x.name ? x.name : x)
+  if (linkish(a) || linkish(b)) {
+    return targetKey(String(name(a)), 'wikilink') === targetKey(String(name(b)), 'wikilink')
+  }
   return name(a) === name(b)
+}
+
+/** Identity-folded element equality for membership predicates (ENH-255).
+ *  When either side is a Link, both fold through targetKey so the match keys
+ *  off the linked note's IDENTITY (`Q3 Launch` ≡ `q3-launch`), never its
+ *  display alias. Plain scalars compare loosely by string so `"3" == 3`
+ *  frontmatter drift doesn't break membership. */
+export function memberEq(el: unknown, probe: unknown): boolean {
+  if (el instanceof Link || probe instanceof Link) {
+    const keyOf = (v: unknown) => targetKey(String(v instanceof Link ? v.target : v), 'wikilink')
+    return keyOf(el) === keyOf(probe)
+  }
+  return el === probe || String(el) === String(probe)
 }
 
 /** An engine-side note object — the shape `.base` expressions see as a row
@@ -309,6 +331,50 @@ function ensureEngineGlobals(): void {
       configurable: true,
     })
   }
+  // ENH-255 — Bases membership predicates. The lint vocabulary always listed
+  // contains/containsAll/containsAny, but the engine never implemented them,
+  // so a multi-valued filter linted clean yet errored at eval (and `passes`
+  // used to swallow that as an empty view). List membership folds Link
+  // identity via memberEq; string contains is a plain substring probe.
+  // ENH-255 review fix — Duo's prototype additions are tagged with a marker
+  // symbol so a PRE-EXISTING foreign definition (some other library's
+  // Array.prototype.contains…) is detected, not silently deferred to: we
+  // never overwrite it (that could break the foreign code), but we warn once
+  // naming the collision so a subtly-different `contains` semantics doesn't
+  // read as a Duo engine bug.
+  const DUO_ENGINE_FN = Symbol.for('duo.vault.engineFn')
+  const def = (proto: object, name: string, value: unknown) => {
+    if (name in proto) {
+      const existing = (proto as Record<string, unknown>)[name]
+      const isDuo =
+        typeof existing === 'function' && (existing as unknown as Record<symbol, unknown>)[DUO_ENGINE_FN] === true
+      if (!isDuo) {
+        console.warn(
+          `duo vault engine: ${proto === Array.prototype ? 'Array' : proto === String.prototype ? 'String' : 'Object'}` +
+            `.prototype.${name} is already defined by other code — keeping the foreign definition; ` +
+            'Bases membership semantics (Link identity fold) may differ for this method.',
+        )
+      }
+      return
+    }
+    if (typeof value === 'function') {
+      Object.defineProperty(value, DUO_ENGINE_FN, { value: true, enumerable: false })
+    }
+    Object.defineProperty(proto, name, { value, enumerable: false, writable: true, configurable: true })
+  }
+  const probesOf = (args: unknown[]): unknown[] => (args.length === 1 && Array.isArray(args[0]) ? args[0] : args)
+  def(Array.prototype, 'contains', function (this: unknown[], probe: unknown) {
+    return this.some((el) => memberEq(el, probe))
+  })
+  def(Array.prototype, 'containsAny', function (this: unknown[], ...args: unknown[]) {
+    return probesOf(args).some((p) => this.some((el) => memberEq(el, p)))
+  })
+  def(Array.prototype, 'containsAll', function (this: unknown[], ...args: unknown[]) {
+    return probesOf(args).every((p) => this.some((el) => memberEq(el, p)))
+  })
+  def(String.prototype, 'contains', function (this: string, probe: unknown) {
+    return this.includes(String(probe))
+  })
 }
 
 export interface EvalError {
@@ -398,24 +464,82 @@ export function evalExpr(
   }
 }
 
-/** Evaluate a filter node (string expr, or `and`/`or`/`not` group). */
+/** Tri-state filter result: a definite boolean, or 'error' — the branch
+ *  couldn't be evaluated AND that indeterminacy reaches the result. */
+type TriState = boolean | 'error'
+interface TriResult {
+  v: TriState
+  /** The erroring leaf expressions that made `v` 'error' (empty otherwise). */
+  errs: { expr: string; error: string }[]
+}
+
+/** Error-aware filter evaluation (ENH-255 review fix). An error only
+ *  propagates when it actually decides the node's value:
+ *  - `and`: any definite-false branch wins (false, no error reported — the
+ *    row was genuinely excluded); else any erroring branch → 'error'.
+ *  - `or`: any definite-true branch wins (true, no error reported — the row
+ *    rendered fine); else any erroring branch → 'error'.
+ *  - `not`: an erroring child is indeterminate, so the negation is too —
+ *    'error' (NOT error→false→negated→included, which would include every
+ *    row a broken not: filter touched). Else `!every(child)` as before. */
+function passesTri(
+  filterNode: unknown,
+  file: EngineFile,
+  thisFile: EngineFile | null,
+  formulas: Record<string, unknown>,
+  asOf: Date,
+): TriResult {
+  if (filterNode == null) return { v: true, errs: [] }
+  if (typeof filterNode === 'string') {
+    const r = evalExpr(filterNode, file, thisFile, formulas, asOf)
+    if (isEvalError(r)) return { v: 'error', errs: [{ expr: filterNode, error: r.__error }] }
+    return { v: Boolean(r), errs: [] }
+  }
+  const node = filterNode as Record<string, unknown>
+  const kids = (list: unknown[]): TriResult[] => list.map((n) => passesTri(n, file, thisFile, formulas, asOf))
+  const errsOf = (rs: TriResult[]) => rs.filter((r) => r.v === 'error').flatMap((r) => r.errs)
+  if (node.and) {
+    const rs = kids(node.and as unknown[])
+    if (rs.some((r) => r.v === false)) return { v: false, errs: [] }
+    if (rs.some((r) => r.v === 'error')) return { v: 'error', errs: errsOf(rs) }
+    return { v: true, errs: [] }
+  }
+  if (node.or) {
+    const rs = kids(node.or as unknown[])
+    if (rs.some((r) => r.v === true)) return { v: true, errs: [] }
+    if (rs.some((r) => r.v === 'error')) return { v: 'error', errs: errsOf(rs) }
+    return { v: false, errs: [] }
+  }
+  if (node.not) {
+    const rs = kids(node.not as unknown[])
+    if (rs.some((r) => r.v === 'error')) return { v: 'error', errs: errsOf(rs) }
+    return { v: !rs.every((r) => r.v === true), errs: [] }
+  }
+  return { v: true, errs: [] }
+}
+
+/** Evaluate a filter node (string expr, or `and`/`or`/`not` group). A filter
+ *  expression that ERRORS still fails the row (warn-and-render, D15) — an
+ *  indeterminate branch never INCLUDES a row (even under `not:`). It reports
+ *  through `onError` (ENH-255), but ONLY when the error actually decided the
+ *  row's exclusion: an erroring `or:` branch beside a passing one, or beside
+ *  a definite-false `and:` sibling, is silent — the row's fate was the same
+ *  with or without the error, so warning would claim rows "failed" that
+ *  rendered fine (or were genuinely filtered). */
 export function passes(
   filterNode: unknown,
   file: EngineFile,
   thisFile: EngineFile | null,
   formulas: Record<string, unknown>,
   asOf: Date,
+  onError?: (expr: string, error: string) => void,
 ): boolean {
-  if (filterNode == null) return true
-  if (typeof filterNode === 'string') {
-    const r = evalExpr(filterNode, file, thisFile, formulas, asOf)
-    return Boolean(r) && !isEvalError(r)
+  const r = passesTri(filterNode, file, thisFile, formulas, asOf)
+  if (r.v === 'error') {
+    for (const e of r.errs) onError?.(e.expr, e.error)
+    return false
   }
-  const node = filterNode as Record<string, unknown>
-  if (node.and) return (node.and as unknown[]).every((n) => passes(n, file, thisFile, formulas, asOf))
-  if (node.or) return (node.or as unknown[]).some((n) => passes(n, file, thisFile, formulas, asOf))
-  if (node.not) return !(node.not as unknown[]).every((n) => passes(n, file, thisFile, formulas, asOf))
-  return true
+  return r.v
 }
 
 /** Default as-of date (local midnight today) for relative formulas. */
