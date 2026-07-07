@@ -2624,6 +2624,12 @@ function setupIPC(): void {
     ) => {
       try {
         const root = requireVault(vaultRoot)
+        // ENH-255 review fix (finding k) — buckets declare groups for level 1;
+        // with no groupBy, serializeBuilderBase would silently DROP them from
+        // the written note. Reject up front (mirrors the CLI's guard).
+        if ((model.buckets?.length ?? 0) > 0 && (model.groupBy?.length ?? 0) === 0) {
+          return { ok: false, error: 'declared buckets need a group level — add a group-by or clear the buckets' }
+        }
         let noteRel: string
         let absPath: string
         if (note) {
@@ -2807,7 +2813,7 @@ function setupIPC(): void {
         if (result.error || result.markdown == null) {
           return { ok: false, error: result.error ?? 'could not render markdown' }
         }
-        return { ok: true, markdown: result.markdown }
+        return { ok: true, markdown: result.markdown, warnings: result.warnings }
       } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : String(e) }
       }

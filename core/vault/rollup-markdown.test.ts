@@ -188,3 +188,46 @@ describe('rollupMarkdownTable — GitHub remote (blob links)', () => {
     expect(markdown).toContain('[a](./tasks/a.md)')
   })
 })
+
+// ENH-255 review fixes (finding g) — the Copy-as-Markdown path must surface
+// filter warnings and render declared buckets like the HTML path does.
+describe('rollupMarkdownTable — ENH-255 warnings + declared buckets', () => {
+  it('a broken filter yields a > ⚠ blockquote + a warnings[] field, never a silent empty table', async () => {
+    task('tasks/a.md', 'status: open')
+    write(
+      'rollups/broken.md',
+      '---\ntype: rollup\ntitle: Broken\n---\n\n```base\nfilters:\n  and:\n    - type == "task"\n    - bogusFn(status)\nviews:\n  - type: table\n    name: Broken\n    order:\n      - file.name\n```\n',
+    )
+    const { markdown, error, warnings } = await rollupMarkdownTable(v, 'rollups/broken.md')
+    expect(error).toBeNull()
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('bogusFn')
+    expect(markdown).toMatch(/> ⚠ .*bogusFn/)
+    expect(markdown).toContain('_No entities match')
+  })
+
+  it('declared buckets render as sections — an empty declared bucket as — none —', async () => {
+    task('tasks/a.md', 'status: open\nowner: geoff')
+    task('tasks/b.md', 'status: open\nowner: sam')
+    const { noteRel } = createRollupNote(v, {
+      title: 'Bucketed tasks',
+      types: ['task'],
+      groupBy: ['status'],
+      buckets: [
+        { value: 'blocked', label: 'Blocked work' },
+        { value: 'open', label: 'Open work' },
+      ],
+      filters: [],
+      columns: ['owner'],
+    })
+    const { markdown, warnings } = await rollupMarkdownTable(v, noteRel)
+    expect(warnings).toEqual([])
+    const blockedAt = markdown!.indexOf('### Blocked work (0)')
+    const openAt = markdown!.indexOf('### Open work (2)')
+    expect(blockedAt).toBeGreaterThan(-1)
+    expect(openAt).toBeGreaterThan(blockedAt)
+    expect(markdown).toContain('_— none —_')
+    expect(markdown).toContain('[a](./tasks/a.md)')
+    expect(markdown).toContain('[b](./tasks/b.md)')
+  })
+})

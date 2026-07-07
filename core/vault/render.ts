@@ -55,14 +55,26 @@ export interface DeclaredGroup {
   label?: string
 }
 
-/** One filter expression that failed to evaluate, with how many rows it
- *  failed on (ENH-255 — surfaced, never silently an empty view). */
+/** One filter expression that failed to evaluate, with how many rows its
+ *  failure EXCLUDED (ENH-255 — surfaced, never silently an empty view).
+ *  Review-fix semantics: `count` counts only rows where the error actually
+ *  decided exclusion — an erroring `or:` branch beside a passing branch (row
+ *  rendered fine), or beside a definite-false `and:` sibling (row genuinely
+ *  filtered), reports nothing. An erroring branch under `not:` fails the row
+ *  (indeterminate is never negated into inclusion) and IS reported. */
 export interface FilterError {
   expr: string
   error: string
   count: number
 }
 
+// NOTE (ENH-255 review, finding n): the `groups:` shape is validated in
+// THREE places with deliberately different strictness — here (lenient: skip
+// malformed entries, render what parses), `builder.ts` parseBuilderBase
+// (strict: any non-canonical entry → view-only), and `lint.ts` (advisory:
+// findings, never gates). A shared normalize-with-mode helper was considered
+// and rejected as more invasive than the duplication; if you change the
+// accepted shape, change all three.
 function normalizeDeclaredGroups(raw: unknown): DeclaredGroup[] | undefined {
   if (!Array.isArray(raw)) return undefined
   const out: DeclaredGroup[] = []
@@ -178,11 +190,42 @@ export interface GroupBucket {
   declared: boolean
 }
 
+/** The identity key a group value folds to (ENH-255 review fix, finding f).
+ *  Link values key by targetKey — `[[q3-launch]]` and `[[q3-launch|Growth]]`
+ *  are ONE group (identity, never display); arrays key element-wise; scalars
+ *  by their string. Display text is only the group's LABEL. */
+function groupIdentity(v: unknown): string {
+  if (v == null) return '—'
+  if (v instanceof Link) return 'link:' + targetKey(v.target, 'wikilink')
+  if (Array.isArray(v)) return v.map(groupIdentity).join(' · ')
+  return String(v)
+}
+
+/** The human-facing key/label for a group value (first-seen display). */
+function groupDisplay(v: unknown): string {
+  if (v == null) return '—'
+  if (v instanceof Link) return v.display
+  if (Array.isArray(v)) return v.map(groupDisplay).join(', ')
+  return String(v)
+}
+
+/** Does a group's raw value match a declared bucket's `value:`? Array-valued
+ *  group values (a multi-valued groupBy field) match if ANY element matches
+ *  by identity (finding e — previously the whole array fell to String() and
+ *  a declared bucket could never match it). */
+function bucketMatches(raw: unknown, key: string, value: string): boolean {
+  if (Array.isArray(raw)) return raw.some((el) => memberEq(el, value))
+  return memberEq(raw ?? key, value)
+}
+
 /** Group a view's rows (ENH-255 — ONE implementation for both serializers).
- *  Declared buckets render first, in declaration order, under their labels —
- *  and always render, even with zero rows. A declared value matches its
- *  bucket by identity (memberEq — a Link group folds through targetKey, so
- *  `value: q3-launch` matches rows whose field says `[[Q3 Launch]]`).
+ *  Derived groups are keyed by IDENTITY (targetKey for Links), so alias/case
+ *  variants of the same note form one group; the first-seen display text is
+ *  the label. Declared buckets render first, in declaration order, under
+ *  their labels — and always render, even with zero rows. A declared value
+ *  absorbs EVERY identity-matching derived group (memberEq — `value:
+ *  q3-launch` matches rows whose field says `[[Q3 Launch]]` or
+ *  `[[q3-launch|Growth]]`); an array-valued group matches on any element.
  *  Undeclared buckets follow in the legacy alpha order (DESC honored).
  *  Returns null for an ungrouped view. */
 export function bucketRows(
@@ -192,37 +235,38 @@ export function bucketRows(
   asOf: Date,
 ): GroupBucket[] | null {
   if (!view.groupBy) return null
-  const derived = new Map<string, { raw: unknown; rows: EngineFile[] }>()
+  const derived = new Map<string, { key: string; raw: unknown; rows: EngineFile[] }>()
   for (const f of view.rows) {
     const v = readCol(view.groupBy.property, f, thisFile, formulas, asOf)
-    const key = v == null ? '—' : String(v instanceof Link ? v.display : v)
-    if (!derived.has(key)) derived.set(key, { raw: v, rows: [] })
-    derived.get(key)!.rows.push(f)
+    const id = groupIdentity(v)
+    if (!derived.has(id)) derived.set(id, { key: groupDisplay(v), raw: v, rows: [] })
+    derived.get(id)!.rows.push(f)
   }
   const out: GroupBucket[] = []
   const used = new Set<string>()
   for (const g of view.groups ?? []) {
-    let matched: string | null = null
-    for (const [key, b] of derived) {
-      if (used.has(key)) continue
-      if (memberEq(b.raw ?? key, g.value)) {
-        matched = key
-        break
+    // Absorb ALL identity-matching derived groups (no break — finding f):
+    // alias variants that somehow derived separately all land in the bucket.
+    const matches: { key: string; raw: unknown; rows: EngineFile[] }[] = []
+    for (const [id, b] of derived) {
+      if (used.has(id)) continue
+      if (bucketMatches(b.raw, b.key, g.value)) {
+        used.add(id)
+        matches.push(b)
       }
     }
-    if (matched) {
-      used.add(matched)
-      const b = derived.get(matched)!
-      out.push({ key: matched, label: g.label ?? matched, raw: b.raw, rows: b.rows, declared: true })
+    if (matches.length) {
+      const rows = matches.flatMap((m) => m.rows)
+      out.push({ key: matches[0].key, label: g.label ?? matches[0].key, raw: matches[0].raw, rows, declared: true })
     } else {
       out.push({ key: g.value, label: g.label ?? g.value, raw: null, rows: [], declared: true })
     }
   }
-  const rest = [...derived.keys()].filter((k) => !used.has(k)).sort((a, b) => a.localeCompare(b))
+  const rest = [...derived.entries()].filter(([id]) => !used.has(id))
+  rest.sort((a, b) => a[1].key.localeCompare(b[1].key))
   if (String(view.groupBy.direction).toUpperCase() === 'DESC') rest.reverse()
-  for (const k of rest) {
-    const b = derived.get(k)!
-    out.push({ key: k, label: k, raw: b.raw, rows: b.rows, declared: false })
+  for (const [, b] of rest) {
+    out.push({ key: b.key, label: b.key, raw: b.raw, rows: b.rows, declared: false })
   }
   return out
 }

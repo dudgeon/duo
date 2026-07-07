@@ -33,7 +33,7 @@ var import_crypto = require("crypto");
 var import_node_fs2 = __toESM(require("node:fs"));
 var import_node_path2 = __toESM(require("node:path"));
 
-// ../../../node_modules/js-yaml/dist/js-yaml.mjs
+// node_modules/js-yaml/dist/js-yaml.mjs
 function isNothing(subject) {
   return typeof subject === "undefined" || subject === null;
 }
@@ -4037,7 +4037,11 @@ function parseLinkish(v, asOf) {
   return v;
 }
 function gbEq(a, b) {
+  const linkish = (x) => x instanceof Link || !!x && typeof x === "object" && typeof x.name === "string";
   const name = (x) => x instanceof Link ? x.target : x && x.name ? x.name : x;
+  if (linkish(a) || linkish(b)) {
+    return targetKey(String(name(a)), "wikilink") === targetKey(String(name(b)), "wikilink");
+  }
   return name(a) === name(b);
 }
 function memberEq(el, probe) {
@@ -4201,10 +4205,22 @@ function ensureEngineGlobals() {
       configurable: true
     });
   }
+  const DUO_ENGINE_FN = Symbol.for("duo.vault.engineFn");
   const def = (proto, name, value) => {
-    if (!(name in proto)) {
-      Object.defineProperty(proto, name, { value, enumerable: false, writable: true, configurable: true });
+    if (name in proto) {
+      const existing = proto[name];
+      const isDuo = typeof existing === "function" && existing[DUO_ENGINE_FN] === true;
+      if (!isDuo) {
+        console.warn(
+          `duo vault engine: ${proto === Array.prototype ? "Array" : proto === String.prototype ? "String" : "Object"}.prototype.${name} is already defined by other code \u2014 keeping the foreign definition; Bases membership semantics (Link identity fold) may differ for this method.`
+        );
+      }
+      return;
     }
+    if (typeof value === "function") {
+      Object.defineProperty(value, DUO_ENGINE_FN, { value: true, enumerable: false });
+    }
+    Object.defineProperty(proto, name, { value, enumerable: false, writable: true, configurable: true });
   };
   const probesOf = (args) => args.length === 1 && Array.isArray(args[0]) ? args[0] : args;
   def(Array.prototype, "contains", function(probe) {
@@ -4283,21 +4299,42 @@ function evalExpr(expr, file, thisFile, formulas, asOf) {
     return { __error: e instanceof Error ? e.message : String(e), __expr: expr };
   }
 }
-function passes(filterNode, file, thisFile, formulas, asOf, onError) {
-  if (filterNode == null) return true;
+function passesTri(filterNode, file, thisFile, formulas, asOf) {
+  if (filterNode == null) return { v: true, errs: [] };
   if (typeof filterNode === "string") {
     const r = evalExpr(filterNode, file, thisFile, formulas, asOf);
-    if (isEvalError(r)) {
-      onError?.(filterNode, r.__error);
-      return false;
-    }
-    return Boolean(r);
+    if (isEvalError(r)) return { v: "error", errs: [{ expr: filterNode, error: r.__error }] };
+    return { v: Boolean(r), errs: [] };
   }
   const node = filterNode;
-  if (node.and) return node.and.every((n) => passes(n, file, thisFile, formulas, asOf, onError));
-  if (node.or) return node.or.some((n) => passes(n, file, thisFile, formulas, asOf, onError));
-  if (node.not) return !node.not.every((n) => passes(n, file, thisFile, formulas, asOf, onError));
-  return true;
+  const kids = (list) => list.map((n) => passesTri(n, file, thisFile, formulas, asOf));
+  const errsOf = (rs) => rs.filter((r) => r.v === "error").flatMap((r) => r.errs);
+  if (node.and) {
+    const rs = kids(node.and);
+    if (rs.some((r) => r.v === false)) return { v: false, errs: [] };
+    if (rs.some((r) => r.v === "error")) return { v: "error", errs: errsOf(rs) };
+    return { v: true, errs: [] };
+  }
+  if (node.or) {
+    const rs = kids(node.or);
+    if (rs.some((r) => r.v === true)) return { v: true, errs: [] };
+    if (rs.some((r) => r.v === "error")) return { v: "error", errs: errsOf(rs) };
+    return { v: false, errs: [] };
+  }
+  if (node.not) {
+    const rs = kids(node.not);
+    if (rs.some((r) => r.v === "error")) return { v: "error", errs: errsOf(rs) };
+    return { v: !rs.every((r) => r.v === true), errs: [] };
+  }
+  return { v: true, errs: [] };
+}
+function passes(filterNode, file, thisFile, formulas, asOf, onError) {
+  const r = passesTri(filterNode, file, thisFile, formulas, asOf);
+  if (r.v === "error") {
+    for (const e of r.errs) onError?.(e.expr, e.error);
+    return false;
+  }
+  return r.v;
 }
 function defaultAsOf() {
   return /* @__PURE__ */ new Date();
@@ -5273,6 +5310,15 @@ ${lines.join("\n")}
 ---
 ${body}`);
 }
+function levelOneGrouping(view, formulas, thisFile, at) {
+  const all = view.groupBy ? bucketRows(view, formulas, thisFile, at) : null;
+  const groupKeyByPath = all ? /* @__PURE__ */ new Map() : null;
+  if (all && groupKeyByPath) {
+    for (const b of all) for (const f of b.rows) if (!groupKeyByPath.has(f.path)) groupKeyByPath.set(f.path, b.key);
+  }
+  const buckets = (view.groups?.length ? all ?? [] : []).filter((b) => b.declared).map((b) => ({ label: b.label, key: b.rows.length > 0 ? b.key : null }));
+  return { buckets, groupKeyByPath };
+}
 function rollupViewData(root, target, asOf) {
   const at = asOf ?? defaultAsOf();
   const resolved = resolveRollupNote(root, target);
@@ -5349,10 +5395,13 @@ function rollupViewData(root, target, asOf) {
     const fmLevels = Array.isArray(fm.group_by) ? fm.group_by.filter((x) => typeof x === "string") : [];
     const groupBy = fmLevels.length > 0 ? fmLevels : view.groupBy ? [view.groupBy.property] : [];
     const columns = view.order;
+    const { buckets, groupKeyByPath } = levelOneGrouping(view, evaluated.formulas, thisFile, at);
+    const coreLevel1 = view.groupBy?.property === groupBy[0] ? groupKeyByPath : null;
     const rows = view.rows.map((f) => {
       const cells = {};
       for (const p of columns) cells[p] = plainCell(readCol(p, f, thisFile, evaluated.formulas, at));
-      const groups = groupBy.map((p) => {
+      const groups = groupBy.map((p, i) => {
+        if (i === 0 && coreLevel1) return coreLevel1.get(f.path) ?? "\u2014";
         const v = plainCell(readCol(p, f, thisFile, evaluated.formulas, at));
         return v === "" ? "\u2014" : v;
       });
@@ -5364,10 +5413,6 @@ function rollupViewData(root, target, asOf) {
         cells
       };
     });
-    const buckets = (view.groups?.length ? bucketRows(view, evaluated.formulas, thisFile, at) ?? [] : []).filter((b) => b.declared).map((b) => ({
-      label: b.label,
-      key: b.rows.length > 0 ? b.raw == null ? "\u2014" : plainCell(b.raw) : null
-    }));
     return { ...base, columns, groupBy, buckets, warnings: filterErrorLines(view), rows, model, error: null };
   } catch (e) {
     return fail(e instanceof Error ? e.message : String(e));
@@ -5414,7 +5459,7 @@ function escapeLinkText(v) {
 }
 async function rollupMarkdownTable(root, target) {
   const data = rollupViewData(root, target);
-  if (data.error) return { markdown: null, error: data.error };
+  if (data.error) return { markdown: null, error: data.error, warnings: [] };
   const github = await probeGitHubLinkBase(root);
   const resolveLink = (absPath, vaultRelPath) => (github ? gitHubBlobUrl(github, absPath) : null) ?? "./" + vaultRelPath;
   const dataColumns = data.columns.filter((c) => c !== "file.name");
@@ -5422,23 +5467,44 @@ async function rollupMarkdownTable(root, target) {
   const headers = [...data.groupBy, "Title", ...colLabels];
   const headerRow = "| " + headers.map(escapeCell).join(" | ") + " |";
   const sepRow = "| " + headers.map(() => "---").join(" | ") + " |";
+  const rowLine = (row) => {
+    const link = resolveLink(row.absPath, row.path);
+    const titleCell = `[${escapeLinkText(row.title)}](${link})`;
+    const cells = [
+      ...row.groups.map(escapeCell),
+      titleCell,
+      ...dataColumns.map((c) => escapeCell(row.cells[c] ?? ""))
+    ];
+    return "| " + cells.join(" | ") + " |";
+  };
+  const tableFor2 = (rows) => [headerRow, sepRow, ...rows.map(rowLine)];
   const lines = [`## ${data.title}`, ""];
-  if (data.rows.length === 0) {
+  if (data.warnings.length) {
+    for (const w of data.warnings) lines.push(`> \u26A0 ${w}`);
+    lines.push("");
+  }
+  if (data.buckets.length > 0) {
+    const declaredKeys = new Set(data.buckets.map((b) => b.key).filter((k) => k != null));
+    for (const b of data.buckets) {
+      const rows = b.key == null ? [] : data.rows.filter((r) => r.groups[0] === b.key);
+      lines.push(`### ${b.label} (${rows.length})`, "");
+      if (rows.length === 0) lines.push("_\u2014 none \u2014_");
+      else lines.push(...tableFor2(rows));
+      lines.push("");
+    }
+    const rest = data.rows.filter((r) => !declaredKeys.has(r.groups[0]));
+    const restKeys = [...new Set(rest.map((r) => r.groups[0]))].sort((a, b) => a.localeCompare(b));
+    for (const k of restKeys) {
+      const rows = rest.filter((r) => r.groups[0] === k);
+      lines.push(`### ${k} (${rows.length})`, "", ...tableFor2(rows), "");
+    }
+    while (lines.length && lines[lines.length - 1] === "") lines.pop();
+  } else if (data.rows.length === 0) {
     lines.push("_No entities match this rollup's filters._");
   } else {
-    lines.push(headerRow, sepRow);
-    for (const row of data.rows) {
-      const link = resolveLink(row.absPath, row.path);
-      const titleCell = `[${escapeLinkText(row.title)}](${link})`;
-      const cells = [
-        ...row.groups.map(escapeCell),
-        titleCell,
-        ...dataColumns.map((c) => escapeCell(row.cells[c] ?? ""))
-      ];
-      lines.push("| " + cells.join(" | ") + " |");
-    }
+    lines.push(...tableFor2(data.rows));
   }
-  return { markdown: lines.join("\n") + "\n", error: null };
+  return { markdown: lines.join("\n") + "\n", error: null, warnings: data.warnings };
 }
 
 // core/vault/render.ts
@@ -5492,39 +5558,54 @@ function evaluateBaseDef(def, files, thisFile, asOf) {
   }
   return { formulas, propCfg, views };
 }
+function groupIdentity(v) {
+  if (v == null) return "\u2014";
+  if (v instanceof Link) return "link:" + targetKey(v.target, "wikilink");
+  if (Array.isArray(v)) return v.map(groupIdentity).join(" \xB7 ");
+  return String(v);
+}
+function groupDisplay(v) {
+  if (v == null) return "\u2014";
+  if (v instanceof Link) return v.display;
+  if (Array.isArray(v)) return v.map(groupDisplay).join(", ");
+  return String(v);
+}
+function bucketMatches(raw, key, value) {
+  if (Array.isArray(raw)) return raw.some((el) => memberEq(el, value));
+  return memberEq(raw ?? key, value);
+}
 function bucketRows(view, formulas, thisFile, asOf) {
   if (!view.groupBy) return null;
   const derived = /* @__PURE__ */ new Map();
   for (const f of view.rows) {
     const v = readCol(view.groupBy.property, f, thisFile, formulas, asOf);
-    const key = v == null ? "\u2014" : String(v instanceof Link ? v.display : v);
-    if (!derived.has(key)) derived.set(key, { raw: v, rows: [] });
-    derived.get(key).rows.push(f);
+    const id = groupIdentity(v);
+    if (!derived.has(id)) derived.set(id, { key: groupDisplay(v), raw: v, rows: [] });
+    derived.get(id).rows.push(f);
   }
   const out2 = [];
   const used = /* @__PURE__ */ new Set();
   for (const g of view.groups ?? []) {
-    let matched = null;
-    for (const [key, b] of derived) {
-      if (used.has(key)) continue;
-      if (memberEq(b.raw ?? key, g.value)) {
-        matched = key;
-        break;
+    const matches = [];
+    for (const [id, b] of derived) {
+      if (used.has(id)) continue;
+      if (bucketMatches(b.raw, b.key, g.value)) {
+        used.add(id);
+        matches.push(b);
       }
     }
-    if (matched) {
-      used.add(matched);
-      const b = derived.get(matched);
-      out2.push({ key: matched, label: g.label ?? matched, raw: b.raw, rows: b.rows, declared: true });
+    if (matches.length) {
+      const rows = matches.flatMap((m) => m.rows);
+      out2.push({ key: matches[0].key, label: g.label ?? matches[0].key, raw: matches[0].raw, rows, declared: true });
     } else {
       out2.push({ key: g.value, label: g.label ?? g.value, raw: null, rows: [], declared: true });
     }
   }
-  const rest = [...derived.keys()].filter((k) => !used.has(k)).sort((a, b) => a.localeCompare(b));
+  const rest = [...derived.entries()].filter(([id]) => !used.has(id));
+  rest.sort((a, b) => a[1].key.localeCompare(b[1].key));
   if (String(view.groupBy.direction).toUpperCase() === "DESC") rest.reverse();
-  for (const k of rest) {
-    const b = derived.get(k);
-    out2.push({ key: k, label: k, raw: b.raw, rows: b.rows, declared: false });
+  for (const [, b] of rest) {
+    out2.push({ key: b.key, label: b.key, raw: b.raw, rows: b.rows, declared: false });
   }
   return out2;
 }
@@ -6840,7 +6921,7 @@ var VERBS = [
     name: "rollup",
     group: "Vault",
     args: '<render <note|base>|list|diff <note|base>|new --type t|show <note>|set <note>|doctor <note>|markdown <note>> [--md|--html] [--style css] [--summary "t"|--no-summary] [--against p] [--title "t"] [--group a,b] [--bucket v[=Label]]... [--filter k=v|k~=v]... [--columns a,b] [--out p] [--open] [--vault p]',
-    summary: "ENH-243 \u2014 the builder verbs (the Rollups tab's CLI twins; same core layer). new --type <t[,t2]> [--title \"t\"] [--group a,b] [--bucket 'value[=Label]']... [--filter 'k=v'|'k!=v'|'k~=v'|'k?'|'k!?']... [--columns a,b]: scaffold a builder-canonical `type: rollup` note at rollups/<slug>.md \u2014 multi-depth grouping via the ordered --group list (level 1 mirrors into the base block's groupBy; the full list lives in the note's group_by: frontmatter, grouped GUI-side). ENH-255 \u2014 k~=v is MEMBERSHIP on a multi-valued field (list contains v; a list-of-links field matches on the linked note's IDENTITY \u2014 `tracks~=q3-launch` matches `[[Q3 Launch]]` \u2014 never display text), and --bucket declares level-1 groups that ALWAYS render (even empty \u2014 an empty bucket is signal), in flag order, labeled `value=Label`; a filter that can't be evaluated is SURFACED (\u26A0 stderr + a warnings field + an artifact banner), never a silent empty rollup. show <note>: the parsed builder model + row/group summary as stable JSON (model:null = hand-authored/view-only; error set = broken). set <note> [--title|--type|--group|--columns] [--bucket \u2026]... [--clear-buckets] [--filter \u2026]... [--clear-filters]: mutate a builder-canonical note (appends filters unless --clear-filters; --bucket REPLACES the declared-bucket list wholesale \u2014 order is render order; refuses a hand-authored spec rather than clobbering it). doctor <note>: diagnosis \u2014 parse/eval error + advisory lint findings + repair guidance (the same prompt the GUI's \"Fix with Claude\" seeds). markdown <note> [--vault p]: ENH-244 \u2014 \"Copy as Markdown\" CLI twin; prints ONE GFM table to stdout with title cells linking to the entity's GitHub blob (vault root sits inside a GitHub-remote repo, branch = the current HEAD) or a vault-relative `./path` otherwise (one git probe for the whole table, works in OKF too) \u2014 pipe to `pbcopy` or a file. ENH-229/ENH-228 \u2014 rollups. A rollup is a first-class `type: rollup` NOTE (templates/rollup.md, filed in rollups/) that owns its spec (an embedded ```base block or a `spec:` .base path) + render provenance. render <note|base> [--md|--html]: render the spec and emit ONE variant \u2014 a stamped HTML artifact (--html; the DEFAULT for a rollup note \u2014 D2, HTML-first) OR Markdown (--md; GitHub-portable). For a `type: rollup` note the out path defaults to its `out:` (else rollups/<slug>.html) and `out`/`last_generated`/`last_hash` are stamped back into the note surgically (body untouched) \u2014 but ONLY for the note's canonical format; an ad-hoc --md/--html override renders a side artifact and leaves the note's provenance untouched. A bare `.base`/non-rollup target keeps the legacy MD-default, no-stamp behavior. Every row LINKS the entities it rolls up (the note + owner/group links resolved from frontmatter, incl. OKF rel-md). --style <css-file> layers a custom stylesheet over the Atelier base (HTML only). list: the rollup inventory \u2014 every `type: rollup` note with {note,title,out,format,last_generated,last_hash,stale} (stale = last_hash !== the live source hash); a corpus query, no scan, no sidecar. Change summary (req #7): the artifact self-embeds a rows snapshot + a summary log (HTML comments \u2014 \xA7D9-clean, no sidecar); --summary \"<text>\" adds a new latest \"What changed\" entry (an interactive Claude writes the narrative+notables from `duo rollup diff`), prior entries drop into a collapsible history; --no-summary clears it. diff <note|base> [--against <prior>]: deterministic JSON delta (added/removed/changed rows) vs the prior artifact's embedded snapshot \u2014 the material Claude summarizes. --out writes elsewhere; --open surfaces it as a tab. ENH-248 \u2014 lifecycle + GitHub links. delete <note> --force: remove the definition note AND its rendered artifact (without --force: dry-run prints what would go; file history is the note's undo net). duplicate <note>: copy as \"<Title> (copy)\" with provenance stripped (the copy renders its own artifact on next save/render). render --github: entity links as GitHub blob URLs (probe = the markdown verb's; falls back to relative when no GitHub remote). set --links github|relative: persist the note's entity-link mode (`links:` frontmatter; works on hand-authored notes too) \u2014 renders honor it automatically, incl. the GUI's auto-render-on-save."
+    summary: "ENH-243 \u2014 the builder verbs (the Rollups tab's CLI twins; same core layer). new --type <t[,t2]> [--title \"t\"] [--group a,b] [--bucket 'value[=Label]']... [--filter 'k=v'|'k!=v'|'k~=v'|'k?'|'k!?']... [--columns a,b]: scaffold a builder-canonical `type: rollup` note at rollups/<slug>.md \u2014 multi-depth grouping via the ordered --group list (level 1 mirrors into the base block's groupBy; the full list lives in the note's group_by: frontmatter, grouped GUI-side). ENH-255 \u2014 k~=v is MEMBERSHIP on a multi-valued field (list contains v; a list-of-links field matches on the linked note's IDENTITY \u2014 `tracks~=q3-launch` matches `[[Q3 Launch]]` \u2014 never display text), and --bucket declares level-1 groups that ALWAYS render (even empty \u2014 an empty bucket is signal), in flag order, labeled `value=Label` (first unescaped = splits; \\= escapes a literal = in the value); a filter that can't be evaluated is SURFACED (\u26A0 stderr + a warnings field + an artifact banner), never a silent empty rollup. show <note>: the parsed builder model + row/group summary as stable JSON (model:null = hand-authored/view-only; error set = broken). set <note> [--title|--type|--group|--columns] [--bucket \u2026]... [--clear-buckets] [--filter \u2026]... [--clear-filters]: mutate a builder-canonical note (appends filters unless --clear-filters; --bucket REPLACES the declared-bucket list wholesale \u2014 order is render order; refuses a hand-authored spec rather than clobbering it). doctor <note>: diagnosis \u2014 parse/eval error + advisory lint findings + repair guidance (the same prompt the GUI's \"Fix with Claude\" seeds). markdown <note> [--vault p]: ENH-244 \u2014 \"Copy as Markdown\" CLI twin; prints ONE GFM table to stdout with title cells linking to the entity's GitHub blob (vault root sits inside a GitHub-remote repo, branch = the current HEAD) or a vault-relative `./path` otherwise (one git probe for the whole table, works in OKF too) \u2014 pipe to `pbcopy` or a file. ENH-229/ENH-228 \u2014 rollups. A rollup is a first-class `type: rollup` NOTE (templates/rollup.md, filed in rollups/) that owns its spec (an embedded ```base block or a `spec:` .base path) + render provenance. render <note|base> [--md|--html]: render the spec and emit ONE variant \u2014 a stamped HTML artifact (--html; the DEFAULT for a rollup note \u2014 D2, HTML-first) OR Markdown (--md; GitHub-portable). For a `type: rollup` note the out path defaults to its `out:` (else rollups/<slug>.html) and `out`/`last_generated`/`last_hash` are stamped back into the note surgically (body untouched) \u2014 but ONLY for the note's canonical format; an ad-hoc --md/--html override renders a side artifact and leaves the note's provenance untouched. A bare `.base`/non-rollup target keeps the legacy MD-default, no-stamp behavior. Every row LINKS the entities it rolls up (the note + owner/group links resolved from frontmatter, incl. OKF rel-md). --style <css-file> layers a custom stylesheet over the Atelier base (HTML only). list: the rollup inventory \u2014 every `type: rollup` note with {note,title,out,format,last_generated,last_hash,stale} (stale = last_hash !== the live source hash); a corpus query, no scan, no sidecar. Change summary (req #7): the artifact self-embeds a rows snapshot + a summary log (HTML comments \u2014 \xA7D9-clean, no sidecar); --summary \"<text>\" adds a new latest \"What changed\" entry (an interactive Claude writes the narrative+notables from `duo rollup diff`), prior entries drop into a collapsible history; --no-summary clears it. diff <note|base> [--against <prior>]: deterministic JSON delta (added/removed/changed rows) vs the prior artifact's embedded snapshot \u2014 the material Claude summarizes. --out writes elsewhere; --open surfaces it as a tab. ENH-248 \u2014 lifecycle + GitHub links. delete <note> --force: remove the definition note AND its rendered artifact (without --force: dry-run prints what would go; file history is the note's undo net). duplicate <note>: copy as \"<Title> (copy)\" with provenance stripped (the copy renders its own artifact on next save/render). render --github: entity links as GitHub blob URLs (probe = the markdown verb's; falls back to relative when no GitHub remote). set --links github|relative: persist the note's entity-link mode (`links:` frontmatter; works on hand-authored notes too) \u2014 renders honor it automatically, incl. the GUI's auto-render-on-save."
   }
 ];
 var SOCKET_PATH = process.env.DUO_SOCKET ?? path20.join(os3.homedir(), "Library", "Application Support", "duo", "duo.sock");
@@ -7045,6 +7126,13 @@ function die(msg, code = 1) {
 function flagValue(args, name) {
   const i = args.indexOf(name);
   return i !== -1 ? args[i + 1] : void 0;
+}
+function collectFilterWarnings(result) {
+  const warnings = [];
+  for (const b of result.bases)
+    for (const v of b.evaluated.views)
+      for (const line of filterErrorLines(v)) warnings.push(`${b.label} \xB7 ${v.name}: ${line}`);
+  return warnings;
 }
 function positionalArgs(args, valueFlags = []) {
   const out2 = [];
@@ -8705,10 +8793,8 @@ ${res.pr.url}`);
           else if (open) outPath = path20.join(os3.tmpdir(), `duo-rollup-${stem}-${Date.now()}.html`);
           else outPath = path20.join(root, resolveOutputDir(root), `${stem}.html`);
           const result = renderTarget(root, target, { outDir: path20.dirname(outPath) });
-          for (const b of result.bases)
-            for (const v of b.evaluated.views)
-              for (const line of filterErrorLines(v))
-                process.stderr.write(`duo base render: \u26A0 ${b.label} \xB7 ${v.name}: ${line}
+          const filterWarnings = collectFilterWarnings(result);
+          for (const w of filterWarnings) process.stderr.write(`duo base render: \u26A0 ${w}
 `);
           fs19.mkdirSync(path20.dirname(outPath), { recursive: true });
           fs19.writeFileSync(outPath, result.html);
@@ -8733,6 +8819,7 @@ ${res.pr.url}`);
               label: b.label,
               views: b.evaluated.views.map((v) => ({ name: v.name, type: v.type, rows: v.rows.length }))
             })),
+            ...filterWarnings.length ? { warnings: filterWarnings } : {},
             ...open ? { opened } : {}
           });
         } else {
@@ -8819,10 +8906,7 @@ ${res.pr.url}`);
             embedSnapshot: true,
             github
           });
-          const filterWarnings = [];
-          for (const b of result.bases)
-            for (const v of b.evaluated.views)
-              for (const line of filterErrorLines(v)) filterWarnings.push(`${b.label} \xB7 ${v.name}: ${line}`);
+          const filterWarnings = collectFilterWarnings(result);
           for (const w of filterWarnings) process.stderr.write(`duo rollup render: \u26A0 ${w}
 `);
           fs19.mkdirSync(path20.dirname(outPath), { recursive: true });
@@ -8919,11 +9003,25 @@ ${res.pr.url}`);
             throw new Error("unreachable");
           };
           const parseBucketFlag = (s) => {
-            const i = s.indexOf("=");
-            if (i === -1) return { value: s };
-            const value = s.slice(0, i);
+            let i = -1;
+            for (let j = 0; j < s.length; j++) {
+              if (s[j] === "\\" && s[j + 1] === "=") {
+                j++;
+                continue;
+              }
+              if (s[j] === "=") {
+                i = j;
+                break;
+              }
+            }
+            const unescape = (x) => x.replace(/\\=/g, "=");
+            if (i === -1) return { value: unescape(s) };
+            const value = unescape(s.slice(0, i));
             const label = s.slice(i + 1);
-            if (!value) die(`duo rollup ${sub}: unrecognized --bucket ${JSON.stringify(s)} (use value or value=Label)`);
+            if (!value)
+              die(
+                `duo rollup ${sub}: unrecognized --bucket ${JSON.stringify(s)} (use value or value=Label; \\= escapes a literal = in the value)`
+              );
             return label ? { value, label } : { value };
           };
           if (sub === "new") {
@@ -8969,7 +9067,7 @@ ${res.pr.url}`);
               // ENH-255 — buckets REPLACE wholesale (unlike filters, which
               // append): declaration order is the render order, so a merge
               // would scramble it. --clear-buckets removes them all.
-              buckets: subRest.includes("--clear-buckets") ? bucketArgs.map(parseBucketFlag) : bucketArgs.length > 0 ? bucketArgs.map(parseBucketFlag) : data.model.buckets,
+              buckets: subRest.includes("--clear-buckets") || bucketArgs.length > 0 ? bucketArgs.map(parseBucketFlag) : data.model.buckets,
               filters: subRest.includes("--clear-filters") ? filterArgs.map(parseFilterFlag) : filterArgs.length > 0 ? [...data.model.filters, ...filterArgs.map(parseFilterFlag)] : data.model.filters,
               columns: list("--columns") ?? data.model.columns
             };
@@ -9029,6 +9127,8 @@ ${res.pr.url}`);
           const root = resolveVaultOrDefault(process.cwd(), vaultFlag);
           const result = await rollupMarkdownTable(root, target);
           if (result.error || result.markdown == null) die(`duo rollup markdown: ${result.error ?? "could not render"}`);
+          for (const w of result.warnings) process.stderr.write(`duo rollup markdown: \u26A0 ${w}
+`);
           process.stdout.write(result.markdown);
         } else if (sub === "delete") {
           const target = positionalArgs(subRest, ["--vault"])[0];

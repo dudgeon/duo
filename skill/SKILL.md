@@ -277,8 +277,12 @@ contains that note — matched on the linked note's IDENTITY, so
 `--bucket 'primary=Primary track activity' --bucket 'monitored=Monitored'`
 (needs `--group`) declares level-1 buckets that ALWAYS render — even with
 zero rows (an empty bucket is signal) — in flag order, under those labels;
-undeclared values trail alphabetically. In hand-authored YAML this is the
-view's `groups:` key (`- value: primary` / `  label: …`). **A filter that
+undeclared values trail alphabetically (`\=` escapes a literal `=` inside
+the bucket value; the first unescaped `=` splits value from label). In
+hand-authored YAML this is the view's `groups:` key (`- value: primary` /
+`  label: …`). Bucket + `== this` matching folds Link IDENTITY (targetKey),
+so alias/case variants of the same note land in ONE group across HTML, MD
+and the GUI; an array-valued groupBy matches a bucket on any element. **A filter that
 can't be evaluated is now SURFACED** — ⚠ stderr + `warnings[]` in render/show
 JSON + a banner in the artifact — so always check `warnings` before trusting
 a zero-row rollup.

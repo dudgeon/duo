@@ -288,3 +288,46 @@ flags, and this GUI:
   than a string / `{value, label}`, drop the note to view-only
   (`parseBuilderBase` → null) and lint warns/errors accordingly. Removing
   the last group level in the GUI clears the buckets with it.
+
+### 13a · Review fixes applied (2026-07-06, PR #123 review)
+
+Semantic corrections + consolidation from the code review of the ENH-255
+implementation. Behavior changes:
+
+- **D-255.2 error semantics made error-aware (tri-state).** `passes()` now
+  evaluates and/or/not groups over `boolean | 'error'`: an erroring branch
+  under **`not:`** FAILS the row (previously error→false→negated **included
+  every row**, contradicting D15's "an expression that ERRORS still fails
+  the row"). A filter error is **reported only when it decided the row's
+  exclusion**: an erroring `or:` branch beside a passing branch (row rendered
+  fine), or beside a definite-false `and:` sibling (row genuinely filtered),
+  is silent — `FilterError.count` now counts rows the error actually
+  excluded, keeping the warn-and-render contract accurate.
+- **Link-equality unified on identity.** `gbEq` (the `== this` / group
+  comparator) now folds link-ish operands through `targetKey`, the same
+  identity fold `contains()`/`memberEq` use — `parent == this` matches
+  `[[Q3 Launch]]` / `[[q3-launch|Growth]]` alias + case variants it
+  previously missed. Plain scalars still compare strictly.
+- **Bucket/group identity keying.** `bucketRows` keys derived groups by
+  IDENTITY (targetKey for Links; element-wise for arrays) with the
+  first-seen display text as the label, so alias variants of the same note
+  form ONE group across HTML/MD/GUI; a declared bucket absorbs **all**
+  identity-matching derived groups (the old loop `break`-ed after the first)
+  and an **array-valued groupBy** matches a declared bucket by any-element
+  identity (previously the whole array fell to `String()` and never
+  matched). The GUI's `rows[].groups[0]` and `buckets[].key` now come from
+  the SAME core computation (`levelOneGrouping` in `core/vault/builder.ts`),
+  so the GUI's `label === key` bucket bridge is exact by construction — the
+  invariant tying GUI keys to core keys is "both are `bucketRows`' canonical
+  group key", never a renderer-side re-derivation.
+- **Copy-as-Markdown honors D-255.2/D-255.3.** `rollupMarkdownTable` renders
+  filter warnings as a `> ⚠` blockquote and declared buckets as ordered
+  sections (empty ⇒ "— none —"), and returns a `warnings[]` field (IPC adds
+  it; `duo rollup markdown` echoes them on stderr). A broken filter can no
+  longer read as a silent `_No entities match_`.
+- **CLI:** `duo base render` JSON now carries the same `warnings` key as
+  `rollup render` (shared `collectFilterWarnings` helper); `--bucket` splits
+  at the first UNESCAPED `=` and `\=` escapes a literal `=` inside the value
+  (documented in the verb help — never a silent mis-parse).
+- **Guard:** the GUI save IPC (`VAULT_ROLLUP_SAVE`) rejects buckets with no
+  group level instead of `serializeBuilderBase` silently dropping them.

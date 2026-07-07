@@ -572,7 +572,7 @@ const VERBS: VerbSpec[] = [
     group: 'Vault',
     args: '<render <note|base>|list|diff <note|base>|new --type t|show <note>|set <note>|doctor <note>|markdown <note>> [--md|--html] [--style css] [--summary "t"|--no-summary] [--against p] [--title "t"] [--group a,b] [--bucket v[=Label]]... [--filter k=v|k~=v]... [--columns a,b] [--out p] [--open] [--vault p]',
     summary:
-      'ENH-243 — the builder verbs (the Rollups tab\'s CLI twins; same core layer). new --type <t[,t2]> [--title "t"] [--group a,b] [--bucket \'value[=Label]\']... [--filter \'k=v\'|\'k!=v\'|\'k~=v\'|\'k?\'|\'k!?\']... [--columns a,b]: scaffold a builder-canonical `type: rollup` note at rollups/<slug>.md — multi-depth grouping via the ordered --group list (level 1 mirrors into the base block\'s groupBy; the full list lives in the note\'s group_by: frontmatter, grouped GUI-side). ENH-255 — k~=v is MEMBERSHIP on a multi-valued field (list contains v; a list-of-links field matches on the linked note\'s IDENTITY — `tracks~=q3-launch` matches `[[Q3 Launch]]` — never display text), and --bucket declares level-1 groups that ALWAYS render (even empty — an empty bucket is signal), in flag order, labeled `value=Label`; a filter that can\'t be evaluated is SURFACED (⚠ stderr + a warnings field + an artifact banner), never a silent empty rollup. show <note>: the parsed builder model + row/group summary as stable JSON (model:null = hand-authored/view-only; error set = broken). set <note> [--title|--type|--group|--columns] [--bucket …]... [--clear-buckets] [--filter …]... [--clear-filters]: mutate a builder-canonical note (appends filters unless --clear-filters; --bucket REPLACES the declared-bucket list wholesale — order is render order; refuses a hand-authored spec rather than clobbering it). doctor <note>: diagnosis — parse/eval error + advisory lint findings + repair guidance (the same prompt the GUI\'s "Fix with Claude" seeds). markdown <note> [--vault p]: ENH-244 — "Copy as Markdown" CLI twin; prints ONE GFM table to stdout with title cells linking to the entity\'s GitHub blob (vault root sits inside a GitHub-remote repo, branch = the current HEAD) or a vault-relative `./path` otherwise (one git probe for the whole table, works in OKF too) — pipe to `pbcopy` or a file. ENH-229/ENH-228 — rollups. A rollup is a first-class `type: rollup` NOTE (templates/rollup.md, filed in rollups/) that owns its spec (an embedded ```base block or a `spec:` .base path) + render provenance. render <note|base> [--md|--html]: render the spec and emit ONE variant — a stamped HTML artifact (--html; the DEFAULT for a rollup note — D2, HTML-first) OR Markdown (--md; GitHub-portable). For a `type: rollup` note the out path defaults to its `out:` (else rollups/<slug>.html) and `out`/`last_generated`/`last_hash` are stamped back into the note surgically (body untouched) — but ONLY for the note\'s canonical format; an ad-hoc --md/--html override renders a side artifact and leaves the note\'s provenance untouched. A bare `.base`/non-rollup target keeps the legacy MD-default, no-stamp behavior. Every row LINKS the entities it rolls up (the note + owner/group links resolved from frontmatter, incl. OKF rel-md). --style <css-file> layers a custom stylesheet over the Atelier base (HTML only). list: the rollup inventory — every `type: rollup` note with {note,title,out,format,last_generated,last_hash,stale} (stale = last_hash !== the live source hash); a corpus query, no scan, no sidecar. Change summary (req #7): the artifact self-embeds a rows snapshot + a summary log (HTML comments — §D9-clean, no sidecar); --summary "<text>" adds a new latest "What changed" entry (an interactive Claude writes the narrative+notables from `duo rollup diff`), prior entries drop into a collapsible history; --no-summary clears it. diff <note|base> [--against <prior>]: deterministic JSON delta (added/removed/changed rows) vs the prior artifact\'s embedded snapshot — the material Claude summarizes. --out writes elsewhere; --open surfaces it as a tab. ENH-248 — lifecycle + GitHub links. delete <note> --force: remove the definition note AND its rendered artifact (without --force: dry-run prints what would go; file history is the note\'s undo net). duplicate <note>: copy as "<Title> (copy)" with provenance stripped (the copy renders its own artifact on next save/render). render --github: entity links as GitHub blob URLs (probe = the markdown verb\'s; falls back to relative when no GitHub remote). set --links github|relative: persist the note\'s entity-link mode (`links:` frontmatter; works on hand-authored notes too) — renders honor it automatically, incl. the GUI\'s auto-render-on-save.'
+      'ENH-243 — the builder verbs (the Rollups tab\'s CLI twins; same core layer). new --type <t[,t2]> [--title "t"] [--group a,b] [--bucket \'value[=Label]\']... [--filter \'k=v\'|\'k!=v\'|\'k~=v\'|\'k?\'|\'k!?\']... [--columns a,b]: scaffold a builder-canonical `type: rollup` note at rollups/<slug>.md — multi-depth grouping via the ordered --group list (level 1 mirrors into the base block\'s groupBy; the full list lives in the note\'s group_by: frontmatter, grouped GUI-side). ENH-255 — k~=v is MEMBERSHIP on a multi-valued field (list contains v; a list-of-links field matches on the linked note\'s IDENTITY — `tracks~=q3-launch` matches `[[Q3 Launch]]` — never display text), and --bucket declares level-1 groups that ALWAYS render (even empty — an empty bucket is signal), in flag order, labeled `value=Label` (first unescaped = splits; \\= escapes a literal = in the value); a filter that can\'t be evaluated is SURFACED (⚠ stderr + a warnings field + an artifact banner), never a silent empty rollup. show <note>: the parsed builder model + row/group summary as stable JSON (model:null = hand-authored/view-only; error set = broken). set <note> [--title|--type|--group|--columns] [--bucket …]... [--clear-buckets] [--filter …]... [--clear-filters]: mutate a builder-canonical note (appends filters unless --clear-filters; --bucket REPLACES the declared-bucket list wholesale — order is render order; refuses a hand-authored spec rather than clobbering it). doctor <note>: diagnosis — parse/eval error + advisory lint findings + repair guidance (the same prompt the GUI\'s "Fix with Claude" seeds). markdown <note> [--vault p]: ENH-244 — "Copy as Markdown" CLI twin; prints ONE GFM table to stdout with title cells linking to the entity\'s GitHub blob (vault root sits inside a GitHub-remote repo, branch = the current HEAD) or a vault-relative `./path` otherwise (one git probe for the whole table, works in OKF too) — pipe to `pbcopy` or a file. ENH-229/ENH-228 — rollups. A rollup is a first-class `type: rollup` NOTE (templates/rollup.md, filed in rollups/) that owns its spec (an embedded ```base block or a `spec:` .base path) + render provenance. render <note|base> [--md|--html]: render the spec and emit ONE variant — a stamped HTML artifact (--html; the DEFAULT for a rollup note — D2, HTML-first) OR Markdown (--md; GitHub-portable). For a `type: rollup` note the out path defaults to its `out:` (else rollups/<slug>.html) and `out`/`last_generated`/`last_hash` are stamped back into the note surgically (body untouched) — but ONLY for the note\'s canonical format; an ad-hoc --md/--html override renders a side artifact and leaves the note\'s provenance untouched. A bare `.base`/non-rollup target keeps the legacy MD-default, no-stamp behavior. Every row LINKS the entities it rolls up (the note + owner/group links resolved from frontmatter, incl. OKF rel-md). --style <css-file> layers a custom stylesheet over the Atelier base (HTML only). list: the rollup inventory — every `type: rollup` note with {note,title,out,format,last_generated,last_hash,stale} (stale = last_hash !== the live source hash); a corpus query, no scan, no sidecar. Change summary (req #7): the artifact self-embeds a rows snapshot + a summary log (HTML comments — §D9-clean, no sidecar); --summary "<text>" adds a new latest "What changed" entry (an interactive Claude writes the narrative+notables from `duo rollup diff`), prior entries drop into a collapsible history; --no-summary clears it. diff <note|base> [--against <prior>]: deterministic JSON delta (added/removed/changed rows) vs the prior artifact\'s embedded snapshot — the material Claude summarizes. --out writes elsewhere; --open surfaces it as a tab. ENH-248 — lifecycle + GitHub links. delete <note> --force: remove the definition note AND its rendered artifact (without --force: dry-run prints what would go; file history is the note\'s undo net). duplicate <note>: copy as "<Title> (copy)" with provenance stripped (the copy renders its own artifact on next save/render). render --github: entity links as GitHub blob URLs (probe = the markdown verb\'s; falls back to relative when no GitHub remote). set --links github|relative: persist the note\'s entity-link mode (`links:` frontmatter; works on hand-authored notes too) — renders honor it automatically, incl. the GUI\'s auto-render-on-save.'
   }
 ]
 
@@ -880,6 +880,18 @@ function flagValue(args: string[], name: string): string | undefined {
  * `duo base lint --all --vault X` would mis-read X as the lint target.
  * `valueFlags` are flags that consume the following token.
  */
+/** ENH-255 review fix (finding h) — one place both `duo base render` and
+ * `duo rollup render` flatten a render result's per-view filter eval-errors
+ * into "<base label> · <view name>: <line>" warning strings (stderr + the
+ * JSON `warnings` key — the two verbs must never drift). */
+function collectFilterWarnings(result: { bases: { label: string; evaluated: vault.EvaluatedBase }[] }): string[] {
+  const warnings: string[] = []
+  for (const b of result.bases)
+    for (const v of b.evaluated.views)
+      for (const line of vault.filterErrorLines(v)) warnings.push(`${b.label} · ${v.name}: ${line}`)
+  return warnings
+}
+
 function positionalArgs(args: string[], valueFlags: string[] = []): string[] {
   const out: string[] = []
   for (let i = 0; i < args.length; i++) {
@@ -3109,11 +3121,10 @@ async function main(): Promise<void> {
           // artifact lands (not the vault root). Must be computed before render.
           const result = vault.renderTarget(root, target, { outDir: path.dirname(outPath) })
           // ENH-255 — a broken filter renders as a ⚠ banner in the artifact,
-          // but the agent driving this verb reads stderr, not the artifact.
-          for (const b of result.bases)
-            for (const v of b.evaluated.views)
-              for (const line of vault.filterErrorLines(v))
-                process.stderr.write(`duo base render: ⚠ ${b.label} · ${v.name}: ${line}\n`)
+          // but the agent driving this verb reads stderr, not the artifact
+          // (and the JSON carries `warnings` too, same as `rollup render`).
+          const filterWarnings = collectFilterWarnings(result)
+          for (const w of filterWarnings) process.stderr.write(`duo base render: ⚠ ${w}\n`)
           fs.mkdirSync(path.dirname(outPath), { recursive: true })
           fs.writeFileSync(outPath, result.html)
           // `--open` is the one vault verb that reaches the running app
@@ -3146,6 +3157,7 @@ async function main(): Promise<void> {
               label: b.label,
               views: b.evaluated.views.map((v) => ({ name: v.name, type: v.type, rows: v.rows.length })),
             })),
+            ...(filterWarnings.length ? { warnings: filterWarnings } : {}),
             ...(open ? { opened } : {}),
           })
         } else {
@@ -3277,10 +3289,7 @@ async function main(): Promise<void> {
           })
           // ENH-255 — a broken filter renders as a ⚠ banner in the artifact,
           // but the agent driving this verb reads stderr, not the artifact.
-          const filterWarnings: string[] = []
-          for (const b of result.bases)
-            for (const v of b.evaluated.views)
-              for (const line of vault.filterErrorLines(v)) filterWarnings.push(`${b.label} · ${v.name}: ${line}`)
+          const filterWarnings = collectFilterWarnings(result)
           for (const w of filterWarnings) process.stderr.write(`duo rollup render: ⚠ ${w}\n`)
           fs.mkdirSync(path.dirname(outPath), { recursive: true })
           fs.writeFileSync(outPath, format === 'html' ? result.html : result.md)
@@ -3403,13 +3412,32 @@ async function main(): Promise<void> {
             throw new Error('unreachable')
           }
           // ENH-255 — --bucket 'value[=Label]': a declared level-1 bucket
-          // (always renders, even empty, in flag order, under Label).
+          // (always renders, even empty, in flag order, under Label). Review
+          // fix (finding i): the FIRST UNESCAPED '=' splits value from label
+          // (the label may contain literal '='s unescaped); write '\=' for a
+          // literal '=' INSIDE the value, e.g. --bucket 'size\=xl=Extra large'
+          // → value 'size=xl', label 'Extra large'. Predictable, documented,
+          // never a silent mis-parse.
           const parseBucketFlag = (s: string): vault.BuilderBucket => {
-            const i = s.indexOf('=')
-            if (i === -1) return { value: s }
-            const value = s.slice(0, i)
+            let i = -1
+            for (let j = 0; j < s.length; j++) {
+              if (s[j] === '\\' && s[j + 1] === '=') {
+                j++ // escaped '=' — part of the value
+                continue
+              }
+              if (s[j] === '=') {
+                i = j
+                break
+              }
+            }
+            const unescape = (x: string) => x.replace(/\\=/g, '=')
+            if (i === -1) return { value: unescape(s) }
+            const value = unescape(s.slice(0, i))
             const label = s.slice(i + 1)
-            if (!value) die(`duo rollup ${sub}: unrecognized --bucket ${JSON.stringify(s)} (use value or value=Label)`)
+            if (!value)
+              die(
+                `duo rollup ${sub}: unrecognized --bucket ${JSON.stringify(s)} (use value or value=Label; \\= escapes a literal = in the value)`,
+              )
             return label ? { value, label } : { value }
           }
           if (sub === 'new') {
@@ -3468,9 +3496,8 @@ async function main(): Promise<void> {
               // ENH-255 — buckets REPLACE wholesale (unlike filters, which
               // append): declaration order is the render order, so a merge
               // would scramble it. --clear-buckets removes them all.
-              buckets: subRest.includes('--clear-buckets')
-                ? bucketArgs.map(parseBucketFlag)
-                : bucketArgs.length > 0
+              buckets:
+                subRest.includes('--clear-buckets') || bucketArgs.length > 0
                   ? bucketArgs.map(parseBucketFlag)
                   : data.model.buckets,
               filters: subRest.includes('--clear-filters')
@@ -3553,6 +3580,9 @@ async function main(): Promise<void> {
           const root = vault.resolveVaultOrDefault(process.cwd(), vaultFlag)
           const result = await vault.rollupMarkdownTable(root, target)
           if (result.error || result.markdown == null) die(`duo rollup markdown: ${result.error ?? 'could not render'}`)
+          // ENH-255 (finding g) — the warnings are IN the markdown as a
+          // blockquote, but the agent driving this verb reads stderr too.
+          for (const w of result.warnings) process.stderr.write(`duo rollup markdown: ⚠ ${w}\n`)
           process.stdout.write(result.markdown)
         } else if (sub === 'delete') {
           // ENH-248 R6 — GUI twin of the rail's Delete: removes the

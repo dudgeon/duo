@@ -148,6 +148,10 @@ export function lintBaseDef(def: BaseDefLike, corpus: Corpus): LintFinding[] {
     if (v.type && !VIEW_TYPES.includes(v.type)) add('error', `view "${v.name || v.type}" — unknown view type "${v.type}"`)
     // ENH-255 — declared buckets: only meaningful under a groupBy, and every
     // entry needs a value (a bare string or {value, label}).
+    // NOTE (review, finding n): the `groups:` shape is also validated in
+    // render.ts normalizeDeclaredGroups (lenient) and builder.ts
+    // parseBuilderBase (strict) — three modes, deliberately not unified;
+    // change all three together.
     if (v.groups != null) {
       const vn = v.name || v.type || 'view'
       if (!v.groupBy) add('warn', `view "${vn}" — groups: declared without groupBy (buckets have nothing to group)`)

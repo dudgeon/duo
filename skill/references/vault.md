@@ -221,7 +221,11 @@ loadable there, minus the empty-bucket placeholder.) **Filter errors are
 surfaced, never silent**: a filter that can't be evaluated drops its rows AND
 emits a ⚠ stderr line + `warnings[]` in `render`/`show` JSON + a banner in
 the artifact — check `warnings` before trusting a zero-row rollup. Builder
-twins: `--filter 'tracks~=q3-launch'` and `--bucket 'value[=Label]'`.
+twins: `--filter 'tracks~=q3-launch'` and `--bucket 'value[=Label]'` (`\=`
+escapes a literal `=` in the value). Bucket/group matching folds Link
+identity — alias variants of one note form ONE group; an array-valued
+groupBy matches a bucket on any element. `duo base render` JSON carries the
+same `warnings` key.
 
 Renders are **stamped build artifacts** (D13): generated-at + source-hash +
 as-of date. Default writes to the vault's `output/` (or legacy `out/` for a

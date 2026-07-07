@@ -31,8 +31,17 @@ import { parseFile, readNotes, splitFrontmatter } from './parse'
 import { buildCorpus } from './corpus'
 import { safeName } from './filing'
 import { resolveRollupNote } from './rollup-notes'
-import { evaluateBaseDef, readCol, plainCell, sourceHash, bucketRows, filterErrorLines, type BaseDef } from './render'
-import { buildEngineFiles, defaultAsOf } from './engine'
+import {
+  evaluateBaseDef,
+  readCol,
+  plainCell,
+  sourceHash,
+  bucketRows,
+  filterErrorLines,
+  type BaseDef,
+  type EvaluatedView,
+} from './render'
+import { buildEngineFiles, defaultAsOf, type EngineFile } from './engine'
 
 // ── the builder model ───────────────────────────────────────────────────────
 
@@ -233,6 +242,9 @@ export function parseBuilderBase(
   // ENH-255 — declared buckets. Canonical form is {value, label?} entries;
   // a bare-string entry (value only) is accepted too. Anything else — or a
   // groups: declaration with no groupBy — is outside the dialect → view-only.
+  // NOTE (review, finding n): the `groups:` shape is also validated in
+  // render.ts normalizeDeclaredGroups (lenient) and lint.ts (advisory) —
+  // three modes, deliberately not unified; change all three together.
   const buckets: BuilderBucket[] = []
   if (view.groups != null) {
     if (!Array.isArray(view.groups) || groupBy.length === 0) return null
@@ -474,6 +486,33 @@ export interface RollupViewData {
   links: 'github' | 'relative'
 }
 
+/** ENH-255 review fix (findings l/m/p) — ONE derivation of level-1 grouping
+ *  shared by {@link rollupViewData} and {@link modelViewData}:
+ *  - `buckets` is the declared-bucket DTO (label + matched canonical group
+ *    key, null when empty) — previously duplicated byte-identically in both.
+ *  - `groupKeyByPath` maps each row to its CORE-COMPUTED level-1 group key
+ *    (bucketRows' canonical key — identity-merged, alias-variant-folded), so
+ *    the GUI's `rows[].groups[0]` and `buckets[].key` come from the SAME
+ *    computation and the GUI's `label === key` bridge is exact by
+ *    construction (never a re-derivation that can drift). Also trims the
+ *    redundant per-row readCol for level 1 (bucketRows already computed it). */
+function levelOneGrouping(
+  view: EvaluatedView,
+  formulas: Record<string, unknown>,
+  thisFile: EngineFile | null,
+  at: Date,
+): { buckets: { label: string; key: string | null }[]; groupKeyByPath: Map<string, string> | null } {
+  const all = view.groupBy ? bucketRows(view, formulas, thisFile, at) : null
+  const groupKeyByPath = all ? new Map<string, string>() : null
+  if (all && groupKeyByPath) {
+    for (const b of all) for (const f of b.rows) if (!groupKeyByPath.has(f.path)) groupKeyByPath.set(f.path, b.key)
+  }
+  const buckets = (view.groups?.length ? (all ?? []) : [])
+    .filter((b) => b.declared)
+    .map((b) => ({ label: b.label, key: b.rows.length > 0 ? b.key : null }))
+  return { buckets, groupKeyByPath }
+}
+
 /** Evaluate one rollup live for the Rollups tab. Never throws for a spec
  *  problem — that lands in `error` so the GUI can render the doctor card. */
 export function rollupViewData(root: string, target: string, asOf?: Date): RollupViewData {
@@ -568,10 +607,17 @@ export function rollupViewData(root: string, target: string, asOf?: Date): Rollu
     const groupBy = fmLevels.length > 0 ? fmLevels : view.groupBy ? [view.groupBy.property] : []
 
     const columns = view.order
+    // ENH-255 — level-1 group keys + declared buckets come from ONE core
+    // computation (levelOneGrouping / bucketRows), so alias variants merge
+    // identically here and in rendered artifacts, and the GUI's bucket
+    // bridge (label === key) can never drift from core.
+    const { buckets, groupKeyByPath } = levelOneGrouping(view, evaluated.formulas, thisFile, at)
+    const coreLevel1 = view.groupBy?.property === groupBy[0] ? groupKeyByPath : null
     const rows: RollupViewRow[] = view.rows.map((f) => {
       const cells: Record<string, string> = {}
       for (const p of columns) cells[p] = plainCell(readCol(p, f, thisFile, evaluated.formulas, at))
-      const groups = groupBy.map((p) => {
+      const groups = groupBy.map((p, i) => {
+        if (i === 0 && coreLevel1) return coreLevel1.get(f.path) ?? '—'
         const v = plainCell(readCol(p, f, thisFile, evaluated.formulas, at))
         return v === '' ? '—' : v
       })
@@ -583,16 +629,6 @@ export function rollupViewData(root: string, target: string, asOf?: Date): Rollu
         cells,
       }
     })
-
-    // ENH-255 — declared buckets resolve to the GUI's level-1 group keys
-    // (plainCell derivation, same as rows[].groups); an empty declared
-    // bucket keeps key:null so the GUI injects an empty group for it.
-    const buckets = (view.groups?.length ? (bucketRows(view, evaluated.formulas, thisFile, at) ?? []) : [])
-      .filter((b) => b.declared)
-      .map((b) => ({
-        label: b.label,
-        key: b.rows.length > 0 ? (b.raw == null ? '—' : plainCell(b.raw)) : null,
-      }))
 
     return { ...base, columns, groupBy, buckets, warnings: filterErrorLines(view), rows, model, error: null }
   } catch (e) {
@@ -624,21 +660,18 @@ export function modelViewData(root: string, model: RollupBuilderModel, asOf?: Da
     const view = evaluated.views[0]
     const groupBy = model.groupBy
     const columns = view.order
+    const { buckets, groupKeyByPath } = levelOneGrouping(view, evaluated.formulas, null, at)
+    const coreLevel1 = view.groupBy?.property === groupBy[0] ? groupKeyByPath : null
     const rows: RollupViewRow[] = view.rows.map((f) => {
       const cells: Record<string, string> = {}
       for (const p of columns) cells[p] = plainCell(readCol(p, f, null, evaluated.formulas, at))
-      const groups = groupBy.map((p) => {
+      const groups = groupBy.map((p, i) => {
+        if (i === 0 && coreLevel1) return coreLevel1.get(f.path) ?? '—'
         const v = plainCell(readCol(p, f, null, evaluated.formulas, at))
         return v === '' ? '—' : v
       })
       return { path: f.path, absPath: path.resolve(root, f.path), title: f.name, groups, cells }
     })
-    const buckets = (view.groups?.length ? (bucketRows(view, evaluated.formulas, null, at) ?? []) : [])
-      .filter((b) => b.declared)
-      .map((b) => ({
-        label: b.label,
-        key: b.rows.length > 0 ? (b.raw == null ? '—' : plainCell(b.raw)) : null,
-      }))
     return { ...empty, columns, groupBy, buckets, warnings: filterErrorLines(view), rows, model, error: null }
   } catch (e) {
     return {

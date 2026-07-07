@@ -75,6 +75,18 @@ describe('engine — membership predicates (ENH-255)', () => {
     expect(hits.map((f) => f.name).sort()).toEqual(['alpha', 'beta'])
   })
 
+  it('== this folds alias/case variants through targetKey, same as contains() (gbEq unified)', () => {
+    // Review fix (d): gbEq compared raw Link.target so `parent == this`
+    // missed alias/case variants that contains() matched.
+    write('projects/q3-launch.md', '---\ntype: project\n---\n\nbody\n')
+    write('initiatives/one.md', '---\ntype: initiative\nparent: "[[Q3-Launch|Growth]]"\n---\n\nbody\n')
+    const files = buildEngineFiles(readNotes(v), AS_OF)
+    const q3 = files.find((f) => f.name === 'q3-launch')!
+    const one = files.find((f) => f.name === 'one')!
+    expect(evalExpr('parent == this', one, q3, {}, AS_OF)).toBe(true)
+    expect(evalExpr('parent != this', one, q3, {}, AS_OF)).toBe(false)
+  })
+
   it('containsAny / containsAll / string contains evaluate', () => {
     seedInitiatives()
     const files = buildEngineFiles(readNotes(v), AS_OF)
@@ -109,6 +121,60 @@ describe('filter-error surfacing (ENH-255 — never a silent empty view)', () =>
     expect(r.html).toContain('filter-warn')
     expect(r.html).toContain('bogusFn')
     expect(r.md).toMatch(/> ⚠ .*bogusFn/)
+  })
+
+  it('an erroring branch under not: FAILS the row (includes nothing) and warns', () => {
+    // Review fix (a): error→false→negated used to INCLUDE every row.
+    seedInitiatives()
+    const def: BaseDef = {
+      filters: { and: ['type == "initiative"', { not: ['bogusFn(tracks)'] }] },
+      views: [{ name: 'NotBroken', type: 'table', order: ['file.name'] }],
+    }
+    const files = buildEngineFiles(readNotes(v), AS_OF)
+    const view = evaluateBaseDef(def, files, null, AS_OF).views[0]
+    expect(view.rows).toHaveLength(0)
+    expect(view.filterErrors).toHaveLength(1)
+    expect(view.filterErrors[0].expr).toBe('bogusFn(tracks)')
+    expect(view.filterErrors[0].count).toBe(3)
+  })
+
+  it('an erroring or: branch beside a passing branch includes the row with NO warning', () => {
+    // Review fix (b): the error did not affect inclusion — warning would
+    // claim rows "failed" that rendered fine.
+    seedInitiatives()
+    const def: BaseDef = {
+      filters: { and: ['type == "initiative"', { or: ['relationship == "monitored"', 'bogusFn(tracks)'] }] },
+      views: [{ name: 'OrHealthy', type: 'table', order: ['file.name'] }],
+    }
+    const files = buildEngineFiles(readNotes(v), AS_OF)
+    const view = evaluateBaseDef(def, files, null, AS_OF).views[0]
+    expect(view.rows.map((f) => f.name).sort()).toEqual(['alpha', 'beta', 'gamma'])
+    expect(view.filterErrors).toHaveLength(0)
+  })
+
+  it('an erroring or: branch with every other branch false excludes the row AND warns', () => {
+    seedInitiatives()
+    const def: BaseDef = {
+      filters: { and: ['type == "initiative"', { or: ['relationship == "nope"', 'bogusFn(tracks)'] }] },
+      views: [{ name: 'OrBroken', type: 'table', order: ['file.name'] }],
+    }
+    const files = buildEngineFiles(readNotes(v), AS_OF)
+    const view = evaluateBaseDef(def, files, null, AS_OF).views[0]
+    expect(view.rows).toHaveLength(0)
+    expect(view.filterErrors).toHaveLength(1)
+    expect(view.filterErrors[0].count).toBe(3)
+  })
+
+  it('an erroring and: branch beside a definite-false sibling is silent (row genuinely excluded)', () => {
+    seedInitiatives()
+    const def: BaseDef = {
+      filters: { and: ['type == "no-such-type"', 'bogusFn(tracks)'] },
+      views: [{ name: 'AndFalse', type: 'table', order: ['file.name'] }],
+    }
+    const files = buildEngineFiles(readNotes(v), AS_OF)
+    const view = evaluateBaseDef(def, files, null, AS_OF).views[0]
+    expect(view.rows).toHaveLength(0)
+    expect(view.filterErrors).toHaveLength(0)
   })
 
   it('a healthy filter reports no errors', () => {
@@ -187,6 +253,43 @@ describe('declared buckets (ENH-255 — groups: render even empty, in order, lab
     expect(buckets[0].rows.map((f) => f.name)).toEqual(['delta'])
     // undeclared groups keep the legacy alpha order after the declared ones
     expect(buckets.slice(1).map((b) => b.declared)).toEqual([false, false])
+  })
+
+  it('an ARRAY-valued groupBy matches a declared bucket by element identity', () => {
+    // Review fix (e): the whole array used to fall to String() so a declared
+    // bucket NEVER matched (rendered '— none —' with rows in an undeclared group).
+    seedInitiatives()
+    write(
+      'bases/tracks.base',
+      'filters:\n  and:\n    - type == "initiative"\nviews:\n  - type: table\n    name: By tracks\n    order:\n      - file.name\n    groupBy:\n      property: tracks\n    groups:\n      - value: context-agent-resources\n        label: Context work\n',
+    )
+    const def = renderTarget(v, 'bases/tracks.base', { asOf: AS_OF }).bases[0].evaluated
+    const buckets = bucketRows(def.views[0], def.formulas, null, AS_OF)!
+    expect(buckets[0].label).toBe('Context work')
+    expect(buckets[0].declared).toBe(true)
+    // alpha ([[context-agent-resources|…]], [[ops]]) and beta ([[Context-Agent-Resources]])
+    // both carry the track — element-wise identity match.
+    expect(buckets[0].rows.map((f) => f.name).sort()).toEqual(['alpha', 'beta'])
+  })
+
+  it('alias variants of the same Link group merge into ONE declared bucket (and one derived group)', () => {
+    // Review fix (f): groups were keyed by Link.display, so [[q3-launch]] and
+    // [[q3-launch|Growth]] split into two groups and the bucket loop broke
+    // after absorbing only the first.
+    write('projects/q3-launch.md', '---\ntype: project\ntitle: Q3 Launch\n---\n\nbody\n')
+    write('initiatives/one.md', '---\ntype: initiative\nparent: "[[q3-launch]]"\n---\n\nbody\n')
+    write('initiatives/two.md', '---\ntype: initiative\nparent: "[[q3-launch|Growth]]"\n---\n\nbody\n')
+    write('initiatives/three.md', '---\ntype: initiative\nparent: "[[other]]"\n---\n\nbody\n')
+    write(
+      'bases/parents.base',
+      'filters:\n  and:\n    - type == "initiative"\nviews:\n  - type: table\n    name: By parent\n    order:\n      - file.name\n    groupBy:\n      property: parent\n    groups:\n      - value: q3-launch\n        label: Q3 Launch work\n',
+    )
+    const def = renderTarget(v, 'bases/parents.base', { asOf: AS_OF }).bases[0].evaluated
+    const buckets = bucketRows(def.views[0], def.formulas, null, AS_OF)!
+    expect(buckets[0].label).toBe('Q3 Launch work')
+    expect(buckets[0].rows.map((f) => f.name).sort()).toEqual(['one', 'two'])
+    // Only the genuinely-different group ([[other]]) trails undeclared.
+    expect(buckets.slice(1).map((b) => b.key)).toEqual(['other'])
   })
 
   it('lint warns on groups: without groupBy and on a malformed entry', () => {

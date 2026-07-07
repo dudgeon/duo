@@ -866,7 +866,14 @@ function groupRows(rows: RollupViewRowDto[], depth: number, level = 0): GroupNod
 /** ENH-255 — apply the declared level-1 buckets to the level-0 nodes:
  *  declared buckets first, in declaration order, relabeled; an empty bucket
  *  is injected as a zero-row node (an empty bucket is signal); undeclared
- *  groups keep their derived order after. */
+ *  groups keep their derived order after.
+ *
+ *  INVARIANT (review fix, finding p): the `n.label === b.key` bridge is
+ *  exact by construction, not a re-derivation — core's rollupViewData
+ *  computes BOTH `rows[].groups[0]` (which groupRows keys nodes by) and
+ *  `buckets[].key` from the SAME bucketRows pass (levelOneGrouping in
+ *  core/vault/builder.ts), so alias-variant merging and identity matching
+ *  happen once, in core, and this bridge is pure string plumbing. */
 function applyBuckets(
   nodes: GroupNode[],
   buckets: RollupViewDataDto['buckets'],
@@ -957,8 +964,11 @@ function GroupedRows({
 
   const renderNodes = (nodes: GroupNode[], level: number, prefix: string) => (
     <>
-      {nodes.map((n) => (
-        <div key={`${prefix}/${n.label}`} className={`duo-rollups-group depth-${level}`}>
+      {/* Index-qualified keys (review fix, finding o): duplicate bucket
+          labels are reachable (free-text labels, no dedupe) and must not
+          collide as React keys. */}
+      {nodes.map((n, i) => (
+        <div key={`${prefix}/${i}:${n.label}`} className={`duo-rollups-group depth-${level}`}>
           <div className={`duo-rollups-group-h depth-${level}`}>
             {view.groupBy[level]}: {n.label} <span className="duo-rollups-count">{n.rows.length}</span>
           </div>
