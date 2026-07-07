@@ -603,6 +603,23 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
   // ENH-147 — `isBatch` says the right-click landed on a row that's
   // part of a multi-select set. Currently only `trash` branches on
   // this; everything else runs single-target.
+  // ENH-253 review — the ONE resolver for "is this target a repo ROOT, and
+  // which snapshot governs it?" (BUG-132 rev2 peer-snap preference + BUG-135
+  // ribbon suppression + exact-root match). Used by BOTH the context-menu
+  // gate (popupMenu) and the 'pull-latest' handler so they can never drift:
+  //   - a peer-repo row (childRepoMap has its own snapshot) wins outright;
+  //   - else the cwd's gitSnap applies only when the ribbon isn't suppressed
+  //     AND the target IS that repo's root (not merely inside it).
+  // Returns null when the target isn't a repo root.
+  const resolveRepoRootSnap = (target: DirEntry): GitStatusSnapshot | null => {
+    if (target.kind !== 'directory') return null
+    const peerSnap = childRepoMap?.get(target.path)
+    if (peerSnap?.isRepo && peerSnap.workTreeRoot) return peerSnap
+    if (gitSnap?.isRepo && !ribbonSuppressed && gitSnap.workTreeRoot &&
+      target.path === gitSnap.workTreeRoot) return gitSnap
+    return null
+  }
+
   const handleMenuChoice = async (chosenId: string, target: DirEntry, isBatch: boolean = false) => {
     const isFolder = target.kind === 'directory'
     const newTargetDir = isFolder ? target.path : parentDir(target.path)
@@ -658,15 +675,13 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
         return
       case 'pull-latest': {
         // ENH-253 — Navigator right-click → "Pull latest changes" on any
-        // git repo ROOT folder. Mirrors the peer-snap-preferred lookup
-        // "Open on GitHub" uses (BUG-132 rev2): when the navigator is at
-        // a parent dir, prefer the peer-repo's own snapshot over the
-        // outer cwd's.
-        if (!isFolder) return
-        const peerSnap = childRepoMap?.get(target.path)
-        const effectiveSnap = peerSnap?.isRepo ? peerSnap : gitSnap
-        if (!effectiveSnap?.workTreeRoot) return
-        setPullModalCwd(effectiveSnap.workTreeRoot)
+        // git repo ROOT folder. resolveRepoRootSnap applies the SAME gate
+        // the menu item used to show itself (peer-snap preferred, ribbon
+        // suppression, exact-root match) — so a stale childRepoMap can't
+        // route the pull to the WRONG outer repo.
+        const snap = resolveRepoRootSnap(target)
+        if (!snap?.workTreeRoot) return
+        setPullModalCwd(snap.workTreeRoot)
         setPullModalOpen(true)
         return
       }
@@ -749,21 +764,19 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
     // the peer-repo itself has a valid remote we want to expose.
     // The host check (github.com vs gitlab.com) happens lazily in the
     // handler when the user actually clicks.
-    const isFolderTarget = target.kind === 'directory'
-    const peerSnap = isFolderTarget ? childRepoMap?.get(target.path) : undefined
-    // BUG-135 — suppress the "(a)" branch when the ribbon is
+    // BUG-135 — the gitSnap branch is suppressed when the ribbon is
     // suppressed (cwd's gitSnap claims a repo via a falsely-climbed
     // workTreeRoot through a peer-repo container). The peerSnap
     // branch stays unconditionally — when the user right-clicks an
     // ACTUAL peer-repo root, the menu items still apply.
-    const inGhRepo = (!!gitSnap?.isRepo && !ribbonSuppressed && !!gitSnap.workTreeRoot &&
-      target.path.startsWith(gitSnap.workTreeRoot)) || !!peerSnap?.isRepo
-    // ENH-253 — target is a repo ROOT (stricter than inGhRepo's "inside a
-    // repo"): either it IS the cwd's own repo root (reachable via the
-    // ribbon/pill or whitespace on a repo-rooted cwd), or it's a peer-repo
-    // root row. "Pull latest changes" only makes sense on the root itself.
-    const isRepoRoot = (!!gitSnap?.isRepo && !ribbonSuppressed && !!gitSnap.workTreeRoot &&
-      target.path === gitSnap.workTreeRoot) || !!peerSnap?.isRepo
+    // ENH-253 — isRepoRoot is stricter than inGhRepo's "inside a repo":
+    // either it IS the cwd's own repo root (reachable via the ribbon/pill
+    // or whitespace on a repo-rooted cwd), or it's a peer-repo root row.
+    // "Pull latest changes" only makes sense on the root itself. Both flags
+    // share resolveRepoRootSnap — the same resolver the handlers use.
+    const isRepoRoot = !!resolveRepoRootSnap(target)
+    const inGhRepo = isRepoRoot || (!!gitSnap?.isRepo && !ribbonSuppressed &&
+      !!gitSnap.workTreeRoot && target.path.startsWith(gitSnap.workTreeRoot))
     const items = buildTreeMenuTemplate({
       target,
       whitespaceMode,

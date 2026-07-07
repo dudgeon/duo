@@ -107,11 +107,23 @@ function walkMarkdown(dir) {
 // ---------------------------------------------------------------------------
 function parseCliVerbs(src) {
   const labels = new Set()
-  // Match `      case 'navigate': {` and `case 'url':` alike. Anchored to
-  // line start (after indent) so we don't catch `sub === 'write'` strings.
-  const reCase = /^[ \t]*case\s+'([a-z][a-z0-9-]*)'\s*:/gm
+  // Scope the case-label scan to the outer verb-dispatch switch (the one
+  // literal `switch (cmd) {` in main()) so an inner string-literal switch
+  // in a handler body (e.g. a `case 'up-to-date':` result-message ladder)
+  // can't false-positive as a verb. Anchoring: only lines from the
+  // `switch (cmd) {` line onward, indented EXACTLY two spaces deeper than
+  // the switch itself, count — nested switches sit deeper. Falls back to
+  // the whole file if the dispatch switch ever moves/renames (so the check
+  // degrades to its old over-broad behavior rather than to zero verbs).
+  const dispatch = /^([ \t]*)switch\s*\(\s*cmd\s*\)\s*\{/m.exec(src)
+  const scanSrc = dispatch ? src.slice(dispatch.index) : src
+  const caseIndent = dispatch ? dispatch[1] + '  ' : null
+  const reCase = /^([ \t]*)case\s+'([a-z][a-z0-9-]*)'\s*:/gm
   let m
-  while ((m = reCase.exec(src)) !== null) labels.add(m[1])
+  while ((m = reCase.exec(scanSrc)) !== null) {
+    if (caseIndent !== null && m[1] !== caseIndent) continue
+    labels.add(m[2])
+  }
 
   // VERBS array — Duo declares `const VERBS: VerbSpec[] = [ { name: 'x', … }, … ]`
   // (objects, not bare strings), used to render --help and group verbs. Extract

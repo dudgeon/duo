@@ -5,8 +5,9 @@
 // result panels) mirrors CloneModal so this reads as the same family of
 // "networked git action" surface.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { PullResult } from '@shared/types'
+import { BusyPanel } from './common/BusyPanel'
 
 interface PullModalProps {
   open: boolean
@@ -18,21 +19,28 @@ interface PullModalProps {
 export function PullModal({ open, cwd, onClose }: PullModalProps) {
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<PullResult | null>(null)
+  // Monotonic run token — the modal is dismissible while a pull is in
+  // flight, so a stale promise (from a run the user walked away from) must
+  // not clobber the state of a later re-open.
+  const runToken = useRef(0)
 
-  const runPull = async (force: boolean) => {
+  const runPull = async (force: boolean, expected?: { changedCount: number; aheadCount: number }) => {
     if (!cwd) return
+    const token = ++runToken.current
     setBusy(true)
     try {
-      const res = await window.electron.git.pull({ cwd, force })
-      setResult(res)
+      const res = await window.electron.git.pull({ cwd, force, expected })
+      if (runToken.current === token) setResult(res)
     } catch (err) {
-      setResult({
-        ok: false,
-        errorKind: 'pull-failed',
-        error: err instanceof Error ? err.message : String(err)
-      })
+      if (runToken.current === token) {
+        setResult({
+          ok: false,
+          errorKind: 'pull-failed',
+          error: err instanceof Error ? err.message : String(err)
+        })
+      }
     } finally {
-      setBusy(false)
+      if (runToken.current === token) setBusy(false)
     }
   }
 
@@ -45,14 +53,28 @@ export function PullModal({ open, cwd, onClose }: PullModalProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
+  // Park the browser WCV while open (it paints above DOM; BUG-153/209) —
+  // same self-contained effect HistoryModal uses. PullModal's open state
+  // lives in FileTree, so App.tsx's modal-OR effect can't know about it.
+  useEffect(() => {
+    if (!open) return
+    window.dispatchEvent(new CustomEvent('duo-wcv-park'))
+    return () => {
+      window.dispatchEvent(new CustomEvent('duo-wcv-restore'))
+    }
+  }, [open])
+
+  // Escape dismisses — even mid-pull. Closing the UI doesn't cancel the git
+  // operation (it runs to completion in main); the run token just drops the
+  // late result. The destructive path still requires its explicit button.
   useEffect(() => {
     if (!open) return
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !busy) onClose()
+      if (e.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [open, busy, onClose])
+  }, [open, onClose])
 
   if (!open) return null
 
@@ -82,18 +104,19 @@ export function PullModal({ open, cwd, onClose }: PullModalProps) {
       case 'merge-conflict':
         return {
           title: 'Pulling would create conflicting changes that need manual resolution.',
-          hint: 'Nothing was changed — ask someone comfortable with git for help, or resolve it in a terminal.'
+          hint: r.error || 'Nothing was changed — ask someone comfortable with git for help, or resolve it in a terminal.'
         }
       default:
         return { title: r.error || 'Pull failed.' }
     }
   }
+  const label = result && !result.ok && !needsConfirmation ? errorLabel(result) : null
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-black/40"
       onClick={(e) => {
-        if (e.target === e.currentTarget && !busy) onClose()
+        if (e.target === e.currentTarget) onClose()
       }}
     >
       <div
@@ -106,7 +129,6 @@ export function PullModal({ open, cwd, onClose }: PullModalProps) {
             type="button"
             className="text-ink-mute hover:text-ink"
             onClick={onClose}
-            disabled={busy}
             aria-label="Close"
           >
             ✕
@@ -115,19 +137,7 @@ export function PullModal({ open, cwd, onClose }: PullModalProps) {
 
         <div className="text-xs text-ink-mute font-mono break-all mb-3">{cwd}</div>
 
-        {busy && (
-          <div className="mb-3 px-4 py-3 rounded bg-paper-deep border border-paper-rule">
-            <div className="flex items-center gap-3">
-              <span className="text-accent" aria-hidden="true">
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.25" />
-                  <path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-                </svg>
-              </span>
-              <div className="text-ink font-semibold text-sm">Pulling…</div>
-            </div>
-          </div>
-        )}
+        {busy && <BusyPanel title="Pulling…" />}
 
         {!busy && needsConfirmation && result && (
           <div className="mb-3 px-3 py-2 rounded text-xs border duo-banner-warn">
@@ -155,17 +165,17 @@ export function PullModal({ open, cwd, onClose }: PullModalProps) {
           </div>
         )}
 
-        {!busy && result && !result.ok && !needsConfirmation && (
+        {!busy && label && (
           <div className="mb-3 px-3 py-2 rounded text-xs border duo-banner-error">
-            <strong>{errorLabel(result).title}</strong>
-            {errorLabel(result).hint && (
-              <div className="mt-1 opacity-90">{errorLabel(result).hint}</div>
+            <strong>{label.title}</strong>
+            {label.hint && (
+              <div className="mt-1 opacity-90">{label.hint}</div>
             )}
           </div>
         )}
 
         <div className="flex gap-2 justify-end">
-          {needsConfirmation ? (
+          {needsConfirmation && result ? (
             <>
               <button
                 type="button"
@@ -176,7 +186,12 @@ export function PullModal({ open, cwd, onClose }: PullModalProps) {
               </button>
               <button
                 type="button"
-                onClick={() => void runPull(true)}
+                onClick={() => void runPull(true, {
+                  // TOCTOU guard — pass the counts the user is looking at;
+                  // the engine re-confirms if the tree got riskier since.
+                  changedCount: result.changedCount ?? 0,
+                  aheadCount: result.aheadCount ?? 0
+                })}
                 className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-600/90"
               >
                 Discard my changes and pull
@@ -186,8 +201,7 @@ export function PullModal({ open, cwd, onClose }: PullModalProps) {
             <button
               type="button"
               onClick={onClose}
-              disabled={busy}
-              className="px-4 py-1 text-sm bg-accent text-white rounded hover:bg-accent/90 disabled:opacity-50"
+              className="px-4 py-1 text-sm bg-accent text-white rounded hover:bg-accent/90"
             >
               Done
             </button>

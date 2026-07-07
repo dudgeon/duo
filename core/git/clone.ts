@@ -103,7 +103,7 @@ export async function runClone(req: CloneRequest): Promise<CloneResult> {
   if (res.ok) return res
   // git failed AND we couldn't try gh; if the failure smells like
   // auth (HTTPS repo without creds), prompt the auth path.
-  if (looksLikeAuthFailure(res.error ?? '')) {
+  if (looksLikeAuthFailure(res.error ?? '', { strict: true })) {
     return {
       ok: false,
       errorKind: 'auth-missing',
@@ -132,7 +132,7 @@ async function ghClone(req: CloneRequest): Promise<CloneResult> {
   if (res.notFound) {
     return { ok: false, errorKind: 'auth-missing', error: 'gh: command not found' }
   }
-  if (looksLikeAuthFailure(res.stderr)) {
+  if (looksLikeAuthFailure(res.stderr, { strict: true })) {
     return { ok: false, errorKind: 'auth-missing', error: res.stderr.trim() }
   }
   if (looksLikeBadUrl(res.stderr)) {

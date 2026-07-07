@@ -99,3 +99,24 @@ duo pull [<path>] [--force] [--json]
 1. **C-3** — in-app conflict resolution (currently: abort + point at a human).
 2. **C-4** — a more specific "no remote configured" error distinct from "no upstream tracking branch."
 3. A live owner smoke-walk covering: the menu item's visibility gate (root-only, not any file), the silent fast-forward happy path, the dirty-tree warning + destructive override, and (if reproducible) the merge-conflict abort message.
+
+
+---
+
+## F. Review fixes applied (2026-07-06 — PR #121 review)
+
+Requirements changed / fixes applied after independent review of the shipped branch:
+
+1. **Fail CLOSED on probe failures.** A failed `git status --porcelain` was treated as a clean tree, and a failed `rev-list` as `{ahead:0, behind:0}` → `'up-to-date'`. Both now return `errorKind: 'pull-failed'` with git's stderr.
+2. **Untracked files don't count.** `??` porcelain lines no longer contribute to `changedCount` — `git reset --hard` doesn't remove untracked files, so "Pulling will discard them" was false. An untracked-only tree pulls straight through; a colliding untracked file surfaces via the merge-failure path (below).
+3. **Merge-failure classification.** Only real content conflicts (`CONFLICT` / `Automatic merge failed` in the merge output) map to `'merge-conflict'`; everything else (index.lock, hooks, untracked-would-be-overwritten) is `'pull-failed'` carrying git's own words. If the post-failure `merge --abort` itself fails, the error says so instead of claiming "Nothing was changed."
+4. **TOCTOU guard on force.** `PullOptions.expected?: { changedCount, aheadCount }` — a forced call re-derives the counts and, if MORE is now at risk than the user consented to, returns a fresh `'needs-confirmation'` instead of resetting. `PullModal` passes the counts it displayed.
+5. **Timeouts.** Mutating ops (merge / reset --hard) 30s → 300s; fetch stays 60s.
+6. **One porcelain parser.** `core/git/status.ts` now exports `parsePorcelainCounts` / `probeWorkingTree` / `probeAheadBehind`; both `getGitStatus` (fail-open display probe) and `runPull` (fail-closed mutator) use them. Pull checks behind FIRST and skips `git status` on the common up-to-date path.
+7. **CLI.** `duo pull --json` exits non-zero on `!ok` (still printing the JSON).
+8. **failure-sniff parity.** `looksLikeAuthFailure(stderr, { strict?: boolean })` — clone passes `strict: true`, reproducing its pre-PR private matcher exactly (no `'access denied'`, full `'please run: gh auth login'` phrase); push/pull keep the looser default. The module header no longer claims clone carries private copies.
+9. **FileTree gate parity.** New `resolveRepoRootSnap(target)` encapsulates the full repo-root gate (peer-snap preference, ribbon suppression, exact-root match) and is used by BOTH the context-menu gate and the `'pull-latest'` handler — the handler previously lacked the guards and could pull the wrong outer repo off a stale `childRepoMap`.
+10. **PullModal.** Parks the browser WCV while open (`duo-wcv-park`/`-restore`, HistoryModal's self-contained pattern — the modal's open state lives in FileTree, invisible to App.tsx's modal-OR effect); Escape/✕/backdrop dismiss even mid-pull (a run-token drops stale in-flight results; the destructive path still requires its explicit button); `errorLabel` bound once; the busy spinner is a shared `renderer/components/common/BusyPanel.tsx` used by CloneModal too.
+11. **API.** Unread `PullResult.dirty` dropped from `core/git/pull.ts` + `shared/host-api.ts`.
+12. **Tooling altitude fix.** `scripts/check-skill-currency.mjs`'s dispatched-verb scan is now scoped to the outer `switch (cmd)` block (exact-indent anchor, whole-file fallback), so inner string-literal switches can't false-positive as verbs; the `duo pull` result printer keeps its if/else ladder purely for convention.
+13. **Tests.** +4 live-git cases: untracked-only tree fast-forwards without confirmation; corrupt-index `git status` failure → `pull-failed`; non-conflict merge failure preserves stderr; force with stale `expected` counts → fresh `needs-confirmation` (then succeeds with accurate counts). Plus strict/loose `looksLikeAuthFailure` cases in `share-back.test.ts`.

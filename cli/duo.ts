@@ -527,7 +527,7 @@ const VERBS: VerbSpec[] = [
     name: 'pull',
     group: 'Repo & git',
     args: '[<path>] [--force] [--json]',
-    summary: 'Fetch + pull the latest changes for the repo at <path> (defaults to the cwd). A clean, behind-only checkout fast-forwards automatically; a clean but diverged checkout auto-merges (a real content conflict aborts the merge and changes nothing). A dirty working tree refuses with errorKind "needs-confirmation" (reporting changedCount/aheadCount/behindCount) — re-run with --force to discard local changes and hard-reset to match the remote. Reads/writes git directly (no running app needed). The CLI twin of the navigator repo-root right-click "Pull latest changes" (ENH-253).'
+    summary: 'Fetch + pull the latest changes for the repo at <path> (defaults to the cwd). A clean, behind-only checkout fast-forwards automatically; a clean but diverged checkout auto-merges (a real content conflict aborts the merge and changes nothing). A dirty working tree (tracked modifications only — untracked files survive a hard reset and don\'t count) refuses with errorKind "needs-confirmation" (reporting changedCount/aheadCount/behindCount) — re-run with --force to discard local changes and hard-reset to match the remote. --json prints the structured PullResult either way and exits non-zero on failure. Reads/writes git directly (no running app needed). The CLI twin of the navigator repo-root right-click "Pull latest changes" (ENH-253).'
   },
 
   // ── Health & install ──
@@ -2517,7 +2517,13 @@ async function main(): Promise<void> {
         const force = rest.includes('--force')
         const asJson = rest.includes('--json')
         const res = await runPull(targetPath, { force })
-        if (asJson) { out(res); break }
+        if (asJson) {
+          // Print the structured result either way, but exit non-zero on
+          // failure so scripted callers can branch on the exit code.
+          out(res)
+          if (!res.ok) process.exit(1)
+          break
+        }
         if (!res.ok) {
           if (res.errorKind === 'needs-confirmation') {
             const commits = res.aheadCount ? `, ${res.aheadCount} unpushed commit(s)` : ''
@@ -2525,10 +2531,10 @@ async function main(): Promise<void> {
           }
           die(`pull failed (${res.errorKind ?? 'unknown'}): ${res.error ?? 'no detail'}`)
         }
-        // if/else, not a nested switch — a `case '<result>':` ladder here
-        // would false-positive check-skill-currency's naive `case '<verb>'`
-        // scan over the whole file (its dispatched-verb detector isn't
-        // scoped to the outer switch).
+        // if/else, matching the `sub === '…'` ladder convention the other
+        // multi-branch verbs use. (check-skill-currency's dispatched-verb
+        // scan is now scoped to the outer `switch (cmd)` block, so a nested
+        // switch would no longer false-positive — this just stays consistent.)
         if (res.result === 'up-to-date') out('Already up to date.')
         else if (res.result === 'fast-forwarded') out(`Pulled ${res.commitsApplied} commit(s) — fast-forwarded.`)
         else if (res.result === 'merged') out(`Pulled and merged ${res.commitsApplied} commit(s).`)

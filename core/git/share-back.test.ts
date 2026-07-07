@@ -313,6 +313,16 @@ describe('failure-sniff — looksLikeAuthFailure', () => {
     expect(looksLikeAuthFailure('fatal: couldn’t find remote ref')).toBe(false)
     expect(looksLikeAuthFailure('')).toBe(false)
   })
+  it('strict mode reproduces clone.ts’s pre-ENH-253 private matcher', () => {
+    // Loose (share-back) matches these; strict (clone) must not.
+    expect(looksLikeAuthFailure('access denied')).toBe(true)
+    expect(looksLikeAuthFailure('access denied', { strict: true })).toBe(false)
+    expect(looksLikeAuthFailure('run: gh auth login')).toBe(true)
+    expect(looksLikeAuthFailure('run: gh auth login', { strict: true })).toBe(false)
+    // gh's literal wording matches both.
+    expect(looksLikeAuthFailure('please run: gh auth login', { strict: true })).toBe(true)
+    expect(looksLikeAuthFailure('remote: Permission denied', { strict: true })).toBe(true)
+  })
 })
 
 // ── runShareBack — orchestrator branch behavior (ENH-224 confirm-gate / PR #102)

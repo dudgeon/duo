@@ -4744,6 +4744,29 @@ async function removeWorktree(worktreePath, opts = {}) {
 }
 
 // core/git/status.ts
+function parsePorcelainCounts(stdout) {
+  const lines = stdout.split("\n").filter((l) => l.length > 0);
+  return {
+    total: lines.length,
+    tracked: lines.filter((l) => !l.startsWith("??")).length
+  };
+}
+async function probeWorkingTree(cwd) {
+  const res = await execGit("git", ["status", "--porcelain"], { cwd });
+  if (!res.ok) return { ok: false, error: res.stderr.trim() || "git status failed" };
+  return { ok: true, counts: parsePorcelainCounts(res.stdout) };
+}
+async function probeAheadBehind(cwd) {
+  const res = await execGit("git", ["rev-list", "--left-right", "--count", "@{upstream}...HEAD"], { cwd });
+  if (!res.ok) return { ok: false, error: res.stderr.trim() || "git rev-list failed" };
+  const parts = res.stdout.trim().split(/\s+/);
+  if (parts.length !== 2) return { ok: false, error: `unexpected rev-list output: ${res.stdout.trim()}` };
+  return {
+    ok: true,
+    behind: Number.parseInt(parts[0], 10) || 0,
+    ahead: Number.parseInt(parts[1], 10) || 0
+  };
+}
 var NOT_REPO = {
   isRepo: false,
   branch: "",
@@ -4765,24 +4788,12 @@ async function getGitStatus(cwd) {
   const branch = branchRaw === "HEAD" ? "" : branchRaw;
   const headRes = await execGit("git", ["rev-parse", "--short", "HEAD"], { cwd });
   const head = headRes.ok ? headRes.stdout.trim() : "";
-  const statusRes = await execGit("git", ["status", "--porcelain"], { cwd });
-  const lines = statusRes.ok ? statusRes.stdout.split("\n").filter((l) => l.length > 0) : [];
-  const dirty = lines.length > 0;
-  const changedCount = lines.length;
-  let ahead = 0;
-  let behind = 0;
-  const aheadBehindRes = await execGit(
-    "git",
-    ["rev-list", "--left-right", "--count", "@{upstream}...HEAD"],
-    { cwd }
-  );
-  if (aheadBehindRes.ok) {
-    const parts = aheadBehindRes.stdout.trim().split(/\s+/);
-    if (parts.length === 2) {
-      behind = Number.parseInt(parts[0], 10) || 0;
-      ahead = Number.parseInt(parts[1], 10) || 0;
-    }
-  }
+  const treeProbe = await probeWorkingTree(cwd);
+  const changedCount = treeProbe.ok ? treeProbe.counts.total : 0;
+  const dirty = changedCount > 0;
+  const ab = await probeAheadBehind(cwd);
+  const ahead = ab.ok ? ab.ahead : 0;
+  const behind = ab.ok ? ab.behind : 0;
   const wt = await resolveWorktreeIdentity(cwd);
   return {
     isRepo: true,
@@ -6227,23 +6238,16 @@ Moved to ${leftLink}
 }
 
 // core/git/failure-sniff.ts
-function looksLikeAuthFailure(stderr) {
+function looksLikeAuthFailure(stderr, opts = {}) {
   const s = (stderr || "").toLowerCase();
-  return s.includes("authentication") || s.includes("could not read username") || s.includes("permission denied") || s.includes("access denied") || s.includes("403") || s.includes("401") || s.includes("not logged in") || s.includes("gh auth login");
+  return s.includes("authentication") || s.includes("could not read username") || s.includes("permission denied") || !opts.strict && s.includes("access denied") || s.includes("403") || s.includes("401") || s.includes("not logged in") || s.includes(opts.strict ? "please run: gh auth login" : "gh auth login");
 }
 
 // core/git/pull.ts
-async function workingTreeStatus(cwd) {
-  const res = await execGit("git", ["status", "--porcelain"], { cwd });
-  const lines = res.ok ? res.stdout.split("\n").filter((l) => l.length > 0) : [];
-  return { dirty: lines.length > 0, changedCount: lines.length };
-}
-async function aheadBehindUpstream(cwd) {
-  const res = await execGit("git", ["rev-list", "--left-right", "--count", "@{upstream}...HEAD"], { cwd });
-  if (!res.ok) return { ahead: 0, behind: 0 };
-  const parts = res.stdout.trim().split(/\s+/);
-  if (parts.length !== 2) return { ahead: 0, behind: 0 };
-  return { behind: Number.parseInt(parts[0], 10) || 0, ahead: Number.parseInt(parts[1], 10) || 0 };
+var FETCH_TIMEOUT_MS = 6e4;
+var MUTATE_TIMEOUT_MS = 3e5;
+function looksLikeMergeConflict(output) {
+  return /CONFLICT|Automatic merge failed/i.test(output);
 }
 async function runPull(cwd, opts = {}) {
   const rootRes = await execGit("git", ["rev-parse", "--show-toplevel"], { cwd });
@@ -6261,50 +6265,72 @@ async function runPull(cwd, opts = {}) {
       branch
     };
   }
-  const fetchRes = await execGit("git", ["fetch"], { cwd, timeoutMs: 6e4 });
+  const fetchRes = await execGit("git", ["fetch"], { cwd, timeoutMs: FETCH_TIMEOUT_MS });
   if (!fetchRes.ok) {
     if (looksLikeAuthFailure(fetchRes.stderr)) {
       return { ok: false, errorKind: "auth-missing", error: fetchRes.stderr.trim() || "Authentication required.", branch };
     }
     return { ok: false, errorKind: "pull-failed", error: fetchRes.stderr.trim() || "git fetch failed", branch };
   }
-  const { dirty, changedCount } = await workingTreeStatus(cwd);
-  const { ahead, behind } = await aheadBehindUpstream(cwd);
+  const ab = await probeAheadBehind(cwd);
+  if (!ab.ok) {
+    return { ok: false, errorKind: "pull-failed", error: ab.error, branch };
+  }
+  const { ahead, behind } = ab;
   if (behind === 0) {
     return { ok: true, result: "up-to-date", commitsApplied: 0, branch };
   }
+  const tree = await probeWorkingTree(cwd);
+  if (!tree.ok) {
+    return { ok: false, errorKind: "pull-failed", error: tree.error, branch };
+  }
+  const changedCount = tree.counts.tracked;
+  const dirty = changedCount > 0;
   if (dirty) {
-    if (!opts.force) {
-      return {
-        ok: false,
-        errorKind: "needs-confirmation",
-        dirty: true,
-        changedCount,
-        aheadCount: ahead,
-        behindCount: behind,
-        branch
-      };
+    const needsConfirmation = {
+      ok: false,
+      errorKind: "needs-confirmation",
+      changedCount,
+      aheadCount: ahead,
+      behindCount: behind,
+      branch
+    };
+    if (!opts.force) return needsConfirmation;
+    if (opts.expected && (changedCount > opts.expected.changedCount || ahead > opts.expected.aheadCount)) {
+      return needsConfirmation;
     }
-    const resetRes = await execGit("git", ["reset", "--hard", "@{upstream}"], { cwd, timeoutMs: 3e4 });
+    const resetRes = await execGit("git", ["reset", "--hard", "@{upstream}"], { cwd, timeoutMs: MUTATE_TIMEOUT_MS });
     if (!resetRes.ok) {
       return { ok: false, errorKind: "pull-failed", error: resetRes.stderr.trim() || "git reset --hard failed", branch };
     }
     return { ok: true, result: "discarded-and-pulled", commitsApplied: behind, branch };
   }
   if (ahead === 0) {
-    const ffRes = await execGit("git", ["merge", "--ff-only", "@{upstream}"], { cwd, timeoutMs: 3e4 });
+    const ffRes = await execGit("git", ["merge", "--ff-only", "@{upstream}"], { cwd, timeoutMs: MUTATE_TIMEOUT_MS });
     if (!ffRes.ok) {
       return { ok: false, errorKind: "pull-failed", error: ffRes.stderr.trim() || "git merge --ff-only failed", branch };
     }
     return { ok: true, result: "fast-forwarded", commitsApplied: behind, branch };
   }
-  const mergeRes = await execGit("git", ["merge", "--no-edit", "@{upstream}"], { cwd, timeoutMs: 3e4 });
+  const mergeRes = await execGit("git", ["merge", "--no-edit", "@{upstream}"], { cwd, timeoutMs: MUTATE_TIMEOUT_MS });
   if (!mergeRes.ok) {
-    await execGit("git", ["merge", "--abort"], { cwd });
+    const mergeOutput = `${mergeRes.stderr}
+${mergeRes.stdout}`.trim();
+    const abortRes = await execGit("git", ["merge", "--abort"], { cwd });
+    const abortOk = abortRes.ok || /no merge to abort/i.test(abortRes.stderr);
+    const abortNote = abortOk ? " Nothing was changed." : ` Warning: cleaning up the aborted merge also failed (${abortRes.stderr.trim() || "unknown error"}) \u2014 the repo may be left mid-merge.`;
+    if (looksLikeMergeConflict(mergeOutput)) {
+      return {
+        ok: false,
+        errorKind: "merge-conflict",
+        error: `Pulling would create conflicting changes that need manual resolution.${abortNote}`,
+        branch
+      };
+    }
     return {
       ok: false,
-      errorKind: "merge-conflict",
-      error: "Pulling would create conflicting changes that need manual resolution. Nothing was changed.",
+      errorKind: "pull-failed",
+      error: `${mergeOutput || "git merge failed"}${abortOk ? "" : abortNote}`,
       branch
     };
   }
@@ -6758,7 +6784,7 @@ var VERBS = [
     name: "pull",
     group: "Repo & git",
     args: "[<path>] [--force] [--json]",
-    summary: 'Fetch + pull the latest changes for the repo at <path> (defaults to the cwd). A clean, behind-only checkout fast-forwards automatically; a clean but diverged checkout auto-merges (a real content conflict aborts the merge and changes nothing). A dirty working tree refuses with errorKind "needs-confirmation" (reporting changedCount/aheadCount/behindCount) \u2014 re-run with --force to discard local changes and hard-reset to match the remote. Reads/writes git directly (no running app needed). The CLI twin of the navigator repo-root right-click "Pull latest changes" (ENH-253).'
+    summary: `Fetch + pull the latest changes for the repo at <path> (defaults to the cwd). A clean, behind-only checkout fast-forwards automatically; a clean but diverged checkout auto-merges (a real content conflict aborts the merge and changes nothing). A dirty working tree (tracked modifications only \u2014 untracked files survive a hard reset and don't count) refuses with errorKind "needs-confirmation" (reporting changedCount/aheadCount/behindCount) \u2014 re-run with --force to discard local changes and hard-reset to match the remote. --json prints the structured PullResult either way and exits non-zero on failure. Reads/writes git directly (no running app needed). The CLI twin of the navigator repo-root right-click "Pull latest changes" (ENH-253).`
   },
   // ── Health & install ──
   {
@@ -8238,6 +8264,7 @@ ${res.pr.url}`);
         const res = await runPull(targetPath, { force });
         if (asJson) {
           out(res);
+          if (!res.ok) process.exit(1);
           break;
         }
         if (!res.ok) {

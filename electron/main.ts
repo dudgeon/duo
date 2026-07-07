@@ -3050,10 +3050,10 @@ function setupIPC(): void {
   // same core function the CLI `duo pull` uses.
   ipcMain.handle(IPC.GIT_PULL, async (
     _event,
-    { cwd, force }: { cwd: string; force?: boolean }
+    { cwd, force, expected }: { cwd: string; force?: boolean; expected?: { changedCount: number; aheadCount: number } }
   ) => {
     const { runPull } = await import('../core/git/pull')
-    return runPull(cwd, { force })
+    return runPull(cwd, { force, expected })
   })
 
   // ENH-182 — D2 marker probe (renderer → main). Returns true if

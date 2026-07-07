@@ -7,16 +7,30 @@
 //   - clean tree, local commits not yet on the remote → merge (auto-merge
 //     only; a real conflict aborts immediately and reports back — no
 //     partial/conflicted state is ever left on disk).
-//   - uncommitted local changes → refuses and reports what's at risk
-//     (errorKind: 'needs-confirmation'); the caller re-runs with
-//     `force: true` to discard them (`git reset --hard`) and take the
+//   - uncommitted local changes (TRACKED modifications only — untracked
+//     files survive a `git reset --hard`, so they don't count) → refuses
+//     and reports what's at risk (errorKind: 'needs-confirmation'); the
+//     caller re-runs with `force: true` to discard them and take the
 //     remote's version instead. This is the one destructive path in the
-//     module — everything else is conflict-free by construction.
+//     module — everything else is conflict-free by construction. A forced
+//     call can pass `expected` (the counts the user consented to); if the
+//     tree grew riskier in the meantime, the force is refused with a fresh
+//     'needs-confirmation' instead of discarding more than was shown.
+//
+// Probe failures fail CLOSED: a failed `git status` / `git rev-list` is a
+// 'pull-failed' error, never treated as "clean" / "up to date".
 //
 // Never throws; mirrors core/git/push.ts's structured-result convention.
 
 import { execGit } from './exec'
 import { looksLikeAuthFailure } from './failure-sniff'
+import { probeWorkingTree, probeAheadBehind } from './status'
+
+// Mutating git ops (merge / reset) can legitimately take a while on big
+// repos or slow disks — give them a generous ceiling. Network fetch keeps
+// a tighter one.
+const FETCH_TIMEOUT_MS = 60_000
+const MUTATE_TIMEOUT_MS = 300_000
 
 export interface PullOptions {
   /** Discard uncommitted changes and any local commits not yet on the
@@ -26,6 +40,11 @@ export interface PullOptions {
    *  what's at risk (via `changedCount` / `aheadCount`) and gotten explicit
    *  confirmation before setting this. */
   force?: boolean
+  /** With `force: true` — the counts the user actually consented to (from
+   *  the prior 'needs-confirmation' result). If the freshly re-derived
+   *  counts are HIGHER (more would be discarded than was shown), the force
+   *  is refused and a fresh 'needs-confirmation' is returned instead. */
+  expected?: { changedCount: number; aheadCount: number }
 }
 
 export interface PullResult {
@@ -37,24 +56,15 @@ export interface PullResult {
   errorKind?: 'not-a-repo' | 'no-upstream' | 'auth-missing' | 'needs-confirmation' | 'merge-conflict' | 'pull-failed'
   error?: string
   /** Present on errorKind 'needs-confirmation' — what `force: true` would discard. */
-  dirty?: boolean
   changedCount?: number
   aheadCount?: number
   behindCount?: number
 }
 
-async function workingTreeStatus(cwd: string): Promise<{ dirty: boolean; changedCount: number }> {
-  const res = await execGit('git', ['status', '--porcelain'], { cwd })
-  const lines = res.ok ? res.stdout.split('\n').filter((l) => l.length > 0) : []
-  return { dirty: lines.length > 0, changedCount: lines.length }
-}
-
-async function aheadBehindUpstream(cwd: string): Promise<{ ahead: number; behind: number }> {
-  const res = await execGit('git', ['rev-list', '--left-right', '--count', '@{upstream}...HEAD'], { cwd })
-  if (!res.ok) return { ahead: 0, behind: 0 }
-  const parts = res.stdout.trim().split(/\s+/)
-  if (parts.length !== 2) return { ahead: 0, behind: 0 }
-  return { behind: Number.parseInt(parts[0], 10) || 0, ahead: Number.parseInt(parts[1], 10) || 0 }
+/** A real content conflict (vs. index.lock, hooks, untracked-would-be-
+ *  overwritten, …) — git prints these markers on genuine merge conflicts. */
+function looksLikeMergeConflict(output: string): boolean {
+  return /CONFLICT|Automatic merge failed/i.test(output)
 }
 
 /**
@@ -80,7 +90,7 @@ export async function runPull(cwd: string, opts: PullOptions = {}): Promise<Pull
     }
   }
 
-  const fetchRes = await execGit('git', ['fetch'], { cwd, timeoutMs: 60_000 })
+  const fetchRes = await execGit('git', ['fetch'], { cwd, timeoutMs: FETCH_TIMEOUT_MS })
   if (!fetchRes.ok) {
     if (looksLikeAuthFailure(fetchRes.stderr)) {
       return { ok: false, errorKind: 'auth-missing', error: fetchRes.stderr.trim() || 'Authentication required.', branch }
@@ -88,26 +98,45 @@ export async function runPull(cwd: string, opts: PullOptions = {}): Promise<Pull
     return { ok: false, errorKind: 'pull-failed', error: fetchRes.stderr.trim() || 'git fetch failed', branch }
   }
 
-  const { dirty, changedCount } = await workingTreeStatus(cwd)
-  const { ahead, behind } = await aheadBehindUpstream(cwd)
+  // Common-path fast exit: check ahead/behind FIRST — when we're not behind
+  // there is nothing to pull and no reason to pay for `git status`. A probe
+  // failure fails CLOSED (never silently reported as up-to-date).
+  const ab = await probeAheadBehind(cwd)
+  if (!ab.ok) {
+    return { ok: false, errorKind: 'pull-failed', error: ab.error, branch }
+  }
+  const { ahead, behind } = ab
 
   if (behind === 0) {
     return { ok: true, result: 'up-to-date', commitsApplied: 0, branch }
   }
 
+  const tree = await probeWorkingTree(cwd)
+  if (!tree.ok) {
+    return { ok: false, errorKind: 'pull-failed', error: tree.error, branch }
+  }
+  // Only TRACKED modifications count — `git reset --hard` leaves untracked
+  // files alone, so "pulling will discard them" would be false for '??'.
+  const changedCount = tree.counts.tracked
+  const dirty = changedCount > 0
+
   if (dirty) {
-    if (!opts.force) {
-      return {
-        ok: false,
-        errorKind: 'needs-confirmation',
-        dirty: true,
-        changedCount,
-        aheadCount: ahead,
-        behindCount: behind,
-        branch
-      }
+    const needsConfirmation: PullResult = {
+      ok: false,
+      errorKind: 'needs-confirmation',
+      changedCount,
+      aheadCount: ahead,
+      behindCount: behind,
+      branch
     }
-    const resetRes = await execGit('git', ['reset', '--hard', '@{upstream}'], { cwd, timeoutMs: 30_000 })
+    if (!opts.force) return needsConfirmation
+    // TOCTOU guard — a forced call re-derives the counts; if MORE is now
+    // at risk than the user was shown, refuse and re-confirm.
+    if (opts.expected &&
+      (changedCount > opts.expected.changedCount || ahead > opts.expected.aheadCount)) {
+      return needsConfirmation
+    }
+    const resetRes = await execGit('git', ['reset', '--hard', '@{upstream}'], { cwd, timeoutMs: MUTATE_TIMEOUT_MS })
     if (!resetRes.ok) {
       return { ok: false, errorKind: 'pull-failed', error: resetRes.stderr.trim() || 'git reset --hard failed', branch }
     }
@@ -115,7 +144,7 @@ export async function runPull(cwd: string, opts: PullOptions = {}): Promise<Pull
   }
 
   if (ahead === 0) {
-    const ffRes = await execGit('git', ['merge', '--ff-only', '@{upstream}'], { cwd, timeoutMs: 30_000 })
+    const ffRes = await execGit('git', ['merge', '--ff-only', '@{upstream}'], { cwd, timeoutMs: MUTATE_TIMEOUT_MS })
     if (!ffRes.ok) {
       return { ok: false, errorKind: 'pull-failed', error: ffRes.stderr.trim() || 'git merge --ff-only failed', branch }
     }
@@ -124,14 +153,31 @@ export async function runPull(cwd: string, opts: PullOptions = {}): Promise<Pull
 
   // Clean tree, diverged history (local commits not on the remote yet) —
   // try a real merge. A genuine content conflict aborts immediately rather
-  // than leaving conflict markers for a non-technical user to find.
-  const mergeRes = await execGit('git', ['merge', '--no-edit', '@{upstream}'], { cwd, timeoutMs: 30_000 })
+  // than leaving conflict markers for a non-technical user to find. Other
+  // merge failures (index.lock, hooks, untracked-would-be-overwritten, …)
+  // are NOT conflicts — report them as 'pull-failed' with git's own words.
+  const mergeRes = await execGit('git', ['merge', '--no-edit', '@{upstream}'], { cwd, timeoutMs: MUTATE_TIMEOUT_MS })
   if (!mergeRes.ok) {
-    await execGit('git', ['merge', '--abort'], { cwd })
+    const mergeOutput = `${mergeRes.stderr}\n${mergeRes.stdout}`.trim()
+    // Best-effort cleanup. Many non-conflict failures never start a merge,
+    // so "no merge to abort" is an expected (fine) abort outcome.
+    const abortRes = await execGit('git', ['merge', '--abort'], { cwd })
+    const abortOk = abortRes.ok || /no merge to abort/i.test(abortRes.stderr)
+    const abortNote = abortOk
+      ? ' Nothing was changed.'
+      : ` Warning: cleaning up the aborted merge also failed (${abortRes.stderr.trim() || 'unknown error'}) — the repo may be left mid-merge.`
+    if (looksLikeMergeConflict(mergeOutput)) {
+      return {
+        ok: false,
+        errorKind: 'merge-conflict',
+        error: `Pulling would create conflicting changes that need manual resolution.${abortNote}`,
+        branch
+      }
+    }
     return {
       ok: false,
-      errorKind: 'merge-conflict',
-      error: 'Pulling would create conflicting changes that need manual resolution. Nothing was changed.',
+      errorKind: 'pull-failed',
+      error: `${mergeOutput || 'git merge failed'}${abortOk ? '' : abortNote}`,
       branch
     }
   }
