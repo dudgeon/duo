@@ -21,6 +21,7 @@ import type { DuoRequest, DuoResponse } from '../shared/types'
 // capture --open` reach the app (to surface a tab), and only when asked.
 import * as vault from '../core/vault'
 import { listWorktrees, createWorktree, removeWorktree } from '../core/git/worktree'
+import { runPull } from '../core/git/pull'
 
 // Injected at build time from package.json by scripts/build-cli.mjs via
 // esbuild `define`, so the CLI version always tracks the real release —
@@ -521,6 +522,12 @@ const VERBS: VerbSpec[] = [
     group: 'Repo & git',
     args: '[list] [<path>] | new "<desc>" [--from <ref>] [--window] | remove <path> [--force]',
     summary: 'List / create / remove the git worktrees of the repo at <path> (defaults to the cwd). `duo worktree [list] [<path>]` → JSON [{ path, branch, head, isMain, isCurrent, detached, prunable, colorIndex }], main checkout first, the cwd\'s worktree flagged isCurrent. `duo worktree new "<desc>" [--from <ref>] [--window]` → create a worktree off <ref> (default: the main branch) at <repo>/.claude/worktrees/<slug> on branch claude/<slug>, the description sanitized to a path/ref-safe slug (spaces→-, allow-list a–z 0–9 -); --window also opens it in a new Duo window. `duo worktree remove <path> [--force]` → git worktree remove (--force when the worktree is dirty). Reads/writes git directly (no running app needed, except --window). The CLI twin of the navigator Worktrees dropdown + its "+ New worktree" create (ENH-222).'
+  },
+  {
+    name: 'pull',
+    group: 'Repo & git',
+    args: '[<path>] [--force] [--json]',
+    summary: 'Fetch + pull the latest changes for the repo at <path> (defaults to the cwd). A clean, behind-only checkout fast-forwards automatically; a clean but diverged checkout auto-merges (a real content conflict aborts the merge and changes nothing). A dirty working tree (tracked modifications only — untracked files survive a hard reset and don\'t count) refuses with errorKind "needs-confirmation" (reporting changedCount/aheadCount/behindCount) — re-run with --force to discard local changes and hard-reset to match the remote. --json prints the structured PullResult either way and exits non-zero on failure. Reads/writes git directly (no running app needed). The CLI twin of the navigator repo-root right-click "Pull latest changes" (ENH-253).'
   },
 
   // ── Health & install ──
@@ -2510,6 +2517,41 @@ async function main(): Promise<void> {
           ? path.resolve(process.cwd(), args2[0])
           : process.cwd()
         out(await listWorktrees(target))
+        break
+      }
+      case 'pull': {
+        // ENH-253 — fetch + fast-forward/merge the repo at <path> (defaults
+        // to the cwd). Reads AND writes git DIRECTLY (like worktree) — no
+        // socket / running app needed.
+        //   duo pull [<path>] [--force] [--json]
+        const positionals = positionalArgs(rest)
+        const targetPath = positionals[0] ? path.resolve(process.cwd(), positionals[0]) : process.cwd()
+        const force = rest.includes('--force')
+        const asJson = rest.includes('--json')
+        const res = await runPull(targetPath, { force })
+        if (asJson) {
+          // Print the structured result either way, but exit non-zero on
+          // failure so scripted callers can branch on the exit code.
+          out(res)
+          if (!res.ok) process.exit(1)
+          break
+        }
+        if (!res.ok) {
+          if (res.errorKind === 'needs-confirmation') {
+            const commits = res.aheadCount ? `, ${res.aheadCount} unpushed commit(s)` : ''
+            die(`Refusing to pull — ${res.changedCount} uncommitted file(s) would be overwritten${commits}. Re-run with --force to discard them and pull anyway.`)
+          }
+          die(`pull failed (${res.errorKind ?? 'unknown'}): ${res.error ?? 'no detail'}`)
+        }
+        // if/else, matching the `sub === '…'` ladder convention the other
+        // multi-branch verbs use. (check-skill-currency's dispatched-verb
+        // scan is now scoped to the outer `switch (cmd)` block, so a nested
+        // switch would no longer false-positive — this just stays consistent.)
+        if (res.result === 'up-to-date') out('Already up to date.')
+        else if (res.result === 'fast-forwarded') out(`Pulled ${res.commitsApplied} commit(s) — fast-forwarded.`)
+        else if (res.result === 'merged') out(`Pulled and merged ${res.commitsApplied} commit(s).`)
+        else if (res.result === 'discarded-and-pulled') out(`Discarded local changes and pulled ${res.commitsApplied} commit(s).`)
+        else out(res)
         break
       }
       case 'close-tab': {

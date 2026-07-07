@@ -2653,6 +2653,10 @@ export const IPC = {
   // ENH-222 — create a worktree (renderer → main). Powers the navigator
   // "+ New worktree" inline-create form. Writes git state.
   GIT_CREATE_WORKTREE: 'git:createWorktree',
+  // ENH-253 — "Pull latest changes" (renderer → main). Powers the
+  // navigator's repo-root context-menu item. Writes git state (fetch +
+  // fast-forward/merge, or a confirmed hard-reset).
+  GIT_PULL: 'git:pull',
   // ENH-182 — D2 marker probe. Returns true if `dir` contains a
   // CLAUDE.md file or a .claude/ directory (a project marker per
   // the project-as-filter-layer model). Renderer → main; called by

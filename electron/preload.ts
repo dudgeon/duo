@@ -1029,6 +1029,7 @@ const api: ElectronAPI = {
     status: (cwd) => ipcRenderer.invoke(IPC.GIT_STATUS, { cwd }),
     worktrees: (cwd) => ipcRenderer.invoke(IPC.GIT_WORKTREES, { cwd }),
     createWorktree: (req) => ipcRenderer.invoke(IPC.GIT_CREATE_WORKTREE, req),
+    pull: (req) => ipcRenderer.invoke(IPC.GIT_PULL, req),
     clone: (req) => ipcRenderer.invoke(IPC.GIT_CLONE, req),
     ghAuth: () => ipcRenderer.invoke(IPC.GH_AUTH_STATUS),
     githubUrlFor: (req) => ipcRenderer.invoke(IPC.GIT_GITHUB_URL_FOR, req),

@@ -1,5 +1,29 @@
 # Active sprint state — v0.13.2 shipped (init-on-choose vault + default-vault autocomplete + foreign-vault guard); next: triage
 
+## ENH-253 — Navigator repo-root "Pull latest changes" (🚧 built, branch `claude/file-navigator-git-pull-kt3dv7`, PR open — not yet a live-verified owner walk)
+
+> **Owner-requested directly** ("allow context click in file navigator on any
+> folder that is root for a GitHub repository to pull... needs to work without
+> Claude... if pull is not clean, needs simple options for a non-GitHub-
+> conversant PM to manage conflicts, even if it leaves many corner cases
+> unaddressed"). Built in a cloud/headless session (no Electron/computer-use
+> access — verification is typecheck + `check:skill-currency` + 7 new live-git
+> unit tests + a hand-run CLI smoke test, NOT a live UI walk). New
+> `core/git/pull.ts` (`runPull`): fetch → clean+behind-only fast-forwards
+> silently; clean+diverged auto-merges (real conflict aborts safely, no in-app
+> resolution — deliberately out of scope); dirty tree refuses with
+> `errorKind: 'needs-confirmation'` until a `force: true` follow-up hard-resets
+> to the remote. Navigator "Pull latest changes" on any repo-root folder opens
+> `PullModal.tsx` (new, mirrors `CloneModal`'s busy/result panel pattern — Duo
+> has no toast system). CLI twin `duo pull [<path>] [--force] [--json]`,
+> git-direct like `duo worktree` (no running app needed). 4-surface docs
+> synced, `cli/duo` rebuilt. **Side cleanup (same PR, owner-requested):**
+> deduped `core/git/clone.ts`'s private auth/URL-failure sniffers into the
+> shared `core/git/failure-sniff.ts`; the bigger gh-auth gap (no Doctor panel —
+> ENH-150, still unshipped) was investigated but deliberately left alone.
+> **PRD:** `docs/prd/enh-253-repo-root-pull.md`. **Owed:** an owner
+> `/smoke-walk` of the actual right-click → modal flow before any cut.
+
 ## Shipped in v0.13.2 (cut 2026-07-01)
 
 > **BUG-212** (#115, merged 2026-06-29) — `[[` autocomplete now falls back to the

@@ -20,6 +20,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { CloneResult, GhAuthStatus } from '@shared/types'
+import { BusyPanel } from './common/BusyPanel'
 
 interface CloneModalProps {
   open: boolean
@@ -370,36 +371,12 @@ export function CloneModal({ open, defaultParent, defaultUrl, openAfterRelPath, 
           // occupy, so the visual transition is "panel appears →
           // panel updates to green checkmark" rather than "small
           // button label → small green text flash → disappear".
-          <div className="mb-3 px-4 py-3 rounded bg-paper-deep border border-paper-rule">
-            <div className="flex items-center gap-3">
-              <span className="text-accent" aria-hidden="true">
-                <svg
-                  className="animate-spin h-4 w-4"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.25" />
-                  <path
-                    d="M22 12a10 10 0 0 1-10 10"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </span>
-              <div className="flex-1 min-w-0">
-                <div className="text-ink font-semibold text-sm">Cloning…</div>
-                <div className="text-ink-mute text-xs mt-0.5 font-mono break-all">
-                  {targetDir}
-                </div>
-              </div>
-            </div>
+          <BusyPanel title="Cloning…" detail={targetDir}>
             <div className="text-ink-mute text-xs mt-2 leading-relaxed">
               This can take a few seconds for small repos, longer for big ones.
               Don't dismiss the modal until it finishes.
             </div>
-          </div>
+          </BusyPanel>
         )}
         {result && result.ok && (
           // ENH-224 D16 — success-screen redesign. The prior panel led with

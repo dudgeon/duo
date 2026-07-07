@@ -1738,6 +1738,24 @@ export interface GhAuthStatus {
   ghNotFound: boolean
 }
 
+/** ENH-253 — result of `runPull` / the `git:pull` IPC / `duo pull`. Never
+ *  throws; `ok: false` carries a user-facing `error` + `errorKind`. */
+export interface PullResult {
+  ok: boolean
+  result?: 'up-to-date' | 'fast-forwarded' | 'merged' | 'discarded-and-pulled'
+  /** New commits now on the branch (0 for 'up-to-date'). */
+  commitsApplied?: number
+  branch?: string
+  errorKind?: 'not-a-repo' | 'no-upstream' | 'auth-missing' | 'needs-confirmation' | 'merge-conflict' | 'pull-failed'
+  error?: string
+  /** Present on errorKind 'needs-confirmation' — what `force: true` would
+   *  discard. `changedCount` counts TRACKED modifications only (untracked
+   *  files survive a hard reset). */
+  changedCount?: number
+  aheadCount?: number
+  behindCount?: number
+}
+
 export interface GitHubUrlRequest {
   cwd: string
   workTreeRoot: string
@@ -1765,6 +1783,14 @@ export interface ElectronGitAPI {
    *  navigator's "+ New worktree" inline-create form. Never rejects;
    *  resolves `{ ok:false, error }` on failure. */
   createWorktree(req: { cwd: string; name: string; fromRef?: string }): Promise<CreateWorktreeResult>
+  /** ENH-253 — fetch + fast-forward/merge the repo rooted at `cwd`. Powers
+   *  the navigator's "Pull latest changes" context-menu item on any repo
+   *  root. A dirty working tree (or `errorKind: 'needs-confirmation'`)
+   *  requires an explicit follow-up call with `force: true` to discard
+   *  local changes and hard-reset to the remote. The forced call should
+   *  pass `expected` (the counts the user consented to); if the tree grew
+   *  riskier in the meantime the engine re-confirms instead of discarding. */
+  pull(req: { cwd: string; force?: boolean; expected?: { changedCount: number; aheadCount: number } }): Promise<PullResult>
   /** ENH-151 — clone a GitHub repo via gh / git. Used by the
    *  File → Clone… modal. */
   clone(req: CloneRequest): Promise<CloneResult>

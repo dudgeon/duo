@@ -20,6 +20,56 @@ import type { GitStatusSnapshot } from '../../shared/host-api'
 export type { GitStatusSnapshot } from '../../shared/host-api'
 export { formatGitStatusChip } from '../../shared/host-api'
 
+// ---------------------------------------------------------------------------
+// Shared probe helpers (ENH-253 review) — pull.ts reuses these so there is
+// exactly ONE porcelain parser / ahead-behind reader in the codebase. Unlike
+// getGitStatus (a display probe that deliberately fails OPEN to "no chip"),
+// these report failure explicitly so mutating callers can fail CLOSED.
+// ---------------------------------------------------------------------------
+
+export interface PorcelainCounts {
+  /** Every changed line — staged, unstaged, AND untracked ('??'). */
+  total: number
+  /** Tracked modifications only — what `git reset --hard` would discard.
+   *  Untracked ('??') files survive a hard reset, so destructive-pull
+   *  messaging must count only these. */
+  tracked: number
+}
+
+/** The one porcelain parser. Pure. */
+export function parsePorcelainCounts(stdout: string): PorcelainCounts {
+  const lines = stdout.split('\n').filter((l) => l.length > 0)
+  return {
+    total: lines.length,
+    tracked: lines.filter((l) => !l.startsWith('??')).length
+  }
+}
+
+export type ProbeResult<T> = ({ ok: true } & T) | { ok: false; error: string }
+
+/** `git status --porcelain` → counts. Failure is reported, never masked as
+ *  "clean" — callers decide whether to fail open (chip) or closed (pull). */
+export async function probeWorkingTree(cwd: string): Promise<ProbeResult<{ counts: PorcelainCounts }>> {
+  const res = await execGit('git', ['status', '--porcelain'], { cwd })
+  if (!res.ok) return { ok: false, error: res.stderr.trim() || 'git status failed' }
+  return { ok: true, counts: parsePorcelainCounts(res.stdout) }
+}
+
+/** `git rev-list --left-right --count @{upstream}...HEAD` → { ahead, behind }.
+ *  Failure (including "no upstream configured") is reported, never masked as
+ *  0/0 — callers decide whether to fail open (chip) or closed (pull). */
+export async function probeAheadBehind(cwd: string): Promise<ProbeResult<{ ahead: number; behind: number }>> {
+  const res = await execGit('git', ['rev-list', '--left-right', '--count', '@{upstream}...HEAD'], { cwd })
+  if (!res.ok) return { ok: false, error: res.stderr.trim() || 'git rev-list failed' }
+  const parts = res.stdout.trim().split(/\s+/)
+  if (parts.length !== 2) return { ok: false, error: `unexpected rev-list output: ${res.stdout.trim()}` }
+  return {
+    ok: true,
+    behind: Number.parseInt(parts[0], 10) || 0,
+    ahead: Number.parseInt(parts[1], 10) || 0
+  }
+}
+
 const NOT_REPO: GitStatusSnapshot = {
   isRepo: false,
   branch: '',
@@ -58,33 +108,19 @@ export async function getGitStatus(cwd: string): Promise<GitStatusSnapshot> {
   const head = headRes.ok ? headRes.stdout.trim() : ''
 
   // Dirty + changed-count. --porcelain outputs one line per changed
-  // file (staged, unstaged, untracked).
-  const statusRes = await execGit('git', ['status', '--porcelain'], { cwd })
-  const lines = statusRes.ok
-    ? statusRes.stdout.split('\n').filter((l) => l.length > 0)
-    : []
-  const dirty = lines.length > 0
-  const changedCount = lines.length
+  // file (staged, unstaged, untracked). Display probe → fail OPEN
+  // (a status failure paints "clean", i.e. no chip).
+  const treeProbe = await probeWorkingTree(cwd)
+  const changedCount = treeProbe.ok ? treeProbe.counts.total : 0
+  const dirty = changedCount > 0
 
-  // Ahead/behind vs upstream tracking branch. rev-list --left-right
-  // --count @{upstream}...HEAD prints "<behind> <ahead>" tab-
-  // separated when an upstream is set; exits non-zero when no
-  // upstream is configured (a fresh `main` with no remote tracker,
-  // for example). Non-zero is fine — we just report 0/0.
-  let ahead = 0
-  let behind = 0
-  const aheadBehindRes = await execGit(
-    'git',
-    ['rev-list', '--left-right', '--count', '@{upstream}...HEAD'],
-    { cwd }
-  )
-  if (aheadBehindRes.ok) {
-    const parts = aheadBehindRes.stdout.trim().split(/\s+/)
-    if (parts.length === 2) {
-      behind = Number.parseInt(parts[0], 10) || 0
-      ahead = Number.parseInt(parts[1], 10) || 0
-    }
-  }
+  // Ahead/behind vs upstream tracking branch. probeAheadBehind exits
+  // non-ok when no upstream is configured (a fresh `main` with no
+  // remote tracker, for example). Fail OPEN here too — we just
+  // report 0/0.
+  const ab = await probeAheadBehind(cwd)
+  const ahead = ab.ok ? ab.ahead : 0
+  const behind = ab.ok ? ab.behind : 0
 
   // ENH-210 — worktree identity. One extra rev-parse; classifies this
   // checkout as the main worktree vs. a linked one and resolves the

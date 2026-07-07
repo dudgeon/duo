@@ -22,6 +22,7 @@
 import * as path from 'path'
 import { execGit } from './exec'
 import { probeGhAuth } from './auth'
+import { looksLikeAuthFailure, looksLikeBadUrl } from './failure-sniff'
 
 export interface CloneRequest {
   /** Repo URL — gh accepts both shorthand (`owner/repo`) and full
@@ -102,7 +103,7 @@ export async function runClone(req: CloneRequest): Promise<CloneResult> {
   if (res.ok) return res
   // git failed AND we couldn't try gh; if the failure smells like
   // auth (HTTPS repo without creds), prompt the auth path.
-  if (looksLikeAuthFailure(res.error ?? '')) {
+  if (looksLikeAuthFailure(res.error ?? '', { strict: true })) {
     return {
       ok: false,
       errorKind: 'auth-missing',
@@ -131,7 +132,7 @@ async function ghClone(req: CloneRequest): Promise<CloneResult> {
   if (res.notFound) {
     return { ok: false, errorKind: 'auth-missing', error: 'gh: command not found' }
   }
-  if (looksLikeAuthFailure(res.stderr)) {
+  if (looksLikeAuthFailure(res.stderr, { strict: true })) {
     return { ok: false, errorKind: 'auth-missing', error: res.stderr.trim() }
   }
   if (looksLikeBadUrl(res.stderr)) {
@@ -171,29 +172,6 @@ async function gitClone(req: CloneRequest): Promise<CloneResult> {
     return { ok: false, errorKind: 'bad-url', error: res.stderr.trim() }
   }
   return { ok: false, errorKind: 'clone-failed', error: res.stderr.trim() || 'git clone failed', via: 'git' }
-}
-
-function looksLikeAuthFailure(stderr: string): boolean {
-  const s = stderr.toLowerCase()
-  return (
-    s.includes('authentication') ||
-    s.includes('could not read username') ||
-    s.includes('permission denied') ||
-    s.includes('403') ||
-    s.includes('401') ||
-    s.includes('not logged in') ||
-    s.includes('please run: gh auth login')
-  )
-}
-
-function looksLikeBadUrl(stderr: string): boolean {
-  const s = stderr.toLowerCase()
-  return (
-    s.includes('repository not found') ||
-    s.includes('not found') ||
-    s.includes('does not exist') ||
-    s.includes('invalid url')
-  )
 }
 
 /**
