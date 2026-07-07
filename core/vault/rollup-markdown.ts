@@ -16,6 +16,11 @@ import { rollupViewData } from './builder'
 export interface RollupMarkdownResult {
   markdown: string | null
   error: string | null
+  /** ENH-255 review fix (finding g) — filter eval-warnings (same lines as
+   *  rollupViewData.warnings). Also rendered into the markdown itself as a
+   *  `> ⚠ …` blockquote; carried separately so the CLI/IPC callers can
+   *  surface them out-of-band (stderr / a GUI chip) too. */
+  warnings: string[]
 }
 
 // ENH-248 R8 — the GitHub-link probe, factored out so the HTML renderer
@@ -87,7 +92,7 @@ function escapeLinkText(v: string): string {
  *  surfaces as `error` (the caller shows the same doctor path as the view). */
 export async function rollupMarkdownTable(root: string, target: string): Promise<RollupMarkdownResult> {
   const data = rollupViewData(root, target)
-  if (data.error) return { markdown: null, error: data.error }
+  if (data.error) return { markdown: null, error: data.error, warnings: [] }
 
   // One probe for the whole table: is the VAULT ROOT inside a git repo with
   // a GitHub-family remote? Every row lives under the vault, so this single
@@ -103,22 +108,51 @@ export async function rollupMarkdownTable(root: string, target: string): Promise
   const headerRow = '| ' + headers.map(escapeCell).join(' | ') + ' |'
   const sepRow = '| ' + headers.map(() => '---').join(' | ') + ' |'
 
+  const rowLine = (row: (typeof data.rows)[number]): string => {
+    const link = resolveLink(row.absPath, row.path)
+    const titleCell = `[${escapeLinkText(row.title)}](${link})`
+    const cells = [
+      ...row.groups.map(escapeCell),
+      titleCell,
+      ...dataColumns.map((c) => escapeCell(row.cells[c] ?? '')),
+    ]
+    return '| ' + cells.join(' | ') + ' |'
+  }
+  const tableFor = (rows: typeof data.rows): string[] => [headerRow, sepRow, ...rows.map(rowLine)]
+
   const lines = [`## ${data.title}`, '']
-  if (data.rows.length === 0) {
+  // ENH-255 (finding g) — a broken filter must never read as a legitimately-
+  // empty table: the same warning lines every other consumer surfaces (D-255.2)
+  // land here as a blockquote at the top.
+  if (data.warnings.length) {
+    for (const w of data.warnings) lines.push(`> ⚠ ${w}`)
+    lines.push('')
+  }
+  if (data.buckets.length > 0) {
+    // Declared buckets (finding g) — consistent with the HTML path: each
+    // bucket is a section, in declaration order; an empty declared bucket
+    // still renders (as '— none —' — the empty state IS signal). Rows whose
+    // level-1 group matched no declared bucket follow, grouped by value.
+    const declaredKeys = new Set(data.buckets.map((b) => b.key).filter((k): k is string => k != null))
+    for (const b of data.buckets) {
+      const rows = b.key == null ? [] : data.rows.filter((r) => r.groups[0] === b.key)
+      lines.push(`### ${b.label} (${rows.length})`, '')
+      if (rows.length === 0) lines.push('_— none —_')
+      else lines.push(...tableFor(rows))
+      lines.push('')
+    }
+    const rest = data.rows.filter((r) => !declaredKeys.has(r.groups[0]))
+    const restKeys = [...new Set(rest.map((r) => r.groups[0]))].sort((a, b) => a.localeCompare(b))
+    for (const k of restKeys) {
+      const rows = rest.filter((r) => r.groups[0] === k)
+      lines.push(`### ${k} (${rows.length})`, '', ...tableFor(rows), '')
+    }
+    while (lines.length && lines[lines.length - 1] === '') lines.pop()
+  } else if (data.rows.length === 0) {
     lines.push('_No entities match this rollup\'s filters._')
   } else {
-    lines.push(headerRow, sepRow)
-    for (const row of data.rows) {
-      const link = resolveLink(row.absPath, row.path)
-      const titleCell = `[${escapeLinkText(row.title)}](${link})`
-      const cells = [
-        ...row.groups.map(escapeCell),
-        titleCell,
-        ...dataColumns.map((c) => escapeCell(row.cells[c] ?? '')),
-      ]
-      lines.push('| ' + cells.join(' | ') + ' |')
-    }
+    lines.push(...tableFor(data.rows))
   }
 
-  return { markdown: lines.join('\n') + '\n', error: null }
+  return { markdown: lines.join('\n') + '\n', error: null, warnings: data.warnings }
 }

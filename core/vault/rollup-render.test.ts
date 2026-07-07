@@ -40,6 +40,7 @@ describe('renderAndStampRollup', () => {
       title: 'Open tasks',
       types: ['task'],
       groupBy: [],
+      buckets: [],
       filters: [],
       columns: ['owner'],
     })
@@ -69,6 +70,7 @@ describe('renderAndStampRollup', () => {
       title: 'T',
       types: ['task'],
       groupBy: [],
+      buckets: [],
       filters: [],
       columns: [],
     })
@@ -84,6 +86,7 @@ describe('renderAndStampRollup', () => {
       title: 'T',
       types: ['task'],
       groupBy: [],
+      buckets: [],
       filters: [],
       columns: [],
     })
@@ -101,6 +104,7 @@ describe('renderAndStampRollup', () => {
       title: 'T',
       types: ['task'],
       groupBy: [],
+      buckets: [],
       filters: [],
       columns: [],
     })

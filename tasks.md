@@ -11,6 +11,20 @@ The `cut-version` skill's Step 4 item 6 has a "D4 HARD-GATE" mandating the sideb
 
 ---
 
+### ENH-255: Rollup engine — multi-valued membership filters, declared buckets, filter-error surfacing
+**Status:** 🚧 In progress 2026-07-06 — built on `claude/jovial-hypatia-3ed283` (owner picked full scope incl. GUI builder); all four gaps implemented + 13 new regression tests (`core/vault/enh255.test.ts`), CLI verified live against a scratch vault; GUI verified live 2026-07-06 (dev app, DOM-probed: bucket order/labels + "— none —" empty bucket + Buckets editor round-trip GUI→disk→re-render + broken-filter ⚠ banner); smoke-walk item still owed before cut; PR #123 review fixes applied 2026-07-06 (not:/or: error semantics, gbEq identity fold, array/alias bucket matching, markdown warnings + buckets, base render warnings JSON, --bucket \= escape, save guard — PRD § 13a). PRD: ENH-243 § 13 + § 13a. **Priority:** P1 (external requester blocked). **Effort:** M. **Ticket note:** allocated after grepping sibling worktrees (max was BUG-253).
+
+A user running ~7 per-track initiative rollups hit three engine gaps, all confirmed against `core/vault/engine.ts` / `render-markdown.ts`:
+
+1. **Membership filter on a multi-valued (list-of-links) field — the hard blocker.** `note.tracks` parses to an array of `Link` objects (`parseLinkish`), but the expression vocabulary has no membership predicate: `.contains()` isn't defined, JS `.includes(link(...))` fails on object identity, and `gbEq` only fires via the `== this` rewrite. Worse, `passes()` (engine.ts:410) folds an `EvalError` to `false` — so a broken filter **silently yields an empty rollup** instead of erroring (exactly what the requester saw). *Partial workaround today:* `file.hasLink(...)` IS identity-folded (targetKey) and frontmatter links are in `_rawLinks` — but it's note-scoped (over-matches body mentions), not field-scoped. **Fix:** add a `contains()` membership predicate to the engine + lint vocabulary that folds `Link` identity through `targetKey` (matches on the linked note's identity, not display text); make filter eval-errors *surface* (⚠ warning in the rendered artifact header + CLI stderr count) per D15 warn-and-render — never a silent zero-row view.
+2. **Empty groups disappear.** `render-markdown.ts` derives groups solely from matching rows — a declared bucket with zero rows never renders. **Fix:** an optional view-level `groups:` declaration (ordered list of `{value, label}`); declared groups always render (empty ⇒ an "— none —" placeholder row), undeclared values append after in today's alpha order. Obsidian ignores unknown `.base` view keys, so the file stays loadable there (native Obsidian rendering just won't show the placeholder — acceptable divergence, note in PRD).
+3. **Group headers are raw + alpha-sorted only.** Same `groups:` declaration carries the human label + explicit order (requester wants "Primary" before "Monitored").
+4. *(Nice-to-have, phase 2)* Rollups-tab builder (ENH-243) round-trips a membership-filter row + the `groups:` declaration so per-track rollups stay GUI-editable rather than falling to view-only (`builder.ts` currently recognizes only `type == "…"` or-groups).
+
+Requester will handle on their side: canonicalizing how track membership is recorded (their template + ingest routing), and unifying primary-vs-monitored into one derived filter. Touches: `core/vault/engine.ts`, `lint.ts`, `render-markdown.ts`, `render.ts`, `builder.ts` (+ Rollups tab), `skill/references/vault.md` + rollup guide, and — since `duo rollup render` runs in-process in the CLI bundle — `npm run build:cli`.
+
+---
+
 ### ENH-232: Catch-up — rich re-entry for sessions whose worktree was removed
 **Status:** 🔵 Open (filed from ENH-231 walk #2, 2026-06-24). **P1.**
 

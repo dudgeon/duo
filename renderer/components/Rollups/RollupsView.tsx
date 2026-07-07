@@ -57,9 +57,15 @@ function fmtCheckedAgo(at: number): string {
 const OPS: { value: RollupFilterDto['op']; label: string }[] = [
   { value: 'eq', label: 'is' },
   { value: 'ne', label: 'is not' },
+  // ENH-255 — membership on a multi-valued field; a list-of-links field
+  // matches on the linked note's identity, not its display text.
+  { value: 'contains', label: 'has member' },
   { value: 'set', label: 'is set' },
   { value: 'notset', label: 'is not set' },
 ]
+
+/** Ops whose filter takes a value operand. */
+const VALUE_OPS = new Set<RollupFilterDto['op']>(['eq', 'ne', 'contains'])
 
 /** One flip's undo memo — what to write back to restore the prior value. */
 interface UndoMemo {
@@ -302,6 +308,7 @@ export function RollupsView({ isActive }: { isActive: boolean }) {
       title: 'Untitled rollup',
       types: [sch.types.find((t) => t !== 'rollup') ?? sch.types[0] ?? 'note'],
       groupBy: [],
+      buckets: [],
       filters: [],
       columns: [],
     }
@@ -733,7 +740,15 @@ export function RollupsView({ isActive }: { isActive: boolean }) {
             </button>
           </div>
         ) : view ? (
-          <GroupedRows view={view} onOpen={onOpenRow} onSelect={onSelectRow} selectedPath={panel?.note ?? null} />
+          <>
+            {/* ENH-255 — a broken filter must never read as an empty rollup. */}
+            {view.warnings.map((w) => (
+              <div key={w} className="duo-banner-warn duo-rollups-banner">
+                ⚠ {w}
+              </div>
+            ))}
+            <GroupedRows view={view} onOpen={onOpenRow} onSelect={onSelectRow} selectedPath={panel?.note ?? null} />
+          </>
         ) : (
           <div className="duo-rollups-empty">Loading…</div>
         )}
@@ -848,6 +863,38 @@ function groupRows(rows: RollupViewRowDto[], depth: number, level = 0): GroupNod
   })
 }
 
+/** ENH-255 — apply the declared level-1 buckets to the level-0 nodes:
+ *  declared buckets first, in declaration order, relabeled; an empty bucket
+ *  is injected as a zero-row node (an empty bucket is signal); undeclared
+ *  groups keep their derived order after.
+ *
+ *  INVARIANT (review fix, finding p): the `n.label === b.key` bridge is
+ *  exact by construction, not a re-derivation — core's rollupViewData
+ *  computes BOTH `rows[].groups[0]` (which groupRows keys nodes by) and
+ *  `buckets[].key` from the SAME bucketRows pass (levelOneGrouping in
+ *  core/vault/builder.ts), so alias-variant merging and identity matching
+ *  happen once, in core, and this bridge is pure string plumbing. */
+function applyBuckets(
+  nodes: GroupNode[],
+  buckets: RollupViewDataDto['buckets'],
+  depth: number,
+): GroupNode[] {
+  if (!buckets.length || depth === 0) return nodes
+  const used = new Set<GroupNode>()
+  const out: GroupNode[] = []
+  for (const b of buckets) {
+    const node = b.key != null ? nodes.find((n) => !used.has(n) && n.label === b.key) : undefined
+    if (node) {
+      used.add(node)
+      out.push({ ...node, label: b.label })
+    } else {
+      out.push({ label: b.label, children: depth > 1 ? [] : null, rows: [] })
+    }
+  }
+  for (const n of nodes) if (!used.has(n)) out.push(n)
+  return out
+}
+
 function GroupedRows({
   view,
   onOpen,
@@ -860,9 +907,13 @@ function GroupedRows({
   selectedPath: string | null
 }) {
   const depth = view.groupBy.length
-  const tree = useMemo(() => groupRows(view.rows, depth), [view.rows, depth])
+  const tree = useMemo(
+    () => applyBuckets(groupRows(view.rows, depth), view.buckets, depth),
+    [view.rows, depth, view.buckets],
+  )
 
-  if (view.rows.length === 0) {
+  // Declared buckets render even over an empty result set (ENH-255).
+  if (view.rows.length === 0 && view.buckets.length === 0) {
     return <div className="duo-rollups-empty">No entities match this rollup’s filters.</div>
   }
 
@@ -913,12 +964,22 @@ function GroupedRows({
 
   const renderNodes = (nodes: GroupNode[], level: number, prefix: string) => (
     <>
-      {nodes.map((n) => (
-        <div key={`${prefix}/${n.label}`} className={`duo-rollups-group depth-${level}`}>
+      {/* Index-qualified keys (review fix, finding o): duplicate bucket
+          labels are reachable (free-text labels, no dedupe) and must not
+          collide as React keys. */}
+      {nodes.map((n, i) => (
+        <div key={`${prefix}/${i}:${n.label}`} className={`duo-rollups-group depth-${level}`}>
           <div className={`duo-rollups-group-h depth-${level}`}>
             {view.groupBy[level]}: {n.label} <span className="duo-rollups-count">{n.rows.length}</span>
           </div>
-          {n.children ? renderNodes(n.children, level + 1, `${prefix}/${n.label}`) : table(n.rows)}
+          {n.rows.length === 0 ? (
+            // ENH-255 — a declared-but-empty bucket: the empty state IS signal.
+            <div className="duo-rollups-empty">— none —</div>
+          ) : n.children ? (
+            renderNodes(n.children, level + 1, `${prefix}/${n.label}`)
+          ) : (
+            table(n.rows)
+          )}
         </div>
       ))}
     </>
@@ -1041,7 +1102,12 @@ function BuilderPanel({
             <button
               type="button"
               className="duo-rollups-chip-x"
-              onClick={() => onChange({ ...model, groupBy: model.groupBy.filter((x) => x !== g) })}
+              onClick={() => {
+                const groupBy = model.groupBy.filter((x) => x !== g)
+                // Buckets declare groups for level 1 — they can't outlive it
+                // (a groups: block without groupBy drops the note to view-only).
+                onChange({ ...model, groupBy, buckets: groupBy.length === 0 ? [] : model.buckets })
+              }}
               aria-label={`Remove group level ${g}`}
             >
               ✕
@@ -1055,13 +1121,40 @@ function BuilderPanel({
         />
       </div>
 
+      {model.groupBy.length > 0 ? (
+        <>
+          {/* ENH-255 — declared buckets for group level 1: always render (even
+              empty), in this order, under their labels. */}
+          <div className="duo-rollups-fieldlabel">Buckets (level 1 — always shown, in order)</div>
+          <div className="duo-rollups-chiprow">
+            {model.buckets.map((b, i) => (
+              <span key={`${b.value}-${i}`} className="duo-rollups-chip on">
+                {b.label ? `${b.label} (${b.value})` : b.value}
+                <button
+                  type="button"
+                  className="duo-rollups-chip-x"
+                  onClick={() => onChange({ ...model, buckets: model.buckets.filter((_, j) => j !== i) })}
+                  aria-label={`Remove bucket ${b.label ?? b.value}`}
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
+            <AddBucket
+              options={enumOptions(model.groupBy[0]).filter((v) => !model.buckets.some((b) => b.value === v))}
+              onAdd={(b) => onChange({ ...model, buckets: [...model.buckets, b] })}
+            />
+          </div>
+        </>
+      ) : null}
+
       <div className="duo-rollups-fieldlabel">Filters</div>
       <div className="duo-rollups-filters">
         {model.filters.map((f, i) => (
           <div key={`${f.property}-${i}`} className="duo-rollups-filter">
             <code>{f.property}</code>
             <span>{OPS.find((o) => o.value === f.op)?.label}</span>
-            {f.op === 'eq' || f.op === 'ne' ? <code>{f.value}</code> : null}
+            {VALUE_OPS.has(f.op) ? <code>{f.value}</code> : null}
             <button
               type="button"
               className="duo-rollups-chip-x"
@@ -1131,6 +1224,66 @@ function AddSelect({
   )
 }
 
+/** ENH-255 — the "+ bucket" adder: a value (enum pick or free text, matched
+ *  by identity for link values) and an optional display label. */
+function AddBucket({
+  options,
+  onAdd,
+}: {
+  options: string[]
+  onAdd: (b: { value: string; label?: string }) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState('')
+  const [label, setLabel] = useState('')
+  if (!open) {
+    return (
+      <button type="button" className="duo-rollups-add" onClick={() => setOpen(true)}>
+        + bucket
+      </button>
+    )
+  }
+  const commit = () => {
+    const v = value.trim()
+    if (!v) return
+    const l = label.trim()
+    onAdd(l ? { value: v, label: l } : { value: v })
+    setValue('')
+    setLabel('')
+    setOpen(false)
+  }
+  return (
+    <div className="duo-rollups-addfilter">
+      {/* Free text WITH suggestions — a bucket may declare a value no row has
+          yet (that's the point of an empty bucket), so a pick-only select
+          would block the primary use case. */}
+      <input
+        className="duo-rollups-input duo-rollups-filter-value"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="value"
+        aria-label="Bucket value"
+        list="duo-rollups-bucket-options"
+      />
+      <datalist id="duo-rollups-bucket-options">
+        {options.map((o) => (
+          <option key={o} value={o} />
+        ))}
+      </datalist>
+      <input
+        className="duo-rollups-input duo-rollups-filter-value"
+        value={label}
+        onChange={(e) => setLabel(e.target.value)}
+        placeholder="label (optional)"
+        aria-label="Bucket label"
+      />
+      <button type="button" className="duo-vault-btn" onClick={commit}>
+        Add
+      </button>
+    </div>
+  )
+}
+
 function AddFilter({
   props,
   enumOptions,
@@ -1143,7 +1296,7 @@ function AddFilter({
   const [property, setProperty] = useState('')
   const [op, setOp] = useState<RollupFilterDto['op']>('eq')
   const [value, setValue] = useState('')
-  const needsValue = op === 'eq' || op === 'ne'
+  const needsValue = VALUE_OPS.has(op)
   const options = property ? enumOptions(property) : []
 
   const commit = () => {

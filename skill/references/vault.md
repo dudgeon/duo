@@ -206,6 +206,27 @@ is fragile). Stay inside what `duo base lint` accepts — anything else renders 
 a ⚠ cell. **Presentation (table/cards/list) is Duo-owned** (D16); shape a cell
 only through `html()` / `icon()` formulas, never by hand-authoring HTML.
 
+**Membership + declared buckets (ENH-255).** For multi-valued fields (an
+initiative on several tracks): `list(tracks).contains("q3-launch")` filters on
+LIST MEMBERSHIP, matching a list-of-links element by the linked note's
+IDENTITY (targetKey fold) — `[[Q3 Launch]]`, `[[q3-launch]]`, and
+`[[q3-launch|Growth]]` all match; never by display text. `containsAny(…)` /
+`containsAll(…)` and string `contains()` work too. A grouped view may also
+declare its buckets under the view's **`groups:`** key
+(`- value: primary` + `  label: Primary track activity`): declared buckets
+always render — **even with zero rows** (an empty bucket is signal) — in
+declaration order under their labels; undeclared values trail alphabetically.
+(`groups:` is a Duo extension; Obsidian ignores it — the `.base` stays
+loadable there, minus the empty-bucket placeholder.) **Filter errors are
+surfaced, never silent**: a filter that can't be evaluated drops its rows AND
+emits a ⚠ stderr line + `warnings[]` in `render`/`show` JSON + a banner in
+the artifact — check `warnings` before trusting a zero-row rollup. Builder
+twins: `--filter 'tracks~=q3-launch'` and `--bucket 'value[=Label]'` (`\=`
+escapes a literal `=` in the value). Bucket/group matching folds Link
+identity — alias variants of one note form ONE group; an array-valued
+groupBy matches a bucket on any element. `duo base render` JSON carries the
+same `warnings` key.
+
 Renders are **stamped build artifacts** (D13): generated-at + source-hash +
 as-of date. Default writes to the vault's `output/` (or legacy `out/` for a
 vault that already has one — ENH-246); re-render to refresh — the

@@ -31,18 +31,34 @@ import { parseFile, readNotes, splitFrontmatter } from './parse'
 import { buildCorpus } from './corpus'
 import { safeName } from './filing'
 import { resolveRollupNote } from './rollup-notes'
-import { evaluateBaseDef, readCol, plainCell, sourceHash, type BaseDef } from './render'
-import { buildEngineFiles, defaultAsOf } from './engine'
+import {
+  evaluateBaseDef,
+  readCol,
+  plainCell,
+  sourceHash,
+  bucketRows,
+  filterErrorLines,
+  type BaseDef,
+  type EvaluatedView,
+} from './render'
+import { buildEngineFiles, defaultAsOf, type EngineFile } from './engine'
 
 // ── the builder model ───────────────────────────────────────────────────────
 
-export type BuilderFilterOp = 'eq' | 'ne' | 'set' | 'notset'
+export type BuilderFilterOp = 'eq' | 'ne' | 'contains' | 'set' | 'notset'
 
 export interface BuilderFilter {
   property: string
   op: BuilderFilterOp
-  /** Present for eq/ne; absent for set/notset. */
+  /** Present for eq/ne/contains; absent for set/notset. */
   value?: string
+}
+
+/** A declared bucket for group level 1 (ENH-255): always renders (even
+ *  empty), in declaration order, under `label` (else the raw value). */
+export interface BuilderBucket {
+  value: string
+  label?: string
 }
 
 export interface RollupBuilderModel {
@@ -51,6 +67,8 @@ export interface RollupBuilderModel {
   types: string[]
   /** Ordered group-by levels, outermost first (0..n). */
   groupBy: string[]
+  /** Declared buckets for group level 1 (ENH-255); [] = derive from rows. */
+  buckets: BuilderBucket[]
   /** AND-combined filters (D8 vocabulary). */
   filters: BuilderFilter[]
   /** Frontmatter columns shown after the leading title column. */
@@ -67,6 +85,12 @@ function filterExpr(f: BuilderFilter): string {
       return `${f.property} == ${JSON.stringify(f.value ?? '')}`
     case 'ne':
       return `${f.property} != ${JSON.stringify(f.value ?? '')}`
+    case 'contains':
+      // ENH-255 — multi-valued membership. list() folds a scalar-or-missing
+      // field into an array so the predicate never errors on single-valued
+      // notes; the engine's contains matches Link elements by IDENTITY
+      // (targetKey fold), so the value names the linked note, not its label.
+      return `list(${f.property}).contains(${JSON.stringify(f.value ?? '')})`
     case 'set':
       return `file.hasProperty(${JSON.stringify(f.property)})`
     case 'notset':
@@ -98,14 +122,34 @@ export function serializeBuilderBase(model: RollupBuilderModel): string {
   if (model.groupBy.length > 0) {
     lines.push('    groupBy:')
     lines.push(`      property: ${model.groupBy[0]}`)
+    // ENH-255 — declared buckets (level 1): always rendered, in this order,
+    // under their labels. A Duo extension; Obsidian ignores unknown view keys.
+    if (model.buckets.length > 0) {
+      lines.push('    groups:')
+      for (const b of model.buckets) {
+        lines.push(`      - value: ${JSON.stringify(b.value)}`)
+        if (b.label != null) lines.push(`        label: ${JSON.stringify(b.label)}`)
+      }
+    }
   }
   return lines.join('\n') + '\n'
 }
 
 const EXPR_EQ = /^(\w[\w-]*) (==|!=) "(.*)"$/
 const EXPR_SET = /^(!?)file\.hasProperty\("([\w-]+)"\)$/
+const EXPR_CONTAINS = /^list\((\w[\w-]*)\)\.contains\("(.*)"\)$/
 
 function parseFilterExpr(expr: string): BuilderFilter | { type: string } | null {
+  const has = expr.match(EXPR_CONTAINS)
+  if (has) {
+    let value: string
+    try {
+      value = JSON.parse(`"${has[2]}"`)
+    } catch {
+      value = has[2]
+    }
+    return { property: has[1], op: 'contains', value }
+  }
   const eq = expr.match(EXPR_EQ)
   if (eq) {
     // filterExpr serializes the value via JSON.stringify; eq[3] is only the
@@ -195,9 +239,32 @@ export function parseBuilderBase(
     groupBy = blockLevel ? [blockLevel] : []
   }
 
+  // ENH-255 — declared buckets. Canonical form is {value, label?} entries;
+  // a bare-string entry (value only) is accepted too. Anything else — or a
+  // groups: declaration with no groupBy — is outside the dialect → view-only.
+  // NOTE (review, finding n): the `groups:` shape is also validated in
+  // render.ts normalizeDeclaredGroups (lenient) and lint.ts (advisory) —
+  // three modes, deliberately not unified; change all three together.
+  const buckets: BuilderBucket[] = []
+  if (view.groups != null) {
+    if (!Array.isArray(view.groups) || groupBy.length === 0) return null
+    for (const item of view.groups) {
+      if (typeof item === 'string') {
+        buckets.push({ value: item })
+        continue
+      }
+      if (!item || typeof item !== 'object') return null
+      const o = item as Record<string, unknown>
+      if (typeof o.value !== 'string') return null
+      for (const k of Object.keys(o)) if (k !== 'value' && k !== 'label') return null
+      if (o.label != null && typeof o.label !== 'string') return null
+      buckets.push({ value: o.value, ...(typeof o.label === 'string' ? { label: o.label } : {}) })
+    }
+  }
+
   const title = typeof view.name === 'string' ? view.name : ''
   if (!title) return null
-  return { title, types, groupBy, filters, columns }
+  return { title, types, groupBy, buckets, filters, columns }
 }
 
 // ── note create / update ────────────────────────────────────────────────────
@@ -395,6 +462,14 @@ export interface RollupViewData {
   columns: string[]
   /** Effective group levels (frontmatter `group_by:` list, else the block's). */
   groupBy: string[]
+  /** ENH-255 — declared level-1 buckets, in declaration order: the header
+   *  label + the matched level-1 group key (`rows[].groups[0]`), null when
+   *  the bucket is empty (the GUI injects an empty group for it). [] = none
+   *  declared. */
+  buckets: { label: string; key: string | null }[]
+  /** ENH-255 — filter eval-error lines (a broken filter must never read as
+   *  a legitimately-empty rollup). */
+  warnings: string[]
   rows: RollupViewRow[]
   /** The parsed builder model, or null → view-only (hand-authored spec). */
   model: RollupBuilderModel | null
@@ -411,6 +486,33 @@ export interface RollupViewData {
   links: 'github' | 'relative'
 }
 
+/** ENH-255 review fix (findings l/m/p) — ONE derivation of level-1 grouping
+ *  shared by {@link rollupViewData} and {@link modelViewData}:
+ *  - `buckets` is the declared-bucket DTO (label + matched canonical group
+ *    key, null when empty) — previously duplicated byte-identically in both.
+ *  - `groupKeyByPath` maps each row to its CORE-COMPUTED level-1 group key
+ *    (bucketRows' canonical key — identity-merged, alias-variant-folded), so
+ *    the GUI's `rows[].groups[0]` and `buckets[].key` come from the SAME
+ *    computation and the GUI's `label === key` bridge is exact by
+ *    construction (never a re-derivation that can drift). Also trims the
+ *    redundant per-row readCol for level 1 (bucketRows already computed it). */
+function levelOneGrouping(
+  view: EvaluatedView,
+  formulas: Record<string, unknown>,
+  thisFile: EngineFile | null,
+  at: Date,
+): { buckets: { label: string; key: string | null }[]; groupKeyByPath: Map<string, string> | null } {
+  const all = view.groupBy ? bucketRows(view, formulas, thisFile, at) : null
+  const groupKeyByPath = all ? new Map<string, string>() : null
+  if (all && groupKeyByPath) {
+    for (const b of all) for (const f of b.rows) if (!groupKeyByPath.has(f.path)) groupKeyByPath.set(f.path, b.key)
+  }
+  const buckets = (view.groups?.length ? (all ?? []) : [])
+    .filter((b) => b.declared)
+    .map((b) => ({ label: b.label, key: b.rows.length > 0 ? b.key : null }))
+  return { buckets, groupKeyByPath }
+}
+
 /** Evaluate one rollup live for the Rollups tab. Never throws for a spec
  *  problem — that lands in `error` so the GUI can render the doctor card. */
 export function rollupViewData(root: string, target: string, asOf?: Date): RollupViewData {
@@ -423,6 +525,8 @@ export function rollupViewData(root: string, target: string, asOf?: Date): Rollu
       title: target,
       columns: [],
       groupBy: [],
+      buckets: [],
+      warnings: [],
       rows: [],
       model: null,
       error: `not a \`type: rollup\` note: ${target}`,
@@ -435,7 +539,7 @@ export function rollupViewData(root: string, target: string, asOf?: Date): Rollu
   // Artifact provenance for the under-title link + R4 freshness. One extra
   // sourceHash walk per view fetch — same cost class as the evaluate below.
   const lastHash = typeof resolved.frontmatter.last_hash === 'string' ? resolved.frontmatter.last_hash : null
-  const base: Omit<RollupViewData, 'columns' | 'groupBy' | 'rows' | 'model' | 'error'> = {
+  const base: Omit<RollupViewData, 'columns' | 'groupBy' | 'buckets' | 'warnings' | 'rows' | 'model' | 'error'> = {
     note: resolved.noteRel,
     noteAbs: resolved.noteAbs,
     title: resolved.title,
@@ -449,6 +553,8 @@ export function rollupViewData(root: string, target: string, asOf?: Date): Rollu
     ...base,
     columns: [],
     groupBy: [],
+    buckets: [],
+    warnings: [],
     rows: [],
     model: null,
     error,
@@ -501,10 +607,17 @@ export function rollupViewData(root: string, target: string, asOf?: Date): Rollu
     const groupBy = fmLevels.length > 0 ? fmLevels : view.groupBy ? [view.groupBy.property] : []
 
     const columns = view.order
+    // ENH-255 — level-1 group keys + declared buckets come from ONE core
+    // computation (levelOneGrouping / bucketRows), so alias variants merge
+    // identically here and in rendered artifacts, and the GUI's bucket
+    // bridge (label === key) can never drift from core.
+    const { buckets, groupKeyByPath } = levelOneGrouping(view, evaluated.formulas, thisFile, at)
+    const coreLevel1 = view.groupBy?.property === groupBy[0] ? groupKeyByPath : null
     const rows: RollupViewRow[] = view.rows.map((f) => {
       const cells: Record<string, string> = {}
       for (const p of columns) cells[p] = plainCell(readCol(p, f, thisFile, evaluated.formulas, at))
-      const groups = groupBy.map((p) => {
+      const groups = groupBy.map((p, i) => {
+        if (i === 0 && coreLevel1) return coreLevel1.get(f.path) ?? '—'
         const v = plainCell(readCol(p, f, thisFile, evaluated.formulas, at))
         return v === '' ? '—' : v
       })
@@ -517,7 +630,7 @@ export function rollupViewData(root: string, target: string, asOf?: Date): Rollu
       }
     })
 
-    return { ...base, columns, groupBy, rows, model, error: null }
+    return { ...base, columns, groupBy, buckets, warnings: filterErrorLines(view), rows, model, error: null }
   } catch (e) {
     return fail(e instanceof Error ? e.message : String(e))
   }
@@ -547,21 +660,26 @@ export function modelViewData(root: string, model: RollupBuilderModel, asOf?: Da
     const view = evaluated.views[0]
     const groupBy = model.groupBy
     const columns = view.order
+    const { buckets, groupKeyByPath } = levelOneGrouping(view, evaluated.formulas, null, at)
+    const coreLevel1 = view.groupBy?.property === groupBy[0] ? groupKeyByPath : null
     const rows: RollupViewRow[] = view.rows.map((f) => {
       const cells: Record<string, string> = {}
       for (const p of columns) cells[p] = plainCell(readCol(p, f, null, evaluated.formulas, at))
-      const groups = groupBy.map((p) => {
+      const groups = groupBy.map((p, i) => {
+        if (i === 0 && coreLevel1) return coreLevel1.get(f.path) ?? '—'
         const v = plainCell(readCol(p, f, null, evaluated.formulas, at))
         return v === '' ? '—' : v
       })
       return { path: f.path, absPath: path.resolve(root, f.path), title: f.name, groups, cells }
     })
-    return { ...empty, columns, groupBy, rows, model, error: null }
+    return { ...empty, columns, groupBy, buckets, warnings: filterErrorLines(view), rows, model, error: null }
   } catch (e) {
     return {
       ...empty,
       columns: [],
       groupBy: [],
+      buckets: [],
+      warnings: [],
       rows: [],
       model,
       error: e instanceof Error ? e.message : String(e),
