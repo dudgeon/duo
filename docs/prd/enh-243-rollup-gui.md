@@ -331,3 +331,51 @@ implementation. Behavior changes:
   (documented in the verb help — never a silent mis-parse).
 - **Guard:** the GUI save IPC (`VAULT_ROLLUP_SAVE`) rejects buckets with no
   group level instead of `serializeBuilderBase` silently dropping them.
+
+## 14 · BUG-256 — Title-field rename didn't propagate to the filename (2026-07-06)
+
+**Problem.** § 12's G6 gap-list claimed "Rename exists (Title field)" — it
+didn't. `updateRollupNote()` rewrote the note's `title:` frontmatter but
+never renamed `rollups/<slug>.md`, so the on-disk filename silently drifted
+from the displayed title on every edit (both the Rollups tab and `duo rollup
+set --title` share the bug — one core function, two callers).
+
+**Fix + two owner decisions (AUQ, 2026-07-06):**
+
+- **D11 — Title is the only field with save-gating.** The Title field's
+  commit gesture changes from D9's blanket live-save to an explicit action:
+  **Enter commits** (validates the new name, renames on disk if available),
+  **Escape or blur-without-Enter cancels** (reverts to the last-saved
+  title). Mirrors the navigator's existing file-rename convention
+  (`FileTree`'s `RenameInput`, BUG-028). Every other builder field (types,
+  group-by, filters, columns) keeps D9's live-save unchanged — a narrow,
+  deliberate exception, not a reversal of D9.
+- **D12 — Reject, don't clobber or auto-suffix.** Unlike `createRollupNote`'s
+  silent `-2` uniquing for an anonymous new rollup, a rename onto an
+  already-taken name is rejected with a clear inline message (the user is
+  choosing this exact name deliberately) — the rejected text stays in the
+  field so the user can fix and retry, rather than being silently discarded.
+- **D13 — A landed rename moves the artifact too.** The stale
+  `rollups/<old-slug>.html` is removed and `out:`/`last_generated`/
+  `last_hash` are cleared, so the existing auto-render-on-save path
+  (ENH-250) regenerates fresh at `rollups/<new-slug>.html` rather than
+  leaving the rendered artifact permanently pointed at the old name.
+
+**Mechanism.** `saveRollupNoteWithRename()` (`core/vault/builder.ts`) —
+shared by the GUI's `VAULT_ROLLUP_SAVE` IPC handler and `duo rollup set`.
+Computes the new slug the same way `createRollupNote` does; a same-slug
+title edit is a plain content rewrite (unchanged `updateRollupNote` path);
+a different-slug rename reuses `moveNote()` so inbound links + the
+`.duo.json` sidecar travel with the note — the same guarantee `duo vault
+mv` gives any other note (a rollup note is a first-class vault note, ENH-228
+D1) — before stamping the new title at the moved path.
+
+**Acceptance.** Covered by `core/vault/builder.test.ts`
+(`saveRollupNoteWithRename` — same-slug no-op-move, available rename,
+taken-name rejection leaves the original byte-untouched, artifact cleanup,
+inbound-link rewrite) plus a live `duo rollup set --title` walk against a
+scratch vault (rename lands; a collision rejects with exit 1 and leaves both
+notes untouched). **Outstanding:** the Rollups tab's new Enter/Escape/
+inline-error interaction hasn't had an interactive GUI walk yet (computer-use
+access was denied this session) — the underlying save/validate/rename path
+it calls is the same one verified above.

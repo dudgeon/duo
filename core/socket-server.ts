@@ -83,6 +83,12 @@ export interface NavBridge {
   view: (path: string, mode?: 'canvas' | 'browser') => { ok: boolean; error?: string }
   /** Stage 11 — open `path` in the rich markdown editor tab. */
   edit: (path: string, mode?: 'canvas' | 'browser') => { ok: boolean; error?: string }
+  /** ENH-257 — activate the synthesized Home/Vault/Rollups top-level tab
+   *  (`duo goto`). `view`/`edit` above don't recognize these tabs' `duo://`
+   *  sentinel paths — this resolves the stable tab id directly instead.
+   *  Errors (not a silent no-op) when vault/rollups is requested with no
+   *  default vault set, since that tab doesn't exist yet. */
+  openWorkspaceTab: (kind: 'home' | 'vault' | 'rollups') => { ok: boolean; error?: string }
   /** Stage 11 § D29a — return the active editor's selection snapshot. */
   getSelection: () => EditorSelectionSnapshot | null
   /** Stage 17c — return the active canvas's selection snapshot. */
@@ -1462,6 +1468,17 @@ export class SocketServer {
           const mode = args['mode'] as 'canvas' | 'browser' | undefined
           if (args['reveal']) await this.nav.revealMainPaneIfCollapsed()
           result = this.nav.edit(p, mode)
+          break
+        }
+        case 'goto': {
+          // ENH-257 — `duo goto home|vault|rollups`. Activates the
+          // synthesized top-level tab by its stable id (view/edit don't
+          // recognize the duo:// sentinel paths — see NavBridge.openWorkspaceTab).
+          const kind = args['kind'] as string
+          if (kind !== 'home' && kind !== 'vault' && kind !== 'rollups') {
+            throw new Error('goto requires kind: home|vault|rollups')
+          }
+          result = this.nav.openWorkspaceTab(kind)
           break
         }
         case 'selection': {

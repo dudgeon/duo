@@ -335,6 +335,11 @@ export interface ElectronNavAPI {
   /** Subscribe to `duo edit <path>` commands coming in from the CLI.
    *  See onView for the optional `mode` override. */
   onEdit: (cb: (path: string, mode?: 'canvas' | 'browser') => void) => () => void
+  /** ENH-257 — subscribe to `duo goto home|vault|rollups`. Renderer
+   *  resolves `kind` to the tab's stable id and activates it the same
+   *  way a sidebar/tab-strip click does (`onView`/`onEdit` don't
+   *  recognize these tabs' `duo://` sentinel paths). */
+  onOpenWorkspaceTab: (cb: (kind: 'home' | 'vault' | 'rollups') => void) => () => void
   /** FOLLOWUP-020 — close the focused working-pane tab. Renderer
    *  applies the pinned-tab gate (dialog.confirm) + the actual tab-
    *  removal. CLI parity for ⌘W. */
@@ -1516,7 +1521,12 @@ export interface ElectronVaultAPI {
   /** ENH-243 (D4/D9) — create (`note` absent) or rewrite (`note` present) a
    *  builder-owned rollup note from the model. Live-save path: the GUI calls
    *  this on every builder mutation. ENH-248 R8 — `links` persists the
-   *  note's entity-link mode (`links:` frontmatter) alongside the save. */
+   *  note's entity-link mode (`links:` frontmatter) alongside the save.
+   *  BUG-256 — when the title's slug differs from the note's current
+   *  filename, this renames the file (rejecting with `ok: false` if the
+   *  target name is already taken rather than clobbering it); `note` in the
+   *  response reflects the POST-rename path, and the caller must re-target
+   *  future saves at it. */
   rollupSave: (opts: {
     vaultRoot: string
     note?: string
@@ -1527,6 +1537,8 @@ export interface ElectronVaultAPI {
         ok: true
         note: string
         absPath: string
+        /** True when a title change actually moved the file on disk. */
+        renamed: boolean
         rendered: boolean
         renderError: string | null
         /** True when `links: github` is set but the GitHub-remote probe

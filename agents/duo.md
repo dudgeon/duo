@@ -204,6 +204,7 @@ empty.
 | `duo ls [path]` | List directory (defaults to nav cwd) |
 | `duo view <path> [--canvas]` | Legacy verb — open file in Viewer/Editor column. Prefer `duo open` (browser-mode HTML) or `duo edit` (canvas-mode HTML) for verb-driven routing. |
 | `duo edit <path> [--browser] [--reveal]` | HTML lands in canvas mode (source-editable, scripts blocked). `.md` → TipTap editor. `--browser` rare override forces browser-mode mount for HTML. `--canvas` accepted as deprecated no-op. |
+| `duo goto <home\|vault\|rollups>` | Switch a window's top-level tab to Home/Vault/Rollups — the only CLI path to them (`view`/`edit` don't recognize their `duo://` sentinel paths). Errors if `vault`/`rollups` is requested with no default vault set. |
 | `duo html new <path.html> [--title "…"]` | Create new HTML file from boilerplate + open in canvas |
 | `duo html query <css>` | List elements in the active canvas (id, tag, text, classes) |
 | `duo html get --id <duo-id>` / `--selector <css>` | Read outerHTML + text of one element |

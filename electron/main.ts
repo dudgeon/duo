@@ -1575,6 +1575,7 @@ app.whenReady().then(async () => {
     reveal: sendReveal,
     view: sendView,
     edit: sendEdit,
+    openWorkspaceTab: sendOpenWorkspaceTab,
     getSelection: getEditorSelection,
     getCanvasSelection: getCanvasSelection,
     docWrite: dispatchDocWrite,
@@ -2638,10 +2639,18 @@ function setupIPC(): void {
         }
         let noteRel: string
         let absPath: string
+        let renamed = false
         if (note) {
           absPath = nodePath.isAbsolute(note) ? note : nodePath.resolve(root, note)
-          vaultCore.updateRollupNote(absPath, model)
-          noteRel = note
+          // BUG-256 — rename-aware save: rejects (no partial write) when the
+          // title's slug collides with an existing rollup's filename.
+          const saved = vaultCore.saveRollupNoteWithRename(root, absPath, model)
+          if (!saved.ok) {
+            return { ok: false, error: saved.error ?? 'Rename failed.' }
+          }
+          noteRel = saved.noteRel
+          absPath = saved.absPath
+          renamed = saved.renamed
         } else {
           const created = vaultCore.createRollupNote(root, model)
           noteRel = created.noteRel
@@ -2659,11 +2668,15 @@ function setupIPC(): void {
         // renders + stamps immediately, same as `duo rollup render --html`.
         // A render failure never loses the note write that triggered it —
         // it's surfaced so the caller can show a banner, not thrown.
+        // BUG-256 — a landed rename already cleared out:/last_hash, so this
+        // computes + stamps a fresh rollups/<new-slug>.html rather than
+        // reusing the (now-deleted) old artifact's path.
         const rendered = await vaultCore.renderAndStampRollup(root, noteRel)
         return {
           ok: true,
           note: noteRel,
           absPath,
+          renamed,
           rendered: rendered.ok,
           renderError: rendered.ok ? null : rendered.error,
           linksDegraded: rendered.linksDegraded,
@@ -5339,6 +5352,25 @@ export function sendEdit(path: string, mode?: 'canvas' | 'browser'): { ok: boole
     return { ok: false, error: 'Duo window not ready' }
   }
   win.webContents.send(IPC.NAV_EDIT, mode ? { path, mode } : path)
+  return { ok: true }
+}
+
+/** ENH-257 — `duo goto home|vault|rollups`. Fire-and-forget push, same
+ *  shape as sendView/sendEdit above — the renderer resolves `kind` to the
+ *  tab's stable id and activates it the same way a sidebar/tab-strip click
+ *  does. Vault/Rollups are conditionally-synthesized (present only once a
+ *  default vault is set), so that case is checked here rather than sent
+ *  blind into a tab that doesn't exist yet. */
+export function sendOpenWorkspaceTab(kind: 'home' | 'vault' | 'rollups'): { ok: boolean; error?: string } {
+  const win = windowByIdOrPrimary(undefined)
+  if (!win || win.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  if (kind !== 'home' && !vaultCore.readDefaultVault()) {
+    const label = kind === 'vault' ? 'Vault' : 'Rollups'
+    return { ok: false, error: `No default vault is set — the ${label} tab does not exist yet.` }
+  }
+  win.webContents.send(IPC.NAV_OPEN_WORKSPACE_TAB, kind)
   return { ok: true }
 }
 

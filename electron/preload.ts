@@ -412,6 +412,13 @@ const api: ElectronAPI = {
       return () => ipcRenderer.removeListener(IPC.NAV_EDIT, handler)
     },
 
+    // ENH-257 — `duo goto home|vault|rollups`.
+    onOpenWorkspaceTab: (cb) => {
+      const handler = (_: IpcRendererEvent, kind: 'home' | 'vault' | 'rollups') => cb(kind)
+      ipcRenderer.on(IPC.NAV_OPEN_WORKSPACE_TAB, handler)
+      return () => ipcRenderer.removeListener(IPC.NAV_OPEN_WORKSPACE_TAB, handler)
+    },
+
     // FOLLOWUP-020 — close-active-working-tab + close-terminal-tab
     // pushes. Renderer applies the actual close logic (pinned-tab gate,
     // tab identity resolution).

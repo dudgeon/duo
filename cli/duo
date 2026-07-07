@@ -33,7 +33,7 @@ var import_crypto = require("crypto");
 var import_node_fs2 = __toESM(require("node:fs"));
 var import_node_path2 = __toESM(require("node:path"));
 
-// node_modules/js-yaml/dist/js-yaml.mjs
+// ../../../node_modules/js-yaml/dist/js-yaml.mjs
 function isNothing(subject) {
   return typeof subject === "undefined" || subject === null;
 }
@@ -5784,10 +5784,13 @@ ${MANAGED_COMMENT}
 ${serializeBuilderBase(model)}\`\`\`
 `;
 }
+function rollupStem(title) {
+  return safeName(title).toLowerCase().replace(/\s+/g, "-") || "rollup";
+}
 function createRollupNote(root, model) {
   const dir = import_node_path13.default.join(root, ROLLUPS_DIR2);
   import_node_fs13.default.mkdirSync(dir, { recursive: true });
-  const stem = safeName(model.title).toLowerCase().replace(/\s+/g, "-") || "rollup";
+  const stem = rollupStem(model.title);
   let slug = stem;
   for (let n = 2; import_node_fs13.default.existsSync(import_node_path13.default.join(dir, `${slug}.md`)); n++) slug = `${stem}-${n}`;
   const abs = import_node_path13.default.join(dir, `${slug}.md`);
@@ -5797,6 +5800,43 @@ function createRollupNote(root, model) {
 function updateRollupNote(noteAbs, model) {
   const { frontmatter } = splitFrontmatter(import_node_fs13.default.readFileSync(noteAbs, "utf8"));
   import_node_fs13.default.writeFileSync(noteAbs, builderNoteContent(model, frontmatter));
+}
+function saveRollupNoteWithRename(root, noteAbs, model) {
+  const dir = import_node_path13.default.join(root, ROLLUPS_DIR2);
+  const oldSlug = import_node_path13.default.basename(noteAbs, ".md");
+  const newSlug = rollupStem(model.title);
+  if (newSlug === oldSlug) {
+    updateRollupNote(noteAbs, model);
+    return { ok: true, noteRel: `${ROLLUPS_DIR2}/${oldSlug}.md`, absPath: noteAbs, renamed: false };
+  }
+  const toAbs = import_node_path13.default.join(dir, `${newSlug}.md`);
+  if (import_node_fs13.default.existsSync(toAbs)) {
+    return {
+      ok: false,
+      noteRel: `${ROLLUPS_DIR2}/${oldSlug}.md`,
+      absPath: noteAbs,
+      renamed: false,
+      error: `A rollup named "${model.title}" already exists.`
+    };
+  }
+  const { frontmatter } = splitFrontmatter(import_node_fs13.default.readFileSync(noteAbs, "utf8"));
+  const oldOutRel = typeof frontmatter.out === "string" ? frontmatter.out : null;
+  const fromRel = `${ROLLUPS_DIR2}/${oldSlug}.md`;
+  const toRel = `${ROLLUPS_DIR2}/${newSlug}.md`;
+  moveNote(root, fromRel, toRel);
+  updateRollupNote(toAbs, model);
+  if (oldOutRel) {
+    const oldOutAbs = import_node_path13.default.resolve(root, oldOutRel);
+    const rootAbs = import_node_path13.default.resolve(root);
+    if (oldOutAbs === rootAbs || oldOutAbs.startsWith(rootAbs + import_node_path13.default.sep)) {
+      try {
+        import_node_fs13.default.unlinkSync(oldOutAbs);
+      } catch {
+      }
+    }
+    setFrontmatterFields(toAbs, { out: null, last_generated: null, last_hash: null });
+  }
+  return { ok: true, noteRel: toRel, absPath: toAbs, renamed: true };
 }
 function setFrontmatterFields(noteAbs, updates) {
   const serialize = (v) => typeof v === "string" ? yamlScalar2(v) : String(v);
@@ -7108,7 +7148,11 @@ ${mergeRes.stdout}`.trim();
 }
 
 // cli/duo.ts
+<<<<<<< HEAD
 var VERSION = true ? "0.13.7" : "0.0.0-dev";
+=======
+var VERSION = true ? "0.13.4" : "0.0.0-dev";
+>>>>>>> c0c50aa (BUG-256/ENH-257: rollup rename now renames the file + duo goto <tab> verb)
 var VERBS = [
   // ── Browser & tabs ──
   {
@@ -7313,6 +7357,12 @@ var VERBS = [
     group: "Files & navigator",
     args: "<path> [--browser] [--reveal]",
     summary: 'Open a file to edit its source. HTML defaults to canvas mode (buttons inert, scripts blocked, document editable); .md opens in the rich editor; images / PDFs / JSON fall through to their viewers. --browser forces browser mode for HTML (symmetric with "open --canvas"); --canvas is accepted as a deprecated no-op; --reveal expands the working pane.'
+  },
+  {
+    name: "goto",
+    group: "Files & navigator",
+    args: "<home|vault|rollups>",
+    summary: `ENH-257 \u2014 switch a window to its synthesized Home/Vault/Rollups top-level tab (same activation a sidebar/tab-strip click does). Distinct from "view"/"edit", which don't recognize these tabs' duo:// sentinel paths. "vault"/"rollups" error (not a silent no-op) when no default vault is set, since that tab doesn't exist yet.`
   },
   {
     name: "image",
@@ -7599,8 +7649,13 @@ var VERBS = [
   {
     name: "rollup",
     group: "Vault",
+<<<<<<< HEAD
     args: '<render <note|base>|list|diff <note|base>|new --type t|show <note>|set <note>|doctor <note>|markdown <note>> [--md|--html] [--style css] [--summary "t"|--no-summary] [--against p] [--title "t"] [--group a,b] [--bucket v[=Label]]... [--filter k=v|k~=v|k^=v|@=v]... [--columns a,b] [--out p] [--open] [--vault p]',
     summary: "ENH-243 \u2014 the builder verbs (the Rollups tab's CLI twins; same core layer). new --type <t[,t2]> [--title \"t\"] [--group a,b] [--bucket 'value[=Label]']... [--filter 'k=v'|'k!=v'|'k~=v'|'k?'|'k!?']... [--columns a,b]: scaffold a builder-canonical `type: rollup` note at rollups/<slug>.md \u2014 multi-depth grouping via the ordered --group list (level 1 mirrors into the base block's groupBy; the full list lives in the note's group_by: frontmatter, grouped GUI-side). ENH-255 \u2014 k~=v is MEMBERSHIP on a multi-valued field (list contains v; a list-of-links field matches on the linked note's IDENTITY \u2014 `tracks~=q3-launch` matches `[[Q3 Launch]]` \u2014 never display text). ENH-259 \u2014 k^=v is TRANSITIVE \"is under\" (any_parent): v matches an entity anywhere up property k's link chain (`parent^=California` selects every neighborhood whose city rolls up to California, irrespective of the city). ENH-262 \u2014 @=v is \"links to\": the note links entity v through ANY property or prose (`@=track-context` unions populations that reach one entity via different fields \u2014 owned via parent:, monitored via tracks:[]). ENH-261 \u2014 --group/--columns also accept the ancestor-TYPE token `ancestor:<prop>:<type>` (`--group ancestor:parent:goal` groups rows by the GOAL each rolls up to; rows with no such ancestor group under \u2014). Entity operands are canonically the note's SLUG (basename identity); a display name also matches when it folds to the basename (punctuation stripped \u2014 BUG-260). --bucket declares level-1 groups that ALWAYS render (even empty \u2014 an empty bucket is signal), in flag order, labeled `value=Label` (first unescaped = splits; \\= escapes a literal = in the value); a filter that can't be evaluated is SURFACED (\u26A0 stderr + a warnings field + an artifact banner), never a silent empty rollup. show <note>: the parsed builder model + row/group summary as stable JSON (model:null = hand-authored/view-only; error set = broken). set <note> [--title|--type|--group|--columns] [--bucket \u2026]... [--clear-buckets] [--filter \u2026]... [--clear-filters]: mutate a builder-canonical note (appends filters unless --clear-filters; --bucket REPLACES the declared-bucket list wholesale \u2014 order is render order; refuses a hand-authored spec rather than clobbering it). doctor <note>: diagnosis \u2014 parse/eval error + advisory lint findings + repair guidance (the same prompt the GUI's \"Fix with Claude\" seeds). markdown <note> [--vault p]: ENH-244 \u2014 \"Copy as Markdown\" CLI twin; prints ONE GFM table to stdout with title cells linking to the entity's GitHub blob (vault root sits inside a GitHub-remote repo, branch = the current HEAD) or a vault-relative `./path` otherwise (one git probe for the whole table, works in OKF too) \u2014 pipe to `pbcopy` or a file. ENH-229/ENH-228 \u2014 rollups. A rollup is a first-class `type: rollup` NOTE (templates/rollup.md, filed in rollups/) that owns its spec (an embedded ```base block or a `spec:` .base path) + render provenance. render <note|base> [--md|--html]: render the spec and emit ONE variant \u2014 a stamped HTML artifact (--html; the DEFAULT for a rollup note \u2014 D2, HTML-first) OR Markdown (--md; GitHub-portable). For a `type: rollup` note the out path defaults to its `out:` (else rollups/<slug>.html) and `out`/`last_generated`/`last_hash` are stamped back into the note surgically (body untouched) \u2014 but ONLY for the note's canonical format; an ad-hoc --md/--html override renders a side artifact and leaves the note's provenance untouched. A bare `.base`/non-rollup target keeps the legacy MD-default, no-stamp behavior. Every row LINKS the entities it rolls up (the note + owner/group links resolved from frontmatter, incl. OKF rel-md). --style <css-file> layers a custom stylesheet over the Atelier base (HTML only). list: the rollup inventory \u2014 every `type: rollup` note with {note,title,out,format,last_generated,last_hash,stale} (stale = last_hash !== the live source hash); a corpus query, no scan, no sidecar. Change summary (req #7): the artifact self-embeds a rows snapshot + a summary log (HTML comments \u2014 \xA7D9-clean, no sidecar); --summary \"<text>\" adds a new latest \"What changed\" entry (an interactive Claude writes the narrative+notables from `duo rollup diff`), prior entries drop into a collapsible history; --no-summary clears it. diff <note|base> [--against <prior>]: deterministic JSON delta (added/removed/changed rows) vs the prior artifact's embedded snapshot \u2014 the material Claude summarizes. --out writes elsewhere; --open surfaces it as a tab. ENH-248 \u2014 lifecycle + GitHub links. delete <note> --force: remove the definition note AND its rendered artifact (without --force: dry-run prints what would go; file history is the note's undo net). duplicate <note>: copy as \"<Title> (copy)\" with provenance stripped (the copy renders its own artifact on next save/render). render --github: entity links as GitHub blob URLs (probe = the markdown verb's; falls back to relative when no GitHub remote). set --links github|relative: persist the note's entity-link mode (`links:` frontmatter; works on hand-authored notes too) \u2014 renders honor it automatically, incl. the GUI's auto-render-on-save."
+=======
+    args: '<render <note|base>|list|diff <note|base>|new --type t|show <note>|set <note>|doctor <note>|markdown <note>> [--md|--html] [--style css] [--summary "t"|--no-summary] [--against p] [--title "t"] [--group a,b] [--filter k=v]... [--columns a,b] [--out p] [--open] [--vault p]',
+    summary: "ENH-243 \u2014 the builder verbs (the Rollups tab's CLI twins; same core layer). new --type <t[,t2]> [--title \"t\"] [--group a,b] [--filter 'k=v'|'k!=v'|'k?'|'k!?']... [--columns a,b]: scaffold a builder-canonical `type: rollup` note at rollups/<slug>.md \u2014 multi-depth grouping via the ordered --group list (level 1 mirrors into the base block's groupBy; the full list lives in the note's group_by: frontmatter, grouped GUI-side). show <note>: the parsed builder model + row/group summary as stable JSON (model:null = hand-authored/view-only; error set = broken). set <note> [--title|--type|--group|--columns] [--filter \u2026]... [--clear-filters]: mutate a builder-canonical note (appends filters unless --clear-filters; refuses a hand-authored spec rather than clobbering it). BUG-256 \u2014 a --title change that shifts the on-disk slug renames rollups/<slug>.md (inbound links + the .duo.json sidecar travel with it, same as `vault mv`); rejects rather than clobbering if the target name is already taken. doctor <note>: diagnosis \u2014 parse/eval error + advisory lint findings + repair guidance (the same prompt the GUI's \"Fix with Claude\" seeds). markdown <note> [--vault p]: ENH-244 \u2014 \"Copy as Markdown\" CLI twin; prints ONE GFM table to stdout with title cells linking to the entity's GitHub blob (vault root sits inside a GitHub-remote repo, branch = the current HEAD) or a vault-relative `./path` otherwise (one git probe for the whole table, works in OKF too) \u2014 pipe to `pbcopy` or a file. ENH-229/ENH-228 \u2014 rollups. A rollup is a first-class `type: rollup` NOTE (templates/rollup.md, filed in rollups/) that owns its spec (an embedded ```base block or a `spec:` .base path) + render provenance. render <note|base> [--md|--html]: render the spec and emit ONE variant \u2014 a stamped HTML artifact (--html; the DEFAULT for a rollup note \u2014 D2, HTML-first) OR Markdown (--md; GitHub-portable). For a `type: rollup` note the out path defaults to its `out:` (else rollups/<slug>.html) and `out`/`last_generated`/`last_hash` are stamped back into the note surgically (body untouched) \u2014 but ONLY for the note's canonical format; an ad-hoc --md/--html override renders a side artifact and leaves the note's provenance untouched. A bare `.base`/non-rollup target keeps the legacy MD-default, no-stamp behavior. Every row LINKS the entities it rolls up (the note + owner/group links resolved from frontmatter, incl. OKF rel-md). --style <css-file> layers a custom stylesheet over the Atelier base (HTML only). list: the rollup inventory \u2014 every `type: rollup` note with {note,title,out,format,last_generated,last_hash,stale} (stale = last_hash !== the live source hash); a corpus query, no scan, no sidecar. Change summary (req #7): the artifact self-embeds a rows snapshot + a summary log (HTML comments \u2014 \xA7D9-clean, no sidecar); --summary \"<text>\" adds a new latest \"What changed\" entry (an interactive Claude writes the narrative+notables from `duo rollup diff`), prior entries drop into a collapsible history; --no-summary clears it. diff <note|base> [--against <prior>]: deterministic JSON delta (added/removed/changed rows) vs the prior artifact's embedded snapshot \u2014 the material Claude summarizes. --out writes elsewhere; --open surfaces it as a tab. ENH-248 \u2014 lifecycle + GitHub links. delete <note> --force: remove the definition note AND its rendered artifact (without --force: dry-run prints what would go; file history is the note's undo net). duplicate <note>: copy as \"<Title> (copy)\" with provenance stripped (the copy renders its own artifact on next save/render). render --github: entity links as GitHub blob URLs (probe = the markdown verb's; falls back to relative when no GitHub remote). set --links github|relative: persist the note's entity-link mode (`links:` frontmatter; works on hand-authored notes too) \u2014 renders honor it automatically, incl. the GUI's auto-render-on-save."
+>>>>>>> c0c50aa (BUG-256/ENH-257: rollup rename now renames the file + duo goto <tab> verb)
   }
 ];
 var SOCKET_PATH = process.env.DUO_SOCKET ?? path20.join(os3.homedir(), "Library", "Application Support", "duo", "duo.sock");
@@ -8104,6 +8159,16 @@ async function main() {
         if (canvasFlagIdx !== -1) payload["mode"] = "canvas";
         if (rest.includes("--reveal")) payload["reveal"] = true;
         out(await send("view", payload));
+        break;
+      }
+      case "goto": {
+        const kind = rest[0];
+        if (kind !== "home" && kind !== "vault" && kind !== "rollups") {
+          die("Usage: duo goto <home|vault|rollups>");
+        }
+        const r = await send("goto", { kind });
+        if (r && r.ok === false) die(r.error ?? "duo goto failed");
+        out(r);
         break;
       }
       case "image": {
@@ -9783,10 +9848,22 @@ ${res.pr.url}`);
               filters: subRest.includes("--clear-filters") ? filterArgs.map(parseFilterFlag) : filterArgs.length > 0 ? [...data.model.filters, ...filterArgs.map(parseFilterFlag)] : data.model.filters,
               columns: list("--columns") ?? data.model.columns
             };
+<<<<<<< HEAD
             if (model.buckets.length > 0 && model.groupBy.length === 0)
               die("duo rollup set: --bucket needs a group level (set --group too, or on the note already)");
             updateRollupNote(data.noteAbs, model);
             out({ root, note: data.note, model, ...linksFlag != null ? { links: linksFlag } : {} });
+=======
+            const saved = saveRollupNoteWithRename(root, data.noteAbs, model);
+            if (!saved.ok) die(`duo rollup set: ${saved.error}`);
+            out({
+              root,
+              note: saved.noteRel,
+              renamed: saved.renamed,
+              model,
+              ...linksFlag != null ? { links: linksFlag } : {}
+            });
+>>>>>>> c0c50aa (BUG-256/ENH-257: rollup rename now renames the file + duo goto <tab> verb)
           }
         } else if (sub === "show") {
           const target = positionalArgs(subRest, ["--vault"])[0];

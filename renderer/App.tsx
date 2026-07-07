@@ -3103,6 +3103,19 @@ export function App() {
     })
   }, [openFileSmart])
 
+  // ENH-257 — `duo goto home|vault|rollups` from the CLI. Activates the
+  // synthesized tab the same way a sidebar/tab-strip click does
+  // (WorkingPane's handleSelect) — main already refused the request if
+  // vault/rollups was asked for with no default vault set, so the tab is
+  // guaranteed to exist by the time this fires.
+  useEffect(() => {
+    return window.electron.nav.onOpenWorkspaceTab((kind) => {
+      const id = kind === 'home' ? HOME_TAB_ID : kind === 'vault' ? VAULT_TAB_ID : ROLLUPS_TAB_ID
+      setActiveWorking({ kind: 'file', id })
+      setFocusedColumn('working')
+    })
+  }, [])
+
   // FOLLOWUP-020 — `duo close-tab` from the CLI. Closes the focused
   // working-pane tab (file/canvas/viewer or browser-mode HTML tab).
   // Mirrors the ⌘W chord on the working strip — same pinned-tab gate

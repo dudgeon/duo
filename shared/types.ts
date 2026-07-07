@@ -88,6 +88,8 @@ export type DuoCommandName =
   | 'reveal'
   | 'ls'
   | 'nav-state'
+  // ENH-257 — `duo goto home|vault|rollups` (switch a window's top-level tab)
+  | 'goto'
   // Stage 11 Phase A — markdown editor
   | 'edit'
   | 'selection'
@@ -2417,6 +2419,10 @@ export const IPC = {
   NAV_VIEW: 'nav:view',                  // main → renderer (open a file in WorkingPane)
   NAV_EDIT: 'nav:edit',                  // main → renderer (open .md in editor tab)
   NAV_REVEAL: 'nav:reveal',              // main → renderer (move navigator + chip)
+  // ENH-257 — `duo goto home|vault|rollups`: activate the synthesized
+  // top-level tab by its stable id, same as a sidebar/tab-strip click.
+  // `view`/`edit` above don't recognize the `duo://` sentinel paths.
+  NAV_OPEN_WORKSPACE_TAB: 'nav:open-workspace-tab', // main → renderer
 
   // Stage 11 — editor selection snapshot + agent doc-write requests
   EDITOR_SELECTION_PUSH: 'editor:selection-push', // renderer → main (cache for `duo selection`)
