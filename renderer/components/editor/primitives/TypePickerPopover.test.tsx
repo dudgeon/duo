@@ -84,6 +84,129 @@ describe('TypePickerPopover — BUG-254', () => {
     expect(onCreated).toHaveBeenCalled()
   })
 
+  it('queues a Tab pressed before the registry loads and fires it once ready (Tab confirms like Enter)', async () => {
+    const loading = deferred<TypesResult>()
+    const { stub } = stubElectron(loading.promise)
+    const onCreated = vi.fn()
+
+    render(
+      <TypePickerPopover
+        vaultRoot="/vault"
+        name="TabInitiative"
+        anchorRect={null}
+        onCreated={onCreated}
+        onCancel={vi.fn()}
+      />
+    )
+
+    const input = screen.getByLabelText('Filter types')
+    fireEvent.keyDown(input, { key: 'Tab' })
+    expect(stub).not.toHaveBeenCalled()
+
+    await act(async () => {
+      loading.resolve({ ok: true, types: ['initiative', 'meeting'] })
+      await loading.promise
+    })
+
+    await waitFor(() =>
+      expect(stub).toHaveBeenCalledWith({ vaultRoot: '/vault', type: 'initiative', name: 'TabInitiative' })
+    )
+    expect(onCreated).toHaveBeenCalled()
+  })
+
+  it('drops a queued confirm when the registry load fails — no pick, no createType, error rendered', async () => {
+    const loading = deferred<TypesResult>()
+    const { stub, createType } = stubElectron(loading.promise)
+    const onCreated = vi.fn()
+
+    render(
+      <TypePickerPopover
+        vaultRoot="/vault"
+        name="ErrCase"
+        anchorRect={null}
+        onCreated={onCreated}
+        onCancel={vi.fn()}
+      />
+    )
+
+    const input = screen.getByLabelText('Filter types')
+    fireEvent.keyDown(input, { key: 'Enter' }) // queued — types still null
+    // A filter typed during load would otherwise make the queued confirm
+    // fire the '+ new type' row against the errored registry.
+    fireEvent.change(input, { target: { value: 'meet' } })
+
+    await act(async () => {
+      loading.resolve({ ok: false, error: 'vault registry exploded' })
+      await loading.promise
+    })
+
+    expect(stub).not.toHaveBeenCalled()
+    expect(createType).not.toHaveBeenCalled()
+    expect(onCreated).not.toHaveBeenCalled()
+    expect(screen.getByText('vault registry exploded')).toBeTruthy()
+  })
+
+  it('suppresses the "+ new type" row and folder hint while the registry is still loading', async () => {
+    const loading = deferred<TypesResult>()
+    stubElectron(loading.promise)
+
+    render(
+      <TypePickerPopover
+        vaultRoot="/vault"
+        name="LoadingCase"
+        anchorRect={null}
+        onCreated={vi.fn()}
+        onCancel={vi.fn()}
+      />
+    )
+
+    const input = screen.getByLabelText('Filter types')
+    fireEvent.change(input, { target: { value: 'initiative' } })
+
+    // While loading: only the loading line — no rows, no H2 hint.
+    expect(screen.getByText('Loading types…')).toBeTruthy()
+    expect(screen.queryByRole('option')).toBeNull()
+    expect(screen.queryByText(/New types start without a folder/)).toBeNull()
+
+    await act(async () => {
+      loading.resolve({ ok: true, types: ['initiative'] })
+      await loading.promise
+    })
+
+    // Post-load the existing type renders as a normal row (not '+ new type').
+    expect(screen.getByRole('option', { name: 'initiative' })).toBeTruthy()
+    expect(screen.queryByText(/New types start without a folder/)).toBeNull()
+  })
+
+  it('ignores an IME composition-commit Enter (isComposing) — neither confirms nor queues', async () => {
+    const loading = deferred<TypesResult>()
+    const { stub } = stubElectron(loading.promise)
+
+    render(
+      <TypePickerPopover
+        vaultRoot="/vault"
+        name="ImeCase"
+        anchorRect={null}
+        onCreated={vi.fn()}
+        onCancel={vi.fn()}
+      />
+    )
+
+    const input = screen.getByLabelText('Filter types')
+    // Composition-commit Enter while loading: must NOT queue a confirm.
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true })
+
+    await act(async () => {
+      loading.resolve({ ok: true, types: ['initiative'] })
+      await loading.promise
+    })
+    expect(stub).not.toHaveBeenCalled()
+
+    // Composition-commit Enter after load: must NOT pick either.
+    fireEvent.keyDown(input, { key: 'Enter', keyCode: 229 })
+    expect(stub).not.toHaveBeenCalled()
+  })
+
   it('resolves the queued confirm against filter text typed WHILE still loading, not a stale pre-load snapshot', async () => {
     const loading = deferred<TypesResult>()
     const { stub } = stubElectron(loading.promise)

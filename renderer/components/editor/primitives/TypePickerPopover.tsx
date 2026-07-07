@@ -71,12 +71,19 @@ export function TypePickerPopover({ vaultRoot, name, anchorRect, onCreated, onCa
         if (res.ok) {
           setTypes(res.types)
         } else {
+          // BUG-254 review — never fire a queued confirm against an errored
+          // registry: with an empty filter it would silently no-op, and with
+          // a filter typed it would auto-create a "+ new type" stub the user
+          // never saw. Drop the queue; the error line renders and the
+          // popover stays open + dismissible.
+          pendingConfirmRef.current = false
           setTypes([])
           setError(res.error)
         }
       },
       (err) => {
         if (cancelled) return
+        pendingConfirmRef.current = false
         setTypes([])
         setError(err instanceof Error ? err.message : String(err))
       }
@@ -150,11 +157,17 @@ export function TypePickerPopover({ vaultRoot, name, anchorRect, onCreated, onCa
   // dep); `choices`/`activeIdx` are read fresh from this render's closure,
   // which is what we want — the pick reflects the latest filter, not a
   // stale snapshot from when Enter was first pressed.
+  // The single confirm gesture — shared by the queued-confirm effect and
+  // the Enter/Tab keydown branch so they can never drift apart.
+  const confirmActive = () => {
+    const picked = choices[activeIdx]
+    if (picked) void pick(picked)
+  }
+
   useEffect(() => {
     if (types === null || !pendingConfirmRef.current) return
     pendingConfirmRef.current = false
-    const picked = choices[activeIdx]
-    if (picked) void pick(picked)
+    confirmActive()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [types])
 
@@ -172,6 +185,11 @@ export function TypePickerPopover({ vaultRoot, name, anchorRect, onCreated, onCa
     if (e.key === 'Enter' || e.key === 'Tab') {
       // Tab picks like Enter (SuggestionPopover convention) — and must
       // never tab focus out of the open popover into the editor below.
+      // IME composition-commit Enter (e.g. Japanese/Chinese input) must
+      // neither confirm nor queue — the user is committing text into the
+      // filter, not picking a row. keyCode 229 covers engines that don't
+      // set isComposing on the commit keydown.
+      if (e.nativeEvent.isComposing || e.keyCode === 229) return
       e.preventDefault()
       e.stopPropagation()
       if (types === null) {
@@ -181,8 +199,7 @@ export function TypePickerPopover({ vaultRoot, name, anchorRect, onCreated, onCa
         pendingConfirmRef.current = true
         return
       }
-      const picked = choices[activeIdx]
-      if (picked) void pick(picked)
+      confirmActive()
       return
     }
     if (e.key === 'Escape') {
@@ -230,7 +247,12 @@ export function TypePickerPopover({ vaultRoot, name, anchorRect, onCreated, onCa
         {types !== null && choices.length === 0 && (
           <div className="duo-suggestion-empty">No types yet — type a name to create one</div>
         )}
-        {choices.map((choice, idx) => (
+        {/* BUG-254 review — while the registry is loading, `choices` is
+            built against the [] fallback, so an EXISTING type looks like a
+            '+ new type' row (and a click would createType against it).
+            Suppress rows until load; queued Enter/Tab still resolves
+            against post-load choices via the effect above. */}
+        {types !== null && choices.map((choice, idx) => (
           <button
             key={`${choice.kind}:${choice.type}`}
             type="button"
@@ -265,7 +287,7 @@ export function TypePickerPopover({ vaultRoot, name, anchorRect, onCreated, onCa
           entities always residue to notes/YYYY/MM until someone edits the
           template. Surface that up front rather than let it be a silent
           surprise. */}
-      {choices.some((c) => c.kind === 'new') && (
+      {types !== null && choices.some((c) => c.kind === 'new') && (
         <div className="duo-suggestion-more">
           New types start without a folder — their notes file under notes/YYYY/MM until you add one to templates/&lt;type&gt;.md.
         </div>
