@@ -112,7 +112,7 @@ Live-tested (2026-07) in real Obsidian 1.12.7: a rollup note's embedded ` ```bas
 
 ### ENH-260: Track-changes composition semantics — deleting your own pending insertion must be net-zero
 
-**Status:** 🟡 **Filed 2026-07-08 — decision playground awaiting owner walk** ([`docs/research/track-changes-composition.html`](docs/research/track-changes-composition.html)). **Priority:** High — suggesting mode can corrupt the reject-baseline and silently lose original text. **Effort:** M (core fix) + S–M per follow-on phase. **Ticket note:** allocated after repo-wide max ENH-259; renumber on collision.
+**Status:** 🚧 In progress — decisions locked 2026-07-08 (D1 same-author-or-unattributed · D2 transaction-rewrite · D3 relocate-to-end · D4 skip-caret · D5 compose · D6 CM-pure); implementation landing on PR #129 (PRD: docs/prd/enh-260-track-changes-composition.md). **Priority:** High — suggesting mode can corrupt the reject-baseline and silently lose original text. **Effort:** M (core fix) + S–M per follow-on phase. **Ticket note:** allocated after repo-wide max ENH-259; renumber on collision.
 
 **Provenance.** Owner (2026-07-08): *"take a given piece of existing text, turn on track changes, add some text, and then delete part of the text that you added — relative to the initial condition your diff should decrease. The deletion of the new text should resolve to null relative to the previous text; in a proper track changes implementation that deletion would just go away."*
 

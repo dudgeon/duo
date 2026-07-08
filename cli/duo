@@ -2656,7 +2656,7 @@ function targetKey(rawTarget, _syntax) {
   return foldKey(t);
 }
 var WIKILINK_RE = /\[\[([^\]]+?)\]\]/g;
-var MDLINK_RE = /(?<!!)\[([^\]]*)\]\(\s*(?:<([^>]*)>|([^)\s]+))[^)]*\)/g;
+var MDLINK_RE = /(?<!!)\[([^\]]*)\]\(\s*([^)\s]+)[^)]*\)/g;
 function isExternalHref(href) {
   if (!href) return true;
   if (href.startsWith("#")) return true;
@@ -2683,7 +2683,7 @@ function extractLinkRefs(text) {
   }
   for (const m of text.matchAll(MDLINK_RE)) {
     const display = m[1].trim();
-    const rawTarget = (m[2] !== void 0 ? m[2] : m[3]).trim();
+    const rawTarget = m[2].trim();
     if (isExternalHref(rawTarget)) continue;
     hits.push({
       index: m.index ?? 0,
@@ -2763,12 +2763,6 @@ function serializeWikilink(srcAbs, tgtAbs, display) {
     return `[[${stem}|${display.trim()}]]`;
   }
   return `[[${stem}]]`;
-}
-function yamlQuote(s) {
-  return `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
-}
-function serializeOkfFrontmatterLink(srcAbs, tgtAbs, display) {
-  return yamlQuote(serializeOkfLink(srcAbs, tgtAbs, display));
 }
 
 // core/vault/output-dir.ts
@@ -2931,13 +2925,6 @@ function detectVaultMode(dir) {
 function isVaultRoot(dir) {
   return detectVaultMode(dir) !== null;
 }
-function isForeignVault(dir) {
-  try {
-    return import_node_fs4.default.statSync(import_node_path4.default.join(dir, "loop.manifest.json")).isFile();
-  } catch {
-    return false;
-  }
-}
 function findVaultRoot(startPath) {
   let dir = import_node_path4.default.resolve(startPath);
   try {
@@ -3063,25 +3050,11 @@ function readDefaultVault(filePath = DEFAULT_VAULT_FILE) {
   const p = readPrefs(filePath).defaultVault;
   return typeof p === "string" && isVaultRoot(p) ? p : null;
 }
-var OBSIDIAN_APP_JSON = { useMarkdownLinks: true, newLinkFormat: "relative" };
-function seedObsidianAppJson(vaultRoot) {
-  const target = import_node_path5.default.join(vaultRoot, ".obsidian", "app.json");
-  if (import_node_fs5.default.existsSync(target)) return false;
-  import_node_fs5.default.mkdirSync(import_node_path5.default.dirname(target), { recursive: true });
-  import_node_fs5.default.writeFileSync(target, JSON.stringify(OBSIDIAN_APP_JSON, null, 2) + "\n");
-  return true;
-}
-function maybeSeedObsidianAppJson(vaultRoot) {
-  if (detectVaultMode(vaultRoot) !== "okf") return false;
-  if (isForeignVault(vaultRoot)) return false;
-  return seedObsidianAppJson(vaultRoot);
-}
 function setDefaultVault(target, filePath = DEFAULT_VAULT_FILE) {
   const abs = import_node_path5.default.resolve(target);
   if (!isVaultRoot(abs)) {
     throw new Error(`not a vault (no okf_version _index.md/index.md or .obsidian/): ${abs}. Run \`duo vault init ${target}\` first.`);
   }
-  maybeSeedObsidianAppJson(abs);
   const prefs = readPrefs(filePath);
   prefs.defaultVault = abs;
   prefs.knownVaults = [.../* @__PURE__ */ new Set([...prefs.knownVaults ?? [], abs])];
@@ -3244,17 +3217,6 @@ function buildCorpus(root) {
       }
     }
   }
-  const linkTargetsByType = /* @__PURE__ */ new Map();
-  for (const note of notes) {
-    const t = typeof note.frontmatter.type === "string" ? note.frontmatter.type : null;
-    if (!t) continue;
-    for (const slug of note.links) {
-      const target = byKey.get(slug);
-      if (!target) continue;
-      if (!linkTargetsByType.has(t)) linkTargetsByType.set(t, /* @__PURE__ */ new Map());
-      if (!linkTargetsByType.get(t).has(slug)) linkTargetsByType.get(t).set(slug, target.basename);
-    }
-  }
   const templates = loadTemplates(root);
   for (const tpl of templates) types.add(tpl.type);
   const sortedRecord = (m) => {
@@ -3262,15 +3224,10 @@ function buildCorpus(root) {
     for (const k of [...m.keys()].sort()) out2[k] = [...m.get(k)].sort();
     return out2;
   };
-  const typeOf = (slug) => {
-    const n = byKey.get(slug);
-    const t = n && typeof n.frontmatter.type === "string" ? n.frontmatter.type : null;
-    return t;
-  };
   const sortedRefs = (m) => {
     const out2 = {};
     for (const k of [...m.keys()].sort()) {
-      out2[k] = [...m.get(k).entries()].map(([slug, name]) => ({ name, slug, type: typeOf(slug) })).sort((a, b) => a.name.localeCompare(b.name));
+      out2[k] = [...m.get(k).entries()].map(([slug, name]) => ({ name, slug })).sort((a, b) => a.name.localeCompare(b.name));
     }
     return out2;
   };
@@ -3286,7 +3243,6 @@ function buildCorpus(root) {
     enumsByType: sortedRecord(enumsByType),
     entityRefsByType: sortedRefs(entityRefsByType),
     ancestorRefsByType: sortedRefs(ancestorRefsByType),
-    linkTargetsByType: sortedRefs(linkTargetsByType),
     templates
   };
 }
@@ -3520,25 +3476,18 @@ function danglingMdLinks(root) {
   }
   return out2;
 }
-function wrapHrefIfNeeded(href) {
-  return /[\s<>]/.test(href) ? `<${href}>` : href;
-}
 function rewriteHref(raw, oldHref, newHref) {
   let count = 0;
-  const text = raw.replace(
-    /(\]\(\s*)(?:<([^>]*)>|([^)\s]+))([^)]*\))/g,
-    (whole, lead, angleHref, bareHref, tail) => {
-      const href = angleHref !== void 0 ? angleHref : bareHref;
-      const hashIdx = href.indexOf("#");
-      const base = hashIdx >= 0 ? href.slice(0, hashIdx) : href;
-      const anchor = hashIdx >= 0 ? href.slice(hashIdx) : "";
-      if (base === oldHref) {
-        count++;
-        return lead + wrapHrefIfNeeded(newHref + anchor) + tail;
-      }
-      return whole;
+  const text = raw.replace(/(\]\(\s*)([^)\s]+)([^)]*\))/g, (whole, lead, href, tail) => {
+    const hashIdx = href.indexOf("#");
+    const base = hashIdx >= 0 ? href.slice(0, hashIdx) : href;
+    const anchor = hashIdx >= 0 ? href.slice(hashIdx) : "";
+    if (base === oldHref) {
+      count++;
+      return lead + newHref + anchor + tail;
     }
-  );
+    return whole;
+  });
   return { text, count };
 }
 function moveNote(root, fromRel, toRel) {
@@ -3617,23 +3566,6 @@ function buildTargetIndex(notes) {
   }
   return { byId, bySlug };
 }
-function resolveDanglingTarget(index, key, display, rawText) {
-  const slugCandidates = index.bySlug.get(key) ?? [];
-  if (slugCandidates.length === 1) {
-    return { kind: "resolved", note: slugCandidates[0], via: "slug" };
-  }
-  if (slugCandidates.length > 1) {
-    const idHit = slugCandidates.filter((c) => {
-      const id = readNoteId(c.frontmatter);
-      return id != null && (display === id || rawText.includes(id));
-    });
-    if (idHit.length === 1) {
-      return { kind: "resolved", note: idHit[0], via: "id" };
-    }
-    return { kind: "ambiguous", candidates: slugCandidates.map((c) => c.relPath).sort() };
-  }
-  return { kind: "broken" };
-}
 function relinkVault(root, opts = {}) {
   const notes = readNotes(root);
   const index = buildTargetIndex(notes);
@@ -3643,22 +3575,42 @@ function relinkVault(root, opts = {}) {
   const broken = [];
   const edits = /* @__PURE__ */ new Map();
   for (const d of dangling) {
-    const outcome = resolveDanglingTarget(index, d.key, d.display, d.rawHref);
-    if (outcome.kind === "ambiguous") {
-      ambiguous.push({ fromRel: d.fromRel, oldHref: d.rawHref, display: d.display, candidates: outcome.candidates });
-      continue;
+    const key = d.key;
+    const slugCandidates = index.bySlug.get(key) ?? [];
+    let resolved = null;
+    let via = "slug";
+    if (slugCandidates.length === 1) {
+      resolved = slugCandidates[0];
+      via = "slug";
+    } else if (slugCandidates.length > 1) {
+      const idHit = slugCandidates.filter((c) => {
+        const id = readNoteId(c.frontmatter);
+        return id != null && (d.display === id || d.rawHref.includes(id));
+      });
+      if (idHit.length === 1) {
+        resolved = idHit[0];
+        via = "id";
+      } else {
+        ambiguous.push({
+          fromRel: d.fromRel,
+          oldHref: d.rawHref,
+          display: d.display,
+          candidates: slugCandidates.map((c) => c.relPath).sort()
+        });
+        continue;
+      }
     }
-    if (outcome.kind === "broken") {
+    if (!resolved) {
       broken.push({ fromRel: d.fromRel, oldHref: d.rawHref, display: d.display });
       continue;
     }
-    const newHref = relLink(d.fromRel, outcome.note.relPath);
+    const newHref = relLink(d.fromRel, resolved.relPath);
     repaired.push({
       fromRel: d.fromRel,
       oldHref: d.rawHref,
       newHref,
-      via: outcome.via,
-      targetRel: outcome.note.relPath
+      via,
+      targetRel: resolved.relPath
     });
     if (!edits.has(d.fromAbs)) edits.set(d.fromAbs, { abs: d.fromAbs, ops: [] });
     edits.get(d.fromAbs).ops.push({ oldHref: d.rawHref.split("#")[0], newHref });
@@ -3676,284 +3628,6 @@ function relinkVault(root, opts = {}) {
     }
   }
   return { repaired, ambiguous, broken };
-}
-function stripYamlQuote(token) {
-  const t = token.trim();
-  if (t.length >= 2 && (t[0] === '"' || t[0] === "'") && t[t.length - 1] === t[0]) {
-    return { inner: t.slice(1, -1), quoted: true };
-  }
-  return { inner: t, quoted: false };
-}
-function splitFlowArrayItems(inner) {
-  const items = [];
-  let cur = "";
-  let q = null;
-  for (const ch of inner) {
-    if (q) {
-      cur += ch;
-      if (ch === q) q = null;
-      continue;
-    }
-    if (ch === '"' || ch === "'") {
-      q = ch;
-      cur += ch;
-      continue;
-    }
-    if (ch === ",") {
-      items.push(cur);
-      cur = "";
-      continue;
-    }
-    cur += ch;
-  }
-  if (cur.trim()) items.push(cur);
-  return items.map((s) => s.trim()).filter(Boolean);
-}
-var FM_WIKILINK_VALUE_RE = /^\[\[([^\]|]+)(?:\|([^\]]+))?\]\]$/;
-var FM_BARE_MD_PATH_RE = /^\.{1,2}\/[^\s'"[\]]+\.md$/i;
-function scanFrontmatterValues(raw) {
-  const fence = raw.match(/^---\n([\s\S]*?)\n---\n?/);
-  if (!fence) return [];
-  const fmText = fence[1];
-  const fmOffset = fence[0].indexOf(fmText);
-  const hits = [];
-  const lines = fmText.split("\n");
-  let offset = fmOffset;
-  let currentField = null;
-  let currentFieldIndent = 0;
-  for (const line of lines) {
-    const lineStart = offset;
-    offset += line.length + 1;
-    const scalarMatch = line.match(/^(\s*)([A-Za-z0-9_.-]+):(.*)$/);
-    if (scalarMatch) {
-      const indent = scalarMatch[1].length;
-      const field = scalarMatch[2];
-      const rest = scalarMatch[3];
-      const restTrimmed = rest.trim();
-      if (restTrimmed === "") {
-        currentField = field;
-        currentFieldIndent = indent;
-        continue;
-      }
-      currentField = null;
-      const leadingWs = rest.length - rest.trimStart().length;
-      const valueStartInLine = line.length - rest.length + leadingWs;
-      if (restTrimmed.startsWith("[") && !restTrimmed.startsWith("[[") && restTrimmed.endsWith("]")) {
-        const items = splitFlowArrayItems(restTrimmed.slice(1, -1));
-        let searchFrom = valueStartInLine + 1;
-        for (const itemToken of items) {
-          const idx = line.indexOf(itemToken, searchFrom);
-          if (idx === -1) continue;
-          const { inner } = stripYamlQuote(itemToken);
-          hits.push({ field, start: lineStart + idx, end: lineStart + idx + itemToken.length, inner });
-          searchFrom = idx + itemToken.length;
-        }
-      } else {
-        const { inner } = stripYamlQuote(restTrimmed);
-        hits.push({
-          field,
-          start: lineStart + valueStartInLine,
-          end: lineStart + valueStartInLine + restTrimmed.length,
-          inner
-        });
-      }
-      continue;
-    }
-    const listMatch = line.match(/^(\s*)-\s?(.*)$/);
-    if (listMatch && currentField) {
-      const indent = listMatch[1].length;
-      if (indent <= currentFieldIndent) {
-        currentField = null;
-        continue;
-      }
-      const rest = listMatch[2];
-      const restTrimmed = rest.trim();
-      if (!restTrimmed) continue;
-      const leadingWs = rest.length - rest.trimStart().length;
-      const valueStartInLine = line.length - rest.length + leadingWs;
-      const { inner } = stripYamlQuote(restTrimmed);
-      hits.push({
-        field: currentField,
-        start: lineStart + valueStartInLine,
-        end: lineStart + valueStartInLine + restTrimmed.length,
-        inner
-      });
-    }
-  }
-  return hits;
-}
-function scanBodyWikilinks(body) {
-  const hits = [];
-  const re = /\[\[([^\]]+?)\]\]/g;
-  let m;
-  while (m = re.exec(body)) {
-    const inner = m[1];
-    const pipe = inner.indexOf("|");
-    const rawTarget = (pipe >= 0 ? inner.slice(0, pipe) : inner).trim();
-    if (!rawTarget) continue;
-    const display = (pipe >= 0 ? inner.slice(pipe + 1) : inner).trim();
-    hits.push({ start: m.index, end: m.index + m[0].length, rawTarget, display });
-  }
-  return hits;
-}
-function applySpanEdits(raw, edits) {
-  const sorted = [...edits].sort((a, b) => b.start - a.start);
-  let out2 = raw;
-  for (const e of sorted) {
-    out2 = out2.slice(0, e.start) + e.replacement + out2.slice(e.end);
-  }
-  return out2;
-}
-function migrateFrontmatterLinks(root, opts = {}) {
-  const mode = detectVaultMode(root);
-  if (mode !== "okf") {
-    throw new Error(
-      `migrateFrontmatterLinks is OKF-mode only (ENH-266): vault mode is ${mode ?? "not-a-vault"}. Obsidian-mode frontmatter keeps [[wikilinks]] \u2014 this migration does not apply.`
-    );
-  }
-  const notes = readNotes(root);
-  const index = buildTargetIndex(notes);
-  const byRelPath = new Map(notes.map((n) => [normalizePosix(n.relPath), n]));
-  const frontmatterWikilinks = { repaired: [], ambiguous: [], broken: [] };
-  const frontmatterBarePaths = { repaired: [], ambiguous: [], broken: [] };
-  const bodyWikilinks = { repaired: [], ambiguous: [], broken: [] };
-  const aliasBackfills = [];
-  for (const note of notes) {
-    const noteBasename = note.relPath.includes("/") ? note.relPath.slice(note.relPath.lastIndexOf("/") + 1) : note.relPath;
-    if (isGeneratedListingBasename(noteBasename)) continue;
-    const abs = note.absPath;
-    const raw = import_node_fs9.default.readFileSync(abs, "utf8");
-    const spanEdits = [];
-    for (const hit of scanFrontmatterValues(raw)) {
-      const wiki = hit.inner.match(FM_WIKILINK_VALUE_RE);
-      if (wiki) {
-        const rawTarget = wiki[1].trim();
-        const display = (wiki[2] ?? rawTarget).trim();
-        const key = targetKey(rawTarget, "wikilink");
-        const outcome = resolveDanglingTarget(index, key, display, hit.inner);
-        const oldValue = raw.slice(hit.start, hit.end);
-        if (outcome.kind === "ambiguous") {
-          frontmatterWikilinks.ambiguous.push({ fromRel: note.relPath, field: hit.field, oldValue, candidates: outcome.candidates });
-        } else if (outcome.kind === "broken") {
-          frontmatterWikilinks.broken.push({ fromRel: note.relPath, field: hit.field, oldValue });
-        } else {
-          const newValue = serializeOkfFrontmatterLink(note.relPath, outcome.note.relPath, display);
-          frontmatterWikilinks.repaired.push({
-            fromRel: note.relPath,
-            field: hit.field,
-            oldValue,
-            newValue,
-            via: outcome.via,
-            targetRel: outcome.note.relPath
-          });
-          spanEdits.push({ start: hit.start, end: hit.end, replacement: newValue });
-        }
-        continue;
-      }
-      if (FM_BARE_MD_PATH_RE.test(hit.inner)) {
-        const oldValue = raw.slice(hit.start, hit.end);
-        const targetRel = resolveHref(note.relPath, hit.inner);
-        const target = targetRel ? byRelPath.get(normalizePosix(targetRel)) : void 0;
-        if (!target) {
-          frontmatterBarePaths.broken.push({ fromRel: note.relPath, field: hit.field, oldValue });
-          continue;
-        }
-        const display = typeof target.frontmatter.title === "string" ? target.frontmatter.title : void 0;
-        const newValue = serializeOkfFrontmatterLink(note.relPath, target.relPath, display);
-        frontmatterBarePaths.repaired.push({
-          fromRel: note.relPath,
-          field: hit.field,
-          oldValue,
-          newValue,
-          via: "slug",
-          targetRel: target.relPath
-        });
-        spanEdits.push({ start: hit.start, end: hit.end, replacement: newValue });
-      }
-    }
-    const fence = raw.match(/^---\n[\s\S]*?\n---\n?/);
-    const bodyOffset = fence ? fence[0].length : 0;
-    for (const hit of scanBodyWikilinks(raw.slice(bodyOffset))) {
-      const key = targetKey(hit.rawTarget, "wikilink");
-      const rawOccurrence = raw.slice(bodyOffset + hit.start, bodyOffset + hit.end);
-      const outcome = resolveDanglingTarget(index, key, hit.display, rawOccurrence);
-      if (outcome.kind === "ambiguous") {
-        bodyWikilinks.ambiguous.push({ fromRel: note.relPath, oldValue: rawOccurrence, candidates: outcome.candidates });
-        continue;
-      }
-      if (outcome.kind === "broken") {
-        bodyWikilinks.broken.push({ fromRel: note.relPath, oldValue: rawOccurrence });
-        continue;
-      }
-      const newValue = serializeOkfLink(note.relPath, outcome.note.relPath, hit.display || void 0);
-      bodyWikilinks.repaired.push({
-        fromRel: note.relPath,
-        oldValue: rawOccurrence,
-        newValue,
-        via: outcome.via,
-        targetRel: outcome.note.relPath
-      });
-      spanEdits.push({ start: bodyOffset + hit.start, end: bodyOffset + hit.end, replacement: newValue });
-    }
-    const title = typeof note.frontmatter.title === "string" ? note.frontmatter.title.trim() : "";
-    if (title && slugStem(title) !== note.basename) {
-      const aliasList = Array.isArray(note.frontmatter.aliases) ? note.frontmatter.aliases.map(String) : [];
-      if (!aliasList.includes(title)) {
-        const aliasEdit = buildAliasBackfillEdit(raw, title);
-        if (aliasEdit) {
-          spanEdits.push(aliasEdit);
-          aliasBackfills.push({ fromRel: note.relPath, title });
-        }
-      }
-    }
-    if (spanEdits.length && !opts.dryRun) {
-      import_node_fs9.default.writeFileSync(abs, applySpanEdits(raw, spanEdits));
-    }
-  }
-  return { frontmatterWikilinks, frontmatterBarePaths, bodyWikilinks, aliasBackfills };
-}
-function buildAliasBackfillEdit(raw, title) {
-  const fence = raw.match(/^---\n/);
-  if (!fence) return null;
-  const fmEnd = raw.indexOf("\n---", fence[0].length);
-  if (fmEnd === -1) return null;
-  const quoted = `"${title.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
-  const flowMatch = raw.slice(0, fmEnd).match(/^aliases:[ \t]*\[(.*)\][ \t]*$/m);
-  if (flowMatch) {
-    const lineStart = raw.lastIndexOf("\n", flowMatch.index + "aliases:".length) + 1;
-    const bracketOpen = raw.indexOf("[", lineStart);
-    const bracketClose = raw.indexOf("]", bracketOpen);
-    const inner = flowMatch[1].trim();
-    const replacement = inner ? `[${inner}, ${quoted}]` : `[${quoted}]`;
-    return { start: bracketOpen, end: bracketClose + 1, replacement };
-  }
-  const blockMatch = raw.slice(0, fmEnd).match(/^aliases:[ \t]*$/m);
-  if (blockMatch) {
-    const keyLineEnd = blockMatch.index + blockMatch[0].length;
-    const rest = raw.slice(keyLineEnd, fmEnd);
-    const itemRe = /\n( +)-[^\n]*/g;
-    let lastEnd = keyLineEnd;
-    let indent = "  ";
-    let m;
-    let sawItem = false;
-    while (m = itemRe.exec(rest)) {
-      if (sawItem && m[1].length !== indent.length) break;
-      indent = m[1];
-      lastEnd = keyLineEnd + m.index + m[0].length;
-      sawItem = true;
-    }
-    const insertion = `
-${indent}- ${quoted}`;
-    return { start: lastEnd, end: lastEnd, replacement: insertion };
-  }
-  return { start: fence[0].length, end: fence[0].length, replacement: `aliases: [${quoted}]
-` };
-}
-
-// core/vault/yaml-safe.ts
-function yamlSafeScalar(v) {
-  const hazard = /: |\t|\s#/.test(v) || /^[!&*?|>%@`"'[\]{},-]/.test(v) || /^\s|[\s:]$/.test(v);
-  return hazard ? `'${v.replace(/'/g, "''")}'` : v;
 }
 
 // core/vault/scaffold.ts
@@ -4005,14 +3679,6 @@ var INITIATIVE_TPL = [
   "  and:",
   '    - type == "milestone"',
   "    - initiative == this",
-  // D15 (ENH-266d) — a bare `type == "milestone"` filter also matches
-  // templates/milestone.md (the schema template carries the same default
-  // `type:`). `initiative == this` already excludes it incidentally (the
-  // template's `initiative:` is blank, never equal to a real initiative),
-  // but that's relying on a coincidence of a DIFFERENT clause — an explicit
-  // exclusion is the hygiene pattern every type-filtered query should carry
-  // (see `duo base lint`'s D15 advisory + skill/references/vault.md).
-  `    - '!file.inFolder("templates")'`,
   "formulas:",
   `  when: 'if(due, due.format("MMM D") + " \xB7 " + due.relative(), "\u2014 no due date \u2014")'`,
   `  flag: 'if(status != "done" && due && due < today(), icon("alarm-clock"), "")'`,
@@ -4218,7 +3884,6 @@ function initVault(folder, opts = {}) {
     writeFile("templates/milestone.md", MILESTONE_TPL);
     writeFile("templates/meeting.md", MEETING_TPL);
     writeFile("templates/rollup.md", ROLLUP_TPL);
-    if (seedObsidianAppJson(root)) created.push(".obsidian/app.json");
   }
   const docs = import_node_path10.default.join(import_node_os2.default.homedir(), "Documents");
   if (root === docs || root.startsWith(docs + import_node_path10.default.sep)) {
@@ -4236,20 +3901,9 @@ function slugify(s) {
 }
 function seedFrontmatterLines(template, opts = {}) {
   const lines = [`type: ${template.type}`];
-  if (opts.mode === "okf" && opts.title) lines.push(`title: ${yamlSafeScalar(opts.title)}`);
-  let hasAliasField = false;
+  if (opts.mode === "okf" && opts.title) lines.push(`title: ${opts.title}`);
   for (const field of template.fields) {
-    if (field === "aliases") hasAliasField = true;
     lines.push(`${field}:${Array.isArray(template.frontmatter[field]) ? " []" : ""}`);
-  }
-  if (opts.mode === "okf" && opts.title && opts.stem && opts.title !== opts.stem) {
-    const entry = `  - ${yamlSafeScalar(opts.title)}`;
-    const idx = lines.findIndex((l) => l === "aliases: []");
-    if (idx >= 0) {
-      lines.splice(idx, 1, "aliases:", entry);
-    } else if (!hasAliasField) {
-      lines.push("aliases:", entry);
-    }
   }
   return lines;
 }
@@ -4335,8 +3989,7 @@ function createEntityStub(root, type2, name, opts = {}) {
     }
   }
   const abs = import_node_path11.default.join(root, target);
-  const stem = import_node_path11.default.basename(target, import_node_path11.default.extname(target));
-  const fm = ["---", ...seedFrontmatterLines(template, { mode, title: name, stem }), "---", ""];
+  const fm = ["---", ...seedFrontmatterLines(template, { mode, title: name }), "---", ""];
   import_node_fs11.default.mkdirSync(import_node_path11.default.dirname(abs), { recursive: true });
   import_node_fs11.default.writeFileSync(abs, fm.join("\n") + "\n" + body);
   ensureNoteId(abs, root);
@@ -4349,14 +4002,6 @@ var import_node_path15 = __toESM(require("node:path"));
 var import_node_crypto = __toESM(require("node:crypto"));
 
 // core/vault/engine.ts
-function probeKeys(v) {
-  if (v instanceof Link) return [targetKey(v.target, "wikilink")];
-  const s = String(v);
-  const keys = [targetKey(s, "wikilink")];
-  const slug = slugStem(s);
-  if (!keys.includes(slug)) keys.push(slug);
-  return keys;
-}
 var DAY_MS = 864e5;
 var DuoDate = class {
   constructor(d, asOf) {
@@ -4449,17 +4094,14 @@ function gbEq(a, b) {
   const linkish = (x) => x instanceof Link || !!x && typeof x === "object" && typeof x.name === "string";
   const name = (x) => x instanceof Link ? x.target : x && x.name ? x.name : x;
   if (linkish(a) || linkish(b)) {
-    const ka = probeKeys(a instanceof Link ? a : String(name(a)));
-    const kb = probeKeys(b instanceof Link ? b : String(name(b)));
-    return ka.some((k) => kb.includes(k));
+    return targetKey(String(name(a)), "wikilink") === targetKey(String(name(b)), "wikilink");
   }
   return name(a) === name(b);
 }
 function memberEq(el, probe) {
   if (el instanceof Link || probe instanceof Link) {
-    const ke = probeKeys(el);
-    const kp = probeKeys(probe);
-    return ke.some((k) => kp.includes(k));
+    const keyOf = (v) => targetKey(String(v instanceof Link ? v.target : v), "wikilink");
+    return keyOf(el) === keyOf(probe);
   }
   return el === probe || String(el) === String(probe);
 }
@@ -4485,8 +4127,8 @@ function buildEngineFiles(notes, asOf) {
       backlinks: [],
       hasTag: () => false,
       hasLink(other) {
-        const raw = other instanceof Link ? other : String(other?.name ?? other);
-        return probeKeys(raw).some((k) => this._rawLinks.includes(k));
+        const raw = other instanceof Link ? other.target : other?.name ?? other;
+        return this._rawLinks.includes(targetKey(String(raw), "wikilink"));
       },
       inFolder(folder) {
         return this.folder === folder || this.folder.startsWith(folder + "/");
@@ -4669,28 +4311,6 @@ function collectAncestors(file, propName) {
   walk2(file);
   return out2;
 }
-function nearestAncestorOfType(file, propName, typeName) {
-  const seen = /* @__PURE__ */ new Set();
-  let frontier = [file];
-  while (frontier.length) {
-    const next = [];
-    for (const f of frontier) {
-      const raw = f.properties[propName];
-      for (const val of Array.isArray(raw) ? raw : [raw]) {
-        if (!(val instanceof Link)) continue;
-        const key = targetKey(val.target, "wikilink");
-        if (seen.has(key)) continue;
-        seen.add(key);
-        const target = f.links.find((l) => targetKey(l.name, "wikilink") === key);
-        if (!target) continue;
-        if (target.properties.type === typeName) return val;
-        next.push(target);
-      }
-    }
-    frontier = next;
-  }
-  return null;
-}
 function makeCtx(file, thisFile, formulas, asOf) {
   const formulaCache = {};
   const formulaProxy = new Proxy(
@@ -4781,19 +4401,6 @@ function passesTri(filterNode, file, thisFile, formulas, asOf) {
     const rs = kids(node.not);
     if (rs.some((r) => r.v === "error")) return { v: "error", errs: errsOf(rs) };
     return { v: !rs.every((r) => r.v === true), errs: [] };
-  }
-  const keys = Object.keys(node);
-  if (keys.length === 1 && typeof node[keys[0]] === "string") {
-    return passesTri(`${keys[0]}: ${node[keys[0]]}`, file, thisFile, formulas, asOf);
-  }
-  if (keys.length > 0) {
-    return {
-      v: "error",
-      errs: [{
-        expr: JSON.stringify(filterNode),
-        error: 'filter clause is not a string \u2014 an unquoted expression containing ": " parses as a YAML mapping; quote the line'
-      }]
-    };
   }
   return { v: true, errs: [] };
 }
@@ -5567,7 +5174,6 @@ function provenanceStamp(note, rendered) {
 }
 
 // core/vault/builder.ts
-var LINKS_TO_PROP = "*";
 var MANAGED_COMMENT = "<!-- Managed by the Duo Rollups tab (ENH-243). Reshape it there or via `duo rollup set`; hand-edits may drop it to view-only in the GUI. -->";
 function filterExpr(f) {
   switch (f.op) {
@@ -5579,28 +5185,23 @@ function filterExpr(f) {
       return `list(${f.property}).contains(${JSON.stringify(f.value ?? "")})`;
     case "ancestor":
       return `ancestors(${JSON.stringify(f.property)}).contains(${JSON.stringify(f.value ?? "")})`;
-    case "linksto":
-      return `file.hasLink(${JSON.stringify(f.value ?? "")})`;
     case "set":
       return `file.hasProperty(${JSON.stringify(f.property)})`;
     case "notset":
       return `!file.hasProperty(${JSON.stringify(f.property)})`;
   }
 }
-var yamlSafeExpr = yamlSafeScalar;
-var TEMPLATES_EXCLUSION_EXPR = '!file.inFolder("templates")';
 function serializeBuilderBase(model) {
   const lines = [];
   lines.push("filters:");
   lines.push("  and:");
   if (model.types.length === 1) {
-    lines.push(`    - ${yamlSafeExpr(`type == ${JSON.stringify(model.types[0])}`)}`);
+    lines.push(`    - type == ${JSON.stringify(model.types[0])}`);
   } else {
     lines.push("    - or:");
-    for (const t of model.types) lines.push(`        - ${yamlSafeExpr(`type == ${JSON.stringify(t)}`)}`);
+    for (const t of model.types) lines.push(`        - type == ${JSON.stringify(t)}`);
   }
-  lines.push(`    - ${yamlSafeExpr(TEMPLATES_EXCLUSION_EXPR)}`);
-  for (const f of model.filters) lines.push(`    - ${yamlSafeExpr(filterExpr(f))}`);
+  for (const f of model.filters) lines.push(`    - ${filterExpr(f)}`);
   lines.push("views:");
   lines.push("  - type: table");
   lines.push(`    name: ${JSON.stringify(model.title)}`);
@@ -5624,18 +5225,7 @@ var EXPR_EQ = /^(\w[\w-]*) (==|!=) "(.*)"$/;
 var EXPR_SET = /^(!?)file\.hasProperty\("([\w-]+)"\)$/;
 var EXPR_CONTAINS = /^list\((\w[\w-]*)\)\.contains\("(.*)"\)$/;
 var EXPR_ANCESTOR = /^ancestors\("([\w-]+)"\)\.contains\("(.*)"\)$/;
-var EXPR_LINKSTO = /^file\.hasLink\("(.*)"\)$/;
 function parseFilterExpr(expr) {
-  const lnk = expr.match(EXPR_LINKSTO);
-  if (lnk) {
-    let value;
-    try {
-      value = JSON.parse(`"${lnk[1]}"`);
-    } catch {
-      value = lnk[1];
-    }
-    return { property: LINKS_TO_PROP, op: "linksto", value };
-  }
   const anc = expr.match(EXPR_ANCESTOR);
   if (anc) {
     let value;
@@ -5691,7 +5281,6 @@ function parseBuilderBase(raw, fm) {
   const types = [];
   const filters = [];
   for (const item of and) {
-    if (item === TEMPLATES_EXCLUSION_EXPR) continue;
     if (typeof item === "string") {
       const parsed = parseFilterExpr(item);
       if (!parsed) return null;
@@ -5707,18 +5296,6 @@ function parseBuilderBase(raw, fm) {
         types.push(parsed.type);
       }
       continue;
-    }
-    if (item && typeof item === "object") {
-      const keys = Object.keys(item);
-      const v = keys.length === 1 ? item[keys[0]] : void 0;
-      if (typeof v === "string") {
-        const parsed = parseFilterExpr(`${keys[0]}: ${v}`);
-        if (parsed) {
-          if ("type" in parsed && !("property" in parsed)) types.push(parsed.type);
-          else filters.push(parsed);
-          continue;
-        }
-      }
     }
     return null;
   }
@@ -5784,13 +5361,10 @@ ${MANAGED_COMMENT}
 ${serializeBuilderBase(model)}\`\`\`
 `;
 }
-function rollupStem(title) {
-  return safeName(title).toLowerCase().replace(/\s+/g, "-") || "rollup";
-}
 function createRollupNote(root, model) {
   const dir = import_node_path13.default.join(root, ROLLUPS_DIR2);
   import_node_fs13.default.mkdirSync(dir, { recursive: true });
-  const stem = rollupStem(model.title);
+  const stem = safeName(model.title).toLowerCase().replace(/\s+/g, "-") || "rollup";
   let slug = stem;
   for (let n = 2; import_node_fs13.default.existsSync(import_node_path13.default.join(dir, `${slug}.md`)); n++) slug = `${stem}-${n}`;
   const abs = import_node_path13.default.join(dir, `${slug}.md`);
@@ -5800,43 +5374,6 @@ function createRollupNote(root, model) {
 function updateRollupNote(noteAbs, model) {
   const { frontmatter } = splitFrontmatter(import_node_fs13.default.readFileSync(noteAbs, "utf8"));
   import_node_fs13.default.writeFileSync(noteAbs, builderNoteContent(model, frontmatter));
-}
-function saveRollupNoteWithRename(root, noteAbs, model) {
-  const dir = import_node_path13.default.join(root, ROLLUPS_DIR2);
-  const oldSlug = import_node_path13.default.basename(noteAbs, ".md");
-  const newSlug = rollupStem(model.title);
-  if (newSlug === oldSlug) {
-    updateRollupNote(noteAbs, model);
-    return { ok: true, noteRel: `${ROLLUPS_DIR2}/${oldSlug}.md`, absPath: noteAbs, renamed: false };
-  }
-  const toAbs = import_node_path13.default.join(dir, `${newSlug}.md`);
-  if (import_node_fs13.default.existsSync(toAbs)) {
-    return {
-      ok: false,
-      noteRel: `${ROLLUPS_DIR2}/${oldSlug}.md`,
-      absPath: noteAbs,
-      renamed: false,
-      error: `A rollup named "${model.title}" already exists.`
-    };
-  }
-  const { frontmatter } = splitFrontmatter(import_node_fs13.default.readFileSync(noteAbs, "utf8"));
-  const oldOutRel = typeof frontmatter.out === "string" ? frontmatter.out : null;
-  const fromRel = `${ROLLUPS_DIR2}/${oldSlug}.md`;
-  const toRel = `${ROLLUPS_DIR2}/${newSlug}.md`;
-  moveNote(root, fromRel, toRel);
-  updateRollupNote(toAbs, model);
-  if (oldOutRel) {
-    const oldOutAbs = import_node_path13.default.resolve(root, oldOutRel);
-    const rootAbs = import_node_path13.default.resolve(root);
-    if (oldOutAbs === rootAbs || oldOutAbs.startsWith(rootAbs + import_node_path13.default.sep)) {
-      try {
-        import_node_fs13.default.unlinkSync(oldOutAbs);
-      } catch {
-      }
-    }
-    setFrontmatterFields(toAbs, { out: null, last_generated: null, last_hash: null });
-  }
-  return { ok: true, noteRel: toRel, absPath: toAbs, renamed: true };
 }
 function setFrontmatterFields(noteAbs, updates) {
   const serialize = (v) => typeof v === "string" ? yamlScalar2(v) : String(v);
@@ -6091,8 +5628,6 @@ function readCol(prop, file, thisFile, formulas, asOf) {
     return evalExpr(formulas[prop.slice(8)] ?? "null", file, thisFile, formulas, asOf);
   }
   if (prop.startsWith("file.")) return file[prop.slice(5)];
-  const anc = prop.match(/^ancestor:([\w-]+):([\w-]+)$/);
-  if (anc) return nearestAncestorOfType(file, anc[1], anc[2]);
   const key = prop.startsWith("note.") ? prop.slice(5) : prop;
   return file.properties[key] ?? null;
 }
@@ -6640,33 +6175,6 @@ function collectExprs(node, out2) {
     for (const v of ["and", "or", "not"]) if (obj[v]) collectExprs(obj[v], out2);
   }
 }
-function firstTypeFilterValue(node) {
-  const exprs = [];
-  collectExprs(node, exprs);
-  for (const e of exprs) {
-    const m = e.match(/\btype\s*==\s*"([^"]+)"/);
-    if (m) return m[1];
-  }
-  return null;
-}
-function hasTemplatesExclusion(node, negated = false) {
-  if (node == null) return false;
-  if (typeof node === "string") {
-    const trimmed = node.trim();
-    const bangNegated = trimmed.startsWith("!");
-    const body = bangNegated ? trimmed.slice(1) : trimmed;
-    if (!/file\.inFolder\(\s*["']templates["']\s*\)/.test(body)) return false;
-    return negated !== bangNegated;
-  }
-  if (Array.isArray(node)) return node.some((n) => hasTemplatesExclusion(n, negated));
-  if (typeof node === "object") {
-    const obj = node;
-    if (obj.and) return obj.and.some((n) => hasTemplatesExclusion(n, negated));
-    if (obj.or) return obj.or.some((n) => hasTemplatesExclusion(n, negated));
-    if (obj.not) return obj.not.some((n) => hasTemplatesExclusion(n, !negated));
-  }
-  return false;
-}
 function lintBaseDef(def, corpus) {
   const findings = [];
   const add = (severity, message, suggestion) => findings.push(suggestion ? { severity, message, suggestion } : { severity, message });
@@ -6709,22 +6217,6 @@ function lintBaseDef(def, corpus) {
       const s = suggest(fn, [...FUNCS]);
       add("warn", `${fn}(\u2026) \u2014 unknown function${s ? ` (did you mean "${s}"?)` : ""}`, s ?? void 0);
     }
-  }
-  const checkTemplatesExclusion = (filterNode, label) => {
-    const typeVal = firstTypeFilterValue(filterNode);
-    if (!typeVal || hasTemplatesExclusion(filterNode)) return;
-    add(
-      "warn",
-      `${label} \u2014 type == "${typeVal}" has no templates-folder exclusion (D15): templates/${typeVal}.md carries the same type: value and will render as a phantom row when this base opens natively in Obsidian (Duo's own renderer already excludes templates/). Add - '!file.inFolder("templates")' to the filter.`
-    );
-  };
-  if (def.views && def.views.length) {
-    for (const v of def.views) {
-      const combined = v.filters != null ? { and: [def.filters, v.filters] } : def.filters;
-      checkTemplatesExclusion(combined, `view "${v.name || v.type || "view"}"`);
-    }
-  } else {
-    checkTemplatesExclusion(def.filters, "base");
   }
   for (const v of def.views || []) {
     if (v.type && !VIEW_TYPES.includes(v.type)) add("error", `view "${v.name || v.type}" \u2014 unknown view type "${v.type}"`);
@@ -6811,9 +6303,6 @@ function groupLabel(note) {
   const top = note.folder ? note.folder.split("/")[0] : "";
   return top || "Other";
 }
-function safeHref(href) {
-  return /[\s<>]/.test(href) ? `<${href}>` : href;
-}
 function isGeneratedListing(relPath) {
   const base = relPath.includes("/") ? relPath.slice(relPath.lastIndexOf("/") + 1) : relPath;
   return isGeneratedListingBasename(base);
@@ -6837,7 +6326,7 @@ function generateIndex(root, dir = "", indexFilename) {
     const rows = groups.get(label).sort((a, b) => noteTitle(a).localeCompare(noteTitle(b)));
     const lines = [`## ${label}`, ""];
     for (const n of rows) {
-      const href = safeHref(relLink(indexRel, n.relPath));
+      const href = relLink(indexRel, n.relPath);
       const desc = noteDescription(n);
       lines.push(`* [${noteTitle(n)}](${href})${desc ? ` - ${desc}` : ""}`);
     }
@@ -6893,7 +6382,7 @@ function generateLog(root, logFilename) {
     const rows = byDay.get(day).sort((a, b) => b.mtimeMs - a.mtimeMs);
     const lines = [`## ${day}`, ""];
     for (const n of rows) {
-      lines.push(`* [${noteTitle(n)}](${safeHref(relLink(logRel, n.relPath))})`);
+      lines.push(`* [${noteTitle(n)}](${relLink(logRel, n.relPath)})`);
     }
     sections.push(lines.join("\n"));
   }
@@ -7148,7 +6637,7 @@ ${mergeRes.stdout}`.trim();
 }
 
 // cli/duo.ts
-var VERSION = true ? "0.13.7" : "0.0.0-dev";
+var VERSION = true ? "0.13.6" : "0.0.0-dev";
 var VERBS = [
   // ── Browser & tabs ──
   {
@@ -7353,12 +6842,6 @@ var VERBS = [
     group: "Files & navigator",
     args: "<path> [--browser] [--reveal]",
     summary: 'Open a file to edit its source. HTML defaults to canvas mode (buttons inert, scripts blocked, document editable); .md opens in the rich editor; images / PDFs / JSON fall through to their viewers. --browser forces browser mode for HTML (symmetric with "open --canvas"); --canvas is accepted as a deprecated no-op; --reveal expands the working pane.'
-  },
-  {
-    name: "goto",
-    group: "Files & navigator",
-    args: "<home|vault|rollups>",
-    summary: `ENH-257 \u2014 switch a window to its synthesized Home/Vault/Rollups top-level tab (same activation a sidebar/tab-strip click does). Distinct from "view"/"edit", which don't recognize these tabs' duo:// sentinel paths. "vault"/"rollups" error (not a silent no-op) when no default vault is set, since that tab doesn't exist yet.`
   },
   {
     name: "image",
@@ -7628,7 +7111,7 @@ var VERBS = [
     name: "vault",
     group: "Vault",
     args: "<init|list|schema|capture|stub|search|default|mv|relink|publish|promote> [args]",
-    summary: 'Work-notes vault. Two at-rest formats: OKF (standard markdown relative links, [Display](./rel.md)) and Obsidian (wikilinks, [[Display]]) \u2014 one graph model, two serializers. init <path> --format=okf|obsidian [--name "\u2026"] [--no-default] [--force]: scaffold a vault; --format is REQUIRED on the CLI (the New Vault dialog defaults to OKF). OKF mode marks the root with an okf_version _index.md (or legacy index.md) + static listings; Obsidian writes the legacy .obsidian/ + bases/processing.base + README. The fresh vault becomes the default unless --no-default is passed (a throwaway scaffold can opt out of the global-default hijack; it still lands in the picker\'s known list). list: vaults detected from the cwd (JSON). schema [--vault p]: the live corpus \u2014 types/entities/aliases/props-per-type/observed-enums, a pure function over frontmatter (the vault IS the schema; never cached). capture [--template t] [--text "\u2026"] [--title "\u2026"] [--open]: drop a timestamped inbox note (untyped by default; --template stamps a type). stub <type> <name> [--open]: create a typed entity stub from its template, filed by the D19 rule (the CLI twin of the silent-stub [[New Name]]\u21E5 gesture; idempotent \u2014 never clobbers). search <query> [--vault p]: full-text hits (file, line, excerpt) \u2014 the CLI twin of \u2318\u21E7F. default [<path> [--init [--format=okf|obsidian] [--name "\u2026"]] | --clear]: read or set the default vault (Phase-2 D11; the CLI twin of the Settings field). --init (ENH-242 create-on-choose) inits a bare <path> then sets it, or sets the ENCLOSING vault if <path> is inside one (never nests; --format defaults to OKF). mv <from> <to>: move a note (vault-relative) and rewrite every inbound markdown link to its new path, re-basing the moved note\'s own outbound links (D5 clean path). relink [--dry-run]: repair out-of-band moves (Finder/git) \u2014 re-resolve dangling markdown links by slug/basename first, using the stable frontmatter id: only to tiebreak when >1 note shares a slug, rewriting the unambiguous ones and reporting ambiguous + broken (D5; auto-runs on vault open). relink --frontmatter [--dry-run]: ENH-266 \u2014 the frontmatter-link migration (OKF-mode only). Runs AUTOMATICALLY on the auto-relink-on-vault-open pass (identical write/report + D5 foreign-bundle gating as relink above), so a legacy OKF vault just works in Obsidian with zero user action; this verb runs the SAME migration explicitly, for a `--dry-run` preview or for headless/CI use where no vault-open fires. Four categories, each reported with repaired/ambiguous/broken counts (ambiguous/broken are left untouched, never guessed): (a) frontmatter wikilink values (owner: "[[Alice Park]]", scalar or list, quoted or not) \u2192 the quoted markdown-link form \u2014 a title-based frontmatter wikilink creates an unresolved phantom node in Obsidian since OKF filenames are slugs, not titles; (b) frontmatter BARE unbracketed rel-path values (owner: "./people/alice-park.md" \u2014 invisible to every link parser) \u2192 the quoted markdown-link form, only when the path resolves to a real file; (c) leftover prose-BODY wikilinks (someone edited the vault in Obsidian with factory-default wikilink settings) \u2192 markdown links; (d) alias backfill \u2014 an entity whose title: differs from its slug filename gets that title appended to aliases: (if not already present). publish [--index-only|--log-only] [--dir] [--open]: (re)generate the OKF static listings from the corpus \u2014 root index (frontmatter byte-preserved, `_index.md` default / `index.md` legacy) + log (`_log.md`/`log.md`), --dir adds per-folder index files (D8; OKF-mode only). --index-only / --log-only narrow the WRITE to just that file (the other is left byte-identical \u2014 no churn), not just the reported set. promote <note> --heading "<h>" --type <t>: split a ## section into its own typed entity, leaving a markdown link behind (a wikilink in Obsidian) \u2014 never an embed (D9). Verbs resolve --vault \u2192 the enclosing vault \u2192 the default \u2192 error, so a set default lets them run from outside any vault.'
+    summary: 'Work-notes vault. Two at-rest formats: OKF (standard markdown relative links, [Display](./rel.md)) and Obsidian (wikilinks, [[Display]]) \u2014 one graph model, two serializers. init <path> --format=okf|obsidian [--name "\u2026"] [--no-default] [--force]: scaffold a vault; --format is REQUIRED on the CLI (the New Vault dialog defaults to OKF). OKF mode marks the root with an okf_version _index.md (or legacy index.md) + static listings; Obsidian writes the legacy .obsidian/ + bases/processing.base + README. The fresh vault becomes the default unless --no-default is passed (a throwaway scaffold can opt out of the global-default hijack; it still lands in the picker\'s known list). list: vaults detected from the cwd (JSON). schema [--vault p]: the live corpus \u2014 types/entities/aliases/props-per-type/observed-enums, a pure function over frontmatter (the vault IS the schema; never cached). capture [--template t] [--text "\u2026"] [--title "\u2026"] [--open]: drop a timestamped inbox note (untyped by default; --template stamps a type). stub <type> <name> [--open]: create a typed entity stub from its template, filed by the D19 rule (the CLI twin of the silent-stub [[New Name]]\u21E5 gesture; idempotent \u2014 never clobbers). search <query> [--vault p]: full-text hits (file, line, excerpt) \u2014 the CLI twin of \u2318\u21E7F. default [<path> [--init [--format=okf|obsidian] [--name "\u2026"]] | --clear]: read or set the default vault (Phase-2 D11; the CLI twin of the Settings field). --init (ENH-242 create-on-choose) inits a bare <path> then sets it, or sets the ENCLOSING vault if <path> is inside one (never nests; --format defaults to OKF). mv <from> <to>: move a note (vault-relative) and rewrite every inbound markdown link to its new path, re-basing the moved note\'s own outbound links (D5 clean path). relink [--dry-run]: repair out-of-band moves (Finder/git) \u2014 re-resolve dangling markdown links by slug/basename first, using the stable frontmatter id: only to tiebreak when >1 note shares a slug, rewriting the unambiguous ones and reporting ambiguous + broken (D5; auto-runs on vault open). publish [--index-only|--log-only] [--dir] [--open]: (re)generate the OKF static listings from the corpus \u2014 root index (frontmatter byte-preserved, `_index.md` default / `index.md` legacy) + log (`_log.md`/`log.md`), --dir adds per-folder index files (D8; OKF-mode only). --index-only / --log-only narrow the WRITE to just that file (the other is left byte-identical \u2014 no churn), not just the reported set. promote <note> --heading "<h>" --type <t>: split a ## section into its own typed entity, leaving a markdown link behind (a wikilink in Obsidian) \u2014 never an embed (D9). Verbs resolve --vault \u2192 the enclosing vault \u2192 the default \u2192 error, so a set default lets them run from outside any vault.'
   },
   {
     name: "graph",
@@ -7645,8 +7128,8 @@ var VERBS = [
   {
     name: "rollup",
     group: "Vault",
-    args: '<render <note|base>|list|diff <note|base>|new --type t|show <note>|set <note>|doctor <note>|markdown <note>> [--md|--html] [--style css] [--summary "t"|--no-summary] [--against p] [--title "t"] [--group a,b] [--bucket v[=Label]]... [--filter k=v|k~=v|k^=v|@=v]... [--columns a,b] [--out p] [--open] [--vault p]',
-    summary: "ENH-243 \u2014 the builder verbs (the Rollups tab's CLI twins; same core layer). new --type <t[,t2]> [--title \"t\"] [--group a,b] [--bucket 'value[=Label]']... [--filter 'k=v'|'k!=v'|'k~=v'|'k?'|'k!?']... [--columns a,b]: scaffold a builder-canonical `type: rollup` note at rollups/<slug>.md \u2014 multi-depth grouping via the ordered --group list (level 1 mirrors into the base block's groupBy; the full list lives in the note's group_by: frontmatter, grouped GUI-side). ENH-255 \u2014 k~=v is MEMBERSHIP on a multi-valued field (list contains v; a list-of-links field matches on the linked note's IDENTITY \u2014 `tracks~=q3-launch` matches `[[Q3 Launch]]` \u2014 never display text). ENH-259 \u2014 k^=v is TRANSITIVE \"is under\" (any_parent): v matches an entity anywhere up property k's link chain (`parent^=California` selects every neighborhood whose city rolls up to California, irrespective of the city). ENH-262 \u2014 @=v is \"links to\": the note links entity v through ANY property or prose (`@=track-context` unions populations that reach one entity via different fields \u2014 owned via parent:, monitored via tracks:[]). ENH-261 \u2014 --group/--columns also accept the ancestor-TYPE token `ancestor:<prop>:<type>` (`--group ancestor:parent:goal` groups rows by the GOAL each rolls up to; rows with no such ancestor group under \u2014). Entity operands are canonically the note's SLUG (basename identity); a display name also matches when it folds to the basename (punctuation stripped \u2014 BUG-260). --bucket declares level-1 groups that ALWAYS render (even empty \u2014 an empty bucket is signal), in flag order, labeled `value=Label` (first unescaped = splits; \\= escapes a literal = in the value); a filter that can't be evaluated is SURFACED (\u26A0 stderr + a warnings field + an artifact banner), never a silent empty rollup. show <note>: the parsed builder model + row/group summary as stable JSON (model:null = hand-authored/view-only; error set = broken). set <note> [--title|--type|--group|--columns] [--bucket \u2026]... [--clear-buckets] [--filter \u2026]... [--clear-filters]: mutate a builder-canonical note (appends filters unless --clear-filters; --bucket REPLACES the declared-bucket list wholesale \u2014 order is render order; refuses a hand-authored spec rather than clobbering it). BUG-256 \u2014 a --title change that shifts the on-disk slug renames rollups/<slug>.md (inbound links + the .duo.json sidecar travel with it, same as `vault mv`); rejects rather than clobbering if the target name is already taken. doctor <note>: diagnosis \u2014 parse/eval error + advisory lint findings + repair guidance (the same prompt the GUI's \"Fix with Claude\" seeds). markdown <note> [--vault p]: ENH-244 \u2014 \"Copy as Markdown\" CLI twin; prints ONE GFM table to stdout with title cells linking to the entity's GitHub blob (vault root sits inside a GitHub-remote repo, branch = the current HEAD) or a vault-relative `./path` otherwise (one git probe for the whole table, works in OKF too) \u2014 pipe to `pbcopy` or a file. ENH-229/ENH-228 \u2014 rollups. A rollup is a first-class `type: rollup` NOTE (templates/rollup.md, filed in rollups/) that owns its spec (an embedded ```base block or a `spec:` .base path) + render provenance. render <note|base> [--md|--html]: render the spec and emit ONE variant \u2014 a stamped HTML artifact (--html; the DEFAULT for a rollup note \u2014 D2, HTML-first) OR Markdown (--md; GitHub-portable). For a `type: rollup` note the out path defaults to its `out:` (else rollups/<slug>.html) and `out`/`last_generated`/`last_hash` are stamped back into the note surgically (body untouched) \u2014 but ONLY for the note's canonical format; an ad-hoc --md/--html override renders a side artifact and leaves the note's provenance untouched. A bare `.base`/non-rollup target keeps the legacy MD-default, no-stamp behavior. Every row LINKS the entities it rolls up (the note + owner/group links resolved from frontmatter, incl. OKF rel-md). --style <css-file> layers a custom stylesheet over the Atelier base (HTML only). list: the rollup inventory \u2014 every `type: rollup` note with {note,title,out,format,last_generated,last_hash,stale} (stale = last_hash !== the live source hash); a corpus query, no scan, no sidecar. Change summary (req #7): the artifact self-embeds a rows snapshot + a summary log (HTML comments \u2014 \xA7D9-clean, no sidecar); --summary \"<text>\" adds a new latest \"What changed\" entry (an interactive Claude writes the narrative+notables from `duo rollup diff`), prior entries drop into a collapsible history; --no-summary clears it. diff <note|base> [--against <prior>]: deterministic JSON delta (added/removed/changed rows) vs the prior artifact's embedded snapshot \u2014 the material Claude summarizes. --out writes elsewhere; --open surfaces it as a tab. ENH-248 \u2014 lifecycle + GitHub links. delete <note> --force: remove the definition note AND its rendered artifact (without --force: dry-run prints what would go; file history is the note's undo net). duplicate <note>: copy as \"<Title> (copy)\" with provenance stripped (the copy renders its own artifact on next save/render). render --github: entity links as GitHub blob URLs (probe = the markdown verb's; falls back to relative when no GitHub remote). set --links github|relative: persist the note's entity-link mode (`links:` frontmatter; works on hand-authored notes too) \u2014 renders honor it automatically, incl. the GUI's auto-render-on-save."
+    args: '<render <note|base>|list|diff <note|base>|new --type t|show <note>|set <note>|doctor <note>|markdown <note>> [--md|--html] [--style css] [--summary "t"|--no-summary] [--against p] [--title "t"] [--group a,b] [--bucket v[=Label]]... [--filter k=v|k~=v|k^=v]... [--columns a,b] [--out p] [--open] [--vault p]',
+    summary: "ENH-243 \u2014 the builder verbs (the Rollups tab's CLI twins; same core layer). new --type <t[,t2]> [--title \"t\"] [--group a,b] [--bucket 'value[=Label]']... [--filter 'k=v'|'k!=v'|'k~=v'|'k?'|'k!?']... [--columns a,b]: scaffold a builder-canonical `type: rollup` note at rollups/<slug>.md \u2014 multi-depth grouping via the ordered --group list (level 1 mirrors into the base block's groupBy; the full list lives in the note's group_by: frontmatter, grouped GUI-side). ENH-255 \u2014 k~=v is MEMBERSHIP on a multi-valued field (list contains v; a list-of-links field matches on the linked note's IDENTITY \u2014 `tracks~=q3-launch` matches `[[Q3 Launch]]` \u2014 never display text). ENH-259 \u2014 k^=v is TRANSITIVE \"is under\" (any_parent): v matches an entity anywhere up property k's link chain (`parent^=California` selects every neighborhood whose city rolls up to California, irrespective of the city). --bucket declares level-1 groups that ALWAYS render (even empty \u2014 an empty bucket is signal), in flag order, labeled `value=Label` (first unescaped = splits; \\= escapes a literal = in the value); a filter that can't be evaluated is SURFACED (\u26A0 stderr + a warnings field + an artifact banner), never a silent empty rollup. show <note>: the parsed builder model + row/group summary as stable JSON (model:null = hand-authored/view-only; error set = broken). set <note> [--title|--type|--group|--columns] [--bucket \u2026]... [--clear-buckets] [--filter \u2026]... [--clear-filters]: mutate a builder-canonical note (appends filters unless --clear-filters; --bucket REPLACES the declared-bucket list wholesale \u2014 order is render order; refuses a hand-authored spec rather than clobbering it). doctor <note>: diagnosis \u2014 parse/eval error + advisory lint findings + repair guidance (the same prompt the GUI's \"Fix with Claude\" seeds). markdown <note> [--vault p]: ENH-244 \u2014 \"Copy as Markdown\" CLI twin; prints ONE GFM table to stdout with title cells linking to the entity's GitHub blob (vault root sits inside a GitHub-remote repo, branch = the current HEAD) or a vault-relative `./path` otherwise (one git probe for the whole table, works in OKF too) \u2014 pipe to `pbcopy` or a file. ENH-229/ENH-228 \u2014 rollups. A rollup is a first-class `type: rollup` NOTE (templates/rollup.md, filed in rollups/) that owns its spec (an embedded ```base block or a `spec:` .base path) + render provenance. render <note|base> [--md|--html]: render the spec and emit ONE variant \u2014 a stamped HTML artifact (--html; the DEFAULT for a rollup note \u2014 D2, HTML-first) OR Markdown (--md; GitHub-portable). For a `type: rollup` note the out path defaults to its `out:` (else rollups/<slug>.html) and `out`/`last_generated`/`last_hash` are stamped back into the note surgically (body untouched) \u2014 but ONLY for the note's canonical format; an ad-hoc --md/--html override renders a side artifact and leaves the note's provenance untouched. A bare `.base`/non-rollup target keeps the legacy MD-default, no-stamp behavior. Every row LINKS the entities it rolls up (the note + owner/group links resolved from frontmatter, incl. OKF rel-md). --style <css-file> layers a custom stylesheet over the Atelier base (HTML only). list: the rollup inventory \u2014 every `type: rollup` note with {note,title,out,format,last_generated,last_hash,stale} (stale = last_hash !== the live source hash); a corpus query, no scan, no sidecar. Change summary (req #7): the artifact self-embeds a rows snapshot + a summary log (HTML comments \u2014 \xA7D9-clean, no sidecar); --summary \"<text>\" adds a new latest \"What changed\" entry (an interactive Claude writes the narrative+notables from `duo rollup diff`), prior entries drop into a collapsible history; --no-summary clears it. diff <note|base> [--against <prior>]: deterministic JSON delta (added/removed/changed rows) vs the prior artifact's embedded snapshot \u2014 the material Claude summarizes. --out writes elsewhere; --open surfaces it as a tab. ENH-248 \u2014 lifecycle + GitHub links. delete <note> --force: remove the definition note AND its rendered artifact (without --force: dry-run prints what would go; file history is the note's undo net). duplicate <note>: copy as \"<Title> (copy)\" with provenance stripped (the copy renders its own artifact on next save/render). render --github: entity links as GitHub blob URLs (probe = the markdown verb's; falls back to relative when no GitHub remote). set --links github|relative: persist the note's entity-link mode (`links:` frontmatter; works on hand-authored notes too) \u2014 renders honor it automatically, incl. the GUI's auto-render-on-save."
   }
 ];
 var SOCKET_PATH = process.env.DUO_SOCKET ?? path20.join(os3.homedir(), "Library", "Application Support", "duo", "duo.sock");
@@ -8150,16 +7633,6 @@ async function main() {
         if (canvasFlagIdx !== -1) payload["mode"] = "canvas";
         if (rest.includes("--reveal")) payload["reveal"] = true;
         out(await send("view", payload));
-        break;
-      }
-      case "goto": {
-        const kind = rest[0];
-        if (kind !== "home" && kind !== "vault" && kind !== "rollups") {
-          die("Usage: duo goto <home|vault|rollups>");
-        }
-        const r = await send("goto", { kind });
-        if (r && r.ok === false) die(r.error ?? "duo goto failed");
-        out(r);
         break;
       }
       case "image": {
@@ -9482,11 +8955,7 @@ ${res.pr.url}`);
           out(moveNote(root, from, to));
         } else if (sub === "relink") {
           const root = resolveVaultOrDefault(process.cwd(), vaultFlag);
-          if (subRest.includes("--frontmatter")) {
-            out(migrateFrontmatterLinks(root, { dryRun: subRest.includes("--dry-run") }));
-          } else {
-            out(relinkVault(root, { dryRun: subRest.includes("--dry-run") }));
-          }
+          out(relinkVault(root, { dryRun: subRest.includes("--dry-run") }));
         } else if (sub === "publish") {
           const root = resolveVaultOrDefault(process.cwd(), vaultFlag);
           const scope = subRest.includes("--index-only") ? "index" : subRest.includes("--log-only") ? "log" : "both";
@@ -9516,7 +8985,7 @@ ${res.pr.url}`);
           out(promoteSection(root, note, heading, type2));
         } else {
           die(
-            'Usage: duo vault <init|list|schema|capture|stub|search|default|mv|relink|publish|promote> [args]\n  init <path> --format=okf|obsidian [--name "\u2026"] [--no-default] [--force]   scaffold a new vault (becomes active unless --no-default)\n  list                      vaults detected from the cwd (JSON)\n  schema [--vault p]        the L0 corpus (JSON)\n  capture [--template t] [--text "\u2026"] [--title "\u2026"] [--open]   new inbox note\n  stub <type> <name> [--open]   create a typed entity stub (D19-filed)\n  search <query>            full-text hits (JSON)\n  default [<path> [--init]|--clear]  read / set the default vault (--init = create-on-choose)\n  mv <from> <to>            move a note + rewrite inbound md links (D5 clean path)\n  relink [--dry-run]        repair out-of-band moves (slug-first; id tiebreaks same-slug; D5)\n  relink --frontmatter [--dry-run]   ENH-266 opt-in migration: frontmatter wikilinks/bare-paths \u2192 quoted md-links, body wikilinks, alias backfill (OKF-only; never auto-run)\n  publish [--index-only|--log-only] [--dir] [--open]   (re)generate OKF listings (D8)\n  promote <note> --heading "<h>" --type <t>   split a section into its own entity (D9)'
+            'Usage: duo vault <init|list|schema|capture|stub|search|default|mv|relink|publish|promote> [args]\n  init <path> --format=okf|obsidian [--name "\u2026"] [--no-default] [--force]   scaffold a new vault (becomes active unless --no-default)\n  list                      vaults detected from the cwd (JSON)\n  schema [--vault p]        the L0 corpus (JSON)\n  capture [--template t] [--text "\u2026"] [--title "\u2026"] [--open]   new inbox note\n  stub <type> <name> [--open]   create a typed entity stub (D19-filed)\n  search <query>            full-text hits (JSON)\n  default [<path> [--init]|--clear]  read / set the default vault (--init = create-on-choose)\n  mv <from> <to>            move a note + rewrite inbound md links (D5 clean path)\n  relink [--dry-run]        repair out-of-band moves (slug-first; id tiebreaks same-slug; D5)\n  publish [--index-only|--log-only] [--dir] [--open]   (re)generate OKF listings (D8)\n  promote <note> --heading "<h>" --type <t>   split a section into its own entity (D9)'
           );
         }
         break;
@@ -9595,7 +9064,7 @@ ${res.pr.url}`);
         const sub = rest[0];
         const subRest = rest.slice(1);
         const vaultFlag = flagValue(subRest, "--vault");
-        const USAGE = 'Usage: duo rollup <render|list|diff|new|show|set|doctor|markdown|delete|duplicate> [<note|base>] [--md|--html] [--github] [--style <css-file>] [--summary "<text>"|--no-summary] [--against <path>] [--type <t[,t2]>] [--title "<t>"] [--group a,b] [--bucket <value[=Label]>]... [--clear-buckets] [--filter <k=v|k!=v|k~=v|k^=v|@=v|k?|k!?>]... [--columns a,b] [--clear-filters] [--links github|relative] [--out <path>] [--open] [--force] [--vault <path>]';
+        const USAGE = 'Usage: duo rollup <render|list|diff|new|show|set|doctor|markdown|delete|duplicate> [<note|base>] [--md|--html] [--github] [--style <css-file>] [--summary "<text>"|--no-summary] [--against <path>] [--type <t[,t2]>] [--title "<t>"] [--group a,b] [--bucket <value[=Label]>]... [--clear-buckets] [--filter <k=v|k!=v|k~=v|k^=v|k?|k!?>]... [--columns a,b] [--clear-filters] [--links github|relative] [--out <path>] [--open] [--force] [--vault <path>]';
         const newestExisting = (paths) => {
           let best = null;
           let bestM = -1;
@@ -9739,7 +9208,7 @@ ${res.pr.url}`);
           const current = renderTarget(root, target).snapshot;
           out({ priorArtifact: priorPath, diff: diffSnapshots(prior, current) });
         } else if (sub === "new" || sub === "set") {
-          const NEW_USAGE = `Usage: duo rollup new --type <t[,t2]> [--title "<t>"] [--group a,b] [--bucket 'value[=Label]']... [--filter 'k=v' | 'k!=v' | 'k~=v' | 'k^=v' | '@=v' | 'k?' | 'k!?']... [--columns a,b] [--vault <path>]`;
+          const NEW_USAGE = `Usage: duo rollup new --type <t[,t2]> [--title "<t>"] [--group a,b] [--bucket 'value[=Label]']... [--filter 'k=v' | 'k!=v' | 'k~=v' | 'k^=v' | 'k?' | 'k!?']... [--columns a,b] [--vault <path>]`;
           const SET_USAGE = `Usage: duo rollup set <note> [--title "<t>"] [--type <t[,t2]>] [--group a,b] [--bucket 'value[=Label]']... [--clear-buckets] [--filter \u2026]... [--columns a,b] [--clear-filters] [--links github|relative] [--vault <path>]`;
           const root = resolveVaultOrDefault(process.cwd(), vaultFlag);
           const list = (flag) => {
@@ -9755,8 +9224,6 @@ ${res.pr.url}`);
           const parseFilterFlag = (s) => {
             let m = s.match(/^([\w-]+)!=(.+)$/);
             if (m) return { property: m[1], op: "ne", value: m[2] };
-            m = s.match(/^@=(.+)$/);
-            if (m) return { property: LINKS_TO_PROP, op: "linksto", value: m[1] };
             m = s.match(/^([\w-]+)\^=(.+)$/);
             if (m) return { property: m[1], op: "ancestor", value: m[2] };
             m = s.match(/^([\w-]+)~=(.+)$/);
@@ -9767,7 +9234,7 @@ ${res.pr.url}`);
             if (m) return { property: m[1], op: "notset" };
             m = s.match(/^([\w-]+)\?$/);
             if (m) return { property: m[1], op: "set" };
-            die(`duo rollup ${sub}: unrecognized --filter ${JSON.stringify(s)} (use k=v, k!=v, k~=v, k^=v, @=v, k? or k!?)`);
+            die(`duo rollup ${sub}: unrecognized --filter ${JSON.stringify(s)} (use k=v, k!=v, k~=v, k^=v, k? or k!?)`);
             throw new Error("unreachable");
           };
           const parseBucketFlag = (s) => {
@@ -9841,15 +9308,8 @@ ${res.pr.url}`);
             };
             if (model.buckets.length > 0 && model.groupBy.length === 0)
               die("duo rollup set: --bucket needs a group level (set --group too, or on the note already)");
-            const saved = saveRollupNoteWithRename(root, data.noteAbs, model);
-            if (!saved.ok) die(`duo rollup set: ${saved.error}`);
-            out({
-              root,
-              note: saved.noteRel,
-              renamed: saved.renamed,
-              model,
-              ...linksFlag != null ? { links: linksFlag } : {}
-            });
+            updateRollupNote(data.noteAbs, model);
+            out({ root, note: data.note, model, ...linksFlag != null ? { links: linksFlag } : {} });
           }
         } else if (sub === "show") {
           const target = positionalArgs(subRest, ["--vault"])[0];
@@ -10173,9 +9633,17 @@ function printDocHelp(sub) {
     insert: `duo doc insert <file> --text "X" (--after "Y" | --before "Y" | --at-line N) [--occurrence N]
   Wrap NEW text as a CriticMarkup insertion ({++X++}) at the chosen anchor.`,
     delete: `duo doc delete <file> --text "X" [--occurrence N]
-  Wrap existing text as a CriticMarkup deletion ({--X--}).`,
+  Wrap existing text as a CriticMarkup deletion ({--X--}). ENH-260 D5 \u2014
+  composes with pending {++\u2026++} insertions: text inside one shrinks/drops
+  the token (net-zero); a range spanning insertion + plain text decomposes.
+  Overlaps with an existing deletion/substitution/highlight/comment token
+  still refuse \u2014 split the operation.`,
     substitute: `duo doc substitute <file> --text "X" --with "Y" [--occurrence N]
-  Wrap "X\u2192Y" as a substitution ({~~X~>Y~~}). --with may be empty (= delete).`,
+  Wrap "X\u2192Y" as a substitution ({~~X~>Y~~}). --with may be empty (= delete).
+  ENH-260 D5 \u2014 a range fully inside a pending {++\u2026++} insertion edits that
+  suggestion's text in place; a range spanning insertion + plain text
+  decomposes then appends {++Y++}. Overlaps with deletion/substitution/
+  highlight/comment tokens still refuse \u2014 split the operation.`,
     highlight: `duo doc highlight <file> --text "X" [--occurrence N]
   Wrap "X" as a highlight ({==X==}). Refuses if target overlaps an existing
   CriticMarkup token.`,
@@ -10201,6 +9669,9 @@ duo doc comment <file> --reply-to <c-id> --body "B"      # REPLY (BUG-143)
     lines.push("duo doc <subcmd> \u2014 markdown editor doc operations.");
     lines.push("Track-changes / suggestions: use insert / delete / substitute /");
     lines.push("highlight (CriticMarkup) \u2014 never write literal <ins>/<del> HTML.");
+    lines.push("delete/substitute compose with pending insertions (ENH-260 D5):");
+    lines.push("net-zero when fully inside {++\u2026++}, else decompose; overlaps with");
+    lines.push("deletion/substitution/highlight/comment tokens still refuse.");
     lines.push("");
     lines.push("Subcommands:");
     for (const key of Object.keys(sections)) {

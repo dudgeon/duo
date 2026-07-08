@@ -1,5 +1,26 @@
 # Active sprint state — v0.13.2 shipped (init-on-choose vault + default-vault autocomplete + foreign-vault guard); next: triage
 
+## ENH-260 — Track-changes composition semantics (🚧 in progress, decisions locked 2026-07-08, PR #129)
+
+> **Owner-reported:** deleting text you just added in Suggesting mode double-marks
+> instead of netting out. Six decisions locked (playground paste-back,
+> 2026-07-08 — all as recommended): D1 same-author-or-unattributed net-zero
+> scope · D2 transaction-rewrite architecture (one `appendTransaction` engine
+> covers keys/type-over/cut/paste/IME) · D3 relocate-to-end for typing inside a
+> tracked deletion · D4 skip-caret at a deletion edge · **D5 CLI compose** — `duo
+> doc delete`/`substitute` now compose with pending `{++…++}` insertion tokens
+> instead of refusing (shrink/edit-in-place vs. decompose; overlaps with
+> deletion/substitution/highlight/comment tokens still refuse) · D6 CM-pure
+> (no on-disk attribution). **Landed so far (S2, S3):** `core/markdown/docEdit.ts`
+> D5 compose + `trackedChanges.ts`/`markdownCriticMarkup.ts` D7 double-mark
+> semantics + D9 meta stamping. **In flight:** the suggesting-mode plugin
+> rewrite itself (`suggestEngine.ts` + thin `SuggestingMode.ts`, S1/S4) — the
+> editor-level net-zero behavior isn't live yet, only the CLI compose path.
+> 4-surface CLI docs (`cli/duo.ts`, `skill/SKILL.md`, `agents/duo.md`,
+> `docs/CLI-COVERAGE.md`) synced for D5. **Owed:** S1/S4 landing, then a full
+> `/smoke-walk` of the four playground probes (P1–P4) before any cut. **PRD:**
+> [`docs/prd/enh-260-track-changes-composition.md`](../prd/enh-260-track-changes-composition.md).
+
 ## ENH-258 — Rollup builder: filter/group/bucket by an entity (link-valued prop) (🚧 built + data-path verified, branch `claude/rollup-arbitrary-entity-filter` — LIVE UI WALK PENDING)
 
 > **Owner-reported (photo):** can't filter a rollup on an entity-link property

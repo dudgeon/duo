@@ -4036,9 +4036,17 @@ function printDocHelp(sub?: string): void {
     insert: `duo doc insert <file> --text "X" (--after "Y" | --before "Y" | --at-line N) [--occurrence N]
   Wrap NEW text as a CriticMarkup insertion ({++X++}) at the chosen anchor.`,
     delete: `duo doc delete <file> --text "X" [--occurrence N]
-  Wrap existing text as a CriticMarkup deletion ({--X--}).`,
+  Wrap existing text as a CriticMarkup deletion ({--X--}). ENH-260 D5 —
+  composes with pending {++…++} insertions: text inside one shrinks/drops
+  the token (net-zero); a range spanning insertion + plain text decomposes.
+  Overlaps with an existing deletion/substitution/highlight/comment token
+  still refuse — split the operation.`,
     substitute: `duo doc substitute <file> --text "X" --with "Y" [--occurrence N]
-  Wrap "X→Y" as a substitution ({~~X~>Y~~}). --with may be empty (= delete).`,
+  Wrap "X→Y" as a substitution ({~~X~>Y~~}). --with may be empty (= delete).
+  ENH-260 D5 — a range fully inside a pending {++…++} insertion edits that
+  suggestion's text in place; a range spanning insertion + plain text
+  decomposes then appends {++Y++}. Overlaps with deletion/substitution/
+  highlight/comment tokens still refuse — split the operation.`,
     highlight: `duo doc highlight <file> --text "X" [--occurrence N]
   Wrap "X" as a highlight ({==X==}). Refuses if target overlaps an existing
   CriticMarkup token.`,
@@ -4064,6 +4072,9 @@ duo doc comment <file> --reply-to <c-id> --body "B"      # REPLY (BUG-143)
     lines.push('duo doc <subcmd> — markdown editor doc operations.')
     lines.push('Track-changes / suggestions: use insert / delete / substitute /')
     lines.push('highlight (CriticMarkup) — never write literal <ins>/<del> HTML.')
+    lines.push('delete/substitute compose with pending insertions (ENH-260 D5):')
+    lines.push('net-zero when fully inside {++…++}, else decompose; overlaps with')
+    lines.push('deletion/substitution/highlight/comment tokens still refuse.')
     lines.push('')
     lines.push('Subcommands:')
     for (const key of Object.keys(sections)) {
