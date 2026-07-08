@@ -1,40 +1,48 @@
-// BUG-138 Phase 4b/4c — Suggesting mode auto-wrap intercept.
+// ENH-260 — Suggesting mode: the thin plugin.
 //
-// When Suggesting is ON (per-doc state in sidecar.suggestingMode):
-//   - Typed text → wrapped as `{++text++}` insertion (InsertionMark)
-//   - Backspace/Delete with selection → wrapped as `{--text--}`
-//     deletion (DeletionMark) instead of being removed
-//   - Type-over-selection → emits substitute (parser auto-folds
-//     adjacent del+ins into `{~~old~>new~~}` at serialize time)
+// Package S4 (see docs/prd/enh-260-track-changes-composition.md § 2 + § 4).
+// All the reconciliation logic — net-zero deletes of your own pending
+// insertion (D1), the CM-shape transform on deleted/inserted slices
+// (D3/D7/D8/D10) — lives in the pure kernel `suggestEngine.ts` (package S1).
+// This file is deliberately thin: it owns only the two concerns the engine
+// can't see on its own, both UI-adjacent:
 //
-// The extension stores its enabled flag + the current author resolver
-// on `editor.storage.suggestingMode` so the MarkdownEditor can flip
-// it on every render without re-creating the extension. The
-// ProseMirror plugin reads from storage each transaction.
+//   1. `appendTransaction` — delegates every transaction batch to
+//      `buildSuggestionTr` (which already carries its own D9 skip guards
+//      and stamps `META_SUGGEST_AUTO` on whatever it returns) and hands
+//      back the result unchanged.
+//   2. `handleKeyDown` — records which way (Backspace vs Delete) the user
+//      is deleting, for the engine's caret-placement heuristic (D4/D3), AND
+//      implements the D4 caret-SKIP itself: when the character that would
+//      be removed already carries a deletionMark, there's nothing left to
+//      reinstate — move the caret across the whole contiguous struck run
+//      instead of letting a (no-op) delete run.
+//
+// Lineage: this supersedes the BUG-138 Phase 4b/4c dual-intercept design (a
+// `handleKeyDown`-driven "wrap the range as a deletion" path, plus a
+// separate `appendTransaction` pass that only stamped insertions). That
+// design double-marked net-zero deletes, hard-deleted struck text at a
+// deletion's edge, and swallowed typing inside a deletion — full defect
+// writeup in the PRD § 1 ("Problem"). The transaction-rewrite architecture
+// (PRD D2) replaces both intercepts with the single reconciler this plugin
+// now merely delegates to.
 
 import { Extension } from '@tiptap/core'
-import { Plugin, PluginKey, Selection, type Transaction } from '@tiptap/pm/state'
-import type { EditorView } from '@tiptap/pm/view'
-import { Mapping } from '@tiptap/pm/transform'
+import { Plugin, PluginKey, Selection } from '@tiptap/pm/state'
+import { buildSuggestionTr, findDeletionRun, type DeleteDirection } from '../suggestEngine'
 
 export interface SuggestingModeStorage {
   enabled: boolean
   getAuthor: () => string
 }
 
-const META_AUTO = 'duo-suggesting-auto'
-
 export const SuggestingMode = Extension.create<unknown, SuggestingModeStorage>({
   name: 'suggestingMode',
-  // BUG-138 Phase 4c walk-1 fix — bump priority so Backspace/Delete
-  // reach our keymap handler BEFORE StarterKit / List / Code-block /
-  // Table extensions claim them. Default priority is 100; many
-  // built-in extensions register handlers for Backspace (unindent
-  // list, exit code block, merge node boundaries, etc.) and would
-  // shadow our handler silently. Priority 1000 keeps us at the
-  // front of the keymap dispatch order when Suggesting is ON; our
-  // handler returns `false` when Suggesting is OFF so default
-  // behavior remains untouched in that path.
+  // Keep our handleKeyDown ahead of StarterKit / List / Code-block / Table's
+  // own handlers in the plugin dispatch order (default priority is 100) —
+  // see the D4 caret-skip below, which must win before those extensions'
+  // own Backspace/Delete handling (unindent list, exit code block, merge
+  // node boundaries, etc.) can claim the keystroke.
   priority: 1000,
 
   addStorage() {
@@ -44,247 +52,61 @@ export const SuggestingMode = Extension.create<unknown, SuggestingModeStorage>({
     }
   },
 
-  // Phase 4c — Backspace + Delete intercept. When Suggesting is on,
-  // instead of removing characters, wrap them with DeletionMark so
-  // they stay visible struck-through. The parser's substitution
-  // fold (adjacent del+ins → `{~~old~>new~~}`) handles the
-  // type-over-selection case automatically at serialize time.
-  // Phase 4c handled inside the PM plugin's `handleKeyDown` (below)
-  // rather than via `addKeyboardShortcuts`. Walk-2 surfaced that the
-  // TipTap keymap aggregation can be shadowed by peer extensions even
-  // at high priority — `handleKeyDown` is a per-plugin hook that runs
-  // BEFORE the keymap pipeline, giving us a clean intercept.
-
   addProseMirrorPlugins() {
     const ext = this
+    // D4 caret-placement hint for the reconciler: which way the user just
+    // pressed Backspace/Delete. Set (record-only) by `handleKeyDown` below
+    // when it declines to consume the event; read AND cleared by the very
+    // next `appendTransaction` call, whether or not that transaction turns
+    // out to be the resulting delete (a stale value must never leak into an
+    // unrelated later transaction).
+    let lastDeleteDirection: DeleteDirection = null
+
     return [
       new Plugin({
         key: new PluginKey('duo-suggesting-mode'),
 
         props: {
-          // BUG-138 Phase 4c — capture Backspace/Delete BEFORE PM's
-          // keymap plugins. With priority 1000, my plugin is first in
-          // the array; handleKeyDown gets the event first; returns true
-          // to consume when Suggesting is on, false otherwise.
           handleKeyDown(view, event) {
             if (!ext.storage.enabled) return false
             if (event.key !== 'Backspace' && event.key !== 'Delete') return false
-            const direction: 'backspace' | 'delete' = event.key === 'Backspace' ? 'backspace' : 'delete'
-            return wrapAsDeletionWithView(ext, view, direction)
+
+            const { state } = view
+            const direction: 'backspace' | 'forward' = event.key === 'Backspace' ? 'backspace' : 'forward'
+
+            if (state.selection.empty) {
+              // D4 — is the character that would be removed already part of
+              // a struck (deletionMark'ed) run? If so there's nothing to
+              // (re-)delete — jump the caret across the whole contiguous run
+              // instead. Pure selection move: no doc change, no META needed.
+              const run = findDeletionRun(state.doc, state.selection.from, direction)
+              if (run) {
+                const target = direction === 'backspace' ? run.from : run.to
+                const tr = state.tr.setSelection(
+                  Selection.near(state.doc.resolve(target), direction === 'backspace' ? -1 : 1)
+                )
+                view.dispatch(tr)
+                return true
+              }
+            }
+
+            // Not a caret-skip case (a real selection, or a collapsed caret
+            // against unmarked text). Record the direction for the
+            // reconciler's caret placement and let the native delete run —
+            // `appendTransaction` (below) does the actual tracking.
+            lastDeleteDirection = direction
+            return false
           }
         },
 
-        // Phase 4b — appendTransaction watches for user-driven inserts
-        // and stamps InsertionMark on the newly-inserted ranges. PM's
-        // mark stickyness handles the contiguous-typing case (typing
-        // "abc" extends the mark naturally), but appendTransaction
-        // catches the boundary cases too (paste, autocorrect, IME).
-        appendTransaction(transactions, _oldState, newState) {
-          const storage = ext.storage
-          if (!storage.enabled) return null
-          if (transactions.length === 0) return null
-
-          const insMark = newState.schema.marks.insertionMark
-          if (!insMark) return null
-
-          // Look at the last transaction in the batch (the user's
-          // most recent edit). Our own appended transactions carry
-          // META_AUTO; skip them to avoid an infinite loop.
-          const userTr = transactions[transactions.length - 1] as Transaction
-          if (!userTr.docChanged) return null
-          if (userTr.getMeta(META_AUTO)) return null
-          // History (undo/redo) sets `addToHistory: false` via PM's
-          // history plugin. Don't re-stamp marks on undo.
-          if (userTr.getMeta('addToHistory') === false) return null
-          // tiptap-markdown's setContent path sets a meta we shouldn't
-          // re-mark (it's a programmatic load, not a user edit).
-          if (userTr.getMeta('preventUpdate')) return null
-
-          // BUG-138 walk-1 fix — DON'T stamp `ts` per-TR. PM compares
-          // marks by type + attrs deep-equality; a fresh `ts` per
-          // character makes every char's mark distinct, which breaks
-          // text-node merging and produces `{++a++}{++b++}{++c++}` on
-          // serialize instead of one `{++abc++}`. Only `author` ever
-          // varies across a real Suggesting session; ts on non-comment
-          // CM ops isn't even part of the standard tokens, so we drop
-          // it here and let the schema default (`ts: null`) merge.
-          const author = storage.getAuthor() || 'agent'
-
-          const tr = newState.tr
-          let modified = false
-
-          // Walk each step; for each that inserted text, stamp
-          // InsertionMark on the inserted range. The range in newState
-          // coordinates is computed by mapping forward through later
-          // steps in the same transaction.
-          for (let i = 0; i < userTr.steps.length; i++) {
-            const step = userTr.steps[i]
-            const map = step.getMap()
-            const rest = new Mapping(
-              userTr.steps.slice(i + 1).map(s => s.getMap())
-            )
-            map.forEach((_oldStart, _oldEnd, newStart, newEnd) => {
-              if (newEnd <= newStart) return  // pure delete; handled by Phase 4c
-              const finalStart = rest.map(newStart, 1)
-              const finalEnd = rest.map(newEnd, -1)
-              if (finalEnd <= finalStart) return
-              // BUG (inline-code) — skip if the inserted text lives
-              // somewhere we can't represent a CriticMarkup token in.
-              // Two cases:
-              //   • fenced `codeBlock` nodes (CM tokens don't belong in
-              //     fenced code), and
-              //   • inline `code` marks — StarterKit's `code` mark has
-              //     `excludes: '_'`, so InsertionMark can NEVER coexist
-              //     with it. Stamping anyway yields a no-op AddMarkStep;
-              //     on the native-input path that no-op transaction
-              //     redraws the just-typed range and swallows the typed
-              //     character (caret moves, text vanishes, nothing
-              //     tracked). Mirror the fenced-code exclusion: bail so
-              //     the native insert runs untracked.
-              // The inline-code skip applies only when the ENTIRE
-              // inserted range is code-marked. For MIXED ranges (a paste
-              // of plain text + a code span) we stamp unconditionally:
-              // PM's Mark.addToSet enforces the code mark's
-              // `excludes: '_'` per text node, so the insertion mark
-              // sticks to the plain fragments and is refused on the
-              // code-marked ones — exactly the tracking we want.
-              let skip = false
-              let sawCodeText = false
-              let sawNonCodeText = false
-              newState.doc.nodesBetween(finalStart, finalEnd, (node) => {
-                if (node.type.name === 'codeBlock') {
-                  skip = true
-                  return false
-                }
-                if (node.isText) {
-                  if (node.marks.some(m => m.type.name === 'code')) {
-                    sawCodeText = true
-                  } else {
-                    sawNonCodeText = true
-                  }
-                }
-                return !skip
-              })
-              if (sawCodeText && !sawNonCodeText) skip = true
-              if (skip) return
-              tr.addMark(finalStart, finalEnd, insMark.create({ author }))
-              modified = true
-            })
-          }
-
-          if (!modified) return null
-          tr.setMeta(META_AUTO, true)
-          return tr
+        appendTransaction(transactions, oldState, newState) {
+          if (!ext.storage.enabled) return null
+          const direction = lastDeleteDirection
+          lastDeleteDirection = null
+          const author = ext.storage.getAuthor() || 'agent'
+          return buildSuggestionTr(oldState, transactions, newState, author, direction)
         }
       })
     ]
   }
 })
-
-/**
- * Phase 4c — implement Backspace/Delete as "wrap with DeletionMark"
- * when Suggesting is on. Returns `true` to swallow the keystroke
- * (so the default delete doesn't run), `false` to pass through.
- *
- * Walk-2 refactor: takes an `EditorView` directly (callable from
- * `props.handleKeyDown` in the PM plugin) rather than reaching for
- * the editor via `ext.editor`. Same logic, cleaner signature.
- *
- * Behavior:
- *   - Suggesting off → return false (default delete behavior).
- *   - In a code block → return false (CM tokens don't belong in
- *     fenced code; let the user delete normally).
- *   - Non-empty selection → wrap the range with DeletionMark, then
- *     move the cursor past the marked range. Return true.
- *   - Empty selection on Backspace → select the previous character +
- *     wrap with DeletionMark + park cursor right after.
- *   - Empty selection on Delete → select the next character + wrap +
- *     park cursor right before.
- *   - No previous/next character (boundary) → return false (let
- *     default delete handle node-merging logic).
- */
-// Exported for tests only — not part of the extension's public API.
-export function wrapAsDeletionWithView(
-  ext: { storage: SuggestingModeStorage },
-  view: EditorView,
-  direction: 'backspace' | 'delete'
-): boolean {
-  if (!ext.storage.enabled) return false
-  const state = view.state
-  const schema = state.schema
-  const DelMark = schema.marks.deletionMark
-  if (!DelMark) return false
-
-  const { from, to, $from } = state.selection
-  // Code block check: don't wrap deletions inside code blocks.
-  const parent = $from.parent
-  if (parent.type.name === 'codeBlock') return false
-
-  // BUG (inline-code) — same constraint as the insertion path. The
-  // `code` mark has `excludes: '_'`, so DeletionMark can never be added
-  // to inline-code text. Without this guard we'd consume the keystroke
-  // (return true), apply a no-op addMark, and move the caret — deleting
-  // nothing and tracking nothing (the reported "caret moves but text not
-  // edited" swallow). Bail when the bytes we'd strike are inside inline
-  // code so the native delete runs (untracked, matching fenced code).
-  const CodeMark = schema.marks.code
-
-  // BUG-138 walk-1 fix — same merge-killing concern as Phase 4b. Don't
-  // stamp ts on the deletion mark; same-author single mark merges
-  // across consecutive Backspace strokes.
-  const author = ext.storage.getAuthor() || 'agent'
-  const mark = DelMark.create({ author })
-
-  // BUG-138 walk-3 fix — after `tr.addMark(...)`, the TR has a NEW doc
-  // (immutable update). Building the Selection from `state.doc` (the
-  // pre-addMark doc) makes PM throw `RangeError: Selection passed to
-  // setSelection must point at the current document`. Build the TR
-  // first, then resolve positions against `tr.doc` for the Selection.
-
-  if (from !== to) {
-    // Inline-code guard: let the native delete handle code spans.
-    // Deliberate disposition — a selection PARTIALLY overlapping a code
-    // span (straddling its boundary) also trips this guard, so the
-    // WHOLE range falls through to the native (untracked) delete. A
-    // half-tracked deletion (struck-through plain text next to silently
-    // removed code) would be semantically confusing.
-    if (CodeMark && state.doc.rangeHasMark(from, to, CodeMark)) return false
-    // Non-empty selection. Wrap with DeletionMark + collapse cursor
-    // to the end of the marked range.
-    const tr = state.tr.addMark(from, to, mark)
-    tr.setSelection(Selection.near(tr.doc.resolve(to)))
-    tr.setMeta(META_AUTO, true)
-    view.dispatch(tr)
-    return true
-  }
-
-  if (direction === 'backspace') {
-    if (from <= 1) return false  // doc start; let default handle
-    const prevPos = from - 1
-    // If the previous character is already inside a deletion mark, fall
-    // through to the default delete (so the user can actually back out
-    // of the marked range).
-    const $prev = state.doc.resolve(prevPos)
-    if (DelMark.isInSet($prev.marks())) return false
-    // Inline-code guard: native delete handles the code span.
-    if (CodeMark && state.doc.rangeHasMark(prevPos, from, CodeMark)) return false
-    const tr = state.tr.addMark(prevPos, from, mark)
-    tr.setSelection(Selection.near(tr.doc.resolve(prevPos)))
-    tr.setMeta(META_AUTO, true)
-    view.dispatch(tr)
-    return true
-  } else {
-    // delete-forward
-    const nextPos = to + 1
-    if (nextPos > state.doc.content.size) return false  // doc end
-    const $next = state.doc.resolve(to)
-    if (DelMark.isInSet($next.marks())) return false
-    // Inline-code guard: native delete handles the code span.
-    if (CodeMark && state.doc.rangeHasMark(to, nextPos, CodeMark)) return false
-    const tr = state.tr.addMark(to, nextPos, mark)
-    tr.setSelection(Selection.near(tr.doc.resolve(nextPos)))
-    tr.setMeta(META_AUTO, true)
-    view.dispatch(tr)
-    return true
-  }
-}
