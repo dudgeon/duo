@@ -27,6 +27,7 @@
 import {
   parseCriticMarkup,
   serializeCommentBody,
+  type CmInsertOp,
   type CmOp,
   type CommentMeta
 } from './criticmarkup'
@@ -145,22 +146,120 @@ function buildStrippedView(body: string): StrippedView {
 }
 
 /**
+ * All existing CM ops whose span strictly overlaps the source range
+ * [from, to) — i.e. shares at least one position, not just touching at
+ * a boundary (a delete that ends exactly where a comment starts is
+ * fine). Anchored comments use the anchor's start (the `{==` opening),
+ * matching how the rest of this file treats comment spans.
+ */
+function overlappingOps(body: string, from: number, to: number): CmOp[] {
+  const ops = parseCriticMarkup(body)
+  return ops.filter(op => {
+    const opStart = op.kind === 'comment' && op.anchorStart !== undefined ? op.anchorStart : op.start
+    return from < op.end && to > opStart
+  })
+}
+
+/**
  * True when the source range [from, to) crosses any existing CM op's
- * span. Used by delete/substitute/comment to refuse operations whose
- * resolved range would split an existing token. Boundary touches at
- * either end DON'T count as overlap (a delete that ends exactly where
- * a comment starts is fine).
+ * span. Used by highlight/comment to refuse operations whose resolved
+ * range would split an existing token (those verbs have no compose
+ * story — ENH-260 D5 only covers delete/substitute, see
+ * `composeDeletionReplacement` below).
  */
 function rangeOverlapsExistingOp(body: string, from: number, to: number): boolean {
-  const ops = parseCriticMarkup(body)
-  for (const op of ops) {
-    const opStart = op.kind === 'comment' && op.anchorStart !== undefined ? op.anchorStart : op.start
-    const opEnd = op.end
-    // Strict overlap: the two ranges share at least one position
-    // (not just touching at a boundary).
-    if (from < opEnd && to > opStart) return true
+  return overlappingOps(body, from, to).length > 0
+}
+
+function isInsertOp(op: CmOp): op is CmInsertOp {
+  return op.kind === 'insert'
+}
+
+/**
+ * ENH-260 D5 — compose a delete/substitute range with any `{++…++}`
+ * insertion tokens it overlaps, instead of refusing. Callers must have
+ * already verified every overlapping op is kind 'insert' (any other
+ * kind still refuses — deletions/substitutions/highlights/comments
+ * have no compose story here).
+ *
+ * The source range [from, to) may cut through insertion tokens at
+ * arbitrary points (mid-inner-text, exactly at a token boundary, or
+ * spanning several tokens + plain text between them) — never assume
+ * `body.slice(from, to)` is valid CriticMarkup on its own; wrapper
+ * delimiters (`{++`/`++}`) are never literal-sliced, always
+ * regenerated. `insertOps` must be sorted in source order (the order
+ * `parseCriticMarkup` already returns them in).
+ *
+ * Algorithm: widen the replaced span to cover every overlapping op in
+ * full (`spanStart`/`spanEnd`) — a token straddling `from` or `to`
+ * needs its untouched prefix/suffix folded back into the regenerated
+ * token, not left as a dangling literal fragment. Walk the span
+ * left-to-right: for each op, the plain text before it becomes a
+ * "gap" piece (candidate for `{--…--}`), and the op itself either
+ * drops (fully consumed — net-zero, it was never real content) or
+ * shrinks to `{++prefix+suffix++}` (partially consumed). Trailing
+ * plain text after the last op is a final gap piece. Adjacent gap
+ * pieces — which can become textually adjacent once a token *between*
+ * them is fully dropped — are merged into ONE `{--…--}` before
+ * serializing, so e.g. "aa{++XX++}bb" deleting "aXXb" produces
+ * "a{--ab--}b", not "a{--a--}{--b--}b" (the latter reads identically
+ * on accept/reject but is needlessly fragmented).
+ */
+function composeDeletionReplacement(
+  body: string,
+  from: number,
+  to: number,
+  insertOps: CmInsertOp[]
+): { replacement: string; spanStart: number; spanEnd: number } {
+  let spanStart = from
+  let spanEnd = to
+  for (const op of insertOps) {
+    if (op.start < spanStart) spanStart = op.start
+    if (op.end > spanEnd) spanEnd = op.end
   }
-  return false
+
+  type Piece = { kind: 'gap' | 'insert'; text: string }
+  const pieces: Piece[] = []
+  let cursor = spanStart
+  for (const op of insertOps) {
+    const gapText = body.slice(cursor, op.start)
+    if (gapText) pieces.push({ kind: 'gap', text: gapText })
+
+    // Inner text starts after the 3-char `{++` opener, ends before the
+    // 3-char `++}` closer. Intersect the op's inner span with [from,
+    // to) to find which characters of the pending insertion are being
+    // removed; whatever's left (prefix + suffix, glued together) stays
+    // a pending insertion.
+    const innerStart = op.start + 3
+    const innerEnd = op.end - 3
+    const ovStart = Math.max(innerStart, from)
+    const ovEnd = Math.max(ovStart, Math.min(innerEnd, to))
+    const localStart = ovStart - innerStart
+    const localEnd = ovEnd - innerStart
+    const remainder = op.text.slice(0, localStart) + op.text.slice(localEnd)
+    if (remainder) pieces.push({ kind: 'insert', text: remainder })
+
+    cursor = op.end
+  }
+  const trailingGap = body.slice(cursor, spanEnd)
+  if (trailingGap) pieces.push({ kind: 'gap', text: trailingGap })
+
+  // Merge consecutive gap pieces (nothing but a now-dropped insertion
+  // ever separated them) into a single {--…--} token.
+  const merged: Piece[] = []
+  for (const piece of pieces) {
+    const prev = merged[merged.length - 1]
+    if (piece.kind === 'gap' && prev && prev.kind === 'gap') {
+      prev.text += piece.text
+    } else {
+      merged.push({ ...piece })
+    }
+  }
+
+  const replacement = merged
+    .map(p => (p.kind === 'gap' ? `{--${p.text}--}` : `{++${p.text}++}`))
+    .join('')
+  return { replacement, spanStart, spanEnd }
 }
 
 function nthIndexOf(haystack: string, needle: string, occurrence: number): number {
@@ -277,13 +376,21 @@ export function deleteText(
   }
   const headSource = view.strippedToSource[idxStripped]
   const tailSource = view.strippedToSource[idxStripped + targetText.length]
-  if (rangeOverlapsExistingOp(body, headSource, tailSource)) {
+  const overlaps = overlappingOps(body, headSource, tailSource)
+  // ENH-260 D5 — overlap with anything OTHER than a pending insertion
+  // still refuses (no compose story for del/sub/highlight/comment
+  // overlaps). Overlap with insertion(s) only (including none) composes.
+  if (overlaps.some(op => op.kind !== 'insert')) {
     return { body, changed: false, reason: 'text overlaps existing CriticMarkup — split the operation' }
   }
-  const slice = body.slice(headSource, tailSource)
-  const token = `{--${slice}--}`
+  const { replacement, spanStart, spanEnd } = composeDeletionReplacement(
+    body,
+    headSource,
+    tailSource,
+    overlaps.filter(isInsertOp)
+  )
   return {
-    body: body.slice(0, headSource) + token + body.slice(tailSource),
+    body: body.slice(0, spanStart) + replacement + body.slice(spanEnd),
     changed: true,
     reason: ''
   }
@@ -350,13 +457,55 @@ export function substituteText(
   }
   const headSource = view.strippedToSource[idxStripped]
   const tailSource = view.strippedToSource[idxStripped + oldText.length]
-  if (rangeOverlapsExistingOp(body, headSource, tailSource)) {
+  const overlaps = overlappingOps(body, headSource, tailSource)
+  // ENH-260 D5 — same refusal rule as deleteText: only pending
+  // insertion overlaps compose; anything else still refuses.
+  if (overlaps.some(op => op.kind !== 'insert')) {
     return { body, changed: false, reason: 'text overlaps existing CriticMarkup — split the operation' }
   }
-  const slice = body.slice(headSource, tailSource)
-  const token = `{~~${slice}~>${newText}~~}`
+  if (overlaps.length === 0) {
+    // No insertion overlap — regression-critical, exactly today's shape.
+    const slice = body.slice(headSource, tailSource)
+    const token = `{~~${slice}~>${newText}~~}`
+    return {
+      body: body.slice(0, headSource) + token + body.slice(tailSource),
+      changed: true,
+      reason: ''
+    }
+  }
+  if (overlaps.length === 1) {
+    const op = overlaps[0] as CmInsertOp
+    const innerStart = op.start + 3
+    const innerEnd = op.end - 3
+    if (headSource >= innerStart && tailSource <= innerEnd) {
+      // The whole range sits inside one pending insertion — amend the
+      // suggestion in place (net edit, PRD D1 spirit). No {--…--} and
+      // no {~~…~~}: this isn't "delete accepted text then insert new
+      // text", it's "the pending insertion's text is different now."
+      const localStart = headSource - innerStart
+      const localEnd = tailSource - innerStart
+      const newInner = op.text.slice(0, localStart) + newText + op.text.slice(localEnd)
+      const token = `{++${newInner}++}`
+      return {
+        body: body.slice(0, op.start) + token + body.slice(op.end),
+        changed: true,
+        reason: ''
+      }
+    }
+  }
+  // Range spans insertion token(s) + plain text (or several tokens):
+  // decompose like deleteText, then append the new text immediately
+  // after the last emitted piece — struck-old-then-new reading order.
+  // Empty newText degrades to a pure delete (skip the append).
+  const { replacement, spanStart, spanEnd } = composeDeletionReplacement(
+    body,
+    headSource,
+    tailSource,
+    overlaps.filter(isInsertOp)
+  )
+  const composed = newText ? `${replacement}{++${newText}++}` : replacement
   return {
-    body: body.slice(0, headSource) + token + body.slice(tailSource),
+    body: body.slice(0, spanStart) + composed + body.slice(spanEnd),
     changed: true,
     reason: ''
   }
