@@ -3,6 +3,33 @@
 > Closed entries (✅ shipped / ❌ won't-do / 🟢 done) split out of [`tasks.md`](tasks.md) on 2026-05-31 (ENH-191 / D1) to keep the live backlog lean. **Open work lives in [tasks.md](tasks.md).** Section headers mirror the original; the cut-version skill appends newly-closed entries here.
 
 
+## v0.13.5 — Filter rollups by an entity, and by any ancestor (shipped 2026-07-07)
+
+### ENH-259: Rollup builder — "is under" filter (transitive ancestor / any_parent)
+**Status:** ✅ Shipped v0.13.5 (PR [#127](https://github.com/dudgeon/duo/pull/127), merged 2026-07-07). Live-walk verified in the visual builder — op list offers "is under", value picker offers the ancestor closure (California/Texas/USA), `parent is under California` → mission + soma (Austin excluded). **P1.** Builds on [[ENH-258]].
+
+**Owner ask.** Extend the entity filter (ENH-258 = *direct* link match) with a **transitive ancestor** match: for a hierarchy like country > state > city > neighborhood, filter all neighborhoods whose **any ancestor** up the `parent` chain is a given *state*, irrespective of the intermediate city. The matched entity (a state) is a different type/level than the direct parent (a city).
+
+**Locked decisions (owner, 2026-07-07 AUQ).** **D1 — chain source:** walk **the property the filter targets** (general: `parent`→`parent`→…, works for any hierarchy property, not a hardcoded `parent`). **D2 — sequencing:** its own PR, after #126 merged.
+
+**Shipped.** (1) **Engine** `ancestors("<prop>")` walks that property's link chain upward (cycle-guarded, multi-parent = union) via each file's `.properties[prop]` + `.links`; `ancestors("parent").contains("California")` folds identity like ENH-258. (2) **Corpus** `ancestorRefsByType[type.prop]` = the transitive closure (a state surfaces above a neighborhood's city), threaded through `VaultSchemaDto` + IPC. (3) **Builder** `ancestor` op — `filterExpr` emits `ancestors("<prop>").contains("<v>")`, `parseBuilderBase` round-trips it; the GUI op list adds **"is under"** beside "is", value picker draws the closure. (4) CLI twin `--filter 'k^=v'`. 4-surface docs synced. Tests: corpus closure across levels + cycle-safety; builder round-trip + end-to-end `modelViewData` match + engine cycle-safety (357 vault tests green).
+
+---
+
+### ENH-258: Rollup builder — filter/group/bucket by an entity (link-valued property)
+**Status:** ✅ Shipped v0.13.5 (PR [#126](https://github.com/dudgeon/duo/pull/126), merged 2026-07-07). Live-walk verified — entity picker offers names, `initiative_theme is Growth` resolves correctly, group-by-entity buckets by identity. **P1.**
+
+**The failure (owner-reported, photo'd).** In the Rollups builder you cannot filter a rollup on a property that holds an entity link — e.g. rolling up `initiative`s and filtering by `initiative_theme` (some link to a `[[Growth]]` theme) or grouping/bucketing by `parent` (→ a goal). It silently returns **zero rows** with no warning.
+
+**Root cause (verified empirically, both formats).** `core/vault/corpus.ts` emits entity-link scalar values into `enumsByType` in their **raw serialized form** — OKF `[Growth](../themes/growth.md)`, and (for wikilinks) nothing at all. The builder GUI populates its filter-value + bucket-value pickers from `enumsByType`, so it offers un-matchable raw-link strings; the emitted predicate `initiative_theme == "[Growth](../themes/growth.md)"` never matches, because the engine has parsed the frontmatter value into a `Link` whose identity is `growth`. The only forms that match are identity-folded: `list(prop).contains("Growth")` / `== "Growth"` (proven: 2/2 rows). **Group-by *rendering* already works** (folds link identity, ENH-255) — the shared defect is the *value operand picker*, which also feeds the declared-bucket UI. The engine + CLI (`--filter k~=v`) are already correct; the defect is corpus-schema + GUI-only.
+
+**Fix (owner-approved: full, applied across filter + group-by buckets + columns, both formats).** Made entity-reference properties first-class in the corpus:
+- `corpus.ts`: classify a link-valued frontmatter scalar (wikilink OR OKF rel-md, via the existing `extractLinkRefs`) OUT of `enumsByType` and into a new `entityRefsByType[type.prop] = [{name, slug}]` (dedupe by slug). A review round narrowed the classifier to match the engine's fold exactly (a non-`.md` rel link stays a plain string enum, `==`-matched) and collapsed a double link scan.
+- `types.ts` / `shared/host-api.ts` `VaultSchemaDto` / `electron/main.ts` VAULT_SCHEMA IPC: surface `entityRefsByType`.
+- `RollupsView.tsx`: for a link-valued property, the filter-value + bucket-value controls become an **entity picker** (names) and the emitted filter is the identity-fold `contains`. Columns unchanged (render fine via `plainCell`). Scalar props unchanged.
+
+---
+
 ## v0.13.4 — Navigator pull + rollup buckets + hardened review pass (shipped 2026-07-06)
 
 ### ENH-253: Navigator repo-root right-click → "Pull latest changes"

@@ -25,6 +25,16 @@
 
 ---
 
+## v0.13.5 — 2026-07-07 — Roll up by who, and by where-it-belongs
+
+**Why now.** A photo'd failure kicked it off: filtering a rollup of initiatives by their theme returned nothing, silently. The root cause was one bug with a clean fix — the corpus handed the Rollups builder raw serialized link strings (`[Growth](../themes/growth.md)`) as filter operands, which the identity-based engine could never match — and fixing it opened a coherent chapter: make *entity-valued* properties first-class in the builder. ENH-258 (#126) shipped the direct match ("this initiative's theme is Growth"); ENH-259 (#127) shipped the transitive one ("this neighborhood is under California, whatever city it's in"). Both were driven live in the visual builder via computer-use before merge.
+
+**Key decisions baked in.** (1) The fix lives in the *corpus*, not the GUI — link-valued properties are classified out of the scalar-enum domain into `entityRefsByType` (direct) and `ancestorRefsByType` (transitive closure), so every consumer (filter picker, bucket picker, the "is under" op) draws matchable operands from one source. (2) Classification matches the engine's fold *exactly*: a wikilink or `.md` rel link is an entity (identity-matched via `contains`); a non-`.md` rel link stays a plain string (`==` string-matched) — no operand is ever offered that the engine can't resolve. (3) The ancestor walk follows *the property you filter on* (owner decision D1: general, not a hardcoded `parent`), so any hierarchy works; it's cycle-guarded and unions multi-valued parents. (4) CLI parity throughout — `--filter 'theme~=Growth'` (is) and `--filter 'parent^=California'` (is under) are the twins of the GUI's "is" / "is under".
+
+**What this is and isn't.** This is the release that lets a rollup answer "which of my things belong to X" — by direct link or by ancestry — from the visual builder, with no hand-authored `.base` YAML. It is NOT a general graph-query language: "is under" walks one named property upward; cross-property paths and downward/sibling traversals aren't modeled. Both features were driven live in the Rollups tab (computer-use walks the owner witnessed); the standing smoke-walk matrix is owed at the next UI sprint's walk.
+
+---
+
 ## v0.13.4 — 2026-07-06 — Pull from the navigator, buckets in rollups, and a hardened review pass
 
 **Why now.** Three parallel worktrees landed as one chapter: the navigator gained its first *write* git verb (pull — ENH-253, #121), the rollup engine gained the membership-filter + declared-bucket semantics an external requester was blocked on (ENH-255, #123), and the vault's capture gesture lost its nastiest silent-corruption bug (BUG-254, #122). Before merging, all three PRs went through an adversarial multi-agent review — ~30 verified findings were fixed *on the branches*, so main never carried the known defects.

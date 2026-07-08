@@ -19,7 +19,17 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.13.4 cut 2026-07-06.
+> Empty — v0.13.5 cut 2026-07-07.
+
+## [0.13.5] — 2026-07-07 — Filter rollups by an entity, and by any ancestor
+
+### Added
+- **Rollup entity filters (ENH-258, #126).** The Rollups builder can filter, group, and bucket a rollup by a property that holds an **entity link** (a `parent` → goal, an `initiative_theme` → theme; wikilink or OKF rel-md). The filter/bucket value pickers offer the actual entities by name and match by identity (`contains`), so a link-valued property no longer silently returns zero rows. Corpus exposes `entityRefsByType`; CLI twin `--filter 'k~=v'`.
+- **Transitive "is under" ancestor filter (ENH-259, #127).** A link-valued property's operator list adds **"is under"** beside "is": `parent is under California` keeps every row whose `parent` chain reaches that entity anywhere up the tree (country > state > city > neighborhood), irrespective of the intermediate levels. Cycle-safe; the value picker offers the property's full ancestor closure. Engine `ancestors("<prop>")`, CLI twin `--filter 'k^=v'`, corpus `ancestorRefsByType`.
+
+### Fixed
+- Entity-link properties were emitted into `enumsByType` as raw serialized link strings (`[Growth](../themes/growth.md)`), so the builder offered un-matchable operands and an entity filter silently matched nothing (ENH-258).
+- Corpus link classification now matches the engine's fold exactly — a non-`.md` rel link (e.g. `[Cover](./cover.png)`) stays a plain string enum instead of a never-matching entity ref (ENH-258 review).
 
 ## [0.13.4] — 2026-07-06 — Navigator pull, rollup buckets, hardened review pass
 
@@ -2199,7 +2209,8 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.13.3...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.13.5...HEAD
+[0.13.5]: https://github.com/dudgeon/duo/compare/v0.13.4...v0.13.5
 [0.13.4]: https://github.com/dudgeon/duo/compare/v0.13.3...v0.13.4
 [0.13.3]: https://github.com/dudgeon/duo/compare/v0.13.2...v0.13.3
 [0.13.2]: https://github.com/dudgeon/duo/compare/v0.13.1...v0.13.2

@@ -1115,6 +1115,15 @@
   </div>
 </article>
 
+<article class="item" data-keys="rollup filter entity link parent goal theme initiative is under ancestor any_parent transitive hierarchy country state city neighborhood group bucket enh-258 enh-259">
+  <div class="num">133</div>
+  <div>
+    <h3>Filter a rollup by an entity — directly, or by anything above it</h3>
+    <p class="why"><strong>v0.13.5:</strong> filter, group, or bucket a rollup by a property that points at another note — an initiative's <code>theme</code>, a milestone's <code>initiative</code>, a note's <code>parent</code>. The builder's value pickers list the actual entities by name and match on identity, so picking "Growth" finds every initiative linked to it (before, a link-valued filter silently matched nothing). And for hierarchies, a new <strong>"is under"</strong> operator walks the whole chain: with country &gt; state &gt; city &gt; neighborhood, <code>parent is under California</code> returns every neighborhood under California <em>no matter which city</em> it sits in. It follows whichever property you filter on, is cycle-safe, and its value list includes the higher levels (the state, the country), not just the direct parent.</p>
+    <p class="how"><strong>UI</strong>Rollups tab → add a filter on a link property; the operator menu offers <strong>is</strong> (direct) and <strong>is under</strong> (any ancestor), each with an entity picker. <strong>CLI</strong><code>duo rollup set &lt;note&gt; --filter 'theme~=Growth'</code> (is) · <code>--filter 'parent^=California'</code> (is under).</p>
+  </div>
+</article>
+
 <h2 class="cat">Workspace setup</h2>
 <p class="cat-tagline">Pin tabs you want always-available; install Duo's skill + agent + CLI in one click.</p>
 
@@ -1370,7 +1379,7 @@
 </article>
 
 <footer>
-  <p>This is Duo v0.13.4. Last updated 2026-07-06. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
+  <p>This is Duo v0.13.5. Last updated 2026-07-07. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
   <p style="margin-top:6px; color: var(--ink-ghost); font-size: 11px;">Find an item that should be here? Tell Claude — the cut-version skill updates this file with each release.</p>
 </footer>
 
