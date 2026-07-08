@@ -209,6 +209,18 @@ describe('ENH-258 — entity-reference props (link-valued) split from scalar enu
     expect(c.entityRefsByType['initiative.status']).toBeUndefined()
   })
 
+  it('a rel link to a NON-note file is a plain string enum, not an entity ref', () => {
+    // The engine (parseLinkish) only folds `.md` rel links to a Link — a
+    // `.png` rel link stays a plain STRING. So it must NOT be offered as an
+    // entity operand (a `contains` on it would never resolve); it belongs in
+    // enumsByType as its raw string, which `==` string-matches.
+    write('_index.md', '---\nokf_version: "1.0"\ntype: index\n---\n')
+    write('initiatives/a.md', '---\ntype: initiative\ncover: "[Cover](./images/cover.png)"\n---\n# A\n')
+    const c = buildCorpus(tmp)
+    expect(c.entityRefsByType['initiative.cover']).toBeUndefined()
+    expect(c.enumsByType['initiative.cover']).toEqual(['[Cover](./images/cover.png)'])
+  })
+
   it('Obsidian: a wikilink prop is an entity ref (previously absent from enums entirely)', () => {
     fs.mkdirSync(path.join(tmp, '.obsidian'), { recursive: true })
     write('themes/Growth.md', '---\ntype: theme\n---\n# Growth\n')

@@ -3109,6 +3109,9 @@ function resolveVaultOrDefault(cwd, explicit, filePath = DEFAULT_VAULT_FILE) {
 // core/vault/corpus.ts
 var import_node_fs6 = __toESM(require("node:fs"));
 var import_node_path6 = __toESM(require("node:path"));
+function engineEntityRefs(value) {
+  return extractLinkRefs(value).filter((r) => r.syntax === "wikilink" || /\.md$/i.test(r.rawTarget));
+}
 function loadTemplates(root) {
   const dir = import_node_path6.default.join(root, "templates");
   let entries;
@@ -3166,14 +3169,17 @@ function buildCorpus(root) {
       for (const [k, v] of Object.entries(fm)) {
         propsByType.get(t).add(k);
         const key = `${t}.${k}`;
+        let scalarIsLink = false;
         for (const el of Array.isArray(v) ? v : [v]) {
           if (typeof el !== "string") continue;
-          for (const ref of extractLinkRefs(el)) {
+          const refs = engineEntityRefs(el);
+          if (el === v && refs.length > 0) scalarIsLink = true;
+          for (const ref of refs) {
             if (!entityRefsByType.has(key)) entityRefsByType.set(key, /* @__PURE__ */ new Map());
             if (!entityRefsByType.get(key).has(ref.key)) entityRefsByType.get(key).set(ref.key, ref.display);
           }
         }
-        if (typeof v === "string" && extractLinkRefs(v).length === 0) {
+        if (typeof v === "string" && !scalarIsLink) {
           if (!enumsByType.has(key)) enumsByType.set(key, /* @__PURE__ */ new Set());
           enumsByType.get(key).add(v);
         }
