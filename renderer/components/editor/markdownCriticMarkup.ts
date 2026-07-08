@@ -292,19 +292,43 @@ interface CmRunInfo {
   preserveMarks: MarkJSON[]
 }
 
+// ENH-260 D7 — a text node can legitimately carry BOTH insertionMark and
+// deletionMark (the "foreign-deletion-of-a-pending-insertion" nested state:
+// author A inserts, author B suggests deleting it). CM-pure has no token
+// that can carry two suggestion ops on one span, so on save we MUST pick
+// one — and we pick 'insert' deliberately: it's the newer, less-destructive
+// suggestion, and dropping the deletion counter-suggestion keeps the
+// reject-baseline (plain reject-all → back to the pre-insertion doc) correct.
+// Serializing as '{--…--}' instead would fabricate a deletion of text that
+// never existed in the original document. See PRD D7
+// (docs/prd/enh-260-track-changes-composition.md § 1).
+//
+// Precedence is therefore explicit and ORDER-INDEPENDENT (not "last mark in
+// node.marks wins", which is what a naive single-pass loop gives you): scan
+// all marks first, then resolve ins+del coexistence to 'insert' before
+// falling through to the single-mark cases.
 function extractCmInfo(node: TextNodeJSON): CmRunInfo {
   if (!node.marks || node.marks.length === 0) {
     return { kind: 'plain', preserveMarks: [] }
   }
+  let hasInsert = false
+  let hasDelete = false
+  let insertAttrs: Record<string, unknown> | undefined
+  let deleteAttrs: Record<string, unknown> | undefined
   let kind: CmRunInfo['kind'] = 'plain'
   let cmAttrs: Record<string, unknown> | undefined
   const preserve: MarkJSON[] = []
   for (const m of node.marks) {
-    if (m.type === 'insertionMark') { kind = 'insert'; cmAttrs = m.attrs ?? {} }
-    else if (m.type === 'deletionMark') { kind = 'delete'; cmAttrs = m.attrs ?? {} }
+    if (m.type === 'insertionMark') { hasInsert = true; insertAttrs = m.attrs ?? {}; kind = 'insert'; cmAttrs = insertAttrs }
+    else if (m.type === 'deletionMark') { hasDelete = true; deleteAttrs = m.attrs ?? {}; kind = 'delete'; cmAttrs = deleteAttrs }
     else if (m.type === 'highlightMark') { kind = 'highlight'; cmAttrs = m.attrs ?? {} }
     else if (m.type === 'commentMark') { kind = 'comment'; cmAttrs = m.attrs ?? {} }
     else preserve.push(m)
+  }
+  if (hasInsert && hasDelete) {
+    // D7 degradation: ins+del coexistence always resolves to 'insert'.
+    kind = 'insert'
+    cmAttrs = insertAttrs
   }
   return { kind, cmAttrs, preserveMarks: preserve }
 }

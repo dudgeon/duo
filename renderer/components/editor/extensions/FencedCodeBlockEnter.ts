@@ -31,6 +31,7 @@
 
 import { Extension } from '@tiptap/core'
 import { TextSelection } from '@tiptap/pm/state'
+import { META_SUGGEST_AUTO } from '../suggestMeta'
 
 const FENCE_REGEX = /^(```|~~~)([a-z0-9-]*)$/i
 
@@ -76,6 +77,12 @@ export const FencedCodeBlockEnter = Extension.create({
         // is at `paragraphStart`; its content position is +1.
         const newPos = paragraphStart + 1
         tr.setSelection(TextSelection.near(tr.doc.resolve(newPos)))
+
+        // ENH-260 (PRD D9/D10) — the fence-marker paragraph swap is a
+        // structural editor affordance, not a content edit; without the
+        // meta the suggesting reconciler would reinstate the deleted
+        // "```lang" text as a tracked deletion next to the code block.
+        tr.setMeta(META_SUGGEST_AUTO, true)
 
         editor.view.dispatch(tr)
         return true
