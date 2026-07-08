@@ -110,6 +110,22 @@ Live-tested (2026-07) in real Obsidian 1.12.7: a rollup note's embedded ` ```bas
 
 ---
 
+### ENH-260: Track-changes composition semantics — deleting your own pending insertion must be net-zero
+
+**Status:** 🟡 **Filed 2026-07-08 — decision playground awaiting owner walk** ([`docs/research/track-changes-composition.html`](docs/research/track-changes-composition.html)). **Priority:** High — suggesting mode can corrupt the reject-baseline and silently lose original text. **Effort:** M (core fix) + S–M per follow-on phase. **Ticket note:** allocated after repo-wide max ENH-259; renumber on collision.
+
+**Provenance.** Owner (2026-07-08): *"take a given piece of existing text, turn on track changes, add some text, and then delete part of the text that you added — relative to the initial condition your diff should decrease. The deletion of the new text should resolve to null relative to the previous text; in a proper track changes implementation that deletion would just go away."*
+
+**Root cause (probed, not inferred).** `SuggestingMode.wrapAsDeletionWithView` unconditionally `addMark`s `DeletionMark` — it never checks whether the range is the author's own pending `InsertionMark`. Both marks have `excludes: ''`, so the char ends up carrying BOTH marks, and every downstream consumer resolves the conflict differently: the serializer (`extractCmInfo`, last-CM-mark-wins) emits `{--Y--}` — a phantom deletion of text that never existed in the file — while the rail (`collectTrackedChanges`, first-mark-wins) shows it as part of an insertion. After save+reload, reject-all injects the phantom text into the baseline.
+
+**Sibling defects confirmed by the same jsdom probe** (all in the playground with observed serializations): type-over-selection / cut / paste-over hard-delete original text untracked (only Backspace/Delete keys are intercepted); a second Backspace adjacent to an existing deletion falls through to native delete and permanently removes struck *original* text while suggesting is ON; typing inside a deletion range inherits the deletion mark, so accept-all destroys the just-typed text. CLI side: `duo doc delete/substitute` refuse any range overlapping an existing token ("split the operation") — no compose path.
+
+**Deliverable.** Decision playground per rule 11 comparing Duo's behavior against Word / Google Docs / Notion / ProseMirror-ecosystem suggest-mode implementations, with a phased fix proposal (D-numbered decisions: core net-zero semantics · delete-route coverage · author-scope · CLI compose rules · attribution persistence). Implementation lands as follow-on PRs after the owner walks the playground.
+
+**Cross-refs.** BUG-138 family (the suggesting-mode build-out), ENH-197 (`trackedDiff.ts` — its accept→new / reject→old invariant is the property the live path violates), ENH-198 (agent-native CriticMarkup), `renderer/components/editor/extensions/SuggestingMode.ts`, `renderer/components/editor/markdownCriticMarkup.ts`, `renderer/components/editor/trackedChanges.ts`, `core/markdown/docEdit.ts`, `docs/research/markdown-criticmarkup-comments-trackchanges.html` (the original Stage 14b playground).
+
+---
+
 ### ENH-232: Catch-up — rich re-entry for sessions whose worktree was removed
 **Status:** 🔵 Open (filed from ENH-231 walk #2, 2026-06-24). **P1.**
 
