@@ -2590,6 +2590,8 @@ function setupIPC(): void {
           countsByType: corpus.countsByType,
           // ENH-258 — entity options per link-valued property (filter/bucket).
           entityRefsByType: corpus.entityRefsByType,
+          // ENH-259 — transitive ancestor closure per link prop ("is under").
+          ancestorRefsByType: corpus.ancestorRefsByType,
         },
       }
     } catch (e) {

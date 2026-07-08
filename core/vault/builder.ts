@@ -45,7 +45,9 @@ import { buildEngineFiles, defaultAsOf, type EngineFile } from './engine'
 
 // ── the builder model ───────────────────────────────────────────────────────
 
-export type BuilderFilterOp = 'eq' | 'ne' | 'contains' | 'set' | 'notset'
+// ENH-259 — `ancestor` = transitive "is under" (any_parent): match if the
+// value entity appears anywhere up this property's link chain.
+export type BuilderFilterOp = 'eq' | 'ne' | 'contains' | 'ancestor' | 'set' | 'notset'
 
 export interface BuilderFilter {
   property: string
@@ -91,6 +93,11 @@ function filterExpr(f: BuilderFilter): string {
       // notes; the engine's contains matches Link elements by IDENTITY
       // (targetKey fold), so the value names the linked note, not its label.
       return `list(${f.property}).contains(${JSON.stringify(f.value ?? '')})`
+    case 'ancestor':
+      // ENH-259 — transitive "is under": walk this property's link chain
+      // upward and match the value entity anywhere in it (identity-folded by
+      // the same contains()). `ancestors("parent").contains("California")`.
+      return `ancestors(${JSON.stringify(f.property)}).contains(${JSON.stringify(f.value ?? '')})`
     case 'set':
       return `file.hasProperty(${JSON.stringify(f.property)})`
     case 'notset':
@@ -138,8 +145,20 @@ export function serializeBuilderBase(model: RollupBuilderModel): string {
 const EXPR_EQ = /^(\w[\w-]*) (==|!=) "(.*)"$/
 const EXPR_SET = /^(!?)file\.hasProperty\("([\w-]+)"\)$/
 const EXPR_CONTAINS = /^list\((\w[\w-]*)\)\.contains\("(.*)"\)$/
+// ENH-259 — the transitive "is under" form: ancestors("<prop>").contains("<v>")
+const EXPR_ANCESTOR = /^ancestors\("([\w-]+)"\)\.contains\("(.*)"\)$/
 
 function parseFilterExpr(expr: string): BuilderFilter | { type: string } | null {
+  const anc = expr.match(EXPR_ANCESTOR)
+  if (anc) {
+    let value: string
+    try {
+      value = JSON.parse(`"${anc[2]}"`)
+    } catch {
+      value = anc[2]
+    }
+    return { property: anc[1], op: 'ancestor', value }
+  }
   const has = expr.match(EXPR_CONTAINS)
   if (has) {
     let value: string

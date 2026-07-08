@@ -114,6 +114,13 @@ export interface Corpus {
    *  link strings are un-matchable filter operands). Powers the Rollups
    *  builder's entity value picker + identity-fold `contains` predicate. */
   entityRefsByType: Record<string, { name: string; slug: string }[]>
+  /** ENH-259 — `${type}.${prop}` → the TRANSITIVE ancestor closure of a
+   *  link-valued property: every entity reachable by walking that property's
+   *  chain upward (following the same property name), as {name, slug}. Powers
+   *  the builder's "is under" (any_parent) value picker, where an ancestor is
+   *  typically a different type/level than the direct value (a State above a
+   *  neighborhood's City). A superset of entityRefsByType for the same key. */
+  ancestorRefsByType: Record<string, { name: string; slug: string }[]>
   /** The type templates (the soft-schema registry, D5). */
   templates: TypeTemplate[]
 }

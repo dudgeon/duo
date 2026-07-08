@@ -10,10 +10,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { load as yamlLoad } from 'js-yaml'
-import type { Corpus, TypeTemplate } from './types'
+import type { Corpus, TypeTemplate, VaultFile } from './types'
 import type { LinkRef } from '../markdown/vaultLinks'
 import { readNotes, splitFrontmatter } from './parse'
-import { extractLinkRefs } from '../markdown/vaultLinks'
+import { extractLinkRefs, targetKey } from '../markdown/vaultLinks'
 
 /** ENH-258 — the entity references the ENGINE folds to a `Link` (engine.ts
  *  `parseLinkish`): a wikilink, OR a rel-md link whose target is a `.md` note.
@@ -129,6 +129,44 @@ export function buildCorpus(root: string): Corpus {
     }
   }
 
+  // ENH-259 — the TRANSITIVE ancestor closure per link-valued property, for
+  // the builder's "is under" (any_parent) value picker: filtering
+  // neighborhood.parent must offer States/Countries (reachable up the chain),
+  // not just the direct Cities in entityRefsByType. For each note, walk its
+  // link-prop chain following the SAME property name upward and collect every
+  // ancestor entity (display name carried from each link; cycle-guarded).
+  const byKey = new Map<string, VaultFile>()
+  for (const n of notes) if (!byKey.has(targetKey(n.basename, 'wikilink'))) byKey.set(targetKey(n.basename, 'wikilink'), n)
+  const directRefs = (note: VaultFile, prop: string): { slug: string; name: string }[] => {
+    const v = note.frontmatter[prop]
+    const out: { slug: string; name: string }[] = []
+    for (const el of Array.isArray(v) ? v : [v]) {
+      if (typeof el !== 'string') continue
+      for (const ref of engineEntityRefs(el)) out.push({ slug: ref.key, name: ref.display })
+    }
+    return out
+  }
+  const ancestorRefsByType = new Map<string, Map<string, string>>()
+  for (const note of notes) {
+    const t = typeof note.frontmatter.type === 'string' ? note.frontmatter.type : null
+    if (!t) continue
+    for (const prop of Object.keys(note.frontmatter)) {
+      const key = `${t}.${prop}`
+      if (!entityRefsByType.has(key)) continue // only link-valued props have ancestors
+      const seen = new Set<string>()
+      const stack = directRefs(note, prop)
+      while (stack.length) {
+        const { slug, name } = stack.pop()!
+        if (seen.has(slug)) continue
+        seen.add(slug)
+        if (!ancestorRefsByType.has(key)) ancestorRefsByType.set(key, new Map())
+        if (!ancestorRefsByType.get(key)!.has(slug)) ancestorRefsByType.get(key)!.set(slug, name)
+        const anc = byKey.get(slug)
+        if (anc) for (const nxt of directRefs(anc, prop)) stack.push(nxt)
+      }
+    }
+  }
+
   const templates = loadTemplates(root)
   for (const tpl of templates) types.add(tpl.type)
 
@@ -162,6 +200,7 @@ export function buildCorpus(root: string): Corpus {
     countsByType: counts,
     enumsByType: sortedRecord(enumsByType),
     entityRefsByType: sortedRefs(entityRefsByType),
+    ancestorRefsByType: sortedRefs(ancestorRefsByType),
     templates,
   }
 }

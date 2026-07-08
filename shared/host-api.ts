@@ -1267,7 +1267,7 @@ export interface VaultRollupDto {
 // ENH-243 — the Rollups tab DTOs. Mirror core/vault/builder.ts shapes
 // (RollupBuilderModel / RollupViewData / EntityPanel), declared inline for
 // the same reason as the DTOs above (core/vault is main-process-only).
-export type RollupFilterOpDto = 'eq' | 'ne' | 'contains' | 'set' | 'notset'
+export type RollupFilterOpDto = 'eq' | 'ne' | 'contains' | 'ancestor' | 'set' | 'notset'
 
 export interface RollupFilterDto {
   property: string
@@ -1352,6 +1352,11 @@ export interface VaultSchemaDto {
    *  the Rollups builder offers these as filter/bucket value options and
    *  emits an identity-fold `contains` predicate. */
   entityRefsByType: Record<string, EntityRefDto[]>
+  /** ENH-259 — `${type}.${prop}` → the transitive ancestor closure of a
+   *  link-valued property (every entity reachable up its chain). The builder's
+   *  "is under" (any_parent) filter offers these; a superset of
+   *  entityRefsByType for the same key. */
+  ancestorRefsByType: Record<string, EntityRefDto[]>
 }
 
 /** ENH-248 R2 — what the browser pane needs to overlay the Duo-native
