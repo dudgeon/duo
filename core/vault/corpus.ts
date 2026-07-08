@@ -167,6 +167,22 @@ export function buildCorpus(root: string): Corpus {
     }
   }
 
+  // ENH-262 — every entity a TYPE's notes link (ANY property, prose too —
+  // the same edge set `file.hasLink` probes): the "links to" filter's value
+  // options. Resolved against real corpus notes (an unresolvable slug can't
+  // be offered as a pickable entity).
+  const linkTargetsByType = new Map<string, Map<string, string>>()
+  for (const note of notes) {
+    const t = typeof note.frontmatter.type === 'string' ? note.frontmatter.type : null
+    if (!t) continue
+    for (const slug of note.links) {
+      const target = byKey.get(slug)
+      if (!target) continue
+      if (!linkTargetsByType.has(t)) linkTargetsByType.set(t, new Map())
+      if (!linkTargetsByType.get(t)!.has(slug)) linkTargetsByType.get(t)!.set(slug, target.basename)
+    }
+  }
+
   const templates = loadTemplates(root)
   for (const tpl of templates) types.add(tpl.type)
 
@@ -176,12 +192,22 @@ export function buildCorpus(root: string): Corpus {
     return out
   }
 
-  // ENH-258 — {slug → name} maps → sorted {name, slug}[] (by display name).
-  const sortedRefs = (m: Map<string, Map<string, string>>): Record<string, { name: string; slug: string }[]> => {
-    const out: Record<string, { name: string; slug: string }[]> = {}
+  // ENH-258 — {slug → name} maps → sorted {name, slug, type}[] (by display
+  // name). ENH-261 annotates each ref with its target note's `type` (null
+  // when the slug doesn't resolve to a corpus note), so the GUI can offer
+  // "goal (via parent)" ancestor group options and type-filtered pickers.
+  const typeOf = (slug: string): string | null => {
+    const n = byKey.get(slug)
+    const t = n && typeof n.frontmatter.type === 'string' ? n.frontmatter.type : null
+    return t
+  }
+  const sortedRefs = (
+    m: Map<string, Map<string, string>>,
+  ): Record<string, { name: string; slug: string; type: string | null }[]> => {
+    const out: Record<string, { name: string; slug: string; type: string | null }[]> = {}
     for (const k of [...m.keys()].sort()) {
       out[k] = [...m.get(k)!.entries()]
-        .map(([slug, name]) => ({ name, slug }))
+        .map(([slug, name]) => ({ name, slug, type: typeOf(slug) }))
         .sort((a, b) => a.name.localeCompare(b.name))
     }
     return out
@@ -201,6 +227,7 @@ export function buildCorpus(root: string): Corpus {
     enumsByType: sortedRecord(enumsByType),
     entityRefsByType: sortedRefs(entityRefsByType),
     ancestorRefsByType: sortedRefs(ancestorRefsByType),
+    linkTargetsByType: sortedRefs(linkTargetsByType),
     templates,
   }
 }

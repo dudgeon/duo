@@ -199,8 +199,8 @@ describe('ENH-258 — entity-reference props (link-valued) split from scalar enu
     )
     const c = buildCorpus(tmp)
     // The link props are entity refs, keyed by targetKey identity slug…
-    expect(c.entityRefsByType['initiative.parent']).toEqual([{ name: 'Reduce Churn', slug: 'reduce-churn' }])
-    expect(c.entityRefsByType['initiative.initiative_theme']).toEqual([{ name: 'Growth', slug: 'growth' }])
+    expect(c.entityRefsByType['initiative.parent']).toEqual([{ name: 'Reduce Churn', slug: 'reduce-churn', type: 'goal' }])
+    expect(c.entityRefsByType['initiative.initiative_theme']).toEqual([{ name: 'Growth', slug: 'growth', type: 'theme' }])
     // …and are NOT polluting enumsByType with un-matchable raw-link strings.
     expect(c.enumsByType['initiative.parent']).toBeUndefined()
     expect(c.enumsByType['initiative.initiative_theme']).toBeUndefined()
@@ -226,7 +226,7 @@ describe('ENH-258 — entity-reference props (link-valued) split from scalar enu
     write('themes/Growth.md', '---\ntype: theme\n---\n# Growth\n')
     write('initiatives/Onboarding.md', '---\ntype: initiative\ninitiative_theme: "[[Growth]]"\n---\n# Onboarding\n')
     const c = buildCorpus(tmp)
-    expect(c.entityRefsByType['initiative.initiative_theme']).toEqual([{ name: 'Growth', slug: 'growth' }])
+    expect(c.entityRefsByType['initiative.initiative_theme']).toEqual([{ name: 'Growth', slug: 'growth', type: 'theme' }])
     expect(c.enumsByType['initiative.initiative_theme']).toBeUndefined()
   })
 

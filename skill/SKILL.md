@@ -279,7 +279,13 @@ keeps rows whose `parent` chain reaches that entity ANYWHERE up the tree —
 country > state > city > neighborhood, so `parent^=California` selects every
 neighborhood under California irrespective of the intermediate city (expression
 form: `ancestors("parent").contains("California")`; cycle-safe, follows the
-named property upward). And
+named property upward). **"Links to" (ENH-262):** `--filter '@=<entity>'` =
+`file.hasLink(…)` — matches through ANY property or prose; unions populations
+that reach one entity via different fields (owned via `parent:`, monitored via
+`tracks:[]`). **Ancestor-type grouping (ENH-261):** `--group/--columns` accept
+`ancestor:<prop>:<type>` — `--group ancestor:parent:goal` groups rows by the
+GOAL each rolls up to (no goal ancestor → `—`). Entity operands: slug
+canonical; display names fold to the basename (punctuation stripped). And
 `--bucket 'primary=Primary track activity' --bucket 'monitored=Monitored'`
 (needs `--group`) declares level-1 buckets that ALWAYS render — even with
 zero rows (an empty bucket is signal) — in flag order, under those labels;

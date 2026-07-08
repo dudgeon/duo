@@ -113,14 +113,20 @@ export interface Corpus {
    *  rel-md); such props are deliberately ABSENT from enumsByType (their raw
    *  link strings are un-matchable filter operands). Powers the Rollups
    *  builder's entity value picker + identity-fold `contains` predicate. */
-  entityRefsByType: Record<string, { name: string; slug: string }[]>
+  entityRefsByType: Record<string, { name: string; slug: string; type: string | null }[]>
   /** ENH-259 — `${type}.${prop}` → the TRANSITIVE ancestor closure of a
    *  link-valued property: every entity reachable by walking that property's
-   *  chain upward (following the same property name), as {name, slug}. Powers
-   *  the builder's "is under" (any_parent) value picker, where an ancestor is
-   *  typically a different type/level than the direct value (a State above a
-   *  neighborhood's City). A superset of entityRefsByType for the same key. */
-  ancestorRefsByType: Record<string, { name: string; slug: string }[]>
+   *  chain upward (following the same property name), as {name, slug, type}.
+   *  Powers the builder's "is under" (any_parent) value picker, where an
+   *  ancestor is typically a different type/level than the direct value (a
+   *  State above a neighborhood's City); ENH-261 uses the `type` annotation
+   *  to offer ancestor-type GROUPING ("goal (via parent)" → the
+   *  `ancestor:parent:goal` token). A superset of entityRefsByType per key. */
+  ancestorRefsByType: Record<string, { name: string; slug: string; type: string | null }[]>
+  /** ENH-262 — type → every entity that type's notes LINK (any property,
+   *  prose included — the same edge set `file.hasLink` probes). The "links
+   *  to" filter's value options; resolved corpus notes only. */
+  linkTargetsByType: Record<string, { name: string; slug: string; type: string | null }[]>
   /** The type templates (the soft-schema registry, D5). */
   templates: TypeTemplate[]
 }

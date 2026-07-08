@@ -254,6 +254,31 @@ offers **"is under"** beside **"is"**, and its value picker offers the
 property's transitive closure (`entityRefsByType` = direct values;
 `ancestorRefsByType` = the closure, so a State shows up, not just Cities).
 
+**"Links to" — any-property entity edge (ENH-262).** When two populations
+reach one entity through DIFFERENT properties (owned initiatives: `parent:` →
+the track node; monitored ones: `tracks:[]` contains it), a per-property
+filter can't union them — but `file.hasLink("<entity>")` matches ANY link to
+the entity (frontmatter or prose). Builder twin `--filter '@=<entity>'`; GUI:
+the `(links to…)` pseudo-property. The canonical "initiatives owned by and/or
+monitored by Track X, broken out by engagement" rollup is
+`--filter '@=track-x' --group engagement`.
+
+**Group/column by an ancestor TYPE (ENH-261).** "Group initiatives by GOAL"
+when `parent:` points at intermediate nodes: the group/column token
+**`ancestor:<prop>:<type>`** (e.g. `--group ancestor:parent:goal`) resolves
+each row to its NEAREST ancestor of that type up `<prop>`'s chain — headers
+are the goal entities (identity-merged, linked); rows with no such ancestor
+group under `—`. Works in `order:` columns too. YAML-safe as a plain scalar.
+
+**Operand + YAML safety (BUG-260).** Entity operands are canonically the
+note's **slug** (basename identity); a display name also matches when it folds
+to the basename with punctuation stripped (`Track: Context and Agent
+Resources` ≡ `track-context-and-agent-resources`). When hand-authoring a
+` ```base ` block, **quote any filter line whose text contains `: `
+(colon-space), ` #`, or starts with `!`** — unquoted, YAML silently turns the
+line into a mapping (the engine now surfaces that as a filter error instead of
+silently dropping it, and Duo's own serializer quotes automatically).
+
 Renders are **stamped build artifacts** (D13): generated-at + source-hash +
 as-of date. Default writes to the vault's `output/` (or legacy `out/` for a
 vault that already has one — ENH-246); re-render to refresh — the

@@ -66,7 +66,10 @@ const OPS: { value: RollupFilterDto['op']; label: string }[] = [
 ]
 
 /** Ops whose filter takes a value operand. */
-const VALUE_OPS = new Set<RollupFilterDto['op']>(['eq', 'ne', 'contains', 'ancestor'])
+const VALUE_OPS = new Set<RollupFilterDto['op']>(['eq', 'ne', 'contains', 'ancestor', 'linksto'])
+
+/** ENH-262 — the pseudo-property the "links to" filter row carries. */
+const LINKS_TO_PROP = '*'
 
 /** One flip's undo memo — what to write back to restore the prior value. */
 interface UndoMemo {
@@ -1047,26 +1050,67 @@ function BuilderPanel({
     return [...out].sort()
   }
 
-  // ENH-258 — a link-valued property's entity options (union across the
-  // rolled-up types, deduped by slug). Non-empty ⇒ the property is an entity
-  // reference: its filter/bucket value is PICKED from these entities and
-  // matched by identity (contains), never compared as a raw link string.
-  const entityOptions = (property: string): EntityRefDto[] => {
-    const bySlug = new Map<string, string>()
-    for (const t of model.types)
-      for (const e of schema?.entityRefsByType[`${t}.${property}`] ?? []) if (!bySlug.has(e.slug)) bySlug.set(e.slug, e.name)
-    return [...bySlug.entries()].map(([slug, name]) => ({ name, slug })).sort((a, b) => a.name.localeCompare(b.name))
+  // Union refs across the rolled-up types, deduped by identity slug.
+  const unionRefs = (pick: (t: string) => EntityRefDto[] | undefined): EntityRefDto[] => {
+    const bySlug = new Map<string, EntityRefDto>()
+    for (const t of model.types) for (const e of pick(t) ?? []) if (!bySlug.has(e.slug)) bySlug.set(e.slug, e)
+    return [...bySlug.values()].sort((a, b) => a.name.localeCompare(b.name))
   }
+  // ENH-258 — a link-valued property's entity options. Non-empty ⇒ the
+  // property is an entity reference: its filter/bucket value is PICKED from
+  // these entities and matched by identity (contains), never compared as a
+  // raw link string.
+  const entityOptions = (property: string): EntityRefDto[] =>
+    unionRefs((t) => schema?.entityRefsByType[`${t}.${property}`])
   const isLinkProp = (property: string): boolean => entityOptions(property).length > 0
   // ENH-259 — the transitive ancestor closure for a link prop's "is under"
   // value picker (offers a State above a neighborhood's City, not just the
   // direct Cities). Superset of entityOptions for the same property.
-  const ancestorOptions = (property: string): EntityRefDto[] => {
-    const bySlug = new Map<string, string>()
+  const ancestorOptions = (property: string): EntityRefDto[] =>
+    unionRefs((t) => schema?.ancestorRefsByType[`${t}.${property}`])
+  // ENH-262 — every entity the rolled-up types LINK (any property, prose
+  // included): the "links to" filter's value options.
+  const linkTargets = useMemo(
+    () => unionRefs((t) => schema?.linkTargetsByType[t]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [model.types, schema],
+  )
+  // ENH-261 — ancestor-TYPE group/column options: for each link prop, each
+  // type observed in its ancestor closure yields a token `ancestor:<prop>:<T>`
+  // labeled "T (via prop)" — "group initiatives by goal".
+  const ancestorGroupOptions = useMemo(() => {
+    const out = new Map<string, string>()
     for (const t of model.types)
-      for (const e of schema?.ancestorRefsByType[`${t}.${property}`] ?? []) if (!bySlug.has(e.slug)) bySlug.set(e.slug, e.name)
-    return [...bySlug.entries()].map(([slug, name]) => ({ name, slug })).sort((a, b) => a.name.localeCompare(b.name))
+      for (const p of schema?.propsByType[t] ?? [])
+        for (const r of schema?.ancestorRefsByType[`${t}.${p}`] ?? [])
+          if (r.type && !out.has(`ancestor:${p}:${r.type}`)) out.set(`ancestor:${p}:${r.type}`, `${r.type} (via ${p})`)
+    return [...out.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [model.types, schema])
+  // Display form of a group/column token: `ancestor:parent:goal` reads as
+  // "goal (via parent)"; plain properties pass through.
+  const prettyProp = (p: string): string => {
+    const m = p.match(/^ancestor:([\w-]+):([\w-]+)$/)
+    return m ? `${m[2]} (via ${m[1]})` : p
   }
+  // BUG-260 — filters store the entity SLUG (the identity — correct even when
+  // a display name diverges from the basename); chips show the pretty name.
+  const nameBySlug = useMemo(() => {
+    const out = new Map<string, string>()
+    const take = (refs?: EntityRefDto[]) => {
+      for (const r of refs ?? []) if (!out.has(r.slug)) out.set(r.slug, r.name)
+    }
+    for (const t of model.types) {
+      take(schema?.linkTargetsByType[t])
+      for (const p of schema?.propsByType[t] ?? []) {
+        take(schema?.entityRefsByType[`${t}.${p}`])
+        take(schema?.ancestorRefsByType[`${t}.${p}`])
+      }
+    }
+    return out
+  }, [model.types, schema])
+  const prettyValue = (v: string | undefined): string => (v == null ? '' : (nameBySlug.get(v) ?? v))
 
   const commitTitle = () => {
     const t = title.trim()
@@ -1120,7 +1164,7 @@ function BuilderPanel({
       <div className="duo-rollups-chiprow">
         {model.groupBy.map((g, i) => (
           <span key={g} className="duo-rollups-chip on">
-            {i + 1} · {g}
+            {i + 1} · {prettyProp(g)}
             <button
               type="button"
               className="duo-rollups-chip-x"
@@ -1130,7 +1174,7 @@ function BuilderPanel({
                 // (a groups: block without groupBy drops the note to view-only).
                 onChange({ ...model, groupBy, buckets: groupBy.length === 0 ? [] : model.buckets })
               }}
-              aria-label={`Remove group level ${g}`}
+              aria-label={`Remove group level ${prettyProp(g)}`}
             >
               ✕
             </button>
@@ -1138,7 +1182,12 @@ function BuilderPanel({
         ))}
         <AddSelect
           placeholder="+ level"
-          options={props.filter((p) => !model.groupBy.includes(p))}
+          // ENH-261 — plain properties first, then ancestor-TYPE options
+          // ("goal (via parent)" → the `ancestor:parent:goal` token).
+          options={[
+            ...props.filter((p) => !model.groupBy.includes(p)),
+            ...ancestorGroupOptions.filter((o) => !model.groupBy.includes(o.value)),
+          ]}
           onPick={(p) => onChange({ ...model, groupBy: [...model.groupBy, p] })}
         />
       </div>
@@ -1165,10 +1214,17 @@ function BuilderPanel({
             <AddBucket
               // ENH-258 — for a link-valued group prop the bucket value is an
               // ENTITY (matched by identity via memberEq), not a raw scalar.
-              options={(isLinkProp(model.groupBy[0])
-                ? entityOptions(model.groupBy[0]).map((e) => e.name)
-                : enumOptions(model.groupBy[0])
-              ).filter((v) => !model.buckets.some((b) => b.value === v))}
+              // ENH-261 — an ancestor-TYPE level buckets by the closure's
+              // entities of that type ("goal (via parent)" → the goals).
+              options={((): string[] => {
+                const lvl = model.groupBy[0]
+                const anc = lvl.match(/^ancestor:([\w-]+):([\w-]+)$/)
+                if (anc)
+                  return ancestorOptions(anc[1])
+                    .filter((e) => e.type === anc[2])
+                    .map((e) => e.name)
+                return isLinkProp(lvl) ? entityOptions(lvl).map((e) => e.name) : enumOptions(lvl)
+              })().filter((v) => !model.buckets.some((b) => b.value === v))}
               onAdd={(b) => onChange({ ...model, buckets: [...model.buckets, b] })}
             />
           </div>
@@ -1179,22 +1235,26 @@ function BuilderPanel({
       <div className="duo-rollups-filters">
         {model.filters.map((f, i) => (
           <div key={`${f.property}-${i}`} className="duo-rollups-filter">
-            <code>{f.property}</code>
+            {/* ENH-262 — a `linksto` filter is property-agnostic: the chip
+                reads "links to <entity>", no property code. */}
+            {f.op === 'linksto' ? null : <code>{f.property}</code>}
             {/* ENH-258/259 — an identity `contains` on a link prop reads as
                 "is"; the transitive `ancestor` op reads as "is under". */}
             <span>
-              {f.op === 'ancestor'
-                ? 'is under'
-                : f.op === 'contains' && isLinkProp(f.property)
-                  ? 'is'
-                  : OPS.find((o) => o.value === f.op)?.label}
+              {f.op === 'linksto'
+                ? 'links to'
+                : f.op === 'ancestor'
+                  ? 'is under'
+                  : f.op === 'contains' && isLinkProp(f.property)
+                    ? 'is'
+                    : OPS.find((o) => o.value === f.op)?.label}
             </span>
-            {VALUE_OPS.has(f.op) ? <code>{f.value}</code> : null}
+            {VALUE_OPS.has(f.op) ? <code>{prettyValue(f.value)}</code> : null}
             <button
               type="button"
               className="duo-rollups-chip-x"
               onClick={() => onChange({ ...model, filters: model.filters.filter((_, j) => j !== i) })}
-              aria-label={`Remove filter on ${f.property}`}
+              aria-label={`Remove filter on ${f.property === LINKS_TO_PROP ? `links to ${prettyValue(f.value)}` : f.property}`}
             >
               ✕
             </button>
@@ -1205,6 +1265,7 @@ function BuilderPanel({
           enumOptions={enumOptions}
           entityOptions={entityOptions}
           ancestorOptions={ancestorOptions}
+          linkTargets={linkTargets}
           isLinkProp={isLinkProp}
           onAdd={(f) => onChange({ ...model, filters: [...model.filters, f] })}
         />
@@ -1214,12 +1275,12 @@ function BuilderPanel({
       <div className="duo-rollups-chiprow">
         {model.columns.map((c) => (
           <span key={c} className="duo-rollups-chip on">
-            {c}
+            {prettyProp(c)}
             <button
               type="button"
               className="duo-rollups-chip-x"
               onClick={() => onChange({ ...model, columns: model.columns.filter((x) => x !== c) })}
-              aria-label={`Remove column ${c}`}
+              aria-label={`Remove column ${prettyProp(c)}`}
             >
               ✕
             </button>
@@ -1227,7 +1288,12 @@ function BuilderPanel({
         ))}
         <AddSelect
           placeholder="+ column"
-          options={props.filter((p) => !model.columns.includes(p))}
+          // ENH-261 — ancestor-TYPE columns work too ("goal (via parent)"
+          // renders the goal each row rolls up to, as an entity link).
+          options={[
+            ...props.filter((p) => !model.columns.includes(p)),
+            ...ancestorGroupOptions.filter((o) => !model.columns.includes(o.value)),
+          ]}
           onPick={(p) => onChange({ ...model, columns: [...model.columns, p] })}
         />
       </div>
@@ -1236,14 +1302,16 @@ function BuilderPanel({
   )
 }
 
-/** A select that acts as an "add one" picker — resets to placeholder on pick. */
+/** A select that acts as an "add one" picker — resets to placeholder on pick.
+ *  An option may be a bare string (value = label) or {value, label} — ENH-261
+ *  uses the latter for ancestor-type tokens ("goal (via parent)"). */
 function AddSelect({
   placeholder,
   options,
   onPick,
 }: {
   placeholder: string
-  options: string[]
+  options: (string | { value: string; label: string })[]
   onPick: (v: string) => void
 }) {
   if (options.length === 0) return null
@@ -1257,11 +1325,15 @@ function AddSelect({
       aria-label={placeholder}
     >
       <option value="">{placeholder}</option>
-      {options.map((o) => (
-        <option key={o} value={o}>
-          {o}
-        </option>
-      ))}
+      {options.map((o) => {
+        const value = typeof o === 'string' ? o : o.value
+        const label = typeof o === 'string' ? o : o.label
+        return (
+          <option key={value} value={value}>
+            {label}
+          </option>
+        )
+      })}
     </select>
   )
 }
@@ -1331,6 +1403,7 @@ function AddFilter({
   enumOptions,
   entityOptions,
   ancestorOptions,
+  linkTargets,
   isLinkProp,
   onAdd,
 }: {
@@ -1338,36 +1411,48 @@ function AddFilter({
   enumOptions: (property: string) => string[]
   entityOptions: (property: string) => EntityRefDto[]
   ancestorOptions: (property: string) => EntityRefDto[]
+  linkTargets: EntityRefDto[]
   isLinkProp: (property: string) => boolean
   onAdd: (f: RollupFilterDto) => void
 }) {
   const [property, setProperty] = useState('')
   const [op, setOp] = useState<RollupFilterDto['op']>('eq')
   const [value, setValue] = useState('')
-  const link = property ? isLinkProp(property) : false
+  const linksTo = property === LINKS_TO_PROP
+  const link = property && !linksTo ? isLinkProp(property) : false
   const needsValue = VALUE_OPS.has(op)
-  const options = property && !link ? enumOptions(property) : []
+  const options = property && !link && !linksTo ? enumOptions(property) : []
   // ENH-259 — "is under" (ancestor) offers the transitive closure (a State
   // above a City); "is" (direct) offers only the property's direct entities.
-  const entOptions = property && link ? (op === 'ancestor' ? ancestorOptions(property) : entityOptions(property)) : []
+  // ENH-262 — "links to" offers every entity the rolled-up types link.
+  const entOptions = linksTo
+    ? linkTargets
+    : property && link
+      ? op === 'ancestor'
+        ? ancestorOptions(property)
+        : entityOptions(property)
+      : []
   // ENH-258/259 — a link-valued property is matched by ENTITY IDENTITY, so its
   // ops are "is <entity>" (direct identity `contains`), "is under <entity>"
   // (transitive ancestor), + set/notset. A raw-string `==` would never match
-  // the parsed Link.
-  const opsForProp = link
-    ? ([
-        { value: 'contains', label: 'is' },
-        { value: 'ancestor', label: 'is under' },
-        { value: 'set', label: 'is set' },
-        { value: 'notset', label: 'is not set' },
-      ] as { value: RollupFilterDto['op']; label: string }[])
-    : OPS
+  // the parsed Link. ENH-262 — the "(links to…)" pseudo-property has ONE op.
+  const opsForProp = linksTo
+    ? ([{ value: 'linksto', label: 'links to' }] as { value: RollupFilterDto['op']; label: string }[])
+    : link
+      ? ([
+          { value: 'contains', label: 'is' },
+          { value: 'ancestor', label: 'is under' },
+          { value: 'set', label: 'is set' },
+          { value: 'notset', label: 'is not set' },
+        ] as { value: RollupFilterDto['op']; label: string }[])
+      : OPS
 
   const pickProperty = (p: string) => {
     setProperty(p)
     setValue('')
-    // Default a link prop to identity membership so its value actually matches.
-    setOp(p && isLinkProp(p) ? 'contains' : 'eq')
+    // Default a link prop to identity membership so its value actually
+    // matches; the "(links to…)" pseudo-property has exactly one op.
+    setOp(p === LINKS_TO_PROP ? 'linksto' : p && isLinkProp(p) ? 'contains' : 'eq')
   }
 
   const commit = () => {
@@ -1388,6 +1473,10 @@ function AddFilter({
         aria-label="Filter property"
       >
         <option value="">+ filter…</option>
+        {/* ENH-262 — property-agnostic entity-edge filter: "links to X"
+            matches through ANY property (or prose), the union primitive for
+            populations that reach one entity via different fields. */}
+        {linkTargets.length > 0 ? <option value={LINKS_TO_PROP}>(links to…)</option> : null}
         {props.map((p) => (
           <option key={p} value={p}>
             {p}
@@ -1414,10 +1503,10 @@ function AddFilter({
             ))}
           </select>
           {needsValue ? (
-            link ? (
-              // ENH-258 — pick an ENTITY; the stored value is its display name,
-              // which the engine folds to the note's identity (memberEq), so a
-              // `[[Growth]]` / `[Growth](./growth.md)` value all match.
+            link || linksTo ? (
+              // ENH-258/BUG-260 — pick an ENTITY; the stored value is its
+              // identity SLUG (correct even when a display name diverges from
+              // the basename); the option label + chips show the pretty name.
               <select
                 className="duo-rollups-add"
                 value={value}
@@ -1426,7 +1515,7 @@ function AddFilter({
               >
                 <option value="">{op === 'ancestor' ? 'ancestor…' : 'entity…'}</option>
                 {entOptions.map((e) => (
-                  <option key={e.slug} value={e.name}>
+                  <option key={e.slug} value={e.slug}>
                     {e.name}
                   </option>
                 ))}

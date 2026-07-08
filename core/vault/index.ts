@@ -102,6 +102,7 @@ export {
   setFrontmatterFields,
   entityPanel,
   rollupViewData,
+  LINKS_TO_PROP,
   type RollupBuilderModel,
   type BuilderBucket,
   type BuilderFilter,

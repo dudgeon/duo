@@ -15,7 +15,21 @@
 // bare import side-effect-free.)
 
 import type { VaultFile } from './types'
-import { targetKey } from '../markdown/vaultLinks'
+import { targetKey, slugStem } from '../markdown/vaultLinks'
+
+/** BUG-260 — the identity keys a PROBE value may fold to. `targetKey`
+ *  preserves punctuation (`Track: Context…` → `track:-context-…`), but the
+ *  slugger that NAMES files strips it (`track-context-…`), so a display-name
+ *  probe against a slug-named note missed. Probe with both folds; a Link
+ *  probe already carries a real target, so it keys once. */
+function probeKeys(v: unknown): string[] {
+  if (v instanceof Link) return [targetKey(v.target, 'wikilink')]
+  const s = String(v)
+  const keys = [targetKey(s, 'wikilink')]
+  const slug = slugStem(s)
+  if (!keys.includes(slug)) keys.push(slug)
+  return keys
+}
 
 export const DAY_MS = 86400000
 
@@ -119,7 +133,11 @@ function gbEq(a: unknown, b: unknown): boolean {
     x instanceof Link || (!!x && typeof x === 'object' && typeof (x as { name?: unknown }).name === 'string')
   const name = (x: any) => (x instanceof Link ? x.target : x && x.name ? x.name : x)
   if (linkish(a) || linkish(b)) {
-    return targetKey(String(name(a)), 'wikilink') === targetKey(String(name(b)), 'wikilink')
+    // BUG-260 — both operands probe with BOTH folds (targetKey + slugStem),
+    // so a display name with punctuation matches its slug-named note.
+    const ka = probeKeys(a instanceof Link ? a : String(name(a)))
+    const kb = probeKeys(b instanceof Link ? b : String(name(b)))
+    return ka.some((k) => kb.includes(k))
   }
   return name(a) === name(b)
 }
@@ -131,8 +149,12 @@ function gbEq(a: unknown, b: unknown): boolean {
  *  frontmatter drift doesn't break membership. */
 export function memberEq(el: unknown, probe: unknown): boolean {
   if (el instanceof Link || probe instanceof Link) {
-    const keyOf = (v: unknown) => targetKey(String(v instanceof Link ? v.target : v), 'wikilink')
-    return keyOf(el) === keyOf(probe)
+    // BUG-260 — probe with BOTH folds (targetKey + slugStem): a display-name
+    // probe with punctuation (`Track: Context…`) must match its slug-named
+    // note (`track-context-…`), which targetKey alone missed.
+    const ke = probeKeys(el)
+    const kp = probeKeys(probe)
+    return ke.some((k) => kp.includes(k))
   }
   return el === probe || String(el) === String(probe)
 }
@@ -182,9 +204,11 @@ export function buildEngineFiles(notes: VaultFile[], asOf: Date): EngineFile[] {
       backlinks: [],
       hasTag: () => false,
       hasLink(other: unknown) {
-        const raw = other instanceof Link ? other.target : (other as any)?.name ?? other
-        // _rawLinks are folded keys (ENH-216); fold the probe to match.
-        return this._rawLinks.includes(targetKey(String(raw), 'wikilink'))
+        const raw = other instanceof Link ? other : String((other as any)?.name ?? other)
+        // _rawLinks are folded keys (ENH-216); probe with BOTH folds
+        // (targetKey + slugStem — BUG-260) so a punctuated display name
+        // matches its slug-named note.
+        return probeKeys(raw).some((k) => this._rawLinks.includes(k))
       },
       inFolder(folder: string) {
         return this.folder === folder || this.folder.startsWith(folder + '/')
@@ -416,6 +440,37 @@ export function collectAncestors(file: EngineFile, propName: string): Link[] {
   return out
 }
 
+/** ENH-261 — the NEAREST ancestor of `file` up `propName`'s link chain whose
+ *  frontmatter `type` equals `typeName`. BFS so "nearest" holds even with
+ *  multi-valued parents; cycle-guarded by folded identity. Returns the
+ *  ancestor's Link (the display text the child wrote) or null. This is the
+ *  resolver behind the `ancestor:<prop>:<type>` group/column token — "group
+ *  initiatives by GOAL" walks parent→parent→… until a goal-typed note. An
+ *  unresolvable link (no note in the corpus) can't be type-checked, so it is
+ *  skipped rather than matched. */
+export function nearestAncestorOfType(file: EngineFile, propName: string, typeName: string): Link | null {
+  const seen = new Set<string>()
+  let frontier: EngineFile[] = [file]
+  while (frontier.length) {
+    const next: EngineFile[] = []
+    for (const f of frontier) {
+      const raw = f.properties[propName]
+      for (const val of Array.isArray(raw) ? raw : [raw]) {
+        if (!(val instanceof Link)) continue
+        const key = targetKey(val.target, 'wikilink')
+        if (seen.has(key)) continue
+        seen.add(key)
+        const target = f.links.find((l) => targetKey(l.name, 'wikilink') === key)
+        if (!target) continue
+        if (target.properties.type === typeName) return val
+        next.push(target)
+      }
+    }
+    frontier = next
+  }
+  return null
+}
+
 function makeCtx(
   file: EngineFile,
   thisFile: EngineFile | null,
@@ -546,6 +601,25 @@ function passesTri(
     const rs = kids(node.not as unknown[])
     if (rs.some((r) => r.v === 'error')) return { v: 'error', errs: errsOf(rs) }
     return { v: !rs.every((r) => r.v === true), errs: [] }
+  }
+  // BUG-260 — an UNQUOTED filter expression whose value contains ": " is
+  // parsed by YAML as a single-pair MAPPING, not a string (e.g.
+  // `- tracks == "Track: Context"` → { 'tracks == "Track': 'Context"' }).
+  // Before this fix that node fell through to `true` — the filter was
+  // SILENTLY DROPPED. Reconstruct the original expression when the shape is
+  // unambiguous; anything else non-empty is a surfaced error, never a pass.
+  const keys = Object.keys(node)
+  if (keys.length === 1 && typeof node[keys[0]] === 'string') {
+    return passesTri(`${keys[0]}: ${node[keys[0]]}`, file, thisFile, formulas, asOf)
+  }
+  if (keys.length > 0) {
+    return {
+      v: 'error',
+      errs: [{
+        expr: JSON.stringify(filterNode),
+        error: 'filter clause is not a string — an unquoted expression containing ": " parses as a YAML mapping; quote the line',
+      }],
+    }
   }
   return { v: true, errs: [] }
 }

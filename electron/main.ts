@@ -2592,6 +2592,8 @@ function setupIPC(): void {
           entityRefsByType: corpus.entityRefsByType,
           // ENH-259 — transitive ancestor closure per link prop ("is under").
           ancestorRefsByType: corpus.ancestorRefsByType,
+          // ENH-262 — per-type link targets (the "links to" filter options).
+          linkTargetsByType: corpus.linkTargetsByType,
         },
       }
     } catch (e) {

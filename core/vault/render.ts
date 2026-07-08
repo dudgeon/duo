@@ -24,6 +24,7 @@ import {
   evalExpr,
   passes,
   memberEq,
+  nearestAncestorOfType,
   DuoDate,
   Link,
   isEvalError,
@@ -130,6 +131,13 @@ export function readCol(
     return evalExpr(formulas[prop.slice(8)] ?? 'null', file, thisFile, formulas, asOf)
   }
   if (prop.startsWith('file.')) return (file as unknown as Record<string, unknown>)[prop.slice(5)]
+  // ENH-261 — the synthetic ancestor token `ancestor:<prop>:<type>` resolves
+  // to the row's NEAREST ancestor of that type up <prop>'s link chain ("group
+  // initiatives by goal"). A Link result flows through groupIdentity /
+  // groupDisplay / LinkCtx like any entity value — headers merge by identity
+  // and link the ancestor note. YAML-safe as a plain scalar (no colon-space).
+  const anc = prop.match(/^ancestor:([\w-]+):([\w-]+)$/)
+  if (anc) return nearestAncestorOfType(file, anc[1], anc[2])
   const key = prop.startsWith('note.') ? prop.slice(5) : prop
   return file.properties[key] ?? null
 }
