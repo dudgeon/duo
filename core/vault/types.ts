@@ -107,6 +107,13 @@ export interface Corpus {
   /** `${type}.${prop}` → observed scalar (non-link) values — the live
    *  enum domain used by lint's "did you mean" and the type picker. */
   enumsByType: Record<string, string[]>
+  /** ENH-258 — `${type}.${prop}` → the distinct ENTITY references observed in
+   *  a link-valued property, as {name (display), slug (targetKey identity)}.
+   *  A property is here iff its values are entity links (wikilink or OKF
+   *  rel-md); such props are deliberately ABSENT from enumsByType (their raw
+   *  link strings are un-matchable filter operands). Powers the Rollups
+   *  builder's entity value picker + identity-fold `contains` predicate. */
+  entityRefsByType: Record<string, { name: string; slug: string }[]>
   /** The type templates (the soft-schema registry, D5). */
   templates: TypeTemplate[]
 }

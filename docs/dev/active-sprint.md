@@ -1,5 +1,28 @@
 # Active sprint state — v0.13.2 shipped (init-on-choose vault + default-vault autocomplete + foreign-vault guard); next: triage
 
+## ENH-258 — Rollup builder: filter/group/bucket by an entity (link-valued prop) (🚧 built + data-path verified, branch `claude/rollup-arbitrary-entity-filter` — LIVE UI WALK PENDING)
+
+> **Owner-reported (photo):** can't filter a rollup on an entity-link property
+> (rolling up initiatives, filter by `initiative_theme`, group/bucket by
+> `parent`→goal) — it silently returns **zero rows**. **Root cause (verified
+> both formats):** `core/vault/corpus.ts` emitted entity-link values into
+> `enumsByType` in their raw serialized form (OKF `[Growth](./…md)`), so the
+> Rollups builder GUI offered un-matchable raw-link operands; the emitted
+> `initiative_theme == "[Growth](…)"` never matches the parsed `Link`
+> (identity `growth`). Engine + CLI (`~=`) were already correct; the defect was
+> corpus-schema + GUI. **Fix (shipped in this branch):** classify link-valued
+> scalars OUT of `enumsByType` into a new `entityRefsByType[type.prop] =
+> [{name, slug}]` (via the shared `extractLinkRefs`, both wikilink + rel-md);
+> surface it through `VaultSchemaDto`/IPC; the builder's filter-value +
+> bucket-value pickers now offer **entities** and emit the identity-fold
+> `contains`. Columns already rendered fine. **Verified:** typecheck clean · 351
+> vault tests green (incl. new corpus classification both-formats + end-to-end
+> `modelViewData` match tests) · `duo rollup show` on the GUI's exact read path
+> (`rollupViewData`) returns **rowCount=2** for `initiative_theme is Growth`
+> (was 0) and a declared entity bucket now matches. `cli/duo` rebuilt,
+> skill/vault.md + sync'd. **Owed:** live Rollups-tab walk (launch Duo) +
+> smoke-walk before any cut; tasks.md ENH-258 flips ✅ on merge.
+
 ## ENH-253 — Navigator repo-root "Pull latest changes" (🚧 built, branch `claude/file-navigator-git-pull-kt3dv7`, PR open — not yet a live-verified owner walk)
 
 > **Owner-requested directly** ("allow context click in file navigator on any

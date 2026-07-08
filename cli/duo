@@ -33,7 +33,7 @@ var import_crypto = require("crypto");
 var import_node_fs2 = __toESM(require("node:fs"));
 var import_node_path2 = __toESM(require("node:path"));
 
-// node_modules/js-yaml/dist/js-yaml.mjs
+// ../../../node_modules/js-yaml/dist/js-yaml.mjs
 function isNothing(subject) {
   return typeof subject === "undefined" || subject === null;
 }
@@ -3151,6 +3151,7 @@ function buildCorpus(root) {
   const aliases = {};
   const propsByType = /* @__PURE__ */ new Map();
   const enumsByType = /* @__PURE__ */ new Map();
+  const entityRefsByType = /* @__PURE__ */ new Map();
   const countsByType = /* @__PURE__ */ new Map();
   for (const note of notes) {
     const fm = note.frontmatter;
@@ -3164,8 +3165,15 @@ function buildCorpus(root) {
       if (!propsByType.has(t)) propsByType.set(t, /* @__PURE__ */ new Set());
       for (const [k, v] of Object.entries(fm)) {
         propsByType.get(t).add(k);
-        if (typeof v === "string" && !/^\[\[/.test(v)) {
-          const key = `${t}.${k}`;
+        const key = `${t}.${k}`;
+        for (const el of Array.isArray(v) ? v : [v]) {
+          if (typeof el !== "string") continue;
+          for (const ref of extractLinkRefs(el)) {
+            if (!entityRefsByType.has(key)) entityRefsByType.set(key, /* @__PURE__ */ new Map());
+            if (!entityRefsByType.get(key).has(ref.key)) entityRefsByType.get(key).set(ref.key, ref.display);
+          }
+        }
+        if (typeof v === "string" && extractLinkRefs(v).length === 0) {
           if (!enumsByType.has(key)) enumsByType.set(key, /* @__PURE__ */ new Set());
           enumsByType.get(key).add(v);
         }
@@ -3179,6 +3187,13 @@ function buildCorpus(root) {
     for (const k of [...m.keys()].sort()) out2[k] = [...m.get(k)].sort();
     return out2;
   };
+  const sortedRefs = (m) => {
+    const out2 = {};
+    for (const k of [...m.keys()].sort()) {
+      out2[k] = [...m.get(k).entries()].map(([slug, name]) => ({ name, slug })).sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return out2;
+  };
   const counts = {};
   for (const t of [...types].sort()) counts[t] = countsByType.get(t) ?? 0;
   return {
@@ -3189,6 +3204,7 @@ function buildCorpus(root) {
     propsByType: sortedRecord(propsByType),
     countsByType: counts,
     enumsByType: sortedRecord(enumsByType),
+    entityRefsByType: sortedRefs(entityRefsByType),
     templates
   };
 }
@@ -6546,7 +6562,7 @@ ${mergeRes.stdout}`.trim();
 }
 
 // cli/duo.ts
-var VERSION = true ? "0.13.4" : "0.0.0-dev";
+var VERSION = true ? "0.13.5" : "0.0.0-dev";
 var VERBS = [
   // ── Browser & tabs ──
   {

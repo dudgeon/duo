@@ -12,6 +12,7 @@ import path from 'node:path'
 import { load as yamlLoad } from 'js-yaml'
 import type { Corpus, TypeTemplate } from './types'
 import { readNotes, splitFrontmatter } from './parse'
+import { extractLinkRefs } from '../markdown/vaultLinks'
 
 /** Read `templates/<type>.md` files as the soft-schema registry (D5). Each
  *  declares its `type`, optional filing `folder`, expected `fields`, and an
@@ -63,6 +64,11 @@ export function buildCorpus(root: string): Corpus {
   const aliases: Record<string, string> = {}
   const propsByType = new Map<string, Set<string>>()
   const enumsByType = new Map<string, Set<string>>()
+  // ENH-258 — entity-reference values per link-valued property (`${type}.${prop}`
+  // → slug → display name, deduped by slug). A property lands here iff its
+  // values are entity links (wikilink or OKF rel-md); those are kept OUT of
+  // enumsByType, whose raw link strings are un-matchable filter operands.
+  const entityRefsByType = new Map<string, Map<string, string>>()
   const countsByType = new Map<string, number>()
 
   for (const note of notes) {
@@ -79,9 +85,24 @@ export function buildCorpus(root: string): Corpus {
       if (!propsByType.has(t)) propsByType.set(t, new Set())
       for (const [k, v] of Object.entries(fm)) {
         propsByType.get(t)!.add(k)
-        // Scalar, non-wikilink string → an enum candidate (status, team…).
-        if (typeof v === 'string' && !/^\[\[/.test(v)) {
-          const key = `${t}.${k}`
+        const key = `${t}.${k}`
+        // ENH-258 — entity refs first: any string value (scalar OR array
+        // element) that IS a link (wikilink or OKF rel-md) contributes its
+        // {slug → display} to entityRefsByType, and is NOT an enum candidate.
+        // extractLinkRefs is the ONE link parser (shared with the graph), so
+        // the slug (targetKey) matches the engine's identity fold exactly.
+        for (const el of Array.isArray(v) ? v : [v]) {
+          if (typeof el !== 'string') continue
+          for (const ref of extractLinkRefs(el)) {
+            if (!entityRefsByType.has(key)) entityRefsByType.set(key, new Map())
+            // First display wins for a given identity (stable label).
+            if (!entityRefsByType.get(key)!.has(ref.key)) entityRefsByType.get(key)!.set(ref.key, ref.display)
+          }
+        }
+        // Scalar, non-link string → an enum candidate (status, team…). The
+        // link guard now covers BOTH wikilinks and OKF rel-md (previously only
+        // `[[…` was excluded, so rel-md links leaked in as raw operands).
+        if (typeof v === 'string' && extractLinkRefs(v).length === 0) {
           if (!enumsByType.has(key)) enumsByType.set(key, new Set())
           enumsByType.get(key)!.add(v)
         }
@@ -98,6 +119,17 @@ export function buildCorpus(root: string): Corpus {
     return out
   }
 
+  // ENH-258 — {slug → name} maps → sorted {name, slug}[] (by display name).
+  const sortedRefs = (m: Map<string, Map<string, string>>): Record<string, { name: string; slug: string }[]> => {
+    const out: Record<string, { name: string; slug: string }[]> = {}
+    for (const k of [...m.keys()].sort()) {
+      out[k] = [...m.get(k)!.entries()]
+        .map(([slug, name]) => ({ name, slug }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+    }
+    return out
+  }
+
   // Template-only types count 0 (declared, unused) — R7 lists them anyway.
   const counts: Record<string, number> = {}
   for (const t of [...types].sort()) counts[t] = countsByType.get(t) ?? 0
@@ -110,6 +142,7 @@ export function buildCorpus(root: string): Corpus {
     propsByType: sortedRecord(propsByType),
     countsByType: counts,
     enumsByType: sortedRecord(enumsByType),
+    entityRefsByType: sortedRefs(entityRefsByType),
     templates,
   }
 }
