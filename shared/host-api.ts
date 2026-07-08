@@ -1267,7 +1267,7 @@ export interface VaultRollupDto {
 // ENH-243 — the Rollups tab DTOs. Mirror core/vault/builder.ts shapes
 // (RollupBuilderModel / RollupViewData / EntityPanel), declared inline for
 // the same reason as the DTOs above (core/vault is main-process-only).
-export type RollupFilterOpDto = 'eq' | 'ne' | 'contains' | 'ancestor' | 'set' | 'notset'
+export type RollupFilterOpDto = 'eq' | 'ne' | 'contains' | 'ancestor' | 'linksto' | 'set' | 'notset'
 
 export interface RollupFilterDto {
   property: string
@@ -1335,10 +1335,13 @@ export interface RollupViewDataDto {
  *  the schema — computed live per call, never cached). */
 /** ENH-258 — an entity reference observed in a link-valued property: the
  *  human display name + the targetKey identity slug (the operand the engine's
- *  identity fold matches). */
+ *  identity fold matches). ENH-261 — `type` is the target note's `type:`
+ *  (null when unresolvable), so the GUI can offer ancestor-TYPE grouping
+ *  ("goal (via parent)") and type-filtered pickers. */
 export interface EntityRefDto {
   name: string
   slug: string
+  type: string | null
 }
 
 export interface VaultSchemaDto {
@@ -1357,6 +1360,10 @@ export interface VaultSchemaDto {
    *  "is under" (any_parent) filter offers these; a superset of
    *  entityRefsByType for the same key. */
   ancestorRefsByType: Record<string, EntityRefDto[]>
+  /** ENH-262 — type → every entity that type's notes LINK (any property,
+   *  prose included — the edge set `file.hasLink` probes). The "links to"
+   *  filter's value options. */
+  linkTargetsByType: Record<string, EntityRefDto[]>
 }
 
 /** ENH-248 R2 — what the browser pane needs to overlay the Duo-native

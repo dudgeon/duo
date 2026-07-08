@@ -293,4 +293,138 @@ describe('rollupViewData (D10 — structured rows, D5 — multi-level groups)', 
     // b's chain reaches a; a's own chain reaches a (via b) too.
     expect(data.rows.map((r) => r.title).sort()).toEqual(['a', 'b'])
   })
+
+  // ── BUG-260 / ENH-261 / ENH-262 — the owner's knowledge-base shape ────────
+  // Entity names carry ": " (Track: Context…); populations reach the track
+  // node through DIFFERENT properties (owned: parent, monitored: tracks[]).
+  const seedKb = () => {
+    write('goals/aipm.md', '---\ntype: goal\n---\n# AIPM Force Multiplier\n')
+    write('goals/aipm/share.md', '---\ntype: initiative\nengagement: own\nparent: "[AIPM Force Multiplier](../aipm.md)"\n---\n# Share\n')
+    write(
+      'goals/aipm/share/track-context-and-agent-resources.md',
+      '---\ntype: initiative\nengagement: own\nparent: "[Share](../share.md)"\n---\n# Track: Context and Agent Resources\n',
+    )
+    write(
+      'goals/aipm/share/track-context-and-agent-resources/starter-kit.md',
+      '---\ntype: initiative\nengagement: own\nparent: "[Track: Context and Agent Resources](../track-context-and-agent-resources.md)"\n---\n# Starter Kit\n',
+    )
+    write('orgs/card.md', '---\ntype: organization\n---\n# Card\n')
+    write(
+      'orgs/card/fraud-kb.md',
+      '---\ntype: initiative\nengagement: monitor\nparent: "[Card](../card.md)"\ntracks:\n  - "[Track: Context and Agent Resources](../../goals/aipm/share/track-context-and-agent-resources.md)"\n---\n# Fraud KB\n',
+    )
+  }
+
+  it('BUG-260 — a filter value containing ": " serializes YAML-safe, matches, and round-trips', () => {
+    seedKb()
+    const model: RollupBuilderModel = {
+      title: 'Tagged to track',
+      types: ['initiative'],
+      groupBy: [],
+      buckets: [],
+      filters: [{ property: 'tracks', op: 'contains', value: 'Track: Context and Agent Resources' }],
+      columns: [],
+    }
+    // The emitted line must be a quoted YAML scalar — an unquoted one parses
+    // as a MAPPING and the filter is silently dropped (the pre-fix failure).
+    const yaml = serializeBuilderBase(model)
+    expect(yaml).toContain(`- 'list(tracks).contains("Track: Context and Agent Resources")'`)
+    const parsed = parseBuilderBase(yaml, { type: 'rollup' })
+    expect(parsed?.filters).toEqual(model.filters)
+    // And it MATCHES (display name folds to the slug-named note — the
+    // punctuation leniency): only the cross-tagged monitored initiative.
+    const data = modelViewData(v, model)
+    expect(data.error).toBeNull()
+    expect(data.rows.map((r) => r.title)).toEqual(['fraud-kb'])
+  })
+
+  it('BUG-260 — the notset op (leading `!`) no longer breaks the spec YAML', () => {
+    seedKb()
+    const model: RollupBuilderModel = {
+      title: 'No themes',
+      types: ['initiative'],
+      groupBy: [],
+      buckets: [],
+      filters: [{ property: 'themes', op: 'notset' }],
+      columns: [],
+    }
+    const yaml = serializeBuilderBase(model)
+    expect(yaml).toContain(`- '!file.hasProperty("themes")'`)
+    const data = modelViewData(v, model)
+    expect(data.error).toBeNull()
+    expect(data.rows.length).toBe(4) // every initiative (none has themes)
+    expect(parseBuilderBase(yaml, { type: 'rollup' })?.filters).toEqual(model.filters)
+  })
+
+  it('BUG-260 — a PRE-FIX note (unquoted colon line → YAML mapping) recovers: renders right + stays editable', () => {
+    seedKb()
+    // Hand-write the broken shape the old serializer produced.
+    write(
+      'rollups/legacy.md',
+      '---\ntype: rollup\ntitle: Legacy\nformat: html\n---\n\n```base\nfilters:\n  and:\n    - type == "initiative"\n    - list(tracks).contains("Track: Context and Agent Resources")\nviews:\n  - type: table\n    name: Legacy\n    order:\n      - file.name\n```\n',
+    )
+    const data = rollupViewData(v, 'rollups/legacy.md')
+    expect(data.error).toBeNull()
+    // The mangled clause is reconstructed — filter APPLIES (1 row, not all 5)…
+    expect(data.rows.map((r) => r.title)).toEqual(['fraud-kb'])
+    // …and the note is editable again (model non-null), so the next GUI save
+    // re-serializes it quoted.
+    expect(data.model?.filters).toEqual([
+      { property: 'tracks', op: 'contains', value: 'Track: Context and Agent Resources' },
+    ])
+  })
+
+  it('ENH-261 — the `ancestor:<prop>:<type>` group token groups rows by their goal ancestor', () => {
+    seedKb()
+    const model: RollupBuilderModel = {
+      title: 'By goal',
+      types: ['initiative'],
+      groupBy: ['ancestor:parent:goal'],
+      buckets: [],
+      filters: [],
+      columns: [],
+    }
+    const yaml = serializeBuilderBase(model)
+    expect(yaml).toContain('property: ancestor:parent:goal')
+    expect(parseBuilderBase(yaml, { type: 'rollup', group_by: ['ancestor:parent:goal'] })?.groupBy).toEqual([
+      'ancestor:parent:goal',
+    ])
+    const data = modelViewData(v, model)
+    expect(data.error).toBeNull()
+    // Owned chain (share → track → starter-kit) groups under the goal;
+    // the monitored initiative (parent chain = orgs, no goal) groups under —.
+    const byGroup = new Map<string, string[]>()
+    for (const r of data.rows) {
+      const g = r.groups[0]
+      byGroup.set(g, [...(byGroup.get(g) ?? []), r.title])
+    }
+    expect(byGroup.get('AIPM Force Multiplier')?.sort()).toEqual(['share', 'starter-kit', 'track-context-and-agent-resources'])
+    expect(byGroup.get('—')).toEqual(['fraud-kb'])
+  })
+
+  it('ENH-262 — a `linksto` filter unions populations that reach one entity via different properties', () => {
+    seedKb()
+    const model: RollupBuilderModel = {
+      title: 'Context track initiatives',
+      types: ['initiative'],
+      groupBy: ['engagement'],
+      buckets: [],
+      filters: [{ property: '*', op: 'linksto', value: 'Track: Context and Agent Resources' }],
+      columns: [],
+    }
+    const yaml = serializeBuilderBase(model)
+    expect(yaml).toContain(`- 'file.hasLink("Track: Context and Agent Resources")'`)
+    expect(parseBuilderBase(yaml, { type: 'rollup', group_by: ['engagement'] })?.filters).toEqual(model.filters)
+    const data = modelViewData(v, model)
+    expect(data.error).toBeNull()
+    // Owned child links the track via parent:, monitored links it via
+    // tracks[] — ONE predicate catches both (the owner's exact target rollup).
+    const byGroup = new Map<string, string[]>()
+    for (const r of data.rows) {
+      const g = r.groups[0]
+      byGroup.set(g, [...(byGroup.get(g) ?? []), r.title])
+    }
+    expect(byGroup.get('own')).toEqual(['starter-kit'])
+    expect(byGroup.get('monitor')).toEqual(['fraud-kb'])
+  })
 })

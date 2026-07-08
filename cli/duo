@@ -33,7 +33,7 @@ var import_crypto = require("crypto");
 var import_node_fs2 = __toESM(require("node:fs"));
 var import_node_path2 = __toESM(require("node:path"));
 
-// node_modules/js-yaml/dist/js-yaml.mjs
+// ../../../node_modules/js-yaml/dist/js-yaml.mjs
 function isNothing(subject) {
   return typeof subject === "undefined" || subject === null;
 }
@@ -3217,6 +3217,17 @@ function buildCorpus(root) {
       }
     }
   }
+  const linkTargetsByType = /* @__PURE__ */ new Map();
+  for (const note of notes) {
+    const t = typeof note.frontmatter.type === "string" ? note.frontmatter.type : null;
+    if (!t) continue;
+    for (const slug of note.links) {
+      const target = byKey.get(slug);
+      if (!target) continue;
+      if (!linkTargetsByType.has(t)) linkTargetsByType.set(t, /* @__PURE__ */ new Map());
+      if (!linkTargetsByType.get(t).has(slug)) linkTargetsByType.get(t).set(slug, target.basename);
+    }
+  }
   const templates = loadTemplates(root);
   for (const tpl of templates) types.add(tpl.type);
   const sortedRecord = (m) => {
@@ -3224,10 +3235,15 @@ function buildCorpus(root) {
     for (const k of [...m.keys()].sort()) out2[k] = [...m.get(k)].sort();
     return out2;
   };
+  const typeOf = (slug) => {
+    const n = byKey.get(slug);
+    const t = n && typeof n.frontmatter.type === "string" ? n.frontmatter.type : null;
+    return t;
+  };
   const sortedRefs = (m) => {
     const out2 = {};
     for (const k of [...m.keys()].sort()) {
-      out2[k] = [...m.get(k).entries()].map(([slug, name]) => ({ name, slug })).sort((a, b) => a.name.localeCompare(b.name));
+      out2[k] = [...m.get(k).entries()].map(([slug, name]) => ({ name, slug, type: typeOf(slug) })).sort((a, b) => a.name.localeCompare(b.name));
     }
     return out2;
   };
@@ -3243,6 +3259,7 @@ function buildCorpus(root) {
     enumsByType: sortedRecord(enumsByType),
     entityRefsByType: sortedRefs(entityRefsByType),
     ancestorRefsByType: sortedRefs(ancestorRefsByType),
+    linkTargetsByType: sortedRefs(linkTargetsByType),
     templates
   };
 }
@@ -4002,6 +4019,14 @@ var import_node_path15 = __toESM(require("node:path"));
 var import_node_crypto = __toESM(require("node:crypto"));
 
 // core/vault/engine.ts
+function probeKeys(v) {
+  if (v instanceof Link) return [targetKey(v.target, "wikilink")];
+  const s = String(v);
+  const keys = [targetKey(s, "wikilink")];
+  const slug = slugStem(s);
+  if (!keys.includes(slug)) keys.push(slug);
+  return keys;
+}
 var DAY_MS = 864e5;
 var DuoDate = class {
   constructor(d, asOf) {
@@ -4094,14 +4119,17 @@ function gbEq(a, b) {
   const linkish = (x) => x instanceof Link || !!x && typeof x === "object" && typeof x.name === "string";
   const name = (x) => x instanceof Link ? x.target : x && x.name ? x.name : x;
   if (linkish(a) || linkish(b)) {
-    return targetKey(String(name(a)), "wikilink") === targetKey(String(name(b)), "wikilink");
+    const ka = probeKeys(a instanceof Link ? a : String(name(a)));
+    const kb = probeKeys(b instanceof Link ? b : String(name(b)));
+    return ka.some((k) => kb.includes(k));
   }
   return name(a) === name(b);
 }
 function memberEq(el, probe) {
   if (el instanceof Link || probe instanceof Link) {
-    const keyOf = (v) => targetKey(String(v instanceof Link ? v.target : v), "wikilink");
-    return keyOf(el) === keyOf(probe);
+    const ke = probeKeys(el);
+    const kp = probeKeys(probe);
+    return ke.some((k) => kp.includes(k));
   }
   return el === probe || String(el) === String(probe);
 }
@@ -4127,8 +4155,8 @@ function buildEngineFiles(notes, asOf) {
       backlinks: [],
       hasTag: () => false,
       hasLink(other) {
-        const raw = other instanceof Link ? other.target : other?.name ?? other;
-        return this._rawLinks.includes(targetKey(String(raw), "wikilink"));
+        const raw = other instanceof Link ? other : String(other?.name ?? other);
+        return probeKeys(raw).some((k) => this._rawLinks.includes(k));
       },
       inFolder(folder) {
         return this.folder === folder || this.folder.startsWith(folder + "/");
@@ -4311,6 +4339,28 @@ function collectAncestors(file, propName) {
   walk2(file);
   return out2;
 }
+function nearestAncestorOfType(file, propName, typeName) {
+  const seen = /* @__PURE__ */ new Set();
+  let frontier = [file];
+  while (frontier.length) {
+    const next = [];
+    for (const f of frontier) {
+      const raw = f.properties[propName];
+      for (const val of Array.isArray(raw) ? raw : [raw]) {
+        if (!(val instanceof Link)) continue;
+        const key = targetKey(val.target, "wikilink");
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const target = f.links.find((l) => targetKey(l.name, "wikilink") === key);
+        if (!target) continue;
+        if (target.properties.type === typeName) return val;
+        next.push(target);
+      }
+    }
+    frontier = next;
+  }
+  return null;
+}
 function makeCtx(file, thisFile, formulas, asOf) {
   const formulaCache = {};
   const formulaProxy = new Proxy(
@@ -4401,6 +4451,19 @@ function passesTri(filterNode, file, thisFile, formulas, asOf) {
     const rs = kids(node.not);
     if (rs.some((r) => r.v === "error")) return { v: "error", errs: errsOf(rs) };
     return { v: !rs.every((r) => r.v === true), errs: [] };
+  }
+  const keys = Object.keys(node);
+  if (keys.length === 1 && typeof node[keys[0]] === "string") {
+    return passesTri(`${keys[0]}: ${node[keys[0]]}`, file, thisFile, formulas, asOf);
+  }
+  if (keys.length > 0) {
+    return {
+      v: "error",
+      errs: [{
+        expr: JSON.stringify(filterNode),
+        error: 'filter clause is not a string \u2014 an unquoted expression containing ": " parses as a YAML mapping; quote the line'
+      }]
+    };
   }
   return { v: true, errs: [] };
 }
@@ -5174,6 +5237,7 @@ function provenanceStamp(note, rendered) {
 }
 
 // core/vault/builder.ts
+var LINKS_TO_PROP = "*";
 var MANAGED_COMMENT = "<!-- Managed by the Duo Rollups tab (ENH-243). Reshape it there or via `duo rollup set`; hand-edits may drop it to view-only in the GUI. -->";
 function filterExpr(f) {
   switch (f.op) {
@@ -5185,23 +5249,29 @@ function filterExpr(f) {
       return `list(${f.property}).contains(${JSON.stringify(f.value ?? "")})`;
     case "ancestor":
       return `ancestors(${JSON.stringify(f.property)}).contains(${JSON.stringify(f.value ?? "")})`;
+    case "linksto":
+      return `file.hasLink(${JSON.stringify(f.value ?? "")})`;
     case "set":
       return `file.hasProperty(${JSON.stringify(f.property)})`;
     case "notset":
       return `!file.hasProperty(${JSON.stringify(f.property)})`;
   }
 }
+function yamlSafeExpr(expr) {
+  const hazard = /: |\t|\s#/.test(expr) || /^[!&*?|>%@`"'[\]{},-]/.test(expr) || /^\s|[\s:]$/.test(expr);
+  return hazard ? `'${expr.replace(/'/g, "''")}'` : expr;
+}
 function serializeBuilderBase(model) {
   const lines = [];
   lines.push("filters:");
   lines.push("  and:");
   if (model.types.length === 1) {
-    lines.push(`    - type == ${JSON.stringify(model.types[0])}`);
+    lines.push(`    - ${yamlSafeExpr(`type == ${JSON.stringify(model.types[0])}`)}`);
   } else {
     lines.push("    - or:");
-    for (const t of model.types) lines.push(`        - type == ${JSON.stringify(t)}`);
+    for (const t of model.types) lines.push(`        - ${yamlSafeExpr(`type == ${JSON.stringify(t)}`)}`);
   }
-  for (const f of model.filters) lines.push(`    - ${filterExpr(f)}`);
+  for (const f of model.filters) lines.push(`    - ${yamlSafeExpr(filterExpr(f))}`);
   lines.push("views:");
   lines.push("  - type: table");
   lines.push(`    name: ${JSON.stringify(model.title)}`);
@@ -5225,7 +5295,18 @@ var EXPR_EQ = /^(\w[\w-]*) (==|!=) "(.*)"$/;
 var EXPR_SET = /^(!?)file\.hasProperty\("([\w-]+)"\)$/;
 var EXPR_CONTAINS = /^list\((\w[\w-]*)\)\.contains\("(.*)"\)$/;
 var EXPR_ANCESTOR = /^ancestors\("([\w-]+)"\)\.contains\("(.*)"\)$/;
+var EXPR_LINKSTO = /^file\.hasLink\("(.*)"\)$/;
 function parseFilterExpr(expr) {
+  const lnk = expr.match(EXPR_LINKSTO);
+  if (lnk) {
+    let value;
+    try {
+      value = JSON.parse(`"${lnk[1]}"`);
+    } catch {
+      value = lnk[1];
+    }
+    return { property: LINKS_TO_PROP, op: "linksto", value };
+  }
   const anc = expr.match(EXPR_ANCESTOR);
   if (anc) {
     let value;
@@ -5296,6 +5377,18 @@ function parseBuilderBase(raw, fm) {
         types.push(parsed.type);
       }
       continue;
+    }
+    if (item && typeof item === "object") {
+      const keys = Object.keys(item);
+      const v = keys.length === 1 ? item[keys[0]] : void 0;
+      if (typeof v === "string") {
+        const parsed = parseFilterExpr(`${keys[0]}: ${v}`);
+        if (parsed) {
+          if ("type" in parsed && !("property" in parsed)) types.push(parsed.type);
+          else filters.push(parsed);
+          continue;
+        }
+      }
     }
     return null;
   }
@@ -5628,6 +5721,8 @@ function readCol(prop, file, thisFile, formulas, asOf) {
     return evalExpr(formulas[prop.slice(8)] ?? "null", file, thisFile, formulas, asOf);
   }
   if (prop.startsWith("file.")) return file[prop.slice(5)];
+  const anc = prop.match(/^ancestor:([\w-]+):([\w-]+)$/);
+  if (anc) return nearestAncestorOfType(file, anc[1], anc[2]);
   const key = prop.startsWith("note.") ? prop.slice(5) : prop;
   return file.properties[key] ?? null;
 }
@@ -6637,7 +6732,7 @@ ${mergeRes.stdout}`.trim();
 }
 
 // cli/duo.ts
-var VERSION = true ? "0.13.5" : "0.0.0-dev";
+var VERSION = true ? "0.13.6" : "0.0.0-dev";
 var VERBS = [
   // ── Browser & tabs ──
   {
@@ -7128,8 +7223,8 @@ var VERBS = [
   {
     name: "rollup",
     group: "Vault",
-    args: '<render <note|base>|list|diff <note|base>|new --type t|show <note>|set <note>|doctor <note>|markdown <note>> [--md|--html] [--style css] [--summary "t"|--no-summary] [--against p] [--title "t"] [--group a,b] [--bucket v[=Label]]... [--filter k=v|k~=v|k^=v]... [--columns a,b] [--out p] [--open] [--vault p]',
-    summary: "ENH-243 \u2014 the builder verbs (the Rollups tab's CLI twins; same core layer). new --type <t[,t2]> [--title \"t\"] [--group a,b] [--bucket 'value[=Label]']... [--filter 'k=v'|'k!=v'|'k~=v'|'k?'|'k!?']... [--columns a,b]: scaffold a builder-canonical `type: rollup` note at rollups/<slug>.md \u2014 multi-depth grouping via the ordered --group list (level 1 mirrors into the base block's groupBy; the full list lives in the note's group_by: frontmatter, grouped GUI-side). ENH-255 \u2014 k~=v is MEMBERSHIP on a multi-valued field (list contains v; a list-of-links field matches on the linked note's IDENTITY \u2014 `tracks~=q3-launch` matches `[[Q3 Launch]]` \u2014 never display text). ENH-259 \u2014 k^=v is TRANSITIVE \"is under\" (any_parent): v matches an entity anywhere up property k's link chain (`parent^=California` selects every neighborhood whose city rolls up to California, irrespective of the city). --bucket declares level-1 groups that ALWAYS render (even empty \u2014 an empty bucket is signal), in flag order, labeled `value=Label` (first unescaped = splits; \\= escapes a literal = in the value); a filter that can't be evaluated is SURFACED (\u26A0 stderr + a warnings field + an artifact banner), never a silent empty rollup. show <note>: the parsed builder model + row/group summary as stable JSON (model:null = hand-authored/view-only; error set = broken). set <note> [--title|--type|--group|--columns] [--bucket \u2026]... [--clear-buckets] [--filter \u2026]... [--clear-filters]: mutate a builder-canonical note (appends filters unless --clear-filters; --bucket REPLACES the declared-bucket list wholesale \u2014 order is render order; refuses a hand-authored spec rather than clobbering it). doctor <note>: diagnosis \u2014 parse/eval error + advisory lint findings + repair guidance (the same prompt the GUI's \"Fix with Claude\" seeds). markdown <note> [--vault p]: ENH-244 \u2014 \"Copy as Markdown\" CLI twin; prints ONE GFM table to stdout with title cells linking to the entity's GitHub blob (vault root sits inside a GitHub-remote repo, branch = the current HEAD) or a vault-relative `./path` otherwise (one git probe for the whole table, works in OKF too) \u2014 pipe to `pbcopy` or a file. ENH-229/ENH-228 \u2014 rollups. A rollup is a first-class `type: rollup` NOTE (templates/rollup.md, filed in rollups/) that owns its spec (an embedded ```base block or a `spec:` .base path) + render provenance. render <note|base> [--md|--html]: render the spec and emit ONE variant \u2014 a stamped HTML artifact (--html; the DEFAULT for a rollup note \u2014 D2, HTML-first) OR Markdown (--md; GitHub-portable). For a `type: rollup` note the out path defaults to its `out:` (else rollups/<slug>.html) and `out`/`last_generated`/`last_hash` are stamped back into the note surgically (body untouched) \u2014 but ONLY for the note's canonical format; an ad-hoc --md/--html override renders a side artifact and leaves the note's provenance untouched. A bare `.base`/non-rollup target keeps the legacy MD-default, no-stamp behavior. Every row LINKS the entities it rolls up (the note + owner/group links resolved from frontmatter, incl. OKF rel-md). --style <css-file> layers a custom stylesheet over the Atelier base (HTML only). list: the rollup inventory \u2014 every `type: rollup` note with {note,title,out,format,last_generated,last_hash,stale} (stale = last_hash !== the live source hash); a corpus query, no scan, no sidecar. Change summary (req #7): the artifact self-embeds a rows snapshot + a summary log (HTML comments \u2014 \xA7D9-clean, no sidecar); --summary \"<text>\" adds a new latest \"What changed\" entry (an interactive Claude writes the narrative+notables from `duo rollup diff`), prior entries drop into a collapsible history; --no-summary clears it. diff <note|base> [--against <prior>]: deterministic JSON delta (added/removed/changed rows) vs the prior artifact's embedded snapshot \u2014 the material Claude summarizes. --out writes elsewhere; --open surfaces it as a tab. ENH-248 \u2014 lifecycle + GitHub links. delete <note> --force: remove the definition note AND its rendered artifact (without --force: dry-run prints what would go; file history is the note's undo net). duplicate <note>: copy as \"<Title> (copy)\" with provenance stripped (the copy renders its own artifact on next save/render). render --github: entity links as GitHub blob URLs (probe = the markdown verb's; falls back to relative when no GitHub remote). set --links github|relative: persist the note's entity-link mode (`links:` frontmatter; works on hand-authored notes too) \u2014 renders honor it automatically, incl. the GUI's auto-render-on-save."
+    args: '<render <note|base>|list|diff <note|base>|new --type t|show <note>|set <note>|doctor <note>|markdown <note>> [--md|--html] [--style css] [--summary "t"|--no-summary] [--against p] [--title "t"] [--group a,b] [--bucket v[=Label]]... [--filter k=v|k~=v|k^=v|@=v]... [--columns a,b] [--out p] [--open] [--vault p]',
+    summary: "ENH-243 \u2014 the builder verbs (the Rollups tab's CLI twins; same core layer). new --type <t[,t2]> [--title \"t\"] [--group a,b] [--bucket 'value[=Label]']... [--filter 'k=v'|'k!=v'|'k~=v'|'k?'|'k!?']... [--columns a,b]: scaffold a builder-canonical `type: rollup` note at rollups/<slug>.md \u2014 multi-depth grouping via the ordered --group list (level 1 mirrors into the base block's groupBy; the full list lives in the note's group_by: frontmatter, grouped GUI-side). ENH-255 \u2014 k~=v is MEMBERSHIP on a multi-valued field (list contains v; a list-of-links field matches on the linked note's IDENTITY \u2014 `tracks~=q3-launch` matches `[[Q3 Launch]]` \u2014 never display text). ENH-259 \u2014 k^=v is TRANSITIVE \"is under\" (any_parent): v matches an entity anywhere up property k's link chain (`parent^=California` selects every neighborhood whose city rolls up to California, irrespective of the city). ENH-262 \u2014 @=v is \"links to\": the note links entity v through ANY property or prose (`@=track-context` unions populations that reach one entity via different fields \u2014 owned via parent:, monitored via tracks:[]). ENH-261 \u2014 --group/--columns also accept the ancestor-TYPE token `ancestor:<prop>:<type>` (`--group ancestor:parent:goal` groups rows by the GOAL each rolls up to; rows with no such ancestor group under \u2014). Entity operands are canonically the note's SLUG (basename identity); a display name also matches when it folds to the basename (punctuation stripped \u2014 BUG-260). --bucket declares level-1 groups that ALWAYS render (even empty \u2014 an empty bucket is signal), in flag order, labeled `value=Label` (first unescaped = splits; \\= escapes a literal = in the value); a filter that can't be evaluated is SURFACED (\u26A0 stderr + a warnings field + an artifact banner), never a silent empty rollup. show <note>: the parsed builder model + row/group summary as stable JSON (model:null = hand-authored/view-only; error set = broken). set <note> [--title|--type|--group|--columns] [--bucket \u2026]... [--clear-buckets] [--filter \u2026]... [--clear-filters]: mutate a builder-canonical note (appends filters unless --clear-filters; --bucket REPLACES the declared-bucket list wholesale \u2014 order is render order; refuses a hand-authored spec rather than clobbering it). doctor <note>: diagnosis \u2014 parse/eval error + advisory lint findings + repair guidance (the same prompt the GUI's \"Fix with Claude\" seeds). markdown <note> [--vault p]: ENH-244 \u2014 \"Copy as Markdown\" CLI twin; prints ONE GFM table to stdout with title cells linking to the entity's GitHub blob (vault root sits inside a GitHub-remote repo, branch = the current HEAD) or a vault-relative `./path` otherwise (one git probe for the whole table, works in OKF too) \u2014 pipe to `pbcopy` or a file. ENH-229/ENH-228 \u2014 rollups. A rollup is a first-class `type: rollup` NOTE (templates/rollup.md, filed in rollups/) that owns its spec (an embedded ```base block or a `spec:` .base path) + render provenance. render <note|base> [--md|--html]: render the spec and emit ONE variant \u2014 a stamped HTML artifact (--html; the DEFAULT for a rollup note \u2014 D2, HTML-first) OR Markdown (--md; GitHub-portable). For a `type: rollup` note the out path defaults to its `out:` (else rollups/<slug>.html) and `out`/`last_generated`/`last_hash` are stamped back into the note surgically (body untouched) \u2014 but ONLY for the note's canonical format; an ad-hoc --md/--html override renders a side artifact and leaves the note's provenance untouched. A bare `.base`/non-rollup target keeps the legacy MD-default, no-stamp behavior. Every row LINKS the entities it rolls up (the note + owner/group links resolved from frontmatter, incl. OKF rel-md). --style <css-file> layers a custom stylesheet over the Atelier base (HTML only). list: the rollup inventory \u2014 every `type: rollup` note with {note,title,out,format,last_generated,last_hash,stale} (stale = last_hash !== the live source hash); a corpus query, no scan, no sidecar. Change summary (req #7): the artifact self-embeds a rows snapshot + a summary log (HTML comments \u2014 \xA7D9-clean, no sidecar); --summary \"<text>\" adds a new latest \"What changed\" entry (an interactive Claude writes the narrative+notables from `duo rollup diff`), prior entries drop into a collapsible history; --no-summary clears it. diff <note|base> [--against <prior>]: deterministic JSON delta (added/removed/changed rows) vs the prior artifact's embedded snapshot \u2014 the material Claude summarizes. --out writes elsewhere; --open surfaces it as a tab. ENH-248 \u2014 lifecycle + GitHub links. delete <note> --force: remove the definition note AND its rendered artifact (without --force: dry-run prints what would go; file history is the note's undo net). duplicate <note>: copy as \"<Title> (copy)\" with provenance stripped (the copy renders its own artifact on next save/render). render --github: entity links as GitHub blob URLs (probe = the markdown verb's; falls back to relative when no GitHub remote). set --links github|relative: persist the note's entity-link mode (`links:` frontmatter; works on hand-authored notes too) \u2014 renders honor it automatically, incl. the GUI's auto-render-on-save."
   }
 ];
 var SOCKET_PATH = process.env.DUO_SOCKET ?? path20.join(os3.homedir(), "Library", "Application Support", "duo", "duo.sock");
@@ -9064,7 +9159,7 @@ ${res.pr.url}`);
         const sub = rest[0];
         const subRest = rest.slice(1);
         const vaultFlag = flagValue(subRest, "--vault");
-        const USAGE = 'Usage: duo rollup <render|list|diff|new|show|set|doctor|markdown|delete|duplicate> [<note|base>] [--md|--html] [--github] [--style <css-file>] [--summary "<text>"|--no-summary] [--against <path>] [--type <t[,t2]>] [--title "<t>"] [--group a,b] [--bucket <value[=Label]>]... [--clear-buckets] [--filter <k=v|k!=v|k~=v|k^=v|k?|k!?>]... [--columns a,b] [--clear-filters] [--links github|relative] [--out <path>] [--open] [--force] [--vault <path>]';
+        const USAGE = 'Usage: duo rollup <render|list|diff|new|show|set|doctor|markdown|delete|duplicate> [<note|base>] [--md|--html] [--github] [--style <css-file>] [--summary "<text>"|--no-summary] [--against <path>] [--type <t[,t2]>] [--title "<t>"] [--group a,b] [--bucket <value[=Label]>]... [--clear-buckets] [--filter <k=v|k!=v|k~=v|k^=v|@=v|k?|k!?>]... [--columns a,b] [--clear-filters] [--links github|relative] [--out <path>] [--open] [--force] [--vault <path>]';
         const newestExisting = (paths) => {
           let best = null;
           let bestM = -1;
@@ -9208,7 +9303,7 @@ ${res.pr.url}`);
           const current = renderTarget(root, target).snapshot;
           out({ priorArtifact: priorPath, diff: diffSnapshots(prior, current) });
         } else if (sub === "new" || sub === "set") {
-          const NEW_USAGE = `Usage: duo rollup new --type <t[,t2]> [--title "<t>"] [--group a,b] [--bucket 'value[=Label]']... [--filter 'k=v' | 'k!=v' | 'k~=v' | 'k^=v' | 'k?' | 'k!?']... [--columns a,b] [--vault <path>]`;
+          const NEW_USAGE = `Usage: duo rollup new --type <t[,t2]> [--title "<t>"] [--group a,b] [--bucket 'value[=Label]']... [--filter 'k=v' | 'k!=v' | 'k~=v' | 'k^=v' | '@=v' | 'k?' | 'k!?']... [--columns a,b] [--vault <path>]`;
           const SET_USAGE = `Usage: duo rollup set <note> [--title "<t>"] [--type <t[,t2]>] [--group a,b] [--bucket 'value[=Label]']... [--clear-buckets] [--filter \u2026]... [--columns a,b] [--clear-filters] [--links github|relative] [--vault <path>]`;
           const root = resolveVaultOrDefault(process.cwd(), vaultFlag);
           const list = (flag) => {
@@ -9224,6 +9319,8 @@ ${res.pr.url}`);
           const parseFilterFlag = (s) => {
             let m = s.match(/^([\w-]+)!=(.+)$/);
             if (m) return { property: m[1], op: "ne", value: m[2] };
+            m = s.match(/^@=(.+)$/);
+            if (m) return { property: LINKS_TO_PROP, op: "linksto", value: m[1] };
             m = s.match(/^([\w-]+)\^=(.+)$/);
             if (m) return { property: m[1], op: "ancestor", value: m[2] };
             m = s.match(/^([\w-]+)~=(.+)$/);
@@ -9234,7 +9331,7 @@ ${res.pr.url}`);
             if (m) return { property: m[1], op: "notset" };
             m = s.match(/^([\w-]+)\?$/);
             if (m) return { property: m[1], op: "set" };
-            die(`duo rollup ${sub}: unrecognized --filter ${JSON.stringify(s)} (use k=v, k!=v, k~=v, k^=v, k? or k!?)`);
+            die(`duo rollup ${sub}: unrecognized --filter ${JSON.stringify(s)} (use k=v, k!=v, k~=v, k^=v, @=v, k? or k!?)`);
             throw new Error("unreachable");
           };
           const parseBucketFlag = (s) => {

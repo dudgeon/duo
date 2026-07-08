@@ -47,7 +47,13 @@ import { buildEngineFiles, defaultAsOf, type EngineFile } from './engine'
 
 // ENH-259 — `ancestor` = transitive "is under" (any_parent): match if the
 // value entity appears anywhere up this property's link chain.
-export type BuilderFilterOp = 'eq' | 'ne' | 'contains' | 'ancestor' | 'set' | 'notset'
+// ENH-262 — `linksto` = the note links the value entity through ANY property
+// (or prose): `file.hasLink(v)`. Property-agnostic; `property` carries the
+// `'*'` sentinel so the chip/model stay shaped like every other filter.
+export type BuilderFilterOp = 'eq' | 'ne' | 'contains' | 'ancestor' | 'linksto' | 'set' | 'notset'
+
+/** ENH-262 — the property sentinel a `linksto` filter carries. */
+export const LINKS_TO_PROP = '*'
 
 export interface BuilderFilter {
   property: string
@@ -98,11 +104,30 @@ function filterExpr(f: BuilderFilter): string {
       // upward and match the value entity anywhere in it (identity-folded by
       // the same contains()). `ancestors("parent").contains("California")`.
       return `ancestors(${JSON.stringify(f.property)}).contains(${JSON.stringify(f.value ?? '')})`
+    case 'linksto':
+      // ENH-262 — "links to": the note links the value entity through ANY
+      // property (or prose) — the union primitive for populations that reach
+      // one entity through different fields (owned: parent → track node;
+      // monitored: tracks[] → track node). Identity-folded by hasLink.
+      return `file.hasLink(${JSON.stringify(f.value ?? '')})`
     case 'set':
       return `file.hasProperty(${JSON.stringify(f.property)})`
     case 'notset':
       return `!file.hasProperty(${JSON.stringify(f.property)})`
   }
+}
+
+/** BUG-260 — YAML-safe serialization of an expression as a block-sequence
+ *  item. An UNQUOTED expression whose value contains `: ` parses as a YAML
+ *  MAPPING (the engine then silently dropped the filter and the note fell to
+ *  view-only — the owner's `Track: …` entity names hit this constantly); a
+ *  ` #` starts a comment mid-line; a leading `!` is a YAML tag
+ *  (`!file.hasProperty(...)` made the whole spec THROW). Single-quote
+ *  (doubling internal quotes) whenever a hazard is present; simple
+ *  expressions stay bare so existing canonical notes remain byte-identical. */
+function yamlSafeExpr(expr: string): string {
+  const hazard = /: |\t|\s#/.test(expr) || /^[!&*?|>%@`"'[\]{},-]/.test(expr) || /^\s|[\s:]$/.test(expr)
+  return hazard ? `'${expr.replace(/'/g, "''")}'` : expr
 }
 
 /** Serialize the model to the canonical ```base YAML (D4). Hand-stable:
@@ -114,12 +139,12 @@ export function serializeBuilderBase(model: RollupBuilderModel): string {
   lines.push('filters:')
   lines.push('  and:')
   if (model.types.length === 1) {
-    lines.push(`    - type == ${JSON.stringify(model.types[0])}`)
+    lines.push(`    - ${yamlSafeExpr(`type == ${JSON.stringify(model.types[0])}`)}`)
   } else {
     lines.push('    - or:')
-    for (const t of model.types) lines.push(`        - type == ${JSON.stringify(t)}`)
+    for (const t of model.types) lines.push(`        - ${yamlSafeExpr(`type == ${JSON.stringify(t)}`)}`)
   }
-  for (const f of model.filters) lines.push(`    - ${filterExpr(f)}`)
+  for (const f of model.filters) lines.push(`    - ${yamlSafeExpr(filterExpr(f))}`)
   lines.push('views:')
   lines.push('  - type: table')
   lines.push(`    name: ${JSON.stringify(model.title)}`)
@@ -147,8 +172,21 @@ const EXPR_SET = /^(!?)file\.hasProperty\("([\w-]+)"\)$/
 const EXPR_CONTAINS = /^list\((\w[\w-]*)\)\.contains\("(.*)"\)$/
 // ENH-259 — the transitive "is under" form: ancestors("<prop>").contains("<v>")
 const EXPR_ANCESTOR = /^ancestors\("([\w-]+)"\)\.contains\("(.*)"\)$/
+// ENH-262 — the "links to" form: file.hasLink("<entity>")
+const EXPR_LINKSTO = /^file\.hasLink\("(.*)"\)$/
 
 function parseFilterExpr(expr: string): BuilderFilter | { type: string } | null {
+  // ENH-262 — "links to": property-agnostic, carries the '*' sentinel.
+  const lnk = expr.match(EXPR_LINKSTO)
+  if (lnk) {
+    let value: string
+    try {
+      value = JSON.parse(`"${lnk[1]}"`)
+    } catch {
+      value = lnk[1]
+    }
+    return { property: LINKS_TO_PROP, op: 'linksto', value }
+  }
   const anc = expr.match(EXPR_ANCESTOR)
   if (anc) {
     let value: string
@@ -235,6 +273,22 @@ export function parseBuilderBase(
         types.push((parsed as { type: string }).type)
       }
       continue
+    }
+    // BUG-260 — a pre-fix note serialized an expression UNQUOTED and its
+    // value contained ": ", so YAML parsed the line as a single-pair MAPPING.
+    // Reconstruct the original string so the note regains editability; the
+    // next save re-serializes it properly quoted (yamlSafeExpr).
+    if (item && typeof item === 'object') {
+      const keys = Object.keys(item as object)
+      const v = keys.length === 1 ? (item as Record<string, unknown>)[keys[0]] : undefined
+      if (typeof v === 'string') {
+        const parsed = parseFilterExpr(`${keys[0]}: ${v}`)
+        if (parsed) {
+          if ('type' in parsed && !('property' in parsed)) types.push(parsed.type)
+          else filters.push(parsed as BuilderFilter)
+          continue
+        }
+      }
     }
     return null
   }
