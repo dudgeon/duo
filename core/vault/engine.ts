@@ -388,6 +388,34 @@ export interface HtmlValue {
   __html: string
 }
 
+/** ENH-259 — the transitive ancestors of `file` up ONE property's link chain.
+ *  Follows `properties[propName]` (a Link or array of Links), resolves each to
+ *  its EngineFile via `file.links` (which includes frontmatter links, so
+ *  `parent: [[X]]` is in the graph), and recurses on that parent's OWN
+ *  `propName` — so `neighborhood.parent → city → state → country` all surface,
+ *  irrespective of the intermediate levels' types. Returns the ancestor Links
+ *  (identity-folded via `.contains()`); cycle-guarded by folded key; a
+ *  multi-valued parent contributes the union of its chains. The starting file
+ *  itself is never in the result. */
+export function collectAncestors(file: EngineFile, propName: string): Link[] {
+  const out: Link[] = []
+  const seen = new Set<string>()
+  const walk = (f: EngineFile) => {
+    const raw = f.properties[propName]
+    for (const val of Array.isArray(raw) ? raw : [raw]) {
+      if (!(val instanceof Link)) continue
+      const key = targetKey(val.target, 'wikilink')
+      if (seen.has(key)) continue
+      seen.add(key)
+      out.push(val)
+      const parent = f.links.find((l) => targetKey(l.name, 'wikilink') === key)
+      if (parent) walk(parent)
+    }
+  }
+  walk(file)
+  return out
+}
+
 function makeCtx(
   file: EngineFile,
   thisFile: EngineFile | null,
@@ -423,6 +451,10 @@ function makeCtx(
     icon: (n: string) => ({ __html: ICONS[n] || '<span title="' + n + '">◇</span>' }),
     html: (s: unknown) => ({ __html: String(s) }),
     list: (x: unknown) => (Array.isArray(x) ? x : [x]),
+    // ENH-259 — transitive ancestors up a property's chain (any_parent):
+    // `ancestors("parent").contains("California")` matches a state anywhere
+    // above a neighborhood. Identity-folded by the same contains() as ENH-258.
+    ancestors: (propName: unknown) => collectAncestors(file, String(propName)),
     min: Math.min,
     max: Math.max,
     number: Number,

@@ -237,4 +237,60 @@ describe('rollupViewData (D10 — structured rows, D5 — multi-level groups)', 
     // The declared bucket matched (non-null key) rather than rendering empty.
     expect(data.buckets).toEqual([{ label: 'Reduce Churn', key: 'Reduce Churn' }])
   })
+
+  // ENH-259 — the transitive "is under" (ancestor) op.
+  it('serializes + round-trips an `ancestor` filter', () => {
+    const model: RollupBuilderModel = {
+      title: 'CA hoods',
+      types: ['neighborhood'],
+      groupBy: [],
+      buckets: [],
+      filters: [{ property: 'parent', op: 'ancestor', value: 'California' }],
+      columns: [],
+    }
+    const yaml = serializeBuilderBase(model)
+    expect(yaml).toContain('ancestors("parent").contains("California")')
+    const parsed = parseBuilderBase(yaml, { type: 'rollup' })
+    expect(parsed?.filters).toEqual([{ property: 'parent', op: 'ancestor', value: 'California' }])
+  })
+
+  it('matches rows whose ancestor is the value, across intermediate levels', () => {
+    write('countries/usa.md', '---\ntype: country\n---\n# USA\n')
+    write('states/california.md', '---\ntype: state\nparent: "[USA](../countries/usa.md)"\n---\n# California\n')
+    write('states/texas.md', '---\ntype: state\nparent: "[USA](../countries/usa.md)"\n---\n# Texas\n')
+    write('cities/sf.md', '---\ntype: city\nparent: "[California](../states/california.md)"\n---\n# SF\n')
+    write('cities/austin.md', '---\ntype: city\nparent: "[Texas](../states/texas.md)"\n---\n# Austin\n')
+    write('neighborhoods/mission.md', '---\ntype: neighborhood\nparent: "[SF](../cities/sf.md)"\n---\n# Mission\n')
+    write('neighborhoods/soma.md', '---\ntype: neighborhood\nparent: "[SF](../cities/sf.md)"\n---\n# SoMa\n')
+    write('neighborhoods/downtown.md', '---\ntype: neighborhood\nparent: "[Austin](../cities/austin.md)"\n---\n# Downtown\n')
+    const model: RollupBuilderModel = {
+      title: 'Under California',
+      types: ['neighborhood'],
+      groupBy: [],
+      buckets: [],
+      filters: [{ property: 'parent', op: 'ancestor', value: 'California' }],
+      columns: [],
+    }
+    const data = modelViewData(v, model)
+    expect(data.error).toBeNull()
+    // Mission + SoMa roll up to California via SF; Downtown (Austin→Texas) does not.
+    expect(data.rows.map((r) => r.title).sort()).toEqual(['mission', 'soma'])
+  })
+
+  it('ancestor eval is cycle-safe (a↔b parent loop does not hang)', () => {
+    write('a.md', '---\ntype: node\nparent: "[b](./b.md)"\n---\n# a\n')
+    write('b.md', '---\ntype: node\nparent: "[a](./a.md)"\n---\n# b\n')
+    const model: RollupBuilderModel = {
+      title: 'under a',
+      types: ['node'],
+      groupBy: [],
+      buckets: [],
+      filters: [{ property: 'parent', op: 'ancestor', value: 'a' }],
+      columns: [],
+    }
+    const data = modelViewData(v, model) // must terminate
+    expect(data.error).toBeNull()
+    // b's chain reaches a; a's own chain reaches a (via b) too.
+    expect(data.rows.map((r) => r.title).sort()).toEqual(['a', 'b'])
+  })
 })

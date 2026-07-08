@@ -66,7 +66,7 @@ const OPS: { value: RollupFilterDto['op']; label: string }[] = [
 ]
 
 /** Ops whose filter takes a value operand. */
-const VALUE_OPS = new Set<RollupFilterDto['op']>(['eq', 'ne', 'contains'])
+const VALUE_OPS = new Set<RollupFilterDto['op']>(['eq', 'ne', 'contains', 'ancestor'])
 
 /** One flip's undo memo — what to write back to restore the prior value. */
 interface UndoMemo {
@@ -1058,6 +1058,15 @@ function BuilderPanel({
     return [...bySlug.entries()].map(([slug, name]) => ({ name, slug })).sort((a, b) => a.name.localeCompare(b.name))
   }
   const isLinkProp = (property: string): boolean => entityOptions(property).length > 0
+  // ENH-259 — the transitive ancestor closure for a link prop's "is under"
+  // value picker (offers a State above a neighborhood's City, not just the
+  // direct Cities). Superset of entityOptions for the same property.
+  const ancestorOptions = (property: string): EntityRefDto[] => {
+    const bySlug = new Map<string, string>()
+    for (const t of model.types)
+      for (const e of schema?.ancestorRefsByType[`${t}.${property}`] ?? []) if (!bySlug.has(e.slug)) bySlug.set(e.slug, e.name)
+    return [...bySlug.entries()].map(([slug, name]) => ({ name, slug })).sort((a, b) => a.name.localeCompare(b.name))
+  }
 
   const commitTitle = () => {
     const t = title.trim()
@@ -1171,9 +1180,15 @@ function BuilderPanel({
         {model.filters.map((f, i) => (
           <div key={`${f.property}-${i}`} className="duo-rollups-filter">
             <code>{f.property}</code>
-            {/* ENH-258 — an identity `contains` on a link prop reads as "is",
-                not the multi-valued "has member" label. */}
-            <span>{f.op === 'contains' && isLinkProp(f.property) ? 'is' : OPS.find((o) => o.value === f.op)?.label}</span>
+            {/* ENH-258/259 — an identity `contains` on a link prop reads as
+                "is"; the transitive `ancestor` op reads as "is under". */}
+            <span>
+              {f.op === 'ancestor'
+                ? 'is under'
+                : f.op === 'contains' && isLinkProp(f.property)
+                  ? 'is'
+                  : OPS.find((o) => o.value === f.op)?.label}
+            </span>
             {VALUE_OPS.has(f.op) ? <code>{f.value}</code> : null}
             <button
               type="button"
@@ -1189,6 +1204,7 @@ function BuilderPanel({
           props={props}
           enumOptions={enumOptions}
           entityOptions={entityOptions}
+          ancestorOptions={ancestorOptions}
           isLinkProp={isLinkProp}
           onAdd={(f) => onChange({ ...model, filters: [...model.filters, f] })}
         />
@@ -1314,12 +1330,14 @@ function AddFilter({
   props,
   enumOptions,
   entityOptions,
+  ancestorOptions,
   isLinkProp,
   onAdd,
 }: {
   props: string[]
   enumOptions: (property: string) => string[]
   entityOptions: (property: string) => EntityRefDto[]
+  ancestorOptions: (property: string) => EntityRefDto[]
   isLinkProp: (property: string) => boolean
   onAdd: (f: RollupFilterDto) => void
 }) {
@@ -1329,13 +1347,17 @@ function AddFilter({
   const link = property ? isLinkProp(property) : false
   const needsValue = VALUE_OPS.has(op)
   const options = property && !link ? enumOptions(property) : []
-  const entOptions = property && link ? entityOptions(property) : []
-  // ENH-258 — a link-valued property is matched by ENTITY IDENTITY, so its
-  // ops are "is <entity>" (identity `contains`) + set/notset. A raw-string
-  // `==` would never match the parsed Link, which is the bug this fixes.
+  // ENH-259 — "is under" (ancestor) offers the transitive closure (a State
+  // above a City); "is" (direct) offers only the property's direct entities.
+  const entOptions = property && link ? (op === 'ancestor' ? ancestorOptions(property) : entityOptions(property)) : []
+  // ENH-258/259 — a link-valued property is matched by ENTITY IDENTITY, so its
+  // ops are "is <entity>" (direct identity `contains`), "is under <entity>"
+  // (transitive ancestor), + set/notset. A raw-string `==` would never match
+  // the parsed Link.
   const opsForProp = link
     ? ([
         { value: 'contains', label: 'is' },
+        { value: 'ancestor', label: 'is under' },
         { value: 'set', label: 'is set' },
         { value: 'notset', label: 'is not set' },
       ] as { value: RollupFilterDto['op']; label: string }[])
@@ -1377,7 +1399,12 @@ function AddFilter({
           <select
             className="duo-rollups-add"
             value={op}
-            onChange={(e) => setOp(e.target.value as RollupFilterDto['op'])}
+            onChange={(e) => {
+              setOp(e.target.value as RollupFilterDto['op'])
+              // "is" and "is under" draw from different option sets — reset so
+              // a stale value never lingers outside the new picker's options.
+              setValue('')
+            }}
             aria-label="Filter operator"
           >
             {opsForProp.map((o) => (
@@ -1397,7 +1424,7 @@ function AddFilter({
                 onChange={(e) => setValue(e.target.value)}
                 aria-label="Filter value"
               >
-                <option value="">entity…</option>
+                <option value="">{op === 'ancestor' ? 'ancestor…' : 'entity…'}</option>
                 {entOptions.map((e) => (
                   <option key={e.slug} value={e.name}>
                     {e.name}

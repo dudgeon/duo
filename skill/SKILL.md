@@ -273,7 +273,13 @@ remains the path for anything richer:
 `--filter 'tracks~=q3-launch'` keeps rows whose MULTI-VALUED `tracks` list
 contains that note — matched on the linked note's IDENTITY, so
 `[[Q3 Launch]]`, `[[q3-launch]]` and `[[q3-launch|Growth]]` all hit
-(expression form: `list(tracks).contains("q3-launch")`). And
+(expression form: `list(tracks).contains("q3-launch")`).
+**Transitive "is under" (ENH-259).** `--filter 'parent^=California'` (`k^=v`)
+keeps rows whose `parent` chain reaches that entity ANYWHERE up the tree —
+country > state > city > neighborhood, so `parent^=California` selects every
+neighborhood under California irrespective of the intermediate city (expression
+form: `ancestors("parent").contains("California")`; cycle-safe, follows the
+named property upward). And
 `--bucket 'primary=Primary track activity' --bucket 'monitored=Monitored'`
 (needs `--group`) declares level-1 buckets that ALWAYS render — even with
 zero rows (an empty bucket is signal) — in flag order, under those labels;

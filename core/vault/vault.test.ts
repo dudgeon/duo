@@ -243,6 +243,47 @@ describe('ENH-258 — entity-reference props (link-valued) split from scalar enu
   })
 })
 
+describe('ENH-259 — transitive ancestor closure (any_parent)', () => {
+  let tmp: string
+  beforeEach(() => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'duo-vault-enh259-'))
+    fs.writeFileSync(path.join(tmp, '_index.md'), '---\nokf_version: "1.0"\ntype: index\n---\n')
+  })
+  afterEach(() => {
+    fs.rmSync(tmp, { recursive: true, force: true })
+  })
+  const write = (rel: string, body: string) => {
+    const abs = path.join(tmp, rel)
+    fs.mkdirSync(path.dirname(abs), { recursive: true })
+    fs.writeFileSync(abs, body)
+  }
+
+  it('closes the parent chain across levels: neighborhood.parent → city ∪ state ∪ country', () => {
+    write('countries/usa.md', '---\ntype: country\n---\n# USA\n')
+    write('states/california.md', '---\ntype: state\nparent: "[USA](../countries/usa.md)"\n---\n# California\n')
+    write('cities/sf.md', '---\ntype: city\nparent: "[California](../states/california.md)"\n---\n# San Francisco\n')
+    write('neighborhoods/mission.md', '---\ntype: neighborhood\nparent: "[San Francisco](../cities/sf.md)"\n---\n# Mission\n')
+    const c = buildCorpus(tmp)
+    // Direct refs = only the immediate city…
+    expect(c.entityRefsByType['neighborhood.parent'].map((r) => r.slug)).toEqual(['sf'])
+    // …the ancestor closure adds the state + country up the chain.
+    expect(c.ancestorRefsByType['neighborhood.parent'].map((r) => r.slug).sort()).toEqual([
+      'california',
+      'sf',
+      'usa',
+    ])
+    // Display names carry through from the links.
+    expect(c.ancestorRefsByType['neighborhood.parent'].find((r) => r.slug === 'california')!.name).toBe('California')
+  })
+
+  it('is cycle-safe (a → b → a does not hang or duplicate)', () => {
+    write('a.md', '---\ntype: node\nparent: "[[b]]"\n---\n# a\n')
+    write('b.md', '---\ntype: node\nparent: "[[a]]"\n---\n# b\n')
+    const c = buildCorpus(tmp) // must terminate
+    expect(c.ancestorRefsByType['node.parent'].map((r) => r.slug).sort()).toEqual(['a', 'b'])
+  })
+})
+
 describe('OKF detection (ENH-216 D4)', () => {
   let tmp: string
   beforeEach(() => {

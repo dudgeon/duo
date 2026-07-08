@@ -59,6 +59,8 @@ const FUNCS = new Set([
   'file.hasTag', 'file.hasLink', 'file.inFolder', 'file.hasProperty', 'file.asLink',
   'today', 'now', 'date', 'duration', 'if', 'icon', 'html', 'list', 'min', 'max',
   'number', 'link', 'random', 'escapeHTML',
+  // ENH-259 — transitive ancestor walk up a property's link chain.
+  'ancestors',
 ])
 const METHODS = new Set([
   'relative', 'format', 'date', 'time', 'isEmpty', 'round', 'toFixed', 'abs', 'ceil', 'floor',

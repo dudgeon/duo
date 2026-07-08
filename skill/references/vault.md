@@ -233,14 +233,26 @@ rel-md), filter/group it **by the entity's identity, never its raw link
 string**. Use the membership form — `list(initiative_theme).contains("Growth")`
 or the builder twin `--filter 'initiative_theme~=Growth'` — passing the entity's
 **display name or slug** (both fold through targetKey; `"Growth"` and
-`"growth"` match, `"[Growth](../themes/growth.md)"` does NOT). A raw-link
-operand or a plain `initiative_theme == "[Growth](…)"` silently matches zero
-rows. `duo vault schema` exposes the pickable entities per link-valued property
+`"growth"` match, the raw serialized link string does NOT). A raw-link operand
+(the wikilink/rel-md text as written) or a plain `initiative_theme ==
+"<raw-link>"` silently matches zero rows. `duo vault schema` exposes the pickable entities per link-valued property
 under **`entityRefsByType["<type>.<prop>"]`** (`[{name, slug}]`) — read that for
 the valid operands (the Rollups builder GUI populates its entity value/bucket
 pickers from it). Grouping by such a property already folds link identity
 (headers show the entity display name); declared buckets key by entity name too
 (`--bucket 'Reduce Churn'`).
+
+**Transitive "is under" — any_parent (ENH-259).** To match an entity ANYWHERE
+up a property's chain (not just the direct value), use the ancestor form:
+`ancestors("<prop>").contains("<entity>")`, builder twin `--filter
+'<prop>^=<entity>'` (`k^=v`). For a country > state > city > neighborhood
+hierarchy, `parent^=California` selects every neighborhood whose `parent` chain
+reaches California, irrespective of the intermediate city — `ancestors` walks
+the SAME property name upward (cycle-safe, multi-parent = union) and folds link
+identity like `contains`. In the Rollups GUI a link-valued property's op list
+offers **"is under"** beside **"is"**, and its value picker offers the
+property's transitive closure (`entityRefsByType` = direct values;
+`ancestorRefsByType` = the closure, so a State shows up, not just Cities).
 
 Renders are **stamped build artifacts** (D13): generated-at + source-hash +
 as-of date. Default writes to the vault's `output/` (or legacy `out/` for a
