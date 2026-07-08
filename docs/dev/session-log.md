@@ -18,6 +18,19 @@
 
 ---
 
+## 2026-07-08 — v0.13.6 CUT — Group by goal, "links to", and a YAML-safe rollup builder
+
+Cut **v0.13.6** — the owner's same-night fleet-machine walk of v0.13.5 exposed four root causes (three symptoms: can't group by goal · a GUI-created rollup fell to view-only · the owned∪monitored target rollup unbuildable), all reproduced against a replica of the real knowledge-base hierarchy, fixed in PR #128:
+
+- **BUG-260 — YAML-unsafe builder output.** Unquoted filter lines whose value contains `: ` (the owner's `Track: …` entity naming) parsed as YAML MAPPINGS: the engine silently dropped the filter (rows rendered unfiltered, zero warnings) AND `parseBuilderBase` bailed → view-only ("Normalize with Claude" from a pure-GUI note). The notset op's leading `!` (YAML tag) threw outright. Fixes: `yamlSafeExpr` quotes hazardous lines; `passesTri` reconstructs a single-pair-mapping accident (else surfaces a filter error — never a silent pass); `parseBuilderBase` reconstructs too, so pre-fix notes regain editability and re-quote on next save.
+- **BUG-260b — divergent identity folds.** `targetKey` preserves punctuation (`Track: Context…` → `track:-context-…`) while `slugStem` names files without it — display-name operands never matched. `probeKeys` folds probes BOTH ways at every probe site (memberEq / gbEq / hasLink); the GUI emits the SLUG as canonical operand, chips display the pretty name.
+- **ENH-261 — ancestor-TYPE grouping.** Token `ancestor:<prop>:<type>` ("goal (via parent)" in the pickers; `readCol` + BFS `nearestAncestorOfType` resolve it) groups/columns each row by its nearest goal-typed ancestor; corpus annotates refs with target types (`EntityRefDto.type`).
+- **ENH-262 — "links to".** `(links to…)` pseudo-property → `file.hasLink(entity)` unions populations reaching one entity via different properties (owned `parent:` ∪ monitored `tracks:[]`); corpus `linkTargetsByType` feeds the picker; CLI `--filter '@=<entity>'`.
+
+524 tests (7 new regressions incl. pre-fix-note recovery), typecheck, `check:skill-currency` PASS, 4-surface docs synced. **Live computer-use walk:** group dropdown shows "goal (via parent)" → grouped under [AIPM Force Multiplier]; "(links to…)" built the owner's exact target rollup (own 3 / monitor 2) and the saved note round-tripped EDITABLE. Signed DMG + GitHub Release. Owner reminded to click the agent-files **Update** banner on the fleet machine (stale v0.13.3 skill misinformed a terminal Claude).
+
+---
+
 ## 2026-07-07 — v0.13.5 CUT — Filter rollups by an entity, and by any ancestor
 
 Cut **v0.13.5** bundling two rollup-filter enhancements, both triggered by an owner-photo'd failure (filtering a rollup of initiatives by theme returned zero rows, silently).

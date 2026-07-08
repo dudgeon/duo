@@ -19,7 +19,17 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.13.5 cut 2026-07-07.
+> Empty — v0.13.6 cut 2026-07-08.
+
+## [0.13.6] — 2026-07-08 — Group by goal, "links to", and a YAML-safe rollup builder
+
+### Added
+- **Group/column by an ancestor TYPE (ENH-261, #128).** "Group initiatives by goal" when `parent:` points at intermediate nodes: the group/column pickers offer **"goal (via parent)"**-style options (token `ancestor:<prop>:<type>`) — each row resolves to its nearest ancestor of that type up the property's chain; headers are the ancestor entities (identity-merged, linked); rows with none group under `—`. CLI: `--group ancestor:parent:goal`.
+- **"Links to" filter (ENH-262, #128).** A `(links to…)` pseudo-property filters on ANY link to an entity (`file.hasLink`) — unions populations that reach one entity via different properties (owned via `parent:`, monitored via `tracks:[]`). CLI: `--filter '@=<entity>'`. Makes "initiatives owned by and/or monitored by Track X, broken out by engagement" one GUI filter + one group level.
+
+### Fixed
+- **The builder wrote YAML-unsafe filter lines (BUG-260, #128).** An unquoted expression whose value contains `: ` (e.g. entity names like `Track: Context and Agent Resources`) parsed as a YAML mapping — the engine **silently dropped the filter** (rows rendered unfiltered, zero warnings) and the note fell to **view-only** ("Normalize with Claude" from a pure-GUI rollup). The "is not set" op's leading `!` (a YAML tag) broke the whole spec. Hazardous lines are now quoted; a mangled clause is reconstructed or surfaced as a filter error — never a silent pass; **pre-fix broken notes regain editability automatically**.
+- **Display-name operands never matched slug-named notes (BUG-260, #128).** `targetKey` preserves punctuation while the file slugger strips it (`Track: Context…` vs `track-context-….md`). Probes now fold both ways; the GUI stores the entity **slug** as the canonical operand and displays the pretty name.
 
 ## [0.13.5] — 2026-07-07 — Filter rollups by an entity, and by any ancestor
 
@@ -2209,7 +2219,8 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.13.5...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.13.6...HEAD
+[0.13.6]: https://github.com/dudgeon/duo/compare/v0.13.5...v0.13.6
 [0.13.5]: https://github.com/dudgeon/duo/compare/v0.13.4...v0.13.5
 [0.13.4]: https://github.com/dudgeon/duo/compare/v0.13.3...v0.13.4
 [0.13.3]: https://github.com/dudgeon/duo/compare/v0.13.2...v0.13.3

@@ -3,6 +3,29 @@
 > Closed entries (✅ shipped / ❌ won't-do / 🟢 done) split out of [`tasks.md`](tasks.md) on 2026-05-31 (ENH-191 / D1) to keep the live backlog lean. **Open work lives in [tasks.md](tasks.md).** Section headers mirror the original; the cut-version skill appends newly-closed entries here.
 
 
+## v0.13.6 — Group by goal, "links to", and a YAML-safe rollup builder (shipped 2026-07-08)
+
+### BUG-260: Rollup builder writes YAML-unsafe filter lines — silent filter drop + self-inflicted view-only/broken notes
+**Status:** ✅ Shipped v0.13.6 (PR [#128](https://github.com/dudgeon/duo/pull/128), merged 2026-07-08; live computer-use walk verified — a 'Track: …' contains-filter now matches 2 rows editable (was 7-rows-silent-drop + view-only); notset no longer throws; pre-fix notes recover). **P0 — silent wrong data.**
+
+**Owner-reported (photo'd):** a rollup created ENTIRELY in the GUI became view-only ("Normalize with Claude" appeared) — which should be impossible. **Root cause (repro'd + js-yaml-confirmed):** `serializeBuilderBase` emits filter expressions as UNQUOTED YAML sequence items. Two live failure classes: (1) a value containing `: ` (colon-space — e.g. the owner's entity naming convention `Track: Context and Agent Resources`) makes the line parse as a YAML **mapping**, not a string → the engine's `passesTri` sees an object with no and/or/not and returns **silent TRUE** (filter dropped — repro: 7 rows instead of 2, zero warnings) AND `parseBuilderBase` bails → view-only. (2) the `notset` op emits `!file.hasProperty(…)` — leading `!` is a YAML **tag** → the whole spec THROWS → doctor case. Also ` #` in a value truncates the expression (comment start). **Fix:** (a) quote hazardous expression lines (single-quoted YAML scalar, `''` escaping) in `serializeBuilderBase` + the `group_by:` frontmatter writer; (b) engine `passesTri` treats a non-string filter node as a surfaced ERROR (reconstructing an accidental single-key mapping back into its expression when unambiguous), never silent-true; (c) `parseBuilderBase` does the same reconstruction so existing broken notes regain editability and re-serialize quoted on next save. Tests for all three classes.
+
+---
+
+### ENH-261: Rollup builder — group by an ancestor TYPE ("group by goal")
+**Status:** ✅ Shipped v0.13.6 (PR [#128](https://github.com/dudgeon/duo/pull/128), merged 2026-07-08; live computer-use walk verified — 'goal (via parent)' in the group picker; rows grouped under [AIPM Force Multiplier], monitored under —). **P1.** Builds on [[ENH-259]].
+
+**Owner-reported:** "I still cannot group by 'goal', even though goal shows up as an entity in my list" — `goal` is an entity TYPE; the group-by list only offers frontmatter property names (`parent`, `engagement`, …). Grouping initiatives by `parent` gives the DIRECT parent (a track node or an org), not the goal several levels up. **Fix:** a synthetic, YAML-safe group token **`ancestor:<prop>:<type>`** (e.g. `ancestor:parent:goal`) — `readCol` resolves it to the row's NEAREST ancestor of that type walking `<prop>`'s link chain (BFS, cycle-guarded; engine `nearestAncestorOfType`), so group headers are the goal entities (identity-folded, linkable) and rows with no goal ancestor group under `—`. Corpus annotates `ancestorRefsByType` entries with each ancestor's `type`, so the GUI offers "goal (via parent)" style group/column options + type-filtered bucket pickers. Round-trips through `group_by:` frontmatter + the block's `groupBy.property` as a plain string.
+
+---
+
+### ENH-262: Rollup builder — "links to" filter (any-property entity edge)
+**Status:** ✅ Shipped v0.13.6 (PR [#128](https://github.com/dudgeon/duo/pull/128), merged 2026-07-08; live computer-use walk verified — '(links to…)' built the exact target rollup — own 3 / monitor 2, saved note round-trips EDITABLE). **P1.**
+
+**Owner's target rollup (photo'd TUI ask):** "initiatives that are owned by and/or monitored by the Context track, broken out by owned/monitored." The two populations link the track through DIFFERENT properties (owned: `parent:` → track node; monitored: `tracks:[]` contains track node) — an OR across properties the AND-only GUI can't express. But both populations **directly link** the track entity, so the engine's existing `file.hasLink(...)` covers the union in one predicate. **Fix:** a GUI **"links to"** filter — a `(links)` pseudo-property row whose value picker offers the entities the rolled-up types actually link (new corpus `linkTargetsByType`); emits `file.hasLink("<entity>")` (identity-folded); round-trips as builder op `linksto`; CLI twin `--filter '@=<entity>'`. With `--group engagement` this makes the owner's exact rollup GUI-buildable.
+
+---
+
 ## v0.13.5 — Filter rollups by an entity, and by any ancestor (shipped 2026-07-07)
 
 ### ENH-259: Rollup builder — "is under" filter (transitive ancestor / any_parent)

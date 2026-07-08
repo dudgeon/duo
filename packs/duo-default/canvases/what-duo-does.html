@@ -1124,6 +1124,15 @@
   </div>
 </article>
 
+<article class="item" data-keys="rollup group by goal ancestor type links to hasLink any property union owned monitored engagement yaml quote colon track bug-260 enh-261 enh-262">
+  <div class="num">134</div>
+  <div>
+    <h3>Group a rollup by the goal it rolls up to — and filter by any connection</h3>
+    <p class="why"><strong>v0.13.6:</strong> two builder upgrades born from a real PM vault. <strong>Group by an entity type through a chain:</strong> when initiatives point at intermediate nodes (<code>parent:</code> → a track → a program → a goal), the group and column pickers now offer <strong>"goal (via parent)"</strong> — each row resolves to the nearest goal above it, headers are the goals themselves, and rows with none group under <code>—</code>. <strong>Filter by any connection:</strong> the <strong>(links to…)</strong> filter matches every note that links an entity through <em>any</em> property or prose — so populations that reach the same track through different fields (owned via <code>parent:</code>, monitored via <code>tracks:[]</code>) land in one rollup, broken out by whatever you group on. Under the hood the builder also stopped corrupting its own notes: entity names containing <code>: </code> (like "Track: Context and Agent Resources") used to silently disable the filter and lock the rollup to view-only — now they just work, and previously-broken notes heal themselves.</p>
+    <p class="how"><strong>UI</strong>Rollups tab → Group by → "goal (via parent)"; Filters → "(links to…)" → pick the entity. <strong>CLI</strong><code>duo rollup new --type initiative --filter '@=track-context' --group ancestor:parent:goal</code>.</p>
+  </div>
+</article>
+
 <h2 class="cat">Workspace setup</h2>
 <p class="cat-tagline">Pin tabs you want always-available; install Duo's skill + agent + CLI in one click.</p>
 
@@ -1379,7 +1388,7 @@
 </article>
 
 <footer>
-  <p>This is Duo v0.13.5. Last updated 2026-07-07. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
+  <p>This is Duo v0.13.6. Last updated 2026-07-08. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
   <p style="margin-top:6px; color: var(--ink-ghost); font-size: 11px;">Find an item that should be here? Tell Claude — the cut-version skill updates this file with each release.</p>
 </footer>
 

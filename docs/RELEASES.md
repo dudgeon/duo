@@ -25,6 +25,16 @@
 
 ---
 
+## v0.13.6 — 2026-07-08 — Group by goal, "links to", and a YAML-safe rollup builder
+
+**Why now.** The owner walked v0.13.5 on the work machine the same night it shipped, against the real knowledge-base — and it didn't hold. Three reports, four root causes, all reproduced against a replica of that vault's shape before fixing. The headline discovery: the builder could **corrupt its own output**. An unquoted filter line whose value contains `: ` — and the owner's entity naming (`Track: Context and Agent Resources`) does, constantly — parses as a YAML *mapping*, so the engine silently dropped the filter (41 rows rendered as if unfiltered, zero warnings) and the note fell to view-only. A pure-GUI rollup earning the "Normalize with Claude" button should be impossible; it wasn't.
+
+**Key decisions baked in.** (1) *Quote at the source, recover at the sink*: the serializer quotes hazardous lines, and BOTH the engine and the parser reconstruct a pre-fix mangled clause — old broken notes render correctly and regain editability with no user action; a genuinely unparseable clause is a surfaced filter error, never a silent pass. (2) *The slug is the operand; the name is the label*: `targetKey` keeps punctuation while the file slugger strips it, so display-name operands could never match — probes now fold both ways, and the GUI stores the entity slug while chips display the pretty name. (3) *Types are groupable through chains*: `goal` is a type, not a property — the new `ancestor:<prop>:<type>` token ("goal (via parent)") groups/columns each row by its nearest goal-typed ancestor, engine-resolved. (4) *One predicate for split populations*: owned initiatives reach a track via `parent:`, monitored via `tracks:[]` — an OR the AND-only builder can't say; the `(links to…)` filter (`file.hasLink`) unions any-property edges, making the owner's target rollup — "owned by and/or monitored by the Context track, broken out" — one filter + one group level.
+
+**What this is and isn't.** This is the release where the Rollups builder stops being a demo that works on clean fixtures and starts surviving a real PM vault — punctuated entity names, deep parent chains, cross-tagged populations. It is NOT general OR-composition in the GUI (links-to covers the union-of-edges case; arbitrary boolean trees remain hand-authored YAML), and ancestor grouping walks one named property, not arbitrary graph paths. Everything was live-walked in the visual builder via computer-use before merge; the standing smoke-walk matrix rides the next UI sprint.
+
+---
+
 ## v0.13.5 — 2026-07-07 — Roll up by who, and by where-it-belongs
 
 **Why now.** A photo'd failure kicked it off: filtering a rollup of initiatives by their theme returned nothing, silently. The root cause was one bug with a clean fix — the corpus handed the Rollups builder raw serialized link strings (`[Growth](../themes/growth.md)`) as filter operands, which the identity-based engine could never match — and fixing it opened a coherent chapter: make *entity-valued* properties first-class in the builder. ENH-258 (#126) shipped the direct match ("this initiative's theme is Growth"); ENH-259 (#127) shipped the transitive one ("this neighborhood is under California, whatever city it's in"). Both were driven live in the visual builder via computer-use before merge.
