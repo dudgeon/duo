@@ -193,3 +193,11 @@ renderer/components/editor/extensions/SuggestingMode.ts     (rewritten, thin)
   demand).
 - Standalone-comment atoms, ENH-198's agent-guidance work.
 - Tracking paragraph-boundary-only deletions (D8 limitation).
+- **Inner-content markdown escaping in CM tokens** (pre-existing, surfaced
+  during implementation): special characters *inside* token text — e.g.
+  `{++a > b ~ c++}` — are serialized by tiptap-markdown as `&gt;` / `\~`.
+  This round-trips correctly through the editor (markdown-it unescapes on
+  load) but is unfriendly to external CM tooling reading the raw source.
+  The token *delimiters* are protected (the ENH-260 fold fix sentinels
+  `{~~ ~> ~~}` through serialization); inner-content escaping is a
+  follow-up if external-tooling interop demands it.

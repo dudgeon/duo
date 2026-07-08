@@ -39,7 +39,11 @@ import { DeletionMark } from './extensions/DeletionMark'
 import { HighlightMark } from './extensions/HighlightMark'
 import { SuggestingMode } from './extensions/SuggestingMode'
 import { checkSuggestionInvariant } from './suggestEngine'
-import { serializeWithCriticMarkup } from './markdownCriticMarkup'
+import {
+  serializeWithCriticMarkup,
+  preprocessSubstitutions,
+  applyCriticMarkupFromText
+} from './markdownCriticMarkup'
 import { collectTrackedChanges, acceptAllTrackedChanges, rejectAllTrackedChanges } from './trackedChanges'
 
 let editor: Editor
@@ -161,20 +165,31 @@ describe('ENH-260 P2 — type-over a plain selection', () => {
 
     // The RAW (pre-fold) doc shape is exactly the PRD § 3.1 P2 illustration
     // `Hello {--world--}{++planet++}` — the two assertions above pin it.
-    // But `serializeWithCriticMarkup` unconditionally folds an adjacent
-    // (deletionMark text, insertionMark text) pair into a `{~~old~>new~~}`
-    // substitution token, REGARDLESS of how the pair arose
-    // (`markdownCriticMarkup.ts § transformInlineChildren`'s fold has no
-    // "is this actually a type-over" check — any adjacent del-then-ins text
-    // nodes fold). The fold's OWN output then passes through
-    // tiptap-markdown's real serializer, which markdown-escapes `~`/`>`
-    // (they're normal strikethrough/blockquote syntax to it — it has no
-    // idea these three characters form a CriticMarkup sentinel), producing
-    // literal backslash-escapes and an `&gt;` HTML entity. This is
-    // pre-existing `markdownCriticMarkup.ts` (package S3) behavior, not
-    // touched by this package — documented here rather than asserting the
-    // PRD's unfolded illustration, per this package's brief.
-    expect(serializeWithCriticMarkup(editor)).toBe('Hello {\\~\\~world\\~&gt;planet\\~\\~}')
+    // At save time `serializeWithCriticMarkup` folds the adjacent
+    // del-then-ins pair into a `{~~old~>new~~}` substitution token. The
+    // fold is emitted in control-char sentinel form and restored AFTER
+    // tiptap-markdown's serializer runs, so the token's `~`/`>` delimiters
+    // are never markdown-escaped (ENH-260 fold fix in
+    // markdownCriticMarkup.ts — pre-fix this line observed the corrupted
+    // `{\~\~world\~&gt;planet\~\~}`).
+    expect(serializeWithCriticMarkup(editor)).toBe('Hello {~~world~>planet~~}')
+  })
+
+  it('the folded substitution round-trips: save -> load -> save is stable', () => {
+    setBaseline('Hello world')
+    editor.commands.setTextSelection({ from: 7, to: 12 })
+    editor.view.dispatch(editor.state.tr.insertText('planet', 7, 12))
+    const saved = serializeWithCriticMarkup(editor)
+    expect(saved).toBe('Hello {~~world~>planet~~}')
+
+    // Reload the saved source through the real load path: sentinel
+    // preprocess -> setContent (parses as literal text) -> token-to-marks
+    // walker. Suggesting stays enabled; the walker's addToHistory:false
+    // meta must keep the reconciler out of the programmatic pass.
+    editor.commands.setContent(preprocessSubstitutions(saved), false)
+    applyCriticMarkupFromText(editor)
+    assertInvariantClean()
+    expect(serializeWithCriticMarkup(editor)).toBe(saved)
   })
 })
 
@@ -251,10 +266,9 @@ describe('ENH-260 P4 — D3 relocate: typing inside a deletion run', () => {
     expect(editor.state.selection.from).toBe(endPos)
     expect(editor.state.selection.to).toBe(endPos)
 
-    // Raw shape is `{--world--}{++Z++}` (PRD § 3.1 P4) — folds + escapes
-    // identically to P2 at save time (see that test's note); documented
-    // here, not asserted as the unfolded literal.
-    expect(serializeWithCriticMarkup(editor)).toBe('Hello {\\~\\~world\\~&gt;Z\\~\\~}')
+    // Raw shape is `{--world--}{++Z++}` (PRD § 3.1 P4); the save-time
+    // fold emits the clean substitution token (see P2's fold-fix note).
+    expect(serializeWithCriticMarkup(editor)).toBe('Hello {~~world~>Z~~}')
   })
 })
 

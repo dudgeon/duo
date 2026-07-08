@@ -45,6 +45,16 @@ import {
 
 const SUB_OPEN_SENTINEL = '\u0001\u0002'   // SOH+STX (2 chars) — replaces `~~` in `{~~`
 const SUB_CLOSE_SENTINEL = '\u001e\u001d'  // RS+GS (2 chars) — replaces `~~` in `~~}`
+// ENH-260 — save-side sentinel for the substitution SEPARATOR (`~>`).
+// The load side never needs it (markdown-it passes `~>` through as
+// plain text), but the SAVE side runs the fold token through
+// tiptap-markdown's real serializer, which backslash-escapes `~` and
+// entity-escapes `>` — corrupting `{~~old~>new~~}` into
+// `{\~\~old\~&gt;new\~\~}` in the file. So the fold emits ALL THREE
+// delimiter groups as control-char sentinels (which the serializer
+// passes through untouched) and serializeWithCriticMarkup restores
+// them after serialization.
+const SUB_SEP_SENTINEL = ''  // US (1 char) — replaces `~>` on the save side
 
 export function preprocessSubstitutions(source: string): string {
   // Replace `{~~old~>new~~}` with `{<SOH>old~>new<STX>}` — survives
@@ -54,10 +64,14 @@ export function preprocessSubstitutions(source: string): string {
 }
 
 export function restoreSubstitutionsInText(text: string): string {
-  // Inverse — used by tests / debug to verify the sentinel cycle.
+  // Inverse of both sentinel encodings — the load-side pair
+  // (open/close) and the save-side separator. Called on the final
+  // serialized markdown by serializeWithCriticMarkup, and by tests to
+  // verify the sentinel cycle.
   return text
     .replace(new RegExp(`\\{${SUB_OPEN_SENTINEL}`, 'g'), '{~~')
     .replace(new RegExp(`${SUB_CLOSE_SENTINEL}\\}`, 'g'), '~~}')
+    .replace(new RegExp(SUB_SEP_SENTINEL, 'g'), '~>')
 }
 
 // ── PARSE: walk doc text for CriticMarkup tokens, convert to marks ──────────
@@ -205,7 +219,10 @@ export function serializeWithCriticMarkup(editor: Editor): string {
   const materialized = materializeCriticMarkupToJSON(editor)
   const schemaCtor = (editor.schema as { nodeFromJSON: (j: unknown) => unknown }).nodeFromJSON
   const tempDoc = schemaCtor.call(editor.schema, materialized)
-  return storage.serializer.serialize(tempDoc)
+  // ENH-260 — the substitution fold is emitted in sentinel form so the
+  // markdown serializer can't escape its delimiters; restore the real
+  // `{~~old~>new~~}` token in the final string.
+  return restoreSubstitutionsInText(storage.serializer.serialize(tempDoc))
 }
 
 // ── Internal: JSON walker ───────────────────────────────────────────────────
@@ -276,7 +293,10 @@ function transformInlineChildren(children: NodeJSON[]): NodeJSON[] {
     ) {
       const old = cur.node.text
       const fresh = next.node.text
-      const wrappedText = `{~~${old}~>${fresh}~~}`
+      // ENH-260 — emit the fold in sentinel form; serializeWithCriticMarkup
+      // restores `{~~old~>new~~}` AFTER tiptap-markdown's serializer runs,
+      // so the token's delimiters are never markdown-escaped.
+      const wrappedText = `{${SUB_OPEN_SENTINEL}${old}${SUB_SEP_SENTINEL}${fresh}${SUB_CLOSE_SENTINEL}}`
       out.push(makeWrappedTextNode(wrappedText, cur.cm.preserveMarks))
       i++
       continue

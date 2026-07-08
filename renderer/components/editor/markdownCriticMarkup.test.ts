@@ -6,7 +6,7 @@
 // editor integration tests.
 
 import { describe, it, expect } from 'vitest'
-import { materializeCriticMarkupToJSON } from './markdownCriticMarkup'
+import { materializeCriticMarkupToJSON, restoreSubstitutionsInText } from './markdownCriticMarkup'
 
 // Minimal editor-shape for the test surface — only `isDestroyed` and
 // `getJSON` are touched.
@@ -68,9 +68,12 @@ describe('materializeCriticMarkupToJSON — substitution fold', () => {
       }]
     }
     const out = materializeCriticMarkupToJSON(fakeEditor(doc)) as typeof doc
-    expect(out.content?.[0].content).toEqual([
-      { type: 'text', text: '{~~old text~>new text~~}' }
-    ])
+    // ENH-260 — the fold is emitted in control-char sentinel form (so the
+    // markdown serializer can't escape `~`/`>`); restoreSubstitutionsInText
+    // is the exact post-serialize restore serializeWithCriticMarkup applies.
+    const folded = out.content?.[0].content as Array<{ type: string; text: string }>
+    expect(folded).toHaveLength(1)
+    expect(restoreSubstitutionsInText(folded[0].text)).toBe('{~~old text~>new text~~}')
   })
 
   it('does NOT fold when separated by plain text', () => {
@@ -308,9 +311,10 @@ describe('materializeCriticMarkupToJSON — D7 double-marked (ins+del coexistenc
       }]
     }
     const out = materializeCriticMarkupToJSON(fakeEditor(doc)) as typeof doc
-    expect(out.content?.[0].content).toEqual([
-      { type: 'text', text: '{~~old~>new~~}' }
-    ])
+    // Sentinel-form fold; see the fold describe-block's ENH-260 note.
+    const folded = out.content?.[0].content as Array<{ type: string; text: string }>
+    expect(folded).toHaveLength(1)
+    expect(restoreSubstitutionsInText(folded[0].text)).toBe('{~~old~>new~~}')
   })
 })
 
