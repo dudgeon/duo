@@ -15,6 +15,7 @@ import {
   setFrontmatterFields,
   entityPanel,
   rollupViewData,
+  modelViewData,
   type RollupBuilderModel,
 } from './builder'
 import { splitFrontmatter } from './parse'
@@ -193,5 +194,47 @@ describe('rollupViewData (D10 — structured rows, D5 — multi-level groups)', 
     const data = rollupViewData(v, 'rollups/broken.md')
     expect(data.error).toMatch(/YAML|views/)
     expect(data.rows).toEqual([])
+  })
+
+  // ENH-258 — a filter on an ENTITY-valued property matches by identity. The
+  // builder emits `contains` with the entity's display name; the engine folds
+  // it to the linked note's targetKey, so a rel-md link value matches. Before
+  // the fix the GUI fed the raw `[Growth](./…md)` string and matched 0 rows.
+  it('a `contains` filter on a link-valued prop matches rows by entity identity', () => {
+    write('themes/growth.md', '---\ntype: theme\n---\n# Growth\n')
+    write('initiatives/a.md', '---\ntype: initiative\ninitiative_theme: "[Growth](../themes/growth.md)"\n---\n# A\n')
+    write('initiatives/b.md', '---\ntype: initiative\ninitiative_theme: "[Growth](../themes/growth.md)"\n---\n# B\n')
+    write('initiatives/c.md', '---\ntype: initiative\n---\n# C (no theme)\n')
+    const model: RollupBuilderModel = {
+      title: 'Growth inits',
+      types: ['initiative'],
+      groupBy: [],
+      buckets: [],
+      filters: [{ property: 'initiative_theme', op: 'contains', value: 'Growth' }],
+      columns: [],
+    }
+    const data = modelViewData(v, model)
+    expect(data.error).toBeNull()
+    expect(data.warnings).toEqual([])
+    expect(data.rows.map((r) => r.title).sort()).toEqual(['a', 'b'])
+  })
+
+  // ENH-258 — a declared bucket keyed by an entity NAME absorbs the rows whose
+  // link-valued group prop points at that entity (identity match via memberEq).
+  it('a declared bucket keyed by an entity name captures its link-grouped rows', () => {
+    write('goals/reduce-churn.md', '---\ntype: goal\n---\n# Reduce Churn\n')
+    write('initiatives/x.md', '---\ntype: initiative\nparent: "[Reduce Churn](../goals/reduce-churn.md)"\n---\n# X\n')
+    const model: RollupBuilderModel = {
+      title: 'By goal',
+      types: ['initiative'],
+      groupBy: ['parent'],
+      buckets: [{ value: 'Reduce Churn' }],
+      filters: [],
+      columns: [],
+    }
+    const data = modelViewData(v, model)
+    expect(data.error).toBeNull()
+    // The declared bucket matched (non-null key) rather than rendering empty.
+    expect(data.buckets).toEqual([{ label: 'Reduce Churn', key: 'Reduce Churn' }])
   })
 })

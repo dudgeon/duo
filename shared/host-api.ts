@@ -1333,12 +1333,25 @@ export interface RollupViewDataDto {
 
 /** Corpus schema slice the builder's dropdowns draw from (the corpus IS
  *  the schema — computed live per call, never cached). */
+/** ENH-258 — an entity reference observed in a link-valued property: the
+ *  human display name + the targetKey identity slug (the operand the engine's
+ *  identity fold matches). */
+export interface EntityRefDto {
+  name: string
+  slug: string
+}
+
 export interface VaultSchemaDto {
   types: string[]
   propsByType: Record<string, string[]>
   enumsByType: Record<string, string[]>
   /** ENH-248 R7 — type → live entity count (template-only types count 0). */
   countsByType: Record<string, number>
+  /** ENH-258 — `${type}.${prop}` → the entities observed in a link-valued
+   *  property. A property here is an entity reference (not a scalar enum);
+   *  the Rollups builder offers these as filter/bucket value options and
+   *  emits an identity-fold `contains` predicate. */
+  entityRefsByType: Record<string, EntityRefDto[]>
 }
 
 /** ENH-248 R2 — what the browser pane needs to overlay the Duo-native

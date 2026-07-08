@@ -2588,6 +2588,8 @@ function setupIPC(): void {
           enumsByType: corpus.enumsByType,
           // ENH-248 R7 — the Vault tab's Entities section counts.
           countsByType: corpus.countsByType,
+          // ENH-258 — entity options per link-valued property (filter/bucket).
+          entityRefsByType: corpus.entityRefsByType,
         },
       }
     } catch (e) {

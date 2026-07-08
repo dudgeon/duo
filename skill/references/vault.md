@@ -227,6 +227,21 @@ identity — alias variants of one note form ONE group; an array-valued
 groupBy matches a bucket on any element. `duo base render` JSON carries the
 same `warnings` key.
 
+**Filtering / grouping by an ENTITY (ENH-258).** When a property holds entity
+links (a `parent` → goal, an `initiative_theme` → theme; wikilink OR OKF
+rel-md), filter/group it **by the entity's identity, never its raw link
+string**. Use the membership form — `list(initiative_theme).contains("Growth")`
+or the builder twin `--filter 'initiative_theme~=Growth'` — passing the entity's
+**display name or slug** (both fold through targetKey; `"Growth"` and
+`"growth"` match, `"[Growth](../themes/growth.md)"` does NOT). A raw-link
+operand or a plain `initiative_theme == "[Growth](…)"` silently matches zero
+rows. `duo vault schema` exposes the pickable entities per link-valued property
+under **`entityRefsByType["<type>.<prop>"]`** (`[{name, slug}]`) — read that for
+the valid operands (the Rollups builder GUI populates its entity value/bucket
+pickers from it). Grouping by such a property already folds link identity
+(headers show the entity display name); declared buckets key by entity name too
+(`--bucket 'Reduce Churn'`).
+
 Renders are **stamped build artifacts** (D13): generated-at + source-hash +
 as-of date. Default writes to the vault's `output/` (or legacy `out/` for a
 vault that already has one — ENH-246); re-render to refresh — the

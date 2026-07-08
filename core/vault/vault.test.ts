@@ -174,6 +174,75 @@ describe('parse helpers', () => {
 // ENH-216 OKF detection — throwaway tmpdir vaults (the frozen prototype is
 // Obsidian-mode and is NEVER mutated; OKF coverage lives here on its own
 // fixtures).
+describe('ENH-258 — entity-reference props (link-valued) split from scalar enums', () => {
+  let tmp: string
+  beforeEach(() => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'duo-vault-enh258-'))
+  })
+  afterEach(() => {
+    fs.rmSync(tmp, { recursive: true, force: true })
+  })
+
+  const write = (rel: string, body: string) => {
+    const abs = path.join(tmp, rel)
+    fs.mkdirSync(path.dirname(abs), { recursive: true })
+    fs.writeFileSync(abs, body)
+  }
+
+  it('OKF: a rel-md link prop is an entity ref (not a scalar enum); a scalar stays an enum', () => {
+    write('_index.md', '---\nokf_version: "1.0"\ntype: index\n---\n')
+    write('goals/reduce-churn.md', '---\ntype: goal\n---\n# Reduce Churn\n')
+    write('themes/growth.md', '---\ntype: theme\n---\n# Growth\n')
+    write(
+      'initiatives/onboarding.md',
+      '---\ntype: initiative\nstatus: active\nparent: "[Reduce Churn](../goals/reduce-churn.md)"\ninitiative_theme: "[Growth](../themes/growth.md)"\n---\n# Onboarding\n',
+    )
+    const c = buildCorpus(tmp)
+    // The link props are entity refs, keyed by targetKey identity slug…
+    expect(c.entityRefsByType['initiative.parent']).toEqual([{ name: 'Reduce Churn', slug: 'reduce-churn' }])
+    expect(c.entityRefsByType['initiative.initiative_theme']).toEqual([{ name: 'Growth', slug: 'growth' }])
+    // …and are NOT polluting enumsByType with un-matchable raw-link strings.
+    expect(c.enumsByType['initiative.parent']).toBeUndefined()
+    expect(c.enumsByType['initiative.initiative_theme']).toBeUndefined()
+    // A genuine scalar prop is still a scalar enum, unchanged.
+    expect(c.enumsByType['initiative.status']).toEqual(['active'])
+    expect(c.entityRefsByType['initiative.status']).toBeUndefined()
+  })
+
+  it('a rel link to a NON-note file is a plain string enum, not an entity ref', () => {
+    // The engine (parseLinkish) only folds `.md` rel links to a Link — a
+    // `.png` rel link stays a plain STRING. So it must NOT be offered as an
+    // entity operand (a `contains` on it would never resolve); it belongs in
+    // enumsByType as its raw string, which `==` string-matches.
+    write('_index.md', '---\nokf_version: "1.0"\ntype: index\n---\n')
+    write('initiatives/a.md', '---\ntype: initiative\ncover: "[Cover](./images/cover.png)"\n---\n# A\n')
+    const c = buildCorpus(tmp)
+    expect(c.entityRefsByType['initiative.cover']).toBeUndefined()
+    expect(c.enumsByType['initiative.cover']).toEqual(['[Cover](./images/cover.png)'])
+  })
+
+  it('Obsidian: a wikilink prop is an entity ref (previously absent from enums entirely)', () => {
+    fs.mkdirSync(path.join(tmp, '.obsidian'), { recursive: true })
+    write('themes/Growth.md', '---\ntype: theme\n---\n# Growth\n')
+    write('initiatives/Onboarding.md', '---\ntype: initiative\ninitiative_theme: "[[Growth]]"\n---\n# Onboarding\n')
+    const c = buildCorpus(tmp)
+    expect(c.entityRefsByType['initiative.initiative_theme']).toEqual([{ name: 'Growth', slug: 'growth' }])
+    expect(c.enumsByType['initiative.initiative_theme']).toBeUndefined()
+  })
+
+  it('array-valued link prop surfaces every entity, deduped by identity slug', () => {
+    fs.mkdirSync(path.join(tmp, '.obsidian'), { recursive: true })
+    write('a.md', '---\ntype: initiative\ntracks: ["[[Q3 Launch]]", "[[Growth]]"]\n---\n')
+    // A second note re-uses one track (alias-cased) — must fold to one slug.
+    write('b.md', '---\ntype: initiative\ntracks: ["[[q3-launch|Growth push]]"]\n---\n')
+    const c = buildCorpus(tmp)
+    const refs = c.entityRefsByType['initiative.tracks']
+    expect(refs.map((r) => r.slug).sort()).toEqual(['growth', 'q3-launch'])
+    // First display wins for a given identity (stable label).
+    expect(refs.find((r) => r.slug === 'q3-launch')!.name).toBe('Q3 Launch')
+  })
+})
+
 describe('OKF detection (ENH-216 D4)', () => {
   let tmp: string
   beforeEach(() => {

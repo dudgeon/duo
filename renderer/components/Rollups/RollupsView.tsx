@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   EntityPanelDto,
+  EntityRefDto,
   RollupFilterDto,
   RollupModelDto,
   RollupViewDataDto,
@@ -1046,6 +1047,18 @@ function BuilderPanel({
     return [...out].sort()
   }
 
+  // ENH-258 — a link-valued property's entity options (union across the
+  // rolled-up types, deduped by slug). Non-empty ⇒ the property is an entity
+  // reference: its filter/bucket value is PICKED from these entities and
+  // matched by identity (contains), never compared as a raw link string.
+  const entityOptions = (property: string): EntityRefDto[] => {
+    const bySlug = new Map<string, string>()
+    for (const t of model.types)
+      for (const e of schema?.entityRefsByType[`${t}.${property}`] ?? []) if (!bySlug.has(e.slug)) bySlug.set(e.slug, e.name)
+    return [...bySlug.entries()].map(([slug, name]) => ({ name, slug })).sort((a, b) => a.name.localeCompare(b.name))
+  }
+  const isLinkProp = (property: string): boolean => entityOptions(property).length > 0
+
   const commitTitle = () => {
     const t = title.trim()
     if (t && t !== model.title) onChange({ ...model, title: t })
@@ -1141,7 +1154,12 @@ function BuilderPanel({
               </span>
             ))}
             <AddBucket
-              options={enumOptions(model.groupBy[0]).filter((v) => !model.buckets.some((b) => b.value === v))}
+              // ENH-258 — for a link-valued group prop the bucket value is an
+              // ENTITY (matched by identity via memberEq), not a raw scalar.
+              options={(isLinkProp(model.groupBy[0])
+                ? entityOptions(model.groupBy[0]).map((e) => e.name)
+                : enumOptions(model.groupBy[0])
+              ).filter((v) => !model.buckets.some((b) => b.value === v))}
               onAdd={(b) => onChange({ ...model, buckets: [...model.buckets, b] })}
             />
           </div>
@@ -1153,7 +1171,9 @@ function BuilderPanel({
         {model.filters.map((f, i) => (
           <div key={`${f.property}-${i}`} className="duo-rollups-filter">
             <code>{f.property}</code>
-            <span>{OPS.find((o) => o.value === f.op)?.label}</span>
+            {/* ENH-258 — an identity `contains` on a link prop reads as "is",
+                not the multi-valued "has member" label. */}
+            <span>{f.op === 'contains' && isLinkProp(f.property) ? 'is' : OPS.find((o) => o.value === f.op)?.label}</span>
             {VALUE_OPS.has(f.op) ? <code>{f.value}</code> : null}
             <button
               type="button"
@@ -1165,7 +1185,13 @@ function BuilderPanel({
             </button>
           </div>
         ))}
-        <AddFilter props={props} enumOptions={enumOptions} onAdd={(f) => onChange({ ...model, filters: [...model.filters, f] })} />
+        <AddFilter
+          props={props}
+          enumOptions={enumOptions}
+          entityOptions={entityOptions}
+          isLinkProp={isLinkProp}
+          onAdd={(f) => onChange({ ...model, filters: [...model.filters, f] })}
+        />
       </div>
 
       <div className="duo-rollups-fieldlabel">Columns</div>
@@ -1287,17 +1313,40 @@ function AddBucket({
 function AddFilter({
   props,
   enumOptions,
+  entityOptions,
+  isLinkProp,
   onAdd,
 }: {
   props: string[]
   enumOptions: (property: string) => string[]
+  entityOptions: (property: string) => EntityRefDto[]
+  isLinkProp: (property: string) => boolean
   onAdd: (f: RollupFilterDto) => void
 }) {
   const [property, setProperty] = useState('')
   const [op, setOp] = useState<RollupFilterDto['op']>('eq')
   const [value, setValue] = useState('')
+  const link = property ? isLinkProp(property) : false
   const needsValue = VALUE_OPS.has(op)
-  const options = property ? enumOptions(property) : []
+  const options = property && !link ? enumOptions(property) : []
+  const entOptions = property && link ? entityOptions(property) : []
+  // ENH-258 — a link-valued property is matched by ENTITY IDENTITY, so its
+  // ops are "is <entity>" (identity `contains`) + set/notset. A raw-string
+  // `==` would never match the parsed Link, which is the bug this fixes.
+  const opsForProp = link
+    ? ([
+        { value: 'contains', label: 'is' },
+        { value: 'set', label: 'is set' },
+        { value: 'notset', label: 'is not set' },
+      ] as { value: RollupFilterDto['op']; label: string }[])
+    : OPS
+
+  const pickProperty = (p: string) => {
+    setProperty(p)
+    setValue('')
+    // Default a link prop to identity membership so its value actually matches.
+    setOp(p && isLinkProp(p) ? 'contains' : 'eq')
+  }
 
   const commit = () => {
     if (!property) return
@@ -1313,10 +1362,7 @@ function AddFilter({
       <select
         className="duo-rollups-add"
         value={property}
-        onChange={(e) => {
-          setProperty(e.target.value)
-          setValue('')
-        }}
+        onChange={(e) => pickProperty(e.target.value)}
         aria-label="Filter property"
       >
         <option value="">+ filter…</option>
@@ -1334,14 +1380,31 @@ function AddFilter({
             onChange={(e) => setOp(e.target.value as RollupFilterDto['op'])}
             aria-label="Filter operator"
           >
-            {OPS.map((o) => (
+            {opsForProp.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
             ))}
           </select>
           {needsValue ? (
-            options.length > 0 ? (
+            link ? (
+              // ENH-258 — pick an ENTITY; the stored value is its display name,
+              // which the engine folds to the note's identity (memberEq), so a
+              // `[[Growth]]` / `[Growth](./growth.md)` value all match.
+              <select
+                className="duo-rollups-add"
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                aria-label="Filter value"
+              >
+                <option value="">entity…</option>
+                {entOptions.map((e) => (
+                  <option key={e.slug} value={e.name}>
+                    {e.name}
+                  </option>
+                ))}
+              </select>
+            ) : options.length > 0 ? (
               <select
                 className="duo-rollups-add"
                 value={value}

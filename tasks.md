@@ -2,6 +2,21 @@
 
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
+### ENH-258: Rollup builder — filter/group/bucket by an entity (link-valued property)
+**Status:** 🚧 In-progress (filed 2026-07-07, branch `claude/rollup-arbitrary-entity-filter`). **P1.**
+
+**The failure (owner-reported, photo'd).** In the Rollups builder you cannot filter a rollup on a property that holds an entity link — e.g. rolling up `initiative`s and filtering by `initiative_theme` (some link to a `[[Growth]]` theme) or grouping/bucketing by `parent` (→ a goal). It silently returns **zero rows** with no warning.
+
+**Root cause (verified empirically, both formats).** `core/vault/corpus.ts` emits entity-link scalar values into `enumsByType` in their **raw serialized form** — OKF `[Growth](../themes/growth.md)`, and (for wikilinks) nothing at all. The builder GUI populates its filter-value + bucket-value pickers from `enumsByType`, so it offers un-matchable raw-link strings; the emitted predicate `initiative_theme == "[Growth](../themes/growth.md)"` never matches, because the engine has parsed the frontmatter value into a `Link` whose identity is `growth`. The only forms that match are identity-folded: `list(prop).contains("Growth")` / `== "Growth"` (proven: 2/2 rows). **Group-by *rendering* already works** (folds link identity, ENH-255) — the shared defect is the *value operand picker*, which also feeds the declared-bucket UI. The engine + CLI (`--filter k~=v`) are already correct; the defect is corpus-schema + GUI-only.
+
+**Fix (owner-approved: full, applied across filter + group-by buckets + columns, both formats).** Make entity-reference properties first-class in the corpus:
+- `corpus.ts`: classify a link-valued frontmatter scalar (wikilink OR OKF rel-md, via the existing `extractLinkRefs`) OUT of `enumsByType` and into a new `entityRefsByType[type.prop] = [{name, slug}]` (dedupe by slug). Kills the pollution at the source, both formats.
+- `types.ts` / `shared/host-api.ts` `VaultSchemaDto` / `electron/main.ts` VAULT_SCHEMA IPC: surface `entityRefsByType`.
+- `RollupsView.tsx`: for a link-valued property, the filter-value + bucket-value controls become an **entity picker** (names) and the emitted filter is the identity-fold `contains`. Columns unchanged (render fine via `plainCell`). Scalar props unchanged.
+- Tests (corpus classification both formats; builder emits contains; a render proving `initiative_theme = Growth` returns rows); `npm run build:cli`; `check:skill-currency`; smoke-walk before cut.
+
+---
+
 ### ENH-232: Catch-up — rich re-entry for sessions whose worktree was removed
 **Status:** 🔵 Open (filed from ENH-231 walk #2, 2026-06-24). **P1.**
 
