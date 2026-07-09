@@ -1105,7 +1105,9 @@ severs. Rough order:</p>
   function payload() {
     var s = state();
     var lines = [];
-    lines.push('AIPM initiative-graph schema decisions — ' + new Date().toISOString().slice(0, 10));
+    var now = new Date();
+    var localDate = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+    lines.push('AIPM initiative-graph schema decisions — ' + localDate);
     lines.push('(from docs/research/aipm-initiative-schema.html rev 1)');
     lines.push('');
     DECISIONS.forEach(function (d, i) {
