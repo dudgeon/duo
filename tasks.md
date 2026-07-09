@@ -2,6 +2,32 @@
 
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
+### ENH-264: Owner review — AIPM initiative-graph schema decision playground
+
+**Status:** 🟡 Awaiting owner walk (filed 2026-07-08). **Priority:** P1 for the owner's KB work (not Duo-gating — but per the research-report rule it surfaces in every smoke walk until walked). **Ticket note:** allocated after ENH-263 in this worktree; renumber on collision.
+
+**The artifact.** [docs/research/aipm-initiative-schema.html](docs/research/aipm-initiative-schema.html) — an interactive decision playground for the AIPM knowledge-base data model (the owner's work vault, brainkit/OKF substrate, rendered by Duo rollups). Four schema options (minimal → one-spine → two-axes → fully engineered), each scored against the six canonical program queries with real shipped rollup syntax (ENH-255/258/259/261/262 dialect) and mock rendered output; migration sketch from the current KB; **nine decision cards** (D1 overall shape … D9 track naming) with radios + notes + localStorage persistence + Copy-decisions payload.
+
+**Walk it:** `duo open docs/research/aipm-initiative-schema.html` → pick radios, notes where disagreeing → Copy decisions → paste back to a Claude session to lock the schema and plan the migration.
+
+**Evidence base:** owner's `entity-model-reference.md` (2026-07-08 session), brainkit contract v2 (loop-library `dist/brainkit`), `okf-brainkit-folder-hierarchy.html` (Approach 2 lock), the v0.13.5–6 engine ships, this session's interview decisions.
+
+---
+
+### ENH-263: Seed `.obsidian/app.json` defaults for OKF vaults (cross-tool interop)
+
+**Status:** 🆕 Filed 2026-07-08 (owner-requested during an AIPM data-model design conversation). **Priority:** P3 (interop nicety, not a Duo functional gap). **Ticket note:** allocated after grepping sibling worktrees (max was ENH-262); renumber on collision.
+
+**Problem.** OKF-mode vault scaffolding writes **no `.obsidian/` folder at all** (`core/vault/scaffold.ts` — the OKF branch's own comment says "NO .obsidian/ and NO bases/"; only `mode === 'obsidian'` writes `.obsidian/app.json`). Reading an OKF vault directly in real Obsidian already works fine today — Obsidian's parser follows standard `[Display](./note.md)` relative markdown links natively, no config needed. But if someone opens an OKF-formatted folder as a fresh Obsidian vault (outside Duo), Obsidian auto-creates its *own* `.obsidian/` with factory defaults — "Use [[Wikilinks]]" on, "New link format" = shortest-path — so any link Obsidian itself creates from then on (autocomplete, drag-drop, "copy link") comes out as a wikilink, silently diverging from OKF's markdown-relative-link convention (D3: no `[[wikilink]]` ever persists in OKF mode).
+
+**Fix.** OKF-mode scaffold (`duo vault init --format=okf`, and the create-on-choose / `vault default --init` paths) pre-seeds a minimal `.obsidian/app.json` with the link-format settings that keep Obsidian-authored links consistent with OKF's convention — so opening the vault directly in Obsidian, with zero manual settings, already produces the same link format Duo writes. **Needs verification before implementing:** the exact `.obsidian/app.json` key names/values Obsidian currently uses for "use markdown links" / "new link format" — don't trust a model's recalled guess; check against a real Obsidian install or its current settings schema.
+
+**Scope note.** Purely a cross-tool interop nicety for OKF vault owners who also poke around in real Obsidian — doesn't affect anyone using the vault only through Duo, since Duo already enforces the markdown-link convention on write regardless of `.obsidian/` contents.
+
+**Provenance.** Surfaced when Claude asserted "OKF format renders fine in Obsidian, nothing extra needed" during an AIPM data-model design session and the owner correctly challenged it — the claim was half right (reading works) and half wrong (authoring defaults don't match without this).
+
+---
+
 ### ENH-232: Catch-up — rich re-entry for sessions whose worktree was removed
 **Status:** 🔵 Open (filed from ENH-231 walk #2, 2026-06-24). **P1.**
 

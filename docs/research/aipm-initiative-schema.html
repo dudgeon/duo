@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>AIPM initiative graph — schema options</title>
+<style>
+/* duo-atelier.css — canonical Atelier kernel for Duo HTML playgrounds. */
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+  --project-pine:   #2E7D74;
+  --project-harbor: #3C6E93;
+  --project-iris:   #5B57A6;
+  --project-plum:   #87508F;
+  --project-rose:   #A4506A;
+  --project-moss:   #69763A;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+body { padding: 32px 40px 96px; max-width: 920px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px;
+}
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill {
+  display: inline-block; padding: 2px 8px; border-radius: 10px;
+  background: var(--accent-soft); color: var(--accent);
+  font-weight: 600; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.04em; margin-right: 6px;
+}
+.intro {
+  background: var(--paper-deep); border: 1px solid var(--paper-rule);
+  border-radius: 6px; padding: 14px 18px; margin-bottom: 28px;
+  font-size: 13.5px; color: var(--ink-soft);
+}
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 600; margin: 36px 0 12px; font-size: 19px;
+  border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px;
+}
+h3 { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+h4 { margin: 16px 0 6px; font-size: 13.5px; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px;
+  background: var(--paper-deep); padding: 1px 5px; border-radius: 3px;
+}
+pre {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px; line-height: 1.5;
+  background: var(--code-bg); color: var(--code-ink);
+  padding: 14px 16px; border-radius: 6px; overflow-x: auto;
+}
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+.decision-card {
+  background: var(--paper-deep); border: 1.5px solid var(--paper-rule);
+  border-radius: 6px; padding: 16px 18px; margin: 18px 0;
+}
+.decision-card .q-title {
+  font-weight: 700; font-size: 13px; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px;
+}
+.decision-card .q-prompt {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 500; font-size: 17px; color: var(--ink);
+  margin: 0 0 12px; line-height: 1.35;
+}
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option {
+  display: block; background: var(--paper);
+  border: 1.5px solid var(--paper-rule); border-radius: 5px;
+  padding: 10px 12px; cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--paper));
+}
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag {
+  font-size: 10px; background: var(--accent-soft); color: var(--accent);
+  text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em;
+  padding: 1px 6px; border-radius: 8px; margin-left: 6px;
+}
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes {
+  width: 100%; background: var(--paper);
+  border: 1px solid var(--paper-rule); border-radius: 4px;
+  padding: 8px 10px; font-family: inherit; font-size: 12.5px;
+  color: var(--ink); resize: vertical; min-height: 50px;
+}
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+details.deferred {
+  margin: 22px 0; padding: 12px 16px;
+  background: var(--paper-deep); border: 1px dashed var(--paper-rule); border-radius: 6px;
+}
+details.deferred summary { cursor: pointer; font-weight: 600; color: var(--ink-soft); font-size: 13.5px; }
+details.deferred[open] summary { color: var(--ink); }
+details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(--ink-soft); }
+.copy-bar {
+  position: sticky; bottom: 0; margin: 32px -40px -96px;
+  padding: 16px 40px;
+  background: color-mix(in srgb, var(--paper-deep) 96%, transparent);
+  border-top: 1.5px solid var(--paper-rule);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+}
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button {
+  background: var(--accent); color: white; border: none; border-radius: 5px;
+  padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600;
+  cursor: pointer; transition: background 0.12s;
+}
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* ——— per-playground styles (after the kernel) ——— */
+
+table.grid {
+  border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 12.5px;
+}
+table.grid th, table.grid td {
+  border: 1px solid var(--paper-rule); padding: 6px 9px; text-align: left; vertical-align: top;
+}
+table.grid th { background: var(--paper-deep); font-weight: 600; font-size: 12px; }
+table.grid td code { font-size: 11.5px; }
+
+.option-card {
+  border: 1.5px solid var(--paper-rule); border-radius: 8px;
+  padding: 18px 20px; margin: 20px 0; background: var(--paper);
+}
+.option-card.recommended { border-color: var(--accent); box-shadow: 0 1px 6px rgba(196,106,28,0.12); }
+.option-card .opt-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+.option-card .opt-letter {
+  font-family: "New York", Georgia, serif; font-style: italic;
+  font-size: 26px; color: var(--accent); font-weight: 600; line-height: 1;
+}
+.option-card .opt-name { font-weight: 700; font-size: 16px; }
+.option-card .opt-tagline { color: var(--ink-mute); font-size: 12.5px; margin-bottom: 10px; }
+.typechips { margin: 8px 0; }
+.typechips .chip {
+  display: inline-block; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px; background: var(--paper-deep); border: 1px solid var(--paper-rule);
+  border-radius: 9px; padding: 2px 8px; margin: 2px 3px 2px 0; color: var(--ink-soft);
+}
+.typechips .chip.new { border-color: var(--pass); color: var(--pass); }
+.typechips .chip.gone { text-decoration: line-through; color: var(--ink-ghost); }
+.verdict { font-size: 12.5px; margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--paper-rule); }
+.verdict b { color: var(--ink); }
+.ok   { color: var(--pass); font-weight: 700; }
+.mid  { color: var(--warn); font-weight: 700; }
+.bad  { color: var(--fail); font-weight: 700; }
+
+.qmatrix { width: 100%; border-collapse: collapse; font-size: 12px; margin: 10px 0 4px; }
+.qmatrix td, .qmatrix th { border: 1px solid var(--paper-rule); padding: 4px 8px; }
+.qmatrix th { background: var(--paper-deep); font-weight: 600; }
+.qmatrix td:first-child { white-space: nowrap; }
+
+/* mock rollup render */
+.rollup-mock {
+  border: 1px solid var(--paper-edge); border-radius: 6px;
+  margin: 10px 0 18px; overflow: hidden; background: white;
+  box-shadow: 0 1px 4px rgba(43,38,32,0.06);
+}
+.rollup-mock .rm-title {
+  padding: 8px 14px; font-weight: 700; font-size: 13px;
+  border-bottom: 1px solid var(--paper-edge); background: var(--paper);
+}
+.rollup-mock .rm-title .rm-stamp { float: right; font-weight: 400; font-size: 10.5px; color: var(--ink-ghost); }
+.rollup-mock table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.rollup-mock th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-mute); padding: 6px 14px 4px; border-bottom: 1px solid var(--paper-edge); background: white; }
+.rollup-mock td { padding: 5px 14px; border-bottom: 1px solid #f1ece1; }
+.rollup-mock tr.rm-group td {
+  background: var(--paper-deep); font-weight: 700; font-size: 12px; color: var(--ink-soft);
+  border-bottom: 1px solid var(--paper-rule);
+}
+.rollup-mock tr.rm-group td .rm-count { font-weight: 400; color: var(--ink-ghost); font-size: 11px; }
+.rollup-mock td a, .rollup-mock td .rm-link { color: var(--project-harbor); text-decoration: none; border-bottom: 1px dotted var(--project-harbor); cursor: pointer; }
+.rollup-mock .rm-chip {
+  display: inline-block; font-size: 10px; font-weight: 700; border-radius: 8px; padding: 1px 7px;
+  text-transform: uppercase; letter-spacing: 0.03em;
+}
+.rm-chip.experimental { background: #efe7f5; color: var(--project-iris); }
+.rm-chip.proven       { background: #e2efe0; color: var(--pass); }
+.rm-chip.recommended  { background: var(--accent-soft); color: var(--accent); }
+.rm-chip.required     { background: #f5dcd9; color: var(--fail); }
+.rm-chip.active       { background: #e1ecf3; color: var(--project-harbor); }
+.rm-chip.forming      { background: var(--paper-deep); color: var(--ink-mute); }
+.rm-chip.candidate    { background: var(--paper-deep); color: var(--ink-soft); }
+.rm-chip.drafting     { background: #fdf3e4; color: var(--warn); }
+.rm-chip.published    { background: #e2efe0; color: var(--pass); }
+.rollup-mock tr.rm-empty td { color: var(--ink-ghost); font-style: italic; }
+
+/* graph diagram */
+.figure { margin: 16px 0; text-align: center; }
+.figure svg { max-width: 100%; height: auto; }
+.figure .figcap { font-size: 12px; color: var(--ink-mute); margin-top: 6px; }
+
+.callout {
+  border-left: 3px solid var(--accent); background: var(--paper-deep);
+  padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 14px 0; font-size: 13px;
+}
+.callout.warn { border-left-color: var(--fail); }
+.callout b { color: var(--ink); }
+
+.fieldclass { display: inline-block; font-size: 10px; font-weight: 700; border-radius: 8px; padding: 1px 7px; text-transform: uppercase; letter-spacing: 0.03em; margin-right: 4px; }
+.fieldclass.auth { background: #e1ecf3; color: var(--project-harbor); }
+.fieldclass.xtag { background: #efe7f5; color: var(--project-iris); }
+.fieldclass.stamp { background: var(--paper-deep); color: var(--ink-mute); border: 1px dashed var(--ink-ghost); }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>AIPM initiative graph — schema options</h1>
+  <div class="meta">
+    <span class="pill">Decision doc</span>
+    <span class="pill">Rev 1</span>
+    2026-07-08 · for the AI-in-Product (AIPM) knowledge base · substrate: OKF vault (brainkit&nbsp;v0.3 / contract&nbsp;v2) · rendered by Duo rollups
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> Four candidate data models for tracking AI-adoption
+  initiatives across a federated product org — from a minimal, prose-heavy schema to a
+  fully engineered one — each tested against the six rollups the program actually needs,
+  with representative frontmatter and mock rendered output. Nine decision cards at the
+  bottom lock the shape. <strong>How to use it:</strong> read top to bottom (~15 min),
+  pick a radio on each card, add notes where you disagree, then hit
+  <em>Copy decisions</em> in the footer and paste the payload back to Claude.
+  Selections persist locally, so you can walk it in more than one sitting.
+</div>
+
+<h2>1 · What we're solving</h2>
+
+<p>AIPM is a horizontal program tracking AI adoption across ~2,700 product managers in a
+federated org. It exists to <b>watch experimentation → see it become declared initiatives
+→ promote what works into a playbook</b>. The data model must support:</p>
+
+<ul>
+  <li><b>One durable entity through the progression.</b> A team's declaration ("teams in
+    org_x shall build knowledge bases") fans out into per-team child initiatives; each thread
+    keeps its identity as it matures. Parent/child initiative structure is heavily used.</li>
+  <li><b>A rich org representation</b> — LOB → org → team chains, leaders, reporting
+    structure — plus the ~60 VPs cataloged (the 2,700 PMs are <em>not</em> bulk-imported;
+    people notes appear when they own something).</li>
+  <li><b>Two populations per track.</b> AIPM's tracks (Context &amp; Agent Resources, Tools,
+    Training, Tracking &amp; Measurement, …) each need one view uniting <em>initiatives they
+    own</em> and <em>initiatives elsewhere in the business relevant to their domain</em>.</li>
+  <li><b>Organic use cases</b>, cataloged, themed, tagged to the conceiving org; the mature
+    ones promoted into an external <b>playbook</b> web property (the KB note is the
+    playbook's primary key).</li>
+  <li><b>Deterministic queries.</b> Rollups do the reading; an <em>agentic pass assigns
+    tags at write time</em> (track relevance, themes) — no query-time fuzzy matching.</li>
+  <li><b>Teachable to PMs.</b> Project managers will run this. Structured frontmatter only
+    where a rollup filters/groups/joins on it; everything else stays in the markdown body.</li>
+</ul>
+
+<h3>The six canonical queries (the test harness)</h3>
+<table class="grid">
+  <tr><th style="width:44px">Q</th><th>Rollup</th><th>Why it matters</th></tr>
+  <tr><td><b>Q1</b></td><td>Track dashboard — the track's <em>own</em> initiatives <b>plus</b> monitored business initiatives relevant to it, broken out by engagement</td><td>The canonical track operating view; two populations reach the track through <em>different</em> properties</td></tr>
+  <tr><td><b>Q2</b></td><td>One org's initiatives, grouped by owning department, then theme</td><td>The "what is org_x doing" leadership readout</td></tr>
+  <tr><td><b>Q3</b></td><td>All initiatives by theme, with departmental ownership shown</td><td>The cross-cutting "who's working on context management" scan</td></tr>
+  <tr><td><b>Q4</b></td><td>Initiatives on a theme declared by <b>VP+-led</b> organizations</td><td>Signal on where leadership (not just pods) is investing</td></tr>
+  <tr><td><b>Q5</b></td><td>Playbook pipeline — use cases by promotion status</td><td>Feeds the external playbook property</td></tr>
+  <tr><td><b>Q6</b></td><td>VP coverage — every VP org, <b>including the ones with zero initiatives</b></td><td>An empty bucket is signal (who hasn't started)</td></tr>
+</table>
+
+<h2>2 · Evidence base</h2>
+
+<table class="grid">
+  <tr><th>Source</th><th>What it contributes</th></tr>
+  <tr>
+    <td><b>Current KB entity model</b><br><code>entity-model-reference.md</code> (owner-authored, shared in the 2026-07-08 Duo session)</td>
+    <td>The as-built schema: 14 types; <code>initiative.parent</code> is polymorphic on <code>engagement</code> (own → goal/track-node; monitor → org); <code>tracks:[]</code> cross-tags; tracks modeled as <code>type:&nbsp;initiative</code> nodes named "Track:&nbsp;…".</td>
+  </tr>
+  <tr>
+    <td><b>Session: "Rollup filtering by arbitrary entities"</b> (2026-07-08)</td>
+    <td>The owner's live walk of the real vault exposed the failures that drove the same-day engine work: "Cannot group by goal, cannot filter by initiative_type" → shipped as <b>BUG-260 + ENH-261 + ENH-262</b> (commit <code>548c04e</code>), repro'd against a replica of this KB's hierarchy.</td>
+  </tr>
+  <tr>
+    <td><b>Duo rollup engine</b> (v0.13.5–6, shipped this week)</td>
+    <td>ENH-255 membership + declared buckets · ENH-258 entity-identity operands · ENH-259 transitive <code>ancestors()</code> · ENH-261 <code>ancestor:&lt;prop&gt;:&lt;type&gt;</code> grouping · ENH-262 <code>file.hasLink()</code> any-property match. Several "not expressible in the GUI" notes in the entity-model reference are <b>stale as of this ship</b> — membership filters are now GUI-native.</td>
+  </tr>
+  <tr>
+    <td><b>brainkit contract v2</b><br><a href="https://github.com/dudgeon/loop-library/tree/main/dist/brainkit">github.com/dudgeon/loop-library · dist/brainkit</a> (FOUNDATION.md)</td>
+    <td>The substrate contract the KB is built on: <code>type:</code> is the entity field; frontmatter is a floor; <b>never drop unknown keys</b>; <code>id:</code> is a shared mintable integrity tag (links heal id-first); <b>folders derive from the <code>parent:</code> edge</b>; types live as template notes; derived views are regenerated + stamped, never hand-cached.</td>
+  </tr>
+  <tr>
+    <td><b>Prior research</b> — <a href="./okf-brainkit-folder-hierarchy.html">okf-brainkit-folder-hierarchy.html</a> (session 2026-07-01)</td>
+    <td>Locked "derived path along one primary axis, over a canonical graph" (Approach 2) — one parent axis owns the folder tree; every other slice is an outline/rollup, never a second tree. Contract v2 is that decision, shipped.</td>
+  </tr>
+  <tr>
+    <td><b>This session's interview</b> (2026-07-08)</td>
+    <td>Locked: initiative is the one durable entity, self-parenting · maturity is an <em>attribute</em>, not a type · themes are finer than tracks, list-valued · track is its own type under an AIPM root, same <code>parent:</code> key · one owning org per initiative (cross-org = shared parent + per-org children) · champion/POC via org↔person crosslinks, no <code>ai_role</code> type · playbook-readiness is its own field · VP orgs arrive via migration batch-import · history stays in the body.</td>
+  </tr>
+</table>
+
+<h2>3 · The engine you already have (and its two hard limits)</h2>
+
+<p>Everything below is shipped and verified against this KB's replica — the schema should
+lean on these rather than invent parallel mechanisms:</p>
+
+<table class="grid">
+  <tr><th>Capability</th><th>Syntax (base dialect / builder twin)</th><th>Unlocks</th></tr>
+  <tr><td>List membership by <b>entity identity</b> (ENH-255)</td><td><code>list(tracks).contains("context-and-agent-resources")</code> · <code>--filter 'tracks~=…'</code></td><td>Cross-tag filters that match the linked note, never its display text. Now GUI-expressible.</td></tr>
+  <tr><td>Declared buckets, <b>empty buckets render</b> (ENH-255)</td><td><code>groups:</code> on a view · <code>--bucket 'value=Label'</code></td><td>Q6's "zero initiatives is signal"</td></tr>
+  <tr><td>Entity operands fold display↔slug (ENH-258 / BUG-260b)</td><td><code>"Growth"</code> ≡ <code>growth</code></td><td>PM-friendly filter values</td></tr>
+  <tr><td>Transitive "is under" (ENH-259)</td><td><code>ancestors("parent").contains("consumer")</code> · <code>--filter 'parent^=consumer'</code></td><td>"Everything anywhere under this org/goal," regardless of depth</td></tr>
+  <tr><td>Group/column by <b>nearest ancestor of a type</b> (ENH-261)</td><td><code>--group ancestor:parent:goal</code> (also works as a column)</td><td>"Group by goal / by org" even when <code>parent:</code> points at intermediate nodes</td></tr>
+  <tr><td>Any-property "links to" (ENH-262)</td><td><code>file.hasLink("track-x")</code> · <code>--filter '@=track-x'</code></td><td><b>Built for Q1</b>: unions populations that reach one entity via different properties</td></tr>
+  <tr><td>Multi-depth grouping, formulas, summaries, backlink rollups</td><td><code>--group a,b</code> · <code>if()</code>, date math, <code>html()</code></td><td>Dept-then-theme breakdowns; due chips; counts</td></tr>
+</table>
+
+<div class="callout">
+  <b>Hard limit 1 — a transitive walk follows ONE property name.</b>
+  <code>ancestors("parent")</code> and <code>ancestor:parent:&lt;type&gt;</code> re-read the
+  <em>same</em> key at every hop. A chain that switches names mid-way
+  (<code>initiative.org → organization.parent → …</code>) stops at the switch. <b>Design
+  consequence: whatever edge carries containment must use the same key on every type it
+  passes through.</b> The current KB's uniform <code>parent:</code> is why
+  <code>ancestor:parent:goal</code> works — preserve that.
+</div>
+<div class="callout">
+  <b>Hard limit 2 — no query-time joins.</b> A rollup reads each row's own frontmatter
+  (plus ancestor tokens). It cannot filter initiatives by <em>an attribute of a linked
+  note</em> ("rows whose org's leader is a VP"). Join-shaped questions are answered at
+  <b>write time</b> — an agent stamps a derived field on the row — which is exactly the
+  "agentic tagging, deterministic queries" principle already locked. (Nearest-ancestor
+  is also <em>nearest</em>, not topmost: grouping by "the LOB" from deep rows needs either
+  per-LOB views or a stamp.)
+</div>
+
+<h3>Three classes of field (the vocabulary this doc uses)</h3>
+<p>
+  <span class="fieldclass auth">authoritative</span> a human statement of fact — <code>parent:</code>, <code>owner:</code>, <code>status:</code>. PMs learn these; there are few.<br>
+  <span class="fieldclass xtag">cross-tag</span> relevance links assigned by the agentic filing pass and reviewable — <code>tracks:[]</code>, <code>themes:[]</code>.<br>
+  <span class="fieldclass stamp">derived stamp</span> machine-maintained denormalization (re-derivable from the graph, brainkit's regenerate discipline) — e.g. <code>exec_org:</code>. Nobody hand-edits these; distill re-derives them.
+</p>
+<p>The frontmatter test stays: <em>if no rollup filters, groups, or joins on it, it goes in
+the body</em> (timelines, rationale, status narrative — all body).</p>
+
+<h2>4 · Autopsy of the current schema</h2>
+
+<p><b>What it already gets right</b> — worth saying plainly, because the recommendation
+keeps it: a uniform <code>parent:</code> containment spine (own-side chains reach goals;
+monitor-side chains reach orgs); <code>tracks:[]</code> as an explicit cross-tag rather
+than query-time matching; <code>engagement: own|monitor</code> as the grouping axis;
+brainkit-conformant folders derived from the spine. The v0.13.5–6 engine work was built
+<em>to fit this shape</em>.</p>
+
+<p><b>The five warts</b> the redesign should fix:</p>
+<ol>
+  <li><b>Tracks are <code>type: initiative</code> wearing a costume.</b> Track-ness lives in
+    a "Track:&nbsp;…" naming convention — which is also what detonated BUG-260 (an unquoted
+    <code>Track:&nbsp;</code> operand parses as a YAML mapping; the filter silently dropped).
+    The engine now quotes defensively, but the type system should carry track-ness, not the
+    display name.</li>
+  <li><b>Two theme types</b> (<code>theme</code> — the brainkit starter — and
+    <code>initiative_theme</code>) that mean the same thing.</li>
+  <li><b>No maturity axis.</b> The experimental → proven → recommended → required
+    progression (the program's core narrative!) has nowhere to live; <code>status:</code>
+    conflates execution state with maturity.</li>
+  <li><b>No playbook fields.</b> Promotion to the playbook is currently only prose.</li>
+  <li><b>Exec-level rollups unproven.</b> Q4/Q6 (VP+ views) have no mechanism — the org
+    notes don't say who leads them at what level, and initiatives can't be grouped at
+    "the VP org" granularity by pure chain-walking (hard limits above).</li>
+</ol>
+
+<h2>5 · The options</h2>
+
+<div class="figure">
+<svg viewBox="0 0 880 400" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system, system-ui, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L8,4 L0,8 z" fill="#6f6557"/>
+    </marker>
+    <marker id="arrA" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L8,4 L0,8 z" fill="#5B57A6"/>
+    </marker>
+    <marker id="arrO" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L8,4 L0,8 z" fill="#A4506A"/>
+    </marker>
+  </defs>
+  <text x="180" y="24" font-size="13" font-weight="700" fill="#4a4238" text-anchor="middle">AIPM structure</text>
+  <text x="660" y="24" font-size="13" font-weight="700" fill="#4a4238" text-anchor="middle">Business org structure</text>
+
+  <!-- AIPM tree -->
+  <rect x="110" y="36" width="140" height="30" rx="6" fill="#3C6E93"/>
+  <text x="180" y="55" font-size="12" fill="#fff" text-anchor="middle" font-weight="600">AIPM · org</text>
+  <rect x="100" y="96" width="160" height="30" rx="6" fill="#fbf8f1" stroke="#3C6E93" stroke-width="1.5"/>
+  <text x="180" y="115" font-size="11.5" fill="#2b2620" text-anchor="middle">Force Multiplier · goal</text>
+  <rect x="80" y="156" width="200" height="30" rx="6" fill="#fbf8f1" stroke="#3C6E93" stroke-width="1.5"/>
+  <text x="180" y="175" font-size="11.5" fill="#2b2620" text-anchor="middle">Context &amp; Agent Resources · track</text>
+  <rect x="60" y="216" width="180" height="30" rx="6" fill="#fbf8f1" stroke="#c46a1c" stroke-width="1.5"/>
+  <text x="150" y="235" font-size="11.5" fill="#2b2620" text-anchor="middle">team-context-starter-kit</text>
+  <text x="150" y="260" font-size="10" fill="#6f6557" text-anchor="middle">initiative · engagement: own</text>
+
+  <line x1="180" y1="96" x2="180" y2="66" stroke="#6f6557" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="180" y1="156" x2="180" y2="126" stroke="#6f6557" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="160" y1="216" x2="176" y2="186" stroke="#6f6557" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Business tree -->
+  <rect x="590" y="36" width="140" height="30" rx="6" fill="#2E7D74"/>
+  <text x="660" y="55" font-size="12" fill="#fff" text-anchor="middle" font-weight="600">Consumer · LOB</text>
+  <rect x="470" y="106" width="150" height="30" rx="6" fill="#fbf8f1" stroke="#2E7D74" stroke-width="1.5"/>
+  <text x="545" y="125" font-size="11.5" fill="#2b2620" text-anchor="middle">Consumer Fraud · org</text>
+  <rect x="680" y="106" width="180" height="42" rx="6" fill="#fbf8f1" stroke="#c46a1c" stroke-width="1.5"/>
+  <text x="770" y="123" font-size="11.5" fill="#2b2620" text-anchor="middle">team-knowledge-bases</text>
+  <text x="770" y="138" font-size="9.5" fill="#6f6557" text-anchor="middle">declaration · initiative · monitor</text>
+  <rect x="470" y="196" width="150" height="42" rx="6" fill="#fbf8f1" stroke="#c46a1c" stroke-width="1.5"/>
+  <text x="545" y="213" font-size="11.5" fill="#2b2620" text-anchor="middle">fraud-team-kb</text>
+  <text x="545" y="228" font-size="9.5" fill="#6f6557" text-anchor="middle">initiative · monitor</text>
+
+  <line x1="545" y1="106" x2="627" y2="66" stroke="#6f6557" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="770" y1="106" x2="700" y2="66" stroke="#6f6557" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="545" y1="196" x2="545" y2="136" stroke="#6f6557" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- cross edges -->
+  <path d="M 470 217 C 360 217, 320 231, 245 231" stroke="#5B57A6" stroke-width="1.5" fill="none" stroke-dasharray="5,4" marker-end="url(#arrA)"/>
+  <text x="352" y="207" font-size="10.5" fill="#5B57A6" text-anchor="middle">tracks: [Context &amp; Agent Resources]</text>
+  <path d="M 620 207 C 690 200, 730 180, 762 152" stroke="#A4506A" stroke-width="1.5" fill="none" stroke-dasharray="2,4" marker-end="url(#arrO)"/>
+  <text x="712" y="196" font-size="10.5" fill="#A4506A" text-anchor="middle">origin:</text>
+
+  <!-- legend -->
+  <line x1="70" y1="330" x2="110" y2="330" stroke="#6f6557" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="118" y="334" font-size="11" fill="#4a4238">parent: — containment spine (one key, every type; folders derive from it)</text>
+  <line x1="70" y1="355" x2="110" y2="355" stroke="#5B57A6" stroke-width="1.5" stroke-dasharray="5,4" marker-end="url(#arrA)"/>
+  <text x="118" y="359" font-size="11" fill="#4a4238">tracks: / themes: — cross-tags (agentically assigned relevance)</text>
+  <line x1="70" y1="380" x2="110" y2="380" stroke="#A4506A" stroke-width="1.5" stroke-dasharray="2,4" marker-end="url(#arrO)"/>
+  <text x="118" y="384" font-size="11" fill="#4a4238">origin: — spawned-by lineage when the parent slot is taken by ownership</text>
+</svg>
+<div class="figcap">The recommended shape (Option B): two trees on one <code>parent:</code> key, connected by cross-tags — a track dashboard (Q1) unions the solid-line children and the dashed-line taggees via <code>@=</code>.</div>
+</div>
+
+<!-- ============ OPTION A ============ -->
+<div class="option-card">
+  <div class="opt-head"><span class="opt-letter">A</span><span class="opt-name">Minimal — two types and honest prose</span></div>
+  <div class="opt-tagline">The "how little structure could we get away with" pole. Frontmatter is strings; orgs, tracks, and themes are vocabulary, not entities.</div>
+  <div class="typechips">
+    <span class="chip">initiative</span><span class="chip">use_case</span>
+    <span class="chip gone">organization</span><span class="chip gone">track</span><span class="chip gone">theme</span><span class="chip gone">goal</span><span class="chip gone">person</span>
+  </div>
+<pre>--- # initiatives/fraud-team-kb.md
+type: initiative
+summary: Fraud team knowledge base build-out
+org: consumer/consumer-fraud        # a PATH STRING, not a link
+owner: Dana Wu                      # a NAME STRING, not a link
+engagement: monitor
+status: active
+maturity: experimental
+themes: [knowledge-bases]           # plain strings
+tracks: [context-and-agent-resources]
+---
+Everything else — the declaration that spawned this, the champion,
+the timeline — lives here in the body as prose and plain links.</pre>
+  <table class="qmatrix">
+    <tr><th></th><th>Q1 track</th><th>Q2 org deep-dive</th><th>Q3 themes</th><th>Q4 VP+</th><th>Q5 playbook</th><th>Q6 coverage</th></tr>
+    <tr><td>fares</td>
+      <td><span class="mid">🟡</span> <code>tracks~=</code> works on strings; no <code>@=</code> union (no links)</td>
+      <td><span class="mid">🟡</span> one flat <code>org</code> group; no dept hierarchy</td>
+      <td><span class="ok">✅</span> string groups fine</td>
+      <td><span class="bad">❌</span> no org entities → no leader data at all</td>
+      <td><span class="ok">✅</span></td>
+      <td><span class="mid">🟡</span> buckets render, but org list is hand-typed strings</td></tr>
+  </table>
+  <div class="verdict">
+    <b>Verdict:</b> genuinely teachable in ten minutes and near-zero migration — but it
+    <span class="bad">fails the FR</span> for a rich org/reporting representation: no org pages, no
+    backlinks, no leader/champion edges, no VP catalog, and renames are mass string edits
+    (no <code>id:</code> healing). Fine for a 20-initiative tracker; collapses at hundreds.
+    Included as the calibration floor — <i>everything structured beyond this must earn its keep.</i>
+  </div>
+</div>
+
+<!-- ============ OPTION B ============ -->
+<div class="option-card recommended">
+  <div class="opt-head"><span class="opt-letter">B</span><span class="opt-name">One spine — ownership containment + cross-tags</span><span class="recommend-tag" style="font-size:10px;background:var(--accent-soft);color:var(--accent);text-transform:uppercase;font-weight:700;letter-spacing:0.04em;padding:1px 6px;border-radius:8px;">Recommended</span></div>
+  <div class="opt-tagline">Keep the current KB's containment spine; give track-ness and theme-ness real types; add the maturity/playbook axes; answer join-shaped queries with derived stamps. The engine was literally extended to fit this shape this week.</div>
+  <div class="typechips">
+    <span class="chip">initiative</span><span class="chip new">track (new)</span><span class="chip">goal</span><span class="chip">organization</span><span class="chip">person</span><span class="chip">theme (merged)</span><span class="chip">use_case</span><span class="chip">platform</span><span class="chip">task · decision · opportunity · meeting · source · note (brainkit starters, unchanged)</span><span class="chip gone">initiative_theme</span>
+  </div>
+
+  <p style="font-size:13px"><b>The one rule a PM learns:</b> <code>parent:</code> answers
+  <em>"who owns this work?"</em> — a track (AIPM-owned), an org (business-owned), a goal,
+  or a bigger initiative it decomposes. Same key on every type, so every chain is walkable
+  (hard limit 1). When work was <em>spawned by</em> an initiative someone else owns (the
+  declaration → per-team fan-out), ownership wins the parent slot and the lineage moves to
+  <code>origin:</code>.</p>
+
+<pre>--- # aipm/force-multiplier/context-and-agent-resources.md
+type: track                              # track-ness is a TYPE, not a name prefix
+id: k3x9w2ab
+summary: Develops SME + shared assets for context management
+parent: "[Force Multiplier](../force-multiplier.md)"     # goal → AIPM org root
+owner: "[Raj Mehta](../../people/raj-mehta.md)"          # the track lead (collateral duty)
+themes:                                  # what this track monitors — read by the
+  - "[Context Management](../../themes/context-management.md)"   # agentic tagger
+  - "[Knowledge Bases](../../themes/knowledge-bases.md)"
+status: active
+---
+
+--- # organizations/consumer/team-knowledge-bases.md   (the DECLARATION)
+type: initiative
+id: p8r4n1ez
+summary: "Directive: every Consumer team stands up a curated team knowledge base"
+parent: "[Consumer](./consumer.md)"      # owned by the LOB that declared it
+owner: "[Alice Park](../../people/alice-park.md)"
+engagement: monitor
+status: active
+maturity: recommended                    # recommended FOR Consumer teams
+themes: ["[Knowledge Bases](../../themes/knowledge-bases.md)"]
+tracks: ["[Context &amp; Agent Resources](../../aipm/force-multiplier/context-and-agent-resources.md)"]
+---
+
+--- # organizations/consumer/consumer-fraud/fraud-team-kb.md   (a CHILD)
+type: initiative
+id: q2w7t5hj
+summary: Fraud team knowledge base build-out
+parent: "[Consumer Fraud](./consumer-fraud.md)"    # ownership wins the parent slot…
+origin: "[Team Knowledge Bases](../team-knowledge-bases.md)"   # …lineage is origin:
+owner: "[Dana Wu](../../../people/dana-wu.md)"
+engagement: monitor
+status: active
+maturity: experimental
+themes: ["[Knowledge Bases](../../../themes/knowledge-bases.md)"]
+tracks: ["[Context &amp; Agent Resources](…)"]
+---
+
+--- # organizations/consumer.md
+type: organization
+id: h9d5k3wn
+summary: Consumer line of business
+org_level: lob                           # lob | org | team | pod
+leader: "[Alice Park](../people/alice-park.md)"
+leader_level: vp                         # denormalized; changes rarely, rollup-filterable
+champion: "[Dana Wu](../people/dana-wu.md)"    # AI-enablement champion crosslink
+aliases: [CONS]
+---
+
+--- # use-cases via parent too — filed under the conceiving org
+type: use_case
+id: m4c8v2rk
+summary: Draft PRDs from ticket clusters with Claude Code
+parent: "[Consumer Fraud](../organizations/consumer/consumer-fraud.md)"
+owner: "[Dana Wu](../people/dana-wu.md)"
+maturity: proven
+playbook: candidate                      # ""|candidate|drafting|published (+ playbook_url:)
+themes: ["[Prompt Patterns](../themes/prompt-patterns.md)"]
+tracks: ["[Tools](…)"]
+source: "[2026-06-12 fraud sync](../notes/2026/06/fraud-sync.md)"
+---</pre>
+
+  <p style="font-size:13px"><b>Folders come free</b> (brainkit v2 derives them from
+  <code>parent:</code>): <code>aipm/force-multiplier/context-and-agent-resources/…</code>
+  on the own side, <code>organizations/consumer/consumer-fraud/…</code> on the business
+  side — which is the layout the KB already has. The two trees stay separate (AIPM's root
+  is parentless), connected through people and cross-tags, per the locked decision.</p>
+
+  <table class="qmatrix">
+    <tr><th></th><th>Q1 track</th><th>Q2 org deep-dive</th><th>Q3 themes</th><th>Q4 VP+</th><th>Q5 playbook</th><th>Q6 coverage</th></tr>
+    <tr><td>fares</td>
+      <td><span class="ok">✅</span> <code>@=track</code> + group <code>engagement</code> (ENH-262's canonical case)</td>
+      <td><span class="ok">✅</span> <code>parent^=consumer</code>, group <code>ancestor:parent:organization</code> then <code>themes</code></td>
+      <td><span class="ok">✅</span> group <code>themes</code>, org as ancestor column</td>
+      <td><span class="mid">🟡</span> native per-LOB views today; 60-VP granularity via <span class="fieldclass stamp">exec_org stamp</span></td>
+      <td><span class="ok">✅</span> trivial field query</td>
+      <td><span class="mid">🟡</span> declared buckets over the stamp (empty renders)</td></tr>
+  </table>
+  <div class="verdict">
+    <b>Verdict:</b> <span class="ok">every query lands on shipped engine features</span>;
+    the two 🟡s share one mechanism (the derived-stamp class) and degrade gracefully —
+    LOB-granularity versions work with zero stamps. Migration is a
+    half-day of mechanical, id-healed edits (§8). Teach surface: one parent rule + two
+    cross-tag lists + three enums. Fully inside brainkit contract v2 (additive keys,
+    template-note types, parent-derived folders, regenerated stamps).
+  </div>
+</div>
+
+<!-- ============ OPTION C ============ -->
+<div class="option-card">
+  <div class="opt-head"><span class="opt-letter">C</span><span class="opt-name">Two axes — lineage spine + ownership field</span></div>
+  <div class="opt-tagline">The mirror of B: <code>parent:</code> stays pure initiative-lineage (declaration → children, program → workstreams); ownership is a separate <code>org:</code> field on every initiative.</div>
+  <div class="typechips">
+    <span class="chip">initiative</span><span class="chip new">track</span><span class="chip">goal</span><span class="chip">organization</span><span class="chip">person</span><span class="chip">theme</span><span class="chip">use_case</span><span class="chip">+ starters</span>
+  </div>
+<pre>--- # the child keeps the declaration as its PARENT…
+type: initiative
+summary: Fraud team knowledge base build-out
+parent: "[Team Knowledge Bases](../team-knowledge-bases.md)"   # lineage spine
+org: "[Consumer Fraud](…)"          # …ownership is its own field
+owner: "[Dana Wu](…)"
+engagement: monitor
+themes: […]
+tracks: […]
+---</pre>
+  <p style="font-size:13px">Grouping by org reads the <em>direct</em> <code>org:</code> field
+  (clean, one hop). But the org field's chain can't be walked — hop 2 would need to switch
+  to the org's <code>parent:</code> key (hard limit 1) — so <em>every</em> hierarchy question
+  about ownership ("everything under Consumer, at any depth") needs a derived stamp
+  (<code>lob:</code>, <code>exec_org:</code>) from day one. Folders follow the lineage spine,
+  so a team's initiative files under <em>the declaration's</em> folder — the browsable tree
+  stops mirroring who owns what, which is how humans actually look for things here. And the
+  interview's cross-org rule ("one owning org; cross-org work = shared parent + per-org
+  children") already gives lineage a home in B via <code>origin:</code>.</p>
+  <table class="qmatrix">
+    <tr><th></th><th>Q1 track</th><th>Q2 org deep-dive</th><th>Q3 themes</th><th>Q4 VP+</th><th>Q5 playbook</th><th>Q6 coverage</th></tr>
+    <tr><td>fares</td>
+      <td><span class="ok">✅</span> same <code>@=</code> mechanics</td>
+      <td><span class="mid">🟡</span> direct-org group ✓; any-depth scoping needs stamps</td>
+      <td><span class="ok">✅</span></td>
+      <td><span class="mid">🟡</span> stamps required (no native fallback)</td>
+      <td><span class="ok">✅</span></td>
+      <td><span class="mid">🟡</span> stamps required</td></tr>
+  </table>
+  <div class="verdict">
+    <b>Verdict:</b> coherent, and the "org is one obvious field" story is genuinely easy to
+    teach — but it <span class="mid">mandates the stamp machinery for basic org questions</span>
+    that B answers by pure chain-walking, and it re-points folders away from ownership.
+    Choose C only if initiative-lineage fan-out is expected to dominate org structure as
+    the thing people browse and reason about.
+  </div>
+</div>
+
+<!-- ============ OPTION D ============ -->
+<div class="option-card">
+  <div class="opt-head"><span class="opt-letter">D</span><span class="opt-name">Fully engineered — a type for everything</span></div>
+  <div class="opt-tagline">The maximal pole: per-level org types, declaration/experiment/practice as distinct types, role-assignment nodes, structured status-change events, reified relevance edges.</div>
+  <div class="typechips">
+    <span class="chip new">lob</span><span class="chip new">org_unit</span><span class="chip new">team</span><span class="chip new">declaration</span><span class="chip new">experiment</span><span class="chip new">practice</span><span class="chip new">ai_role</span><span class="chip new">status_update</span><span class="chip new">relevance_edge</span><span class="chip">person</span><span class="chip">track</span><span class="chip">goal</span><span class="chip">…</span>
+  </div>
+<pre>--- # a status change is its own note
+type: status_update
+subject: "[fraud-team-kb](…)"
+from: experimental
+to: proven
+date: 2026-09-14
+---
+--- # track relevance is a reified edge note
+type: relevance_edge
+from: "[fraud-team-kb](…)"
+to: "[Context &amp; Agent Resources](…)"
+reason: "registry pattern overlaps the starter-kit work"
+---</pre>
+  <table class="qmatrix">
+    <tr><th></th><th>Q1 track</th><th>Q2 org deep-dive</th><th>Q3 themes</th><th>Q4 VP+</th><th>Q5 playbook</th><th>Q6 coverage</th></tr>
+    <tr><td>fares</td>
+      <td><span class="mid">🟡</span> edge notes make the union a two-step query</td>
+      <td><span class="ok">✅</span> <code>ancestor:parent:lob</code> is native with per-level types</td>
+      <td><span class="ok">✅</span></td>
+      <td><span class="ok">✅</span> native</td>
+      <td><span class="ok">✅</span></td>
+      <td><span class="ok">✅</span></td></tr>
+  </table>
+  <div class="verdict">
+    <b>Verdict:</b> maximal query power, and per-level org types do buy native LOB/VP
+    rollups — but it <span class="bad">breaks the program's core FR</span>: the
+    declaration→experiment→practice progression becomes <em>re-typing notes</em> (identity
+    churn on the one entity that must stay durable), every status change costs a capture
+    ceremony the interview explicitly declined ("history stays in the body"), and ~20 types
+    is the opposite of PM-teachable. <b>Harvest two ideas, decline the rest:</b> (1) if
+    Q4/Q6 stamps ever chafe, retyping LOB roots to a <code>lob</code> type is a cheap,
+    engine-native upgrade (D8 below); (2) edge payloads — <em>why</em> a track tag was
+    assigned — belong in frontmatter beside the link (brainkit §5), not in edge notes.
+  </div>
+</div>
+
+<h3>Scorecard</h3>
+<table class="grid">
+  <tr><th></th><th>A · Minimal</th><th>B · One spine ★</th><th>C · Two axes</th><th>D · Engineered</th></tr>
+  <tr><td>Q1–Q6 on shipped engine</td><td><span class="mid">3 native</span>, 1 broken</td><td><span class="ok">4 native + 2 stamp-or-view</span></td><td><span class="mid">3 native + 3 stamp-required</span></td><td><span class="ok">5 native</span>, Q1 awkward</td></tr>
+  <tr><td>One durable entity through progression</td><td><span class="ok">yes</span></td><td><span class="ok">yes</span></td><td><span class="ok">yes</span></td><td><span class="bad">no — re-typing churn</span></td></tr>
+  <tr><td>Rich org / reporting representation</td><td><span class="bad">none</span></td><td><span class="ok">full</span></td><td><span class="ok">full</span></td><td><span class="ok">full+</span></td></tr>
+  <tr><td>Teach surface (PM-facing)</td><td><span class="ok">tiny</span></td><td><span class="ok">1 rule + 2 lists + 3 enums</span></td><td><span class="mid">2 rules (parent vs org confusable)</span></td><td><span class="bad">~20 types + event ceremony</span></td></tr>
+  <tr><td>Migration from current KB</td><td>strip-down rewrite</td><td><span class="ok">half-day, mechanical, id-healed</span></td><td><span class="mid">re-point every monitor parent</span></td><td><span class="bad">full rebuild</span></td></tr>
+  <tr><td>brainkit contract v2 fit</td><td><span class="mid">conforms, underuses</span></td><td><span class="ok">native fit</span></td><td><span class="mid">folders fight ownership browsing</span></td><td><span class="mid">conforms, heavy</span></td></tr>
+  <tr><td>Rollup-infra changes needed</td><td>none</td><td><span class="ok">none</span></td><td>none</td><td>none (edge-note queries get clumsy)</td></tr>
+</table>
+
+<h2>6 · The recommended shape, worked (Option B)</h2>
+
+<table class="grid">
+  <tr><th>Type</th><th>Structured fields (class-tagged)</th><th>Body carries</th></tr>
+  <tr><td><code>initiative</code><br><i>the one durable entity</i></td>
+    <td><span class="fieldclass auth">auth</span><code>parent</code> <code>owner</code> <code>engagement</code> <code>status</code> <code>maturity</code> <code>origin?</code><br>
+        <span class="fieldclass xtag">tag</span><code>themes[]</code> <code>tracks[]</code><br>
+        <span class="fieldclass stamp">stamp</span><code>exec_org?</code> (only if D8 adopts stamps)</td>
+    <td>timeline, status narrative, links to artifacts, the story</td></tr>
+  <tr><td><code>track</code> <i>(new)</i></td>
+    <td><span class="fieldclass auth">auth</span><code>parent</code>(→goal/AIPM) <code>owner</code>(lead) <code>status</code><br>
+        <span class="fieldclass xtag">tag</span><code>themes[]</code> (what it monitors — the tagger reads this)</td>
+    <td>charter, membership, operating notes</td></tr>
+  <tr><td><code>goal</code></td><td><span class="fieldclass auth">auth</span><code>parent</code>(→AIPM org) <code>owner</code> <code>status</code></td><td>narrative, key results prose</td></tr>
+  <tr><td><code>organization</code></td>
+    <td><span class="fieldclass auth">auth</span><code>parent</code> <code>org_level</code> <code>leader</code> <code>leader_level</code> <code>champion?</code> <code>aliases[]</code></td>
+    <td>context, AI-posture notes, reporting-POC section</td></tr>
+  <tr><td><code>person</code></td>
+    <td><span class="fieldclass auth">auth</span><code>org</code> <code>manager</code> <code>level?</code> <code>aliases[]</code></td>
+    <td><b>## AI reporting roles</b> (champion-for, POC-for crosslinks) · machine-owned <b>## Timeline</b></td></tr>
+  <tr><td><code>theme</code> <i>(merged)</i></td>
+    <td><span class="fieldclass auth">auth</span><code>summary</code> <code>parent?</code>(→theme — hierarchy is free later: <code>ancestor:parent:theme</code>)</td>
+    <td>definition, scope notes</td></tr>
+  <tr><td><code>use_case</code></td>
+    <td><span class="fieldclass auth">auth</span><code>parent</code>(→conceiving org) <code>owner</code> <code>maturity</code> <code>playbook</code> <code>playbook_url?</code> <code>source</code><br>
+        <span class="fieldclass xtag">tag</span><code>themes[]</code> <code>tracks[]</code></td>
+    <td>the write-up that becomes the playbook entry</td></tr>
+</table>
+
+<p><b>Two enums, one ladder each</b> (per-type <code>statuses:</code> ladders live on the
+template notes, brainkit-style):</p>
+<ul>
+  <li><code>status:</code> — execution state: <code>forming → active → paused → complete → retired</code> (initiatives); tracks/goals reuse the relevant subset.</li>
+  <li><code>maturity:</code> — the program's adoption ladder, shared by <code>initiative</code> and <code>use_case</code>: <code>experimental → proven → recommended → required</code>. Orthogonal to status (a <em>complete</em> pilot may still be merely <em>proven</em>; a <em>required</em> practice may have <em>active</em> rollout initiatives).</li>
+</ul>
+
+<h2>7 · The six queries, live</h2>
+
+<p>Each spec below is real, shipped dialect — the builder one-liner shown creates a
+<code>type: rollup</code> note; the mock underneath is what <code>duo rollup render</code>
+produces (HTML artifact with entity links, freshness stamp, Refresh).</p>
+
+<h3>Q1 — Track dashboard (own + monitored)</h3>
+<pre>duo rollup new --type initiative \
+  --filter '@=context-and-agent-resources' \
+  --group engagement \
+  --bucket 'own=Track-owned workstreams' --bucket 'monitor=Monitored in the business' \
+  --columns file.name,status,maturity,owner --title "Context track — operating view"</pre>
+<p style="font-size:12.5px">One filter unions both populations: <code>@=</code> matches
+<em>any</em> link to the track — the owned children's <code>parent:</code> and the monitored
+initiatives' <code>tracks:[]</code> alike (ENH-262 was built from exactly this query's
+failure in the 2026-07-08 session).</p>
+<div class="rollup-mock">
+  <div class="rm-title">Context track — operating view <span class="rm-stamp">generated 2026-07-08 · 9 rows · ↻ Refresh</span></div>
+  <table>
+    <tr><th>initiative</th><th>status</th><th>maturity</th><th>owner</th></tr>
+    <tr class="rm-group"><td colspan="4">Track-owned workstreams <span class="rm-count">· 4</span></td></tr>
+    <tr><td><span class="rm-link">team-context-starter-kit</span></td><td><span class="rm-chip active">active</span></td><td><span class="rm-chip experimental">experimental</span></td><td><span class="rm-link">Raj Mehta</span></td></tr>
+    <tr><td><span class="rm-link">context-landscape-review</span></td><td><span class="rm-chip active">active</span></td><td><span class="rm-chip proven">proven</span></td><td><span class="rm-link">Raj Mehta</span></td></tr>
+    <tr><td><span class="rm-link">enterprise-context-approach</span></td><td><span class="rm-chip forming">forming</span></td><td><span class="rm-chip experimental">experimental</span></td><td><span class="rm-link">Mia Chen</span></td></tr>
+    <tr><td><span class="rm-link">pilot-context-patterns</span></td><td><span class="rm-chip active">active</span></td><td><span class="rm-chip experimental">experimental</span></td><td><span class="rm-link">Raj Mehta</span></td></tr>
+    <tr class="rm-group"><td colspan="4">Monitored in the business <span class="rm-count">· 5</span></td></tr>
+    <tr><td><span class="rm-link">team-knowledge-bases</span> <span style="color:var(--ink-ghost);font-size:10.5px">(declaration)</span></td><td><span class="rm-chip active">active</span></td><td><span class="rm-chip recommended">recommended</span></td><td><span class="rm-link">Alice Park</span></td></tr>
+    <tr><td><span class="rm-link">fraud-team-kb</span></td><td><span class="rm-chip active">active</span></td><td><span class="rm-chip experimental">experimental</span></td><td><span class="rm-link">Dana Wu</span></td></tr>
+    <tr><td><span class="rm-link">merchant-wiki</span></td><td><span class="rm-chip active">active</span></td><td><span class="rm-chip experimental">experimental</span></td><td><span class="rm-link">Sam Ortiz</span></td></tr>
+    <tr><td><span class="rm-link">prd-repository</span></td><td><span class="rm-chip active">active</span></td><td><span class="rm-chip proven">proven</span></td><td><span class="rm-link">Lena Fox</span></td></tr>
+    <tr><td><span class="rm-link">eval-standards</span></td><td><span class="rm-chip forming">forming</span></td><td><span class="rm-chip experimental">experimental</span></td><td><span class="rm-link">Ken Ito</span></td></tr>
+  </table>
+</div>
+
+<h3>Q2 — One org, by department then theme</h3>
+<pre>duo rollup new --type initiative \
+  --filter 'parent^=consumer' \
+  --group ancestor:parent:organization,themes \
+  --columns file.name,engagement,status,maturity --title "Consumer — AI initiative deep-dive"</pre>
+<p style="font-size:12.5px"><code>parent^=consumer</code> scopes to the whole subtree at any
+depth (ENH-259); the first group level resolves each row's nearest org ancestor (ENH-261),
+the second fans out list-valued themes (a row appears under each of its themes).</p>
+<div class="rollup-mock">
+  <div class="rm-title">Consumer — AI initiative deep-dive <span class="rm-stamp">generated 2026-07-08 · 7 rows</span></div>
+  <table>
+    <tr><th>initiative</th><th>engagement</th><th>status</th><th>maturity</th></tr>
+    <tr class="rm-group"><td colspan="4">Consumer Fraud <span class="rm-count">→ Knowledge Bases · 2</span></td></tr>
+    <tr><td><span class="rm-link">fraud-team-kb</span></td><td>monitor</td><td><span class="rm-chip active">active</span></td><td><span class="rm-chip experimental">experimental</span></td></tr>
+    <tr><td><span class="rm-link">fraud-context-registry</span></td><td>monitor</td><td><span class="rm-chip forming">forming</span></td><td><span class="rm-chip experimental">experimental</span></td></tr>
+    <tr class="rm-group"><td colspan="4">Consumer Cards <span class="rm-count">→ Agent Orchestration · 1</span></td></tr>
+    <tr><td><span class="rm-link">card-servicing-agents</span></td><td>monitor</td><td><span class="rm-chip active">active</span></td><td><span class="rm-chip proven">proven</span></td></tr>
+    <tr class="rm-group"><td colspan="4">Consumer (LOB-direct) <span class="rm-count">→ Knowledge Bases · 1</span></td></tr>
+    <tr><td><span class="rm-link">team-knowledge-bases</span></td><td>monitor</td><td><span class="rm-chip active">active</span></td><td><span class="rm-chip recommended">recommended</span></td></tr>
+  </table>
+</div>
+
+<h3>Q3 — Everything by theme, ownership shown</h3>
+<pre>duo rollup new --type initiative \
+  --group themes \
+  --columns file.name,ancestor:parent:organization,engagement,maturity \
+  --title "Initiatives by theme"</pre>
+<p style="font-size:12.5px">The org appears as a <em>column</em> (ancestor tokens work in
+<code>order:</code> too — ENH-261); AIPM-owned rows resolve to the AIPM org root, business
+rows to their nearest org, so ownership reads at a glance in one table.</p>
+
+<h3>Q4 — A theme, filtered to VP+-led orgs</h3>
+<pre># Native today (LOB granularity): one rollup, a view per LOB —
+#   view "Consumer":  themes ~= "context-management" and parent^=consumer
+#   view "Payments":  themes ~= "context-management" and parent^=payments
+# VP granularity (~60 orgs): the exec_org stamp (D8) —
+duo rollup new --type initiative \
+  --filter 'themes~=context-management' \
+  --group exec_org --columns file.name,maturity,status --title "Context work under VP+ orgs"</pre>
+
+<h3>Q5 — Playbook pipeline</h3>
+<pre>duo rollup new --type use_case \
+  --filter 'playbook?' \
+  --group playbook --bucket 'candidate=Candidates' --bucket 'drafting=In write-up' --bucket 'published=Published' \
+  --columns file.name,maturity,ancestor:parent:organization,owner --title "Playbook pipeline"</pre>
+<div class="rollup-mock">
+  <div class="rm-title">Playbook pipeline <span class="rm-stamp">generated 2026-07-08 · 5 rows</span></div>
+  <table>
+    <tr><th>use case</th><th>maturity</th><th>org</th><th>owner</th></tr>
+    <tr class="rm-group"><td colspan="4">Candidates <span class="rm-count">· 2</span></td></tr>
+    <tr><td><span class="rm-link">prd-drafting-from-tickets</span></td><td><span class="rm-chip proven">proven</span></td><td><span class="rm-link">Consumer Fraud</span></td><td><span class="rm-link">Dana Wu</span></td></tr>
+    <tr><td><span class="rm-link">meeting-synthesis</span></td><td><span class="rm-chip proven">proven</span></td><td><span class="rm-link">Merchant Tools</span></td><td><span class="rm-link">Sam Ortiz</span></td></tr>
+    <tr class="rm-group"><td colspan="4">In write-up <span class="rm-count">· 1</span></td></tr>
+    <tr><td><span class="rm-link">context-repo-curation</span></td><td><span class="rm-chip recommended">recommended</span></td><td><span class="rm-link">Consumer Fraud</span></td><td><span class="rm-link">Dana Wu</span></td></tr>
+    <tr class="rm-group"><td colspan="4">Published <span class="rm-count">· 2</span></td></tr>
+    <tr><td><span class="rm-link">eval-rubric-starter</span> <span style="font-size:10px;color:var(--ink-ghost)">↗ playbook</span></td><td><span class="rm-chip required">required</span></td><td><span class="rm-link">ML Platform</span></td><td><span class="rm-link">Ken Ito</span></td></tr>
+    <tr><td><span class="rm-link">weekly-ai-notes</span> <span style="font-size:10px;color:var(--ink-ghost)">↗ playbook</span></td><td><span class="rm-chip recommended">recommended</span></td><td><span class="rm-link">Product Council</span></td><td><span class="rm-link">Lena Fox</span></td></tr>
+  </table>
+</div>
+
+<h3>Q6 — VP coverage, empty buckets included</h3>
+<pre>duo rollup new --type initiative \
+  --group exec_org \
+  --bucket 'consumer=Consumer (A. Park)' --bucket 'payments=Payments (J. Reyes)' \
+  --bucket 'platform-services=Platform Svcs (K. Ito)' --bucket 'servicing=Servicing (T. Nkomo)' \
+  --columns file.name,themes,maturity --title "VP coverage map"</pre>
+<div class="rollup-mock">
+  <div class="rm-title">VP coverage map <span class="rm-stamp">generated 2026-07-08 · declared buckets always render</span></div>
+  <table>
+    <tr><th>initiative</th><th>themes</th><th>maturity</th></tr>
+    <tr class="rm-group"><td colspan="3">Consumer (A. Park) <span class="rm-count">· 4</span></td></tr>
+    <tr><td><span class="rm-link">team-knowledge-bases</span></td><td>knowledge-bases</td><td><span class="rm-chip recommended">recommended</span></td></tr>
+    <tr><td><span class="rm-link">fraud-team-kb</span> <span style="color:var(--ink-ghost)">+2 more…</span></td><td>knowledge-bases</td><td><span class="rm-chip experimental">experimental</span></td></tr>
+    <tr class="rm-group"><td colspan="3">Payments (J. Reyes) <span class="rm-count">· 1</span></td></tr>
+    <tr><td><span class="rm-link">merchant-wiki</span></td><td>knowledge-bases</td><td><span class="rm-chip experimental">experimental</span></td></tr>
+    <tr class="rm-group"><td colspan="3">Servicing (T. Nkomo) <span class="rm-count">· 0</span></td></tr>
+    <tr class="rm-empty"><td colspan="3">— no tracked initiatives — <b>this is the signal</b></td></tr>
+  </table>
+</div>
+
+<h2>8 · Migration sketch (current KB → Option B)</h2>
+<p>Every step is a reviewable agent pass (propose-first, distill-style); links heal by
+<code>id:</code> throughout (<code>duo vault mv</code> / <code>relink</code>), so nothing
+severs. Rough order:</p>
+<ol>
+  <li><b>Pre-flight</b> — <code>duo vault relink --dry-run</code>; mint any missing <code>id:</code> (contract-v2 backfill).</li>
+  <li><b>Retype the four track nodes</b> <code>initiative → track</code>; drop the "Track:&nbsp;" name prefix (D9) — inbound <code>tracks:[]</code> links re-point via <code>mv</code>'s rewrite; the colon-space YAML hazard class disappears.</li>
+  <li><b>Merge themes</b> — <code>initiative_theme</code> notes → <code>theme</code>; retag <code>themes:[]</code> lists to the merged targets.</li>
+  <li><b>Add the new axes</b> — <code>maturity:</code> on initiatives + use cases (agent proposes values from status + body evidence, owner reviews); <code>playbook:</code> on use cases.</li>
+  <li><b>Enrich orgs</b> — <code>org_level:</code>, <code>leader:</code>, <code>leader_level:</code>, <code>champion:</code> where known; batch-import the VP-org roster (the planned migration source); person stubs for each leader.</li>
+  <li><b>Untangle declaration children</b> — where a child's <code>parent:</code> currently points at a spawning initiative but ownership is really an org, move lineage to <code>origin:</code> and re-parent to the org (the <em>only</em> semantic re-pointing in the migration; small population).</li>
+  <li><b>Regenerate</b> — templates for <code>track</code>/<code>theme</code>/updated <code>initiative</code>/<code>use_case</code>; <code>duo vault publish</code>; re-render rollups; retire the superseded <code>entity-model-reference.md</code> in favor of the template notes.</li>
+</ol>
+
+<h2>9 · Decisions</h2>
+
+<section class="decision-card">
+  <div class="q-title">Decision 1 · of 9</div>
+  <h3 class="q-prompt">Overall schema shape</h3>
+  <p class="q-context">The structural choice everything else hangs off. §5's scorecard is the evidence.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d1" value="B — one spine">
+      <div class="q-option-body"><div class="q-option-title">B — One spine: ownership containment + cross-tags <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Keeps the spine the KB already has and the engine was just extended to serve; every canonical query lands on shipped features; smallest honest migration.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="C — two axes">
+      <div class="q-option-body"><div class="q-option-title">C — Two axes: lineage parent + org field</div>
+      <div class="q-option-rationale">Pick if initiative fan-out should dominate browsing and org hierarchy questions can all ride derived stamps.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="A — minimal">
+      <div class="q-option-body"><div class="q-option-title">A — Minimal strings + prose</div>
+      <div class="q-option-rationale">Pick only if the org-representation FR is dropped.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="D — engineered">
+      <div class="q-option-body"><div class="q-option-title">D — Fully engineered</div>
+      <div class="q-option-rationale">Maximal query power; breaks progression-durability and teachability.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d1" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 2 · of 9</div>
+  <h3 class="q-prompt">The parent rule — ownership wins the slot; lineage moves to <code>origin:</code></h3>
+  <p class="q-context">Within Option B: when a declaration spawns per-team children, the child's <code>parent:</code> is its owning org/team and the spawning initiative is <code>origin:</code>. One teachable rule ("parent = who owns this work"), and org rollups stay pure chain-walks.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d2" value="ownership wins, origin: for lineage">
+      <div class="q-option-body"><div class="q-option-title">Ownership wins the parent slot; <code>origin:</code> carries spawned-by <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Lineage stays queryable (<code>origin~=declaration</code> or <code>@=</code>); folders keep mirroring ownership.</div></div></label>
+    <label class="q-option"><input type="radio" name="d2" value="lineage wins parent slot">
+      <div class="q-option-body"><div class="q-option-title">Lineage wins the parent slot (declaration parents its children)</div>
+      <div class="q-option-rationale">Reads naturally for fan-out, but org scoping/grouping for those children falls back to stamps, and they file under the declaration's folder.</div></div></label>
+    <label class="q-option"><input type="radio" name="d2" value="case-by-case">
+      <div class="q-option-body"><div class="q-option-title">Filer's judgment, case by case</div>
+      <div class="q-option-rationale">Flexible but unteachable — two PMs will file the same thing differently.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d2" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 3 · of 9</div>
+  <h3 class="q-prompt">Use case: its own type, or a kind of initiative?</h3>
+  <p class="q-context">A use case is a <em>practice</em> ("draft PRDs from tickets"); an initiative is an <em>effort</em>. Different lifecycle, different destiny (playbook), different fields.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d3" value="separate use_case type">
+      <div class="q-option-body"><div class="q-option-title">Keep <code>use_case</code> as its own type <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Matches the current KB (zero-migration), keeps the playbook pipeline a one-type query, and spares initiatives the playbook fields.</div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="fold into initiative as kind:">
+      <div class="q-option-body"><div class="q-option-title">Fold into <code>initiative</code> with a <code>kind: use-case</code> flag</div>
+      <div class="q-option-rationale">One fewer type, but every initiative rollup now needs a kind filter, and the "one durable entity" story muddies.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d3" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 4 · of 9</div>
+  <h3 class="q-prompt">The maturity ladder — one shared axis?</h3>
+  <p class="q-context">Interview locked maturity-as-attribute with values experimental → proven → recommended → required. The current <code>use_case</code> ladder (observed / validated / canonical) says the same thing in different words.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d4" value="one shared maturity ladder on initiative + use_case">
+      <div class="q-option-body"><div class="q-option-title">One <code>maturity:</code> ladder shared by initiative and use_case <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">experimental → proven → recommended → required, orthogonal to execution <code>status:</code>. One vocabulary to teach; cross-type rollups line up.</div></div></label>
+    <label class="q-option"><input type="radio" name="d4" value="initiative-only maturity; use_case keeps observed/validated/canonical">
+      <div class="q-option-body"><div class="q-option-title">Initiatives get <code>maturity:</code>; use cases keep their current ladder</div>
+      <div class="q-option-rationale">No retagging of existing use cases, at the cost of two near-synonym vocabularies.</div></div></label>
+    <label class="q-option"><input type="radio" name="d4" value="maturity on use_case only">
+      <div class="q-option-body"><div class="q-option-title">Maturity belongs to practices only; initiatives keep just <code>status:</code></div>
+      <div class="q-option-rationale">Cleanest theory (efforts execute, practices mature) — but the interview explicitly described <em>initiatives</em> maturing.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d4" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 5 · of 9</div>
+  <h3 class="q-prompt">Playbook promotion fields</h3>
+  <p class="q-context">Locked: playbook-readiness is separate from maturity. What shape?</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d5" value="playbook status ladder + playbook_url">
+      <div class="q-option-body"><div class="q-option-title"><code>playbook: candidate | drafting | published</code> + <code>playbook_url:</code> <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">The pipeline is a status query (Q5); the URL makes the KB note the playbook's primary key both directions. Absent field = not in the pipeline.</div></div></label>
+    <label class="q-option"><input type="radio" name="d5" value="boolean flag">
+      <div class="q-option-body"><div class="q-option-title">A boolean <code>playbook_ready:</code></div>
+      <div class="q-option-rationale">Simplest, but loses the pipeline stages the walk will actually manage.</div></div></label>
+    <label class="q-option"><input type="radio" name="d5" value="separate playbook_entry type">
+      <div class="q-option-body"><div class="q-option-title">A separate <code>playbook_entry</code> note linking the use case</div>
+      <div class="q-option-rationale">Clean separation of the published artifact — but a second note to keep in sync, and the primary-key story doubles.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d5" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 6 · of 9</div>
+  <h3 class="q-prompt">Themes — merge to one type, hierarchy deferred-but-free</h3>
+  <p class="q-context">Today: <code>theme</code> (brainkit starter) and <code>initiative_theme</code> coexist. Themes are finer than tracks; hierarchy may come later.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d6" value="merge to one theme type; optional parent: for later hierarchy">
+      <div class="q-option-body"><div class="q-option-title">Merge into one <code>theme</code> type; allow optional <code>parent:</code> theme→theme <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">One vocabulary; when hierarchy emerges it's already walkable (<code>ancestor:parent:theme</code>, <code>parent^=</code>) with zero schema change.</div></div></label>
+    <label class="q-option"><input type="radio" name="d6" value="keep initiative_theme separate">
+      <div class="q-option-body"><div class="q-option-title">Keep <code>initiative_theme</code> distinct from general <code>theme</code></div>
+      <div class="q-option-rationale">Preserves the current split; two registries to maintain and explain.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d6" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 7 · of 9</div>
+  <h3 class="q-prompt">Keep <code>engagement: own | monitor</code> explicit?</h3>
+  <p class="q-context">Under Option B it's derivable (chain reaches AIPM's tree vs a business org) — but it's also the field the canonical Q1 groups on, and deriving it at query time isn't expressible anyway (hard limit 2).</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d7" value="keep explicit engagement field">
+      <div class="q-option-body"><div class="q-option-title">Keep it explicit <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">One cheap enum, already in the data, groups/filters directly; distill can audit it against the chain (it's effectively a self-auditing stamp).</div></div></label>
+    <label class="q-option"><input type="radio" name="d7" value="drop it; treat as derivable">
+      <div class="q-option-body"><div class="q-option-title">Drop it — one less field</div>
+      <div class="q-option-rationale">Purer, but Q1's group axis then needs a stamp anyway; net zero fields saved.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d7" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 8 · of 9</div>
+  <h3 class="q-prompt">Exec-level rollups (Q4/Q6) — how do VP-granularity views get answered?</h3>
+  <p class="q-context">Hard limits: nearest-ancestor grouping and no joins mean "group hundreds of initiatives by their VP org" needs help. LOB-granularity versions run natively today via per-LOB <code>^=</code> views.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d8" value="native per-LOB views now; adopt exec_org stamp when VP granularity is actually needed">
+      <div class="q-option-body"><div class="q-option-title">Per-LOB views now; adopt the <code>exec_org</code> stamp when VP granularity is actually needed <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Zero machinery until the need is real; the stamp is additive, agent-maintained, distill-re-derived (brainkit's regenerate discipline) when it comes.</div></div></label>
+    <label class="q-option"><input type="radio" name="d8" value="adopt exec_org stamp in the initial migration">
+      <div class="q-option-body"><div class="q-option-title">Stamp <code>exec_org:</code> during the initial migration</div>
+      <div class="q-option-rationale">Q4/Q6 work at full granularity from day one; costs the stamp discipline immediately.</div></div></label>
+    <label class="q-option"><input type="radio" name="d8" value="retype LOB roots to a lob type">
+      <div class="q-option-body"><div class="q-option-title">Give LOB roots their own <code>lob</code> type (D's one good idea)</div>
+      <div class="q-option-rationale"><code>ancestor:parent:lob</code> becomes native — LOB granularity without stamps — but VP-granularity (60 orgs mid-tree) still needs them; +1 type.</div></div></label>
+    <label class="q-option"><input type="radio" name="d8" value="request engine enhancement">
+      <div class="q-option-body"><div class="q-option-title">File a Duo engine ENH (e.g. ancestor-with-predicate) and wait</div>
+      <div class="q-option-rationale">The "no infra changes" hope was explicit — only pick this if the stamp pattern offends.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d8" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 9 · of 9</div>
+  <h3 class="q-prompt">Track naming — retire the "Track:&nbsp;" prefix?</h3>
+  <p class="q-context">With <code>type: track</code> carrying track-ness, the display-name prefix is redundant — and its colon-space is the exact string class that produced BUG-260's silent filter drop (now defended in the engine, but why keep tempting it).</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d9" value="rename: drop the prefix">
+      <div class="q-option-body"><div class="q-option-title">Rename to bare names ("Context &amp; Agent Resources") <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">The type system now says "track"; <code>duo vault mv</code> re-points every inbound link id-safely during migration step 2.</div></div></label>
+    <label class="q-option"><input type="radio" name="d9" value="keep Track: names">
+      <div class="q-option-body"><div class="q-option-title">Keep the "Track:&nbsp;…" display names</div>
+      <div class="q-option-rationale">Familiar in existing decks/links; engine quoting now tolerates it.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d9" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<details class="deferred">
+  <summary>Deliberately not decided here (deferred, with reasons)</summary>
+  <div class="deferred-body">
+    <ul>
+      <li><b>Theme taxonomy contents</b> — emerge from the use-case cataloguing, per the interview; the schema only guarantees hierarchy is free later (D6).</li>
+      <li><b><code>ai_role</code> as a type</b> — declined in the interview; champion/POC crosslinks + a person-template body section cover it. Revisit only if role tracking standardizes program-wide (the <code>promote</code> path exists).</li>
+      <li><b>Structured status history</b> — declined; timelines stay body prose (brainkit's machine-owned <code>## Timeline</code> on timeline-true types).</li>
+      <li><b>Playbook web property's own data model</b> — external system; the KB commits only to being its primary key (D5).</li>
+      <li><b>Obsidian authoring interop for OKF vaults</b> — filed as Duo ENH-263 (seed <code>.obsidian/app.json</code> at OKF scaffold); orthogonal to this schema.</li>
+    </ul>
+  </div>
+</details>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 9 decisions answered · selections auto-save locally · <a href="#" id="clear-saved" style="color:var(--ink-mute)">clear</a></div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  var DECISIONS = [
+    { id: 'd1', title: 'Overall schema shape' },
+    { id: 'd2', title: 'Parent rule (ownership vs lineage in the slot)' },
+    { id: 'd3', title: 'Use case: separate type vs folded' },
+    { id: 'd4', title: 'Maturity ladder placement' },
+    { id: 'd5', title: 'Playbook fields' },
+    { id: 'd6', title: 'Theme consolidation + hierarchy' },
+    { id: 'd7', title: 'Engagement field: keep explicit?' },
+    { id: 'd8', title: 'Exec-level rollup mechanism (Q4/Q6)' },
+    { id: 'd9', title: 'Track naming prefix' }
+  ];
+  var LS_KEY = 'aipm-schema-decisions-v1';
+
+  function state() {
+    var s = { radios: {}, notes: {} };
+    DECISIONS.forEach(function (d) {
+      var checked = document.querySelector('input[name="' + d.id + '"]:checked');
+      if (checked) s.radios[d.id] = checked.value;
+      var note = document.querySelector('.q-notes[data-decision="' + d.id + '"]');
+      if (note && note.value.trim()) s.notes[d.id] = note.value.trim();
+    });
+    return s;
+  }
+  function save() {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(state())); } catch (e) { /* private mode etc — non-fatal */ }
+    updateCount();
+  }
+  function restore() {
+    var raw = null;
+    try { raw = localStorage.getItem(LS_KEY); } catch (e) {}
+    if (!raw) return;
+    var s;
+    try { s = JSON.parse(raw); } catch (e) { return; }
+    DECISIONS.forEach(function (d) {
+      if (s.radios && s.radios[d.id]) {
+        var input = document.querySelector('input[name="' + d.id + '"][value="' + s.radios[d.id].replace(/"/g, '\\"') + '"]');
+        if (input) input.checked = true;
+      }
+      if (s.notes && s.notes[d.id]) {
+        var note = document.querySelector('.q-notes[data-decision="' + d.id + '"]');
+        if (note) note.value = s.notes[d.id];
+      }
+    });
+    updateCount();
+  }
+  function updateCount() {
+    var n = 0;
+    DECISIONS.forEach(function (d) {
+      if (document.querySelector('input[name="' + d.id + '"]:checked')) n++;
+    });
+    var el = document.getElementById('answered-count');
+    if (el) el.textContent = String(n);
+  }
+  function payload() {
+    var s = state();
+    var lines = [];
+    lines.push('AIPM initiative-graph schema decisions — ' + new Date().toISOString().slice(0, 10));
+    lines.push('(from docs/research/aipm-initiative-schema.html rev 1)');
+    lines.push('');
+    DECISIONS.forEach(function (d, i) {
+      var v = s.radios[d.id] || '(unanswered)';
+      lines.push('[' + v + '] D' + (i + 1) + ' · ' + d.title);
+      if (s.notes[d.id]) {
+        s.notes[d.id].split('\n').forEach(function (ln) { lines.push('    ' + ln); });
+      }
+    });
+    return lines.join('\n');
+  }
+
+  document.addEventListener('change', function (e) {
+    if (e.target && e.target.matches('input[type="radio"], .q-notes')) save();
+  });
+  document.addEventListener('input', function (e) {
+    if (e.target && e.target.matches('.q-notes')) save();
+  });
+
+  var btn = document.getElementById('copy-btn');
+  btn.addEventListener('click', function () {
+    var text = payload();
+    function ok() {
+      btn.classList.add('copied');
+      btn.textContent = 'Copied — paste to Claude';
+      setTimeout(function () {
+        btn.classList.remove('copied');
+        btn.textContent = 'Copy decisions';
+      }, 2200);
+    }
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); ok(); } catch (e) { window.prompt('Copy the payload below:', text); }
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(ok, fallback);
+    } else fallback();
+  });
+
+  document.getElementById('clear-saved').addEventListener('click', function (e) {
+    e.preventDefault();
+    try { localStorage.removeItem(LS_KEY); } catch (err) {}
+    DECISIONS.forEach(function (d) {
+      var checked = document.querySelector('input[name="' + d.id + '"]:checked');
+      if (checked) checked.checked = false;
+      var note = document.querySelector('.q-notes[data-decision="' + d.id + '"]');
+      if (note) note.value = '';
+    });
+    updateCount();
+  });
+
+  restore();
+  updateCount();
+})();
+</script>
+
+</body>
+</html>
