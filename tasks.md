@@ -2,6 +2,16 @@
 
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
+### BUG-265: Quitting one Duo instance unlinks another instance's live socket/port files
+
+**Status:** 🆕 Filed 2026-07-08 (live repro during the ENH-264 verification walk). **Priority:** P2. **Ticket note:** allocated after ENH-264 in this worktree; renumber on collision.
+
+**Repro (observed live).** The packaged Duo.app (v0.13.3) had been running since 08:11 with its Unix socket bound at `~/Library/Application Support/duo/duo.sock` and TCP listening — but BOTH marker files (`duo.sock`, `duo.port`) were gone from disk by evening, so every CLI call failed "app is not running" while `lsof` showed the app holding the bound socket + LISTEN. Timeline fits a dev instance (run from a worktree during the day) quitting and running its shutdown cleanup, which unlinks the SHARED transport paths even though the packaged instance still owns the bind. The single-instance lock doesn't protect against this (dev + packaged are distinct app identities but share the transport path). Recovery: clean quit + relaunch of the packaged app rebinds and rewrites both files.
+
+**Systemic fix options.** (a) Own-before-unlink: stamp the owning pid into `duo.port` (or a sidecar-free field of it) at bind; on shutdown, unlink only if the pid matches self. (b) Per-instance socket paths (dev gets `duo-dev.sock`) + CLI resolution order — heavier, changes CLI discovery. Lean (a) — one guard at the single cleanup site. Also worth making `duo doctor` distinguish "files missing but a process holds the bind" (lsof probe) from "app truly down" — tonight's doctor output pointed the wrong way ("Is Duo.app running?" — it was).
+
+---
+
 ### ENH-264: Owner review — AIPM initiative-graph schema decision playground
 
 **Status:** 🟡 Awaiting owner walk (filed 2026-07-08). **Priority:** P1 for the owner's KB work (not Duo-gating — but per the research-report rule it surfaces in every smoke walk until walked). **Ticket note:** allocated after ENH-263 in this worktree; renumber on collision.
