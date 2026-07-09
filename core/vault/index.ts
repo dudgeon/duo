@@ -155,8 +155,10 @@ export {
   ensureNoteId,
   mdBacklinks,
   danglingMdLinks,
+  migrateFrontmatterLinks,
   type MoveResult,
   type RelinkResult,
+  type MigrateFrontmatterLinksResult,
 } from './move'
 export {
   generateIndex,

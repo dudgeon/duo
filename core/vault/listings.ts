@@ -81,6 +81,18 @@ function groupLabel(note: VaultFile): string {
   return top || 'Other'
 }
 
+/** BUG-267 — a bare (non-angle-bracketed) markdown link destination must
+ *  contain NO whitespace (CommonMark §6.6); a note whose FILENAME has a
+ *  space produces a literal un-percent-encoded space in the generated
+ *  bullet's href, which breaks navigation (Obsidian errors "Folder already
+ *  exists" on click — confirmed live) and is invalid GFM on github.com too.
+ *  Angle-bracket the href ONLY when it actually needs it (whitespace, or a
+ *  literal `<`/`>`) — the vast majority of hrefs (space-free filenames) stay
+ *  byte-identical to the pre-fix convention (no churn on existing vaults). */
+function safeHref(href: string): string {
+  return /[\s<>]/.test(href) ? `<${href}>` : href
+}
+
 // ── index.md (OKF section-6) ──────────────────────────────────────────────────
 
 /** Should a note be excluded from listings entirely? The generated listing
@@ -124,7 +136,7 @@ export function generateIndex(root: string, dir = '', indexFilename?: string): s
     const rows = groups.get(label)!.sort((a, b) => noteTitle(a).localeCompare(noteTitle(b)))
     const lines = [`## ${label}`, '']
     for (const n of rows) {
-      const href = relLink(indexRel, n.relPath)
+      const href = safeHref(relLink(indexRel, n.relPath))
       const desc = noteDescription(n)
       lines.push(`* [${noteTitle(n)}](${href})${desc ? ` - ${desc}` : ''}`)
     }
@@ -228,7 +240,7 @@ export function generateLog(root: string, logFilename?: string): string {
     const rows = byDay.get(day)!.sort((a, b) => b.mtimeMs - a.mtimeMs)
     const lines = [`## ${day}`, '']
     for (const n of rows) {
-      lines.push(`* [${noteTitle(n)}](${relLink(logRel, n.relPath)})`)
+      lines.push(`* [${noteTitle(n)}](${safeHref(relLink(logRel, n.relPath))})`)
     }
     sections.push(lines.join('\n'))
   }

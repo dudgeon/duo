@@ -26,7 +26,30 @@ depends on the vault's format. The format marker is the source of truth:
 
 `okf_version` wins if both markers are present (D4). The `[[Name]]` GESTURE
 is input-only everywhere; on resolve, OKF rewrites it to a rel-md link,
-Obsidian keeps the wikilink. **No `[[wikilink]]` ever persists in OKF mode.**
+Obsidian keeps the wikilink. **No `[[wikilink]]` ever persists in OKF mode —
+frontmatter included (ENH-266, 2026-07-09).**
+
+**Frontmatter entity references (ENH-266) are the SAME two-serializer split,
+not a special case.** A typed frontmatter field naming another note
+(`owner:`, `initiative:`, `attendees:`, …) is a graph edge, same as a prose
+link — OKF writes a QUOTED standard markdown relative link
+(`owner: "[Alice Park](../people/<name>.md)"`, via
+`serializeOkfFrontmatterLink`/`frontmatterLinkSerializerFor` in
+`core/markdown/vaultLinks.ts`); Obsidian keeps `owner: "[[Alice Park]]"`
+(unchanged). **This REVERSES FOLLOWUP-051** (which had made frontmatter
+`[[ ]]`-persisting in BOTH modes) — a live Obsidian validation found a
+title-based frontmatter wikilink creates an unresolved PHANTOM NODE in OKF
+mode, because OKF filenames are slugs and Obsidian's frontmatter-wikilink
+resolver matches by filename only (never title, never `aliases:`). The
+quoting is load-bearing, not decorative: an unquoted `[…](…)`/`[[…]]`
+frontmatter VALUE starts with `[`, which YAML reads as a flow-sequence
+opener — `owner: [[Alice Park]]` parses to a nested array, not a string,
+invisible to `corpus.ts buildCorpus`'s `entityRefsByType` (though still
+found by the raw-regex `VaultFile.links`/backlinks scan, which is
+YAML-agnostic — the two systems diverge silently on this exact bug class).
+`duo vault relink --frontmatter [--dry-run]` (`migrateFrontmatterLinks` in
+`core/vault/move.ts`) is the opt-in, EXPLICIT migration for a vault authored
+before this — never wired into the auto-relink-on-vault-open hook.
 
 **Dual index/log filename convention (ENH-245).** `_index.md`/`_log.md` is the
 default for any listing Duo writes fresh (sorts to the top of a folder, reads

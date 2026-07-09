@@ -13,8 +13,10 @@ import {
   danglingMdLinks,
   moveNote,
   relinkVault,
+  migrateFrontmatterLinks,
 } from './move'
 import { isForeignVault } from './detect'
+import { splitFrontmatter } from './parse'
 
 let root: string
 beforeEach(() => {
@@ -186,6 +188,25 @@ describe('relinkVault — out-of-band repair (D5)', () => {
     expect(r.broken[0].oldHref).toBe('./nobody.md')
   })
 
+  // BUG-267(b) — relink used to mis-parse its OWN generated (angle-
+  // bracketed) space-containing links, truncating the href at the first
+  // space and reporting a well-formed link as broken. This also verifies the
+  // WRITE side: a live (non-dry-run) repair must actually rewrite an angle-
+  // bracketed old href, not silently 0-count it (rewriteHref had the same
+  // truncating regex as the detection path).
+  it('resolves (never mis-parses-as-broken) an angle-bracketed space-containing dangling link, and rewrites it', () => {
+    write('people/weird target.md', '---\nid: w1\ntype: person\n---\n')
+    write('m.md', '---\ntype: meeting\n---\nSee [Weird](<./old/weird target.md>) for more.\n')
+    const r = relinkVault(root)
+    expect(r.broken).toHaveLength(0)
+    expect(r.ambiguous).toHaveLength(0)
+    expect(r.repaired).toHaveLength(1)
+    expect(r.repaired[0].targetRel).toBe('people/weird target.md')
+    // The NEW href also needs angle-bracketing (still has a space) — and the
+    // rewrite actually happened (not a false-positive report with a no-op write).
+    expect(read('m.md')).toContain('[Weird](<./people/weird target.md>)')
+  })
+
   it('dryRun resolves + reports but writes nothing', () => {
     write('people/customer-orders.md', '---\nid: c1\ntype: note\n---\nOrders.\n')
     write('m.md', '---\ntype: note\n---\n[Orders](./docs/customer-orders.md)\n')
@@ -213,5 +234,227 @@ describe('D5 — foreign-vault auto-relink guard (isForeignVault)', () => {
     expect(relinkVault(root, { dryRun: true }).repaired).toHaveLength(1)
     // ...but it's foreign, so maybeAutoRelinkVault (electron/main.ts) returns early.
     expect(isForeignVault(root)).toBe(true)
+  })
+})
+
+// ── migrateFrontmatterLinks (ENH-266) — the 4-category opt-in migration ───────
+
+function okfIndex(): string {
+  // `title:` deliberately differs from the marker filename's slug (`_index`)
+  // — this is the exact shape that WOULD otherwise qualify for alias
+  // backfill; the (d) test below pins that the marker is excluded anyway.
+  return '---\nokf_version: "0.1"\ntitle: My Vault\ntype: index\n---\n'
+}
+
+describe('migrateFrontmatterLinks (ENH-266) — OKF-mode gate', () => {
+  it('throws in a non-OKF (or non-vault) directory', () => {
+    expect(() => migrateFrontmatterLinks(root)).toThrow(/OKF-mode only/)
+    fs.mkdirSync(path.join(root, '.obsidian'), { recursive: true })
+    expect(() => migrateFrontmatterLinks(root)).toThrow(/OKF-mode only/)
+  })
+})
+
+describe('migrateFrontmatterLinks (ENH-266) — (a) frontmatter wikilink values', () => {
+  beforeEach(() => write('_index.md', okfIndex()))
+
+  it('rewrites a QUOTED scalar wikilink value to a quoted markdown link', () => {
+    write('people/alice-park.md', '---\ntype: person\n---\n# Alice Park\n')
+    write('initiatives/onboarding.md', '---\ntype: initiative\nowner: "[[Alice Park]]"\n---\nbody\n')
+    const r = migrateFrontmatterLinks(root)
+    expect(r.frontmatterWikilinks.repaired).toHaveLength(1)
+    expect(r.frontmatterWikilinks.repaired[0]).toMatchObject({
+      fromRel: 'initiatives/onboarding.md',
+      field: 'owner',
+      targetRel: 'people/alice-park.md',
+      via: 'slug',
+    })
+    const { frontmatter } = splitFrontmatter(read('initiatives/onboarding.md'))
+    expect(frontmatter.owner).toBe('[Alice Park](../people/alice-park.md)')
+  })
+
+  it('rewrites an UNQUOTED wikilink value too (the YAML-invisible edge case)', () => {
+    write('people/bob.md', '---\ntype: person\n---\n# Bob\n')
+    write('a.md', '---\ntype: initiative\nowner: [[Bob]]\n---\nbody\n')
+    const r = migrateFrontmatterLinks(root)
+    expect(r.frontmatterWikilinks.repaired).toHaveLength(1)
+    const { frontmatter } = splitFrontmatter(read('a.md'))
+    expect(frontmatter.owner).toBe('[Bob](./people/bob.md)')
+  })
+
+  it('rewrites every item in a block-list field', () => {
+    write('people/alice.md', '---\ntype: person\n---\n')
+    write('people/bob.md', '---\ntype: person\n---\n')
+    write(
+      'meetings/standup.md',
+      '---\ntype: meeting\nattendees:\n  - "[[Alice]]"\n  - "[[Bob]]"\n---\nbody\n',
+    )
+    const r = migrateFrontmatterLinks(root)
+    expect(r.frontmatterWikilinks.repaired).toHaveLength(2)
+    const { frontmatter } = splitFrontmatter(read('meetings/standup.md'))
+    expect(frontmatter.attendees).toEqual([
+      '[Alice](../people/alice.md)',
+      '[Bob](../people/bob.md)',
+    ])
+  })
+
+  it('rewrites every item in a flow-array field', () => {
+    write('people/alice.md', '---\ntype: person\n---\n')
+    write('people/bob.md', '---\ntype: person\n---\n')
+    write(
+      'meetings/standup.md',
+      '---\ntype: meeting\nattendees: ["[[Alice]]", "[[Bob]]"]\n---\nbody\n',
+    )
+    const r = migrateFrontmatterLinks(root)
+    expect(r.frontmatterWikilinks.repaired).toHaveLength(2)
+    const { frontmatter } = splitFrontmatter(read('meetings/standup.md'))
+    expect(frontmatter.attendees).toEqual([
+      '[Alice](../people/alice.md)',
+      '[Bob](../people/bob.md)',
+    ])
+  })
+
+  it('reports (never guesses) an ambiguous slug — leaves the note untouched', () => {
+    write('people/alice.md', '---\ntype: person\n---\n')
+    write('themes/alice.md', '---\ntype: theme\n---\n') // slug collision
+    write('a.md', '---\ntype: initiative\nowner: "[[Alice]]"\n---\nbody\n')
+    const before = read('a.md')
+    const r = migrateFrontmatterLinks(root)
+    expect(r.frontmatterWikilinks.ambiguous).toHaveLength(1)
+    expect(r.frontmatterWikilinks.repaired).toHaveLength(0)
+    expect(read('a.md')).toBe(before)
+  })
+
+  it('reports (never guesses) a broken (unresolvable) target — leaves the note untouched', () => {
+    write('a.md', '---\ntype: initiative\nowner: "[[Nobody]]"\n---\nbody\n')
+    const before = read('a.md')
+    const r = migrateFrontmatterLinks(root)
+    expect(r.frontmatterWikilinks.broken).toHaveLength(1)
+    expect(read('a.md')).toBe(before)
+  })
+
+  it('dryRun resolves + reports but writes nothing', () => {
+    write('people/alice.md', '---\ntype: person\n---\n')
+    write('a.md', '---\ntype: initiative\nowner: "[[Alice]]"\n---\nbody\n')
+    const before = read('a.md')
+    const r = migrateFrontmatterLinks(root, { dryRun: true })
+    expect(r.frontmatterWikilinks.repaired).toHaveLength(1)
+    expect(read('a.md')).toBe(before)
+  })
+})
+
+describe('migrateFrontmatterLinks (ENH-266) — (b) bare unbracketed rel-path values', () => {
+  beforeEach(() => write('_index.md', okfIndex()))
+
+  it('rewrites a bare rel-path that resolves to a real file', () => {
+    write('people/alice-park.md', '---\ntype: person\ntitle: Alice Park\n---\n')
+    write('initiatives/onboarding.md', '---\ntype: initiative\nowner: "../people/alice-park.md"\n---\nbody\n')
+    const r = migrateFrontmatterLinks(root)
+    expect(r.frontmatterBarePaths.repaired).toHaveLength(1)
+    const { frontmatter } = splitFrontmatter(read('initiatives/onboarding.md'))
+    expect(frontmatter.owner).toBe('[Alice Park](../people/alice-park.md)')
+  })
+
+  it('reports (never guesses) a bare path that does not resolve to a real file', () => {
+    write('a.md', '---\ntype: initiative\nowner: "./people/ghost.md"\n---\nbody\n')
+    const before = read('a.md')
+    const r = migrateFrontmatterLinks(root)
+    expect(r.frontmatterBarePaths.broken).toHaveLength(1)
+    expect(read('a.md')).toBe(before)
+  })
+
+  it('leaves an ALREADY-migrated markdown-link value untouched (not a bare path)', () => {
+    write('people/alice.md', '---\ntype: person\n---\n')
+    write('a.md', '---\ntype: initiative\nowner: "[Alice](./people/alice.md)"\n---\nbody\n')
+    const before = read('a.md')
+    const r = migrateFrontmatterLinks(root)
+    expect(r.frontmatterWikilinks.repaired).toHaveLength(0)
+    expect(r.frontmatterBarePaths.repaired).toHaveLength(0)
+    expect(read('a.md')).toBe(before)
+  })
+})
+
+describe('migrateFrontmatterLinks (ENH-266) — (c) prose-BODY wikilinks', () => {
+  beforeEach(() => write('_index.md', okfIndex()))
+
+  it('rewrites a leftover body wikilink (e.g. authored in Obsidian) to a markdown link', () => {
+    write('people/alice.md', '---\ntype: person\n---\n')
+    write('notes/n.md', '---\ntype: note\n---\nSee [[Alice]] for details.\n')
+    const r = migrateFrontmatterLinks(root)
+    expect(r.bodyWikilinks.repaired).toHaveLength(1)
+    expect(read('notes/n.md')).toContain('[Alice](../people/alice.md)')
+    expect(read('notes/n.md')).not.toContain('[[')
+  })
+
+  it('reports ambiguous/broken body wikilinks without guessing', () => {
+    write('people/alice.md', '---\ntype: person\n---\n')
+    write('themes/alice.md', '---\ntype: theme\n---\n')
+    write('notes/n.md', '---\ntype: note\n---\nSee [[Alice]] and [[Nobody]].\n')
+    const before = read('notes/n.md')
+    const r = migrateFrontmatterLinks(root)
+    expect(r.bodyWikilinks.ambiguous).toHaveLength(1)
+    expect(r.bodyWikilinks.broken).toHaveLength(1)
+    expect(read('notes/n.md')).toBe(before)
+  })
+})
+
+describe('migrateFrontmatterLinks (ENH-266) — (d) alias backfill', () => {
+  beforeEach(() => write('_index.md', okfIndex()))
+
+  // NOTE: "Alice Park" slugs to "alice-park" — a title/filename SPLIT needs
+  // the filename to differ from that slug (simulating the D6 slug-collision
+  // `-2` suffix filing.ts appends, or a manual rename), else there's nothing
+  // to backfill (the slug already matches).
+
+  it('backfills an empty flow-array aliases field', () => {
+    write('people/alice-park-2.md', '---\ntype: person\ntitle: Alice Park\naliases: []\n---\n')
+    const r = migrateFrontmatterLinks(root)
+    expect(r.aliasBackfills).toEqual([{ fromRel: 'people/alice-park-2.md', title: 'Alice Park' }])
+    const { frontmatter } = splitFrontmatter(read('people/alice-park-2.md'))
+    expect(frontmatter.aliases).toEqual(['Alice Park'])
+  })
+
+  it('backfills a non-empty flow-array aliases field (appends)', () => {
+    write('people/alice-park-2.md', '---\ntype: person\ntitle: Alice Park\naliases: ["AP"]\n---\n')
+    migrateFrontmatterLinks(root)
+    const { frontmatter } = splitFrontmatter(read('people/alice-park-2.md'))
+    expect(frontmatter.aliases).toEqual(['AP', 'Alice Park'])
+  })
+
+  it('backfills a block-list aliases field (appends a new item)', () => {
+    write('people/alice-park-2.md', '---\ntype: person\ntitle: Alice Park\naliases:\n  - "AP"\n---\n')
+    migrateFrontmatterLinks(root)
+    const { frontmatter } = splitFrontmatter(read('people/alice-park-2.md'))
+    expect(frontmatter.aliases).toEqual(['AP', 'Alice Park'])
+  })
+
+  it('inserts a fresh aliases field when none exists', () => {
+    write('people/alice-park-2.md', '---\ntype: person\ntitle: Alice Park\n---\n')
+    migrateFrontmatterLinks(root)
+    const { frontmatter } = splitFrontmatter(read('people/alice-park-2.md'))
+    expect(frontmatter.aliases).toEqual(['Alice Park'])
+  })
+
+  it('does NOT backfill when the title already matches the slug filename', () => {
+    write('people/alice-park.md', '---\ntype: person\ntitle: Alice Park\n---\n') // slug matches
+    // "Alice Park" slugs to "alice-park" which IS the basename — no backfill needed.
+    const r = migrateFrontmatterLinks(root)
+    expect(r.aliasBackfills).toEqual([])
+  })
+
+  it('does NOT re-add a title already present in aliases', () => {
+    write('people/alice-park-2.md', '---\ntype: person\ntitle: Alice Park\naliases: ["Alice Park"]\n---\n')
+    const r = migrateFrontmatterLinks(root)
+    expect(r.aliasBackfills).toEqual([])
+  })
+
+  it('NEVER touches the root OKF marker file, even when its title/slug split qualifies', () => {
+    // The root index's title ("My Vault") differs from its slug/basename
+    // ("_index") — this WOULD qualify for alias backfill by the plain rule,
+    // but the marker's frontmatter must stay byte-preserved (the D4 marker +
+    // the listings generator's source-hash staleness key).
+    const before = read('_index.md')
+    const r = migrateFrontmatterLinks(root)
+    expect(r.aliasBackfills.some((a) => a.fromRel === '_index.md')).toBe(false)
+    expect(read('_index.md')).toBe(before)
   })
 })

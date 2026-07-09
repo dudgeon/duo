@@ -1,12 +1,13 @@
 // ENH-216 OKF Vault Mode (U7) — coverage for the renderer-side link seam.
 // Pins okfLinkInsert (D3 expand-on-resolve: the BODY gesture writes a
 // standard markdown relative link, link text = the supplied display/slug
-// per D6). FOLLOWUP-051 removed the frontmatter commit-rewrite — a
-// frontmatter `[[ ]]` now persists AS `[[ ]]` (a bare rel-path isn't a graph
-// edge in Duo or Obsidian), so there's no frontmatter serializer to cover.
+// per D6). ENH-266 (2026-07-09) reverses FOLLOWUP-051: OKF frontmatter
+// values are now QUOTED markdown links (okfFrontmatterLinkInsert below),
+// not `[[ ]]` wikilinks — see okfLinks.ts's ENH-266 header comment for the
+// live-Obsidian-validated rationale.
 
 import { describe, it, expect } from 'vitest'
-import { okfLinkInsert } from './okfLinks'
+import { okfLinkInsert, okfFrontmatterLinkInsert } from './okfLinks'
 
 describe('okfLinkInsert (D3 / D6)', () => {
   it('writes a standard markdown relative link with the supplied display text', () => {
@@ -38,5 +39,25 @@ describe('okfLinkInsert (D3 / D6)', () => {
         '/vault/sales/customer-orders.md',
       ),
     ).toBe('[customer-orders](../sales/customer-orders.md)')
+  })
+})
+
+describe('okfFrontmatterLinkInsert (ENH-266)', () => {
+  it('writes a QUOTED markdown relative link (YAML-safe frontmatter value)', () => {
+    expect(
+      okfFrontmatterLinkInsert('Alice Park', 'initiatives/q3-launch.md', 'people/alice-park.md'),
+    ).toBe('"[Alice Park](../people/alice-park.md)"')
+  })
+
+  it('./-anchors a same-directory target, still quoted', () => {
+    expect(okfFrontmatterLinkInsert('Bob', 'people/alice.md', 'people/bob.md')).toBe(
+      '"[Bob](./bob.md)"',
+    )
+  })
+
+  it('escapes an embedded double-quote in the display text', () => {
+    expect(
+      okfFrontmatterLinkInsert('The "Growth" Initiative', 'people/alice.md', 'initiatives/growth.md'),
+    ).toBe('"[The \\"Growth\\" Initiative](../initiatives/growth.md)"')
   })
 })

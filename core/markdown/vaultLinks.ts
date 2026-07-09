@@ -115,11 +115,16 @@ export function targetKey(rawTarget: string, _syntax: LinkSyntax): string {
 // `[[target]]` / `[[target|display]]` — capture up to the first `|` or `]]`.
 const WIKILINK_RE = /\[\[([^\]]+?)\]\]/g
 // Markdown inline link `[text](href)`, NOT an image (negative-lookbehind on
-// `!`). `href` stops at the first whitespace (title) or closing paren.
-// NOTE: because `[^)\s]+` stops at whitespace, a space-bearing href like
-// `(./my file.md)` is NOT captured as an edge — fine for OKF, whose slugs are
-// always space-free (slugStem folds spaces to hyphens).
-const MDLINK_RE = /(?<!!)\[([^\]]*)\]\(\s*([^)\s]+)[^)]*\)/g
+// `!`). Two href shapes (CommonMark §6.6): an ANGLE-BRACKETED destination
+// `(<href with a space>)` (group 2 — may contain whitespace), or the bare
+// form `(href)` which stops at the first whitespace (title) or closing paren
+// (group 3). BUG-267 — a note whose FILENAME has a space needs the
+// angle-bracketed form (listings.ts's `safeHref` writes it); before this fix
+// `[^)\s]+` alone silently truncated such an href at the first space
+// (slugStem-generated OKF stems are always space-free, but a note's
+// filename need not be a slug — an imported/renamed/hand-authored file can
+// carry one).
+const MDLINK_RE = /(?<!!)\[([^\]]*)\]\(\s*(?:<([^>]*)>|([^)\s]+))[^)]*\)/g
 
 /** True for an href we should NOT treat as an in-vault edge: external
  *  (`http:`, `https:`, `mailto:`, any `scheme:`), protocol-relative (`//…`),
@@ -161,7 +166,9 @@ export function extractLinkRefs(text: string): LinkRef[] {
 
   for (const m of text.matchAll(MDLINK_RE)) {
     const display = m[1].trim()
-    const rawTarget = m[2].trim()
+    // BUG-267 — group 2 (angle-bracketed) may be legitimately '' (an empty
+    // destination `[x](<>)`), so test for `undefined`, not falsiness.
+    const rawTarget = (m[2] !== undefined ? m[2] : m[3]).trim()
     if (isExternalHref(rawTarget)) continue
     hits.push({
       index: m.index ?? 0,
@@ -280,6 +287,43 @@ export function linkSerializerFor(
   mode: VaultMode,
 ): (srcAbs: string, tgtAbs: string, display?: string) => string {
   return mode === 'okf' ? serializeOkfLink : serializeWikilink
+}
+
+// ── frontmatter entity-reference serializer (ENH-266) ───────────────────────
+
+/** YAML double-quote a scalar (flow scalar quoted style): escape backslash
+ *  and double-quote, wrap in `"…"`. A markdown link's `[Display](./rel.md)`
+ *  starts with `[` — unquoted, YAML would read it as a flow-sequence opener,
+ *  not a string — so any frontmatter VALUE holding one must be quoted. Kept
+ *  minimal (backslash/quote only) since our domain (titles, vault-relative
+ *  paths) never carries other YAML-unsafe bytes (newlines, control chars). */
+function yamlQuote(s: string): string {
+  return `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+}
+
+/** OKF frontmatter entity-reference serializer (ENH-266): a YAML-safe QUOTED
+ *  standard markdown relative link, e.g. `"[Alice Park](../people/alice-park.md)"`.
+ *  Reuses {@link serializeOkfLink} for the link itself (identical relative-
+ *  path math to a BODY link) and wraps it in a quoted YAML string so the
+ *  leading `[` can't be misread as a flow-sequence opener. This is the
+ *  frontmatter-VALUE twin of `serializeOkfLink` — never use the unquoted
+ *  form for a frontmatter scalar/list element. Obsidian mode is unchanged
+ *  (frontmatter keeps `[[Title]]` via {@link serializeWikilink}); this
+ *  serializer is OKF-only. */
+export function serializeOkfFrontmatterLink(srcAbs: string, tgtAbs: string, display?: string): string {
+  return yamlQuote(serializeOkfLink(srcAbs, tgtAbs, display))
+}
+
+/** Pick the frontmatter-VALUE serializer for a vault mode — the
+ *  {@link linkSerializerFor} twin for frontmatter entity-reference fields
+ *  (owner:, initiative:, attendees:, …). OKF writes a quoted markdown link
+ *  ({@link serializeOkfFrontmatterLink}); Obsidian keeps the unquoted
+ *  `[[Title]]` wikilink ({@link serializeWikilink}, unchanged — ENH-266 is
+ *  OKF-only). */
+export function frontmatterLinkSerializerFor(
+  mode: VaultMode,
+): (srcAbs: string, tgtAbs: string, display?: string) => string {
+  return mode === 'okf' ? serializeOkfFrontmatterLink : serializeWikilink
 }
 
 // ── Tier-1 click-nav resolution ──────────────────────────────────────────────

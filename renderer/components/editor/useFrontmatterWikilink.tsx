@@ -8,11 +8,17 @@
 // matcher (findFmWikilinkMatch), a caret-rect (textareaCaretRect), and
 // value-splice inserts in place of ProseMirror transactions.
 //
-// FOLLOWUP-051 — on pick, insert a plain `[[basename]]` wikilink in BOTH
-// vault modes. A bare YAML rel-path is NOT a graph edge in Duo OR Obsidian
-// (it silently drops the relationship); a `[[ ]]` value IS an edge in both.
-// (Body links stay markdown rel-links per D3 — that's unchanged; this is the
-// frontmatter-only reversal of D7, so the gesture is mode-agnostic here.)
+// ENH-266 (2026-07-09) — REVERSES FOLLOWUP-051's mode-agnostic insert. A
+// live Obsidian validation found FOLLOWUP-051's premise wrong (see
+// okfLinks.ts's ENH-266 header): a title-based `[[Alice Park]]` frontmatter
+// value creates an unresolved phantom node in Obsidian when the OKF
+// filename is a slug. OKF now writes a QUOTED markdown link
+// (`okfFrontmatterLinkInsert`, mirroring the BODY's D3 expand-on-resolve —
+// existing-note picks insert the final form directly; a create-note pick
+// inserts a `[[name]]` placeholder and the type-picker's `onCreated`
+// rewrites that span once the stub's path is known, same two-step shape as
+// MarkdownEditor's body `stubPicker`). Obsidian mode is UNCHANGED — still
+// inserts a plain `[[basename]]` wikilink, no rewrite.
 
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import {
@@ -27,6 +33,7 @@ import { rankVaultFiles } from './vaultIndex'
 import type { VaultFile } from './wikilinkResolver'
 import { findFmWikilinkMatch } from './frontmatterWikilinkMatch'
 import { textareaCaretRect } from './textareaCaret'
+import { okfFrontmatterLinkInsert, type VaultMode } from './okfLinks'
 
 export interface FrontmatterWikilinkOptions {
   textareaRef: React.RefObject<HTMLTextAreaElement | null>
@@ -41,6 +48,13 @@ export interface FrontmatterWikilinkOptions {
   /** Refresh the vault index after a stub is created (so the new note is
    *  pickable immediately). */
   onVaultRefresh?: () => void
+  /** ENH-266 — the active vault's at-rest link mode (D4). OKF writes a
+   *  quoted markdown link for a frontmatter pick; Obsidian (default) keeps
+   *  the `[[ ]]` wikilink form. */
+  vaultMode?: VaultMode
+  /** ENH-266 — the open doc's path, the rel-link base in OKF mode. Null
+   *  (or Obsidian mode) falls back to the unquoted `[[ ]]` insert. */
+  docPath?: string | null
 }
 
 export interface FrontmatterWikilink {
@@ -68,10 +82,24 @@ interface ActiveMatch {
 interface TypePickerState {
   name: string
   rect: DOMRect | null
+  /** ENH-266 — the inserted placeholder's span in the textarea, so
+   *  `onTypeCreated` can rewrite it once the stub's path is known. OKF
+   *  mode only; Obsidian's `[[name]]` insert is already final (null). */
+  range: { start: number; end: number } | null
 }
 
 export function useFrontmatterWikilink(opts: FrontmatterWikilinkOptions): FrontmatterWikilink {
-  const { textareaRef, setValue, vaultFiles, vaultLoading, vaultRoot, onVaultRefresh } = opts
+  const {
+    textareaRef,
+    setValue,
+    vaultFiles,
+    vaultLoading,
+    vaultRoot,
+    onVaultRefresh,
+    vaultMode = 'obsidian',
+    docPath = null,
+  } = opts
+  const okf = vaultMode === 'okf' && !!docPath
   const [match, setMatch] = useState<ActiveMatch | null>(null)
   const [typePicker, setTypePicker] = useState<TypePickerState | null>(null)
   const popoverRef = useRef<SuggestionPopoverHandle | null>(null)
@@ -118,9 +146,12 @@ export function useFrontmatterWikilink(opts: FrontmatterWikilinkOptions): Frontm
     const start = match.start
     const end = caret
 
-    // FOLLOWUP-051 — a frontmatter edge is a `[[name]]` wikilink in BOTH
-    // modes (a bare rel-path isn't a graph edge in Duo/Obsidian). For a
-    // create-note pick that's already the final form; just spawn the stub.
+    // ENH-266 — a create-note pick always inserts the `[[name]]`
+    // PLACEHOLDER first (same shape in both modes — the stub doesn't exist
+    // yet, so there's no target path to link to). OKF mode records the
+    // placeholder's span; onTypeCreated rewrites it to the quoted
+    // markdown-link form once the stub's on-disk path is known. Obsidian
+    // leaves the wikilink in place (range: null — nothing to rewrite).
     if (isCreateNoteItem(item)) {
       const name = item.query
       const insert = `[[${name}]]`
@@ -129,25 +160,45 @@ export function useFrontmatterWikilink(opts: FrontmatterWikilinkOptions): Frontm
       setMatch(null)
       restoreCaret(start + insert.length)
       const rect = textareaCaretRect(ta, start + insert.length)
-      setTypePicker({ name, rect })
+      setTypePicker({
+        name,
+        rect,
+        range: okf ? { start, end: start + insert.length } : null,
+      })
       return
     }
 
-    // VaultFile pick — `[[basename]]` wikilink (FOLLOWUP-051).
+    // VaultFile pick (existing note). ENH-266: OKF writes the quoted
+    // markdown-link form directly (the target's path is already known);
+    // Obsidian keeps the unquoted `[[basename]]` wikilink (unchanged).
     const vf = item as VaultFile
-    const insert = `[[${vf.basename}]]`
+    const insert = okf
+      ? okfFrontmatterLinkInsert(vf.basename, docPath as string, vf.absPath)
+      : `[[${vf.basename}]]`
     const next = ta.value.slice(0, start) + insert + ta.value.slice(end)
     setValue(next)
     setMatch(null)
     restoreCaret(start + insert.length)
   }
 
-  const onTypeCreated = () => {
+  const onTypeCreated = (stub: { path: string; absPath: string; type: string; created: boolean }) => {
     const ta = textareaRef.current
+    // ENH-266 — OKF: the create row inserted a PLAIN `[[name]]` placeholder;
+    // now that the stub's on-disk path is known, rewrite that span to the
+    // quoted markdown-link form (mirrors MarkdownEditor's BODY stubPicker
+    // rewrite). Obsidian: `range` is null (the `[[ ]]` was already final),
+    // so this is a no-op splice-skip.
+    if (ta && typePicker?.range && docPath) {
+      const { start, end } = typePicker.range
+      const link = okfFrontmatterLinkInsert(typePicker.name, docPath, stub.absPath)
+      const next = ta.value.slice(0, start) + link + ta.value.slice(end)
+      setValue(next)
+      setTypePicker(null)
+      restoreCaret(start + link.length)
+      onVaultRefresh?.()
+      return
+    }
     setTypePicker(null)
-    // FOLLOWUP-051 — the `[[name]]` placeholder is already the final form in
-    // both modes, so creating the stub needs no rewrite; just restore focus
-    // and refresh the index so the new note is pickable.
     if (ta) restoreCaret(ta.selectionStart ?? ta.value.length)
     onVaultRefresh?.()
   }

@@ -73,6 +73,7 @@ fields, no invented syntax, regardless of format. Then, per format:
 | `duo vault search <query>` | full-text search (the ⌘⇧F palette's twin) |
 | `duo vault mv <from> <to>` | **move a note + rewrite inbound links** (the D5 clean path — see *Moving a note* below). Prefer over `duo file rename` for OKF vault notes |
 | `duo vault relink [--dry-run]` | **repair links broken by an out-of-band move** (Finder/git) — re-resolve by stable `id:` → slug, rewrite the unambiguous, report ambiguous + broken |
+| `duo vault relink --frontmatter [--dry-run]` | **ENH-266 — one-time migration, OKF-only, explicit/opt-in (never auto-run)**: frontmatter wikilink/bare-path entity-reference values → the quoted markdown-link form, leftover prose-body wikilinks → markdown links, alias backfill (see *Frontmatter entity references* below) |
 | `duo vault publish [--index-only\|--log-only] [--dir] [--open]` | (re)generate the OKF static listings (`_index.md`/`index.md` + `_log.md`/`log.md`, whichever convention the vault already uses — ENH-245) from the corpus (D8; OKF-mode only). By default the root index groups by `type`; add a **`listing:` base spec to its frontmatter** (ENH-230) to drive the body through the rollup engine instead — grouping, filters, chips, entity links — same schema as a `.base` |
 | `duo vault promote <note> --heading "<h>" --type <t>` | split a `## section` into its own typed entity, leaving a link behind (D9 — see *Running docs & promote*) |
 | `duo graph backlinks <note>` | who links to a note (wikilinks basename-resolved AND markdown rel links; scans frontmatter + body) |
@@ -114,6 +115,38 @@ needs link repair. Two paths:
   link-rewritten; the explicit `duo vault relink` verb still works on it if you
   ask. (A generic third-party OKF bundle without that marker is not detected — a
   deliberate limitation to avoid stamping/migrating Duo's own vaults.)
+- **`duo vault relink --frontmatter [--dry-run]`** — a SEPARATE, explicit,
+  opt-in one-time migration (ENH-266, OKF-only) — **never** part of the
+  auto-relink-on-open path above. See *Frontmatter entity references* above.
+
+## Frontmatter entity references (ENH-266, 2026-07-09)
+
+Typed frontmatter fields that name another note (`owner:`, `initiative:`,
+`attendees:`, `themes:`, …) are graph edges, same as a prose link — but the
+at-rest FORM differs by vault mode:
+
+- **Obsidian mode** — unchanged: `owner: "[[Alice Park]]"`. Obsidian-mode
+  filenames ARE the human title, so basename resolution works.
+- **OKF mode** — a QUOTED standard markdown relative link, the same syntax
+  prose already uses: `owner: "[Alice Park](../people/<name>.md)"`. The
+  quoting is REQUIRED — a bare `[…](…)` (or `[[…]]`) frontmatter value starts
+  with `[`, which YAML reads as a flow-sequence opener, not a string, unless
+  quoted.
+
+**Why the OKF form changed.** A live Obsidian validation found that a
+title-based `owner: "[[Alice Park]]"` value creates an **unresolved phantom
+node** in Obsidian's graph in OKF mode: OKF filenames are SLUGS
+(`alice-park.md`), and Obsidian's frontmatter-wikilink resolver matches by
+**filename only** — never by title, never by an `aliases:` entry either. The
+markdown-link form resolves correctly (clickable in Properties, a real
+backlink) regardless of Obsidian's "Use wikilinks" setting, and Duo's own
+reader already accepted this syntax with zero code changes (`extractLinkRefs`
+/ `engineEntityRefs` scan both syntaxes).
+
+**Migrating an existing vault.** A vault authored before 2026-07-09 (or one
+someone hand-edited in Obsidian) may still carry the old forms. Run
+`duo vault relink --frontmatter --dry-run` to see the four-category report,
+then without `--dry-run` to apply it. See the verb table above.
 
 ## Capture by narration
 
@@ -125,8 +158,12 @@ the fee model by Friday" →
 2. Write a templated note — either `duo vault capture --template meeting --text
    "…"` for an inbox note, or directly into the right folder if you already know
    where it files.
-3. **Link entities as `[[wikilinks]]`** in the prose and in typed frontmatter
-   (`attendees: ["[[Alice Park]]"]`). Create stubs for any new entity (below).
+3. **Link entities as `[[wikilinks]]`** — the `[[ ]]` gesture works in BOTH
+   prose and typed frontmatter in either vault mode; the at-rest FORM it
+   resolves to differs (see *Frontmatter entity references* below): Obsidian
+   keeps `[[Alice Park]]`; OKF writes a quoted markdown link,
+   `attendees: ["[Alice Park](../people/<name>.md)"]`. Create stubs for
+   any new entity (below).
 4. Leave anything you're unsure about for the processing pass — capture is fast
    and lossy by design; processing is where it gets filed and fixed.
 
