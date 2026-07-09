@@ -6,6 +6,7 @@ import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
 import { initVault, loadTemplates, stubPathFor, createEntityStub, createType, safeName } from './index'
+import { splitFrontmatter } from './parse'
 
 let root: string
 beforeEach(() => {
@@ -212,5 +213,31 @@ describe('ENH-266e — alias auto-seed (title differs from OKF slug stem)', () =
     expect(b.path).toBe('people/customer-orders-2.md')
     const content = fs.readFileSync(b.absPath, 'utf8')
     expect(content).toContain('aliases:\n  - customer orders')
+  })
+
+  // Review follow-up — BUG-260's hazard class: a title containing `: ` (or
+  // another YAML indicator) written UNQUOTED into `title:`/`aliases:` parses
+  // as a nested mapping and silently blanks the ENTIRE frontmatter block on
+  // read (`splitFrontmatter` swallows the YAML error → `{}`), not just the
+  // one field — the note becomes invisible to every corpus query. Both lines
+  // must go through the same conditional YAML-safe quoting `builder.ts`
+  // already established for filter expressions (bare when safe, quoted only
+  // when hazardous — so the common no-hazard title stays byte-plain).
+  it('YAML-escapes a title containing a colon so frontmatter still parses (BUG-260 class)', () => {
+    const r = createEntityStub(root, 'person', 'Track: Context and Agent Resources', { asOf: AS_OF, mode: 'okf' })
+    const raw = fs.readFileSync(r.absPath, 'utf8')
+    expect(raw).toContain('title: \'Track: Context and Agent Resources\'')
+    expect(raw).toContain('  - \'Track: Context and Agent Resources\'')
+    const { frontmatter } = splitFrontmatter(raw)
+    expect(frontmatter.type).toBe('person')
+    expect(frontmatter.title).toBe('Track: Context and Agent Resources')
+    expect(frontmatter.aliases).toEqual(['Track: Context and Agent Resources'])
+  })
+
+  it('leaves a hazard-free title unquoted (byte-plain, unchanged from before this fix)', () => {
+    const r = createEntityStub(root, 'person', 'Customer Orders', { asOf: AS_OF, mode: 'okf' })
+    const raw = fs.readFileSync(r.absPath, 'utf8')
+    expect(raw).toContain('title: Customer Orders\n')
+    expect(raw).toContain('aliases:\n  - Customer Orders')
   })
 })

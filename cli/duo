@@ -4228,16 +4228,20 @@ function pad(n) {
 function slugify(s) {
   return s.trim().replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " ").slice(0, 60);
 }
+function yamlSafeScalar(v) {
+  const hazard = /: |\t|\s#/.test(v) || /^[!&*?|>%@`"'[\]{},-]/.test(v) || /^\s|[\s:]$/.test(v);
+  return hazard ? `'${v.replace(/'/g, "''")}'` : v;
+}
 function seedFrontmatterLines(template, opts = {}) {
   const lines = [`type: ${template.type}`];
-  if (opts.mode === "okf" && opts.title) lines.push(`title: ${opts.title}`);
+  if (opts.mode === "okf" && opts.title) lines.push(`title: ${yamlSafeScalar(opts.title)}`);
   let hasAliasField = false;
   for (const field of template.fields) {
     if (field === "aliases") hasAliasField = true;
     lines.push(`${field}:${Array.isArray(template.frontmatter[field]) ? " []" : ""}`);
   }
   if (opts.mode === "okf" && opts.title && opts.stem && opts.title !== opts.stem) {
-    const entry = `  - ${opts.title}`;
+    const entry = `  - ${yamlSafeScalar(opts.title)}`;
     const idx = lines.findIndex((l) => l === "aliases: []");
     if (idx >= 0) {
       lines.splice(idx, 1, "aliases:", entry);
@@ -5585,6 +5589,7 @@ function yamlSafeExpr(expr) {
   const hazard = /: |\t|\s#/.test(expr) || /^[!&*?|>%@`"'[\]{},-]/.test(expr) || /^\s|[\s:]$/.test(expr);
   return hazard ? `'${expr.replace(/'/g, "''")}'` : expr;
 }
+var TEMPLATES_EXCLUSION_EXPR = '!file.inFolder("templates")';
 function serializeBuilderBase(model) {
   const lines = [];
   lines.push("filters:");
@@ -5595,6 +5600,7 @@ function serializeBuilderBase(model) {
     lines.push("    - or:");
     for (const t of model.types) lines.push(`        - ${yamlSafeExpr(`type == ${JSON.stringify(t)}`)}`);
   }
+  lines.push(`    - ${yamlSafeExpr(TEMPLATES_EXCLUSION_EXPR)}`);
   for (const f of model.filters) lines.push(`    - ${yamlSafeExpr(filterExpr(f))}`);
   lines.push("views:");
   lines.push("  - type: table");
@@ -5686,6 +5692,7 @@ function parseBuilderBase(raw, fm) {
   const types = [];
   const filters = [];
   for (const item of and) {
+    if (item === TEMPLATES_EXCLUSION_EXPR) continue;
     if (typeof item === "string") {
       const parsed = parseFilterExpr(item);
       if (!parsed) return null;

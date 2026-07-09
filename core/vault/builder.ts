@@ -130,6 +130,19 @@ function yamlSafeExpr(expr: string): string {
   return hazard ? `'${expr.replace(/'/g, "''")}'` : expr
 }
 
+// D15 (ENH-266d, review follow-up) — every builder-generated base filters by
+// `type ==` (single or or-group), which ALSO matches that type's schema
+// TEMPLATE (e.g. `templates/milestone.md` carries its own `type: milestone`)
+// and renders as a phantom row when opened natively in Obsidian (Bases
+// resolves an embedded ```base block the same as a standalone `.base` file —
+// see `docs/prd/enh-208-vault.md` D8). Every rollup the GUI Builder produces
+// gets this exclusion unconditionally, matching the hygiene pattern in
+// `core/vault/scaffold.ts`'s type templates. `parseBuilderBase` below treats
+// this exact clause as a known framework line — silently skipped, not
+// surfaced as an editable filter — so round-tripping stays clean and legacy
+// notes saved before this exclusion existed still parse.
+const TEMPLATES_EXCLUSION_EXPR = '!file.inFolder("templates")'
+
 /** Serialize the model to the canonical ```base YAML (D4). Hand-stable:
  *  key order and quoting are fixed so a save → parse → save round-trip is
  *  byte-identical. Level 1 of `groupBy` mirrors into the view's `groupBy:`
@@ -144,6 +157,7 @@ export function serializeBuilderBase(model: RollupBuilderModel): string {
     lines.push('    - or:')
     for (const t of model.types) lines.push(`        - ${yamlSafeExpr(`type == ${JSON.stringify(t)}`)}`)
   }
+  lines.push(`    - ${yamlSafeExpr(TEMPLATES_EXCLUSION_EXPR)}`)
   for (const f of model.filters) lines.push(`    - ${yamlSafeExpr(filterExpr(f))}`)
   lines.push('views:')
   lines.push('  - type: table')
@@ -257,6 +271,11 @@ export function parseBuilderBase(
   const types: string[] = []
   const filters: BuilderFilter[] = []
   for (const item of and) {
+    // D15 — the templates-folder exclusion `serializeBuilderBase` always
+    // emits (review follow-up) is a framework line, not a user filter: skip
+    // it silently so it neither pollutes the editable filter list nor (its
+    // ABSENCE from) a legacy pre-fix note breaks the canonical-dialect parse.
+    if (item === TEMPLATES_EXCLUSION_EXPR) continue
     if (typeof item === 'string') {
       const parsed = parseFilterExpr(item)
       if (!parsed) return null
