@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>Agent-agnostic Duo v2 — the runtime audit</title>
+<style>
+/* ============================================================
+   Atelier CSS kernel (inlined verbatim — skill/references/duo-atelier.css)
+   ============================================================ */
+:root {
+  --paper: #fbf8f1; --paper-deep: #f3ede0; --paper-edge: #e8e0cb; --paper-rule: #d9cea8;
+  --ink: #2b2620; --ink-soft: #4a4238; --ink-mute: #6f6557; --ink-ghost: #9a9080;
+  --accent: #c46a1c; --accent-soft: #f4d9b6;
+  --pass: #4a7d3e; --fail: #b13e3a; --warn: #b07527;
+  --code-bg: #2b2823; --code-ink: #e8e0cb;
+  --project-pine: #2E7D74; --project-harbor: #3C6E93; --project-iris: #5B57A6;
+  --project-plum: #87508F; --project-rose: #A4506A; --project-moss: #69763A;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif; font-size: 14px; line-height: 1.55; }
+body { padding: 32px 40px 96px; max-width: 920px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px; }
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 6px; }
+.intro { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 14px 18px; margin-bottom: 28px; font-size: 13.5px; color: var(--ink-soft); }
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 600; margin: 36px 0 12px; font-size: 19px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px; }
+h3 { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+h4 { margin: 16px 0 6px; font-size: 13.5px; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; }
+pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; line-height: 1.5; background: var(--code-bg); color: var(--code-ink); padding: 14px 16px; border-radius: 6px; overflow-x: auto; }
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+.decision-card { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 16px 18px; margin: 18px 0; }
+.decision-card .q-title { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px; }
+.decision-card .q-prompt { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 500; font-size: 17px; color: var(--ink); margin: 0 0 12px; line-height: 1.35; }
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option { display: block; background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 10px 12px; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes { width: 100%; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px; }
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+details.deferred { margin: 22px 0; padding: 12px 16px; background: var(--paper-deep); border: 1px dashed var(--paper-rule); border-radius: 6px; }
+details.deferred summary { cursor: pointer; font-weight: 600; color: var(--ink-soft); font-size: 13.5px; }
+details.deferred[open] summary { color: var(--ink); }
+details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(--ink-soft); }
+.copy-bar { position: sticky; bottom: 0; margin: 32px -40px -96px; padding: 16px 40px; background: color-mix(in srgb, var(--paper-deep) 96%, transparent); border-top: 1.5px solid var(--paper-rule); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; justify-content: space-between; align-items: center; gap: 16px; z-index: 50; }
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button { background: var(--accent); color: white; border: none; border-radius: 5px; padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background 0.12s; }
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* ============================================================
+   Per-playground patterns
+   ============================================================ */
+.badge { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 7px; border-radius: 8px; white-space: nowrap; }
+.badge.works    { background: color-mix(in srgb, var(--pass) 18%, var(--paper)); color: var(--pass); }
+.badge.noop     { background: color-mix(in srgb, var(--project-harbor) 18%, var(--paper)); color: var(--project-harbor); }
+.badge.breaks   { background: color-mix(in srgb, var(--fail) 16%, var(--paper)); color: var(--fail); }
+.badge.misleads { background: color-mix(in srgb, var(--warn) 20%, var(--paper)); color: var(--warn); }
+.badge.new      { background: color-mix(in srgb, var(--project-plum) 18%, var(--paper)); color: var(--project-plum); margin-left: 5px; }
+
+.filter-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 6px; }
+.filter-row button { background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 14px; padding: 5px 13px; font-family: inherit; font-size: 12px; font-weight: 600; color: var(--ink-soft); cursor: pointer; transition: all 0.12s; }
+.filter-row button:hover { border-color: var(--ink-ghost); }
+.filter-row button.active { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+
+.matrix { display: grid; grid-template-columns: 1fr; gap: 8px; margin: 12px 0; }
+.clusterhead { font-weight: 700; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-mute); margin: 14px 0 0; }
+.clusterhead.hide { display: none; }
+.tp { display: grid; grid-template-columns: 100px 1fr; gap: 12px; align-items: start; background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 11px 14px; }
+.tp.hide { display: none; }
+.tp-status { padding-top: 1px; }
+.tp-name { font-weight: 600; font-size: 13px; margin: 0 0 2px; }
+.tp-impact { font-size: 12px; color: var(--ink-soft); margin: 0 0 4px; }
+.tp-loc { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10.5px; color: var(--ink-mute); }
+
+table.cmp { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 12.5px; }
+table.cmp th, table.cmp td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--paper-rule); vertical-align: top; }
+table.cmp thead th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-mute); border-bottom: 1.5px solid var(--paper-rule); }
+table.cmp td.dim { color: var(--ink-mute); }
+table.cmp .yes { color: var(--pass); font-weight: 700; }
+table.cmp .no  { color: var(--fail); font-weight: 700; }
+table.cmp .meh { color: var(--warn); font-weight: 700; }
+table.cmp tbody tr:hover { background: color-mix(in srgb, var(--accent) 4%, transparent); }
+table.cmp .feat { font-weight: 600; color: var(--ink); }
+
+.rung { display: grid; grid-template-columns: 64px 1fr; gap: 12px; background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 12px 14px; margin: 10px 0; }
+.rung .rid { font-weight: 800; font-size: 15px; color: var(--accent); font-family: ui-monospace, Menlo, monospace; }
+.rung .rbody { font-size: 12.5px; color: var(--ink-soft); }
+.rung .rbody strong { color: var(--ink); }
+.rung .cost { display: inline-flex; gap: 14px; margin-top: 6px; font-size: 10.5px; color: var(--ink-mute); text-transform: uppercase; letter-spacing: 0.03em; font-weight: 600; }
+.rung .cost .up { color: var(--accent); }
+.rung .cost .on { color: var(--project-iris); }
+
+.general-comments { margin: 26px 0 10px; }
+.general-comments textarea { width: 100%; min-height: 70px; background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 10px 12px; font-family: inherit; font-size: 13px; color: var(--ink); resize: vertical; }
+.general-comments textarea:focus { outline: 1.5px solid var(--accent); }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Agent-agnostic Duo v2 — the runtime audit</h1>
+  <div class="meta">
+    <span class="pill">ENH-189 · REV 5</span>
+    <span class="pill">DECISIONS OPEN</span>
+    2026-07-09 · audited at v0.13.7-dev · supersedes the rev-4 playground's decision set (D1–D7 folded in, updated)
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> A from-scratch re-audit of every place Duo assumes the user's
+  CLI coding agent is Claude Code — not just the repo docs and skills (the rev-4 focus), but the
+  runtime: session storage, presence detection, resume, cron, attention, priming, install,
+  packs, and UI copy. Six parallel code audits at v0.13.7; <strong>46 consolidated touchpoints</strong>
+  (rev 4 catalogued 19). Full file:line evidence lives in
+  <code>docs/research/agent-agnostic-audit-2026-07-appendix.md</code>.
+  The decision cards at the bottom replace rev 4's D1–D7 — one walk decides everything.
+</div>
+
+<h2>1 · Headline: the coupling deepened while the decisions sat open</h2>
+
+<p>Rev 4 (2026-06-06) found the <code>duo</code> CLI + socket agent-neutral and the Claude coupling
+confined to a "thin lifecycle skin." Both halves of that are now only half-true. The neutral core is
+still neutral — all ~100 CLI verbs, the vault/graphbook engine (zero <code>claude</code> references),
+the PTY layer, the env stamps (<code>DUO_SESSION</code>/<code>DUO_TAB</code>/<code>DUO_WINDOW</code>).
+But the "skin" is no longer thin: the three biggest features shipped since rev 4 —
+<strong>Home Projects rollup (ENH-212), the Async Catch-Up board + session digests (ENH-231),
+and scheduled sessions (ENH-223)</strong> — are all built directly on Claude Code's
+<em>private</em> surfaces (the <code>~/.claude/projects/*.jsonl</code> transcript schema,
+<code>comm==='claude'</code> process matching, <code>claude --session-id/--resume</code>).
+The Claude-coupled layer is now Duo's differentiating product surface: the
+pair-work-awareness layer.</p>
+
+<p><strong>The failure profile is silence.</strong> Almost nothing crashes for a non-Claude user —
+every read is try/catch → empty. A Codex user gets: an empty Home screen, an empty catch-up
+board, a presence dot that never lights, an attention badge that never fires, no resume pills,
+cron "Same (resume)" silently downgrading to fresh, a close-guard that silently stops protecting
+live work, a doctor that false-reds the install, and an agent tab that types <code>claude</code>
+into their shell (command-not-found, or an "Install Claude Code" banner). The app looks fine
+and is hollow — with zero signal about why.</p>
+
+<h3>The three planes</h3>
+<table class="cmp">
+  <thead><tr><th>Plane</th><th>What lives there</th><th>State</th></tr></thead>
+  <tbody>
+    <tr><td class="feat">How Duo is <em>built</em></td><td class="dim">Repo CLAUDE.md, .claude/rules, repo skills — a contributor's agent working on Duo itself</td><td><span class="yes">Mostly handled</span> — the repo-root AGENTS.md shim (owner-committed, rev-3 outcome) points other agents at CLAUDE.md as canonical</td></tr>
+    <tr><td class="feat">How Duo is <em>installed</em></td><td class="dim">install-service, hooks merge, skill/subagent/CLAUDE.md destinations, distro packs, storage roots</td><td><span class="no">100% Claude-targeted</span> — zero non-Claude install path exists; tree-wide grep for <code>~/.codex</code>, <code>~/.gemini</code>, <code>~/.agents/skills</code> = 0 hits</td></tr>
+    <tr><td class="feat">How Duo is <em>operated</em></td><td class="dim">Presence, sessions/resume, Home, catch-up, cron, attention, priming, Enter-key semantics, doctor</td><td><span class="no">Deeply coupled, silently degrading</span> — and this is where all post-June investment went</td></tr>
+  </tbody>
+</table>
+
+<h2>2 · The touchpoint matrix — 46 rows, filterable</h2>
+
+<p>Verdicts are for a user running Codex CLI / Gemini CLI / aider instead of Claude Code.
+<span class="badge breaks">breaks</span> = user-visible malfunction ·
+<span class="badge noop">no-op</span> = feature silently doesn't exist ·
+<span class="badge misleads">misleads</span> = wrong info, wrong remedy, or lying copy ·
+<span class="badge works">works</span> = already agent-neutral ·
+<span class="badge new">new</span> = shipped after the rev-4 audit (post 2026-06-06).</p>
+
+<div class="filter-row" id="filters">
+  <button data-f="all" class="active">All 46</button>
+  <button data-f="breaks">Breaks</button>
+  <button data-f="noop">Silent no-op</button>
+  <button data-f="misleads">Misleads</button>
+  <button data-f="works">Already neutral</button>
+  <button data-f="new">New since rev 4</button>
+</div>
+
+<div class="matrix" id="matrix">
+
+  <div class="clusterhead">Launch &amp; terminal lifecycle</div>
+  <div class="tp" data-cat="breaks"><div class="tp-status"><span class="badge breaks">breaks</span></div><div>
+    <div class="tp-name">The agent tab is an enum with one agent</div>
+    <div class="tp-impact"><code>TerminalTabKind = 'shell' | 'claude'</code> — the primary new-tab affordance, its persisted default, and every downstream heuristic hardcode one agent.</div>
+    <div class="tp-loc">shared/types.ts:4-7,166 · App.tsx:118-119</div></div></div>
+  <div class="tp" data-cat="breaks"><div class="tp-status"><span class="badge breaks">breaks</span></div><div>
+    <div class="tp-name">Agent-tab auto-launch types <code>claude\n</code></div>
+    <div class="tp-impact">Wrong-agent users get command-not-found or an "Install Claude Code" banner with an Anthropic URL — in every + tab, ⌘T, folder-hover launch, and canvas <code>claude:spawn</code>.</div>
+    <div class="tp-loc">renderer/App.tsx:1927,130-131,1915 · playground-actions.ts:31</div></div></div>
+  <div class="tp" data-cat="breaks"><div class="tp-status"><span class="badge breaks">breaks</span></div><div>
+    <div class="tp-name">Seeded-prompt submit retries tuned to Claude's TUI</div>
+    <div class="tp-impact">Bare-<code>\r</code> retries at 4/10/20/32/45s assume Claude's raw-mode boot timing + draft-submit behavior; the <code>claude\n&lt;cmd&gt;\n</code> stdin seed assumes Claude's first-message intake.</div>
+    <div class="tp-loc">renderer/App.tsx:1952-1959,1927</div></div></div>
+  <div class="tp" data-cat="breaks"><div class="tp-status"><span class="badge breaks">breaks</span></div><div>
+    <div class="tp-name">Enter-key bytes: ESC+CR is a Claude REPL contract</div>
+    <div class="tp-impact">Plain-Enter→newline writes <code>\x1b\r</code> — a reverse-engineered, undocumented Claude TUI behavior. Another agent's REPL may submit anyway or garble input.</div>
+    <div class="tp-loc">renderer/components/TerminalPane.tsx:325-415</div></div></div>
+  <div class="tp" data-cat="misleads"><div class="tp-status"><span class="badge misleads">misleads</span></div><div>
+    <div class="tp-name"><code>claude-return</code>/<code>shift-return</code> verbs + Settings menu item</div>
+    <div class="tp-impact">The whole Enter-preference cluster is named and documented "Claude" ("⌘Return for Claude submit"); a non-Claude user would never find or trust it.</div>
+    <div class="tp-loc">cli/duo.ts:450-460,1397-1427 · electron/main.ts:3913</div></div></div>
+  <div class="tp" data-cat="breaks"><div class="tp-status"><span class="badge breaks">breaks</span></div><div>
+    <div class="tp-name">Session restore re-launches persisted <code>kind:'claude'</code> tabs</div>
+    <div class="tp-impact">Every app relaunch re-types <code>claude</code> into restored agent tabs regardless of what the user actually runs.</div>
+    <div class="tp-loc">renderer/App.tsx:815</div></div></div>
+  <div class="tp" data-cat="misleads"><div class="tp-status"><span class="badge misleads">misleads</span></div><div>
+    <div class="tp-name">Worktree flow: "Start a Claude session here" + <code>claude/&lt;slug&gt;</code> branch prefix</div>
+    <div class="tp-impact">The branch-name prefix is functional (baked into slug logic), not just copy — a Codex user's worktrees are still branded <code>claude/…</code>.</div>
+    <div class="tp-loc">FileTree.tsx:1265-1287 · shared/host-api.ts:1680,1806 · shared/worktree-slug.ts</div></div></div>
+  <div class="tp" data-cat="noop"><div class="tp-status"><span class="badge noop">no-op</span></div><div>
+    <div class="tp-name"><code>resolveClaudeBinary</code> — only ever finds <code>claude</code></div>
+    <div class="tp-impact">Well-known dirs + PATH + login-shell probe, all statting for one binary name; null for anything else → the install banner.</div>
+    <div class="tp-loc">core/resolve-claude.ts:57-159 · main.ts:3540-3546</div></div></div>
+  <div class="tp" data-cat="works"><div class="tp-status"><span class="badge works">works</span></div><div>
+    <div class="tp-name">PtyManager spawn + env stamps — the neutral foundation</div>
+    <div class="tp-impact"><code>DUO_SESSION</code>/<code>DUO_TAB</code>/<code>DUO_WINDOW</code>/<code>DUO_SOCKET</code>/<code>TERM_PROGRAM=Duo</code> reach any child process; the spawn itself is a plain shell.</div>
+    <div class="tp-loc">core/pty-manager.ts:62-127</div></div></div>
+
+  <div class="clusterhead">Presence &amp; attention</div>
+  <div class="tp" data-cat="noop"><div class="tp-status"><span class="badge noop">no-op</span></div><div>
+    <div class="tp-name">Presence = one hardcoded string: <code>comm === 'claude'</code></div>
+    <div class="tp-impact">The single point that keeps the titlebar dot, Send→Duo pill, SessionHeader, and Home liveness Claude-only. Codex/Gemini/aider processes never match; state stays 'shell' forever.</div>
+    <div class="tp-loc">core/claude-presence.ts:141-198 (esp. :193)</div></div></div>
+  <div class="tp" data-cat="noop"><div class="tp-status"><span class="badge noop">no-op</span></div><div>
+    <div class="tp-name">Home open/live attribution (<code>mapLiveClaudeOwners</code>)</div>
+    <div class="tp-impact">Live non-Claude agent work is invisible to Home — no open pills, no focus routing; resume always treats sessions as closed.</div>
+    <div class="tp-loc">core/claude-presence.ts:303-336 · main.ts:4826-4872</div></div></div>
+  <div class="tp" data-cat="noop"><div class="tp-status"><span class="badge noop">no-op</span></div><div>
+    <div class="tp-name">Live-session close guard protects only Claude</div>
+    <div class="tp-impact"><code>duo term close</code> / project-close refuse to kill a tab with a live <em>claude</em>; a live Codex tab closes without warning — a data-loss guard silently absent.</div>
+    <div class="tp-loc">main.ts:5695-5709 · App.tsx:1408-1414</div></div></div>
+  <div class="tp" data-cat="noop"><div class="tp-status"><span class="badge noop">no-op</span></div><div>
+    <div class="tp-name">Attention badge rides Claude hook events</div>
+    <div class="tp-impact">Stop/Notification→set, UserPromptSubmit→clear — registered in <code>~/.claude/settings.json</code>. No other agent has these events; "waiting on you" never fires. (Manual <code>duo attention</code> still works.)</div>
+    <div class="tp-loc">install-service.ts:127-131,1265-1287 · skill/scripts/duo-attention.sh</div></div></div>
+
+  <div class="clusterhead">Sessions, resume &amp; Home</div>
+  <div class="tp" data-cat="noop"><div class="tp-status"><span class="badge noop">no-op</span></div><div>
+    <div class="tp-name">Session store path: <code>~/.claude/projects/&lt;enc-cwd&gt;/*.jsonl</code></div>
+    <div class="tp-impact">The encoded-dir scheme (slash/dot→dash after realpath) is reverse-engineered private format. For any other agent the computed path never exists → every downstream read is empty.</div>
+    <div class="tp-loc">electron/claude-session-tracker.ts:66-74,305-313</div></div></div>
+  <div class="tp" data-cat="noop"><div class="tp-status"><span class="badge noop">no-op</span></div><div>
+    <div class="tp-name">JSONL schema parsing: titles, counts, tail snippets</div>
+    <div class="tp-impact">custom-title/ai-title ladder, user-message counting, tail/head meta reads — all against Claude's private record schema ("shape confirmed against live JSONL").</div>
+    <div class="tp-loc">claude-session-tracker.ts:163-707</div></div></div>
+  <div class="tp" data-cat="noop" data-new="1"><div class="tp-status"><span class="badge noop">no-op</span><span class="badge new">new</span></div><div>
+    <div class="tp-name">Session digest scans Claude's tool-call schema (ENH-231)</div>
+    <div class="tp-impact">TodoWrite/Edit/Write/ExitPlanMode blocks, <code>toolUseResult</code> error shapes, PR-URL regexes — the deepest private-schema dependency in the tree. Digests (and the catch-up board they feed) never exist for other agents.</div>
+    <div class="tp-loc">electron/session-digest.ts:34-509</div></div></div>
+  <div class="tp" data-cat="noop" data-new="1"><div class="tp-status"><span class="badge noop">no-op</span><span class="badge new">new</span></div><div>
+    <div class="tp-name">Home Projects rollup (ENH-212)</div>
+    <div class="tp-impact">Enumerates <code>~/.claude/projects/*</code> for project cards, hero snippets, session counts. Non-Claude user: Home shows zero projects — or only stale Claude history, never their current work.</div>
+    <div class="tp-loc">electron/home-snapshot.ts:208-228,489-588</div></div></div>
+  <div class="tp" data-cat="noop" data-new="1"><div class="tp-status"><span class="badge noop">no-op</span><span class="badge new">new</span></div><div>
+    <div class="tp-name">Async Catch-Up command board (ENH-231)</div>
+    <div class="tp-impact">needs-you / working / done columns built from digests — empty forever for a non-Claude user.</div>
+    <div class="tp-loc">electron/home-snapshot.ts:666-790</div></div></div>
+  <div class="tp" data-cat="breaks"><div class="tp-status"><span class="badge breaks">breaks</span></div><div>
+    <div class="tp-name">Resume/fork/seed commands: <code>claude --resume / --fork-session / --session-id</code></div>
+    <div class="tp-impact">Every resume pill, Home session click, and cron seed types a <code>claude</code> command into the PTY. Public flags — but public to exactly one agent.</div>
+    <div class="tp-loc">claude-session-tracker.ts:41-45 · main.ts:1645,3632-3692,5719-5766 · SessionHeader.tsx:164</div></div></div>
+  <div class="tp" data-cat="noop"><div class="tp-status"><span class="badge noop">no-op</span></div><div>
+    <div class="tp-name"><code>duo session</code> verb family</div>
+    <div class="tp-impact">list/resume/open/digest/note/next — the whole family reads the Claude store; lists come back empty, resume errors.</div>
+    <div class="tp-loc">cli/duo.ts:485-487</div></div></div>
+  <div class="tp" data-cat="noop"><div class="tp-status"><span class="badge noop">no-op</span></div><div>
+    <div class="tp-name"><code>lastClaudeSession</code> workspace pointer never captured</div>
+    <div class="tp-impact">The autosaved resume pointer comes from JSONL mtime detection — null for other agents, so per-tab resume banners never appear.</div>
+    <div class="tp-loc">claude-session-tracker.ts:94-124 · shared/types.ts:845-852</div></div></div>
+
+  <div class="clusterhead">Scheduled (cron) sessions</div>
+  <div class="tp" data-cat="breaks" data-new="1"><div class="tp-status"><span class="badge breaks">breaks</span><span class="badge new">new</span></div><div>
+    <div class="tp-name"><code>CronJobKind = 'claude' | 'shell'</code>, legacy defaults to claude</div>
+    <div class="tp-impact">Scheduled agent runs are structurally Claude-only; jobs without a kind coerce to 'claude'.</div>
+    <div class="tp-loc">shared/types.ts:742-799 · core/cron-store.ts:30-64</div></div></div>
+  <div class="tp" data-cat="breaks" data-new="1"><div class="tp-status"><span class="badge breaks">breaks</span><span class="badge new">new</span></div><div>
+    <div class="tp-name">Cron builders emit <code>claude --session-id / --resume '&lt;prompt&gt;'</code></div>
+    <div class="tp-impact">Pre-minted UUID + interactive positional prompt are Claude CLI semantics; the runner types the command into a background shell tab.</div>
+    <div class="tp-loc">core/cron-command.ts:59-73 · main.ts:1901-1937</div></div></div>
+  <div class="tp" data-cat="misleads" data-new="1"><div class="tp-status"><span class="badge misleads">misleads</span><span class="badge new">new</span></div><div>
+    <div class="tp-name">Headless denylist encodes Claude's flags</div>
+    <div class="tp-impact">The D4 safety gate blocks <code>-p/--print/--bare/--output-format</code> — another agent's headless flag would sail through unnoticed; the intent is generic, the token list isn't.</div>
+    <div class="tp-loc">core/cron-command.ts:112-159</div></div></div>
+  <div class="tp" data-cat="misleads" data-new="1"><div class="tp-status"><span class="badge misleads">misleads</span><span class="badge new">new</span></div><div>
+    <div class="tp-name">Resume-mode probe silently downgrades to fresh</div>
+    <div class="tp-impact"><code>sessionExists</code> checks the Claude JSONL path; for any other agent it's always false → "Same (resume)" jobs run fresh every time, labeled only "ran · fresh".</div>
+    <div class="tp-loc">main.ts:1912-1915 · core/cron-service.ts:200-219</div></div></div>
+  <div class="tp" data-cat="works" data-new="1"><div class="tp-status"><span class="badge works">works</span><span class="badge new">new</span></div><div>
+    <div class="tp-name">Shell cron jobs (<code>--run</code>) — the escape hatch</div>
+    <div class="tp-impact">Raw single-line command in a background tab, no session bookkeeping — the one agent-agnostic scheduled path (a user could schedule <code>codex exec …</code> today).</div>
+    <div class="tp-loc">core/cron-command.ts:87-110 · cli/duo.ts:2729-2816</div></div></div>
+  <div class="tp" data-cat="misleads" data-new="1"><div class="tp-status"><span class="badge misleads">misleads</span><span class="badge new">new</span></div><div>
+    <div class="tp-name">Cron UI copy: "What should Claude do?"</div>
+    <div class="tp-impact">Modal labels, schedule-button tooltip, headless hint all name Claude.</div>
+    <div class="tp-loc">NewCronJobModal.tsx:311-317,373 · CronJobRow.tsx:96</div></div></div>
+
+  <div class="clusterhead">Priming &amp; context injection</div>
+  <div class="tp" data-cat="noop"><div class="tp-status"><span class="badge noop">no-op</span></div><div>
+    <div class="tp-name">PATH shim wraps only a binary named <code>claude</code></div>
+    <div class="tp-impact">The load-bearing priming path: <code>exec real-claude --append-system-prompt "$(cat priming.md)"</code>. A codex/gemini/aider invocation bypasses it entirely — never primed, never Duo-aware.</div>
+    <div class="tp-loc">install-service.ts:980-1030 (esp. :1023) · pty-manager.ts:74-85</div></div></div>
+  <div class="tp" data-cat="noop"><div class="tp-status"><span class="badge noop">no-op</span></div><div>
+    <div class="tp-name">SessionStart hook priming (the redundant leg)</div>
+    <div class="tp-impact">Registered in <code>~/.claude/settings.json</code> under Claude's event vocabulary; dead entry for anyone else.</div>
+    <div class="tp-loc">install-service.ts:146,1101-1167</div></div></div>
+  <div class="tp" data-cat="noop"><div class="tp-status"><span class="badge noop">no-op</span></div><div>
+    <div class="tp-name">PreToolUse open-file guard — the deepest private contract</div>
+    <div class="tp-impact">Depends on Claude's event name, <code>matcher: 'Edit|Write|MultiEdit'</code> tool names, and stdin event-JSON schema. The BUG-085 protection (don't fight the editor) exists for no other agent.</div>
+    <div class="tp-loc">install-service.ts:1190-1253 · skill/scripts/duo-open-file-guard.sh</div></div></div>
+  <div class="tp" data-cat="noop"><div class="tp-status"><span class="badge noop">no-op</span></div><div>
+    <div class="tp-name">Managed CLAUDE.md block — the "universal fallback" that isn't</div>
+    <div class="tp-impact">The enterprise story ("reaches every session even with hooks disabled") rests on Claude's core context loader reading <code>~/.claude/CLAUDE.md</code>. Codex reads AGENTS.md, Gemini GEMINI.md, aider CONVENTIONS.md — the floor doesn't exist for them.</div>
+    <div class="tp-loc">install-service.ts:250-317,1078-1099 · enterprise-deployments.md:38-42,177-201</div></div></div>
+  <div class="tp" data-cat="noop"><div class="tp-status"><span class="badge noop">no-op</span></div><div>
+    <div class="tp-name">Distro CLAUDE.md merge — org guidance silently absent</div>
+    <div class="tp-impact">Same loader dependency, distro marker namespace; an org's guidance never reaches a non-Claude user AND pollutes <code>~/.claude/CLAUDE.md</code> for a Claude they may not run.</div>
+    <div class="tp-loc">distro-pack-service.ts:416-495</div></div></div>
+
+  <div class="clusterhead">Install, skills, packs &amp; doctor</div>
+  <div class="tp" data-cat="noop"><div class="tp-status"><span class="badge noop">no-op</span></div><div>
+    <div class="tp-name">Skill installs to <code>~/.claude/skills/duo/</code> only</div>
+    <div class="tp-impact">The SKILL.md <em>format</em> is the open agent-skills standard (Codex/Gemini/aider read <code>~/.agents/skills/</code>) and the content is agent-neutral — only the destination is Claude-exclusive. Same for sync:claude, postinstall, and the currency check.</div>
+    <div class="tp-loc">install-service.ts:73 · package.json:23 · check-skill-currency.mjs:564-572</div></div></div>
+  <div class="tp" data-cat="noop"><div class="tp-status"><span class="badge noop">no-op</span></div><div>
+    <div class="tp-name">Subagent <code>~/.claude/agents/duo.md</code></div>
+    <div class="tp-impact"><code>model: haiku</code> frontmatter = Claude subagent schema; no other agent has the delegation concept. Silent absence.</div>
+    <div class="tp-loc">agents/duo.md:1-15 · install-service.ts:74</div></div></div>
+  <div class="tp" data-cat="noop" data-new="1"><div class="tp-status"><span class="badge noop">no-op</span><span class="badge new">new</span></div><div>
+    <div class="tp-name">Distro packs decompose into <code>~/.claude/*</code></div>
+    <div class="tp-impact">The whole org-distribution pipeline (skills, agents, CLAUDE.md snippet) lands where only Claude looks. Files copy fine; nothing activates for other agents.</div>
+    <div class="tp-loc">distro-pack-service.ts:356-376 · pack-builder SKILL.md</div></div></div>
+  <div class="tp" data-cat="misleads" data-new="1"><div class="tp-status"><span class="badge misleads">misleads</span><span class="badge new">new</span></div><div>
+    <div class="tp-name">Pack manifest borrows <code>.claude-plugin/plugin.json</code> — format only</div>
+    <div class="tp-impact">Duo does its own decomposition (never calls Claude's plugin runtime), so the Claude-plugin shape is naming, not mechanism — cheap to neutralize or dual-accept.</div>
+    <div class="tp-loc">distro-pack-service.ts:141-166,6-11</div></div></div>
+  <div class="tp" data-cat="misleads"><div class="tp-status"><span class="badge misleads">misleads</span></div><div>
+    <div class="tp-name"><code>duo doctor</code>: false-red + wrong remedy</div>
+    <div class="tp-impact">Unconditionally red-flags missing <code>~/.claude/skills/duo/SKILL.md</code> + <code>agents/duo.md</code>; the TCP-fallback diagnostic tells any user to edit <code>.claude/settings.local.json</code>. (Notably it does NOT false-red a missing claude binary.)</div>
+    <div class="tp-loc">cli/duo.ts:3921-3925,3880-3882</div></div></div>
+  <div class="tp" data-cat="misleads"><div class="tp-status"><span class="badge misleads">misleads</span></div><div>
+    <div class="tp-name">"Your Claude settings" pane — the only skills surface</div>
+    <div class="tp-impact">Curates <code>~/.claude/{CLAUDE.md,skills,agents,duo}</code> exclusively. A non-Claude user is shown the wrong agent's config; their real skills dir (<code>~/.agents/skills</code>, <code>~/.codex</code>…) is invisible.</div>
+    <div class="tp-loc">useUserClaudeNavigator.ts:165 · UserClaudePane.tsx:118-119</div></div></div>
+  <div class="tp" data-cat="misleads"><div class="tp-status"><span class="badge misleads">misleads</span></div><div>
+    <div class="tp-name">Project markers deliberately exclude AGENTS.md</div>
+    <div class="tp-impact">Project = git root OR <code>CLAUDE.md</code>/<code>.claude/</code>; the code comment code-freezes the AGENTS.md exclusion. An AGENTS.md-only project never joins the rail; the context wash highlights the wrong files for other agents.</div>
+    <div class="tp-loc">projects-service.ts:103-119 · claudeContextPath.ts:28-36</div></div></div>
+  <div class="tp" data-cat="breaks" data-new="1"><div class="tp-status"><span class="badge breaks">breaks</span><span class="badge new">new</span></div><div>
+    <div class="tp-name">Lesson packs are scripts for a Duo-spawned Claude tab</div>
+    <div class="tp-impact">The FTUX lesson's canvas <code>data-cmd</code> narrative ("Duo spawned a fresh Claude tab…") depends on the Claude spawn + priming chain; the experience breaks even though files copy.</div>
+    <div class="tp-loc">packs/intro-to-duo/lesson-skill/SKILL.md · install-service.ts:614-641</div></div></div>
+  <div class="tp" data-cat="misleads"><div class="tp-status"><span class="badge misleads">misleads</span></div><div>
+    <div class="tp-name">First-launch banner reports success for inert artifacts</div>
+    <div class="tp-impact">"Installed. Claude inside Duo's terminals will arrive Duo-aware." — shown even when nothing on the machine will ever read what was installed.</div>
+    <div class="tp-loc">FirstLaunchBanner.tsx:143,166,209</div></div></div>
+  <div class="tp" data-cat="works"><div class="tp-status"><span class="badge works">works</span></div><div>
+    <div class="tp-name">Storage root <code>~/.claude/duo/</code> — namespacing, not function</div>
+    <div class="tp-impact">Of ~26 stores under it, only bin/ (shim) + hooks/ are functionally Claude-coupled; the rest is neutral app state under a Claude-branded parent. The socket already lives in <code>~/Library/Application Support/duo/</code> — the split is inconsistent, not principled.</div>
+    <div class="tp-loc">core/constants.ts:9,29 · appendix §5D full enumeration</div></div></div>
+
+  <div class="clusterhead">Copy &amp; shipped docs</div>
+  <div class="tp" data-cat="misleads"><div class="tp-status"><span class="badge misleads">misleads</span></div><div>
+    <div class="tp-name">~16 UI strings say "Claude" where mechanism is generic</div>
+    <div class="tp-impact">"New Claude session" tooltip, presence-dot aria, attention aria, fork-confirm modal, "Fix with Claude" / "Normalize with Claude", worktree checkbox, first-launch copy… full list in appendix §6 group 2.</div>
+    <div class="tp-loc">TabBar.tsx:102 · ClaudePresenceDot.tsx:28-30 · RollupsView.tsx:743,823 · et al.</div></div></div>
+  <div class="tp" data-cat="misleads"><div class="tp-status"><span class="badge misleads">misleads</span></div><div>
+    <div class="tp-name">Shipped guides assume Claude throughout</div>
+    <div class="tp-impact">what-duo-does.html (126 hits, the canonical intro canvas), the FTUX welcome canvas, vault-guide + rollup-guide (17 each, "CLAUDE" legend role), enterprise doc. The first things a new user reads.</div>
+    <div class="tp-loc">packs/duo-default/canvases/what-duo-does.html · skill/references/*.html</div></div></div>
+  <div class="tp" data-cat="works"><div class="tp-status"><span class="badge works">works</span></div><div>
+    <div class="tp-name">Neutral precedents already in the tree</div>
+    <div class="tp-impact">SendToDuoPill says "Send → agent" (comment: "Claude / Codex / etc"); WriteWarningBanner has a parametrized <code>agent</code> prop (hosts just never pass it); the vault engine has zero claude refs. The patterns to copy.</div>
+    <div class="tp-loc">SendToDuoPill.tsx:40-44 · WriteWarningBanner.tsx:44 · core/vault/**</div></div></div>
+  <div class="tp" data-cat="works"><div class="tp-status"><span class="badge works">works</span></div><div>
+    <div class="tp-name">The <code>duo</code> CLI + socket — still fully agent-generic</div>
+    <div class="tp-impact">All ~100 verbs (browser/editor/canvas/file/layout/git/vault) have no Claude branch in the dispatch; any agent that can run Bash can drive Duo today. The gap is discovery + lifecycle, not capability.</div>
+    <div class="tp-loc">cli/duo.ts · core/socket-server.ts</div></div></div>
+
+</div>
+
+<h2>3 · The structural reading</h2>
+
+<h3>Contract types — the maintenance-burden law, updated</h3>
+<p>Rev 4's law holds: coupling that rides a <em>public</em> contract is durable; coupling that reads a
+<em>private</em> format is a standing drift liability. The audit sorts today's dependencies:</p>
+<table class="cmp">
+  <thead><tr><th>Contract</th><th>Type</th><th>Dependents</th></tr></thead>
+  <tbody>
+    <tr><td class="feat"><code>claude</code> CLI flags (--resume, --session-id, --append-system-prompt, -p)</td><td><span class="yes">public</span> (to one vendor)</td><td>resume pills, cron builders, priming shim, headless gate</td></tr>
+    <tr><td class="feat">CLAUDE.md loader, skills dir, agents dir, settings.json hooks</td><td><span class="meh">public but Claude-exclusive</span></td><td>priming, attention, guard, skill/subagent discovery, distro packs</td></tr>
+    <tr><td class="feat"><code>~/.claude/projects/*.jsonl</code> path + record schema + tool-call shapes</td><td><span class="no">private, reverse-engineered</span></td><td>Home, catch-up board, digests, titles, resume pointers, cron resume probe</td></tr>
+    <tr><td class="feat"><code>comm==='claude'</code> process name; ESC+CR REPL bytes; TUI boot timing</td><td><span class="no">private, observed behavior</span></td><td>presence, close guards, Enter semantics, seeded prompts</td></tr>
+  </tbody>
+</table>
+<p>The uncomfortable finding: <strong>the private-contract rows are exactly where the post-June product
+investment went.</strong> Home, catch-up, and digests are built on the highest-drift surface Duo touches —
+that's a liability even in an all-Claude world (a Claude Code transcript-format change breaks Home), and
+it's the layer other agents can't reach at all.</p>
+
+<h3>The inversion: Duo already owns the PTY</h3>
+<p>The strategic opening the audit surfaced: Duo doesn't have to <em>scrape another tool's store</em> to know
+what's happening in its own terminals. Duo spawns every PTY — it sees every byte in and out, the cwd, the
+process tree, the timestamps. A <strong>Duo-owned observation layer</strong> can agent-agnostically supply:
+liveness (process-tree match against a per-agent name set), attention ("output went quiet after a
+question-mark-shaped burst" / prompt-idle heuristics), session labels (first user-typed line), and activity
+recency. That's rule-12-clean — Duo observing its own terminals is Duo-owned state, not a mirror.
+What it can't supply is <em>resume</em> (needs the agent's own session id) and <em>deep history</em>
+(the agent's transcript) — but resume rides <em>public</em> per-agent CLI (<code>claude --resume</code>,
+<code>codex resume --last</code>), which is a small, low-drift adapter table. The private JSONL scraping
+stays what it is today: a Claude-only enrichment, not the load-bearing layer.</p>
+
+<h3>Where the seams already are</h3>
+<p>The code is better factored for this than the count suggests. Single-point seams:
+presence = one string (<code>claude-presence.ts:193</code>); resume = one builder
+(<code>buildResumeCommand</code>); spawn = one payload site (<code>dispatchPostSpawnWrite</code>) + one enum;
+install destinations = one constants table (<code>install-service.ts:71-118</code>); Enter bytes = one
+gate (<code>TerminalPane.tsx:399</code>). An <code>AgentProfile</code> record threaded through those five
+seams covers the majority of the functional matrix.</p>
+
+<h2>4 · The tactical ladder</h2>
+<p>Rungs are ordered and mostly independent — each ships value alone; later rungs assume earlier ones.</p>
+
+<div class="rung"><div class="rid">T1</div><div class="rbody">
+  <strong>The honesty pass.</strong> Stop lying to non-Claude users: doctor detects which agents are present and scopes its checks (no false-red); first-launch banner says what will/won't activate; copy sweep to "the agent"/"your agent" in the ~16 UI strings + the shipped guides; the install banner's Claude-missing state names the actual situation. No behavior change for Claude users.
+  <div class="cost"><span class="up">upfront: days</span><span class="on">ongoing: ~zero</span></div>
+</div></div>
+<div class="rung"><div class="rid">T2</div><div class="rbody">
+  <strong>AgentProfile seams.</strong> A small data-driven registry (claude, codex, gemini, aider, custom…): binary name(s), launch command, resume command template, headless-flag denylist, process-name set, Enter-key byte profile, install-doc channel. Thread it through the five seams (§3). Tab kind becomes <code>kind:'agent' + agentId</code> (migrating persisted <code>'claude'</code>), cron claude-arm becomes agent-arm, new-tab gains <code>--agent &lt;id&gt;</code>. Presence + close-guard + resume + cron work for any registered agent.
+  <div class="cost"><span class="up">upfront: 1–2 sprints</span><span class="on">ongoing: low (public contracts only)</span></div>
+</div></div>
+<div class="rung"><div class="rid">T3</div><div class="rbody">
+  <strong>Duo-owned observation layer.</strong> PTY-level session records (Duo-minted id, cwd, first-prompt label, activity times, agent id) persisted in Duo's own store; Home/catch-up render from it for every agent, enriched by the Claude JSONL reader (and later, optional per-agent enrichers) when available. Attention gains an idle-heuristic fallback for hook-less agents.
+  <div class="cost"><span class="up">upfront: ~a sprint</span><span class="on">ongoing: low — Duo owns the format</span></div>
+</div></div>
+<div class="rung"><div class="rid">T4</div><div class="rbody">
+  <strong>Install &amp; skills for everyone.</strong> Dual-write the skill to <code>~/.agents/skills/duo/</code> (the open standard Codex/Gemini/aider read); optional managed AGENTS.md/GEMINI.md blocks (opt-in, same marker discipline); distro packs decompose per detected agent; doctor + "Your agent settings" pane become multi-root.
+  <div class="cost"><span class="up">upfront: ~a week</span><span class="on">ongoing: low-moderate (N loader conventions)</span></div>
+</div></div>
+<div class="rung"><div class="rid">T5</div><div class="rbody">
+  <strong>Codex depth (only on demonstrated demand).</strong> Duo-managed Codex <code>notify</code> hook (agent-turn-complete → thread-id pointer → attention + resume-by-id), <code>codex resume</code> wiring, maybe rollout-JSONL enrichment (high drift — last resort). This is rev 4's §2c plan; it stays parked until a real Codex cohort exists.
+  <div class="cost"><span class="up">upfront: ~a sprint</span><span class="on">ongoing: moderate-high if JSONL parsed</span></div>
+</div></div>
+<div class="rung"><div class="rid">T6</div><div class="rbody">
+  <strong>Storage-root migration (optional, anytime).</strong> Move <code>~/.claude/duo/</code> → <code>~/Library/Application Support/duo/</code> (where the socket already lives) with a migration shim. Pure hygiene; nothing functional blocks on it.
+  <div class="cost"><span class="up">upfront: days + migration risk</span><span class="on">ongoing: zero</span></div>
+</div></div>
+
+<h2>5 · Decisions</h2>
+<p>These replace rev 4's D1–D7 (never walked). Recommendations reflect the new evidence; where a rev-4
+recommendation changed, the card says so.</p>
+
+<section class="decision-card">
+  <div class="q-title">D1 · Posture</div>
+  <h3 class="q-prompt">What target posture for agent-agnosticism?</h3>
+  <p class="q-context">Rev 4 recommended "Claude-first, Codex-tolerant" with the adapter abstraction deferred until a third harness. The new evidence: the coupled layer is now the differentiating product surface (Home/catch-up/attention), and it silently hollows out for anyone else — while the seams for a profile are small and ride public contracts. The recommendation moves one notch.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d1" value="B">
+      <div class="q-option-body"><div class="q-option-title">Honesty pass + AgentProfile seams (T1+T2, then T3) <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Claude stays first-class; other agents get launch, presence, resume, cron, and honest UI via public contracts only. No private-format parsing for anyone new.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="A">
+      <div class="q-option-body"><div class="q-option-title">Honesty pass only (T1), stay Claude-first</div>
+      <div class="q-option-rationale">Cheapest. Duo remains a Claude companion that degrades gracefully and admits it. Right if the poly-agent audience is hypothetical.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="C">
+      <div class="q-option-body"><div class="q-option-title">Full parity (T1–T5 including per-agent session-store readers)</div>
+      <div class="q-option-rationale">Maximal reach, maximal drift: every other agent's private transcript format becomes Duo's maintenance burden.</div></div></label>
+    <label class="q-option"><input type="radio" name="d1" value="D">
+      <div class="q-option-body"><div class="q-option-title">Protocol-first: publish Duo's integration contract</div>
+      <div class="q-option-rationale">Duo defines its surface (env stamps + duo CLI + open skills standard + a documented "how to integrate your agent" doc) and does zero per-agent work beyond Claude. Elegant, but nobody integrates themselves in practice.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d1" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">D2 · Code model</div>
+  <h3 class="q-prompt">How do we model "an agent" in code?</h3>
+  <p class="q-context">Whatever the posture, the touchpoints need a shape. The audit found five single-point seams — the question is what flows through them.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d2" value="A">
+      <div class="q-option-body"><div class="q-option-title">Data-driven AgentProfile registry <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">A record per agent (binary names, launch/resume templates, process names, key bytes, headless flags, doc channel) + user-defined custom entries in Duo settings. Behavior stays in one generic code path; adding an agent is data.</div></div></label>
+    <label class="q-option"><input type="radio" name="d2" value="B">
+      <div class="q-option-body"><div class="q-option-title">Interface adapters (a class per harness)</div>
+      <div class="q-option-rationale">Right if per-agent behavior diverges beyond data (e.g. Codex notify wiring, store readers). Can grow out of A when T5 lands — start with A.</div></div></label>
+    <label class="q-option"><input type="radio" name="d2" value="C">
+      <div class="q-option-body"><div class="q-option-title">Settings-only "custom agent command"</div>
+      <div class="q-option-rationale">One user-set launch string, no model. Fixes the tab, leaves presence/resume/cron/doctor Claude-only. A half-measure that still touches most of the same code.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d2" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">D3 · Tab &amp; cron kinds</div>
+  <h3 class="q-prompt">Does <code>kind:'claude'</code> become generic?</h3>
+  <p class="q-context">The enum appears in persisted session state, cron store, IPC, and heuristics (<code>hasClaudeKindTerminal</code>, rail presence). Rev 4's D4 offered "add a codex kind"; a generic kind ages better.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d3" value="A">
+      <div class="q-option-body"><div class="q-option-title"><code>kind:'agent'</code> + <code>agentId</code> field, with migration <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Persisted <code>'claude'</code> migrates to <code>{kind:'agent', agentId:'claude'}</code> (same forward-migration discipline as the session-v2 envelope). Cron's claude-arm generalizes the same way. One migration, done forever.</div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="B">
+      <div class="q-option-body"><div class="q-option-title">Add sibling kinds per agent ('codex', 'gemini', …)</div>
+      <div class="q-option-rationale">No migration, but the enum grows per agent and every kind-check multiplies. The rev-4 option, superseded by the registry idea.</div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="C">
+      <div class="q-option-body"><div class="q-option-title">Keep <code>'claude'</code> as-is</div>
+      <div class="q-option-rationale">Only coherent with D1=A (honesty-only posture).</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d3" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">D4 · Presence &amp; attention</div>
+  <h3 class="q-prompt">How does Duo know an agent is live / waiting on you?</h3>
+  <p class="q-context">Presence is one string today. Attention rides Claude hook events; Codex has a notify program; Gemini/aider have nothing. The PTY-observation idea (§3) offers a universal fallback.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d4" value="B">
+      <div class="q-option-body"><div class="q-option-title">Profile process-names + PTY idle-heuristic attention fallback <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Presence: match the profile's process-name set (one-line change made data-driven). Attention: keep Claude hooks (precise) and add a Duo-side output-idle heuristic for agents without hooks (approximate but universal, clearly styled as inferred).</div></div></label>
+    <label class="q-option"><input type="radio" name="d4" value="A">
+      <div class="q-option-body"><div class="q-option-title">Profile process-names only; attention stays hook-based</div>
+      <div class="q-option-rationale">Presence lights up for everyone; the attention badge remains Claude-only (plus Codex notify if/when T5 lands). Honest, smaller.</div></div></label>
+    <label class="q-option"><input type="radio" name="d4" value="C">
+      <div class="q-option-body"><div class="q-option-title">Status quo (Claude-only)</div>
+      <div class="q-option-rationale">Only coherent with D1=A.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d4" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">D5 · Sessions, Home &amp; resume</div>
+  <h3 class="q-prompt">What feeds Home, the catch-up board, and resume for non-Claude agents?</h3>
+  <p class="q-context">Today: Claude's private JSONL, exclusively. The board/digest layer is the deepest private-format dependency in the tree — a drift risk even Claude-only.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d5" value="B">
+      <div class="q-option-body"><div class="q-option-title">Duo-owned observation layer + per-agent resume via public CLI <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">T3: PTY-level records (label, cwd, recency, liveness) render Home/catch-up for any agent; the Claude JSONL reader becomes an enricher (titles, digests) instead of the foundation. Resume = profile template (claude --resume / codex resume). Also de-risks Claude transcript-format drift.</div></div></label>
+    <label class="q-option"><input type="radio" name="d5" value="C">
+      <div class="q-option-body"><div class="q-option-title">Per-agent private-store readers (Codex rollout JSONL, …)</div>
+      <div class="q-option-rationale">Full-fidelity history for every agent — and a standing drift liability per agent. Rev 4 flagged this as the move to avoid until parity is a proven need.</div></div></label>
+    <label class="q-option"><input type="radio" name="d5" value="A">
+      <div class="q-option-body"><div class="q-option-title">Claude-only, labeled honestly</div>
+      <div class="q-option-rationale">Home/board stay Claude features; T1 makes the empty states say so ("Session history is available for Claude Code sessions").</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d5" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">D6 · Priming &amp; context</div>
+  <h3 class="q-prompt">How does a non-Claude agent become Duo-aware?</h3>
+  <p class="q-context">Claude gets: PATH shim (--append-system-prompt) + SessionStart hook + CLAUDE.md block + skill. Codex has no per-session system-prompt flag at all (rev 4, verified); its channels are AGENTS.md and the skills standard. Gemini has --system-prompt / GEMINI.md.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d6" value="A">
+      <div class="q-option-body"><div class="q-option-title">Skills-standard-first; keep Claude's shim/hooks as-is <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">The skill (already agent-neutral content) installed to <code>~/.agents/skills/</code> is the one channel every modern harness reads. No new per-agent shims. Accept weaker "ambient" awareness for non-Claude agents in v1.</div></div></label>
+    <label class="q-option"><input type="radio" name="d6" value="C">
+      <div class="q-option-body"><div class="q-option-title">Skills + opt-in managed AGENTS.md/GEMINI.md blocks</div>
+      <div class="q-option-rationale">Adds the always-loaded floor for other agents (same marker discipline as the CLAUDE.md block). More reach, more files Duo manages in other tools' territory — make it opt-in at install.</div></div></label>
+    <label class="q-option"><input type="radio" name="d6" value="B">
+      <div class="q-option-body"><div class="q-option-title">Per-agent priming adapters (wrappers/flags where they exist)</div>
+      <div class="q-option-rationale">A gemini wrapper with --system-prompt is doable; Codex has no equivalent — guaranteed asymmetry, more shims to maintain.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d6" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">D7 · Skill install targets</div>
+  <h3 class="q-prompt">Where does the duo skill (and distro-pack skills) install?</h3>
+  <p class="q-context">The SKILL.md format is the open agent-skills standard; only Duo's destination is Claude-only. Rev 4's D3 asked this for Codex; the answer generalizes.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d7" value="A">
+      <div class="q-option-body"><div class="q-option-title">Dual-write: <code>~/.claude/skills/</code> + <code>~/.agents/skills/</code> <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">One extra copy leg in install-service/sync/distro decomposition + uninstall bookkeeping. Verify at implementation whether Claude Code also reads ~/.agents/skills — if yes, converge on the open dir and keep ~/.claude as legacy.</div></div></label>
+    <label class="q-option"><input type="radio" name="d7" value="B">
+      <div class="q-option-body"><div class="q-option-title">Claude-only until an agnostic posture ships</div>
+      <div class="q-option-rationale">Defers the uninstall/provenance work; costs nothing now, blocks nothing later.</div></div></label>
+    <label class="q-option"><input type="radio" name="d7" value="C">
+      <div class="q-option-body"><div class="q-option-title">Open dir only (<code>~/.agents/skills/</code>)</div>
+      <div class="q-option-rationale">Cleanest end-state, but gambles on Claude Code's support for the open dir — verify first.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d7" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">D8 · Project markers &amp; context wash</div>
+  <h3 class="q-prompt">Do AGENTS.md / .agents/ become project markers and get the context wash?</h3>
+  <p class="q-context">The current exclusion is deliberate and code-frozen (projects-service.ts:103) — this card is the formal request to revisit it. Affects rail qualification, home-rollup folding, and which files get the terracotta agent-context wash.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d8" value="A">
+      <div class="q-option-body"><div class="q-option-title">Add AGENTS.md + .agents/ (and GEMINI.md) to markers + wash <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Symmetric treatment of agent-context files; the false-positive risk that motivated the exclusion is lower for AGENTS.md than it was for tasks.md.</div></div></label>
+    <label class="q-option"><input type="radio" name="d8" value="C">
+      <div class="q-option-body"><div class="q-option-title">Profile-driven marker set</div>
+      <div class="q-option-rationale">Markers come from the AgentProfile registry (D2=A) — consistent, slightly more plumbing.</div></div></label>
+    <label class="q-option"><input type="radio" name="d8" value="B">
+      <div class="q-option-body"><div class="q-option-title">Keep the exclusion</div>
+      <div class="q-option-rationale">Git-root qualification already catches most real projects; accept the miss for AGENTS.md-only folders.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d8" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">D9 · Storage root</div>
+  <h3 class="q-prompt">Does <code>~/.claude/duo/</code> stay, or migrate to Application Support?</h3>
+  <p class="q-context">Pure namespacing: 22 of 26 stores are agent-neutral; the socket already lives in ~/Library/Application Support/duo/. Migration touches ~30 path refs + every installed user's data.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d9" value="A">
+      <div class="q-option-body"><div class="q-option-title">Stay for now; revisit at a major version <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Nothing functional blocks on it; migration risk (every user's cron jobs, pins, history, checkouts) outweighs the branding hygiene today. Log it as a known inconsistency.</div></div></label>
+    <label class="q-option"><input type="radio" name="d9" value="B">
+      <div class="q-option-body"><div class="q-option-title">Migrate now (T6) with a fallback-read shim</div>
+      <div class="q-option-rationale">If agnostic positioning is a headline, the config-dir squatting undermines it; better before the user base grows further.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d9" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">D10 · Copy sweep scope</div>
+  <h3 class="q-prompt">How far does the "the agent" rename go?</h3>
+  <p class="q-context">~16 UI strings + the shipped guides (what-duo-does 126 hits, vault/rollup guides, FTUX welcome, enterprise doc) + IPC/type identifiers. Where the mechanism IS Claude (install banner's Claude-missing state, claude-return docs), Claude-naming is honest and should stay.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d10" value="A">
+      <div class="q-option-body"><div class="q-option-title">Full user-facing sweep: UI strings + shipped guides <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">"The agent" wherever the mechanism is generic; keep "Claude" where it's literally about Claude. Internal identifiers rename opportunistically during T2 (no big-bang refactor).</div></div></label>
+    <label class="q-option"><input type="radio" name="d10" value="B">
+      <div class="q-option-body"><div class="q-option-title">UI strings only; guides later</div>
+      <div class="q-option-rationale">Smaller diff; the guides keep teaching "Claude does X" for a while.</div></div></label>
+    <label class="q-option"><input type="radio" name="d10" value="C">
+      <div class="q-option-body"><div class="q-option-title">Defer until posture lands</div>
+      <div class="q-option-rationale">Avoids renaming twice if D1 changes the vocabulary (e.g. named agents in UI chrome).</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d10" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">D11 · Sequencing</div>
+  <h3 class="q-prompt">What gets committed to upcoming sprints?</h3>
+  <p class="q-context">The ladder (§4) is designed so T1 ships alone. T2 is the structural move; T3 makes Home/attention real for everyone; T4 is install reach; T5 waits for demand.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d11" value="A">
+      <div class="q-option-body"><div class="q-option-title">T1 next sprint; T2 the sprint after; T3/T4 scheduled then <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Honesty is cheap and immediately shippable; the profile work lands with room to migrate persisted state carefully.</div></div></label>
+    <label class="q-option"><input type="radio" name="d11" value="B">
+      <div class="q-option-body"><div class="q-option-title">T1 only; park the rest pending a real non-Claude user</div>
+      <div class="q-option-rationale">Fix the lying, defer the architecture until someone actually runs Codex in Duo.</div></div></label>
+    <label class="q-option"><input type="radio" name="d11" value="C">
+      <div class="q-option-body"><div class="q-option-title">T1–T4 as one initiative</div>
+      <div class="q-option-rationale">One coherent "agent-agnostic Duo" release; bigger risk surface, longer until anything ships.</div></div></label>
+    <label class="q-option"><input type="radio" name="d11" value="D">
+      <div class="q-option-body"><div class="q-option-title">Nothing yet — file and hold</div>
+      <div class="q-option-rationale">Keep the catalogue as the record; revisit when the poly-agent question becomes concrete.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d11" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<details class="deferred">
+  <summary>Deferred detail — cross-agent surface table, rev-4 mockups, verification caveats</summary>
+  <div class="deferred-body">
+    <p><strong>Cross-agent integration surfaces</strong> (memory file / skills dir / system-prompt flag / hooks / session store / resume / headless, per agent) are tabulated at the end of the appendix. The Codex facts were verified 2026-05-27 against OpenAI docs + issues (#11588 no append-system-prompt; #8923 no session-id exposure; #4005 notify thread-id) — <em>re-verify at implementation time</em>; Codex moves fast.</p>
+    <p><strong>UI mockups</strong> for a second-agent tab, presence pill, and agent-config pane live in the rev-4 playground (§5a/5b/5d) and still apply under D2=A/D3=A — they become "any registered agent" rather than "Codex".</p>
+    <p><strong>What this audit did NOT do:</strong> live-run Codex/Gemini/aider inside Duo (per the static-review-vs-live-walk lesson, a T2 implementation must live-verify against at least one real non-Claude agent before claiming the profile works).</p>
+  </div>
+</details>
+
+<div class="general-comments">
+  <h3>General comments</h3>
+  <textarea id="general-comments" placeholder="Anything the decisions above don't capture — scope, sequencing, an agent I missed, disagreement with a recommendation…"></textarea>
+</div>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 11 decisions answered</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  const filters = document.getElementById('filters');
+  const tps = Array.from(document.querySelectorAll('#matrix .tp'));
+  const heads = Array.from(document.querySelectorAll('#matrix .clusterhead'));
+  filters.addEventListener('click', function (e) {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const f = btn.dataset.f;
+    filters.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
+    tps.forEach(tp => {
+      const show = f === 'all' || (f === 'new' ? tp.dataset.new === '1' : tp.dataset.cat === f);
+      tp.classList.toggle('hide', !show);
+    });
+    heads.forEach(h => {
+      let sib = h.nextElementSibling, any = false;
+      while (sib && !sib.classList.contains('clusterhead')) {
+        if (sib.classList.contains('tp') && !sib.classList.contains('hide')) any = true;
+        sib = sib.nextElementSibling;
+      }
+      h.classList.toggle('hide', !any);
+    });
+  });
+
+  const cards = Array.from(document.querySelectorAll('.decision-card'));
+  const countEl = document.getElementById('answered-count');
+  function refreshCount() {
+    const answered = cards.filter(c => c.querySelector('input[type=radio]:checked')).length;
+    countEl.textContent = answered;
+  }
+  document.addEventListener('change', function (e) {
+    if (e.target.matches('.decision-card input[type=radio]')) refreshCount();
+  });
+
+  const btn = document.getElementById('copy-btn');
+  btn.addEventListener('click', async function () {
+    const parts = ['# Agent-agnostic Duo v2 — decisions (ENH-189 rev 5)', ''];
+    cards.forEach(card => {
+      const title = (card.querySelector('.q-title')?.textContent || '').trim();
+      const prompt = (card.querySelector('.q-prompt')?.textContent || '').trim();
+      const checked = card.querySelector('input[type=radio]:checked');
+      const notes = (card.querySelector('.q-notes')?.value || '').trim();
+      let line;
+      if (checked) {
+        const optTitle = (checked.closest('.q-option').querySelector('.q-option-title')?.textContent || '')
+          .replace(/Recommended.*/i, '').trim();
+        line = '[' + checked.value + '] ' + title + ' — ' + optTitle;
+      } else {
+        line = '[—] ' + title + ' — (unanswered)';
+      }
+      parts.push(line);
+      parts.push('    Q: ' + prompt);
+      if (notes) parts.push('    note: ' + notes);
+      parts.push('');
+    });
+    const general = (document.getElementById('general-comments')?.value || '').trim();
+    if (general) { parts.push('## General comments'); parts.push(general); parts.push(''); }
+    const payload = parts.join('\n');
+    try {
+      await navigator.clipboard.writeText(payload);
+    } catch (_) {
+      const ta = document.createElement('textarea');
+      ta.value = payload; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+    btn.classList.add('copied');
+    const prev = btn.textContent; btn.textContent = 'Copied ✓';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = prev; }, 2000);
+  });
+
+  refreshCount();
+})();
+</script>
+
+</body>
+</html>
