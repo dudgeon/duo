@@ -371,11 +371,12 @@ export function initVault(
     // README); no bases/. (There IS a `.obsidian/` now — see below.)
 
     // ENH-266c — seed `.obsidian/app.json` (absent-only) so a human who later
-    // opens this OKF vault in real Obsidian authors NEW links (frontmatter
-    // entity refs + prose) in the SAME markdown-link convention OKF/Duo
-    // already write, instead of Obsidian's factory-default wikilinks. This
-    // is the ONLY `.obsidian/` content an OKF vault gets — no plugins/,
-    // no workspace, nothing else Obsidian-internal.
+    // opens this OKF vault in real Obsidian authors NEW prose links in the
+    // SAME markdown-link convention OKF/Duo already write, instead of
+    // Obsidian's factory-default wikilinks. (Frontmatter entity refs are a
+    // separate, not-yet-shipped effort — sibling ENH-266a.) This is the ONLY
+    // `.obsidian/` content an OKF vault gets — no plugins/, no workspace,
+    // nothing else Obsidian-internal.
     if (seedObsidianAppJson(root)) created.push('.obsidian/app.json')
   }
 

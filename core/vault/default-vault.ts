@@ -93,16 +93,17 @@ export function readDefaultVault(filePath: string = DEFAULT_VAULT_FILE): string 
 }
 
 // ENH-266c — Obsidian-compat `.obsidian/app.json` seed. OKF mode writes
-// frontmatter entity references (owner:, initiative:, attendees:, …) and
 // prose links as standard markdown links (`[Display](./rel.md)`), never
-// wikilinks. Obsidian's FACTORY DEFAULT is the opposite (Use Wikilinks ON),
-// so a human who opens an OKF vault in real Obsidian and authors a NEW link
-// there gets a `[[wikilink]]` that neither Duo's reader nor an OKF-mode
-// vault's own convention expects. Two Obsidian settings flip that default to
-// match OKF's convention — confirmed live against a real installed Obsidian
-// 1.12.7 this cycle (Settings → Files and Links → Use Wikilinks OFF, New
-// link format → Path from current file), then reading the resulting
-// `.obsidian/app.json` back:
+// wikilinks (frontmatter entity refs — owner:, initiative:, attendees:, …
+// — are a separate, NOT-yet-shipped effort, sibling ENH-266a; until that
+// lands they still write `[[Title]]` wikilinks per FOLLOWUP-051). Obsidian's
+// FACTORY DEFAULT is wikilinks-everywhere (Use Wikilinks ON), so a human who
+// opens an OKF vault in real Obsidian and authors a NEW link there gets a
+// `[[wikilink]]` that doesn't match OKF's own prose convention. Two Obsidian
+// settings flip that default to match OKF's convention — confirmed live
+// against a real installed Obsidian 1.12.7 this cycle (Settings → Files and
+// Links → Use Wikilinks OFF, New link format → Path from current file), then
+// reading the resulting `.obsidian/app.json` back:
 const OBSIDIAN_APP_JSON = { useMarkdownLinks: true, newLinkFormat: 'relative' } as const
 
 /** Write `.obsidian/app.json` with the two ENH-266c settings, ABSENT-ONLY —

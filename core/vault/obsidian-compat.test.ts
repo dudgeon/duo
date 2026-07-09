@@ -1,8 +1,9 @@
 // ENH-266c — Obsidian-compat `.obsidian/app.json` seed. OKF mode writes
-// frontmatter entity refs + prose links as standard markdown links, never
-// wikilinks; these two Obsidian settings (confirmed live against a real
-// installed Obsidian 1.12.7) flip Obsidian's factory-default (Use Wikilinks
-// ON) so a human authoring a NEW link inside Obsidian matches OKF's own
+// prose links as standard markdown links, never wikilinks (frontmatter
+// entity refs are a separate, not-yet-shipped effort — sibling ENH-266a);
+// these two Obsidian settings (confirmed live against a real installed
+// Obsidian 1.12.7) flip Obsidian's factory-default (Use Wikilinks ON) so a
+// human authoring a NEW prose link inside Obsidian matches OKF's own
 // convention instead of producing an unresolved phantom-node wikilink.
 //
 // Covers the shared helper directly (seed-when-absent, respect-when-present,
