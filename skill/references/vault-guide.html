@@ -122,7 +122,7 @@ footer { margin-top:48px; border-top:1px solid var(--paper-rule); padding-top:14
 </div>
 
 <nav class="toc">
-  <strong>The eleven primitives</strong>
+  <strong>The primitives</strong>
   <ol>
     <li><a href="#ch1">What a vault is</a></li>
     <li><a href="#ch2">Establishing a vault</a></li>
@@ -135,6 +135,7 @@ footer { margin-top:48px; border-top:1px solid var(--paper-rule); padding-top:14
     <li><a href="#ch9">Generating a rollup</a></li>
     <li><a href="#ch10">Refreshing a rollup</a></li>
     <li><a href="#ch11">Processing</a></li>
+    <li><a href="#ch12">OKF in real Obsidian</a></li>
   </ol>
 </nav>
 
@@ -554,6 +555,71 @@ deliberately skipped — and <strong>every change is a proposal</strong>, never 
 <div class="takeaway"><strong>The model that makes it trustworthy:</strong> tracked suggestions
 + a report note + file-moves listed for approval mean a processing run is fully reviewable —
 the same property that lets it run unattended on a schedule later.</div>
+</section>
+
+<!-- ── 12 ──────────────────────────────────────────── -->
+<section id="ch12">
+<h2><span class="chno">12</span>OKF in real Obsidian</h2>
+<p>An OKF vault opens correctly in vanilla Obsidian with zero plugins — that guarantee is
+locked (chapter 3). But "opens correctly" and "looks its best" aren't the same claim: a couple
+of things are worth knowing about, and there's a one-time migration if you have an
+older OKF vault.</p>
+
+<h3>Slugs vs. titles — what you'll actually see in Obsidian's UI</h3>
+<p>OKF filenames are always <strong>slugs</strong> (<code>alice-park.md</code>); the readable name
+lives in the <code>title:</code> frontmatter field, not the filename (D6). Duo's editor reads
+<code>title:</code> and shows the human name everywhere. Vanilla Obsidian doesn't do that
+special-casing — its file explorer, tabs, and search results all show the raw filename, so
+you'll see <code>alice-park</code> instead of <em>Alice Park</em>.</p>
+<div class="takeaway"><strong>If you want title display everywhere in Obsidian too,</strong> the
+third-party <a href="https://github.com/snezhig/obsidian-front-matter-title">Front Matter
+Title</a> community plugin reads a frontmatter key (configure it to <code>title</code>) and
+substitutes it into the explorer, tabs, and search — entirely optional, and outside Duo's
+guarantee (a third-party plugin, not shipped or maintained by Duo).</div>
+
+<h3>Recommended Obsidian settings for a cleaner view</h3>
+<p>Duo-owned housekeeping folders (schema templates, rendered artifacts, generated rollups)
+are meaningful to Duo but just noise in Obsidian's navigator, search, and graph view. Add them
+to <strong>Settings → Files and links → Excluded files</strong>:</p>
+<pre class="diagram">templates
+output
+rollups</pre>
+<div class="takeaway">This is cosmetic only — it doesn't change what Duo reads or writes, and
+it doesn't affect the <code>duo base lint</code> D15 templates-exclusion check (chapter 9),
+which protects a <code>.base</code> query even in a vault where this setting was never turned on.</div>
+
+<h3>Migrating a pre-existing OKF vault to frontmatter markdown links</h3>
+<p>Older OKF vaults wrote entity-reference frontmatter fields (<code>owner:</code>,
+<code>attendees:</code>, <code>initiative:</code> — any field whose value names another note)
+as a title-based wikilink, e.g. <code>owner: "[[Alice Park]]"</code>. Live-tested in real
+Obsidian: that form creates an <strong>unresolved phantom node</strong> in Obsidian's graph
+instead of linking the real note, because Obsidian's frontmatter-wikilink resolver matches by
+<strong>filename</strong>, and an OKF filename is a slug, not the title. The fix — the same
+standard markdown link syntax prose already uses, e.g.
+<code>owner: "[Alice Park](../people/alice-park.md)"</code> — resolves correctly in Obsidian and
+requires no Duo code changes to read (the reader already understands both syntaxes). If your
+vault predates this fix, migrate it in place:</p>
+<ol>
+  <li><strong>Update Duo</strong> to the version that ships <code>duo vault relink --frontmatter</code>.</li>
+  <li><strong>Close any open notes from that vault</strong> in Duo's editor.</li>
+  <li><strong>If the vault is git-tracked, start from a clean working tree</strong> — commit or
+    stash anything in progress first, so the migration is a reviewable diff on its own.</li>
+  <li><strong>Dry-run it:</strong> <code>duo vault relink --frontmatter --dry-run --vault &lt;path&gt;</code>
+    — review the four-category report (repaired / ambiguous / broken / unchanged) before
+    applying anything.</li>
+  <li><strong>Re-run without <code>--dry-run</code></strong> to apply.</li>
+  <li><strong>Regenerate listings:</strong> <code>duo vault publish --vault &lt;path&gt;</code>.</li>
+  <li><strong>Review the git diff and commit.</strong></li>
+  <li><strong>Spot-check in real Obsidian:</strong> open the vault, confirm entity backlink
+    counts look right on a few notes, and confirm any rollup <code>.base</code> blocks render
+    without phantom template rows (chapter 9's D15 check).</li>
+</ol>
+<div class="takeaway"><strong>No manual action needed for <code>.obsidian/app.json</code></strong> —
+it seeds itself automatically the next time the vault opens in Duo.</div>
+<div class="takeaway" style="border-left-color:var(--warn)"><strong>Extra care for a
+brainkit/loopkit-family vault</strong> (one with a root <code>loop.manifest.json</code>): Duo
+never touches those files automatically, so the dry-run review and the git diff review above
+matter doubly there — nothing about this migration is manifest-aware.</div>
 </section>
 
 <footer>

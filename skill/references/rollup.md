@@ -44,6 +44,13 @@ this:
    `templates/rollup.md`). Put the query in an embedded ` ```base ` block in the
    body (or set `spec:` to a `.base` path), and leave `format: html`.
 3. **Lint** — `duo base lint <note>` until clean (advisory; fix what it flags).
+   Any `type == "X"` filter with no `templates/` exclusion anywhere in its
+   effective filter gets a D15 warning: `templates/X.md` carries the same
+   default `type:` as a real entity, so a `.base` opened **natively in
+   Obsidian** (Duo's own renderer already excludes `templates/`, so this only
+   bites there) shows a phantom row for the template. Add
+   `- '!file.inFolder("templates")'` (or an equivalent `not:` block) to the
+   `and:` list — once at the top level covers every view in the file.
 4. **Render + stamp** — `duo rollup render <note> --html --open`. HTML is the
    default for a rollup note (D2); the render writes the artifact to the note's
    `out:` (default `rollups/<slug>.html`) and stamps `out`/`last_generated`/

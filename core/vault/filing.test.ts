@@ -173,3 +173,44 @@ describe('OKF mode (ENH-216 D6/D10) — slugged stems, title + id stamped', () =
     expect(fs.readFileSync(path.join(root, r.path), 'utf8')).toContain('type: decision-log')
   })
 })
+
+describe('ENH-266e — alias auto-seed (title differs from OKF slug stem)', () => {
+  it('extends a template-declared `aliases: []` field with the human title', () => {
+    // person's template already declares `aliases: []` (scaffold.ts PERSON_TPL).
+    const r = createEntityStub(root, 'person', 'Customer Orders', { asOf: AS_OF, mode: 'okf' })
+    const content = fs.readFileSync(r.absPath, 'utf8')
+    expect(content).toContain('aliases:\n  - Customer Orders')
+    expect(content).not.toContain('aliases: []') // the empty seed was replaced, not left dangling
+  })
+
+  it('appends a brand-new `aliases:` field for a type whose template has none', () => {
+    // milestone's template has no `aliases:` field at all.
+    const r = createEntityStub(root, 'milestone', 'Legal Review', { asOf: AS_OF, mode: 'okf' })
+    const content = fs.readFileSync(r.absPath, 'utf8')
+    expect(content).toContain('aliases:\n  - Legal Review')
+  })
+
+  it('is a no-op when the title already equals its own slug (nothing to alias)', () => {
+    const r = createEntityStub(root, 'person', 'alice', { asOf: AS_OF, mode: 'okf' })
+    expect(r.path).toBe('people/alice.md')
+    const content = fs.readFileSync(r.absPath, 'utf8')
+    expect(content).toContain('aliases: []') // template's empty seed, untouched
+    expect(content).not.toContain('aliases:\n  - alice')
+  })
+
+  it('is a no-op in Obsidian mode (the on-disk stem already IS the title, D6)', () => {
+    const r = createEntityStub(root, 'person', 'Customer Orders', { asOf: AS_OF })
+    const content = fs.readFileSync(r.absPath, 'utf8')
+    expect(content).toContain('aliases: []')
+    expect(content).not.toContain('aliases:\n  -')
+    expect(content).not.toContain('title:')
+  })
+
+  it('aliases the FINAL on-disk stem, including a slug-collision suffix', () => {
+    createEntityStub(root, 'person', 'Customer Orders', { asOf: AS_OF, mode: 'okf' })
+    const b = createEntityStub(root, 'person', 'customer orders', { asOf: AS_OF, mode: 'okf' })
+    expect(b.path).toBe('people/customer-orders-2.md')
+    const content = fs.readFileSync(b.absPath, 'utf8')
+    expect(content).toContain('aliases:\n  - customer orders')
+  })
+})

@@ -40,6 +40,30 @@
 
 ---
 
+### ENH-266e: Alias auto-seed — OKF stub titles surface in vanilla Obsidian search/quick-switcher
+
+**Status:** 🚧 Implemented + tests passing on branch `enh-266de-bases-hygiene-title-ux` (PR-3 of the ENH-266 OKF/Obsidian-compat family), awaiting merge. **Priority:** P2. **Effort:** S.
+
+OKF filenames are always slugs (`alice-park.md`); the human name lives in `title:` frontmatter (D6). Vanilla Obsidian's file explorer, quick-switcher, search, and link autocomplete only ever surface the on-disk filename — never `title:` — so a fresh OKF stub was effectively unfindable by its readable name outside Duo's own editor. **Fix:** `createEntityStub` (`core/vault/filing.ts`) now auto-seeds `aliases:` with the human title whenever it differs from the final on-disk stem (post slug-collision suffix), via a shared helper in `seedFrontmatterLines` (`core/vault/scaffold.ts`) so any future call site gets it for free. Extends a template-declared `aliases: []` field (person) when present; appends a brand-new field for types that don't declare one (milestone, meeting, initiative, theme). No-op in Obsidian mode (the filename already IS the title, D6) and when title === stem (nothing to alias). Docs: `skill/references/vault-guide.html` ch. 12 points to the third-party [Front Matter Title](https://github.com/snezhig/obsidian-front-matter-title) plugin for full title display everywhere in Obsidian (outside Duo's guarantee). Tests: `core/vault/filing.test.ts` (`ENH-266e` describe block — extends-existing-field, appends-new-field, no-op-when-equal, no-op-in-obsidian-mode, aliases-the-collision-suffixed-stem).
+
+**Cross-ref:** ENH-266d (bases hygiene, same PR), ENH-266a (frontmatter markdown links, sibling PR), ENH-216 D6 (slug/title split), FOLLOWUP-051 (frontmatter-link click-nav, prior related filing).
+
+---
+
+### ENH-266d: Bases hygiene — D15 templates-folder-exclusion lint check + scaffold fix
+
+**Status:** 🚧 Implemented + tests passing on branch `enh-266de-bases-hygiene-title-ux` (PR-3 of the ENH-266 OKF/Obsidian-compat family), awaiting merge. **Priority:** P2. **Effort:** M.
+
+Live-tested (2026-07) in real Obsidian 1.12.7: a rollup note's embedded ` ```base ` block filtering `type == "milestone"` ALSO matched `templates/milestone.md` — the schema template carries the same default `type:` — rendering a phantom row alongside real entities. Duo's own `duo rollup render` never shows this (its corpus reader excludes `templates/` unconditionally), but a `.base` opened **natively in Obsidian** has no such exclusion. **Fix:**
+- `core/vault/scaffold.ts` — the Obsidian-mode `INITIATIVE_TPL`'s embedded milestone-rollup `.base` block now carries an explicit `- '!file.inFolder("templates")'` clause (previously relied incidentally on `initiative == this` alone). `bases/processing.base`'s seed already carried the exclusion at the top level (applies to every view via the def+view AND, `render.ts`) — confirmed clean by the new lint check, no change needed there.
+- `core/vault/lint.ts` — new advisory D15 check in `lintBaseDef`: for every view's EFFECTIVE filter (top-level `filters:` AND that view's own `filters:`, mirroring `render.ts`'s actual combination), a `type == "X"` filter with no `file.inFolder("templates")` exclusion ANYWHERE in that tree (tracking `not:` negation) gets a `warn` finding suggesting the fix. Warn-and-render (D15) — never blocks.
+- Docs: `skill/references/vault.md` (authoring loop) + `skill/references/rollup.md` (lint step) now teach the exclusion pattern; `skill/references/vault-guide.html` ch. 12 recommends excluding `templates/output/rollups` in Obsidian's Files-and-Links settings for a cleaner navigator/search/graph.
+- Tests: `core/vault/base.test.ts` (`D15` describe block) + regression guard that Duo's own scaffolded bases lint D15-clean.
+
+**Cross-ref:** ENH-266e (alias auto-seed, same PR), ENH-208 D15 (the warn-and-render lint contract this extends), ENH-228 (rollup notes).
+
+---
+
 ### ENH-232: Catch-up — rich re-entry for sessions whose worktree was removed
 **Status:** 🔵 Open (filed from ENH-231 walk #2, 2026-06-24). **P1.**
 

@@ -78,6 +78,14 @@ const INITIATIVE_TPL = [
   '  and:',
   '    - type == "milestone"',
   '    - initiative == this',
+  // D15 (ENH-266d) — a bare `type == "milestone"` filter also matches
+  // templates/milestone.md (the schema template carries the same default
+  // `type:`). `initiative == this` already excludes it incidentally (the
+  // template's `initiative:` is blank, never equal to a real initiative),
+  // but that's relying on a coincidence of a DIFFERENT clause — an explicit
+  // exclusion is the hygiene pattern every type-filtered query should carry
+  // (see `duo base lint`'s D15 advisory + skill/references/vault.md).
+  `    - '!file.inFolder("templates")'`,
   'formulas:',
   `  when: 'if(due, due.format("MMM D") + " · " + due.relative(), "— no due date —")'`,
   `  flag: 'if(status != "done" && due && due < today(), icon("alarm-clock"), "")'`,
@@ -418,15 +426,36 @@ function slugify(s: string): string {
  *  stamped right after `type:` (D6 — the on-disk stem is slugged, the human
  *  name lives in `title:`). The `id:` is minted separately on the OKF create
  *  path (`ensureNoteId`, D10), not here. New params default to `obsidian` so
- *  existing call sites stay byte-identical. */
+ *  existing call sites stay byte-identical.
+ *
+ *  ENH-266e (alias auto-seed): when `stem` is ALSO supplied and differs from
+ *  `title`, the title is auto-seeded into `aliases:` — vanilla Obsidian's
+ *  file explorer / quick-switcher / search / link-autocomplete only ever
+ *  surface the on-disk (slugged) filename, never a `title:` frontmatter
+ *  value, so without an alias the human name is invisible everywhere except
+ *  the Properties panel. Extends the field when the type's template already
+ *  declares `aliases:` (e.g. person); appends a brand-new field when it
+ *  doesn't. No-op when `title === stem` (nothing to alias) or either is
+ *  omitted (Obsidian-mode call sites, where the stem IS the title, D6). */
 export function seedFrontmatterLines(
   template: TypeTemplate,
-  opts: { mode?: VaultMode; title?: string } = {},
+  opts: { mode?: VaultMode; title?: string; stem?: string } = {},
 ): string[] {
   const lines = [`type: ${template.type}`]
   if (opts.mode === 'okf' && opts.title) lines.push(`title: ${opts.title}`)
+  let hasAliasField = false
   for (const field of template.fields) {
+    if (field === 'aliases') hasAliasField = true
     lines.push(`${field}:${Array.isArray(template.frontmatter[field]) ? ' []' : ''}`)
+  }
+  if (opts.mode === 'okf' && opts.title && opts.stem && opts.title !== opts.stem) {
+    const entry = `  - ${opts.title}`
+    const idx = lines.findIndex((l) => l === 'aliases: []')
+    if (idx >= 0) {
+      lines.splice(idx, 1, 'aliases:', entry)
+    } else if (!hasAliasField) {
+      lines.push('aliases:', entry)
+    }
   }
   return lines
 }

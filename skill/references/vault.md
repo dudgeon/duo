@@ -247,6 +247,28 @@ is fragile). Stay inside what `duo base lint` accepts — anything else renders 
 a ⚠ cell. **Presentation (table/cards/list) is Duo-owned** (D16); shape a cell
 only through `html()` / `icon()` formulas, never by hand-authoring HTML.
 
+**Templates-folder hygiene (D15, ENH-266d).** Any query that filters by
+`type == "X"` also matches `templates/X.md` — the soft-schema file itself
+carries the same default `type:` value. Duo's own corpus reader
+(`buildCorpus`, `duo rollup render`) already excludes `templates/`
+unconditionally, so this never shows up there — but a `.base` opened
+**natively in Obsidian** (not through Duo) has no such exclusion, and a bare
+`type == "milestone"` filter renders a phantom row for the template alongside
+real entities (live-tested against Obsidian 1.12.7). Always add an exclusion
+to any type-filtered query you author, at the top level (applies to every
+view in the file) or per-view:
+```yaml
+filters:
+  and:
+    - type == "milestone"
+    - '!file.inFolder("templates")'
+```
+The `not:` block spelling works identically: `- not: [file.inFolder("templates")]`.
+`duo base lint` flags a type-filtered view with no exclusion anywhere in its
+effective filter (D15 — advisory, never blocks); see `scaffold.ts`'s
+`bases/processing.base` seed and the initiative template's embedded
+milestone-rollup block for the canonical pattern.
+
 **Membership + declared buckets (ENH-255).** For multi-valued fields (an
 initiative on several tracks): `list(tracks).contains("q3-launch")` filters on
 LIST MEMBERSHIP, matching a list-of-links element by the linked note's

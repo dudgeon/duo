@@ -3999,6 +3999,14 @@ var INITIATIVE_TPL = [
   "  and:",
   '    - type == "milestone"',
   "    - initiative == this",
+  // D15 (ENH-266d) — a bare `type == "milestone"` filter also matches
+  // templates/milestone.md (the schema template carries the same default
+  // `type:`). `initiative == this` already excludes it incidentally (the
+  // template's `initiative:` is blank, never equal to a real initiative),
+  // but that's relying on a coincidence of a DIFFERENT clause — an explicit
+  // exclusion is the hygiene pattern every type-filtered query should carry
+  // (see `duo base lint`'s D15 advisory + skill/references/vault.md).
+  `    - '!file.inFolder("templates")'`,
   "formulas:",
   `  when: 'if(due, due.format("MMM D") + " \xB7 " + due.relative(), "\u2014 no due date \u2014")'`,
   `  flag: 'if(status != "done" && due && due < today(), icon("alarm-clock"), "")'`,
@@ -4223,8 +4231,19 @@ function slugify(s) {
 function seedFrontmatterLines(template, opts = {}) {
   const lines = [`type: ${template.type}`];
   if (opts.mode === "okf" && opts.title) lines.push(`title: ${opts.title}`);
+  let hasAliasField = false;
   for (const field of template.fields) {
+    if (field === "aliases") hasAliasField = true;
     lines.push(`${field}:${Array.isArray(template.frontmatter[field]) ? " []" : ""}`);
+  }
+  if (opts.mode === "okf" && opts.title && opts.stem && opts.title !== opts.stem) {
+    const entry = `  - ${opts.title}`;
+    const idx = lines.findIndex((l) => l === "aliases: []");
+    if (idx >= 0) {
+      lines.splice(idx, 1, "aliases:", entry);
+    } else if (!hasAliasField) {
+      lines.push("aliases:", entry);
+    }
   }
   return lines;
 }
@@ -4310,7 +4329,8 @@ function createEntityStub(root, type2, name, opts = {}) {
     }
   }
   const abs = import_node_path11.default.join(root, target);
-  const fm = ["---", ...seedFrontmatterLines(template, { mode, title: name }), "---", ""];
+  const stem = import_node_path11.default.basename(target, import_node_path11.default.extname(target));
+  const fm = ["---", ...seedFrontmatterLines(template, { mode, title: name, stem }), "---", ""];
   import_node_fs11.default.mkdirSync(import_node_path11.default.dirname(abs), { recursive: true });
   import_node_fs11.default.writeFileSync(abs, fm.join("\n") + "\n" + body);
   ensureNoteId(abs, root);
@@ -6574,6 +6594,33 @@ function collectExprs(node, out2) {
     for (const v of ["and", "or", "not"]) if (obj[v]) collectExprs(obj[v], out2);
   }
 }
+function firstTypeFilterValue(node) {
+  const exprs = [];
+  collectExprs(node, exprs);
+  for (const e of exprs) {
+    const m = e.match(/\btype\s*==\s*"([^"]+)"/);
+    if (m) return m[1];
+  }
+  return null;
+}
+function hasTemplatesExclusion(node, negated = false) {
+  if (node == null) return false;
+  if (typeof node === "string") {
+    const trimmed = node.trim();
+    const bangNegated = trimmed.startsWith("!");
+    const body = bangNegated ? trimmed.slice(1) : trimmed;
+    if (!/file\.inFolder\(\s*["']templates["']\s*\)/.test(body)) return false;
+    return negated !== bangNegated;
+  }
+  if (Array.isArray(node)) return node.some((n) => hasTemplatesExclusion(n, negated));
+  if (typeof node === "object") {
+    const obj = node;
+    if (obj.and) return obj.and.some((n) => hasTemplatesExclusion(n, negated));
+    if (obj.or) return obj.or.some((n) => hasTemplatesExclusion(n, negated));
+    if (obj.not) return obj.not.some((n) => hasTemplatesExclusion(n, !negated));
+  }
+  return false;
+}
 function lintBaseDef(def, corpus) {
   const findings = [];
   const add = (severity, message, suggestion) => findings.push(suggestion ? { severity, message, suggestion } : { severity, message });
@@ -6616,6 +6663,22 @@ function lintBaseDef(def, corpus) {
       const s = suggest(fn, [...FUNCS]);
       add("warn", `${fn}(\u2026) \u2014 unknown function${s ? ` (did you mean "${s}"?)` : ""}`, s ?? void 0);
     }
+  }
+  const checkTemplatesExclusion = (filterNode, label) => {
+    const typeVal = firstTypeFilterValue(filterNode);
+    if (!typeVal || hasTemplatesExclusion(filterNode)) return;
+    add(
+      "warn",
+      `${label} \u2014 type == "${typeVal}" has no templates-folder exclusion (D15): templates/${typeVal}.md carries the same type: value and will render as a phantom row when this base opens natively in Obsidian (Duo's own renderer already excludes templates/). Add - '!file.inFolder("templates")' to the filter.`
+    );
+  };
+  if (def.views && def.views.length) {
+    for (const v of def.views) {
+      const combined = v.filters != null ? { and: [def.filters, v.filters] } : def.filters;
+      checkTemplatesExclusion(combined, `view "${v.name || v.type || "view"}"`);
+    }
+  } else {
+    checkTemplatesExclusion(def.filters, "base");
   }
   for (const v of def.views || []) {
     if (v.type && !VIEW_TYPES.includes(v.type)) add("error", `view "${v.name || v.type}" \u2014 unknown view type "${v.type}"`);

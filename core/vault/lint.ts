@@ -92,6 +92,50 @@ function collectExprs(node: unknown, out: string[]): void {
   }
 }
 
+// ── D15 — type-filtered query lacks a templates-folder exclusion ───────────
+// Live-tested (2026-07) in real Obsidian: a `type == "X"` filter with no
+// `templates/` exclusion ALSO matches the schema TEMPLATE for that type
+// (e.g. `templates/milestone.md` carries its own default `type: milestone`),
+// rendering a phantom row. Duo's own corpus reader already excludes
+// `templates/` unconditionally, so `duo rollup render` never shows this —
+// only a `.base` opened NATIVELY in Obsidian does. Advisory only (D15):
+// suggest the fix, never fail the render.
+
+/** The first `type == "X"` value found anywhere in a filter tree (leaf
+ *  strings only — mirrors the existing `type ==` regex check above). */
+function firstTypeFilterValue(node: unknown): string | null {
+  const exprs: string[] = []
+  collectExprs(node, exprs)
+  for (const e of exprs) {
+    const m = e.match(/\btype\s*==\s*"([^"]+)"/)
+    if (m) return m[1]
+  }
+  return null
+}
+
+/** True when a filter tree excludes `file.inFolder("templates")` ANYWHERE,
+ *  tracking `not:` nesting so a bare `file.inFolder("templates")` under
+ *  `not:` counts the same as a bang-prefixed `!file.inFolder("templates")`
+ *  inside an `and:`/`or:` list (both spellings are used in this codebase). */
+function hasTemplatesExclusion(node: unknown, negated = false): boolean {
+  if (node == null) return false
+  if (typeof node === 'string') {
+    const trimmed = node.trim()
+    const bangNegated = trimmed.startsWith('!')
+    const body = bangNegated ? trimmed.slice(1) : trimmed
+    if (!/file\.inFolder\(\s*["']templates["']\s*\)/.test(body)) return false
+    return negated !== bangNegated
+  }
+  if (Array.isArray(node)) return node.some((n) => hasTemplatesExclusion(n, negated))
+  if (typeof node === 'object') {
+    const obj = node as Record<string, unknown>
+    if (obj.and) return (obj.and as unknown[]).some((n) => hasTemplatesExclusion(n, negated))
+    if (obj.or) return (obj.or as unknown[]).some((n) => hasTemplatesExclusion(n, negated))
+    if (obj.not) return (obj.not as unknown[]).some((n) => hasTemplatesExclusion(n, !negated))
+  }
+  return false
+}
+
 /** Lint one base definition against the corpus. */
 export function lintBaseDef(def: BaseDefLike, corpus: Corpus): LintFinding[] {
   const findings: LintFinding[] = []
@@ -143,6 +187,29 @@ export function lintBaseDef(def: BaseDefLike, corpus: Corpus): LintFinding[] {
       const s = suggest(fn, [...FUNCS])
       add('warn', `${fn}(…) — unknown function${s ? ` (did you mean "${s}"?)` : ''}`, s ?? undefined)
     }
+  }
+
+  // D15 (ENH-266d) — per-view EFFECTIVE filter (top-level `filters:` AND
+  // that view's own `filters:`, mirroring render.ts's actual combination:
+  // `passes(def.filters, …) && passes(view.filters, …)`). A view-less base
+  // (just top-level `filters:`) is checked as its own single implicit query.
+  const checkTemplatesExclusion = (filterNode: unknown, label: string) => {
+    const typeVal = firstTypeFilterValue(filterNode)
+    if (!typeVal || hasTemplatesExclusion(filterNode)) return
+    add(
+      'warn',
+      `${label} — type == "${typeVal}" has no templates-folder exclusion (D15): templates/${typeVal}.md ` +
+        `carries the same type: value and will render as a phantom row when this base opens natively in ` +
+        `Obsidian (Duo's own renderer already excludes templates/). Add - '!file.inFolder("templates")' to the filter.`,
+    )
+  }
+  if (def.views && def.views.length) {
+    for (const v of def.views) {
+      const combined = v.filters != null ? { and: [def.filters, v.filters] } : def.filters
+      checkTemplatesExclusion(combined, `view "${v.name || v.type || 'view'}"`)
+    }
+  } else {
+    checkTemplatesExclusion(def.filters, 'base')
   }
 
   // structural: view types
