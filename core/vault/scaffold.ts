@@ -13,6 +13,7 @@ import { loadTemplates } from './corpus'
 import { ensureNoteId } from './move'
 import { OKF_INDEX_FILENAMES, OKF_INDEX_FILENAME_DEFAULT } from './okf-filenames'
 import { OUTPUT_DIR_DEFAULT } from './output-dir'
+import { seedObsidianAppJson } from './default-vault'
 import type { TypeTemplate, VaultMode } from './types'
 
 const TB = '`'.repeat(3) // ``` — the markdown code fence
@@ -367,7 +368,15 @@ export function initVault(
     writeFile('templates/meeting.md', MEETING_TPL)
     writeFile('templates/rollup.md', ROLLUP_TPL)
     // No README (D10: the root listing is the index file, not a frontmatter-less
-    // README); no .obsidian/, no bases/.
+    // README); no bases/. (There IS a `.obsidian/` now — see below.)
+
+    // ENH-266c — seed `.obsidian/app.json` (absent-only) so a human who later
+    // opens this OKF vault in real Obsidian authors NEW links (frontmatter
+    // entity refs + prose) in the SAME markdown-link convention OKF/Duo
+    // already write, instead of Obsidian's factory-default wikilinks. This
+    // is the ONLY `.obsidian/` content an OKF vault gets — no plugins/,
+    // no workspace, nothing else Obsidian-internal.
+    if (seedObsidianAppJson(root)) created.push('.obsidian/app.json')
   }
 
   // iCloud-eviction trap (PRD risk): warn if the vault lives under

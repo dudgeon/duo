@@ -33,7 +33,7 @@ var import_crypto = require("crypto");
 var import_node_fs2 = __toESM(require("node:fs"));
 var import_node_path2 = __toESM(require("node:path"));
 
-// node_modules/js-yaml/dist/js-yaml.mjs
+// ../../../node_modules/js-yaml/dist/js-yaml.mjs
 function isNothing(subject) {
   return typeof subject === "undefined" || subject === null;
 }
@@ -2925,6 +2925,13 @@ function detectVaultMode(dir) {
 function isVaultRoot(dir) {
   return detectVaultMode(dir) !== null;
 }
+function isForeignVault(dir) {
+  try {
+    return import_node_fs4.default.statSync(import_node_path4.default.join(dir, "loop.manifest.json")).isFile();
+  } catch {
+    return false;
+  }
+}
 function findVaultRoot(startPath) {
   let dir = import_node_path4.default.resolve(startPath);
   try {
@@ -3050,11 +3057,25 @@ function readDefaultVault(filePath = DEFAULT_VAULT_FILE) {
   const p = readPrefs(filePath).defaultVault;
   return typeof p === "string" && isVaultRoot(p) ? p : null;
 }
+var OBSIDIAN_APP_JSON = { useMarkdownLinks: true, newLinkFormat: "relative" };
+function seedObsidianAppJson(vaultRoot) {
+  const target = import_node_path5.default.join(vaultRoot, ".obsidian", "app.json");
+  if (import_node_fs5.default.existsSync(target)) return false;
+  import_node_fs5.default.mkdirSync(import_node_path5.default.dirname(target), { recursive: true });
+  import_node_fs5.default.writeFileSync(target, JSON.stringify(OBSIDIAN_APP_JSON, null, 2) + "\n");
+  return true;
+}
+function maybeSeedObsidianAppJson(vaultRoot) {
+  if (detectVaultMode(vaultRoot) !== "okf") return false;
+  if (isForeignVault(vaultRoot)) return false;
+  return seedObsidianAppJson(vaultRoot);
+}
 function setDefaultVault(target, filePath = DEFAULT_VAULT_FILE) {
   const abs = import_node_path5.default.resolve(target);
   if (!isVaultRoot(abs)) {
     throw new Error(`not a vault (no okf_version _index.md/index.md or .obsidian/): ${abs}. Run \`duo vault init ${target}\` first.`);
   }
+  maybeSeedObsidianAppJson(abs);
   const prefs = readPrefs(filePath);
   prefs.defaultVault = abs;
   prefs.knownVaults = [.../* @__PURE__ */ new Set([...prefs.knownVaults ?? [], abs])];
@@ -3901,6 +3922,7 @@ function initVault(folder, opts = {}) {
     writeFile("templates/milestone.md", MILESTONE_TPL);
     writeFile("templates/meeting.md", MEETING_TPL);
     writeFile("templates/rollup.md", ROLLUP_TPL);
+    if (seedObsidianAppJson(root)) created.push(".obsidian/app.json");
   }
   const docs = import_node_path10.default.join(import_node_os2.default.homedir(), "Documents");
   if (root === docs || root.startsWith(docs + import_node_path10.default.sep)) {
@@ -6732,7 +6754,7 @@ ${mergeRes.stdout}`.trim();
 }
 
 // cli/duo.ts
-var VERSION = true ? "0.13.6" : "0.0.0-dev";
+var VERSION = true ? "0.13.7" : "0.0.0-dev";
 var VERBS = [
   // ── Browser & tabs ──
   {

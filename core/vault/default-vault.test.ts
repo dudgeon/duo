@@ -227,9 +227,10 @@ describe('PR#98 review — --no-default contract (C1) + mode-aware rejection (C2
 
   // C2 — proves the "not a vault (no .obsidian/)" path is COSMETIC: the guard
   // (isVaultRoot → detectVaultMode) accepts a real OKF vault, so it's never
-  // rejected; only the message string was stale.
-  it('setDefaultVault accepts an OKF vault (root index.md w/ okf_version, no .obsidian/)', () => {
-    expect(fs.existsSync(path.join(vaultA, '.obsidian'))).toBe(false) // it IS an OKF vault
+  // rejected; only the message string was stale. (ENH-266c: an OKF vault DOES
+  // carry a `.obsidian/` dir now — just the app.json compat seed, not a full
+  // Obsidian scaffold — so this no longer asserts its absence.)
+  it('setDefaultVault accepts an OKF vault (root index.md w/ okf_version)', () => {
     expect(detectVaultMode(vaultA)).toBe('okf')
     expect(() => setDefaultVault(vaultA, prefFile)).not.toThrow()
     expect(readDefaultVault(prefFile)).toBe(vaultA)

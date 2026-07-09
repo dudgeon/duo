@@ -4398,6 +4398,14 @@ function maybeAutoRelinkVault(root: string | null, opts: { write?: boolean } = {
     }
     return
   }
+  // ENH-266c — retroactive Obsidian-compat seed for an OKF vault created
+  // before this PR shipped. Absent-only + synchronous (a single fs.existsSync
+  // check), so it rides the SAME mode/foreign gate just passed above rather
+  // than deferring off the critical path like the relink walk below. Fires on
+  // both boot (write=true) and a live vault-switch (write=false, dry-run for
+  // relink) — the app.json seed itself has no write/dry-run distinction, it's
+  // always safe to self-heal.
+  vaultCore.maybeSeedObsidianAppJson(root)
   // Mark BEFORE scheduling so a second trigger in the same window is dropped;
   // the entry self-clears after the dedupe window so a later genuine re-open
   // (e.g. a note moved, then the vault re-picked) relinks again.
