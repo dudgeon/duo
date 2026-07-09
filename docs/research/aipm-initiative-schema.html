@@ -244,7 +244,7 @@ table.grid td code { font-size: 11.5px; }
   <h1>AIPM initiative graph — schema options</h1>
   <div class="meta">
     <span class="pill">Decision doc</span>
-    <span class="pill">Rev 1</span>
+    <span class="pill">Rev 2 · patterns</span>
     2026-07-08 · for the AI-in-Product (AIPM) knowledge base · substrate: OKF vault (brainkit&nbsp;v0.3 / contract&nbsp;v2) · rendered by Duo rollups
   </div>
 </header>
@@ -253,11 +253,16 @@ table.grid td code { font-size: 11.5px; }
   <strong>What this is.</strong> Four candidate data models for tracking AI-adoption
   initiatives across a federated product org — from a minimal, prose-heavy schema to a
   fully engineered one — each tested against the six rollups the program actually needs,
-  with representative frontmatter and mock rendered output. Nine decision cards at the
+  with representative frontmatter and mock rendered output. Ten decision cards at the
   bottom lock the shape. <strong>How to use it:</strong> read top to bottom (~15 min),
   pick a radio on each card, add notes where you disagree, then hit
   <em>Copy decisions</em> in the footer and paste the payload back to Claude.
   Selections persist locally, so you can walk it in more than one sitting.
+  <br><br><strong>Rev 2 (2026-07-08):</strong> integrates the owner's <em>patterns</em>
+  refinement — the playbook publishes <b>patterns</b> (classes) generalized from or
+  produced by <b>initiatives</b> (instances); themes tag both; the playbook's navigable
+  taxonomy is managed playbook-side, derived from the fluid themes. See the revised
+  <b>D3</b> and the new <b>D10</b>.
 </div>
 
 <h2>1 · What we're solving</h2>
@@ -276,9 +281,12 @@ federated org. It exists to <b>watch experimentation → see it become declared 
   <li><b>Two populations per track.</b> AIPM's tracks (Context &amp; Agent Resources, Tools,
     Training, Tracking &amp; Measurement, …) each need one view uniting <em>initiatives they
     own</em> and <em>initiatives elsewhere in the business relevant to their domain</em>.</li>
-  <li><b>Organic use cases</b>, cataloged, themed, tagged to the conceiving org; the mature
-    ones promoted into an external <b>playbook</b> web property (the KB note is the
-    playbook's primary key).</li>
+  <li><b>Patterns</b> — reusable approaches (the <em>class</em>), generalized from or
+    produced by initiatives (the <em>instances</em>); some emerge at the individual/working
+    level, some from concerted track investment. Cataloged, themed, tagged to their steward;
+    the mature ones promoted into an external <b>playbook</b> web property whose structured,
+    navigable taxonomy is managed playbook-side (derived from the fluid themes). The KB note
+    is the playbook's primary key and survives promotion.</li>
   <li><b>Deterministic queries.</b> Rollups do the reading; an <em>agentic pass assigns
     tags at write time</em> (track relevance, themes) — no query-time fuzzy matching.</li>
   <li><b>Teachable to PMs.</b> Project managers will run this. Structured frontmatter only
@@ -292,7 +300,7 @@ federated org. It exists to <b>watch experimentation → see it become declared 
   <tr><td><b>Q2</b></td><td>One org's initiatives, grouped by owning department, then theme</td><td>The "what is org_x doing" leadership readout</td></tr>
   <tr><td><b>Q3</b></td><td>All initiatives by theme, with departmental ownership shown</td><td>The cross-cutting "who's working on context management" scan</td></tr>
   <tr><td><b>Q4</b></td><td>Initiatives on a theme declared by <b>VP+-led</b> organizations</td><td>Signal on where leadership (not just pods) is investing</td></tr>
-  <tr><td><b>Q5</b></td><td>Playbook pipeline — use cases by promotion status</td><td>Feeds the external playbook property</td></tr>
+  <tr><td><b>Q5</b></td><td>Playbook pipeline — patterns by promotion status</td><td>Feeds the external playbook property</td></tr>
   <tr><td><b>Q6</b></td><td>VP coverage — every VP org, <b>including the ones with zero initiatives</b></td><td>An empty bucket is signal (who hasn't started)</td></tr>
 </table>
 
@@ -468,7 +476,7 @@ brainkit-conformant folders derived from the spine. The v0.13.5–6 engine work 
   <div class="opt-head"><span class="opt-letter">A</span><span class="opt-name">Minimal — two types and honest prose</span></div>
   <div class="opt-tagline">The "how little structure could we get away with" pole. Frontmatter is strings; orgs, tracks, and themes are vocabulary, not entities.</div>
   <div class="typechips">
-    <span class="chip">initiative</span><span class="chip">use_case</span>
+    <span class="chip">initiative</span><span class="chip">pattern</span>
     <span class="chip gone">organization</span><span class="chip gone">track</span><span class="chip gone">theme</span><span class="chip gone">goal</span><span class="chip gone">person</span>
   </div>
 <pre>--- # initiatives/fraud-team-kb.md
@@ -508,7 +516,7 @@ the timeline — lives here in the body as prose and plain links.</pre>
   <div class="opt-head"><span class="opt-letter">B</span><span class="opt-name">One spine — ownership containment + cross-tags</span><span class="recommend-tag" style="font-size:10px;background:var(--accent-soft);color:var(--accent);text-transform:uppercase;font-weight:700;letter-spacing:0.04em;padding:1px 6px;border-radius:8px;">Recommended</span></div>
   <div class="opt-tagline">Keep the current KB's containment spine; give track-ness and theme-ness real types; add the maturity/playbook axes; answer join-shaped queries with derived stamps. The engine was literally extended to fit this shape this week.</div>
   <div class="typechips">
-    <span class="chip">initiative</span><span class="chip new">track (new)</span><span class="chip">goal</span><span class="chip">organization</span><span class="chip">person</span><span class="chip">theme (merged)</span><span class="chip">use_case</span><span class="chip">platform</span><span class="chip">task · decision · opportunity · meeting · source · note (brainkit starters, unchanged)</span><span class="chip gone">initiative_theme</span>
+    <span class="chip">initiative</span><span class="chip new">track (new)</span><span class="chip">goal</span><span class="chip">organization</span><span class="chip">person</span><span class="chip">theme (merged)</span><span class="chip new">pattern (née use_case)</span><span class="chip">platform</span><span class="chip">task · decision · opportunity · meeting · source · note (brainkit starters, unchanged)</span><span class="chip gone">initiative_theme</span>
   </div>
 
   <p style="font-size:13px"><b>The one rule a PM learns:</b> <code>parent:</code> answers
@@ -568,15 +576,18 @@ champion: "[Dana Wu](../people/dana-wu.md)"    # AI-enablement champion crosslin
 aliases: [CONS]
 ---
 
---- # use-cases via parent too — filed under the conceiving org
-type: use_case
+--- # a PATTERN (the class) files under its steward — a conceiving org (working-level)
+--- # or a track (concerted investment); the same parent rule covers both origins
+type: pattern
 id: m4c8v2rk
 summary: Draft PRDs from ticket clusters with Claude Code
-parent: "[Consumer Fraud](../organizations/consumer/consumer-fraud.md)"
+parent: "[Consumer Fraud](../organizations/consumer/consumer-fraud.md)"   # steward
 owner: "[Dana Wu](../people/dana-wu.md)"
 maturity: proven
 playbook: candidate                      # ""|candidate|drafting|published (+ playbook_url:)
-themes: ["[Prompt Patterns](../themes/prompt-patterns.md)"]
+playbook_category: product-craft/prd-drafting    # optional ref into the playbook taxonomy (D10)
+sources: ["[Fraud PRD assistant](…)"]    # the initiative(s) this was generalized from / produced by
+themes: ["[PRD &amp; Spec Drafting](../themes/prd-and-spec-drafting.md)"]
 tracks: ["[Tools](…)"]
 source: "[2026-06-12 fraud sync](../notes/2026/06/fraud-sync.md)"
 ---</pre>
@@ -612,7 +623,7 @@ source: "[2026-06-12 fraud sync](../notes/2026/06/fraud-sync.md)"
   <div class="opt-head"><span class="opt-letter">C</span><span class="opt-name">Two axes — lineage spine + ownership field</span></div>
   <div class="opt-tagline">The mirror of B: <code>parent:</code> stays pure initiative-lineage (declaration → children, program → workstreams); ownership is a separate <code>org:</code> field on every initiative.</div>
   <div class="typechips">
-    <span class="chip">initiative</span><span class="chip new">track</span><span class="chip">goal</span><span class="chip">organization</span><span class="chip">person</span><span class="chip">theme</span><span class="chip">use_case</span><span class="chip">+ starters</span>
+    <span class="chip">initiative</span><span class="chip new">track</span><span class="chip">goal</span><span class="chip">organization</span><span class="chip">person</span><span class="chip">theme</span><span class="chip">pattern</span><span class="chip">+ starters</span>
   </div>
 <pre>--- # the child keeps the declaration as its PARENT…
 type: initiative
@@ -711,9 +722,9 @@ reason: "registry pattern overlaps the starter-kit work"
 
 <table class="grid">
   <tr><th>Type</th><th>Structured fields (class-tagged)</th><th>Body carries</th></tr>
-  <tr><td><code>initiative</code><br><i>the one durable entity</i></td>
+  <tr><td><code>initiative</code><br><i>the one durable entity (the instance)</i></td>
     <td><span class="fieldclass auth">auth</span><code>parent</code> <code>owner</code> <code>engagement</code> <code>status</code> <code>maturity</code> <code>origin?</code><br>
-        <span class="fieldclass xtag">tag</span><code>themes[]</code> <code>tracks[]</code><br>
+        <span class="fieldclass xtag">tag</span><code>themes[]</code> <code>tracks[]</code> <code>patterns[]?</code> (patterns this work applies — the adoption edge)<br>
         <span class="fieldclass stamp">stamp</span><code>exec_org?</code> (only if D8 adopts stamps)</td>
     <td>timeline, status narrative, links to artifacts, the story</td></tr>
   <tr><td><code>track</code> <i>(new)</i></td>
@@ -730,9 +741,10 @@ reason: "registry pattern overlaps the starter-kit work"
   <tr><td><code>theme</code> <i>(merged)</i></td>
     <td><span class="fieldclass auth">auth</span><code>summary</code> <code>parent?</code>(→theme — hierarchy is free later: <code>ancestor:parent:theme</code>)</td>
     <td>definition, scope notes</td></tr>
-  <tr><td><code>use_case</code></td>
-    <td><span class="fieldclass auth">auth</span><code>parent</code>(→conceiving org) <code>owner</code> <code>maturity</code> <code>playbook</code> <code>playbook_url?</code> <code>source</code><br>
-        <span class="fieldclass xtag">tag</span><code>themes[]</code> <code>tracks[]</code></td>
+  <tr><td><code>pattern</code> <i>(née use_case — the class)</i></td>
+    <td><span class="fieldclass auth">auth</span><code>parent</code>(→steward: conceiving org, or the track that invested) <code>owner</code> <code>maturity</code> <code>playbook</code> <code>playbook_url?</code> <code>source</code><br>
+        <span class="fieldclass xtag">tag</span><code>themes[]</code> <code>tracks[]</code> <code>sources[]</code>(→initiatives it was generalized from / produced by)<br>
+        <span class="fieldclass stamp">stamp</span><code>playbook_category?</code> (ref into the playbook-side taxonomy, stamped at promotion — D10)</td>
     <td>the write-up that becomes the playbook entry</td></tr>
 </table>
 
@@ -740,7 +752,7 @@ reason: "registry pattern overlaps the starter-kit work"
 template notes, brainkit-style):</p>
 <ul>
   <li><code>status:</code> — execution state: <code>forming → active → paused → complete → retired</code> (initiatives); tracks/goals reuse the relevant subset.</li>
-  <li><code>maturity:</code> — the program's adoption ladder, shared by <code>initiative</code> and <code>use_case</code>: <code>experimental → proven → recommended → required</code>. Orthogonal to status (a <em>complete</em> pilot may still be merely <em>proven</em>; a <em>required</em> practice may have <em>active</em> rollout initiatives).</li>
+  <li><code>maturity:</code> — the program's adoption ladder, shared by <code>initiative</code> and <code>pattern</code>: <code>experimental → proven → recommended → required</code>. Orthogonal to status (a <em>complete</em> pilot may still be merely <em>proven</em>; a <em>required</em> pattern may have <em>active</em> rollout initiatives). The top rungs are primarily statements about <em>patterns</em>; initiatives inherit the framing where useful.</li>
 </ul>
 
 <h2>7 · The six queries, live</h2>
@@ -818,14 +830,17 @@ duo rollup new --type initiative \
   --group exec_org --columns file.name,maturity,status --title "Context work under VP+ orgs"</pre>
 
 <h3>Q5 — Playbook pipeline</h3>
-<pre>duo rollup new --type use_case \
+<pre>duo rollup new --type pattern \
   --filter 'playbook?' \
   --group playbook --bucket 'candidate=Candidates' --bucket 'drafting=In write-up' --bucket 'published=Published' \
-  --columns file.name,maturity,ancestor:parent:organization,owner --title "Playbook pipeline"</pre>
+  --columns file.name,maturity,ancestor:parent:organization,owner --title "Playbook pipeline"
+
+# once promoted, the playbook's own navigation view groups on the taxonomy ref (D10):
+#   --type pattern --filter 'playbook=published' --group playbook_category</pre>
 <div class="rollup-mock">
   <div class="rm-title">Playbook pipeline <span class="rm-stamp">generated 2026-07-08 · 5 rows</span></div>
   <table>
-    <tr><th>use case</th><th>maturity</th><th>org</th><th>owner</th></tr>
+    <tr><th>pattern</th><th>maturity</th><th>org</th><th>owner</th></tr>
     <tr class="rm-group"><td colspan="4">Candidates <span class="rm-count">· 2</span></td></tr>
     <tr><td><span class="rm-link">prd-drafting-from-tickets</span></td><td><span class="rm-chip proven">proven</span></td><td><span class="rm-link">Consumer Fraud</span></td><td><span class="rm-link">Dana Wu</span></td></tr>
     <tr><td><span class="rm-link">meeting-synthesis</span></td><td><span class="rm-chip proven">proven</span></td><td><span class="rm-link">Merchant Tools</span></td><td><span class="rm-link">Sam Ortiz</span></td></tr>
@@ -865,7 +880,7 @@ severs. Rough order:</p>
   <li><b>Pre-flight</b> — <code>duo vault relink --dry-run</code>; mint any missing <code>id:</code> (contract-v2 backfill).</li>
   <li><b>Retype the four track nodes</b> <code>initiative → track</code>; drop the "Track:&nbsp;" name prefix (D9) — inbound <code>tracks:[]</code> links re-point via <code>mv</code>'s rewrite; the colon-space YAML hazard class disappears.</li>
   <li><b>Merge themes</b> — <code>initiative_theme</code> notes → <code>theme</code>; retag <code>themes:[]</code> lists to the merged targets.</li>
-  <li><b>Add the new axes</b> — <code>maturity:</code> on initiatives + use cases (agent proposes values from status + body evidence, owner reviews); <code>playbook:</code> on use cases.</li>
+  <li><b>Add the new axes</b> — retype <code>use_case → pattern</code>; <code>maturity:</code> on initiatives + patterns (agent proposes values from status + body evidence, owner reviews); <code>playbook:</code> on patterns; restore the class↔instance edges (<code>sources:[]</code> seeded from the existing <code>use_case.initiative</code> data); stamp <code>playbook_category:</code> on anything already promoted.</li>
   <li><b>Enrich orgs</b> — <code>org_level:</code>, <code>leader:</code>, <code>leader_level:</code>, <code>champion:</code> where known; batch-import the VP-org roster (the planned migration source); person stubs for each leader.</li>
   <li><b>Untangle declaration children</b> — where a child's <code>parent:</code> currently points at a spawning initiative but ownership is really an org, move lineage to <code>origin:</code> and re-parent to the org (the <em>only</em> semantic re-pointing in the migration; small population).</li>
   <li><b>Regenerate</b> — templates for <code>track</code>/<code>theme</code>/updated <code>initiative</code>/<code>use_case</code>; <code>duo vault publish</code>; re-render rollups; retire the superseded <code>entity-model-reference.md</code> in favor of the template notes.</li>
@@ -874,7 +889,7 @@ severs. Rough order:</p>
 <h2>9 · Decisions</h2>
 
 <section class="decision-card">
-  <div class="q-title">Decision 1 · of 9</div>
+  <div class="q-title">Decision 1 · of 10</div>
   <h3 class="q-prompt">Overall schema shape</h3>
   <p class="q-context">The structural choice everything else hangs off. §5's scorecard is the evidence.</p>
   <div class="q-options">
@@ -895,7 +910,7 @@ severs. Rough order:</p>
 </section>
 
 <section class="decision-card">
-  <div class="q-title">Decision 2 · of 9</div>
+  <div class="q-title">Decision 2 · of 10</div>
   <h3 class="q-prompt">The parent rule — ownership wins the slot; lineage moves to <code>origin:</code></h3>
   <p class="q-context">Within Option B: when a declaration spawns per-team children, the child's <code>parent:</code> is its owning org/team and the spawning initiative is <code>origin:</code>. One teachable rule ("parent = who owns this work"), and org rollups stay pure chain-walks.</p>
   <div class="q-options">
@@ -913,42 +928,51 @@ severs. Rough order:</p>
 </section>
 
 <section class="decision-card">
-  <div class="q-title">Decision 3 · of 9</div>
-  <h3 class="q-prompt">Use case: its own type, or a kind of initiative?</h3>
-  <p class="q-context">A use case is a <em>practice</em> ("draft PRDs from tickets"); an initiative is an <em>effort</em>. Different lifecycle, different destiny (playbook), different fields.</p>
+  <div class="q-title">Decision 3 · of 10 — revised in Rev 2</div>
+  <h3 class="q-prompt">The class type: <code>pattern</code> (née use_case) with explicit class↔instance edges</h3>
+  <p class="q-context">Owner refinement (2026-07-08): the playbook publishes <b>patterns</b> — classes generalized
+  from or produced by initiatives (instances). Some emerge at the individual/working level, some from concerted
+  track investment — and the existing parent rule covers both origins for free (steward = the conceiving org, or
+  the track that invested). Themes tag both patterns and initiatives. The class↔instance relationship needs edges:
+  <b>provenance</b> (<code>sources:[]</code> on the pattern → the initiatives it came from) and <b>adoption</b>
+  (<code>patterns:[]</code> on an initiative that applies one). Each edge is owned by exactly one side (no mirrored
+  state); <code>@=&lt;pattern&gt;</code> unions everything touching a pattern for the "who's running this" view.</p>
   <div class="q-options">
-    <label class="q-option"><input type="radio" name="d3" value="separate use_case type">
-      <div class="q-option-body"><div class="q-option-title">Keep <code>use_case</code> as its own type <span class="recommend-tag">Recommended</span></div>
-      <div class="q-option-rationale">Matches the current KB (zero-migration), keeps the playbook pipeline a one-type query, and spares initiatives the playbook fields.</div></div></label>
-    <label class="q-option"><input type="radio" name="d3" value="fold into initiative as kind:">
-      <div class="q-option-body"><div class="q-option-title">Fold into <code>initiative</code> with a <code>kind: use-case</code> flag</div>
-      <div class="q-option-rationale">One fewer type, but every initiative rollup now needs a kind filter, and the "one durable entity" story muddies.</div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="pattern type + sources/patterns edges">
+      <div class="q-option-body"><div class="q-option-title">Rename to <code>pattern</code>; add <code>sources:[]</code> (provenance) + <code>patterns:[]</code> (adoption) <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">One class type, honest vocabulary, restores the class↔instance edge the current KB had (use_case.initiative) with sharper semantics. Retype is a mechanical, id-healed migration step.</div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="keep use_case name, add the edges">
+      <div class="q-option-body"><div class="q-option-title">Same shape, keep the <code>use_case</code> name</div>
+      <div class="q-option-rationale">Zero renaming; "pattern" stays playbook-side vocabulary. Costs a persistent KB↔playbook terminology mismatch.</div></div></label>
+    <label class="q-option"><input type="radio" name="d3" value="two types: use_case instances + pattern classes">
+      <div class="q-option-body"><div class="q-option-title">Two types — <code>use_case</code> (observed instance) AND <code>pattern</code> (generalized class)</div>
+      <div class="q-option-rationale">Maximal fidelity, but every observation eventually needs a second note, and the extra type pushes toward Option D's teach-cost problem. Initiatives already ARE the instances.</div></div></label>
   </div>
   <textarea class="q-notes" data-decision="d3" placeholder="Notes (optional)…"></textarea>
 </section>
 
 <section class="decision-card">
-  <div class="q-title">Decision 4 · of 9</div>
+  <div class="q-title">Decision 4 · of 10</div>
   <h3 class="q-prompt">The maturity ladder — one shared axis?</h3>
-  <p class="q-context">Interview locked maturity-as-attribute with values experimental → proven → recommended → required. The current <code>use_case</code> ladder (observed / validated / canonical) says the same thing in different words.</p>
+  <p class="q-context">Interview locked maturity-as-attribute with values experimental → proven → recommended → required. The current <code>use_case</code> ladder (observed / validated / canonical) says the same thing in different words. The Rev 2 pattern framing sharpens this: the top rungs are primarily statements about <em>patterns</em> (the class), while initiatives also carry the ladder usefully.</p>
   <div class="q-options">
-    <label class="q-option"><input type="radio" name="d4" value="one shared maturity ladder on initiative + use_case">
-      <div class="q-option-body"><div class="q-option-title">One <code>maturity:</code> ladder shared by initiative and use_case <span class="recommend-tag">Recommended</span></div>
+    <label class="q-option"><input type="radio" name="d4" value="one shared maturity ladder on initiative + pattern">
+      <div class="q-option-body"><div class="q-option-title">One <code>maturity:</code> ladder shared by initiative and pattern <span class="recommend-tag">Recommended</span></div>
       <div class="q-option-rationale">experimental → proven → recommended → required, orthogonal to execution <code>status:</code>. One vocabulary to teach; cross-type rollups line up.</div></div></label>
-    <label class="q-option"><input type="radio" name="d4" value="initiative-only maturity; use_case keeps observed/validated/canonical">
-      <div class="q-option-body"><div class="q-option-title">Initiatives get <code>maturity:</code>; use cases keep their current ladder</div>
-      <div class="q-option-rationale">No retagging of existing use cases, at the cost of two near-synonym vocabularies.</div></div></label>
-    <label class="q-option"><input type="radio" name="d4" value="maturity on use_case only">
-      <div class="q-option-body"><div class="q-option-title">Maturity belongs to practices only; initiatives keep just <code>status:</code></div>
-      <div class="q-option-rationale">Cleanest theory (efforts execute, practices mature) — but the interview explicitly described <em>initiatives</em> maturing.</div></div></label>
+    <label class="q-option"><input type="radio" name="d4" value="initiative-only maturity; pattern keeps observed/validated/canonical">
+      <div class="q-option-body"><div class="q-option-title">Initiatives get <code>maturity:</code>; patterns keep the old use_case ladder</div>
+      <div class="q-option-rationale">No retagging of existing notes, at the cost of two near-synonym vocabularies.</div></div></label>
+    <label class="q-option"><input type="radio" name="d4" value="maturity on pattern only">
+      <div class="q-option-body"><div class="q-option-title">Maturity belongs to patterns only; initiatives keep just <code>status:</code></div>
+      <div class="q-option-rationale">Cleanest theory (efforts execute, patterns mature) — but the interview explicitly described <em>initiatives</em> maturing too.</div></div></label>
   </div>
   <textarea class="q-notes" data-decision="d4" placeholder="Notes (optional)…"></textarea>
 </section>
 
 <section class="decision-card">
-  <div class="q-title">Decision 5 · of 9</div>
+  <div class="q-title">Decision 5 · of 10</div>
   <h3 class="q-prompt">Playbook promotion fields</h3>
-  <p class="q-context">Locked: playbook-readiness is separate from maturity. What shape?</p>
+  <p class="q-context">Locked: playbook-readiness is separate from maturity. These fields live on the <code>pattern</code> note (Rev 2). What shape?</p>
   <div class="q-options">
     <label class="q-option"><input type="radio" name="d5" value="playbook status ladder + playbook_url">
       <div class="q-option-body"><div class="q-option-title"><code>playbook: candidate | drafting | published</code> + <code>playbook_url:</code> <span class="recommend-tag">Recommended</span></div>
@@ -957,14 +981,14 @@ severs. Rough order:</p>
       <div class="q-option-body"><div class="q-option-title">A boolean <code>playbook_ready:</code></div>
       <div class="q-option-rationale">Simplest, but loses the pipeline stages the walk will actually manage.</div></div></label>
     <label class="q-option"><input type="radio" name="d5" value="separate playbook_entry type">
-      <div class="q-option-body"><div class="q-option-title">A separate <code>playbook_entry</code> note linking the use case</div>
+      <div class="q-option-body"><div class="q-option-title">A separate <code>playbook_entry</code> note linking the pattern</div>
       <div class="q-option-rationale">Clean separation of the published artifact — but a second note to keep in sync, and the primary-key story doubles.</div></div></label>
   </div>
   <textarea class="q-notes" data-decision="d5" placeholder="Notes (optional)…"></textarea>
 </section>
 
 <section class="decision-card">
-  <div class="q-title">Decision 6 · of 9</div>
+  <div class="q-title">Decision 6 · of 10</div>
   <h3 class="q-prompt">Themes — merge to one type, hierarchy deferred-but-free</h3>
   <p class="q-context">Today: <code>theme</code> (brainkit starter) and <code>initiative_theme</code> coexist. Themes are finer than tracks; hierarchy may come later.</p>
   <div class="q-options">
@@ -979,7 +1003,7 @@ severs. Rough order:</p>
 </section>
 
 <section class="decision-card">
-  <div class="q-title">Decision 7 · of 9</div>
+  <div class="q-title">Decision 7 · of 10</div>
   <h3 class="q-prompt">Keep <code>engagement: own | monitor</code> explicit?</h3>
   <p class="q-context">Under Option B it's derivable (chain reaches AIPM's tree vs a business org) — but it's also the field the canonical Q1 groups on, and deriving it at query time isn't expressible anyway (hard limit 2).</p>
   <div class="q-options">
@@ -994,7 +1018,7 @@ severs. Rough order:</p>
 </section>
 
 <section class="decision-card">
-  <div class="q-title">Decision 8 · of 9</div>
+  <div class="q-title">Decision 8 · of 10</div>
   <h3 class="q-prompt">Exec-level rollups (Q4/Q6) — how do VP-granularity views get answered?</h3>
   <p class="q-context">Hard limits: nearest-ancestor grouping and no joins mean "group hundreds of initiatives by their VP org" needs help. LOB-granularity versions run natively today via per-LOB <code>^=</code> views.</p>
   <div class="q-options">
@@ -1015,7 +1039,7 @@ severs. Rough order:</p>
 </section>
 
 <section class="decision-card">
-  <div class="q-title">Decision 9 · of 9</div>
+  <div class="q-title">Decision 9 · of 10</div>
   <h3 class="q-prompt">Track naming — retire the "Track:&nbsp;" prefix?</h3>
   <p class="q-context">With <code>type: track</code> carrying track-ness, the display-name prefix is redundant — and its colon-space is the exact string class that produced BUG-260's silent filter drop (now defended in the engine, but why keep tempting it).</p>
   <div class="q-options">
@@ -1029,6 +1053,27 @@ severs. Rough order:</p>
   <textarea class="q-notes" data-decision="d9" placeholder="Notes (optional)…"></textarea>
 </section>
 
+<section class="decision-card">
+  <div class="q-title">Decision 10 · of 10 — new in Rev 2</div>
+  <h3 class="q-prompt">Does the KB pattern note carry a reference into the playbook's taxonomy?</h3>
+  <p class="q-context">The playbook needs a relatively <b>structured, navigable taxonomy</b> of patterns to be
+  useful — managed in the playbook system (not the KB), likely <em>derived from</em> the fluid themes taxonomy.
+  When a pattern is promoted, its KB note survives — so the two systems stay joined somehow. The KB note is
+  already the playbook's primary key in one direction; this decides the backpointer.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="d10" value="optional playbook_category ref, stamped at promotion">
+      <div class="q-option-body"><div class="q-option-title">Optional <code>playbook_category:</code> on the pattern, stamped at promotion <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">A pointer (e.g. <code>context/knowledge-bases</code>), stamp-class: the playbook owns the taxonomy, the promotion/refresh pass maintains the ref. Enables KB-side "pipeline by playbook category" rollups; absent = not yet promoted.</div></div></label>
+    <label class="q-option"><input type="radio" name="d10" value="no field; playbook owns the join">
+      <div class="q-option-body"><div class="q-option-title">No KB field — the playbook keys the join off the pattern's <code>id:</code></div>
+      <div class="q-option-rationale">Strictest no-sidecar reading: the KB never mirrors playbook structure. Costs KB-side category rollups; the playbook must expose the mapping when AIPM ops needs it.</div></div></label>
+    <label class="q-option"><input type="radio" name="d10" value="manage the pattern taxonomy in the KB">
+      <div class="q-option-body"><div class="q-option-title">Manage the pattern taxonomy IN the KB (a structured theme subtree)</div>
+      <div class="q-option-rationale">One system — but you explicitly want themes to stay fluid while the playbook taxonomy stays stable; coupling them recreates the tension this decision exists to avoid.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="d10" placeholder="Notes (optional)…"></textarea>
+</section>
+
 <details class="deferred">
   <summary>Deliberately not decided here (deferred, with reasons)</summary>
   <div class="deferred-body">
@@ -1036,14 +1081,14 @@ severs. Rough order:</p>
       <li><b>Theme taxonomy contents</b> — emerge from the use-case cataloguing, per the interview; the schema only guarantees hierarchy is free later (D6).</li>
       <li><b><code>ai_role</code> as a type</b> — declined in the interview; champion/POC crosslinks + a person-template body section cover it. Revisit only if role tracking standardizes program-wide (the <code>promote</code> path exists).</li>
       <li><b>Structured status history</b> — declined; timelines stay body prose (brainkit's machine-owned <code>## Timeline</code> on timeline-true types).</li>
-      <li><b>Playbook web property's own data model</b> — external system; the KB commits only to being its primary key (D5).</li>
+      <li><b>Playbook web property's own data model and taxonomy contents</b> — external system; the KB commits to being its primary key (D5) plus, at most, the optional taxonomy backpointer (D10). The taxonomy itself is authored playbook-side, derived from themes.</li>
       <li><b>Obsidian authoring interop for OKF vaults</b> — filed as Duo ENH-263 (seed <code>.obsidian/app.json</code> at OKF scaffold); orthogonal to this schema.</li>
     </ul>
   </div>
 </details>
 
 <div class="copy-bar">
-  <div class="copy-meta"><span id="answered-count">0</span> / 9 decisions answered · selections auto-save locally · <a href="#" id="clear-saved" style="color:var(--ink-mute)">clear</a></div>
+  <div class="copy-meta"><span id="answered-count">0</span> / 10 decisions answered · selections auto-save locally · <a href="#" id="clear-saved" style="color:var(--ink-mute)">clear</a></div>
   <button id="copy-btn" type="button">Copy decisions</button>
 </div>
 
@@ -1052,13 +1097,14 @@ severs. Rough order:</p>
   var DECISIONS = [
     { id: 'd1', title: 'Overall schema shape' },
     { id: 'd2', title: 'Parent rule (ownership vs lineage in the slot)' },
-    { id: 'd3', title: 'Use case: separate type vs folded' },
+    { id: 'd3', title: 'The class type: pattern (née use_case) + class↔instance edges' },
     { id: 'd4', title: 'Maturity ladder placement' },
     { id: 'd5', title: 'Playbook fields' },
     { id: 'd6', title: 'Theme consolidation + hierarchy' },
     { id: 'd7', title: 'Engagement field: keep explicit?' },
     { id: 'd8', title: 'Exec-level rollup mechanism (Q4/Q6)' },
-    { id: 'd9', title: 'Track naming prefix' }
+    { id: 'd9', title: 'Track naming prefix' },
+    { id: 'd10', title: 'Playbook taxonomy reference on the pattern' }
   ];
   var LS_KEY = 'aipm-schema-decisions-v1';
 
@@ -1108,7 +1154,7 @@ severs. Rough order:</p>
     var now = new Date();
     var localDate = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
     lines.push('AIPM initiative-graph schema decisions — ' + localDate);
-    lines.push('(from docs/research/aipm-initiative-schema.html rev 1)');
+    lines.push('(from docs/research/aipm-initiative-schema.html rev 2 — patterns)');
     lines.push('');
     DECISIONS.forEach(function (d, i) {
       var v = s.radios[d.id] || '(unanswered)';

@@ -201,9 +201,9 @@ html, body { margin: 0; padding: 0; height: 100%; background: var(--paper); colo
       <div class="toggles" id="toggles">
         <label><input type="checkbox" data-layer="monitor" checked> Monitored initiatives</label>
         <label><input type="checkbox" data-layer="own" checked> AIPM-owned initiatives</label>
-        <label><input type="checkbox" data-layer="usecase" checked> Use cases</label>
+        <label><input type="checkbox" data-layer="usecase" checked> Patterns (the class)</label>
         <label><input type="checkbox" data-layer="cross" checked> tracks: cross-tag arcs</label>
-        <label><input type="checkbox" data-layer="origin" checked> origin: lineage edges</label>
+        <label><input type="checkbox" data-layer="origin" checked> origin:/sources: lineage edges</label>
         <label><input type="checkbox" data-layer="theme"> Themes + theme tags</label>
         <label><input type="checkbox" data-layer="people"> People (leads · champions)</label>
       </div>
@@ -216,11 +216,11 @@ html, body { margin: 0; padding: 0; height: 100%; background: var(--paper); colo
       <div class="lrow"><span class="sw" style="background:var(--m-proven)"></span> initiative · proven</div>
       <div class="lrow"><span class="sw" style="background:var(--m-recommended)"></span> initiative · recommended</div>
       <div class="lrow"><span class="sw" style="background:var(--m-required); box-shadow: 0 0 0 2px #7a1f1b33"></span> initiative · required (+ dark ring)</div>
-      <div class="lrow"><span class="sw dia" style="background:var(--plum)"></span> use case (★ = published)</div>
+      <div class="lrow"><span class="sw dia" style="background:var(--plum)"></span> pattern — the class (★ = published)</div>
       <div class="lrow"><span class="sw sq" style="background:var(--moss)"></span> theme</div>
       <div class="lrow"><span class="ln"></span> parent: spine (folders derive from it)</div>
       <div class="lrow"><span class="ln dash"></span> tracks: cross-tag</div>
-      <div class="lrow"><span class="ln dot"></span> origin: spawned-by</div>
+      <div class="lrow"><span class="ln dot"></span> origin: / sources: — lineage (spawned-by · generalized-from)</div>
       <div class="lrow"><span class="ln theme"></span> theme tag</div>
     </div>
     <div class="fineprint">
@@ -262,7 +262,9 @@ html, body { margin: 0; padding: 0; height: 100%; background: var(--paper); colo
         <b>7 AIPM tracks</b> (under goals, under the AIPM root, left side). Every node is a
         markdown note; every solid line is a <code>parent:</code> edge — the one spine that
         also generates the folder tree. Dashed violet arcs are <code>tracks:</code> cross-tags;
-        dotted rose lines are <code>origin:</code> (declaration fan-out).</p>
+        dotted rose lines are lineage — <code>origin:</code> (declaration fan-out) and
+        <code>sources:</code> (the initiatives a <b>pattern</b> was generalized from). Plum
+        diamonds are patterns — the classes the playbook publishes.</p>
         <p><b>Explore:</b> click any node for its frontmatter + relationships · click a
         <b>track</b> to see its Q1 world · use <b>Guided views</b> (left) and
         <b>Rollups ▾</b> (top) — all six canonical rollups compute live from this graph.</p>
@@ -491,7 +493,9 @@ function generate(){
     monitored++;
   }
 
-  // Use cases (~45): parent -> conceiving org; playbook pipeline fields
+  // Patterns (~45; née use cases) — the CLASS the playbook publishes. parent -> steward
+  // (conceiving org here; a track-invested pattern would parent to its track), sources ->
+  // the sibling initiative(s) it was generalized from, playbook_category -> the D10 ref.
   var ucHosts = vpOrgs.concat(teams);
   for(var u=0;u<45;u++){
     var host2 = pick(ucHosts);
@@ -501,9 +505,17 @@ function generate(){
     var pb = null;
     if(mat!=='experimental'){ var r2=rnd(); pb = r2<0.42? null : r2<0.65?'candidate' : r2<0.83?'drafting' : 'published'; }
     var themeIds2 = shuffle(allThemes).slice(0, rint(1,2)).map(function(t){return t.id;});
-    addNode({ id:'uc-'+slugify(nm2)+'-'+u, type:'use_case', name:nm2,
+    var sibs = N.filter(function(x){return x.type==='initiative' && x.parent===host2.id;});
+    var srcs = shuffle(sibs).slice(0, rint(0,2)).map(function(s){return s.id;});
+    var cat = null;
+    if(pb==='drafting'||pb==='published'){
+      var th0 = byId[themeIds2[0]];
+      cat = th0.parent ? slugify(byId[th0.parent].name)+'/'+slugify(th0.name) : slugify(th0.name);
+    }
+    addNode({ id:'uc-'+slugify(nm2)+'-'+u, type:'pattern', name:nm2,
       parent:host2.id, owner: mkPerson(personName(),'ic',host2.id).id,
       maturity:mat, playbook:pb, playbook_url: pb==='published' ? 'https://playbook.example/'+slugify(nm2) : null,
+      playbook_category:cat, sources:srcs,
       themes:themeIds2, tracks: tracksForThemes(themeIds2).slice(0,1),
       source:'captured from a working session' });
   }
@@ -553,7 +565,7 @@ function layout(){
     children(lob.id).filter(function(t){return t.org_level==='tower';}).forEach(function(tower){
       var towerStart=y;
       children(tower.id).filter(function(v){return v.org_level==='org';}).forEach(function(vp){
-        var inits = children(vp.id).filter(function(c){return c.type==='initiative'||c.type==='use_case';});
+        var inits = children(vp.id).filter(function(c){return c.type==='initiative'||c.type==='pattern';});
         var teamsUnder = children(vp.id).filter(function(c){return c.type==='org';});
         var rows = Math.max(1, Math.ceil(inits.length/5));
         vp.x=1900; vp.y=y + (rows*rowGap)/2 - 4;
@@ -563,7 +575,7 @@ function layout(){
         });
         y += rows*rowGap + 6;
         teamsUnder.forEach(function(team){
-          var tInits = children(team.id).filter(function(c){return c.type==='initiative'||c.type==='use_case';});
+          var tInits = children(team.id).filter(function(c){return c.type==='initiative'||c.type==='pattern';});
           var tRows = Math.max(1, Math.ceil(tInits.length/5));
           team.x=1980; team.y=y + (tRows*rowGap)/2 - 6;
           tInits.forEach(function(it,idx){
@@ -646,7 +658,7 @@ function nodeColor(n){
   if(n.type==='goal'||n.type==='track') return 'var(--harbor)';
   if(n.type==='theme') return 'var(--moss)';
   if(n.type==='person') return 'var(--ink-ghost)';
-  if(n.type==='use_case') return 'var(--plum)';
+  if(n.type==='pattern') return 'var(--plum)';
   return 'var(--m-'+(n.maturity||'experimental')+')';
 }
 function nodeR(n){
@@ -654,7 +666,7 @@ function nodeR(n){
   if(n.type==='goal') return 9; if(n.type==='track') return 11;
   if(n.type==='theme') return n.parent?5.5:7.5;
   if(n.type==='person') return 2.6;
-  if(n.type==='use_case') return 4.6;
+  if(n.type==='pattern') return 4.6;
   return 4.4;
 }
 function edgePath(a,b,curve){
@@ -696,9 +708,17 @@ function render(){
     var path=el('path',{d:edgePath(n,o,true),'class':'edge-origin','data-from':n.id,'data-to':o.id},layers.origin);
     edgeEls.origin.push({el:path,from:n.id,to:o.id});
   });
+  // sources edges (pattern -> the initiatives it was generalized from) — same lineage family
+  N.forEach(function(n){
+    (n.sources||[]).forEach(function(sid){
+      var s=byId[sid]; if(!s) return;
+      var path=el('path',{d:edgePath(n,s,true),'class':'edge-origin','data-from':n.id,'data-to':sid},layers.origin);
+      edgeEls.origin.push({el:path,from:n.id,to:sid});
+    });
+  });
   // theme tag edges
   N.forEach(function(n){
-    if(n.type!=='initiative'&&n.type!=='use_case'&&n.type!=='track') return;
+    if(n.type!=='initiative'&&n.type!=='pattern'&&n.type!=='track') return;
     (n.themes||[]).forEach(function(thid){
       var th=byId[thid]; if(!th) return;
       var path=el('path',{d:edgePath(n,th,true),'class':'edge-theme','data-from':n.id,'data-to':thid},layers.theme);
@@ -710,7 +730,7 @@ function render(){
   N.forEach(function(n){
     var g=el('g',{'class':'node','data-id':n.id,transform:'translate('+n.x+','+n.y+')'},layers.nodes);
     var shape;
-    if(n.type==='use_case'){
+    if(n.type==='pattern'){
       var s=nodeR(n);
       shape=el('rect',{x:-s,y:-s,width:s*2,height:s*2,transform:'rotate(45)','class':'shape',fill:nodeColor(n),
         stroke:n.playbook==='published'?'var(--pass)':'rgba(0,0,0,0.18)','stroke-width':n.playbook==='published'?2:0.8},g);
@@ -760,7 +780,7 @@ function updateLabelVisibility(){
     }
     // initiative / use-case labels: only for the selected node, or the undimmed
     // population of an active focus at readable zoom — cluster-mates overlap otherwise
-    var layerOff = (n.type==='use_case'&&!layerState.usecase) ||
+    var layerOff = (n.type==='pattern'&&!layerState.usecase) ||
       (n.type==='initiative'&&((n.engagement==='own'&&!layerState.own)||(n.engagement==='monitor'&&!layerState.monitor)));
     var g=nodeEls[n.id];
     var vis=false;
@@ -779,7 +799,7 @@ function applyLayerToggles(){
     var g=nodeEls[n.id]; if(!g) return;
     var vis=true;
     if(n.type==='initiative') vis = n.engagement==='own' ? layerState.own : layerState.monitor;
-    if(n.type==='use_case') vis=layerState.usecase;
+    if(n.type==='pattern') vis=layerState.usecase;
     if(n.type==='theme') vis=layerState.theme;
     if(n.type==='person') vis=layerState.people;
     g.style.display=vis?'':'none';
@@ -791,7 +811,7 @@ function applyLayerToggles(){
   layers.theme.style.display = layerState.theme ? '' : 'none';
   function srcVisible(id){
     var n=byId[id];
-    if(n.type==='use_case') return layerState.usecase;
+    if(n.type==='pattern') return layerState.usecase;
     if(n.type==='initiative') return n.engagement==='own'?layerState.own:layerState.monitor;
     return true;
   }
@@ -836,7 +856,7 @@ function focusTrack(trackId){
   clearFocus(); focusMode='track:'+trackId;
   var t=byId[trackId];
   var pop=N.filter(function(n){ return n.type==='initiative' && hasLinkToTrack(n,trackId); });
-  var ucPop=N.filter(function(n){ return n.type==='use_case' && (n.tracks||[]).indexOf(trackId)>=0; });
+  var ucPop=N.filter(function(n){ return n.type==='pattern' && (n.tracks||[]).indexOf(trackId)>=0; });
   var keep=[trackId].concat(ancestors(trackId));
   pop.concat(ucPop).forEach(function(n){ keep.push(n.id); ancestors(n.id).forEach(function(a){keep.push(a);}); });
   (t.themes||[]).forEach(function(th){ keep.push(th); });
@@ -846,7 +866,7 @@ function focusTrack(trackId){
     return false;
   });
   var own=pop.filter(function(n){return n.engagement==='own';}).length;
-  focusChip('<b>'+esc(t.name)+'</b> — Q1 population: '+own+' own · '+(pop.length-own)+' monitored · '+ucPop.length+' use cases');
+  focusChip('<b>'+esc(t.name)+'</b> — Q1 population: '+own+' own · '+(pop.length-own)+' monitored · '+ucPop.length+' patterns');
 }
 function focusDeclaration(declId){
   clearFocus(); focusMode='decl:'+declId;
@@ -893,7 +913,7 @@ function clearCoverage(){
 }
 function focusPlaybook(openDrawer){
   clearFocus(); focusMode='playbook';
-  var ucs=N.filter(function(n){return n.type==='use_case'&&n.playbook;});
+  var ucs=N.filter(function(n){return n.type==='pattern'&&n.playbook;});
   var keep=[];
   ucs.forEach(function(u){ keep.push(u.id); ancestors(u.id).forEach(function(a){keep.push(a);}); });
   dimAllExcept(keep, function(kind,from,to){
@@ -902,7 +922,7 @@ function focusPlaybook(openDrawer){
   });
   var pub=ucs.filter(function(u){return u.playbook==='published';}).length;
   var dr=ucs.filter(function(u){return u.playbook==='drafting';}).length;
-  focusChip('<b>Playbook pipeline</b> — '+ucs.length+' use cases in flight: '+pub+' published ★ · '+dr+' drafting · '+(ucs.length-pub-dr)+' candidates');
+  focusChip('<b>Playbook pipeline</b> — '+ucs.length+' patterns in flight: '+pub+' published ★ · '+dr+' drafting · '+(ucs.length-pub-dr)+' candidates');
   if(openDrawer!==false) openRollup('q5');
 }
 
@@ -924,13 +944,15 @@ function yamlFor(n){
     L.push('themes: ['+(n.themes||[]).map(link).join(', ')+']');
     L.push('tracks: ['+(n.tracks||[]).map(link).join(', ')+']');
     if(n.exec_org) L.push('exec_org: '+slugify(byId[n.exec_org].name)+'   # derived stamp (D8)');
-  } else if(n.type==='use_case'){
+  } else if(n.type==='pattern'){
     L.push('summary: '+n.name);
-    L.push('parent: '+link(n.parent)+'   # conceiving org');
+    L.push('parent: '+link(n.parent)+'   # steward: conceiving org (or the track that invested)');
     L.push('owner: '+link(n.owner));
     L.push('maturity: '+n.maturity);
     if(n.playbook) L.push('playbook: '+n.playbook);
     if(n.playbook_url) L.push('playbook_url: '+n.playbook_url);
+    if(n.playbook_category) L.push('playbook_category: '+n.playbook_category+'   # ref into the playbook taxonomy (D10)');
+    if(n.sources&&n.sources.length) L.push('sources: ['+n.sources.map(link).join(', ')+']   # generalized from / produced by');
     L.push('themes: ['+(n.themes||[]).map(link).join(', ')+']');
     L.push('tracks: ['+(n.tracks||[]).map(link).join(', ')+']');
     L.push('source: "'+(n.source||'')+'"');
@@ -977,7 +999,7 @@ function select(id, opts){
   selected=id;
   var n=byId[id]; if(!n) return;
   // if the node's layer is toggled off, turn it on so the jump doesn't land on blank canvas
-  var layerKey = n.type==='use_case' ? 'usecase' : n.type==='theme' ? 'theme' : n.type==='person' ? 'people'
+  var layerKey = n.type==='pattern' ? 'usecase' : n.type==='theme' ? 'theme' : n.type==='person' ? 'people'
     : n.type==='initiative' ? (n.engagement==='own'?'own':'monitor') : null;
   if(layerKey && !layerState[layerKey]){
     layerState[layerKey]=true;
@@ -1007,6 +1029,9 @@ function select(id, opts){
   if(n.origin) html+=relRow('Origin — spawned by', [n.origin]);
   var spawned=N.filter(function(x){return x.origin===n.id;});
   if(spawned.length) html+=relRow('Spawned via origin: ('+spawned.length+')', spawned.map(function(s){return s.id;}));
+  if(n.sources&&n.sources.length) html+=relRow('Sources — generalized from / produced by', n.sources);
+  var genPatterns=N.filter(function(x){return (x.sources||[]).indexOf(n.id)>=0;});
+  if(genPatterns.length) html+=relRow('Patterns generalized from this', genPatterns.map(function(p){return p.id;}));
   if(n.tracks&&n.tracks.length) html+=relRow('Tagged tracks', n.tracks);
   if(n.themes&&n.themes.length) html+=relRow('Themes', n.themes);
   if(n.owner) html+=relRow('Owner', [n.owner]);
@@ -1120,7 +1145,7 @@ var ROLLUPS = {
     };
   },
   q5: function(){
-    var ucs=N.filter(function(n){return n.type==='use_case'&&n.playbook;});
+    var ucs=N.filter(function(n){return n.type==='pattern'&&n.playbook;});
     var order=['candidate','drafting','published'];
     var groups=order.map(function(st){
       return {label:{candidate:'Candidates',drafting:'In write-up',published:'Published ★'}[st],
@@ -1131,9 +1156,9 @@ var ROLLUPS = {
         })};
     });
     return {
-      cli: "duo rollup new --type use_case --filter 'playbook?' --group playbook \\\n  --bucket 'candidate=Candidates' --bucket 'drafting=In write-up' --bucket 'published=Published' \\\n  --columns file.name,maturity,ancestor:parent:organization,owner",
-      note: 'The KB note is the playbook’s primary key — published rows carry playbook_url back to the external property (D5).',
-      html: groupTable(['use case','maturity','org','owner'], groups)
+      cli: "duo rollup new --type pattern --filter 'playbook?' --group playbook \\\n  --bucket 'candidate=Candidates' --bucket 'drafting=In write-up' --bucket 'published=Published' \\\n  --columns file.name,maturity,ancestor:parent:organization,owner",
+      note: 'Patterns are the class the playbook publishes. The KB note is the playbook’s primary key — published rows carry playbook_url back (D5), and playbook_category (D10) points into the playbook-side taxonomy; the playbook’s own navigation view groups on that ref.',
+      html: groupTable(['pattern','maturity','org','owner'], groups)
     };
   },
   q6: function(){
@@ -1182,7 +1207,7 @@ function setupInteractions(){
     var n=byId[g.getAttribute('data-id')]; if(!n) return;
     var meta=[];
     if(n.type==='initiative') meta=[n.engagement, n.maturity, n.status, n.origin?'spawned by '+esc(byId[n.origin].name):null];
-    else if(n.type==='use_case') meta=[n.maturity, n.playbook?'playbook: '+n.playbook:null];
+    else if(n.type==='pattern') meta=[n.maturity, n.playbook?'playbook: '+n.playbook:null];
     else if(n.type==='org') meta=[n.org_level, n.leader?('leader: '+esc(byId[n.leader].name)):null, n.champion?('champion: '+esc(byId[n.champion].name)):null];
     else if(n.type==='track') meta=['click for its Q1 world'];
     else if(n.type==='person') meta=[n.title||n.level];
@@ -1303,7 +1328,7 @@ function renderStats(){
     'initiatives': N.filter(function(n){return n.type==='initiative';}).length,
     'VP orgs': N.filter(function(n){return n.type==='org'&&n.org_level==='org';}).length,
     'tracks': N.filter(function(n){return n.type==='track';}).length,
-    'use cases': N.filter(function(n){return n.type==='use_case';}).length,
+    'patterns': N.filter(function(n){return n.type==='pattern';}).length,
     'themes': N.filter(function(n){return n.type==='theme';}).length,
     'people': N.filter(function(n){return n.type==='person';}).length
   };
