@@ -20,6 +20,8 @@
 
 **Walk it:** `duo open docs/research/aipm-initiative-schema.html` → pick radios, notes where disagreeing → Copy decisions → paste back to a Claude session to lock the schema and plan the migration.
 
+**Companion (2026-07-08):** [docs/research/aipm-graph-explorer.html](docs/research/aipm-graph-explorer.html) — an interactive, synthetic-scale explorer of Option B at full maturity (deterministic seeded graph: ~200 initiatives · exactly 60 VP orgs under SVP towers under 6 EVP LOBs · 7 tracks · 45 use cases; live-computed Q1–Q6 rollups, click-to-inspect frontmatter + derived folder path, track-focus / declaration-fan-out / VP-coverage-heat / playbook presets). Verified by a 4-agent workflow (dataset invariants incl. independent exec_org recompute + determinism; headless UI exercise; semantics-vs-decision-doc; UX review) — all confirmed findings fixed. `duo open` it alongside the decision doc.
+
 **Evidence base:** owner's `entity-model-reference.md` (2026-07-08 session), brainkit contract v2 (loop-library `dist/brainkit`), `okf-brainkit-folder-hierarchy.html` (Approach 2 lock), the v0.13.5–6 engine ships, this session's interview decisions.
 
 ---

@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>AIPM graph explorer — Option B at full maturity</title>
+<style>
+:root {
+  --paper: #fbf8f1; --paper-deep: #f3ede0; --paper-edge: #e8e0cb; --paper-rule: #d9cea8;
+  --ink: #2b2620; --ink-soft: #4a4238; --ink-mute: #6f6557; --ink-ghost: #9a9080;
+  --accent: #c46a1c; --accent-soft: #f4d9b6;
+  --pass: #4a7d3e; --fail: #b13e3a; --warn: #b07527;
+  --code-bg: #2b2823; --code-ink: #e8e0cb;
+  --pine: #2E7D74; --harbor: #3C6E93; --iris: #5B57A6; --plum: #87508F; --rose: #A4506A; --moss: #69763A;
+  --m-experimental: #8a86c9; --m-proven: #4a7d3e; --m-recommended: #c46a1c; --m-required: #b13e3a;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif; font-size: 13px; overflow: hidden; }
+#app { display: flex; height: 100vh; }
+
+/* ——— sidebar ——— */
+#sidebar {
+  width: 252px; min-width: 252px; background: var(--paper-deep);
+  border-right: 1.5px solid var(--paper-rule); padding: 14px 14px 10px;
+  overflow-y: auto; display: flex; flex-direction: column; gap: 12px;
+}
+#sidebar h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic;
+  font-weight: 500; font-size: 16px; margin: 0; line-height: 1.3; }
+#sidebar .sub { font-size: 10.5px; color: var(--ink-mute); margin-top: 2px; }
+#stats { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+#stats .stat { background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 5px; padding: 5px 8px; }
+#stats .stat b { display: block; font-size: 15px; color: var(--accent); }
+#stats .stat span { font-size: 9.5px; color: var(--ink-mute); text-transform: uppercase; letter-spacing: 0.03em; }
+.side-h { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); margin: 2px 0 0; }
+#search { width: 100%; padding: 6px 9px; border: 1px solid var(--paper-rule); border-radius: 5px;
+  background: var(--paper); font: inherit; font-size: 12px; color: var(--ink); }
+#search:focus { outline: 1.5px solid var(--accent); }
+#search-results { margin: 0; padding: 0; list-style: none; }
+#search-results li { padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11.5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#search-results li:hover { background: var(--accent-soft); }
+#search-results li .t { color: var(--ink-ghost); font-size: 9.5px; margin-left: 4px; }
+.preset-btns { display: flex; flex-direction: column; gap: 5px; }
+.preset-btns button, #rollup-tabs button {
+  font: inherit; font-size: 11.5px; text-align: left; padding: 6px 10px;
+  background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 5px;
+  color: var(--ink-soft); cursor: pointer;
+}
+.preset-btns button:hover { border-color: var(--accent); color: var(--ink); }
+.preset-btns button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.toggles label { display: flex; align-items: center; gap: 7px; padding: 3px 2px; font-size: 12px;
+  color: var(--ink-soft); cursor: pointer; user-select: none; }
+.toggles input { accent-color: var(--accent); }
+#legend { font-size: 11px; color: var(--ink-soft); }
+#legend .lrow { display: flex; align-items: center; gap: 7px; margin: 3px 0; }
+#legend .sw { width: 11px; height: 11px; border-radius: 50%; flex: none; border: 1px solid rgba(0,0,0,0.15); }
+#legend .sw.sq { border-radius: 2px; }
+#legend .sw.dia { transform: rotate(45deg); border-radius: 1px; width: 9px; height: 9px; margin: 0 1px; }
+#legend .ln { width: 18px; height: 0; flex: none; border-top: 2px solid var(--ink-ghost); }
+#legend .ln.dash { border-top-style: dashed; border-top-color: var(--iris); }
+#legend .ln.dot { border-top-style: dotted; border-top-color: var(--rose); border-top-width: 2.5px; }
+#legend .ln.theme { border-top-style: dashed; border-top-color: var(--moss); }
+.fineprint { font-size: 9.5px; color: var(--ink-ghost); line-height: 1.5; margin-top: auto; }
+
+/* ——— stage ——— */
+#stage { flex: 1; position: relative; overflow: hidden; background:
+  radial-gradient(ellipse at 30% 20%, #fdfaf4 0%, var(--paper) 60%); }
+#graph { width: 100%; height: 100%; display: block; cursor: grab; }
+#graph.panning { cursor: grabbing; }
+#tooltip {
+  position: absolute; pointer-events: none; display: none; z-index: 30;
+  background: var(--ink); color: var(--paper); padding: 6px 10px; border-radius: 5px;
+  font-size: 11.5px; max-width: 280px; box-shadow: 0 3px 10px rgba(0,0,0,0.25);
+}
+#tooltip .tt-type { color: var(--accent-soft); font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.04em; }
+#tooltip .tt-meta { color: #cfc8bb; font-size: 10.5px; margin-top: 2px; }
+#hud {
+  position: absolute; top: 10px; left: 12px; z-index: 20; display: flex; gap: 6px; align-items: center;
+}
+#hud button { font: inherit; font-size: 11px; padding: 4px 10px; border-radius: 12px;
+  border: 1px solid var(--paper-rule); background: rgba(251,248,241,0.92); color: var(--ink-soft); cursor: pointer; }
+#hud button:hover { border-color: var(--accent); }
+#focus-chip { display: none; font-size: 11px; padding: 4px 12px; border-radius: 12px;
+  background: var(--accent); color: #fff; }
+#focus-chip b { font-weight: 700; }
+#intro {
+  position: absolute; inset: 0; z-index: 40; background: rgba(43,38,32,0.45);
+  display: flex; align-items: center; justify-content: center;
+}
+#intro .card { background: var(--paper); border-radius: 10px; max-width: 560px; padding: 24px 28px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
+#intro h2 { font-family: "New York", Georgia, serif; font-style: italic; font-weight: 500; margin: 0 0 10px; font-size: 19px; }
+#intro p { font-size: 12.5px; color: var(--ink-soft); margin: 7px 0; line-height: 1.55; }
+#intro button { font: inherit; margin-top: 12px; background: var(--accent); color: #fff; border: none;
+  border-radius: 5px; padding: 8px 18px; font-weight: 600; cursor: pointer; }
+
+/* ——— detail panel ——— */
+#detail {
+  width: 0; min-width: 0; background: var(--paper-deep); border-left: 1.5px solid var(--paper-rule);
+  overflow-y: auto; overflow-x: hidden; transition: width 0.15s, min-width 0.15s;
+}
+#detail.open { width: 320px; min-width: 320px; }
+#detail .inner { padding: 16px 16px 24px; width: 320px; }
+#detail .d-close { float: right; border: none; background: none; font-size: 16px; color: var(--ink-ghost); cursor: pointer; }
+#detail h2 { font-family: "New York", Georgia, serif; font-weight: 600; font-size: 16px; margin: 0 0 4px; line-height: 1.3; }
+#detail .d-chips { margin: 4px 0 10px; }
+.chip { display: inline-block; font-size: 9.5px; font-weight: 700; border-radius: 8px; padding: 1px 7px;
+  text-transform: uppercase; letter-spacing: 0.03em; margin: 1px 3px 1px 0; background: var(--paper); border: 1px solid var(--paper-rule); color: var(--ink-soft); }
+.chip.experimental { background: #eceafc; color: var(--m-experimental); border-color: transparent; }
+.chip.proven { background: #e2efe0; color: var(--m-proven); border-color: transparent; }
+.chip.recommended { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.chip.required { background: #f5dcd9; color: var(--m-required); border-color: transparent; }
+.chip.own { background: #e1ecf3; color: var(--harbor); border-color: transparent; }
+.chip.monitor { background: #e0efec; color: var(--pine); border-color: transparent; }
+.chip.candidate { background: var(--paper); color: var(--ink-soft); }
+.chip.drafting { background: #fdf3e4; color: var(--warn); border-color: transparent; }
+.chip.published { background: #e2efe0; color: var(--pass); border-color: transparent; }
+.chip.stamp { border-style: dashed; }
+#detail .d-path { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10px;
+  color: var(--ink-mute); background: var(--paper); border: 1px solid var(--paper-rule);
+  border-radius: 4px; padding: 5px 8px; margin: 8px 0; word-break: break-all; }
+#detail .d-path b { color: var(--ink-soft); font-weight: 600; }
+#detail pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10px; line-height: 1.5;
+  background: var(--code-bg); color: var(--code-ink); padding: 10px 12px; border-radius: 6px;
+  overflow-x: auto; margin: 8px 0; white-space: pre; }
+#detail .d-rel { font-size: 12px; margin: 10px 0; }
+#detail .d-rel .rh { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin: 10px 0 4px; }
+#detail .d-rel a { color: var(--harbor); text-decoration: none; border-bottom: 1px dotted var(--harbor); cursor: pointer; }
+#detail .d-rel .muted { color: var(--ink-ghost); }
+#detail .d-warn { font-size: 11.5px; background: #f5dcd9; color: var(--fail); border-radius: 5px; padding: 6px 10px; margin: 8px 0; }
+#detail .d-act { font: inherit; font-size: 11px; margin-top: 4px; padding: 5px 10px; border-radius: 5px;
+  border: 1px solid var(--accent); background: var(--paper); color: var(--accent); cursor: pointer; }
+#detail .d-act:hover { background: var(--accent-soft); }
+
+/* ——— rollup drawer ——— */
+#drawer {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 25;
+  background: rgba(251,248,241,0.97); border-top: 2px solid var(--paper-rule);
+  height: 0; overflow: hidden; transition: height 0.18s; backdrop-filter: blur(4px);
+}
+#drawer.open { height: 46vh; }
+#drawer .dr-head { display: flex; align-items: center; gap: 8px; padding: 8px 14px 6px; border-bottom: 1px solid var(--paper-edge); }
+#rollup-tabs { display: flex; gap: 5px; flex-wrap: wrap; }
+#rollup-tabs button { padding: 4px 10px; font-size: 11px; }
+#rollup-tabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+#drawer .dr-close { margin-left: auto; border: none; background: none; font-size: 15px; color: var(--ink-ghost); cursor: pointer; }
+#drawer .dr-body { overflow: auto; height: calc(46vh - 44px); padding: 10px 16px 20px; }
+#drawer .cli { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10.5px;
+  background: var(--code-bg); color: var(--code-ink); border-radius: 5px; padding: 8px 12px; margin: 4px 0 10px; overflow-x: auto; white-space: pre; }
+#drawer .dr-note { font-size: 11px; color: var(--ink-mute); margin: 4px 0 8px; }
+#drawer table { border-collapse: collapse; font-size: 11.5px; min-width: 640px; }
+#drawer th { text-align: left; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--ink-mute); padding: 4px 12px 4px 0; border-bottom: 1px solid var(--paper-rule); }
+#drawer td { padding: 4px 12px 4px 0; border-bottom: 1px solid #efe9dc; vertical-align: top; }
+#drawer tr.grp td { background: var(--paper-deep); font-weight: 700; color: var(--ink-soft); padding: 5px 8px; border-bottom: 1px solid var(--paper-rule); }
+#drawer tr.grp td .cnt { font-weight: 400; color: var(--ink-ghost); }
+#drawer tr.zero td { color: var(--fail); font-style: italic; }
+#drawer td a { color: var(--harbor); text-decoration: none; border-bottom: 1px dotted var(--harbor); cursor: pointer; }
+#drawer .bar { display: inline-block; height: 8px; background: var(--pine); border-radius: 2px; vertical-align: middle; }
+
+/* ——— svg node styling ——— */
+.nlabel { fill: var(--ink-soft); pointer-events: none; }
+.nlabel.big { font-weight: 700; }
+.edge-spine { stroke: #d9cea8; stroke-width: 1; fill: none; }
+.edge-cross { stroke: var(--iris); stroke-width: 1; stroke-dasharray: 5 4; fill: none; opacity: 0.22; }
+.edge-origin { stroke: var(--rose); stroke-width: 1.4; stroke-dasharray: 2 4; fill: none; opacity: 0.8; }
+.edge-theme { stroke: var(--moss); stroke-width: 0.8; stroke-dasharray: 3 4; fill: none; opacity: 0.3; }
+.dim { opacity: 0.08 !important; }
+.hl-edge { opacity: 0.95 !important; stroke-width: 1.8 !important; }
+.node { cursor: pointer; }
+.node.sel > .shape { stroke: var(--ink) !important; stroke-width: 2.5 !important; }
+.zero-ring { fill: none; stroke: var(--fail); stroke-width: 2.6; stroke-dasharray: 3 2.5; }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <div>
+      <h1>AIPM graph explorer</h1>
+      <div class="sub">Option B ("one spine") at full maturity · synthetic, seeded data · all names fictional</div>
+    </div>
+    <div id="stats"></div>
+    <div>
+      <div class="side-h">Find</div>
+      <input id="search" type="text" placeholder="Search any entity…" autocomplete="off">
+      <ul id="search-results"></ul>
+    </div>
+    <div>
+      <div class="side-h">Guided views</div>
+      <div class="preset-btns" id="presets">
+        <button data-preset="fit">⤢ Fit whole graph</button>
+        <button data-preset="track">◎ A track's world (Q1)</button>
+        <button data-preset="declaration">⑃ Declaration fan-out (origin:)</button>
+        <button data-preset="coverage">▦ VP coverage heat (Q6)</button>
+        <button data-preset="playbook">▸ Playbook pipeline (Q5)</button>
+      </div>
+    </div>
+    <div>
+      <div class="side-h">Layers</div>
+      <div class="toggles" id="toggles">
+        <label><input type="checkbox" data-layer="monitor" checked> Monitored initiatives</label>
+        <label><input type="checkbox" data-layer="own" checked> AIPM-owned initiatives</label>
+        <label><input type="checkbox" data-layer="usecase" checked> Use cases</label>
+        <label><input type="checkbox" data-layer="cross" checked> tracks: cross-tag arcs</label>
+        <label><input type="checkbox" data-layer="origin" checked> origin: lineage edges</label>
+        <label><input type="checkbox" data-layer="theme"> Themes + theme tags</label>
+        <label><input type="checkbox" data-layer="people"> People (leads · champions)</label>
+      </div>
+    </div>
+    <div id="legend">
+      <div class="side-h" style="margin-bottom:4px">Legend</div>
+      <div class="lrow"><span class="sw" style="background:var(--pine)"></span> org (LOB → tower → VP → team)</div>
+      <div class="lrow"><span class="sw" style="background:var(--harbor)"></span> AIPM · goal · track</div>
+      <div class="lrow"><span class="sw" style="background:var(--m-experimental)"></span> initiative · experimental</div>
+      <div class="lrow"><span class="sw" style="background:var(--m-proven)"></span> initiative · proven</div>
+      <div class="lrow"><span class="sw" style="background:var(--m-recommended)"></span> initiative · recommended</div>
+      <div class="lrow"><span class="sw" style="background:var(--m-required); box-shadow: 0 0 0 2px #7a1f1b33"></span> initiative · required (+ dark ring)</div>
+      <div class="lrow"><span class="sw dia" style="background:var(--plum)"></span> use case (★ = published)</div>
+      <div class="lrow"><span class="sw sq" style="background:var(--moss)"></span> theme</div>
+      <div class="lrow"><span class="ln"></span> parent: spine (folders derive from it)</div>
+      <div class="lrow"><span class="ln dash"></span> tracks: cross-tag</div>
+      <div class="lrow"><span class="ln dot"></span> origin: spawned-by</div>
+      <div class="lrow"><span class="ln theme"></span> theme tag</div>
+    </div>
+    <div class="fineprint">
+      Companion to <b>aipm-initiative-schema.html</b> (ENH-264). Every entity is a markdown
+      note; every solid edge is its <b>parent:</b> frontmatter; position and folders are both
+      projections of the same spine. Click anything. Scroll to zoom, drag to pan, Esc to clear.
+    </div>
+  </aside>
+
+  <main id="stage">
+    <div id="hud">
+      <button id="btn-rollups">Rollups ▾</button>
+      <button id="btn-fit">Fit</button>
+      <span id="focus-chip"></span>
+    </div>
+    <svg id="graph" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div id="tooltip"></div>
+
+    <div id="drawer">
+      <div class="dr-head">
+        <div id="rollup-tabs">
+          <button data-q="q1">Q1 · Track dashboard</button>
+          <button data-q="q2">Q2 · Org deep-dive</button>
+          <button data-q="q3">Q3 · By theme</button>
+          <button data-q="q4">Q4 · VP+ on a theme</button>
+          <button data-q="q5">Q5 · Playbook</button>
+          <button data-q="q6">Q6 · VP coverage</button>
+        </div>
+        <button class="dr-close" id="drawer-close">✕</button>
+      </div>
+      <div class="dr-body" id="drawer-body"></div>
+    </div>
+
+    <div id="intro">
+      <div class="card">
+        <h2>The knowledge base, if Option B is fully adopted</h2>
+        <p><b>What you're looking at:</b> one synthetic-but-faithful graph — <b>~200 initiatives</b>
+        across <b>60 VP-level orgs</b> (under SVP towers, under 6 EVP-led LOBs, right side) and
+        <b>7 AIPM tracks</b> (under goals, under the AIPM root, left side). Every node is a
+        markdown note; every solid line is a <code>parent:</code> edge — the one spine that
+        also generates the folder tree. Dashed violet arcs are <code>tracks:</code> cross-tags;
+        dotted rose lines are <code>origin:</code> (declaration fan-out).</p>
+        <p><b>Explore:</b> click any node for its frontmatter + relationships · click a
+        <b>track</b> to see its Q1 world · use <b>Guided views</b> (left) and
+        <b>Rollups ▾</b> (top) — all six canonical rollups compute live from this graph.</p>
+        <button id="intro-close">Explore the graph</button>
+      </div>
+    </div>
+  </main>
+
+  <aside id="detail"><div class="inner" id="detail-inner"></div></aside>
+</div>
+
+<script>
+"use strict";
+/* =============================================================
+   AIPM graph explorer — Option B at full maturity.
+   Deterministic synthetic dataset (seeded PRNG) + SVG renderer.
+   Semantics mirror docs/research/aipm-initiative-schema.html:
+   - ONE parent: spine on every type (folders/positions derive from it)
+   - engagement: own (chain reaches AIPM) | monitor (chain reaches a business org)
+   - tracks:[] / themes:[] cross-tags (agentically assigned)
+   - origin: spawned-by lineage when ownership wins the parent slot (D2)
+   - exec_org: derived stamp = nearest VP-level ancestor (D8)
+   ============================================================= */
+
+// ---------- PRNG ----------
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+var rnd = mulberry32(42);
+function pick(arr){ return arr[Math.floor(rnd()*arr.length)]; }
+function shuffle(arr){ var a=arr.slice(); for(var i=a.length-1;i>0;i--){var j=Math.floor(rnd()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;} return a; }
+function rint(lo,hi){ return lo + Math.floor(rnd()*(hi-lo+1)); }
+function slugify(s){ return s.toLowerCase().replace(/&/g,'and').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,''); }
+function idToken(){ var c='abcdefghijklmnopqrstuvwxyz0123456789',s=''; for(var i=0;i<8;i++) s+=c[Math.floor(rnd()*36)]; return s; }
+
+// ---------- name banks (all fictional) ----------
+var FIRST=['Alice','Raj','Dana','Sam','Lena','Ken','Mia','Jordan','Priya','Marcus','Elena','Tom','Grace','Omar','Nina','Victor','Sofia','Andre','Ruth','Felix','Ivy','Noah','Zara','Leo','Maya','Owen','Tara','Hugo','Cleo','Ezra','June','Kai','Rosa','Seth','Vera','Yusuf','Ada','Bram','Cora','Dev','Esme','Finn','Gwen','Hana','Iris','Jude','Kira','Luca','Mona','Nico','Opal','Pau','Quinn','Rhea','Silas','Tess','Uma','Vik','Wren','Xena','Yara','Zeke','Bea','Cal','Dot','Eli','Fay','Gil','Hal','Ida','Jax','Kat','Lou','Meg','Ned','Ora','Pia','Rex','Sal','Tia','Ula','Val','Wes','Yves','Zia','Abe','Blu','Cy','Din','Eva','Flo','Gus','Hix','Ike','Jem','Kip','Lil','Max','Nell','Oz','Peg'];
+var LAST=['Park','Mehta','Wu','Ortiz','Fox','Ito','Chen','Reyes','Sharma','Cole','Vance','Ngu','Adler','Haddad','Sato','Lindt','Moreau','Okafor','Byrne','Castillo','Duarte','Egan','Farrell','Grant','Hale','Ivanov','Joshi','Kim','Larsen','Mbeki','Novak','Osei','Petit','Quist','Rossi','Sung','Tanaka','Ueda','Vidal','Weiss','Xu','Yilmaz','Zhou','Ames','Boone','Cruz','Dyer','Ellis','Ford','Gill','Hart','Iqbal','Jain','Kerr','Lane','Marsh','Nash','Orr','Pena','Rao','Shaw','Tate','Unger','Voss','Ward','Yang','Zeff','Abbot','Blake','Corr','Dunn','Eads','Frey','Goss','Hoyt','Imai','Jett','Kane','Lund','Mott','Nier','Ochs','Pratt','Rusk','Sloan','Thorn','Ulm','Vane','Watt','York','Zorn'];
+var pplIdx=0; function personName(){ var f=FIRST[pplIdx%FIRST.length], l=LAST[Math.floor(pplIdx/FIRST.length+pplIdx*7)%LAST.length]; pplIdx++; return f+' '+l; }
+
+var LOB_DEFS=[
+  {name:'Consumer', towers:[['Deposits & Everyday Banking',5],['Lending & Home',5],['Fraud & Security',4]]},
+  {name:'Payments', towers:[['Merchant Services',5],['Money Movement',4]]},
+  {name:'Commercial', towers:[['Mid-Market Products',4],['Treasury & Liquidity',4]]},
+  {name:'Wealth', towers:[['Advice & Planning',4],['Investing Platforms',4]]},
+  {name:'Platform Services', towers:[['ML & Data Platform',5],['Developer Experience',4],['Core Servicing Platform',4]]},
+  {name:'Digital Channels', towers:[['Mobile & Web Experience',4],['Conversational & Emerging',4]]}
+];
+var VP_WORDS_A=['Onboarding','Decisioning','Experience','Growth','Servicing','Payments','Rewards','Insights','Automation','Identity','Risk Products','Statements','Disputes','Offers','Credit Journey','Collections','Small Business','Subscriptions','Checkout','Transfers','Invoicing','Reporting','Pricing','Underwriting','Origination','Portfolio','Engagement','Retention','Notifications','Search & Discovery','Personalization','Document Intelligence','Case Management','Payouts','Refunds','Compliance Tools','Data Products','Model Lifecycle','Eval Platform','Feature Store','API Gateway','SDKs & Tooling','Internal Portals','Agent Desktop','Knowledge Systems','Voice & IVR','Chat Experience','Copilot Surfaces','Accessibility','Design Systems','Payments Core','Ledger','Reconciliation','Card Controls','Travel & Lifestyle','Home Equity','Refinance','First-Time Buyer','Deposits Core','Overdraft'];
+var TRACK_DEFS=[
+  {name:'Future of the Product Role & Org', themes:['Product Craft','Role Evolution']},
+  {name:'Tools', themes:['Prompt Patterns','Agent Evaluation','PRD & Spec Drafting']},
+  {name:'Training & Enablement', themes:['Product Craft','Role Evolution']},
+  {name:'Selection & Recruiting', themes:['Role Evolution']},
+  {name:'Context & Agent Resources', themes:['Context Management','Knowledge Bases','Context Pipelines','Prompt Patterns']},
+  {name:'Agent Orchestration', themes:['Agent Workflows','Agent Orchestration Patterns','Agent Evaluation']},
+  {name:'Tracking & Measurement', themes:['Measurement & Quality','Adoption Metrics']}
+];
+var THEME_DEFS=[
+  {name:'Context Management', children:['Knowledge Bases','Prompt Patterns','Context Pipelines']},
+  {name:'Agent Workflows', children:['Agent Orchestration Patterns','Agent Evaluation']},
+  {name:'Product Craft', children:['PRD & Spec Drafting','Research Synthesis','Role Evolution']},
+  {name:'Measurement & Quality', children:['Adoption Metrics']}
+];
+var INIT_PATTERNS=['{t} knowledge base','{t} context repository','PRD assistant for {t}','{t} prompt library','agent pilot — {t}','{t} eval harness','{t} research copilot','meeting synthesis for {t}','{t} onboarding assistant','{t} doc intelligence','{t} triage agent','{t} spec drafting rollout','{t} insight digests','{t} backlog copilot','{t} QA agent'];
+var UC_PATTERNS=['Draft PRDs from ticket clusters','Meeting-to-decisions synthesis','Curated team context repos','Prompt pattern library','Competitive scan digests','Backlog grooming copilot','Research interview synthesis','Spec review agent','Roadmap narrative drafting','OKR drafting assistant','Support-theme mining','Launch comms drafting','Experiment readout summaries','Persona refresh from calls','Doc QA over policy corpus'];
+
+// ---------- graph model ----------
+var N = [];            // nodes
+var byId = {};
+function addNode(n){ n.uid = idToken(); if(byId[n.id]) { var k=2; while(byId[n.id+'-'+k]) k++; n.id = n.id+'-'+k; }
+  byId[n.id]=n; N.push(n); return n; }
+function mkPerson(name, level, orgId, title){
+  var id='p-'+slugify(name);
+  if(byId[id]) return byId[id];
+  return addNode({ id:id, type:'person', name:name, level:level||null, org:orgId||null, title:title||'' });
+}
+
+function generate(){
+  // AIPM structure
+  var aipm = addNode({ id:'aipm', type:'org', name:'AIPM', org_level:'program', parent:null, leader:null });
+  aipm.leader = mkPerson(personName(),'vp','aipm','Program lead').id;
+  var goals = [
+    addNode({ id:'g-force-multiplier', type:'goal', name:'Force Multiplier', parent:'aipm' }),
+    addNode({ id:'g-track-ai-activity', type:'goal', name:'Track AI Product Activity', parent:'aipm' }),
+    addNode({ id:'g-run-the-program', type:'goal', name:'Run the AIPM Program', parent:'aipm' })
+  ];
+  goals.forEach(function(g){ g.owner = aipm.leader; });
+  var tracks = TRACK_DEFS.map(function(td,i){
+    var t = addNode({ id:'t-'+slugify(td.name), type:'track', name:td.name,
+      parent: (i<=5 ? 'g-force-multiplier' : 'g-track-ai-activity'),
+      themes: td.themes.map(function(n){return 'th-'+slugify(n);}), lead:null });
+    return t;
+  });
+  // themes (2-level, parent: theme->theme)
+  THEME_DEFS.forEach(function(td){
+    var root = addNode({ id:'th-'+slugify(td.name), type:'theme', name:td.name, parent:null });
+    td.children.forEach(function(c){ addNode({ id:'th-'+slugify(c), type:'theme', name:c, parent:root.id }); });
+  });
+
+  // Business structure: 6 LOBs -> towers -> exactly 60 VP orgs -> some teams
+  var vpWordPool = shuffle(VP_WORDS_A); var w=0;
+  var vpOrgs=[], towers=[], lobs=[];
+  LOB_DEFS.forEach(function(ld){
+    var initials = ld.name.replace(/&/g,'').split(/\s+/).filter(Boolean).map(function(w){return w[0];}).join('').toUpperCase();
+    var lob = addNode({ id:'o-'+slugify(ld.name), type:'org', name:ld.name, org_level:'lob',
+      parent:null, leader:null, leader_level:'evp',
+      aliases:[ initials.length>=2 ? initials : ld.name.slice(0,4).toUpperCase() ] });
+    lob.leader = mkPerson(personName(),'evp',lob.id,'EVP, '+ld.name).id;
+    lobs.push(lob);
+    ld.towers.forEach(function(tw){
+      var tower = addNode({ id:'o-'+slugify(ld.name+' '+tw[0]), type:'org', name:tw[0], org_level:'tower',
+        parent:lob.id, leader:null, leader_level:'svp' });
+      tower.leader = mkPerson(personName(),'svp',tower.id,'SVP, '+tw[0]).id;
+      towers.push(tower);
+      for(var i=0;i<tw[1];i++){
+        var nm = vpWordPool[w++ % vpWordPool.length];
+        var vp = addNode({ id:'o-'+slugify(tower.name+' '+nm), type:'org', name:nm, org_level:'org',
+          parent:tower.id, leader:null, leader_level:'vp', champion:null });
+        vp.leader = mkPerson(personName(),'vp',vp.id,'VP, '+nm).id;
+        vpOrgs.push(vp);
+      }
+    });
+  });
+  // teams under ~40% of VP orgs
+  var teams=[];
+  shuffle(vpOrgs).slice(0, 24).forEach(function(vp){
+    var count = rint(1,2);
+    for(var i=0;i<count;i++){
+      var nm = pick(['Core','Growth','Platform','Experience','Intelligence','Activation'])+' team';
+      teams.push(addNode({ id:'o-'+slugify(vp.name)+'-team-'+(i+1), type:'org', name:vp.name+' · '+nm,
+        org_level:'team', parent:vp.id, leader:null, leader_level:'director' }));
+    }
+  });
+  // champions on ~ a third of VP orgs
+  shuffle(vpOrgs).slice(0, 20).forEach(function(vp){
+    vp.champion = mkPerson(personName(),'ic',vp.id,'AI enablement champion').id;
+  });
+  // track leads have a business home org (collateral duty)
+  tracks.forEach(function(t){
+    var home = pick(vpOrgs);
+    t.lead = mkPerson(personName(),'director',home.id,'Track lead · '+t.name).id;
+  });
+
+  var allThemes = N.filter(function(n){return n.type==='theme';});
+  function themesForTrack(t){ return t.themes; }
+  function tracksForThemes(themeIds){
+    var out=[];
+    tracks.forEach(function(t){
+      var hit = t.themes.some(function(th){ return themeIds.indexOf(th)>=0; });
+      if(hit) out.push(t.id);
+    });
+    return out;
+  }
+  function maturity(){ var r=rnd(); return r<0.52?'experimental':r<0.82?'proven':r<0.95?'recommended':'required'; }
+  function status(){ var r=rnd(); return r<0.12?'forming':r<0.78?'active':r<0.86?'paused':r<0.97?'complete':'retired'; }
+
+  // AIPM-owned initiatives (~38): parent -> track (or goal for program-level)
+  var ownCount=0;
+  tracks.forEach(function(t){
+    var k = rint(3,6);
+    for(var i=0;i<k;i++){
+      var nm = pick(INIT_PATTERNS).replace('{t}', pick(['starter kit','pattern catalog','pilot cohort','office hours','landscape review','playbook drafting','standards draft','benchmark set','field guide','clinic series']));
+      nm = nm.charAt(0).toUpperCase()+nm.slice(1);
+      var th = shuffle(themesForTrack(t)).slice(0, rint(1,2));
+      addNode({ id:'i-'+slugify(t.name.split(' ')[0]+'-'+nm)+'-'+(i+1), type:'initiative', name:nm,
+        parent:t.id, origin:null, owner: (rnd()<0.5? t.lead : mkPerson(personName(),'ic',null,'Working group').id),
+        engagement:'own', status:status(), maturity:maturity(), themes:th, tracks:[] });
+      ownCount++;
+    }
+  });
+  for(var g=0; g<4; g++){
+    addNode({ id:'i-program-'+(g+1), type:'initiative',
+      name: pick(['Program operating rhythm','Staffing & sponsorship deck','Exec readout series','Program wiki & comms']),
+      parent: goals[2].id, origin:null, owner: aipm.leader, engagement:'own',
+      status:'active', maturity:'proven', themes:[], tracks:[] });
+    ownCount++;
+  }
+
+  // Declarations (LOB/tower-level directives that fan out via origin:)
+  var declarations=[];
+  function mkDeclaration(orgNode, nm, themeIds, childOrgs, childPattern){
+    var d = addNode({ id:'i-'+slugify(nm), type:'initiative', name:nm, parent:orgNode.id, origin:null,
+      owner: byId[orgNode.leader]? orgNode.leader : mkPerson(personName(),'vp',orgNode.id).id,
+      engagement:'monitor', status:'active', maturity:'recommended',
+      themes:themeIds, tracks:tracksForThemes(themeIds) });
+    declarations.push(d);
+    childOrgs.forEach(function(co){
+      addNode({ id:'i-'+slugify(co.name+' '+childPattern), type:'initiative',
+        name: co.name.replace(/ · .*$/,'')+' '+childPattern,
+        parent:co.id, origin:d.id,
+        owner: co.champion || mkPerson(personName(),'ic',co.id).id,
+        engagement:'monitor', status:status(), maturity: rnd()<0.7?'experimental':'proven',
+        themes:themeIds.slice(0,1+Math.floor(rnd()*themeIds.length)), tracks:tracksForThemes(themeIds) });
+    });
+    return d;
+  }
+  var consumer = lobs[0];
+  var consumerVps = vpOrgs.filter(function(v){ return byId[v.parent].parent===consumer.id; });
+  mkDeclaration(consumer, 'Team Knowledge Bases', ['th-knowledge-bases','th-context-management'],
+    shuffle(consumerVps).slice(0,6), 'knowledge base');
+  var platform = lobs[4];
+  var platformTower = towers.filter(function(t){return t.parent===platform.id;})[0];
+  var platformVps = vpOrgs.filter(function(v){ return v.parent===platformTower.id; });
+  mkDeclaration(platformTower, 'Agent Eval Standards', ['th-agent-evaluation','th-measurement-and-quality'],
+    shuffle(platformVps).slice(0,4), 'eval adoption');
+
+  // Monitored initiatives across the business (~160 total incl. declaration children)
+  var monitorTarget = 165;
+  var monitored = N.filter(function(n){return n.type==='initiative' && n.engagement==='monitor';}).length;
+  // choose ~12 VP orgs to stay at zero (coverage gaps for Q6)
+  var zeroOrgs = {}; shuffle(vpOrgs).slice(0,11).forEach(function(v){ zeroOrgs[v.id]=true; });
+  var hosts = vpOrgs.filter(function(v){ return !zeroOrgs[v.id]; }).concat(teams, towers.slice(0,5));
+  var guard=0;
+  while(monitored < monitorTarget && guard++ < 4000){
+    var host = pick(hosts);
+    if(host.org_level==='org' && zeroOrgs[host.id]) continue;
+    if(host.org_level==='team' && zeroOrgs[byId[host.parent].id]) continue;
+    var topic = host.name.replace(/ · .*$/,'');
+    var nm = pick(INIT_PATTERNS).replace('{t}', topic);
+    nm = nm.charAt(0).toUpperCase()+nm.slice(1);
+    var themeIds = shuffle(allThemes).slice(0, rint(1,2)).map(function(t){return t.id;});
+    var tr = rnd()<0.82 ? tracksForThemes(themeIds).slice(0, rint(1,2)) : [];
+    addNode({ id:'i-'+slugify(nm)+'-'+monitored, type:'initiative', name:nm,
+      parent:host.id, origin:null,
+      owner: mkPerson(personName(),'ic',host.id).id,
+      engagement:'monitor', status:status(), maturity:maturity(), themes:themeIds, tracks:tr });
+    monitored++;
+  }
+
+  // Use cases (~45): parent -> conceiving org; playbook pipeline fields
+  var ucHosts = vpOrgs.concat(teams);
+  for(var u=0;u<45;u++){
+    var host2 = pick(ucHosts);
+    if(host2.org_level==='org' && zeroOrgs[host2.id] && rnd()<0.6) { u--; continue; }
+    var nm2 = pick(UC_PATTERNS);
+    var mat = (function(){ var r=rnd(); return r<0.4?'experimental':r<0.75?'proven':r<0.93?'recommended':'required'; })();
+    var pb = null;
+    if(mat!=='experimental'){ var r2=rnd(); pb = r2<0.42? null : r2<0.65?'candidate' : r2<0.83?'drafting' : 'published'; }
+    var themeIds2 = shuffle(allThemes).slice(0, rint(1,2)).map(function(t){return t.id;});
+    addNode({ id:'uc-'+slugify(nm2)+'-'+u, type:'use_case', name:nm2,
+      parent:host2.id, owner: mkPerson(personName(),'ic',host2.id).id,
+      maturity:mat, playbook:pb, playbook_url: pb==='published' ? 'https://playbook.example/'+slugify(nm2) : null,
+      themes:themeIds2, tracks: tracksForThemes(themeIds2).slice(0,1),
+      source:'captured from a working session' });
+  }
+
+  // derived stamp: exec_org = nearest VP-level ancestor (D8) — initiatives only,
+  // matching the decision doc's field table (use cases reach orgs via parent:)
+  N.forEach(function(n){
+    if(n.type!=='initiative') return;
+    var cur = byId[n.parent];
+    n.exec_org = null;
+    while(cur){ if(cur.type==='org' && cur.org_level==='org'){ n.exec_org = cur.id; break; } cur = byId[cur.parent]; }
+  });
+  // reporting structure: a leader's manager is the leader of the org above; ICs report to their org's leader
+  N.forEach(function(p){
+    if(p.type!=='person' || !p.org || !byId[p.org]) return;
+    var o = byId[p.org];
+    if(o.leader===p.id){ var up=byId[o.parent]; if(up && up.leader) p.manager=up.leader; }
+    else if(o.leader) p.manager=o.leader;
+  });
+}
+
+// ---------- graph helpers ----------
+function children(id){ return N.filter(function(n){ return n.parent===id; }); }
+function ancestors(id){ var out=[], cur=byId[id]; while(cur && cur.parent){ out.push(cur.parent); cur=byId[cur.parent]; } return out; }
+function underOrg(n, orgId){ return n.parent===orgId || ancestors(n.id).indexOf(orgId)>=0; }
+function nearestAncestorOfLevel(n, level){ var cur=byId[n.parent]; while(cur){ if(cur.type==='org'&&cur.org_level===level) return cur; cur=byId[cur.parent]; } return null; }
+function nearestOrgNode(n){ var cur=byId[n.parent]; while(cur){ if(cur.type==='org') return cur; cur=byId[cur.parent]; } return null; }
+function hasLinkToTrack(n, trackId){
+  if(n.parent===trackId) return true;
+  if(n.tracks && n.tracks.indexOf(trackId)>=0) return true;
+  return false;
+}
+function folderPath(n){
+  var segs=[slugify(n.name||n.id)]; var cur=byId[n.parent];
+  while(cur){ segs.unshift(slugify(cur.name||cur.id)); cur=byId[cur.parent]; }
+  var root = (n.type==='theme') ? 'themes' : (n.type==='person') ? 'people' : (segs[0]==='aipm' ? '' : 'organizations');
+  return (root? root+'/' : '') + segs.join('/') + '.md';
+}
+
+// ---------- layout ----------
+var W=2600, H=2600; // H finalized in layout()
+function layout(){
+  // Business side (right): rows per VP org block
+  var y = 90, rowGap=15, blockPad=13, lobGap=40, towerGap=20;
+  N.filter(function(n){return n.type==='org'&&n.org_level==='lob';}).forEach(function(lob){
+    var lobStart=y;
+    children(lob.id).filter(function(t){return t.org_level==='tower';}).forEach(function(tower){
+      var towerStart=y;
+      children(tower.id).filter(function(v){return v.org_level==='org';}).forEach(function(vp){
+        var inits = children(vp.id).filter(function(c){return c.type==='initiative'||c.type==='use_case';});
+        var teamsUnder = children(vp.id).filter(function(c){return c.type==='org';});
+        var rows = Math.max(1, Math.ceil(inits.length/5));
+        vp.x=1900; vp.y=y + (rows*rowGap)/2 - 4;
+        inits.forEach(function(it,idx){
+          var col=idx%5, row=Math.floor(idx/5);
+          it.x = 1740 - col*20; it.y = y + row*rowGap;
+        });
+        y += rows*rowGap + 6;
+        teamsUnder.forEach(function(team){
+          var tInits = children(team.id).filter(function(c){return c.type==='initiative'||c.type==='use_case';});
+          var tRows = Math.max(1, Math.ceil(tInits.length/5));
+          team.x=1980; team.y=y + (tRows*rowGap)/2 - 6;
+          tInits.forEach(function(it,idx){
+            var col=idx%5, row=Math.floor(idx/5);
+            it.x = 1740 - col*20; it.y = y + row*rowGap;
+          });
+          y += tRows*rowGap + 5;
+        });
+        y += blockPad;
+      });
+      // tower-hosted initiatives (declarations etc.)
+      var towerInits = children(tower.id).filter(function(c){return c.type==='initiative';});
+      towerInits.forEach(function(it,idx){ it.x=1780 - idx*22; it.y=y; });
+      if(towerInits.length) y += rowGap+4;
+      tower.x=2180; tower.y=(towerStart+y-blockPad)/2;
+      y += towerGap;
+    });
+    // LOB-hosted initiatives (declarations)
+    var lobInits = children(lob.id).filter(function(c){return c.type==='initiative';});
+    lobInits.forEach(function(it,idx){ it.x=1810 - idx*24; it.y=y; });
+    if(lobInits.length) y += rowGap+6;
+    lob.x=2430; lob.y=(lobStart+y-towerGap)/2;
+    y += lobGap;
+  });
+  H = Math.max(1900, y + 220);
+
+  // AIPM side (left)
+  var aipm=byId['aipm']; aipm.x=170; aipm.y=H*0.42;
+  var goals=N.filter(function(n){return n.type==='goal';});
+  goals.forEach(function(g,i){ g.x=380; g.y=H*0.42 + (i-1)*260; });
+  var tracks=N.filter(function(n){return n.type==='track';});
+  var tSpan=H-700;
+  tracks.forEach(function(t,i){
+    t.x=640; t.y=240 + tSpan*(i/(tracks.length-1));
+    var own=children(t.id).filter(function(c){return c.type==='initiative';});
+    own.forEach(function(it,idx){
+      var col=idx%3, row=Math.floor(idx/3);
+      it.x=790 + col*22; it.y=t.y - 12 + row*16;
+    });
+  });
+  goals.forEach(function(g){
+    var progInits=children(g.id).filter(function(c){return c.type==='initiative';});
+    progInits.forEach(function(it,idx){ it.x=530+ (idx%2)*22; it.y=g.y+34+Math.floor(idx/2)*16; });
+  });
+
+  // themes band (bottom center)
+  var roots=N.filter(function(n){return n.type==='theme'&&!n.parent;});
+  var themeY=H-120;
+  roots.forEach(function(r,i){
+    r.x=560+i*330; r.y=themeY;
+    children(r.id).forEach(function(c,j){ c.x=r.x-90+j*95; c.y=themeY+52; });
+  });
+
+  // people: attach beside their org/track
+  N.filter(function(n){return n.type==='person';}).forEach(function(p){
+    var host=byId[p.org]||byId['aipm'];
+    p.x=(host.x||200)+14+ (rnd()*10); p.y=(host.y||200)-10 + rnd()*20;
+  });
+}
+
+// ---------- render ----------
+var svg=document.getElementById('graph');
+var SVGNS='http://www.w3.org/2000/svg';
+function el(tag, attrs, parent){ var e=document.createElementNS(SVGNS,tag);
+  for(var k in attrs) e.setAttribute(k, attrs[k]); if(parent) parent.appendChild(e); return e; }
+var layers={};
+var nodeEls={}, edgeEls={ spine:{}, cross:[], origin:[], theme:[] };
+var cam={x:0,y:0,w:W,h:H};
+function applyCam(){ svg.setAttribute('viewBox', cam.x+' '+cam.y+' '+cam.w+' '+cam.h);
+  updateLabelVisibility(); }
+function fitAll(){ var vw=svg.clientWidth||1200, vh=svg.clientHeight||800; var ar=vw/vh;
+  var gw=W, gh=H; if(gw/gh>ar){ cam={x:-40,y:(H-(gw/ar))/2,w:gw+80,h:gw/ar}; } else { cam={x:(W-gh*ar)/2,y:-40,w:gh*ar,h:gh+80}; }
+  applyCam(); }
+function zoomScale(){ return (svg.clientWidth||1200)/cam.w; }
+function centerOn(n, scale){ var vw=svg.clientWidth||1200, vh=svg.clientHeight||800;
+  var w=vw/scale, h=vh/scale; cam={x:n.x-w/2, y:n.y-h/2, w:w, h:h}; applyCam(); }
+
+function nodeColor(n){
+  if(n.type==='org') return n.org_level==='program' ? 'var(--harbor)' : 'var(--pine)';
+  if(n.type==='goal'||n.type==='track') return 'var(--harbor)';
+  if(n.type==='theme') return 'var(--moss)';
+  if(n.type==='person') return 'var(--ink-ghost)';
+  if(n.type==='use_case') return 'var(--plum)';
+  return 'var(--m-'+(n.maturity||'experimental')+')';
+}
+function nodeR(n){
+  if(n.type==='org') return {program:13, lob:13, tower:10, org:6.5, team:4.5}[n.org_level]||6;
+  if(n.type==='goal') return 9; if(n.type==='track') return 11;
+  if(n.type==='theme') return n.parent?5.5:7.5;
+  if(n.type==='person') return 2.6;
+  if(n.type==='use_case') return 4.6;
+  return 4.4;
+}
+function edgePath(a,b,curve){
+  if(!curve) return 'M'+a.x+' '+a.y+' L'+b.x+' '+b.y;
+  var dx=Math.abs(a.x-b.x);
+  var c1x=a.x-(dx*0.35), c2x=b.x+(dx*0.35);
+  return 'M'+a.x+' '+a.y+' C'+c1x+' '+a.y+' '+c2x+' '+b.y+' '+b.x+' '+b.y;
+}
+
+function render(){
+  svg.innerHTML='';
+  var root=el('g',{id:'root'},svg);
+  layers.spine=el('g',{id:'l-spine'},root);
+  layers.theme=el('g',{id:'l-theme'},root);
+  layers.cross=el('g',{id:'l-cross'},root);
+  layers.origin=el('g',{id:'l-origin'},root);
+  layers.nodes=el('g',{id:'l-nodes'},root);
+  layers.labels=el('g',{id:'l-labels'},root);
+
+  // spine edges
+  N.forEach(function(n){
+    if(!n.parent||!byId[n.parent]) return;
+    if(n.type==='person') return;
+    var p=byId[n.parent];
+    var path=el('path',{d:edgePath(n,p,false),'class':'edge-spine','data-from':n.id,'data-to':p.id},layers.spine);
+    edgeEls.spine[n.id]=path;
+  });
+  // cross-tag arcs
+  N.forEach(function(n){
+    (n.tracks||[]).forEach(function(tid){
+      var t=byId[tid]; if(!t) return;
+      var path=el('path',{d:edgePath(n,t,true),'class':'edge-cross','data-from':n.id,'data-to':tid},layers.cross);
+      edgeEls.cross.push({el:path,from:n.id,to:tid});
+    });
+  });
+  // origin edges
+  N.forEach(function(n){
+    if(!n.origin) return; var o=byId[n.origin];
+    var path=el('path',{d:edgePath(n,o,true),'class':'edge-origin','data-from':n.id,'data-to':o.id},layers.origin);
+    edgeEls.origin.push({el:path,from:n.id,to:o.id});
+  });
+  // theme tag edges
+  N.forEach(function(n){
+    if(n.type!=='initiative'&&n.type!=='use_case'&&n.type!=='track') return;
+    (n.themes||[]).forEach(function(thid){
+      var th=byId[thid]; if(!th) return;
+      var path=el('path',{d:edgePath(n,th,true),'class':'edge-theme','data-from':n.id,'data-to':thid},layers.theme);
+      edgeEls.theme.push({el:path,from:n.id,to:thid});
+    });
+  });
+
+  // nodes
+  N.forEach(function(n){
+    var g=el('g',{'class':'node','data-id':n.id,transform:'translate('+n.x+','+n.y+')'},layers.nodes);
+    var shape;
+    if(n.type==='use_case'){
+      var s=nodeR(n);
+      shape=el('rect',{x:-s,y:-s,width:s*2,height:s*2,transform:'rotate(45)','class':'shape',fill:nodeColor(n),
+        stroke:n.playbook==='published'?'var(--pass)':'rgba(0,0,0,0.18)','stroke-width':n.playbook==='published'?2:0.8},g);
+      if(n.playbook==='published') el('text',{x:0,y:-9,'text-anchor':'middle','font-size':'10',fill:'var(--pass)'},g).textContent='★';
+    } else if(n.type==='theme'){
+      var s2=nodeR(n);
+      shape=el('rect',{x:-s2,y:-s2,width:s2*2,height:s2*2,rx:1.5,'class':'shape',fill:nodeColor(n),
+        stroke:'rgba(0,0,0,0.15)','stroke-width':0.8},g);
+    } else {
+      shape=el('circle',{r:nodeR(n),'class':'shape',fill:nodeColor(n),
+        stroke:'rgba(0,0,0,0.18)','stroke-width': n.type==='initiative'?0.7:1},g);
+      if(n.type==='initiative'&&n.maturity==='required')
+        el('circle',{r:nodeR(n)+2.2,fill:'none',stroke:'#7a1f1b','stroke-width':1.4},g);
+    }
+    nodeEls[n.id]=g;
+  });
+
+  // labels
+  N.forEach(function(n){
+    var cls='nlabel', size=9, dx=0, dy=0, anchor='middle', always=false;
+    if(n.type==='org'&&(n.org_level==='lob'||n.org_level==='program')){ size=15; cls+=' big'; dy=-19; always=true; }
+    else if(n.type==='org'&&n.org_level==='tower'){ size=11.5; cls+=' big'; dy=-15; always=true; }
+    else if(n.type==='org'&&n.org_level==='org'){ size=9.5; anchor='start'; dx=11; dy=3; always=true; }
+    else if(n.type==='org'&&n.org_level==='team'){ size=8; anchor='start'; dx=8; dy=2.5; always=true; }
+    else if(n.type==='track'){ size=12; cls+=' big'; anchor='end'; dx=-15; dy=3.5; always=true; }
+    else if(n.type==='goal'){ size=10.5; anchor='end'; dx=-13; dy=3; always=true; }
+    else if(n.type==='theme'&&!n.parent){ size=10; dy=-12; always=true; }
+    else if(n.type==='theme'){ size=8.5; dy=14; always=true; }
+    else if(n.type==='person'){ return; }
+    else { size=8; anchor='start'; dx=7; dy=2.5; always=false; } // initiatives + use cases: zoom-gated
+    var t=el('text',{x:n.x+dx,y:n.y+dy,'font-size':size,'text-anchor':anchor,'class':cls,
+      'data-for':n.id,'data-always':always?'1':'0'},layers.labels);
+    var label = (n.type==='org'&&n.org_level==='team') ? n.name.split(' · ')[1]||n.name : n.name;
+    t.textContent = label.length>34 ? label.slice(0,32)+'…' : label;
+  });
+  applyLayerToggles();
+}
+function updateLabelVisibility(){
+  var z=zoomScale();
+  var labels=layers.labels ? layers.labels.childNodes : [];
+  for(var i=0;i<labels.length;i++){
+    var l=labels[i];
+    var n=byId[l.getAttribute('data-for')];
+    if(l.getAttribute('data-always')==='1'){
+      l.style.display = (n && n.type==='theme' && !layerState.theme) ? 'none' : '';
+      continue;
+    }
+    // initiative / use-case labels: only for the selected node, or the undimmed
+    // population of an active focus at readable zoom — cluster-mates overlap otherwise
+    var layerOff = (n.type==='use_case'&&!layerState.usecase) ||
+      (n.type==='initiative'&&((n.engagement==='own'&&!layerState.own)||(n.engagement==='monitor'&&!layerState.monitor)));
+    var g=nodeEls[n.id];
+    var vis=false;
+    if(!layerOff && g){
+      if(g.classList.contains('sel')) vis=true;
+      else if(focusMode && z>1.6 && !g.classList.contains('dim') && g.style.display!=='none') vis=true;
+    }
+    l.style.display = vis ? '' : 'none';
+  }
+}
+
+// ---------- layer toggles ----------
+var layerState={ monitor:true, own:true, usecase:true, cross:true, origin:true, theme:false, people:false };
+function applyLayerToggles(){
+  N.forEach(function(n){
+    var g=nodeEls[n.id]; if(!g) return;
+    var vis=true;
+    if(n.type==='initiative') vis = n.engagement==='own' ? layerState.own : layerState.monitor;
+    if(n.type==='use_case') vis=layerState.usecase;
+    if(n.type==='theme') vis=layerState.theme;
+    if(n.type==='person') vis=layerState.people;
+    g.style.display=vis?'':'none';
+    var sp=edgeEls.spine[n.id];
+    if(sp) sp.style.display = (vis && !(n.type==='theme'&&!layerState.theme)) ? '' : 'none';
+  });
+  layers.cross.style.display = layerState.cross ? '' : 'none';
+  layers.origin.style.display = layerState.origin ? '' : 'none';
+  layers.theme.style.display = layerState.theme ? '' : 'none';
+  function srcVisible(id){
+    var n=byId[id];
+    if(n.type==='use_case') return layerState.usecase;
+    if(n.type==='initiative') return n.engagement==='own'?layerState.own:layerState.monitor;
+    return true;
+  }
+  edgeEls.cross.forEach(function(e){ e.el.style.display = srcVisible(e.from)?'':'none'; });
+  edgeEls.origin.forEach(function(e){ e.el.style.display = srcVisible(e.from)?'':'none'; });
+  edgeEls.theme.forEach(function(e){ e.el.style.display = srcVisible(e.from)?'':'none'; });
+  updateLabelVisibility();
+}
+
+// ---------- focus / highlight ----------
+var focusMode=null, selected=null;
+function clearFocus(){
+  clearCoverage();
+  focusMode=null;
+  document.getElementById('focus-chip').style.display='none';
+  document.querySelectorAll('#presets button').forEach(function(b){b.classList.remove('active');});
+  var all=svg.querySelectorAll('.dim, .hl-edge');
+  for(var i=0;i<all.length;i++){ all[i].classList.remove('dim'); all[i].classList.remove('hl-edge'); }
+  updateLabelVisibility();
+}
+function dimAllExcept(keepIds, keepEdgeTest){
+  var keep={}; keepIds.forEach(function(id){keep[id]=1;});
+  N.forEach(function(n){
+    var g=nodeEls[n.id]; if(!g||g.style.display==='none') return;
+    if(!keep[n.id]) g.classList.add('dim');
+  });
+  Object.keys(edgeEls.spine).forEach(function(fromId){
+    var e=edgeEls.spine[fromId]; var to=e.getAttribute('data-to');
+    if(keepEdgeTest && keepEdgeTest('spine',fromId,to)) e.classList.add('hl-edge');
+    else e.classList.add('dim');
+  });
+  edgeEls.cross.concat(edgeEls.origin).concat(edgeEls.theme).forEach(function(rec){
+    var kind = edgeEls.cross.indexOf(rec)>=0?'cross':(edgeEls.origin.indexOf(rec)>=0?'origin':'theme');
+    if(keepEdgeTest && keepEdgeTest(kind,rec.from,rec.to)) rec.el.classList.add('hl-edge');
+    else rec.el.classList.add('dim');
+  });
+  updateLabelVisibility();
+}
+function focusChip(html){ var c=document.getElementById('focus-chip'); c.innerHTML=html; c.style.display=''; }
+
+function focusTrack(trackId){
+  clearFocus(); focusMode='track:'+trackId;
+  var t=byId[trackId];
+  var pop=N.filter(function(n){ return n.type==='initiative' && hasLinkToTrack(n,trackId); });
+  var ucPop=N.filter(function(n){ return n.type==='use_case' && (n.tracks||[]).indexOf(trackId)>=0; });
+  var keep=[trackId].concat(ancestors(trackId));
+  pop.concat(ucPop).forEach(function(n){ keep.push(n.id); ancestors(n.id).forEach(function(a){keep.push(a);}); });
+  (t.themes||[]).forEach(function(th){ keep.push(th); });
+  dimAllExcept(keep, function(kind,from,to){
+    if(kind==='cross') return to===trackId;
+    if(kind==='spine') return keep.indexOf(from)>=0 && keep.indexOf(to)>=0;
+    return false;
+  });
+  var own=pop.filter(function(n){return n.engagement==='own';}).length;
+  focusChip('<b>'+esc(t.name)+'</b> — Q1 population: '+own+' own · '+(pop.length-own)+' monitored · '+ucPop.length+' use cases');
+}
+function focusDeclaration(declId){
+  clearFocus(); focusMode='decl:'+declId;
+  var d=byId[declId];
+  var kids=N.filter(function(n){return n.origin===declId;});
+  var keep=[declId].concat(ancestors(declId));
+  kids.forEach(function(k){ keep.push(k.id); ancestors(k.id).forEach(function(a){keep.push(a);}); });
+  dimAllExcept(keep, function(kind,from,to){
+    if(kind==='origin') return to===declId;
+    if(kind==='spine') return keep.indexOf(from)>=0 && keep.indexOf(to)>=0;
+    return false;
+  });
+  focusChip('<b>'+esc(d.name)+'</b> — a declaration owned by '+esc(byId[d.parent].name)+', spawning <b>'+kids.length+'</b> org-owned children via origin: (D2)');
+}
+var coverageOn=false;
+function coverageHeat(){
+  clearFocus(); coverageOn=true; focusMode='coverage';
+  var counts={};
+  N.filter(function(n){return n.type==='initiative';}).forEach(function(n){
+    if(n.exec_org) counts[n.exec_org]=(counts[n.exec_org]||0)+1;
+  });
+  var max=1; Object.keys(counts).forEach(function(k){ if(counts[k]>max)max=counts[k]; });
+  N.filter(function(n){return n.type==='org'&&n.org_level==='org';}).forEach(function(vp){
+    var g=nodeEls[vp.id], c=counts[vp.id]||0;
+    var shape=g.querySelector('.shape');
+    if(c===0){
+      shape.setAttribute('fill','var(--paper)');
+      el('circle',{r:nodeR(vp)+3.5,'class':'zero-ring'},g);
+    } else {
+      var t=c/max;
+      shape.setAttribute('fill','color-mix(in srgb, var(--pine) '+Math.round(25+t*75)+'%, var(--paper))');
+      shape.setAttribute('r', nodeR(vp)+t*4);
+    }
+  });
+  var zeros=N.filter(function(n){return n.type==='org'&&n.org_level==='org'&&!counts[n.id];}).length;
+  focusChip('<b>VP coverage heat</b> — org size/tint = initiative count (exec_org stamp) · <b>'+zeros+' VP orgs at zero</b> (dashed red = the Q6 signal)');
+}
+function clearCoverage(){
+  if(!coverageOn) return; coverageOn=false;
+  N.filter(function(n){return n.type==='org'&&n.org_level==='org';}).forEach(function(vp){
+    var g=nodeEls[vp.id]; var ring=g.querySelector('.zero-ring'); if(ring) ring.remove();
+    var shape=g.querySelector('.shape'); shape.setAttribute('fill',nodeColor(vp)); shape.setAttribute('r',nodeR(vp));
+  });
+}
+function focusPlaybook(openDrawer){
+  clearFocus(); focusMode='playbook';
+  var ucs=N.filter(function(n){return n.type==='use_case'&&n.playbook;});
+  var keep=[];
+  ucs.forEach(function(u){ keep.push(u.id); ancestors(u.id).forEach(function(a){keep.push(a);}); });
+  dimAllExcept(keep, function(kind,from,to){
+    if(kind==='spine') return keep.indexOf(from)>=0;
+    return false;
+  });
+  var pub=ucs.filter(function(u){return u.playbook==='published';}).length;
+  var dr=ucs.filter(function(u){return u.playbook==='drafting';}).length;
+  focusChip('<b>Playbook pipeline</b> — '+ucs.length+' use cases in flight: '+pub+' published ★ · '+dr+' drafting · '+(ucs.length-pub-dr)+' candidates');
+  if(openDrawer!==false) openRollup('q5');
+}
+
+// ---------- selection + detail panel ----------
+function yamlFor(n){
+  var L=[];
+  function link(id){ var t=byId[id]; return t? '"['+t.name+'](…/'+slugify(t.name)+'.md)"' : '""'; }
+  L.push('---');
+  L.push('type: '+(n.type==='org'?'organization':n.type));
+  L.push('id: '+n.uid);
+  if(n.type==='initiative'){
+    L.push('summary: '+n.name);
+    L.push('parent: '+link(n.parent));
+    if(n.origin) L.push('origin: '+link(n.origin)+'   # spawned-by (D2)');
+    L.push('owner: '+link(n.owner));
+    L.push('engagement: '+n.engagement);
+    L.push('status: '+n.status);
+    L.push('maturity: '+n.maturity);
+    L.push('themes: ['+(n.themes||[]).map(link).join(', ')+']');
+    L.push('tracks: ['+(n.tracks||[]).map(link).join(', ')+']');
+    if(n.exec_org) L.push('exec_org: '+slugify(byId[n.exec_org].name)+'   # derived stamp (D8)');
+  } else if(n.type==='use_case'){
+    L.push('summary: '+n.name);
+    L.push('parent: '+link(n.parent)+'   # conceiving org');
+    L.push('owner: '+link(n.owner));
+    L.push('maturity: '+n.maturity);
+    if(n.playbook) L.push('playbook: '+n.playbook);
+    if(n.playbook_url) L.push('playbook_url: '+n.playbook_url);
+    L.push('themes: ['+(n.themes||[]).map(link).join(', ')+']');
+    L.push('tracks: ['+(n.tracks||[]).map(link).join(', ')+']');
+    L.push('source: "'+(n.source||'')+'"');
+  } else if(n.type==='org'){
+    L.push('summary: '+n.name+(n.org_level==='program'?' — the AI-in-Product program':' organization'));
+    if(n.parent) L.push('parent: '+link(n.parent));
+    L.push('org_level: '+n.org_level+'   # lob | tower | org (VP) | team');
+    if(n.aliases && n.aliases.length) L.push('aliases: ['+n.aliases.join(', ')+']');
+    if(n.leader) L.push('leader: '+link(n.leader));
+    if(n.leader_level) L.push('leader_level: '+n.leader_level);
+    if(n.champion) L.push('champion: '+link(n.champion)+'   # AI enablement champion');
+  } else if(n.type==='track'){
+    L.push('summary: Develops SME + shared assets — '+n.name);
+    L.push('parent: '+link(n.parent));
+    if(n.lead) L.push('owner: '+link(n.lead)+'   # track lead (collateral duty)');
+    L.push('themes: ['+(n.themes||[]).map(link).join(', ')+']   # monitored themes');
+    L.push('status: active');
+  } else if(n.type==='goal'){
+    L.push('summary: '+n.name);
+    L.push('parent: '+link(n.parent));
+    if(n.owner) L.push('owner: '+link(n.owner));
+    L.push('status: active');
+  } else if(n.type==='theme'){
+    L.push('summary: '+n.name);
+    if(n.parent) L.push('parent: '+link(n.parent)+'   # theme hierarchy (free later)');
+  } else if(n.type==='person'){
+    L.push('summary: '+(n.title||''));
+    if(n.org) L.push('org: '+link(n.org));
+    if(n.manager) L.push('manager: '+link(n.manager));
+    if(n.level) L.push('level: '+n.level);
+    L.push('aliases: ['+n.name.split(' ')[0]+']');
+  }
+  L.push('---');
+  return L.join('\n');
+}
+function relRow(label, ids){
+  if(!ids||!ids.length) return '';
+  var links=ids.map(function(id){ var t=byId[id]; return t?'<a data-go="'+id+'">'+esc(t.name)+'</a>':''; }).join(' · ');
+  return '<div class="rh">'+label+'</div><div>'+links+'</div>';
+}
+function select(id, opts){
+  opts=opts||{};
+  if(selected && nodeEls[selected]) nodeEls[selected].classList.remove('sel');
+  selected=id;
+  var n=byId[id]; if(!n) return;
+  // if the node's layer is toggled off, turn it on so the jump doesn't land on blank canvas
+  var layerKey = n.type==='use_case' ? 'usecase' : n.type==='theme' ? 'theme' : n.type==='person' ? 'people'
+    : n.type==='initiative' ? (n.engagement==='own'?'own':'monitor') : null;
+  if(layerKey && !layerState[layerKey]){
+    layerState[layerKey]=true;
+    var cb=document.querySelector('#toggles input[data-layer="'+layerKey+'"]');
+    if(cb) cb.checked=true;
+    applyLayerToggles();
+  }
+  if(nodeEls[id]) nodeEls[id].classList.add('sel');
+  updateLabelVisibility();
+  if(opts.center!==false) centerOn(n, Math.max(zoomScale(), 2.6));
+  // detail
+  var d=document.getElementById('detail'); d.classList.add('open');
+  var chips='';
+  chips+='<span class="chip">'+(n.type==='org'?('org · '+n.org_level):n.type.replace('_',' '))+'</span>';
+  if(n.engagement) chips+='<span class="chip '+n.engagement+'">'+n.engagement+'</span>';
+  if(n.maturity) chips+='<span class="chip '+n.maturity+'">'+n.maturity+'</span>';
+  if(n.status) chips+='<span class="chip">'+n.status+'</span>';
+  if(n.playbook) chips+='<span class="chip '+n.playbook+'">playbook: '+n.playbook+'</span>';
+  if(n.exec_org) chips+='<span class="chip stamp">exec_org ⌁ stamp</span>';
+  var html='<button class="d-close" id="d-close">✕</button><h2>'+esc(n.name)+'</h2><div class="d-chips">'+chips+'</div>';
+  html+='<div class="d-path"><b>files at</b> '+folderPath(n)+'</div>';
+  html+='<pre>'+yamlFor(n).replace(/</g,'&lt;')+'</pre>';
+  html+='<div class="d-rel">';
+  if(n.parent) html+=relRow('Parent (the spine)', [n.parent]);
+  var kids=children(n.id).filter(function(c){return c.type!=='person';});
+  if(kids.length) html+=relRow('Children ('+kids.length+')', kids.slice(0,14).map(function(k){return k.id;})) + (kids.length>14?'<div class="muted">… +'+(kids.length-14)+' more</div>':'');
+  if(n.origin) html+=relRow('Origin — spawned by', [n.origin]);
+  var spawned=N.filter(function(x){return x.origin===n.id;});
+  if(spawned.length) html+=relRow('Spawned via origin: ('+spawned.length+')', spawned.map(function(s){return s.id;}));
+  if(n.tracks&&n.tracks.length) html+=relRow('Tagged tracks', n.tracks);
+  if(n.themes&&n.themes.length) html+=relRow('Themes', n.themes);
+  if(n.owner) html+=relRow('Owner', [n.owner]);
+  if(n.leader) html+=relRow('Leader', [n.leader]);
+  if(n.champion) html+=relRow('AI enablement champion', [n.champion]);
+  if(n.lead) html+=relRow('Track lead', [n.lead]);
+  if(n.exec_org) html+=relRow('exec_org (derived stamp, D8)', [n.exec_org]);
+  if(n.type==='person'&&n.org) html+=relRow('Home org', [n.org]);
+  if(n.type==='org'&&n.org_level==='org'){
+    var cnt=N.filter(function(x){return x.type==='initiative'&&x.exec_org===n.id;}).length;
+    if(cnt===0) html+='<div class="d-warn">0 initiatives under this VP org — a Q6 coverage gap (the empty bucket is the signal).</div>';
+    else html+='<div class="rh">Initiatives under this VP org</div><div>'+cnt+' (incl. team-level, via the exec_org stamp)</div>';
+  }
+  if(n.type==='track') html+='<button class="d-act" data-act="q1">Open Q1 rollup for this track →</button>';
+  if(n.origin||spawned.length) html+='<button class="d-act" data-act="decl">Show declaration fan-out →</button>';
+  html+='</div>';
+  document.getElementById('detail-inner').innerHTML=html;
+  document.getElementById('d-close').onclick=function(){ d.classList.remove('open'); if(nodeEls[selected])nodeEls[selected].classList.remove('sel'); selected=null; };
+  document.querySelectorAll('#detail-inner a[data-go]').forEach(function(a){
+    a.onclick=function(){ select(a.getAttribute('data-go')); };
+  });
+  document.querySelectorAll('#detail-inner .d-act').forEach(function(b){
+    b.onclick=function(){
+      if(b.getAttribute('data-act')==='q1'){ focusTrack(n.id); openRollup('q1', n.id); }
+      else { var declId = n.origin || n.id; focusDeclaration(declId); }
+    };
+  });
+}
+
+// ---------- rollups (computed live — the six canonical queries) ----------
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+function rowLink(n){ return '<a data-go="'+n.id+'">'+esc(n.name)+'</a>'; }
+function chipHtml(v){ return v? '<span class="chip '+v+'">'+v+'</span>' : '—'; }
+function groupTable(cols, groups){
+  var h='<table><tr>'+cols.map(function(c){return '<th>'+c+'</th>';}).join('')+'</tr>';
+  groups.forEach(function(g){
+    h+='<tr class="grp"><td colspan="'+cols.length+'">'+esc(g.label)+' <span class="cnt">· '+g.rows.length+'</span></td></tr>';
+    if(!g.rows.length) h+='<tr class="zero"><td colspan="'+cols.length+'">— none — (an empty bucket is signal)</td></tr>';
+    g.rows.forEach(function(r){ h+='<tr>'+r.map(function(c){return '<td>'+c+'</td>';}).join('')+'</tr>'; });
+  });
+  return h+'</table>';
+}
+var currentTrackForQ1 = null;
+var ROLLUPS = {
+  q1: function(trackId){
+    var t = byId[trackId||currentTrackForQ1||'t-context-and-agent-resources'];
+    currentTrackForQ1 = t.id;
+    var pop=N.filter(function(n){return n.type==='initiative'&&hasLinkToTrack(n,t.id);});
+    var own=pop.filter(function(n){return n.engagement==='own';});
+    var mon=pop.filter(function(n){return n.engagement==='monitor';});
+    var mkRow=function(n){ return [rowLink(n), chipHtml(n.status), chipHtml(n.maturity), esc(byId[n.owner]?byId[n.owner].name:'—')]; };
+    return {
+      cli: "duo rollup new --type initiative --filter '@="+slugify(t.name)+"' --group engagement \\\n  --bucket 'own=Track-owned workstreams' --bucket 'monitor=Monitored in the business' \\\n  --columns file.name,status,maturity,owner",
+      note: 'One @= filter unions both populations — the owned children arrive via their parent: link, the monitored ones via tracks:[] (ENH-262). Pick a different track by clicking it in the graph.',
+      html: groupTable(['initiative','status','maturity','owner'],
+        [{label:'Track-owned workstreams',rows:own.map(mkRow)},{label:'Monitored in the business',rows:mon.map(mkRow)}])
+    };
+  },
+  q2: function(){
+    var lob=byId['o-consumer'];
+    var pop=N.filter(function(n){return n.type==='initiative'&&underOrg(n,lob.id);});
+    var byOrg={};
+    pop.forEach(function(n){
+      var org=nearestOrgNode(n)||lob;
+      var themeNames=(n.themes&&n.themes.length)?n.themes.map(function(t){return byId[t].name;}):['(no theme)'];
+      themeNames.forEach(function(theme){
+        var key=org.name+' → '+theme;
+        (byOrg[key]=byOrg[key]||{org:org,rows:[]}).rows.push(n);
+      });
+    });
+    var groups=Object.keys(byOrg).sort().map(function(k){
+      return {label:k, rows: byOrg[k].rows.map(function(n){
+        return [rowLink(n), esc(n.engagement), chipHtml(n.status), chipHtml(n.maturity)];
+      })};
+    });
+    return {
+      cli: "duo rollup new --type initiative --filter 'parent^=consumer' \\\n  --group ancestor:parent:organization,themes --columns file.name,engagement,status,maturity",
+      note: 'parent^= scopes the whole Consumer subtree at any depth (ENH-259); level 1 groups by nearest org ancestor (ENH-261), level 2 by theme.',
+      html: groupTable(['initiative','engagement','status','maturity'], groups)
+    };
+  },
+  q3: function(){
+    var themes=N.filter(function(n){return n.type==='theme';});
+    var groups=themes.map(function(th){
+      var rows=N.filter(function(n){return n.type==='initiative'&&(n.themes||[]).indexOf(th.id)>=0;});
+      return {label:th.name+(th.parent?'  (⊂ '+byId[th.parent].name+')':''), rows: rows.map(function(n){
+        var org=nearestOrgNode(n);
+        return [rowLink(n), esc(org?org.name:'—'), esc(n.engagement), chipHtml(n.maturity)];
+      })};
+    }).filter(function(g){return g.rows.length;});
+    return {
+      cli: "duo rollup new --type initiative --group themes \\\n  --columns file.name,ancestor:parent:organization,engagement,maturity",
+      note: 'themes is list-valued — a row appears under each theme it carries (element-wise groupBy, ENH-255). Ownership reads from the ancestor column.',
+      html: groupTable(['initiative','ownership','engagement','maturity'], groups)
+    };
+  },
+  q4: function(){
+    var pop=N.filter(function(n){return n.type==='initiative'&&n.engagement==='monitor'&&(n.themes||[]).indexOf('th-context-management')>=0;});
+    var byVp={};
+    pop.forEach(function(n){
+      var key=n.exec_org?byId[n.exec_org].name:'(LOB/tower-direct — no VP stamp)';
+      (byVp[key]=byVp[key]||[]).push(n);
+    });
+    var groups=Object.keys(byVp).sort().map(function(k){
+      return {label:k, rows:byVp[k].map(function(n){ return [rowLink(n), chipHtml(n.maturity), chipHtml(n.status)]; })};
+    });
+    return {
+      cli: "duo rollup new --type initiative --filter 'themes~=context-management' \\\n  --filter 'engagement=monitor' --group exec_org --columns file.name,maturity,status",
+      note: '~= is single-entity list membership, so this matches DIRECT context-management tags only (multiple --filter flags AND together). To sweep the whole theme subtree, hand-author an or: filter group over the child themes — or have the tagging pass stamp the root theme alongside a child. Grouping rides the exec_org derived stamp (D8); LOB-granularity variants need no stamp (per-LOB ^= views).',
+      html: groupTable(['initiative','maturity','status'], groups)
+    };
+  },
+  q5: function(){
+    var ucs=N.filter(function(n){return n.type==='use_case'&&n.playbook;});
+    var order=['candidate','drafting','published'];
+    var groups=order.map(function(st){
+      return {label:{candidate:'Candidates',drafting:'In write-up',published:'Published ★'}[st],
+        rows: ucs.filter(function(u){return u.playbook===st;}).map(function(u){
+          var org=nearestOrgNode(u);
+          return [rowLink(u)+(u.playbook_url?' <span style="color:var(--ink-ghost);font-size:9.5px">↗ '+esc(u.playbook_url.replace('https://',''))+'</span>':''),
+            chipHtml(u.maturity), esc(org?org.name:'—'), esc(byId[u.owner]?byId[u.owner].name:'—')];
+        })};
+    });
+    return {
+      cli: "duo rollup new --type use_case --filter 'playbook?' --group playbook \\\n  --bucket 'candidate=Candidates' --bucket 'drafting=In write-up' --bucket 'published=Published' \\\n  --columns file.name,maturity,ancestor:parent:organization,owner",
+      note: 'The KB note is the playbook’s primary key — published rows carry playbook_url back to the external property (D5).',
+      html: groupTable(['use case','maturity','org','owner'], groups)
+    };
+  },
+  q6: function(){
+    var vps=N.filter(function(n){return n.type==='org'&&n.org_level==='org';});
+    var counts={};
+    N.filter(function(n){return n.type==='initiative';}).forEach(function(n){ if(n.exec_org)counts[n.exec_org]=(counts[n.exec_org]||0)+1; });
+    var max=1; vps.forEach(function(v){ if((counts[v.id]||0)>max)max=counts[v.id]; });
+    var byLob={};
+    vps.forEach(function(v){
+      var lob=nearestAncestorOfLevel(v,'lob');
+      (byLob[lob.name]=byLob[lob.name]||[]).push(v);
+    });
+    var groups=Object.keys(byLob).sort().map(function(lobName){
+      var rows=byLob[lobName].sort(function(a,b){return (counts[b.id]||0)-(counts[a.id]||0);}).map(function(v){
+        var c=counts[v.id]||0;
+        var bar='<span class="bar" style="width:'+(c/max*130)+'px"></span> '+c;
+        var row=[rowLink(v), esc(byId[v.parent].name), c===0?'<b style="color:var(--fail)">0 — coverage gap</b>':bar];
+        return row;
+      });
+      return {label:lobName, rows:rows};
+    });
+    return {
+      cli: "duo rollup new --type initiative --group exec_org \\\n  --bucket 'fraud-decisioning=Fraud Decisioning' ...   # one declared bucket per VP org — EMPTY buckets still render (ENH-255)",
+      note: 'Summary view: the real render lists initiative rows under each of the 60 declared buckets (tall!); this table condenses the same rollup to one row per bucket. The zeros are the point — the empty bucket is the "who hasn’t started" signal. Same data as the ▦ coverage-heat view.',
+      html: groupTable(['VP org','tower','initiatives (exec_org stamp)'], groups)
+    };
+  }
+};
+function openRollup(q, trackId){
+  var drawer=document.getElementById('drawer'); drawer.classList.add('open');
+  document.querySelectorAll('#rollup-tabs button').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-q')===q); });
+  var r=ROLLUPS[q](trackId);
+  document.getElementById('drawer-body').innerHTML =
+    '<div class="cli">'+esc(r.cli)+'</div><div class="dr-note">'+r.note+'</div>'+r.html;
+  document.querySelectorAll('#drawer-body a[data-go]').forEach(function(a){
+    a.onclick=function(){ select(a.getAttribute('data-go')); };
+  });
+}
+
+// ---------- interactions ----------
+function setupInteractions(){
+  var tooltip=document.getElementById('tooltip');
+  svg.addEventListener('mousemove', function(ev){
+    var g=ev.target.closest ? ev.target.closest('.node') : null;
+    if(!g){ tooltip.style.display='none'; return; }
+    var n=byId[g.getAttribute('data-id')]; if(!n) return;
+    var meta=[];
+    if(n.type==='initiative') meta=[n.engagement, n.maturity, n.status, n.origin?'spawned by '+esc(byId[n.origin].name):null];
+    else if(n.type==='use_case') meta=[n.maturity, n.playbook?'playbook: '+n.playbook:null];
+    else if(n.type==='org') meta=[n.org_level, n.leader?('leader: '+esc(byId[n.leader].name)):null, n.champion?('champion: '+esc(byId[n.champion].name)):null];
+    else if(n.type==='track') meta=['click for its Q1 world'];
+    else if(n.type==='person') meta=[n.title||n.level];
+    tooltip.innerHTML='<div class="tt-type">'+(n.type==='org'?'org · '+n.org_level:n.type.replace('_',' '))+'</div>'+esc(n.name)+
+      '<div class="tt-meta">'+meta.filter(Boolean).join(' · ')+'</div>';
+    tooltip.style.display='block';
+    var st=document.getElementById('stage').getBoundingClientRect();
+    tooltip.style.left=Math.min(ev.clientX-st.left+14, st.width-290)+'px';
+    tooltip.style.top=(ev.clientY-st.top+10)+'px';
+  });
+  svg.addEventListener('mouseleave', function(){ tooltip.style.display='none'; });
+  svg.addEventListener('click', function(ev){
+    var g=ev.target.closest ? ev.target.closest('.node') : null;
+    if(!g){ return; }
+    var n=byId[g.getAttribute('data-id')];
+    if(n.type==='track'){ focusTrack(n.id); select(n.id,{center:false}); }
+    else select(n.id,{center:false});
+  });
+  // pan
+  var panning=false,px=0,py=0;
+  svg.addEventListener('mousedown', function(ev){
+    if(ev.target.closest && ev.target.closest('.node')) return;
+    panning=true; px=ev.clientX; py=ev.clientY; svg.classList.add('panning');
+  });
+  window.addEventListener('mousemove', function(ev){
+    if(!panning) return;
+    if(!(ev.buttons&1)){ panning=false; svg.classList.remove('panning'); return; }
+    var s=cam.w/(svg.clientWidth||1200);
+    cam.x-= (ev.clientX-px)*s; cam.y-=(ev.clientY-py)*s; px=ev.clientX; py=ev.clientY; applyCam();
+  });
+  window.addEventListener('mouseup', function(){ panning=false; svg.classList.remove('panning'); });
+  svg.addEventListener('wheel', function(ev){
+    ev.preventDefault();
+    var r=svg.getBoundingClientRect();
+    var s=cam.w/(r.width||1200);
+    var mx=cam.x+(ev.clientX-r.left)*s, my=cam.y+(ev.clientY-r.top)*s;
+    var f=ev.deltaY>0?1.12:0.89;
+    if(cam.w*f < 80 || cam.w*f > W*3) return;
+    cam.w*=f; cam.h*=f;
+    cam.x=mx-(mx-cam.x)*f; cam.y=my-(my-cam.y)*f;
+    applyCam();
+  }, {passive:false});
+  window.addEventListener('keydown', function(ev){
+    if(ev.key==='Escape'){
+      clearFocus();
+      document.getElementById('drawer').classList.remove('open');
+      document.getElementById('detail').classList.remove('open');
+      if(selected && nodeEls[selected]) nodeEls[selected].classList.remove('sel');
+      selected=null;
+      updateLabelVisibility();
+    }
+  });
+  svg.addEventListener('dblclick', function(ev){
+    if(!(ev.target.closest&&ev.target.closest('.node'))){ clearCoverage(); clearFocus(); }
+  });
+
+  // toggles
+  document.querySelectorAll('#toggles input').forEach(function(cb){
+    cb.addEventListener('change', function(){
+      layerState[cb.getAttribute('data-layer')]=cb.checked;
+      var fm=focusMode;
+      applyLayerToggles();
+      // re-apply an active focus so newly-shown nodes join the dimmed scene correctly
+      if(fm){
+        if(fm.indexOf('track:')===0) focusTrack(fm.slice(6));
+        else if(fm.indexOf('decl:')===0) focusDeclaration(fm.slice(5));
+        else if(fm==='coverage') coverageHeat();
+        else if(fm==='playbook') focusPlaybook(false);
+      }
+    });
+  });
+  // presets
+  document.querySelectorAll('#presets button').forEach(function(b){
+    b.addEventListener('click', function(){
+      var p=b.getAttribute('data-preset');
+      clearFocus();
+      if(p==='fit'){ fitAll(); }
+      else if(p==='track'){ var t=byId['t-context-and-agent-resources']; focusTrack(t.id); select(t.id,{center:false}); centerOn({x:1150,y:t.y},0.9); }
+      else if(p==='declaration'){ var d=byId['i-team-knowledge-bases']; focusDeclaration(d.id); select(d.id,{center:false}); centerOn({x:1700,y:d.y},1.1); }
+      else if(p==='coverage'){ coverageHeat(); fitBusiness(); openRollup('q6'); }
+      else if(p==='playbook'){ focusPlaybook(true); fitBusiness(); }
+      b.classList.add('active');
+    });
+  });
+  function fitBusiness(){ var vw=svg.clientWidth||1200, vh=svg.clientHeight||800;
+    cam.w=1220; cam.h=cam.w*vh/vw; cam.x=1430; cam.y=40; applyCam(); }
+  // hud
+  document.getElementById('btn-fit').onclick=fitAll;
+  document.getElementById('btn-rollups').onclick=function(){
+    var dr=document.getElementById('drawer');
+    if(dr.classList.contains('open')) dr.classList.remove('open');
+    else openRollup('q1');
+  };
+  document.getElementById('drawer-close').onclick=function(){ document.getElementById('drawer').classList.remove('open'); };
+  document.querySelectorAll('#rollup-tabs button').forEach(function(b){
+    b.addEventListener('click', function(){ openRollup(b.getAttribute('data-q')); });
+  });
+  // search
+  var input=document.getElementById('search'), results=document.getElementById('search-results');
+  input.addEventListener('input', function(){
+    var q=input.value.trim().toLowerCase();
+    results.innerHTML='';
+    if(q.length<2) return;
+    N.filter(function(n){ return n.name.toLowerCase().indexOf(q)>=0; }).slice(0,8).forEach(function(n){
+      var li=document.createElement('li');
+      li.innerHTML=esc(n.name)+'<span class="t">'+(n.type==='org'?n.org_level:n.type.replace('_',' '))+'</span>';
+      li.onclick=function(){ select(n.id); results.innerHTML=''; input.value=n.name; };
+      results.appendChild(li);
+    });
+  });
+  // intro
+  document.getElementById('intro-close').onclick=function(){ document.getElementById('intro').style.display='none'; };
+}
+
+// ---------- stats ----------
+function renderStats(){
+  var s={
+    'initiatives': N.filter(function(n){return n.type==='initiative';}).length,
+    'VP orgs': N.filter(function(n){return n.type==='org'&&n.org_level==='org';}).length,
+    'tracks': N.filter(function(n){return n.type==='track';}).length,
+    'use cases': N.filter(function(n){return n.type==='use_case';}).length,
+    'themes': N.filter(function(n){return n.type==='theme';}).length,
+    'people': N.filter(function(n){return n.type==='person';}).length
+  };
+  document.getElementById('stats').innerHTML=Object.keys(s).map(function(k){
+    return '<div class="stat"><b>'+s[k]+'</b><span>'+k+'</span></div>';
+  }).join('');
+}
+
+// ---------- boot ----------
+generate();
+if (typeof document!=='undefined' && document.getElementById('graph')){
+  layout(); render(); renderStats(); setupInteractions(); fitAll();
+}
+// test hooks
+window.GRAPH={ nodes:N, byId:byId, children:children, ancestors:ancestors,
+  hasLinkToTrack:hasLinkToTrack, folderPath:folderPath, rollups:ROLLUPS };
+window.EXPLORER={ select:select, focusTrack:focusTrack, openRollup:openRollup, layerState:layerState };
+</script>
+</body>
+</html>
