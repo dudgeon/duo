@@ -156,4 +156,76 @@ describe('lint', () => {
     expect(_isEvalError({ __error: 'x', __expr: 'y' })).toBe(true)
     expect(_isEvalError(3)).toBe(false)
   })
+
+  describe('D15 — type-filtered query without a templates-folder exclusion (ENH-266d)', () => {
+    const corpus = buildCorpus(VAULT)
+
+    it('warns (advisory, never an error) when a view-level type filter has no exclusion anywhere', () => {
+      const def = {
+        views: [{ name: 'All milestones', type: 'table', filters: { and: ['type == "milestone"'] } }],
+      }
+      const findings = lintBaseDef(def, corpus)
+      const hit = findings.find((f) => /has no templates-folder exclusion \(D15\)/.test(f.message))
+      expect(hit).toBeTruthy()
+      expect(hit!.severity).toBe('warn') // D15 — advisory, never blocks
+      expect(hit!.message).toContain('view "All milestones"')
+      expect(hit!.message).toContain('templates/milestone.md')
+    })
+
+    it('does NOT warn when a top-level filter carries the exclusion (inherited by every view)', () => {
+      // The exact shape `bases/processing.base` scaffolds: def-level filters
+      // apply to every view (render.ts ANDs def.filters with view.filters).
+      const def = {
+        filters: { and: ['file.ext == "md"', '!file.inFolder("templates")'] },
+        views: [{ name: 'Milestones missing due', type: 'table', filters: { and: ['type == "milestone"'] } }],
+      }
+      const findings = lintBaseDef(def, corpus)
+      expect(findings.some((f) => /D15/.test(f.message))).toBe(false)
+    })
+
+    it('does NOT warn when the view itself excludes via a `not:` block', () => {
+      const def = {
+        views: [
+          {
+            name: 'Milestones',
+            type: 'table',
+            filters: { and: ['type == "milestone"', { not: ['file.inFolder("templates")'] }] },
+          },
+        ],
+      }
+      const findings = lintBaseDef(def, corpus)
+      expect(findings.some((f) => /D15/.test(f.message))).toBe(false)
+    })
+
+    it('checks a view-less base (top-level filters only) as its own implicit query', () => {
+      const def = { filters: { and: ['type == "initiative"'] } }
+      const findings = lintBaseDef(def, corpus)
+      const hit = findings.find((f) => /D15/.test(f.message))
+      expect(hit).toBeTruthy()
+      expect(hit!.message.startsWith('base —')).toBe(true)
+    })
+
+    it("Duo's own scaffolded bases (INITIATIVE_TPL + PROCESSING_BASE) lint D15-clean", () => {
+      // Regression guard for the scaffold.ts fix: the initiative template's
+      // embedded milestone-rollup + the processing.base seed must not warn
+      // about their OWN generated content.
+      const initiativeTplBase = {
+        filters: { and: ['type == "milestone"', 'initiative == this', '!file.inFolder("templates")'] },
+        views: [{ name: 'Milestones', type: 'table' }],
+      }
+      const processingBase = {
+        filters: { and: ['file.ext == "md"', '!file.inFolder("templates")', 'file.name != "README"'] },
+        views: [
+          { name: 'Stale inbox', type: 'table', filters: { and: ['file.inFolder("inbox")'] } },
+          {
+            name: 'Milestones missing due',
+            type: 'table',
+            filters: { and: ['type == "milestone"', { not: ['file.hasProperty("due")'] }] },
+          },
+        ],
+      }
+      expect(lintBaseDef(initiativeTplBase, corpus).some((f) => /D15/.test(f.message))).toBe(false)
+      expect(lintBaseDef(processingBase, corpus).some((f) => /D15/.test(f.message))).toBe(false)
+    })
+  })
 })

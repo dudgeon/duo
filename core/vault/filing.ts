@@ -172,8 +172,12 @@ export function createEntityStub(
     }
   }
   const abs = path.join(root, target)
-  // type: + title: (the human name, D6) + seeded fields.
-  const fm = ['---', ...seedFrontmatterLines(template, { mode, title: name }), '---', '']
+  // type: + title: (the human name, D6) + seeded fields. ENH-266e: `stem` is
+  // the FINAL on-disk basename (post slug-collision suffix, if any) so the
+  // alias auto-seed compares against what Obsidian will actually show in its
+  // file explorer, not just the idealized slug.
+  const stem = path.basename(target, path.extname(target))
+  const fm = ['---', ...seedFrontmatterLines(template, { mode, title: name, stem }), '---', '']
   fs.mkdirSync(path.dirname(abs), { recursive: true })
   fs.writeFileSync(abs, fm.join('\n') + '\n' + body)
   // D10: mint + stamp a stable id (the D5 primary relink key). `ensureNoteId`

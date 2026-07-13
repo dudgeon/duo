@@ -20,6 +20,9 @@ import {
 } from './builder'
 import { splitFrontmatter } from './parse'
 import { listRollups } from './rollup-notes'
+import { lintBaseDef } from './lint'
+import { buildCorpus } from './corpus'
+import { load as yamlLoad } from 'js-yaml'
 
 let root: string
 let v: string
@@ -92,6 +95,48 @@ describe('serializeBuilderBase ⇄ parseBuilderBase (D4 canonical dialect)', () 
     }
     const parsed = parseBuilderBase(serializeBuilderBase(m), {})
     expect(parsed?.filters).toEqual(m.filters)
+  })
+})
+
+// D15 (ENH-266d, review follow-up) — the GUI Rollup Builder is a third
+// write-site for `type ==`-filtered bases (alongside the type templates'
+// embedded rollups and bases/processing.base) and was missed by the original
+// D15 hygiene pass: every builder-generated base always filters by type, so
+// without an exclusion, EVERY GUI-built rollup phantom-rows its own type's
+// templates/<type>.md when opened natively in Obsidian.
+describe('serializeBuilderBase — D15 templates exclusion (review follow-up)', () => {
+  it('always emits the templates-folder exclusion, single-type', () => {
+    const yaml = serializeBuilderBase(MODEL)
+    expect(yaml).toContain('- \'!file.inFolder("templates")\'')
+  })
+
+  it('always emits the templates-folder exclusion, multi-type or-group', () => {
+    const m: RollupBuilderModel = { ...MODEL, types: ['task', 'initiative'], groupBy: [], buckets: [], filters: [] }
+    const yaml = serializeBuilderBase(m)
+    expect(yaml).toContain('- \'!file.inFolder("templates")\'')
+  })
+
+  it('round-trips cleanly with the exclusion present (not surfaced as an editable filter)', () => {
+    const yaml = serializeBuilderBase(MODEL)
+    const parsed = parseBuilderBase(yaml, { group_by: ['status', 'org'] })
+    expect(parsed).toEqual(MODEL)
+    expect(parsed?.filters.some((f) => JSON.stringify(f).includes('inFolder'))).toBe(false)
+  })
+
+  it('still parses a legacy pre-fix note that lacks the exclusion (backward-compatible)', () => {
+    const legacy = 'filters:\n  and:\n    - type == "task"\nviews:\n  - type: table\n    name: "Legacy"\n    order:\n      - file.name\n'
+    const parsed = parseBuilderBase(legacy, {})
+    expect(parsed).not.toBeNull()
+    expect(parsed?.types).toEqual(['task'])
+  })
+
+  it('duo base lint stays D15-clean on a builder-generated base', () => {
+    const model: RollupBuilderModel = { ...MODEL, types: ['milestone'], groupBy: [], buckets: [], filters: [] }
+    const yaml = serializeBuilderBase(model)
+    const def = yamlLoad(yaml) as Parameters<typeof lintBaseDef>[0]
+    const corpus = buildCorpus(v)
+    const findings = lintBaseDef(def, corpus)
+    expect(findings.some((f) => f.message.includes('D15'))).toBe(false)
   })
 })
 

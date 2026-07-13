@@ -42,6 +42,7 @@ import {
   type EvaluatedView,
 } from './render'
 import { buildEngineFiles, defaultAsOf, type EngineFile } from './engine'
+import { yamlSafeScalar } from './yaml-safe'
 
 // ── the builder model ───────────────────────────────────────────────────────
 
@@ -117,18 +118,23 @@ function filterExpr(f: BuilderFilter): string {
   }
 }
 
-/** BUG-260 — YAML-safe serialization of an expression as a block-sequence
- *  item. An UNQUOTED expression whose value contains `: ` parses as a YAML
- *  MAPPING (the engine then silently dropped the filter and the note fell to
- *  view-only — the owner's `Track: …` entity names hit this constantly); a
- *  ` #` starts a comment mid-line; a leading `!` is a YAML tag
- *  (`!file.hasProperty(...)` made the whole spec THROW). Single-quote
- *  (doubling internal quotes) whenever a hazard is present; simple
- *  expressions stay bare so existing canonical notes remain byte-identical. */
-function yamlSafeExpr(expr: string): string {
-  const hazard = /: |\t|\s#/.test(expr) || /^[!&*?|>%@`"'[\]{},-]/.test(expr) || /^\s|[\s:]$/.test(expr)
-  return hazard ? `'${expr.replace(/'/g, "''")}'` : expr
-}
+// BUG-260 — YAML-safe serialization of an expression as a block-sequence
+// item. Shared with `scaffold.ts`'s frontmatter `title:`/`aliases:` lines
+// (same hazard class, same fix) via `./yaml-safe`.
+const yamlSafeExpr = yamlSafeScalar
+
+// D15 (ENH-266d, review follow-up) — every builder-generated base filters by
+// `type ==` (single or or-group), which ALSO matches that type's schema
+// TEMPLATE (e.g. `templates/milestone.md` carries its own `type: milestone`)
+// and renders as a phantom row when opened natively in Obsidian (Bases
+// resolves an embedded ```base block the same as a standalone `.base` file —
+// see `docs/prd/enh-208-vault.md` D8). Every rollup the GUI Builder produces
+// gets this exclusion unconditionally, matching the hygiene pattern in
+// `core/vault/scaffold.ts`'s type templates. `parseBuilderBase` below treats
+// this exact clause as a known framework line — silently skipped, not
+// surfaced as an editable filter — so round-tripping stays clean and legacy
+// notes saved before this exclusion existed still parse.
+const TEMPLATES_EXCLUSION_EXPR = '!file.inFolder("templates")'
 
 /** Serialize the model to the canonical ```base YAML (D4). Hand-stable:
  *  key order and quoting are fixed so a save → parse → save round-trip is
@@ -144,6 +150,7 @@ export function serializeBuilderBase(model: RollupBuilderModel): string {
     lines.push('    - or:')
     for (const t of model.types) lines.push(`        - ${yamlSafeExpr(`type == ${JSON.stringify(t)}`)}`)
   }
+  lines.push(`    - ${yamlSafeExpr(TEMPLATES_EXCLUSION_EXPR)}`)
   for (const f of model.filters) lines.push(`    - ${yamlSafeExpr(filterExpr(f))}`)
   lines.push('views:')
   lines.push('  - type: table')
@@ -257,6 +264,11 @@ export function parseBuilderBase(
   const types: string[] = []
   const filters: BuilderFilter[] = []
   for (const item of and) {
+    // D15 — the templates-folder exclusion `serializeBuilderBase` always
+    // emits (review follow-up) is a framework line, not a user filter: skip
+    // it silently so it neither pollutes the editable filter list nor (its
+    // ABSENCE from) a legacy pre-fix note breaks the canonical-dialect parse.
+    if (item === TEMPLATES_EXCLUSION_EXPR) continue
     if (typeof item === 'string') {
       const parsed = parseFilterExpr(item)
       if (!parsed) return null

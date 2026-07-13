@@ -122,7 +122,7 @@ footer { margin-top:48px; border-top:1px solid var(--paper-rule); padding-top:14
 </div>
 
 <nav class="toc">
-  <strong>The eleven primitives</strong>
+  <strong>The primitives</strong>
   <ol>
     <li><a href="#ch1">What a vault is</a></li>
     <li><a href="#ch2">Establishing a vault</a></li>
@@ -135,6 +135,7 @@ footer { margin-top:48px; border-top:1px solid var(--paper-rule); padding-top:14
     <li><a href="#ch9">Generating a rollup</a></li>
     <li><a href="#ch10">Refreshing a rollup</a></li>
     <li><a href="#ch11">Processing</a></li>
+    <li><a href="#ch12">OKF in real Obsidian</a></li>
   </ol>
 </nav>
 
@@ -554,6 +555,74 @@ deliberately skipped — and <strong>every change is a proposal</strong>, never 
 <div class="takeaway"><strong>The model that makes it trustworthy:</strong> tracked suggestions
 + a report note + file-moves listed for approval mean a processing run is fully reviewable —
 the same property that lets it run unattended on a schedule later.</div>
+</section>
+
+<!-- ── 12 ──────────────────────────────────────────── -->
+<section id="ch12">
+<h2><span class="chno">12</span>OKF in real Obsidian</h2>
+<p>An OKF vault opens correctly in vanilla Obsidian with zero plugins — that guarantee is
+locked (chapter 3). But "opens correctly" and "looks its best" aren't the same claim: a couple
+of things are worth knowing about, and there's a one-time migration if you have an
+older OKF vault.</p>
+
+<h3>Slugs vs. titles — what you'll actually see in Obsidian's UI</h3>
+<p>OKF filenames are always <strong>slugs</strong> (<code>alice-park.md</code>); the readable name
+lives in the <code>title:</code> frontmatter field, not the filename (D6). Duo's editor reads
+<code>title:</code> and shows the human name everywhere. Vanilla Obsidian doesn't do that
+special-casing — its file explorer, tabs, and search results all show the raw filename, so
+you'll see <code>alice-park</code> instead of <em>Alice Park</em>.</p>
+<div class="takeaway"><strong>If you want title display everywhere in Obsidian too,</strong> the
+third-party <a href="https://github.com/snezhig/obsidian-front-matter-title">Front Matter
+Title</a> community plugin reads a frontmatter key (configure it to <code>title</code>) and
+substitutes it into the explorer, tabs, and search — entirely optional, and outside Duo's
+guarantee (a third-party plugin, not shipped or maintained by Duo).</div>
+
+<h3>Recommended Obsidian settings for a cleaner view</h3>
+<p>Duo-owned housekeeping folders (schema templates, rendered artifacts, generated rollups)
+are meaningful to Duo but just noise in Obsidian's navigator, search, and graph view. Add them
+to <strong>Settings → Files and links → Excluded files</strong>:</p>
+<pre class="diagram">templates
+output
+rollups</pre>
+<div class="takeaway">This is cosmetic only — it doesn't change what Duo reads or writes, and
+it doesn't affect the <code>duo base lint</code> D15 templates-exclusion check (chapter 9),
+which protects a <code>.base</code> query even in a vault where this setting was never turned on.</div>
+
+<h3>Frontmatter markdown links — migrated automatically, nothing to run</h3>
+<p>Older OKF vaults wrote entity-reference frontmatter fields (<code>owner:</code>,
+<code>attendees:</code>, <code>initiative:</code> — any field whose value names another note)
+as a title-based wikilink, e.g. <code>owner: "[[Alice Park]]"</code>. Live-tested in real
+Obsidian: that form creates an <strong>unresolved phantom node</strong> in Obsidian's graph
+instead of linking the real note, because Obsidian's frontmatter-wikilink resolver matches by
+<strong>filename</strong>, and an OKF filename is a slug, not the title. The fix — the same
+standard markdown link syntax prose already uses, e.g.
+<code>owner: "[Alice Park](../people/alice-park.md)"</code> — resolves correctly in Obsidian and
+requires no Duo code changes to read (the reader already understands both syntaxes).</p>
+<p><strong>If your vault predates this fix, you don't need to do anything.</strong> The next time
+that vault opens in an updated Duo, affected frontmatter links (and any leftover
+<code>[[wikilinks]]</code> in note bodies from editing in Obsidian directly) are rewritten to the
+working markdown-link form automatically, in place. This rides the <em>same</em> auto-relink pass
+that already runs on every OKF vault open to self-heal links broken by out-of-band file moves (D5,
+chapter 3) — it now also covers this wikilink-vs-markdown-link frontmatter shape. There's no
+command to run and no setting to turn on: update Duo, open the vault as usual, and that's the whole
+migration. It's a one-time rewrite — once a vault is in the new form, subsequent opens do nothing.</p>
+<div class="takeaway"><strong>No manual action needed for <code>.obsidian/app.json</code></strong> —
+it seeds itself automatically the next time the vault opens in Duo.</div>
+<div class="takeaway" style="border-left-color:var(--warn)"><strong>Exception — a
+brainkit/loopkit-family vault</strong> (one with a root <code>loop.manifest.json</code>): Duo
+deliberately never rewrites a foreign kit's files automatically, so the on-open migration
+<em>skips</em> these vaults. To migrate one, run the explicit command below (or adopt it through the
+kit's own <code>sync</code> flow) — and since it's a foreign bundle, review the <code>--dry-run</code>
+report and the git diff first.</div>
+
+<h4 style="font-weight:600; margin:18px 0 6px; font-size:13px; color:var(--ink-mute); text-transform:uppercase; letter-spacing:.03em;">Optional — previewing or running it explicitly</h4>
+<p style="color:var(--ink-soft);">You never need to run anything for a normal (non-foreign) vault —
+the on-open pass has it covered. But the same migration is available as an explicit command, for
+previewing exactly what an open would change, for a foreign kit vault the auto-pass skips, or for
+headless/CI use where no vault "open" ever fires:</p>
+<pre class="diagram">duo vault relink --frontmatter --dry-run --vault &lt;path&gt;   # preview: repaired / ambiguous / broken / unchanged
+duo vault relink --frontmatter --vault &lt;path&gt;             # apply
+duo vault publish --vault &lt;path&gt;                          # regenerate listings after a bulk apply</pre>
 </section>
 
 <footer>
