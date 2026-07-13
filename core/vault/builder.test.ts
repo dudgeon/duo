@@ -12,6 +12,7 @@ import {
   parseBuilderBase,
   createRollupNote,
   updateRollupNote,
+  saveRollupNoteWithRename,
   setFrontmatterFields,
   entityPanel,
   rollupViewData,
@@ -161,6 +162,74 @@ describe('createRollupNote / updateRollupNote', () => {
     expect(frontmatter.last_hash).toBe('abc123')
     expect(frontmatter.custom).toBe('kept')
     expect(frontmatter.type).toBe('rollup')
+  })
+})
+
+describe('saveRollupNoteWithRename (BUG-256)', () => {
+  it('a same-slug title edit rewrites content in place — no move', () => {
+    const { absPath } = createRollupNote(v, MODEL)
+    const res = saveRollupNoteWithRename(v, absPath, { ...MODEL, title: 'Open Tasks' })
+    expect(res.ok).toBe(true)
+    expect(res.renamed).toBe(false)
+    expect(res.noteRel).toBe('rollups/open-tasks.md')
+    expect(fs.existsSync(absPath)).toBe(true)
+    const { frontmatter } = splitFrontmatter(fs.readFileSync(absPath, 'utf8'))
+    expect(frontmatter.title).toBe('Open Tasks')
+  })
+
+  it('renames rollups/<slug>.md when the new title changes the slug', () => {
+    const { absPath } = createRollupNote(v, MODEL)
+    const res = saveRollupNoteWithRename(v, absPath, { ...MODEL, title: 'Weekly Digest' })
+    expect(res.ok).toBe(true)
+    expect(res.renamed).toBe(true)
+    expect(res.noteRel).toBe('rollups/weekly-digest.md')
+    expect(fs.existsSync(absPath)).toBe(false)
+    const movedAbs = path.join(v, 'rollups/weekly-digest.md')
+    expect(fs.existsSync(movedAbs)).toBe(true)
+    const { frontmatter } = splitFrontmatter(fs.readFileSync(movedAbs, 'utf8'))
+    expect(frontmatter.title).toBe('Weekly Digest')
+  })
+
+  it('rejects a rename onto an already-taken name — original note byte-untouched', () => {
+    createRollupNote(v, { ...MODEL, title: 'Weekly Digest' })
+    const { absPath } = createRollupNote(v, MODEL)
+    const before = fs.readFileSync(absPath, 'utf8')
+    const res = saveRollupNoteWithRename(v, absPath, { ...MODEL, title: 'Weekly Digest' })
+    expect(res.ok).toBe(false)
+    expect(res.error).toMatch(/already exists/)
+    expect(fs.existsSync(absPath)).toBe(true)
+    expect(fs.readFileSync(absPath, 'utf8')).toBe(before)
+  })
+
+  it('a landed rename removes the stale artifact and clears its provenance', () => {
+    const { absPath } = createRollupNote(v, MODEL)
+    setFrontmatterFields(absPath, {
+      out: 'rollups/open-tasks.html',
+      last_generated: '2026-01-01T00:00:00.000Z',
+      last_hash: 'abc123',
+    })
+    write('rollups/open-tasks.html', '<html>old artifact</html>')
+    const res = saveRollupNoteWithRename(v, absPath, { ...MODEL, title: 'Weekly Digest' })
+    expect(res.ok).toBe(true)
+    expect(fs.existsSync(path.join(v, 'rollups/open-tasks.html'))).toBe(false)
+    const { frontmatter } = splitFrontmatter(fs.readFileSync(res.absPath, 'utf8'))
+    expect(frontmatter.out).toBeUndefined()
+    expect(frontmatter.last_generated).toBeUndefined()
+    expect(frontmatter.last_hash).toBeUndefined()
+  })
+
+  it('rewrites inbound links from other notes, same as duo vault mv', () => {
+    const { absPath, noteRel } = createRollupNote(v, MODEL)
+    write('notes/weekly.md', `---\ntype: note\n---\nSee the [Open Tasks](../${noteRel}) rollup.\n`)
+    const res = saveRollupNoteWithRename(v, absPath, { ...MODEL, title: 'Weekly Digest' })
+    expect(res.ok).toBe(true)
+    expect(fs.readFileSync(path.join(v, 'notes/weekly.md'), 'utf8')).toContain(
+      '(../rollups/weekly-digest.md)',
+    )
+    // The moved note's own ```base block survived the move (not corrupted
+    // by the outbound-link re-basing pass, which finds no real mdlinks in
+    // a rollup body).
+    expect(fs.readFileSync(res.absPath, 'utf8')).toContain('```base')
   })
 })
 

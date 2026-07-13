@@ -31,6 +31,7 @@ import { parseFile, readNotes, splitFrontmatter } from './parse'
 import { buildCorpus } from './corpus'
 import { safeName } from './filing'
 import { resolveRollupNote } from './rollup-notes'
+import { moveNote } from './move'
 import {
   evaluateBaseDef,
   readCol,
@@ -384,11 +385,18 @@ export interface CreateRollupResult {
   absPath: string
 }
 
+/** The on-disk stem a title produces (create's uniquing + BUG-256's rename
+ *  detection must agree on this rule, or a rename could compute a slug that
+ *  drifts from what a fresh create would have chosen). */
+function rollupStem(title: string): string {
+  return safeName(title).toLowerCase().replace(/\s+/g, '-') || 'rollup'
+}
+
 /** Create `rollups/<slug>.md` from the model (slug from the title, uniqued). */
 export function createRollupNote(root: string, model: RollupBuilderModel): CreateRollupResult {
   const dir = path.join(root, ROLLUPS_DIR)
   fs.mkdirSync(dir, { recursive: true })
-  const stem = safeName(model.title).toLowerCase().replace(/\s+/g, '-') || 'rollup'
+  const stem = rollupStem(model.title)
   let slug = stem
   for (let n = 2; fs.existsSync(path.join(dir, `${slug}.md`)); n++) slug = `${stem}-${n}`
   const abs = path.join(dir, `${slug}.md`)
@@ -399,10 +407,95 @@ export function createRollupNote(root: string, model: RollupBuilderModel): Creat
 /** Rewrite a builder-owned rollup note from the model, preserving provenance
  *  + any unrecognized frontmatter keys. Only call after parseBuilderBase
  *  succeeded for this note (the GUI's edit gate); a view-only note is never
- *  rewritten. */
+ *  rewritten. Content-only — never renames the file; {@link saveRollupNoteWithRename}
+ *  is the rename-aware entry point every caller should use instead. */
 export function updateRollupNote(noteAbs: string, model: RollupBuilderModel): void {
   const { frontmatter } = splitFrontmatter(fs.readFileSync(noteAbs, 'utf8'))
   fs.writeFileSync(noteAbs, builderNoteContent(model, frontmatter))
+}
+
+export interface SaveRollupResult {
+  ok: boolean
+  /** Vault-relative POSIX path to the note — the NEW path when a rename landed. */
+  noteRel: string
+  absPath: string
+  /** True when the title's slug differed from the on-disk filename and a
+   *  move actually happened. */
+  renamed: boolean
+  /** Set only when ok is false (e.g. the target name is already taken). */
+  error?: string
+}
+
+/** BUG-256 — rewrite a builder-owned rollup note from the model, renaming
+ *  the file on disk when the title's slug no longer matches it. The Title
+ *  field is the only path here (types/groupBy/filters/columns keep D9's
+ *  live-save with no rename implications), and only fires on the field's
+ *  explicit commit (Enter in the GUI; any `duo rollup set --title` call),
+ *  never on a bare live-save tick.
+ *
+ *  Rejects — rather than clobbering or auto-uniquing like create — when the
+ *  target filename is already taken: the user is deliberately choosing this
+ *  exact name, unlike create's silent `-2` suffix for an anonymous new note.
+ *  A rejection leaves the note completely untouched (no partial rename, no
+ *  content rewrite).
+ *
+ *  Reuses {@link moveNote} for the actual move so inbound links + the
+ *  `.duo.json` sidecar travel with the note, same as `duo vault mv` — a
+ *  rollup note is a first-class vault note (ENH-228 D1) and can be linked to
+ *  like any other. A landed rename also drops any previously-rendered
+ *  artifact at the OLD `out:` path (owner: "move + regenerate", 2026-07-06)
+ *  and clears `out:`/`last_generated`/`last_hash` so the existing
+ *  auto-render-on-save path (ENH-250) regenerates fresh at the new slug
+ *  instead of leaving a stale artifact behind under the old name. */
+export function saveRollupNoteWithRename(
+  root: string,
+  noteAbs: string,
+  model: RollupBuilderModel,
+): SaveRollupResult {
+  const dir = path.join(root, ROLLUPS_DIR)
+  const oldSlug = path.basename(noteAbs, '.md')
+  const newSlug = rollupStem(model.title)
+
+  if (newSlug === oldSlug) {
+    updateRollupNote(noteAbs, model)
+    return { ok: true, noteRel: `${ROLLUPS_DIR}/${oldSlug}.md`, absPath: noteAbs, renamed: false }
+  }
+
+  const toAbs = path.join(dir, `${newSlug}.md`)
+  if (fs.existsSync(toAbs)) {
+    return {
+      ok: false,
+      noteRel: `${ROLLUPS_DIR}/${oldSlug}.md`,
+      absPath: noteAbs,
+      renamed: false,
+      error: `A rollup named "${model.title}" already exists.`,
+    }
+  }
+
+  // Capture the OLD artifact pointer before the move (updateRollupNote below
+  // preserves it via extraFm unless we surgically clear it afterward).
+  const { frontmatter } = splitFrontmatter(fs.readFileSync(noteAbs, 'utf8'))
+  const oldOutRel = typeof frontmatter.out === 'string' ? frontmatter.out : null
+
+  const fromRel = `${ROLLUPS_DIR}/${oldSlug}.md`
+  const toRel = `${ROLLUPS_DIR}/${newSlug}.md`
+  moveNote(root, fromRel, toRel)
+  updateRollupNote(toAbs, model)
+
+  if (oldOutRel) {
+    const oldOutAbs = path.resolve(root, oldOutRel)
+    const rootAbs = path.resolve(root)
+    if (oldOutAbs === rootAbs || oldOutAbs.startsWith(rootAbs + path.sep)) {
+      try {
+        fs.unlinkSync(oldOutAbs)
+      } catch {
+        /* best-effort — a missing/locked artifact never blocks the rename */
+      }
+    }
+    setFrontmatterFields(toAbs, { out: null, last_generated: null, last_hash: null })
+  }
+
+  return { ok: true, noteRel: toRel, absPath: toAbs, renamed: true }
 }
 
 // ── frontmatter flips (D2) ──────────────────────────────────────────────────

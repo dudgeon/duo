@@ -353,8 +353,8 @@ export function RollupsView({ isActive }: { isActive: boolean }) {
   }, [onNewRollup])
 
   const saveModel = useCallback(
-    async (model: RollupModelDto) => {
-      if (!defaultVault || !selected) return
+    async (model: RollupModelDto): Promise<{ ok: boolean; error?: string }> => {
+      if (!defaultVault || !selected) return { ok: false, error: 'No rollup selected.' }
       try {
         const res = await window.electron.vault.rollupSave({
           vaultRoot: defaultVault,
@@ -362,6 +362,10 @@ export function RollupsView({ isActive }: { isActive: boolean }) {
           model,
         })
         if (res.ok) {
+          // BUG-256 — a title rename lands the note at a NEW path; re-target
+          // `selected` so the next save addresses the file that now exists,
+          // not the one that just moved out from under it.
+          if (res.note !== selected) setSelected(res.note)
           // Await these before deciding on a warning banner — fetchList's
           // success path clears the error, which would otherwise race a
           // warning set beforehand and silently clobber it back to null.
@@ -370,11 +374,15 @@ export function RollupsView({ isActive }: { isActive: boolean }) {
           else if (res.linksDegraded) {
             setError('Saved, but GitHub links could not be resolved (no repo / non-GitHub remote) — the rendered page uses relative links instead.')
           }
+          return { ok: true }
         } else {
           setError(res.error)
+          return { ok: false, error: res.error }
         }
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e))
+        const msg = e instanceof Error ? e.message : String(e)
+        setError(msg)
+        return { ok: false, error: msg }
       }
     },
     [defaultVault, selected, fetchView, fetchList],
@@ -790,7 +798,7 @@ export function RollupsView({ isActive }: { isActive: boolean }) {
                 <BuilderPanel
                   model={view.model}
                   schema={schema}
-                  onChange={(m) => void saveModel(m)}
+                  onChange={(m) => saveModel(m)}
                   autoFocusTitle={justCreatedNote === view.note}
                   onAutoFocusConsumed={() => setJustCreatedNote(null)}
                 />
@@ -1003,14 +1011,21 @@ function BuilderPanel({
 }: {
   model: RollupModelDto
   schema: VaultSchemaDto | null
-  onChange: (m: RollupModelDto) => void
+  onChange: (m: RollupModelDto) => Promise<{ ok: boolean; error?: string }>
   /** ENH-250 (gap #3) — true for exactly one render right after "+ New
    *  rollup" creates this note, so renaming is the natural first action. */
   autoFocusTitle?: boolean
   onAutoFocusConsumed?: () => void
 }) {
-  // Title edits buffer locally and commit on blur/Enter (every commit saves).
+  // BUG-256 — Title edits buffer locally and commit ONLY on an explicit
+  // Enter (mirrors the navigator's file-rename gesture, FileTree's
+  // RenameInput/BUG-028); blur or Escape reverts the buffer instead of
+  // silently saving, since a rename can be rejected (name taken) and
+  // shouldn't fire on every incidental focus change. Every OTHER field
+  // keeps D9's live-save — this is a deliberate, title-only exception.
   const [title, setTitle] = useState(model.title)
+  const [titleError, setTitleError] = useState<string | null>(null)
+  const [titleSaving, setTitleSaving] = useState(false)
   useEffect(() => setTitle(model.title), [model.title])
 
   const titleInputRef = useRef<HTMLInputElement>(null)
@@ -1112,10 +1127,31 @@ function BuilderPanel({
   }, [model.types, schema])
   const prettyValue = (v: string | undefined): string => (v == null ? '' : (nameBySlug.get(v) ?? v))
 
-  const commitTitle = () => {
+  const commitTitle = async () => {
     const t = title.trim()
-    if (t && t !== model.title) onChange({ ...model, title: t })
-    else setTitle(model.title)
+    if (!t || t === model.title) {
+      setTitle(model.title)
+      setTitleError(null)
+      return
+    }
+    setTitleSaving(true)
+    const res = await onChange({ ...model, title: t })
+    setTitleSaving(false)
+    if (res.ok) {
+      setTitleError(null)
+      titleInputRef.current?.blur()
+    } else {
+      // Keep the user's typed (rejected) text so they can fix + retry
+      // instead of losing it — mirrors FileTree's rename-input failure
+      // path, which stays in edit mode with the same value.
+      setTitleError(res.error ?? 'Rename failed.')
+      titleInputRef.current?.focus()
+    }
+  }
+
+  const cancelTitleEdit = () => {
+    setTitle(model.title)
+    setTitleError(null)
   }
 
   const toggleType = (t: string) => {
@@ -1134,12 +1170,33 @@ function BuilderPanel({
         ref={titleInputRef}
         className="duo-rollups-input"
         value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        onBlur={commitTitle}
+        disabled={titleSaving}
+        aria-invalid={titleError != null}
+        onChange={(e) => {
+          setTitle(e.target.value)
+          if (titleError) setTitleError(null)
+        }}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            void commitTitle()
+          } else if (e.key === 'Escape') {
+            e.preventDefault()
+            cancelTitleEdit()
+            titleInputRef.current?.blur()
+          }
+        }}
+        onBlur={() => {
+          // Blur alone never saves a rename — Enter is the explicit save
+          // gesture (owner AUQ, 2026-07-06); a dirty buffer just reverts.
+          if (title.trim() !== model.title) cancelTitleEdit()
         }}
       />
+      {titleError && (
+        <div className="duo-text-error text-xs mt-1" role="alert">
+          {titleError}
+        </div>
+      )}
 
       <div className="duo-rollups-fieldlabel">Entity types</div>
       <div className="duo-rollups-chiprow">
