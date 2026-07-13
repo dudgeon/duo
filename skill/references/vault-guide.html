@@ -588,7 +588,7 @@ rollups</pre>
 it doesn't affect the <code>duo base lint</code> D15 templates-exclusion check (chapter 9),
 which protects a <code>.base</code> query even in a vault where this setting was never turned on.</div>
 
-<h3>Migrating a pre-existing OKF vault to frontmatter markdown links</h3>
+<h3>Frontmatter markdown links — migrated automatically, nothing to run</h3>
 <p>Older OKF vaults wrote entity-reference frontmatter fields (<code>owner:</code>,
 <code>attendees:</code>, <code>initiative:</code> — any field whose value names another note)
 as a title-based wikilink, e.g. <code>owner: "[[Alice Park]]"</code>. Live-tested in real
@@ -597,33 +597,32 @@ instead of linking the real note, because Obsidian's frontmatter-wikilink resolv
 <strong>filename</strong>, and an OKF filename is a slug, not the title. The fix — the same
 standard markdown link syntax prose already uses, e.g.
 <code>owner: "[Alice Park](../people/alice-park.md)"</code> — resolves correctly in Obsidian and
-requires no Duo code changes to read (the reader already understands both syntaxes). If your
-vault predates this fix, migrate it in place:</p>
-<ol>
-  <li><strong>Update Duo</strong> to the version that ships <code>duo vault relink --frontmatter</code>.</li>
-  <li><strong>Close any open notes from that vault</strong> in Duo's editor.</li>
-  <li><strong>If the vault is git-tracked, start from a clean working tree</strong> — commit or
-    stash anything in progress first, so the migration is a reviewable diff on its own.</li>
-  <li><strong>Dry-run it:</strong> <code>duo vault relink --frontmatter --dry-run --vault &lt;path&gt;</code>
-    — review the four-category report (repaired / ambiguous / broken / unchanged) before
-    applying anything.</li>
-  <li><strong>Re-run without <code>--dry-run</code></strong> to apply.</li>
-  <li><strong>Regenerate listings:</strong> <code>duo vault publish --vault &lt;path&gt;</code>.</li>
-  <li><strong>Review the git diff and commit.</strong></li>
-  <li><strong>Spot-check in real Obsidian:</strong> open the vault, confirm entity backlink
-    counts look right on a few notes, and confirm any rollup <code>.base</code> blocks render
-    without phantom template rows (chapter 9's D15 check).</li>
-</ol>
-<p>This stays a command you run on purpose, not something that happens on its own — Duo doesn't
-silently rewrite existing note content. (Whether a lower-friction path — e.g. a one-time prompt
-the first time an out-of-date vault opens — makes sense here is an open design question the
-project is still working through; nothing changed automatically as of this writing.)</p>
+requires no Duo code changes to read (the reader already understands both syntaxes).</p>
+<p><strong>If your vault predates this fix, you don't need to do anything.</strong> The next time
+that vault opens in an updated Duo, affected frontmatter links (and any leftover
+<code>[[wikilinks]]</code> in note bodies from editing in Obsidian directly) are rewritten to the
+working markdown-link form automatically, in place. This rides the <em>same</em> auto-relink pass
+that already runs on every OKF vault open to self-heal links broken by out-of-band file moves (D5,
+chapter 3) — it now also covers this wikilink-vs-markdown-link frontmatter shape. There's no
+command to run and no setting to turn on: update Duo, open the vault as usual, and that's the whole
+migration. It's a one-time rewrite — once a vault is in the new form, subsequent opens do nothing.</p>
 <div class="takeaway"><strong>No manual action needed for <code>.obsidian/app.json</code></strong> —
 it seeds itself automatically the next time the vault opens in Duo.</div>
-<div class="takeaway" style="border-left-color:var(--warn)"><strong>Extra care for a
+<div class="takeaway" style="border-left-color:var(--warn)"><strong>Exception — a
 brainkit/loopkit-family vault</strong> (one with a root <code>loop.manifest.json</code>): Duo
-never touches those files automatically, so the dry-run review and the git diff review above
-matter doubly there — nothing about this migration is manifest-aware.</div>
+deliberately never rewrites a foreign kit's files automatically, so the on-open migration
+<em>skips</em> these vaults. To migrate one, run the explicit command below (or adopt it through the
+kit's own <code>sync</code> flow) — and since it's a foreign bundle, review the <code>--dry-run</code>
+report and the git diff first.</div>
+
+<h4 style="font-weight:600; margin:18px 0 6px; font-size:13px; color:var(--ink-mute); text-transform:uppercase; letter-spacing:.03em;">Optional — previewing or running it explicitly</h4>
+<p style="color:var(--ink-soft);">You never need to run anything for a normal (non-foreign) vault —
+the on-open pass has it covered. But the same migration is available as an explicit command, for
+previewing exactly what an open would change, for a foreign kit vault the auto-pass skips, or for
+headless/CI use where no vault "open" ever fires:</p>
+<pre class="diagram">duo vault relink --frontmatter --dry-run --vault &lt;path&gt;   # preview: repaired / ambiguous / broken / unchanged
+duo vault relink --frontmatter --vault &lt;path&gt;             # apply
+duo vault publish --vault &lt;path&gt;                          # regenerate listings after a bulk apply</pre>
 </section>
 
 <footer>
