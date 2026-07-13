@@ -70,6 +70,16 @@ Live-tested (2026-07) in real Obsidian 1.12.7: a rollup note's embedded ` ```bas
 
 ---
 
+### BUG-212: macOS entitlements miss `com.apple.security.device.gpu` → no Metal in Duo-spawned terminals
+
+**Status:** ✅ Shipped (fix landed `claude/session-task-96bpvn`, 2026-06-28). **Priority:** P1 (silently degrades any GPU/Metal workload run from Duo's terminal). **Effort:** S.
+
+**Provenance.** Owner photo (2026-06-28): a Claude Code session diagnosing why `qmd embed` ran CPU-only (~40 min) inside a Duo terminal. **Root cause is the Duo app, not Claude Code or the machine** — Duo's signed bundle entitlements (`build/entitlements.mac.plist`) didn't include `com.apple.security.device.gpu`, so any process Duo spawns (terminal sessions included) couldn't create Metal command queues and fell back to CPU. Affects anything in Duo's terminal that needs Metal: `node-llama-cpp`, Core ML, `qmd embed`, etc.
+
+**The fix.** Added `com.apple.security.device.gpu` to `build/entitlements.mac.plist`. Because `electron-builder.yml` sets both `entitlements` and `entitlementsInherit` to that same file, the GPU grant flows to helper/spawned processes too. Takes effect on the next signed cut — existing installs keep the old entitlements until they update.
+
+---
+
 ### ENH-232: Catch-up — rich re-entry for sessions whose worktree was removed
 **Status:** 🔵 Open (filed from ENH-231 walk #2, 2026-06-24). **P1.**
 
