@@ -45,11 +45,13 @@ import { Editor } from '@tiptap/react'
 import { Slice, Fragment, Mark, Node as PMNode } from '@tiptap/pm/model'
 import { Transform } from '@tiptap/pm/transform'
 import { reloadChangeSet } from './reloadDiff'
+import { META_SUGGEST_AUTO } from './suggestMeta'
 
 /** Recursively add `mark` to every text node in `fragment`, preserving block
  *  structure and open depths. Non-text nodes are copied with their (also
- *  marked) content; text nodes get `mark` unioned into their mark set. */
-function markFragmentText(fragment: Fragment, mark: Mark): Fragment {
+ *  marked) content; text nodes get `mark` unioned into their mark set.
+ *  Exported for ENH-260's suggestEngine (deletion-slice reinstatement). */
+export function markFragmentText(fragment: Fragment, mark: Mark): Fragment {
   const nodes: PMNode[] = []
   fragment.forEach((node) => {
     if (node.isText) {
@@ -286,7 +288,10 @@ export function applyTrackedDiff(
   if (stamped === 0) return 0
 
   // Swap the whole doc content for the tracked-changes version, one dispatch.
+  // ENH-260 (PRD D9) — this is a programmatic derivation, not a user edit;
+  // without the meta the suggesting reconciler would re-track the doc swap.
   const tr = editor.state.tr.replaceWith(0, newDoc.content.size, tracked.content)
+  tr.setMeta(META_SUGGEST_AUTO, true)
   if (tr.docChanged) editor.view.dispatch(tr)
   return stamped
 }

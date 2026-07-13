@@ -1,0 +1,1138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>Track changes that compose — net-zero edits &amp; the road to Word-grade suggesting (ENH-260)</title>
+<style>
+/* ===== Atelier kernel (inlined from skill/references/duo-atelier.css) ===== */
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+  --project-pine:   #2E7D74;
+  --project-harbor: #3C6E93;
+  --project-iris:   #5B57A6;
+  --project-plum:   #87508F;
+  --project-rose:   #A4506A;
+  --project-moss:   #69763A;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+}
+body {
+  padding: 32px 40px 96px;
+  max-width: 920px;
+  margin: 0 auto;
+}
+header.page-head {
+  border-bottom: 1px solid var(--paper-rule);
+  padding-bottom: 16px;
+  margin-bottom: 24px;
+}
+header.page-head h1 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-style: italic;
+  font-weight: 500;
+  margin: 0 0 4px;
+  font-size: 24px;
+}
+header.page-head .meta {
+  color: var(--ink-mute);
+  font-size: 13px;
+}
+header.page-head .meta .pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-right: 6px;
+}
+.intro {
+  background: var(--paper-deep);
+  border: 1px solid var(--paper-rule);
+  border-radius: 6px;
+  padding: 14px 18px;
+  margin-bottom: 28px;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+}
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 600;
+  margin: 36px 0 12px;
+  font-size: 19px;
+  border-bottom: 1px solid var(--paper-rule);
+  padding-bottom: 6px;
+}
+h3 {
+  font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+  font-weight: 600;
+  margin: 22px 0 8px;
+  font-size: 15px;
+}
+h4 { margin: 16px 0 6px; font-size: 13.5px; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12.5px;
+  background: var(--paper-deep);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+pre {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  padding: 14px 16px;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+.decision-card {
+  background: var(--paper-deep);
+  border: 1.5px solid var(--paper-rule);
+  border-radius: 6px;
+  padding: 16px 18px;
+  margin: 18px 0;
+}
+.decision-card .q-title {
+  font-weight: 700;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  margin: 0 0 6px;
+}
+.decision-card .q-prompt {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 500;
+  font-size: 17px;
+  color: var(--ink);
+  margin: 0 0 12px;
+  line-height: 1.35;
+}
+.decision-card .q-context {
+  font-size: 13px;
+  color: var(--ink-mute);
+  margin: 0 0 14px;
+}
+.q-options {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+.q-option {
+  display: block;
+  background: var(--paper);
+  border: 1.5px solid var(--paper-rule);
+  border-radius: 5px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] {
+  margin-right: 8px;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+.q-option:has(input[type="radio"]:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--paper));
+}
+.q-option-body {
+  display: inline-block;
+  vertical-align: top;
+  width: calc(100% - 22px);
+}
+.q-option-title {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--ink);
+  margin: 0 0 3px;
+}
+.q-option-title .recommend-tag {
+  font-size: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 6px;
+}
+.q-option-rationale {
+  font-size: 12px;
+  color: var(--ink-soft);
+  line-height: 1.45;
+  margin: 3px 0 0;
+}
+.q-notes {
+  width: 100%;
+  background: var(--paper);
+  border: 1px solid var(--paper-rule);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--ink);
+  resize: vertical;
+  min-height: 50px;
+}
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+details.deferred {
+  margin: 22px 0;
+  padding: 12px 16px;
+  background: var(--paper-deep);
+  border: 1px dashed var(--paper-rule);
+  border-radius: 6px;
+}
+details.deferred summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--ink-soft);
+  font-size: 13.5px;
+}
+details.deferred[open] summary { color: var(--ink); }
+details.deferred .deferred-body {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.copy-bar {
+  position: sticky;
+  bottom: 0;
+  margin: 32px -40px -96px;
+  padding: 16px 40px;
+  background: color-mix(in srgb, var(--paper-deep) 96%, transparent);
+  border-top: 1.5px solid var(--paper-rule);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 9px 18px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* ===== Per-playground styles ===== */
+
+/* Rendered track-changes demos — match the editor's globals.css treatment */
+.tc-ins {
+  background: color-mix(in srgb, #4a7d3e 12%, transparent);
+  color: #2c5524;
+  border-bottom: 1px solid color-mix(in srgb, #4a7d3e 55%, transparent);
+  padding: 0 2px;
+  border-radius: 2px;
+}
+.tc-del {
+  background: color-mix(in srgb, #b13e3a 12%, transparent);
+  color: #7d2622;
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+.tc-both {
+  background: color-mix(in srgb, #b13e3a 12%, color-mix(in srgb, #4a7d3e 12%, transparent));
+  color: #6b4a22;
+  border-bottom: 1px solid color-mix(in srgb, #4a7d3e 55%, transparent);
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+.demo-line {
+  background: var(--paper);
+  border: 1px solid var(--paper-rule);
+  border-radius: 5px;
+  padding: 10px 14px;
+  margin: 8px 0;
+  font-size: 14px;
+}
+.demo-line .demo-label {
+  display: block;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-ghost);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+/* Inventory / delta tables */
+table.ops {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 12px 0;
+  font-size: 12.5px;
+}
+table.ops th, table.ops td {
+  border: 1px solid var(--paper-rule);
+  padding: 7px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+table.ops th {
+  background: var(--paper-deep);
+  font-weight: 600;
+  font-size: 12px;
+}
+table.ops td code { font-size: 11.5px; }
+.ok   { color: var(--pass); font-weight: 700; }
+.bad  { color: var(--fail); font-weight: 700; }
+.meh  { color: var(--warn); font-weight: 700; }
+
+/* Probe cards */
+.probe-card {
+  border: 1.5px solid var(--paper-rule);
+  border-left: 4px solid var(--fail);
+  border-radius: 6px;
+  background: var(--paper);
+  padding: 12px 16px;
+  margin: 14px 0;
+}
+.probe-card .probe-id {
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fail);
+}
+.probe-card .probe-sev {
+  float: right;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--fail) 12%, var(--paper));
+  color: var(--fail);
+}
+.probe-card h3 { margin-top: 4px; }
+
+/* Phase cards */
+.phase-card {
+  border: 1.5px solid var(--paper-rule);
+  border-radius: 6px;
+  background: var(--paper-deep);
+  padding: 12px 16px;
+  margin: 12px 0;
+}
+.phase-card .phase-chip {
+  display: inline-block;
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 9px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: white;
+  margin-right: 8px;
+}
+.phase-card .phase-fixes {
+  font-size: 11.5px;
+  color: var(--ink-mute);
+}
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Track changes that compose — net-zero edits &amp; the road to Word-grade suggesting</h1>
+  <div class="meta">
+    <span class="pill">ENH-260</span>
+    <span class="pill">Decision playground</span>
+    2026-07-08 · owner report → root-cause probe → editor-landscape research → phased proposal
+    <span class="pill">Decisions locked 2026-07-08</span>
+    All six as recommended — implementation in PR #129.
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> The owner reported that deleting text you just added
+  in Suggesting mode shows up as an addition <em>plus</em> a deletion, instead of
+  resolving to nothing. This playground (1) maps the full current implementation,
+  (2) shows the four defects a jsdom probe confirmed — with the actual serialized
+  output, not speculation, (3) compares against how Word, Google Docs, Notion, and
+  the ProseMirror ecosystem handle the same scenarios, and (4) proposes a phased fix
+  with six decisions to lock. Walk the decision cards, hit <em>Copy decisions</em>,
+  paste back to Claude.
+</div>
+
+<h2>1 · The reported bug, in one picture</h2>
+
+<p>Baseline text <code>Hello world</code>. Suggesting ON. You type <code>XY</code>
+after "Hello ", then press Backspace once to remove the <code>Y</code> you just typed.</p>
+
+<div class="demo-line">
+  <span class="demo-label">What Word / Google Docs / every ProseMirror suggest-mode does (expected)</span>
+  Hello <span class="tc-ins">X</span>world
+  &nbsp;&nbsp;<span style="color:var(--ink-ghost)">— the Y simply ceases to exist; the pending insertion shrinks</span>
+</div>
+
+<div class="demo-line">
+  <span class="demo-label">What Duo does today (observed, jsdom probe)</span>
+  Hello <span class="tc-ins">X</span><span class="tc-both">Y</span>world
+  &nbsp;&nbsp;<span style="color:var(--ink-ghost)">— Y carries BOTH marks; the saved file says <code>Hello {++X++}{--Y--}world</code></span>
+</div>
+
+<p>The saved form is worse than a cosmetic annoyance: <code>{--Y--}</code> is a
+CriticMarkup claim that <em>"the original document contained a Y here, and I
+propose deleting it."</em> The original never contained a Y. After save + reload
+(authorship is not persisted in standard CriticMarkup tokens), <strong>Reject all
+— which must restore the pre-suggestion baseline — injects the phantom
+<code>Y</code> into the document.</strong> The reject-baseline is corrupted, which
+is exactly the invariant the reload-diff machinery (<code>trackedDiff.ts</code>,
+ENH-197) goes to great lengths to guarantee: accept-all ⇒ new doc, reject-all ⇒
+old doc, exactly.</p>
+
+<h2>2 · How Duo's track changes works today</h2>
+
+<p>Track changes is a markdown-editor feature (the canvas has no equivalent —
+deliberate, BUG-138 family). Five cooperating layers:</p>
+
+<table class="ops">
+  <tr><th>Layer</th><th>Module</th><th>Role</th></tr>
+  <tr>
+    <td><strong>Storage format</strong></td>
+    <td><code>core/markdown/criticmarkup.ts</code></td>
+    <td>CriticMarkup tokens live in the .md source: <code>{++ins++}</code>,
+        <code>{--del--}</code>, <code>{~~old~&gt;new~~}</code>, <code>{==hl==}</code>,
+        <code>{&gt;&gt;comment&lt;&lt;}</code>. Locked decision (Stage 14b Q3): only
+        comments carry author/ts metadata; ins/del/sub stay plain tokens for
+        compatibility with standard CriticMarkup tooling. <strong>Consequence:
+        authorship of insertions/deletions is lost on every save.</strong></td>
+  </tr>
+  <tr>
+    <td><strong>Editor marks</strong></td>
+    <td><code>extensions/InsertionMark.ts</code> · <code>DeletionMark.ts</code> · <code>HighlightMark.ts</code></td>
+    <td>TipTap marks with <code>author</code>/<code>ts</code> attrs, green-underline /
+        red-strikethrough rendering. Both declare <code>excludes: ''</code> —
+        <strong>nothing prevents one text run from carrying insertion AND deletion
+        simultaneously</strong>, and no layer defines what that means.</td>
+  </tr>
+  <tr>
+    <td><strong>Live suggesting</strong></td>
+    <td><code>extensions/SuggestingMode.ts</code></td>
+    <td>Two intercepts: (1) <code>appendTransaction</code> stamps InsertionMark on
+        inserted ranges (typing, paste, IME); (2) <code>handleKeyDown</code> catches
+        <em>only the Backspace and Delete keys</em> and wraps the target range with
+        DeletionMark instead of deleting. Every other content-removal route
+        (type-over-selection, cut, paste-over, drag) falls through to a plain
+        ProseMirror delete.</td>
+  </tr>
+  <tr>
+    <td><strong>Round-trip</strong></td>
+    <td><code>markdownCriticMarkup.ts</code></td>
+    <td>Load: token text → marks (<code>applyCriticMarkupFromText</code>; authors come
+        back <code>null</code>). Save: marks → token text
+        (<code>materializeCriticMarkupToJSON</code>), folding adjacent del+ins into a
+        substitution. On double-marked text, the mark-classifier loop is
+        <em>last-CM-mark-wins</em> → deletion wins.</td>
+  </tr>
+  <tr>
+    <td><strong>Review surfaces</strong></td>
+    <td><code>trackedChanges.ts</code> · <code>TrackedChangesRail.tsx</code> · <code>SuggestingBanner.tsx</code></td>
+    <td>Collect / accept / reject, per-change and in bulk, with author filter chips.
+        On double-marked text the collector is <em>first-mark-wins</em> → insertion
+        wins. <strong>The rail and the serializer disagree about the same
+        character.</strong></td>
+  </tr>
+  <tr>
+    <td><strong>CLI / agent path</strong></td>
+    <td><code>core/markdown/docEdit.ts</code> → <code>duo doc insert|delete|substitute|highlight|accept|reject</code></td>
+    <td>Pure text-level ops on the source. Anchors match against the
+        stripped-of-tokens view, but any op whose resolved range <em>overlaps an
+        existing token is refused</em> ("split the operation") — there is no compose
+        path, so an agent cannot delete part of a pending insertion either.</td>
+  </tr>
+</table>
+
+<h2>3 · Observed behavior — four probes, actual output</h2>
+
+<p>All four scenarios were exercised against the real extension stack (TipTap +
+SuggestingMode + serializer) in a jsdom vitest probe on this branch. These are
+observed serializations, not inferences. Baseline for each: <code>Hello world</code>,
+Suggesting ON, author <code>tester</code>.</p>
+
+<div class="probe-card">
+  <span class="probe-sev">S1 · the reported bug</span>
+  <div class="probe-id">Probe 1 — delete part of your own pending insertion</div>
+  <h3>Type <code>XY</code>, Backspace once</h3>
+  <pre>doc:        Hello  [X]{ins}  [Y]{ins+del}  world      ← Y carries BOTH marks
+file saves: Hello {++X++}{--Y--}world                  ← phantom deletion of never-existed text
+rail shows: one insertion "XY"                         ← disagrees with the file
+accept-all: removes ins marks, Y's del mark SURVIVES   ← residual suggestion after "accept all"
+reject-all (after save/reload): baseline gains a Y     ← reject-baseline corrupted</pre>
+  <p><strong>Root cause.</strong> <code>wrapAsDeletionWithView</code> unconditionally
+  <code>addMark</code>s DeletionMark. It never asks whether the range is a pending
+  insertion, whose deletion should be a real <code>tr.delete</code>.</p>
+</div>
+
+<div class="probe-card">
+  <span class="probe-sev">S2 · silent data loss</span>
+  <div class="probe-id">Probe 2 — type over a selection (also: cut, paste-over, drag)</div>
+  <h3>Select <code>world</code>, type <code>planet</code></h3>
+  <pre>file saves: Hello {++planet++}          ← "world" is GONE, untracked
+reject-all: cannot restore "world"      ← original text lost while Suggesting was ON</pre>
+  <p><strong>Root cause.</strong> Only the Backspace/Delete <em>keys</em> are
+  intercepted. A type-over is a ReplaceStep that removes the selection before the
+  insertion-stamper runs; nothing reinstates the removed original as a tracked
+  deletion. Cut (⌘X), paste-over-selection, and drag-out take the same untracked
+  path. The module header claims type-over produces a substitution — it doesn't;
+  that only works if the user separately Backspaces first.</p>
+</div>
+
+<div class="probe-card">
+  <span class="probe-sev">S3 · silent data loss</span>
+  <div class="probe-id">Probe 3 — Backspace adjacent to an existing tracked deletion</div>
+  <h3>Wrap <code>world</code> as a deletion, then Backspace again</h3>
+  <pre>after wrap:       Hello {--world--}
+second Backspace: Hello {--worl--}      ← the struck "d" (ORIGINAL text) hard-deleted</pre>
+  <p><strong>Root cause.</strong> When the previous char already carries
+  DeletionMark, the handler returns <code>false</code> "so the user can back out of
+  the marked range" — which hands the keystroke to the native delete. Native delete
+  removes the struck original character permanently. Word/Docs skip the caret
+  across already-deleted content instead.</p>
+</div>
+
+<div class="probe-card">
+  <span class="probe-sev">S4 · user input swallowed</span>
+  <div class="probe-id">Probe 4 — type inside a tracked deletion</div>
+  <h3>Wrap <code>world</code> as a deletion, click into the middle, type <code>Z</code></h3>
+  <pre>doc:        {--wo--} [Z]{ins+del} {--rld--}   ← Z inherits the deletion mark
+file saves: Hello {--wo--}{--Z--}{--rld--}    ← Z serialized as part of the DELETION
+accept-all: Z vanishes                        ← the text the user just typed is destroyed</pre>
+  <p><strong>Root cause.</strong> Inserted text inherits marks at the caret
+  position; the insertion-stamper adds InsertionMark but never strips the inherited
+  DeletionMark — the double-mark ambiguity again, resolved (badly) by
+  last-mark-wins at serialize time.</p>
+</div>
+
+<p>Two structural defects underlie all four: <strong>(i) no composition rule</strong>
+— the delete path never inspects existing suggestion marks, and
+<strong>(ii) no exclusivity invariant</strong> — insertion+deletion can coexist on
+one character, and the three consumers (serializer, rail, accept/reject) each
+resolve the conflict differently.</p>
+
+<h2>4 · How the reference editors behave</h2>
+
+<p>Research pass over Word, Google Docs, Notion, and the ProseMirror/TipTap
+ecosystem (primary sources where reachable; several vendor pages were
+proxy-blocked and are marked as corroborated-secondhand). The convergence is
+total — <strong>no surveyed system ever shows insertion-then-strikethrough for a
+same-author edit.</strong></p>
+
+<h3>Microsoft Word</h3>
+<ul>
+  <li><strong>Same author deletes own tracked insertion → the text simply
+  disappears.</strong> Word's design assumption (per MVP forum guidance): if you
+  alter your own change, you no longer want the previous one. Not documented on
+  the official support page — but proven by its inverse: the classic Word bug
+  report is <em>"after save/reopen Word stopped recognizing me as the same author,
+  and now deleting my own inserted text strikes it through instead of removing
+  it"</em> (Microsoft Q&amp;A). Strikethrough-over-own-insertion is literally the
+  symptom of Word's identity matching <em>failing</em>.</li>
+  <li><strong>Different author deletes a pending insertion → nested revision.</strong>
+  OOXML encodes it as <code>w:del</code> nested inside the original author's
+  <code>w:ins</code> — both attributions preserved; accept removes the text, reject
+  restores the pending insertion.</li>
+</ul>
+
+<h3>Google Docs (suggesting mode)</h3>
+<ul>
+  <li><strong>Edits inside your own pending suggestion are not tracked as new
+  suggestions — they amend the suggestion in place</strong> (deleting part of your
+  suggested text shrinks it; net-zero if you remove it all).</li>
+  <li>The Docs API confirms the cross-author model: elements carry
+  <code>suggestedInsertionIds</code>/<code>suggestedDeletionIds</code>, and an element
+  holds <em>multiple</em> IDs only for "a suggestion within a suggestion made by a
+  <em>different</em> user" — same-user edits mutate the one suggestion.</li>
+</ul>
+
+<h3>Notion (suggested edits)</h3>
+<ul>
+  <li>Only the basics are documented (blue underline additions, struck deletions,
+  accept/reject). The delete-own-pending-insertion case is <strong>not publicly
+  specified</strong>; given the feature is explicitly Docs-styled, net-zero is
+  likely but unconfirmed — Notion is not evidence either way.</li>
+</ul>
+
+<h3>ProseMirror / TipTap ecosystem — the algorithm in code</h3>
+<ul>
+  <li><strong>Fidus Writer</strong> (<code>amend_transaction.js</code>): on delete,
+  ranges where <code>mark.type === insertion &amp;&amp; mark.attrs.user === user.id
+  &amp;&amp; !approved</code> get a real <code>ReplaceStep(…, Slice.empty)</code> — content
+  vanishes; everything else gets the deletion mark. Typing <em>strips deletion
+  marks from the typed text</em> so it can never inherit one. This is the canonical
+  author-scoped variant.</li>
+  <li><strong>prosemirror-suggest-changes</strong> (handlewithcare; forked by
+  BlockNote): implemented as a <code>dispatchTransaction</code> decorator that rewrites
+  every transaction before it applies — so <em>every</em> delete route (keys,
+  type-over, cut, paste, IME, drag) is covered by construction, and undo reverts
+  whole suggested ops cleanly. Deletions of ranges inside insertion marks "will
+  actually be deleted"; mixed ranges are split (inserted parts vanish, original
+  parts get the mark, processed in reverse order); typing inside a deletion is
+  relocated to the end of the deletion range so it never inherits the mark.</li>
+  <li><strong>Tiptap Pro Tracked Changes</strong> (official docs, verbatim): "suggested
+  insertions are immediately removed from the document; original content is marked
+  with a delete suggestion." Same-author edits merge into one suggestion; nesting
+  happens only across authors; adjacent deletes coalesce keeping the oldest mark's
+  metadata.</li>
+  <li><strong>CriticMarkup ecosystem</strong>: the spec is a serialization format and
+  is silent on live composition; nested tokens are undefined and break most
+  parsers (which is what <code>{++X++}{--Y--}</code> flirts with). criticmarkup-emacs
+  does author-aware adjacency merging — adjacent same-author additions merge,
+  different-author ones don't.</li>
+</ul>
+
+<h2>5 · Delta table — Duo vs. the consensus</h2>
+
+<table class="ops">
+  <tr>
+    <th>Scenario (Suggesting ON)</th>
+    <th>Consensus (Word · Docs · PM ecosystem)</th>
+    <th>Duo today</th>
+  </tr>
+  <tr>
+    <td>Delete part of your own pending insertion</td>
+    <td>Real delete — suggestion shrinks; net-zero if fully removed</td>
+    <td><span class="bad">✗</span> Double-marked char; file gains a phantom
+        <code>{--…--}</code>; reject-baseline corrupted</td>
+  </tr>
+  <tr>
+    <td>Delete a range spanning original + own insertion</td>
+    <td>Split: inserted sub-ranges vanish, original sub-ranges get the deletion mark</td>
+    <td><span class="bad">✗</span> Whole range deletion-marked; inserted parts double-marked</td>
+  </tr>
+  <tr>
+    <td>Type over a selection / cut / paste-over</td>
+    <td>Removed original becomes a tracked deletion; new text a tracked insertion</td>
+    <td><span class="bad">✗</span> Original hard-deleted, untracked (probe 2)</td>
+  </tr>
+  <tr>
+    <td>Backspace at the edge of an existing deletion</td>
+    <td>Caret skips across the struck range (or coalesces); struck text is never
+        re-deleted for real</td>
+    <td><span class="bad">✗</span> Native delete removes struck original text (probe 3)</td>
+  </tr>
+  <tr>
+    <td>Type inside a tracked deletion</td>
+    <td>New text never inherits the deletion mark (strip in place, or relocate the
+        insertion to the end of the struck range)</td>
+    <td><span class="bad">✗</span> Inherits the mark; accept-all destroys the typed text (probe 4)</td>
+  </tr>
+  <tr>
+    <td>Another author deletes your pending insertion</td>
+    <td>Mark it, don't remove it — attribution preserved (nested revision)</td>
+    <td><span class="meh">≈</span> Accidentally "right" (it marks) — but only because it
+        marks <em>everything</em>, and the nested state is unrepresentable in plain
+        CriticMarkup anyway</td>
+  </tr>
+  <tr>
+    <td>Insertion + deletion on the same character</td>
+    <td>Unrepresentable by construction in every surveyed system</td>
+    <td><span class="bad">✗</span> Representable; three consumers resolve it three ways</td>
+  </tr>
+  <tr>
+    <td>Agent (CLI) deletes text inside a pending <code>{++…++}</code></td>
+    <td>n/a (Duo-specific surface) — the analog is "compose like the editor would"</td>
+    <td><span class="meh">≈</span> Hard refusal: "text overlaps existing CriticMarkup — split the operation"</td>
+  </tr>
+  <tr>
+    <td>Accept/reject semantics of clean single marks</td>
+    <td>Accept ins = keep text; reject ins = drop text; symmetric for del</td>
+    <td><span class="ok">✓</span> Correct today (editor, banner, rail, and CLI all agree)</td>
+  </tr>
+  <tr>
+    <td>Reload-diff (view disk changes as tracked changes)</td>
+    <td>—</td>
+    <td><span class="ok">✓</span> <code>trackedDiff.ts</code> already guarantees exactly the
+        accept⇒new / reject⇒old invariant the live path violates</td>
+  </tr>
+</table>
+
+<h2>6 · Proposed changes — five phases</h2>
+
+<p>Ordered so each phase ships value alone; A is the owner's reported bug plus the
+invariant that prevents the whole defect class.</p>
+
+<div class="phase-card">
+  <span class="phase-chip">Phase A</span><strong>Composition-aware delete + the exclusivity invariant</strong>
+  <span class="phase-fixes">— fixes S1, S3; kills the double-mark state</span>
+  <p>Rewrite the Backspace/Delete handler as a segment walker over the target range:</p>
+  <pre>for each segment of [from, to):
+  has own pending InsertionMark  →  tr.delete(segment)          // net-zero
+  already has DeletionMark       →  skip; move caret past it    // never re-delete struck text
+  otherwise                      →  tr.addMark(segment, DeletionMark{author})</pre>
+  <p>Process segments in reverse document order (position stability), single
+  dispatched transaction. Add the invariant <em>insertion and deletion marks never
+  coexist on one text node</em>: enforced in the suggesting code paths + a
+  dev-mode assertion + a serializer guard, with property tests (accept-all ∘
+  suggest-ops ≡ typed result; reject-all ∘ suggest-ops ≡ baseline — the same
+  invariant <code>trackedDiff.test.ts</code> already proves for reload diffs).</p>
+</div>
+
+<div class="phase-card">
+  <span class="phase-chip">Phase B</span><strong>Cover every delete route via transaction-level rewrite</strong>
+  <span class="phase-fixes">— fixes S2 (type-over, cut, paste-over, drag, IME)</span>
+  <p>Move suggesting from key-interception to the transaction layer (the
+  prosemirror-suggest-changes architecture): intercept each user transaction,
+  decompose its ReplaceSteps, and re-emit them as tracked equivalents — removed
+  original content is reinstated with DeletionMark (positioned before the
+  replacement, matching <code>trackedDiff</code>'s struck-old-then-new reading order),
+  new content gets InsertionMark, own-insertion removals stay real deletes (Phase
+  A's walker becomes the shared kernel). Backspace/Delete keys then ride the same
+  path, and the keydown intercept reduces to caret/boundary UX. This also makes
+  undo revert whole suggested ops cleanly, since history records the rewritten
+  transaction.</p>
+</div>
+
+<div class="phase-card">
+  <span class="phase-chip">Phase C</span><strong>Typing in/around deletions + adjacency polish</strong>
+  <span class="phase-fixes">— fixes S4; matches Word feel</span>
+  <p>New text never inherits DeletionMark (mechanism per decision D3). Coalesce
+  adjacent same-author same-kind marks so backspacing char-by-char yields one
+  <code>{--…--}</code> token; fold ins-then-del adjacency into substitutions
+  symmetrically with the existing del-then-ins fold.</p>
+</div>
+
+<div class="phase-card">
+  <span class="phase-chip">Phase D</span><strong>CLI composition — <code>duo doc</code> ops on ranges touching existing tokens</strong>
+  <span class="phase-fixes">— fixes S6; agent parity with the fixed editor (per decision D5)</span>
+  <p>Teach <code>docEdit.ts</code> the same composition rules at the token level:
+  delete/substitute inside a <code>{++…++}</code> shrinks or splits the token; a range
+  spanning token + original text decomposes into token-shrink + <code>{--…--}</code>;
+  refusal remains only for genuinely ambiguous overlaps (e.g. comment anchors).
+  Same 4-surface CLI sync as any verb-behavior change.</p>
+</div>
+
+<div class="phase-card">
+  <span class="phase-chip">Phase E</span><strong>Attribution policy</strong>
+  <span class="phase-fixes">— resolves the "own vs. foreign" question durably (decisions D1 + D6)</span>
+  <p>Whatever D1/D6 lock: either stay CriticMarkup-pure (authorship is
+  session-scoped, unattributed marks after reload are treated per D1's policy) or
+  extend the on-disk format with attribution metadata. Rail filter chips, the
+  hook-installed <code>DUO_AUTHOR</code> flow, and the vocabulary doc get updated to
+  match.</p>
+</div>
+
+<h2>7 · Decisions to lock</h2>
+
+<section class="decision-card">
+  <div class="q-title">Decision D1</div>
+  <h3 class="q-prompt">What counts as "your own" insertion for net-zero deletion?</h3>
+  <p class="q-context">Every reference implementation nets out <em>same-author</em>
+  deletes and marks <em>cross-author</em> deletes. Duo's wrinkle: standard
+  CriticMarkup tokens don't persist authorship, so after save+reload every
+  insertion mark has <code>author: null</code>. The policy has to say what happens to
+  those. (Word has the same failure mode — identity mismatch after save — and it's
+  reported as a bug there, which argues against treating null as foreign.)</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d1" value="same-author-or-unattributed">
+      <div class="q-option-body">
+        <div class="q-option-title">Net-zero for same-author AND unattributed marks <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Delete really deletes when the insertion's
+        author matches the current author <em>or</em> is null (loaded from disk).
+        Only a mark carrying a <em>different, non-null</em> author gets the
+        strikethrough treatment (agent deleting the human's live suggestion, and
+        vice versa — preserves the pair-work review premise). Matches Word/Docs
+        feel across reopen; degrades gracefully with CM's attribution loss.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d1" value="strict-author">
+      <div class="q-option-body">
+        <div class="q-option-title">Strict author match only (Fidus Writer purist)</div>
+        <div class="q-option-rationale">Null-author (reloaded) insertions are
+        foreign → deleting them strikes through. Safest for multi-party review,
+        but reproduces Word's most-complained-about bug: reopen your own doc and
+        your own suggestions suddenly strike through instead of shrinking.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d1" value="any-pending">
+      <div class="q-option-body">
+        <div class="q-option-title">Net-zero for ANY pending insertion (single-suggester model)</div>
+        <div class="q-option-rationale">Simplest (what prosemirror-suggest-changes
+        does). But the agent deleting the human's pending suggestion would silently
+        discard it with no strikethrough record — weakens the review workflow the
+        rail's Mine/Agent/Others chips exist for.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d1" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision D2</div>
+  <h3 class="q-prompt">How far do we go on delete-route coverage (Phase B)?</h3>
+  <p class="q-context">Probe 2 is arguably worse than the reported bug: while
+  Suggesting is ON, type-over / cut / paste-over silently hard-delete original
+  text — reject can't restore it. The fix options differ in cost and coverage.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d2" value="transaction-rewrite">
+      <div class="q-option-body">
+        <div class="q-option-title">Transaction-level rewrite — all routes by construction <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">The prosemirror-suggest-changes
+        architecture: rewrite ReplaceSteps into tracked equivalents before they
+        apply. Covers keys, type-over, cut, paste, drag, IME, and programmatic
+        edits uniformly; undo gets cleaner too. Cost: M–L, the biggest single
+        investment on this page — but it deletes the whole
+        "which input routes did we remember to intercept?" bug class.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d2" value="incremental-intercepts">
+      <div class="q-option-body">
+        <div class="q-option-title">Incremental intercepts (handleTextInput + cut/paste handlers)</div>
+        <div class="q-option-rationale">Patch the known routes one by one on the
+        current architecture. Cheaper per step (S each); leaves holes (IME
+        composition, drag, plugin-driven edits) and the intercept inventory grows
+        forever.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d2" value="defer-b">
+      <div class="q-option-body">
+        <div class="q-option-title">Defer Phase B; ship Phase A only for now</div>
+        <div class="q-option-rationale">Fixes the reported bug fast; accepts that
+        type-over/cut remain untracked data loss for another cycle (would file as
+        its own BUG with a warning in the docs).</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d2" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision D3</div>
+  <h3 class="q-prompt">Typing inside a tracked deletion — where does the new text go?</h3>
+  <p class="q-context">Today the typed text inherits the deletion mark and is
+  destroyed on accept (probe 4). Both reference behaviors prevent that; they
+  differ in where the caret's text lands.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d3" value="relocate-to-end">
+      <div class="q-option-body">
+        <div class="q-option-title">Relocate the insertion to the end of the struck range <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">prosemirror-suggest-changes' rule. The
+        deletion stays one contiguous struck run, the new text lands after it —
+        struck-old-then-new, the same reading order trackedDiff already uses, and
+        adjacent del+ins auto-folds into a {~~old~&gt;new~~} substitution on save.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d3" value="strip-in-place">
+      <div class="q-option-body">
+        <div class="q-option-title">Strip the deletion mark in place (Fidus Writer)</div>
+        <div class="q-option-rationale">Typed text stays exactly at the caret,
+        splitting the struck run in two. Most literal caret behavior; noisier
+        serialization ({--wo--}{++Z++}{--rld--}) and no substitution fold.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d3" value="status-quo">
+      <div class="q-option-body">
+        <div class="q-option-title">Leave as-is for now</div>
+        <div class="q-option-rationale">Keeps the S4 data-loss (accept destroys
+        typed text). Only defensible if Phase C is deferred wholesale.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d3" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision D4</div>
+  <h3 class="q-prompt">Backspace/Delete at the edge of an existing tracked deletion?</h3>
+  <p class="q-context">Today the keystroke falls through to a native delete and
+  permanently removes struck original text (probe 3). The consensus is that struck
+  content is untouchable while suggesting — you traverse it, you don't re-delete it.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d4" value="skip-caret">
+      <div class="q-option-body">
+        <div class="q-option-title">Skip the caret across the struck range and continue <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Backspace at a deletion's right edge jumps
+        the caret to its left edge (and a held Backspace then keeps marking the
+        text before it). Struck text can only be removed by Accept. Matches
+        Word/Docs traversal feel; falls out of Phase A's segment walker for free.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d4" value="extend-mark">
+      <div class="q-option-body">
+        <div class="q-option-title">Treat it as extending the deletion (coalesce, no caret jump)</div>
+        <div class="q-option-rationale">Backspace adjacent to a deletion marks the
+        next original char and merges ranges — the caret visibly "eats" leftward
+        past the struck run. Slightly more aggressive than Word; same data safety.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d4" value="status-quo">
+      <div class="q-option-body">
+        <div class="q-option-title">Keep the native fall-through</div>
+        <div class="q-option-rationale">Preserves "I can really delete struck text
+        with a second keypress" — which is exactly the S3 data-loss; not
+        recommended.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d4" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision D5</div>
+  <h3 class="q-prompt">Should <code>duo doc delete/substitute</code> compose with existing tokens (Phase D)?</h3>
+  <p class="q-context">Today any overlap with an existing token is refused
+  ("split the operation") — a dead end for the agent when the overlap is a pending
+  <code>{++…++}</code> it should simply shrink. CLI parity (rule 4) says the agent
+  should be able to do what the fixed editor does.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d5" value="compose">
+      <div class="q-option-body">
+        <div class="q-option-title">Compose: shrink/split insertion tokens, decompose mixed ranges <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">delete-inside-{++…++} edits the token
+        text (net-zero, same D1 policy); a range spanning token + original
+        decomposes into token-shrink + {--…--}. Refusal stays only for genuinely
+        ambiguous overlaps (comment anchors, partial substitution tokens).</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d5" value="better-refusal">
+      <div class="q-option-body">
+        <div class="q-option-title">Keep refusing, but return an actionable error</div>
+        <div class="q-option-rationale">Error text tells the agent exactly which
+        token overlaps and what two ops to run instead. Cheap (S); the agent does
+        the composition manually; asymmetric with the editor.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d5" value="status-quo">
+      <div class="q-option-body">
+        <div class="q-option-title">Status quo</div>
+        <div class="q-option-rationale">No change; agents keep hitting the wall
+        (and will keep working around it with raw Edit writes — the thing rule 4a
+        exists to prevent).</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d5" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision D6</div>
+  <h3 class="q-prompt">Attribution on disk — stay CriticMarkup-pure, or persist authorship?</h3>
+  <p class="q-context">Stage 14b locked "plain CM tokens, authors on comments
+  only" for compatibility with standard CriticMarkup tooling. That's why reloaded
+  marks are unattributed — which D1's recommended option works around. Persisting
+  authorship would make D1 airtight (and enable true cross-author nesting later)
+  at the cost of non-standard source.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d6" value="cm-pure">
+      <div class="q-option-body">
+        <div class="q-option-title">Stay CM-pure; live-session attribution only <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Keeps .md sources readable and compatible
+        with every CM tool (the Q3 lock stands). Attribution is a live-session
+        property; D1's null-is-own policy covers reload. Cross-author nesting
+        (Word's w:del-inside-w:ins) stays unrepresentable — acceptable for a
+        two-party (you + agent) tool where the live session carries authorship.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d6" value="extend-tokens">
+      <div class="q-option-body">
+        <div class="q-option-title">Extend the on-disk format with author metadata</div>
+        <div class="q-option-rationale">E.g. a trailing meta comment per token or
+        an extended token grammar. Durable attribution + real nesting becomes
+        possible; but sources stop being standard CriticMarkup (reopens the Q3
+        lock — DECISIONS.md change), and every parser surface (editor, docEdit,
+        vault publish) grows a dialect.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d6" value="decide-later">
+      <div class="q-option-body">
+        <div class="q-option-title">Defer — revisit only if multi-author demand materializes</div>
+        <div class="q-option-rationale">Ship Phases A–D on the CM-pure model;
+        file the format question as its own ENH gated on real multi-human usage.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d6" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<details class="deferred">
+  <summary>Appendix — probe methodology, sources, and edge-case ledger</summary>
+  <div class="deferred-body">
+    <h4>Probe methodology</h4>
+    <p>A throwaway vitest jsdom suite (same harness as
+    <code>suggestInlineCode.test.ts</code>) instantiated the real extension stack
+    (StarterKit + Markdown + InsertionMark + DeletionMark + HighlightMark +
+    SuggestingMode), enabled suggesting with author <code>tester</code>, and drove
+    each scenario via <code>insertContent</code> /
+    <code>wrapAsDeletionWithView</code> — then captured <code>getJSON()</code>,
+    <code>serializeWithCriticMarkup()</code>, and <code>collectTrackedChanges()</code>.
+    All serializations quoted in § 3 are verbatim probe output. The probe file was
+    intentionally not committed; Phase A turns its scenarios into permanent
+    regression tests.</p>
+    <h4>Key sources</h4>
+    <ul>
+      <li>Word: Microsoft Q&amp;A "Tracked Changes not recognizing that I am the same
+      user before and after a Save" (learn.microsoft.com/en-us/answers/questions/4887089);
+      msofficeforums.com/word/29647 (same-author overwrite semantics); OOXML
+      <code>w:ins</code>/<code>w:del</code> nesting (datypic.com/sc/ooxml/e-w_ins-5.html).</li>
+      <li>Google Docs: developers.google.com/workspace/docs/api/how-tos/suggestions
+      (nested suggestion IDs are cross-user only); support.google.com/docs/answer/6033474
+      (via secondary sources — direct fetch was proxy-blocked).</li>
+      <li>Notion: notion.com/help/suggested-edits (basics only; core scenario
+      undocumented).</li>
+      <li>Fidus Writer: fiduswriter/fiduswriter —
+      <code>editor/track/amend_transaction.js</code> (same-user + unapproved →
+      ReplaceStep empty; typing strips deletion marks).</li>
+      <li>prosemirror-suggest-changes: handlewithcarecollective —
+      <code>src/replaceStep.ts</code> ("deletions of slices within existing insertion
+      marks will actually be deleted"; mixed-range split; insert-shifted-past-deletion;
+      dispatchTransaction decorator).</li>
+      <li>Tiptap Pro Tracked Changes: tiptap.dev/docs/tracked-changes (mixed-delete
+      behavior verbatim; same-author merge; cross-author-only nesting).</li>
+      <li>CriticMarkup: github.com/CriticMarkup/CriticMarkup-toolkit;
+      joostkremers/criticmarkup-emacs (author-aware adjacency merging);
+      Fevol/obsidian-criticmarkup (live suggestion mode over CM).</li>
+    </ul>
+    <h4>Consumer-disagreement ledger (the S5 invariant violation)</h4>
+    <p>For a char carrying both marks: serializer
+    (<code>extractCmInfo</code>, last-CM-mark-wins by schema rank) → emits
+    <code>{--…--}</code>; rail collector (<code>collectTrackedChanges</code>,
+    <code>marks.find</code> first-wins) → classifies as insertion; accept-all → strips
+    the insertion mark, leaves a residual live deletion mark (banner count never
+    reaches 0 in one click). Phase A's exclusivity invariant makes all three
+    questions moot by construction.</p>
+    <h4>Explicitly out of scope here</h4>
+    <ul>
+      <li>Canvas-surface track changes (no analog today; parity disposition (b)
+      surface-specific, consistent with the BUG-138 family).</li>
+      <li>ENH-198 (teaching agents to write CriticMarkup instead of
+      <code>&lt;ins&gt;</code> HTML) — adjacent, unchanged by this work, but Phase D
+      strengthens its recommended option (a).</li>
+      <li>Comment threads (<code>{&gt;&gt;…&lt;&lt;}</code>) — composition rules here
+      don't touch the comment rail.</li>
+    </ul>
+  </div>
+</details>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 6 decisions answered</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  var DECISIONS = [
+    { name: 'd1', title: 'D1 — what counts as "own" insertion for net-zero delete' },
+    { name: 'd2', title: 'D2 — delete-route coverage architecture (Phase B)' },
+    { name: 'd3', title: 'D3 — typing inside a tracked deletion' },
+    { name: 'd4', title: 'D4 — Backspace at the edge of an existing deletion' },
+    { name: 'd5', title: 'D5 — CLI compose semantics for duo doc ops (Phase D)' },
+    { name: 'd6', title: 'D6 — attribution on disk (CM-pure vs extended)' }
+  ];
+
+  function answeredCount() {
+    var n = 0;
+    DECISIONS.forEach(function (d) {
+      if (document.querySelector('input[name="' + d.name + '"]:checked')) n++;
+    });
+    return n;
+  }
+
+  function refresh() {
+    document.getElementById('answered-count').textContent = String(answeredCount());
+  }
+
+  document.querySelectorAll('.q-option input[type="radio"]').forEach(function (el) {
+    el.addEventListener('change', refresh);
+  });
+
+  document.getElementById('copy-btn').addEventListener('click', function () {
+    var lines = ['ENH-260 track-changes composition — decisions (' + new Date().toISOString().slice(0, 10) + ')', ''];
+    DECISIONS.forEach(function (d) {
+      var checked = document.querySelector('input[name="' + d.name + '"]:checked');
+      var value = checked ? checked.value.toUpperCase() : 'UNANSWERED';
+      lines.push('[' + value + '] ' + d.title);
+      var notes = document.querySelector('.q-notes[data-decision="' + d.name + '"]');
+      if (notes && notes.value.trim()) {
+        lines.push('    notes: ' + notes.value.trim());
+      }
+      lines.push('');
+    });
+    var btn = this;
+    navigator.clipboard.writeText(lines.join('\n')).then(function () {
+      btn.classList.add('copied');
+      btn.textContent = 'Copied ✓';
+      setTimeout(function () {
+        btn.classList.remove('copied');
+        btn.textContent = 'Copy decisions';
+      }, 2000);
+    });
+  });
+
+  refresh();
+})();
+</script>
+
+</body>
+</html>

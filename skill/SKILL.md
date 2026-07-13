@@ -176,7 +176,7 @@ full inventory in [references/cli-reference.md](references/cli-reference.md).
 | `duo text [--selector <css>]` | Visible text of the browser pane (DOM `innerText`). Simplest read for classic DOM pages. |
 | `duo ax [--selector <css>] [--format md\|json]` | Accessibility tree — the read for `<canvas>` apps (Google Docs/Sheets/Slides, Figma, newer Notion) where `duo text` returns nothing. |
 
-**Suggesting edits / track-changes on markdown** → use `duo doc insert` / `delete` / `substitute` / `highlight` (they write CriticMarkup that renders as accept/reject suggestions in the editor's rail). **Never write literal `<ins>` / `<del>` / `<s>` HTML — Duo renders raw tags as plain prose, not tracked changes.** Full lifecycle: [references/comments.md](references/comments.md).
+**Suggesting edits / track-changes on markdown** → use `duo doc insert` / `delete` / `substitute` / `highlight` (they write CriticMarkup that renders as accept/reject suggestions in the editor's rail). **Never write literal `<ins>` / `<del>` / `<s>` HTML — Duo renders raw tags as plain prose, not tracked changes.** `delete`/`substitute` compose with pending `{++…++}` insertions instead of refusing (ENH-260 D5) — text fully inside one shrinks or edits the suggestion in place (net-zero when deleted, in-place when substituted); a range spanning insertion + plain text decomposes into both. Overlaps with an existing deletion/substitution/highlight/comment token still refuse — split the operation. Full lifecycle: [references/comments.md](references/comments.md).
 
 ## open vs edit — the verb cheat sheet
 

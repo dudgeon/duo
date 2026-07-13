@@ -6,7 +6,7 @@
 // editor integration tests.
 
 import { describe, it, expect } from 'vitest'
-import { materializeCriticMarkupToJSON } from './markdownCriticMarkup'
+import { materializeCriticMarkupToJSON, restoreSubstitutionsInText } from './markdownCriticMarkup'
 
 // Minimal editor-shape for the test surface — only `isDestroyed` and
 // `getJSON` are touched.
@@ -68,9 +68,12 @@ describe('materializeCriticMarkupToJSON — substitution fold', () => {
       }]
     }
     const out = materializeCriticMarkupToJSON(fakeEditor(doc)) as typeof doc
-    expect(out.content?.[0].content).toEqual([
-      { type: 'text', text: '{~~old text~>new text~~}' }
-    ])
+    // ENH-260 — the fold is emitted in control-char sentinel form (so the
+    // markdown serializer can't escape `~`/`>`); restoreSubstitutionsInText
+    // is the exact post-serialize restore serializeWithCriticMarkup applies.
+    const folded = out.content?.[0].content as Array<{ type: string; text: string }>
+    expect(folded).toHaveLength(1)
+    expect(restoreSubstitutionsInText(folded[0].text)).toBe('{~~old text~>new text~~}')
   })
 
   it('does NOT fold when separated by plain text', () => {
@@ -224,6 +227,94 @@ describe('materializeCriticMarkupToJSON — passthrough', () => {
       { type: 'text', text: 'quoted ' },
       { type: 'text', text: '{==highlight==}' }
     ])
+  })
+})
+
+describe('materializeCriticMarkupToJSON — D7 double-marked (ins+del coexistence)', () => {
+  // ENH-260 D7 — a text node carrying BOTH insertionMark and deletionMark
+  // (a foreign-author deletion of a still-pending insertion) must
+  // serialize as the INSERTION token only. CM-pure can't carry two
+  // suggestion ops on one span; the deletion counter-suggestion is the
+  // newer, less-destructive thing to drop, and serializing it as
+  // `{--…--}` would fabricate a deletion of text that never existed in
+  // the original document. See PRD § 1 D7.
+  it('insertionMark + deletionMark on one run serializes as {++text++} (never {--text--})', () => {
+    const doc = {
+      type: 'doc',
+      content: [{
+        type: 'paragraph',
+        content: [
+          {
+            type: 'text',
+            text: 'world',
+            marks: [
+              { type: 'insertionMark', attrs: { author: 'alice', ts: 't1' } },
+              { type: 'deletionMark', attrs: { author: 'bob', ts: 't2' } }
+            ]
+          }
+        ]
+      }]
+    }
+    const out = materializeCriticMarkupToJSON(fakeEditor(doc)) as typeof doc
+    expect(out.content?.[0].content).toEqual([
+      { type: 'text', text: '{++world++}' }
+    ])
+  })
+
+  it('mark order does not matter — deletionMark listed BEFORE insertionMark still resolves to insert', () => {
+    const doc = {
+      type: 'doc',
+      content: [{
+        type: 'paragraph',
+        content: [
+          {
+            type: 'text',
+            text: 'world',
+            marks: [
+              { type: 'deletionMark', attrs: { author: 'bob', ts: 't2' } },
+              { type: 'insertionMark', attrs: { author: 'alice', ts: 't1' } }
+            ]
+          }
+        ]
+      }]
+    }
+    const out = materializeCriticMarkupToJSON(fakeEditor(doc)) as typeof doc
+    expect(out.content?.[0].content).toEqual([
+      { type: 'text', text: '{++world++}' }
+    ])
+  })
+
+  it('single-mark runs are unaffected by the D7 precedence rule (regression)', () => {
+    const insertOnly = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x', marks: [{ type: 'insertionMark', attrs: {} }] }] }]
+    }
+    const deleteOnly = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'y', marks: [{ type: 'deletionMark', attrs: {} }] }] }]
+    }
+    expect((materializeCriticMarkupToJSON(fakeEditor(insertOnly)) as typeof insertOnly).content?.[0].content)
+      .toEqual([{ type: 'text', text: '{++x++}' }])
+    expect((materializeCriticMarkupToJSON(fakeEditor(deleteOnly)) as typeof deleteOnly).content?.[0].content)
+      .toEqual([{ type: 'text', text: '{--y--}' }])
+  })
+
+  it('del(node A) + ins(node B) adjacency still folds to substitution (regression — distinct from one-node D7 coexistence)', () => {
+    const doc = {
+      type: 'doc',
+      content: [{
+        type: 'paragraph',
+        content: [
+          { type: 'text', text: 'old', marks: [{ type: 'deletionMark', attrs: {} }] },
+          { type: 'text', text: 'new', marks: [{ type: 'insertionMark', attrs: {} }] }
+        ]
+      }]
+    }
+    const out = materializeCriticMarkupToJSON(fakeEditor(doc)) as typeof doc
+    // Sentinel-form fold; see the fold describe-block's ENH-260 note.
+    const folded = out.content?.[0].content as Array<{ type: string; text: string }>
+    expect(folded).toHaveLength(1)
+    expect(restoreSubstitutionsInText(folded[0].text)).toBe('{~~old~>new~~}')
   })
 })
 

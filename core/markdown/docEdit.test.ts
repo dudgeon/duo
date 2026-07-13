@@ -85,11 +85,17 @@ describe('deleteText', () => {
     expect(result.body).toBe('Remove {--this --}word.')
   })
 
-  it('returns changed=false when target overlaps existing CM', () => {
+  it('ENH-260 D5: composes (rather than refuses) when the range overlaps only a pending insertion', () => {
+    // Pre-ENH-260 this refused with "overlaps existing CriticMarkup". Now
+    // "inserted word" spans the whole {++inserted++} token (dropped, it
+    // was never real content) + the plain " word" (struck). See the
+    // "ENH-260 D5 — compose with insertion tokens" describe block below
+    // for the full matrix; this case stays here since it's the direct
+    // update of the old refusal-pinning test.
     const body = 'a {++inserted++} word'
     const result = deleteText(body, 'inserted word')
-    expect(result.changed).toBe(false)
-    expect(result.reason).toContain('overlaps existing CriticMarkup')
+    expect(result.changed).toBe(true)
+    expect(result.body).toBe('a {-- word--}')
   })
 
   it('picks the Nth occurrence', () => {
@@ -156,10 +162,121 @@ describe('substituteText', () => {
     expect(result.body).toBe('drop {~~this~>~~}')
   })
 
-  it('returns changed=false when target overlaps CM', () => {
+  it('ENH-260 D5: composes (rather than refuses) when the range overlaps only a pending insertion', () => {
+    // Pre-ENH-260 this refused. Now: "ins word" spans the whole
+    // {++ins++} token (dropped) + plain " word" (struck), then the new
+    // text is appended after the composed pieces.
     const body = 'a {++ins++} word'
     const result = substituteText(body, 'ins word', 'phrase')
-    expect(result.changed).toBe(false)
+    expect(result.changed).toBe(true)
+    expect(result.body).toBe('a {-- word--}{++phrase++}')
+  })
+})
+
+describe('ENH-260 D5 — compose with insertion tokens', () => {
+  describe('deleteText', () => {
+    it('shrinks a token when the range sits fully inside its inner text', () => {
+      const body = 'pre {++inserted text++} post'
+      const result = deleteText(body, 'serted te')
+      expect(result.changed).toBe(true)
+      // "inserted text" minus "serted te" (its middle) = "in" + "xt".
+      expect(result.body).toBe('pre {++inxt++} post')
+    })
+
+    it('drops a token entirely when the range === the whole token, emitting no {--…--}', () => {
+      const body = 'pre {++gone++} post'
+      const result = deleteText(body, 'gone')
+      expect(result.changed).toBe(true)
+      expect(result.body).toBe('pre  post')
+      expect(result.body).not.toContain('{--')
+    })
+
+    it('shrinks a token tail + wraps the trailing plain text as {--…--}', () => {
+      const body = 'aa{++XX++}bb'
+      // "Xbb" = the token's second X + both trailing plain b's.
+      const result = deleteText(body, 'Xbb')
+      expect(result.changed).toBe(true)
+      expect(result.body).toBe('aa{++X++}{--bb--}')
+    })
+
+    it('merges plain + dropped-token + plain into ONE {--…--} once the token vanishes', () => {
+      const body = 'aa{++XX++}bb'
+      // "aXXb" = the second 'a', the whole {++XX++} token (dropped), the
+      // first 'b'. The two plain-text pieces ("a" and "b") become
+      // textually adjacent once the token between them is gone, so they
+      // merge into a single {--ab--} instead of {--a--}{--b--}.
+      const result = deleteText(body, 'aXXb')
+      expect(result.changed).toBe(true)
+      expect(result.body).toBe('a{--ab--}b')
+
+      // Accept/reject invariants for the merge case:
+      //  - accept the deletion -> same text as if the delete had simply
+      //    removed "aXXb" from the pre-delete stripped view ("aaXXbb" -
+      //    "aXXb" leaves "ab").
+      const accepted = acceptOp(result.body, { match: 'ab' })
+      expect(accepted.body).toBe('ab')
+      //  - reject the deletion -> the struck text comes back, but the
+      //    insertion it used to straddle was already composed away
+      //    (net-zero, it was never real content) and does NOT
+      //    reappear — same as rejecting the original {++XX++} outright.
+      const rejected = rejectOp(result.body, { match: 'ab' })
+      expect(rejected.body).toBe('aabb')
+      const rejectedOriginalInsertion = rejectOp(body, { match: 'XX' })
+      expect(rejectedOriginalInsertion.body).toBe('aabb')
+    })
+
+    it('still refuses (old reason) when the range overlaps an existing {--…--} op', () => {
+      const body = 'X{--gone--}Y'
+      const result = deleteText(body, 'XY')
+      expect(result.changed).toBe(false)
+      expect(result.reason).toBe('text overlaps existing CriticMarkup — split the operation')
+    })
+
+    it('still refuses (old reason) when the range overlaps an existing {==…==} op', () => {
+      const body = 'X{==shown==}Y'
+      const result = deleteText(body, 'XshownY')
+      expect(result.changed).toBe(false)
+      expect(result.reason).toBe('text overlaps existing CriticMarkup — split the operation')
+    })
+
+    it('occurrence disambiguation on the stripped view still works alongside an unrelated token', () => {
+      const body = '{++ins++} foo foo'
+      const result = deleteText(body, 'foo', { occurrence: 2 })
+      expect(result.changed).toBe(true)
+      expect(result.body).toBe('{++ins++} foo {--foo--}')
+    })
+  })
+
+  describe('substituteText', () => {
+    it('amends a token in place when the range sits fully inside its inner text (no {--…--}/{~~…~~})', () => {
+      const body = 'pre {++inserted text++} post'
+      const result = substituteText(body, 'serted te', 'XYZ')
+      expect(result.changed).toBe(true)
+      expect(result.body).toBe('pre {++inXYZxt++} post')
+      expect(result.body).not.toContain('{--')
+      expect(result.body).not.toContain('{~~')
+    })
+
+    it('decomposes a token + plain range, appending {++newText++} after the composed pieces', () => {
+      const body = 'aa{++XX++}bb'
+      const result = substituteText(body, 'Xbb', 'Y')
+      expect(result.changed).toBe(true)
+      expect(result.body).toBe('aa{++X++}{--bb--}{++Y++}')
+    })
+
+    it('empty newText over a mixed range skips the append (pure delete, matches deleteText)', () => {
+      const body = 'aa{++XX++}bb'
+      const result = substituteText(body, 'Xbb', '')
+      expect(result.changed).toBe(true)
+      expect(result.body).toBe('aa{++X++}{--bb--}')
+    })
+
+    it('still refuses (old reason) when the range overlaps an existing {--…--} op', () => {
+      const body = 'X{--gone--}Y'
+      const result = substituteText(body, 'XY', 'new')
+      expect(result.changed).toBe(false)
+      expect(result.reason).toBe('text overlaps existing CriticMarkup — split the operation')
+    })
   })
 })
 

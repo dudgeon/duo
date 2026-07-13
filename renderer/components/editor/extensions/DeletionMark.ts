@@ -4,6 +4,7 @@
 // Round-trips through markdown via `markdownCriticMarkup` integration.
 
 import { Mark, mergeAttributes } from '@tiptap/core'
+import { META_SUGGEST_AUTO } from '../suggestMeta'
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -79,6 +80,11 @@ export const DeletionMark = Mark.create<{}, {}>({
         if (dispatch) {
           // Accepting a deletion = removing the text from the doc.
           tr.delete(range.from, range.to)
+          // ENH-260 D9 — this dispatch deletes content programmatically
+          // (not itself a new user edit); stamp so the suggesting-mode
+          // reconciler doesn't resurrect the just-removed text as a fresh
+          // tracked deletion.
+          tr.setMeta(META_SUGGEST_AUTO, true)
           dispatch(tr)
         }
         return true
