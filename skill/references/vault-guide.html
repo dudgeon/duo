@@ -562,8 +562,8 @@ the same property that lets it run unattended on a schedule later.</div>
 <h2><span class="chno">12</span>OKF in real Obsidian</h2>
 <p>An OKF vault opens correctly in vanilla Obsidian with zero plugins — that guarantee is
 locked (chapter 3). But "opens correctly" and "looks its best" aren't the same claim: a couple
-of things are worth knowing about, plus one thing that used to need a manual fix and now
-just happens by itself the next time an older OKF vault opens.</p>
+of things are worth knowing about, and there's a one-time migration if you have an
+older OKF vault.</p>
 
 <h3>Slugs vs. titles — what you'll actually see in Obsidian's UI</h3>
 <p>OKF filenames are always <strong>slugs</strong> (<code>alice-park.md</code>); the readable name
@@ -588,40 +588,42 @@ rollups</pre>
 it doesn't affect the <code>duo base lint</code> D15 templates-exclusion check (chapter 9),
 which protects a <code>.base</code> query even in a vault where this setting was never turned on.</div>
 
-<h3>Frontmatter markdown links — fixed automatically, nothing to run</h3>
+<h3>Migrating a pre-existing OKF vault to frontmatter markdown links</h3>
 <p>Older OKF vaults wrote entity-reference frontmatter fields (<code>owner:</code>,
 <code>attendees:</code>, <code>initiative:</code> — any field whose value names another note)
 as a title-based wikilink, e.g. <code>owner: "[[Alice Park]]"</code>. Live-tested in real
 Obsidian: that form creates an <strong>unresolved phantom node</strong> in Obsidian's graph
 instead of linking the real note, because Obsidian's frontmatter-wikilink resolver matches by
-<strong>filename</strong>, and an OKF filename is a slug, not the title. The fix is the same
+<strong>filename</strong>, and an OKF filename is a slug, not the title. The fix — the same
 standard markdown link syntax prose already uses, e.g.
-<code>owner: "[Alice Park](../people/alice-park.md)"</code>, which resolves correctly in
-Obsidian.</p>
-<p><strong>If your vault predates this fix, you don't need to do anything.</strong> The next time
-that vault opens in an updated Duo, affected frontmatter links are rewritten from the old
-wikilink form to the working markdown-link form automatically, in place. This is the same
-auto-relink pass that already runs on every OKF vault open to self-heal links broken by
-out-of-band file moves (D5, chapter 3) — it now also covers this wikilink-vs-markdown-link
-frontmatter shape. There's no command to run and no setting to turn on — just update Duo and
-open the vault as you normally would; that's the whole migration.</p>
+<code>owner: "[Alice Park](../people/alice-park.md)"</code> — resolves correctly in Obsidian and
+requires no Duo code changes to read (the reader already understands both syntaxes). If your
+vault predates this fix, migrate it in place:</p>
+<ol>
+  <li><strong>Update Duo</strong> to the version that ships <code>duo vault relink --frontmatter</code>.</li>
+  <li><strong>Close any open notes from that vault</strong> in Duo's editor.</li>
+  <li><strong>If the vault is git-tracked, start from a clean working tree</strong> — commit or
+    stash anything in progress first, so the migration is a reviewable diff on its own.</li>
+  <li><strong>Dry-run it:</strong> <code>duo vault relink --frontmatter --dry-run --vault &lt;path&gt;</code>
+    — review the four-category report (repaired / ambiguous / broken / unchanged) before
+    applying anything.</li>
+  <li><strong>Re-run without <code>--dry-run</code></strong> to apply.</li>
+  <li><strong>Regenerate listings:</strong> <code>duo vault publish --vault &lt;path&gt;</code>.</li>
+  <li><strong>Review the git diff and commit.</strong></li>
+  <li><strong>Spot-check in real Obsidian:</strong> open the vault, confirm entity backlink
+    counts look right on a few notes, and confirm any rollup <code>.base</code> blocks render
+    without phantom template rows (chapter 9's D15 check).</li>
+</ol>
+<p>This stays a command you run on purpose, not something that happens on its own — Duo doesn't
+silently rewrite existing note content. (Whether a lower-friction path — e.g. a one-time prompt
+the first time an out-of-date vault opens — makes sense here is an open design question the
+project is still working through; nothing changed automatically as of this writing.)</p>
 <div class="takeaway"><strong>No manual action needed for <code>.obsidian/app.json</code></strong> —
 it seeds itself automatically the next time the vault opens in Duo.</div>
 <div class="takeaway" style="border-left-color:var(--warn)"><strong>Extra care for a
 brainkit/loopkit-family vault</strong> (one with a root <code>loop.manifest.json</code>): Duo
-never touches those files automatically, and the automatic repair pass above isn't
-manifest-aware either. If you're syncing one of these vaults, check the git diff (or use the
-optional preview below) after opening it in an updated Duo, rather than assuming the pass left
-manifest-adjacent content untouched.</div>
-
-<h4 style="font-weight:600; margin:18px 0 6px; font-size:13px; color:var(--ink-mute); text-transform:uppercase; letter-spacing:.03em;">Optional — previewing or scripting it explicitly</h4>
-<p style="color:var(--ink-soft);">You never need to run anything for this to work. But the
-explicit command behind the automatic pass, <code>duo vault relink --frontmatter --dry-run
---vault &lt;path&gt;</code>, still works — as a way to <strong>preview</strong> exactly what a vault
-open would change (a four-category report: repaired / ambiguous / broken / unchanged) before it
-happens, or to drive the same repair from a script or a headless/CI context where no vault
-"open" event ever fires. Drop <code>--dry-run</code> to apply it directly instead of waiting for
-the next open. This is a convenience for people who want more control, not a required step.</p>
+never touches those files automatically, so the dry-run review and the git diff review above
+matter doubly there — nothing about this migration is manifest-aware.</div>
 </section>
 
 <footer>
