@@ -24,6 +24,7 @@ import {
 } from '../../../core/markdown/frontmatterParser'
 import { useFrontmatterWikilink } from './useFrontmatterWikilink'
 import { resolveMdLinkInVault, type VaultFile } from './wikilinkResolver'
+import type { VaultMode } from './okfLinks'
 
 /**
  * BUG-139 v1.1 Q5 — expanded-row display formatter.
@@ -161,16 +162,21 @@ interface Props {
    *  parity with the body gesture. These are the SAME vault-index sources
    *  MarkdownEditor threads into the body WikilinkSuggestion. When absent,
    *  the panel renders no live popover (the textarea still edits raw YAML).
-   *  FOLLOWUP-051: a picked `[[ ]]` persists AS `[[ ]]` in both vault modes
-   *  (a bare rel-path isn't a graph edge in Duo or Obsidian), so no
-   *  mode/docPath gating is needed here. */
+   *  ENH-266 — a picked note now writes a QUOTED markdown link in OKF mode
+   *  (see `vaultMode` below); Obsidian keeps the unquoted `[[ ]]` form. */
   vaultFiles?: VaultFile[]
   vaultLoading?: boolean
   vaultRoot?: string | null
   onVaultRefresh?: () => void
+  /** ENH-266 — the active vault's at-rest link mode (D4), threaded into the
+   *  frontmatter `[[ ]]` gesture so an OKF pick writes a quoted markdown
+   *  link instead of a wikilink. Defaults to `'obsidian'` (unchanged
+   *  behavior) when absent. */
+  vaultMode?: VaultMode
   /** ENH-241 — the open doc's absolute path, used to resolve `[md](rel.md)`
    *  frontmatter links relative to it (the `[[ ]]` path doesn't need it; App.tsx
-   *  walks from the active doc). Absent → md-links render as plain text. */
+   *  walks from the active doc). Absent → md-links render as plain text.
+   *  ENH-266 — ALSO the rel-link base for a new OKF frontmatter pick. */
   docPath?: string
 }
 
@@ -183,6 +189,7 @@ export function FrontmatterPanel({
   vaultLoading,
   vaultRoot,
   onVaultRefresh,
+  vaultMode,
   docPath
 }: Props) {
   const [editing, setEditing] = useState(false)
@@ -222,7 +229,9 @@ export function FrontmatterPanel({
     vaultFiles: vaultFiles ?? [],
     vaultLoading: vaultLoading ?? false,
     vaultRoot: vaultRoot ?? null,
-    onVaultRefresh
+    onVaultRefresh,
+    vaultMode,
+    docPath
   })
 
   // Sync draft from props whenever we enter edit mode or the
@@ -265,9 +274,10 @@ export function FrontmatterPanel({
   }, [editing, draft])
 
   const commit = useCallback(() => {
-    // FOLLOWUP-051 — frontmatter `[[ ]]` persists AS `[[ ]]` (it's the
-    // graph-edge form in both Duo and Obsidian); no save-time rewrite to a
-    // rel-path, so commit is a plain synchronous validate + propagate.
+    // ENH-266 — the `[[ ]]` gesture already writes the mode-correct final
+    // form at insert time (quoted markdown link for OKF, wikilink for
+    // Obsidian — see useFrontmatterWikilink); commit stays a plain
+    // synchronous validate + propagate, no save-time rewrite.
     const result = parseFrontmatter(draft)
     if (!result.valid) {
       setParseError(result.error)

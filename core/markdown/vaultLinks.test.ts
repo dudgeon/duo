@@ -4,6 +4,7 @@
 // targetKey equivalence between a wikilink and its slugged mdlink.
 
 import { describe, it, expect } from 'vitest'
+import { load as yamlLoad } from 'js-yaml'
 import {
   slugStem,
   targetKey,
@@ -11,6 +12,8 @@ import {
   serializeOkfLink,
   serializeWikilink,
   linkSerializerFor,
+  serializeOkfFrontmatterLink,
+  frontmatterLinkSerializerFor,
   extractLinkRefs,
   extractLinkKeys,
   resolveMarkdownLinkHref,
@@ -108,6 +111,45 @@ describe('linkSerializerFor (mode dispatch)', () => {
   })
 })
 
+describe('serializeOkfFrontmatterLink (ENH-266)', () => {
+  it('writes a QUOTED standard markdown relative link', () => {
+    const value = serializeOkfFrontmatterLink('initiatives/q3.md', 'people/alice.md', 'Alice Park')
+    expect(value).toBe('"[Alice Park](../people/alice.md)"')
+    expect(value).not.toContain('[[')
+  })
+
+  it('is valid YAML when spliced after a `key: ` prefix', () => {
+    const value = serializeOkfFrontmatterLink('initiatives/q3.md', 'people/alice.md', 'Alice Park')
+    const line = `owner: ${value}`
+    // A bare (unquoted) markdown link would misparse as a nested YAML flow
+    // sequence (`[[...]]`); the quoted form must round-trip as a STRING.
+    const parsed = yamlLoad(line) as Record<string, unknown>
+    expect(typeof parsed.owner).toBe('string')
+    expect(parsed.owner).toBe('[Alice Park](../people/alice.md)')
+  })
+
+  it('escapes an embedded double-quote in the display text', () => {
+    const value = serializeOkfFrontmatterLink('a.md', 'b.md', 'The "Best" Note')
+    expect(value).toBe('"[The \\"Best\\" Note](./b.md)"')
+  })
+
+  it('falls back to the target basename when no display given', () => {
+    expect(serializeOkfFrontmatterLink('index.md', 'people/alice.md')).toBe(
+      '"[alice](./people/alice.md)"',
+    )
+  })
+})
+
+describe('frontmatterLinkSerializerFor (mode dispatch, ENH-266)', () => {
+  it('obsidian → unquoted wikilink (unchanged)', () => {
+    expect(frontmatterLinkSerializerFor('obsidian')('a.md', 'b.md')).toBe('[[b]]')
+  })
+
+  it('okf → quoted markdown-relative link', () => {
+    expect(frontmatterLinkSerializerFor('okf')('a.md', 'b.md')).toBe('"[b](./b.md)"')
+  })
+})
+
 describe('extractLinkRefs (mixed wikilink + mdlink)', () => {
   it('scans BOTH syntaxes in document order with provenance', () => {
     const text = 'See [[Customer Orders]] then [Alice](./people/alice.md).'
@@ -151,6 +193,25 @@ describe('extractLinkRefs (mixed wikilink + mdlink)', () => {
   it('keeps every occurrence (no dedup) in extractLinkRefs', () => {
     const refs = extractLinkRefs('[[Foo]] and again [[Foo]]')
     expect(refs).toHaveLength(2)
+  })
+
+  // BUG-267 — an angle-bracketed destination (CommonMark §6.6) is how a
+  // space-containing href stays valid markdown. Before this fix, MDLINK_RE's
+  // bare-form-only capture truncated at the first space regardless of the
+  // angle brackets.
+  it('captures the FULL href from an angle-bracketed destination with spaces', () => {
+    const [ref] = extractLinkRefs('[Weird](<./notes/weird draft.md>)')
+    expect(ref.rawTarget).toBe('./notes/weird draft.md')
+    expect(ref.syntax).toBe('mdlink')
+  })
+
+  it('a bare (non-angle-bracketed) space-containing href is still NOT captured (unchanged — invalid CommonMark)', () => {
+    const refs = extractLinkRefs('[Weird](./notes/weird draft.md)')
+    // `matchAll` still finds SOMETHING (the truncated bare form up to the
+    // space) — pin that it resolves to the (wrong, truncated) stem, proving
+    // this un-angle-bracketed shape remains the caller's responsibility to
+    // avoid (listings.ts's `safeHref` always angle-brackets when needed).
+    expect(refs[0]?.rawTarget).not.toBe('./notes/weird draft.md')
   })
 })
 

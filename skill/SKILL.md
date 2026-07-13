@@ -402,7 +402,13 @@ Each pointer loads a complete file — open the one that matches your task.
   add `--no-default` so a throwaway scaffold doesn't hijack the active vault).
   In OKF mode a move changes link paths, so use `duo vault mv` (clean move +
   inbound-link rewrite) or `duo vault relink` (repairs out-of-band moves
-  slug-first, with `id:` as a same-slug tiebreak); `duo vault publish`
+  slug-first, with `id:` as a same-slug tiebreak). ENH-266 — the frontmatter-link migration (OKF-only) runs AUTOMATICALLY on
+  vault open (same gating as `relink`, so a legacy vault just works in
+  Obsidian); `duo vault relink --frontmatter [--dry-run]` runs the SAME
+  migration explicitly for preview/headless use. It rewrites frontmatter entity-reference
+  values (`owner:`, `initiative:`, `attendees:`, …) from wikilinks / bare
+  paths to the quoted markdown-link form, converts leftover prose-body
+  wikilinks, and backfills title aliases. `duo vault publish`
   (re)generates the static
   the root index + log listings; `duo vault promote` splits a section into
   its own entity, leaving a markdown link. The end-user walkthrough with

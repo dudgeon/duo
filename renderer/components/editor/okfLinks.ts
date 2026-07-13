@@ -15,14 +15,23 @@
 // extensions stay free of path-math + the import-depth of ../../../core
 // stays in one place.
 //
-// FOLLOWUP-051: frontmatter VALUES are NOT serialized to a rel-path. A bare
-// rel-path in YAML is not a graph edge in Duo OR Obsidian (it silently drops
-// the relationship); a `[[ ]]` value IS an edge in both. So the frontmatter
-// `[[ ]]` gesture persists AS `[[ ]]` — no frontmatter serializer lives here
-// anymore (the old D7 commit-rewrite + okfFrontmatterValue were deleted).
+// ENH-266 (2026-07-09) — REVERSES FOLLOWUP-051. A live Obsidian validation
+// found the FOLLOWUP-051 premise wrong: OKF filenames are SLUGS, and
+// Obsidian's frontmatter-wikilink resolver matches by FILENAME only (not
+// title, not aliases) — so a title-based `owner: "[[Alice Park]]"` value
+// creates an UNRESOLVED PHANTOM NODE in Obsidian's graph instead of linking
+// the real `alice-park.md` note. A standard markdown link value
+// `owner: "[Alice Park](../people/alice-park.md)"` (same syntax prose
+// already uses) resolves CORRECTLY in Obsidian AND reads with zero code
+// changes through Duo's own `extractLinkRefs`/`engineEntityRefs` (both
+// already accept either syntax). So OKF frontmatter entity references are
+// now QUOTED markdown links, via `okfFrontmatterLinkInsert` below. Obsidian
+// mode is UNCHANGED — frontmatter there still keeps `[[Title]]` (Obsidian
+// filenames ARE the titles in that mode, so basename resolution works).
 
 import {
   serializeOkfLink,
+  serializeOkfFrontmatterLink,
   resolveMarkdownLinkHref,
   type VaultMode,
   type LinkSyntax,
@@ -58,4 +67,20 @@ export function okfLinkInsert(
   targetPath: string,
 ): string {
   return serializeOkfLink(docPath, targetPath, displayOrBasename)
+}
+
+/**
+ * ENH-266 — build the QUOTED markdown-link value OKF mode writes for a
+ * FRONTMATTER entity-reference field: `"[Display](./rel.md)"`. Same
+ * relative-path math as {@link okfLinkInsert}, plus the YAML-safe quoting a
+ * frontmatter VALUE needs (a bare `[` would otherwise open a YAML flow
+ * sequence). Never use `okfLinkInsert` for a frontmatter value — only for
+ * the BODY, where no quoting applies.
+ */
+export function okfFrontmatterLinkInsert(
+  displayOrBasename: string,
+  docPath: string,
+  targetPath: string,
+): string {
+  return serializeOkfFrontmatterLink(docPath, targetPath, displayOrBasename)
 }

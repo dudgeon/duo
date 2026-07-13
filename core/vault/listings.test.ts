@@ -81,6 +81,31 @@ describe('generateIndex (OKF section-6, D8)', () => {
     expect(body).toContain('* [Alice Park](./alice.md) - A PM.')
     expect(body).not.toContain('themes')
   })
+
+  // BUG-267(a) — a note whose FILENAME has a space produced a literal
+  // un-percent-encoded space in the generated bullet's href: invalid
+  // navigation in Obsidian ("Folder already exists") and invalid bare-form
+  // GFM on github.com. Fix: angle-bracket the href (CommonMark §6.6) only
+  // when it needs it.
+  it('angle-brackets an href whose target filename has a space', () => {
+    makeOkfVault()
+    write('notes/weird draft.md', '---\ntype: note\ntitle: Weird Draft\n---\nbody\n')
+    const body = generateIndex(root, '')
+    expect(body).toContain('* [Weird Draft](<./notes/weird draft.md>)')
+    // A space-free href is UNCHANGED (no angle-bracket churn on the common case).
+    expect(body).toContain('* [Alice Park](./people/alice.md) - A PM.')
+  })
+
+  it('the angle-bracketed href round-trips through extractLinkRefs (BUG-267b)', () => {
+    makeOkfVault()
+    write('notes/weird draft.md', '---\ntype: note\ntitle: Weird Draft\n---\nbody\n')
+    const body = generateIndex(root, '')
+    const refs = extractLinkRefs(body)
+    const ref = refs.find((r) => r.display === 'Weird Draft')
+    expect(ref).toBeDefined()
+    // The FULL path is captured — not truncated at the first space.
+    expect(ref!.rawTarget).toBe('./notes/weird draft.md')
+  })
 })
 
 describe('engine-driven index (ENH-230 — `listing:` base spec)', () => {

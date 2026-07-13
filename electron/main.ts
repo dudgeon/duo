@@ -4423,6 +4423,46 @@ function maybeAutoRelinkVault(root: string | null, opts: { write?: boolean } = {
     } catch (err) {
       console.warn('[ENH-216] auto-relink failed:', err instanceof Error ? err.message : err)
     }
+    // ENH-266 — the SAME auto-open pass also migrates OKF frontmatter
+    // entity-reference links from the legacy title-wikilink form (which
+    // creates unresolved phantom nodes when the vault is opened in real
+    // Obsidian — the whole point of ENH-266) to the standard markdown-link
+    // form prose already uses. Owner decision 2026-07-13 (superseding the
+    // original opt-in-only D5/D6 lock, recorded in tasks.md § ENH-266): a
+    // legacy vault must "just work" in Obsidian with zero user action, so
+    // this rides the SAME write/report gating as relink above — the
+    // boot-into-default-vault path WRITES, a live vault-switch only reports.
+    // The `duo vault relink --frontmatter` verb remains for preview/headless
+    // use. The D5 foreign-bundle guard applied earlier in this function means
+    // a loopkit/brainkit bundle is never touched here. Own try/catch so a
+    // migration failure is reported accurately and can't mask relink's result.
+    try {
+      const fm = vaultCore.migrateFrontmatterLinks(root, { dryRun: !write })
+      const fmRepaired =
+        fm.frontmatterWikilinks.repaired.length +
+        fm.frontmatterBarePaths.repaired.length +
+        fm.bodyWikilinks.repaired.length +
+        fm.aliasBackfills.length
+      const fmAmbiguous =
+        fm.frontmatterWikilinks.ambiguous.length +
+        fm.frontmatterBarePaths.ambiguous.length +
+        fm.bodyWikilinks.ambiguous.length
+      const fmBroken =
+        fm.frontmatterWikilinks.broken.length +
+        fm.frontmatterBarePaths.broken.length +
+        fm.bodyWikilinks.broken.length
+      if (write && (fmRepaired > 0 || fmAmbiguous > 0 || fmBroken > 0)) {
+        console.log(
+          `[ENH-266] auto-migrate frontmatter links ${root}: ${fmRepaired} rewritten, ${fmAmbiguous} ambiguous, ${fmBroken} broken`,
+        )
+      } else if (!write && (fmRepaired > 0 || fmAmbiguous > 0)) {
+        console.log(
+          `[ENH-266] auto-migrate (dry-run, vault switch) ${root}: ${fmRepaired} link(s) migratable, ${fmAmbiguous} ambiguous, ${fmBroken} broken — run \`duo vault relink --frontmatter\` to apply`,
+        )
+      }
+    } catch (err) {
+      console.warn('[ENH-266] auto-migrate frontmatter links failed:', err instanceof Error ? err.message : err)
+    }
   }, 0)
 }
 

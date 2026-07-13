@@ -2578,13 +2578,14 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           onToggleCollapsed={toggleFrontmatterCollapsed}
           // FOLLOWUP-050 — live `[[ ]]` autocomplete in the raw-YAML editor,
           // reusing the SAME vault index the body WikilinkSuggestion uses.
-          // FOLLOWUP-051 — a picked `[[ ]]` persists AS `[[ ]]` in both modes
-          // (a bare frontmatter rel-path isn't a graph edge), so the panel no
-          // longer needs mode/docPath/resolveWikilink.
+          // ENH-266 — `vaultMode` + `docPath` let an OKF pick write the
+          // quoted markdown-link form instead of a wikilink (Obsidian mode
+          // is unaffected — vaultMode defaults to 'obsidian').
           vaultFiles={vaultIndex.files}
           vaultLoading={vaultIndex.loading}
           vaultRoot={vaultIndex.vaultRoot}
           onVaultRefresh={vaultIndex.refresh}
+          vaultMode={vaultIndex.mode}
           // ENH-241 — resolve `[md](rel.md)` frontmatter links relative to this doc.
           docPath={pathRef.current}
         />

@@ -33,7 +33,7 @@ var import_crypto = require("crypto");
 var import_node_fs2 = __toESM(require("node:fs"));
 var import_node_path2 = __toESM(require("node:path"));
 
-// node_modules/js-yaml/dist/js-yaml.mjs
+// ../../../node_modules/js-yaml/dist/js-yaml.mjs
 function isNothing(subject) {
   return typeof subject === "undefined" || subject === null;
 }
@@ -2656,7 +2656,7 @@ function targetKey(rawTarget, _syntax) {
   return foldKey(t);
 }
 var WIKILINK_RE = /\[\[([^\]]+?)\]\]/g;
-var MDLINK_RE = /(?<!!)\[([^\]]*)\]\(\s*([^)\s]+)[^)]*\)/g;
+var MDLINK_RE = /(?<!!)\[([^\]]*)\]\(\s*(?:<([^>]*)>|([^)\s]+))[^)]*\)/g;
 function isExternalHref(href) {
   if (!href) return true;
   if (href.startsWith("#")) return true;
@@ -2683,7 +2683,7 @@ function extractLinkRefs(text) {
   }
   for (const m of text.matchAll(MDLINK_RE)) {
     const display = m[1].trim();
-    const rawTarget = m[2].trim();
+    const rawTarget = (m[2] !== void 0 ? m[2] : m[3]).trim();
     if (isExternalHref(rawTarget)) continue;
     hits.push({
       index: m.index ?? 0,
@@ -2763,6 +2763,12 @@ function serializeWikilink(srcAbs, tgtAbs, display) {
     return `[[${stem}|${display.trim()}]]`;
   }
   return `[[${stem}]]`;
+}
+function yamlQuote(s) {
+  return `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+function serializeOkfFrontmatterLink(srcAbs, tgtAbs, display) {
+  return yamlQuote(serializeOkfLink(srcAbs, tgtAbs, display));
 }
 
 // core/vault/output-dir.ts
@@ -3493,18 +3499,25 @@ function danglingMdLinks(root) {
   }
   return out2;
 }
+function wrapHrefIfNeeded(href) {
+  return /[\s<>]/.test(href) ? `<${href}>` : href;
+}
 function rewriteHref(raw, oldHref, newHref) {
   let count = 0;
-  const text = raw.replace(/(\]\(\s*)([^)\s]+)([^)]*\))/g, (whole, lead, href, tail) => {
-    const hashIdx = href.indexOf("#");
-    const base = hashIdx >= 0 ? href.slice(0, hashIdx) : href;
-    const anchor = hashIdx >= 0 ? href.slice(hashIdx) : "";
-    if (base === oldHref) {
-      count++;
-      return lead + newHref + anchor + tail;
+  const text = raw.replace(
+    /(\]\(\s*)(?:<([^>]*)>|([^)\s]+))([^)]*\))/g,
+    (whole, lead, angleHref, bareHref, tail) => {
+      const href = angleHref !== void 0 ? angleHref : bareHref;
+      const hashIdx = href.indexOf("#");
+      const base = hashIdx >= 0 ? href.slice(0, hashIdx) : href;
+      const anchor = hashIdx >= 0 ? href.slice(hashIdx) : "";
+      if (base === oldHref) {
+        count++;
+        return lead + wrapHrefIfNeeded(newHref + anchor) + tail;
+      }
+      return whole;
     }
-    return whole;
-  });
+  );
   return { text, count };
 }
 function moveNote(root, fromRel, toRel) {
@@ -3583,6 +3596,23 @@ function buildTargetIndex(notes) {
   }
   return { byId, bySlug };
 }
+function resolveDanglingTarget(index, key, display, rawText) {
+  const slugCandidates = index.bySlug.get(key) ?? [];
+  if (slugCandidates.length === 1) {
+    return { kind: "resolved", note: slugCandidates[0], via: "slug" };
+  }
+  if (slugCandidates.length > 1) {
+    const idHit = slugCandidates.filter((c) => {
+      const id = readNoteId(c.frontmatter);
+      return id != null && (display === id || rawText.includes(id));
+    });
+    if (idHit.length === 1) {
+      return { kind: "resolved", note: idHit[0], via: "id" };
+    }
+    return { kind: "ambiguous", candidates: slugCandidates.map((c) => c.relPath).sort() };
+  }
+  return { kind: "broken" };
+}
 function relinkVault(root, opts = {}) {
   const notes = readNotes(root);
   const index = buildTargetIndex(notes);
@@ -3592,42 +3622,22 @@ function relinkVault(root, opts = {}) {
   const broken = [];
   const edits = /* @__PURE__ */ new Map();
   for (const d of dangling) {
-    const key = d.key;
-    const slugCandidates = index.bySlug.get(key) ?? [];
-    let resolved = null;
-    let via = "slug";
-    if (slugCandidates.length === 1) {
-      resolved = slugCandidates[0];
-      via = "slug";
-    } else if (slugCandidates.length > 1) {
-      const idHit = slugCandidates.filter((c) => {
-        const id = readNoteId(c.frontmatter);
-        return id != null && (d.display === id || d.rawHref.includes(id));
-      });
-      if (idHit.length === 1) {
-        resolved = idHit[0];
-        via = "id";
-      } else {
-        ambiguous.push({
-          fromRel: d.fromRel,
-          oldHref: d.rawHref,
-          display: d.display,
-          candidates: slugCandidates.map((c) => c.relPath).sort()
-        });
-        continue;
-      }
+    const outcome = resolveDanglingTarget(index, d.key, d.display, d.rawHref);
+    if (outcome.kind === "ambiguous") {
+      ambiguous.push({ fromRel: d.fromRel, oldHref: d.rawHref, display: d.display, candidates: outcome.candidates });
+      continue;
     }
-    if (!resolved) {
+    if (outcome.kind === "broken") {
       broken.push({ fromRel: d.fromRel, oldHref: d.rawHref, display: d.display });
       continue;
     }
-    const newHref = relLink(d.fromRel, resolved.relPath);
+    const newHref = relLink(d.fromRel, outcome.note.relPath);
     repaired.push({
       fromRel: d.fromRel,
       oldHref: d.rawHref,
       newHref,
-      via,
-      targetRel: resolved.relPath
+      via: outcome.via,
+      targetRel: outcome.note.relPath
     });
     if (!edits.has(d.fromAbs)) edits.set(d.fromAbs, { abs: d.fromAbs, ops: [] });
     edits.get(d.fromAbs).ops.push({ oldHref: d.rawHref.split("#")[0], newHref });
@@ -3645,6 +3655,278 @@ function relinkVault(root, opts = {}) {
     }
   }
   return { repaired, ambiguous, broken };
+}
+function stripYamlQuote(token) {
+  const t = token.trim();
+  if (t.length >= 2 && (t[0] === '"' || t[0] === "'") && t[t.length - 1] === t[0]) {
+    return { inner: t.slice(1, -1), quoted: true };
+  }
+  return { inner: t, quoted: false };
+}
+function splitFlowArrayItems(inner) {
+  const items = [];
+  let cur = "";
+  let q = null;
+  for (const ch of inner) {
+    if (q) {
+      cur += ch;
+      if (ch === q) q = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      q = ch;
+      cur += ch;
+      continue;
+    }
+    if (ch === ",") {
+      items.push(cur);
+      cur = "";
+      continue;
+    }
+    cur += ch;
+  }
+  if (cur.trim()) items.push(cur);
+  return items.map((s) => s.trim()).filter(Boolean);
+}
+var FM_WIKILINK_VALUE_RE = /^\[\[([^\]|]+)(?:\|([^\]]+))?\]\]$/;
+var FM_BARE_MD_PATH_RE = /^\.{1,2}\/[^\s'"[\]]+\.md$/i;
+function scanFrontmatterValues(raw) {
+  const fence = raw.match(/^---\n([\s\S]*?)\n---\n?/);
+  if (!fence) return [];
+  const fmText = fence[1];
+  const fmOffset = fence[0].indexOf(fmText);
+  const hits = [];
+  const lines = fmText.split("\n");
+  let offset = fmOffset;
+  let currentField = null;
+  let currentFieldIndent = 0;
+  for (const line of lines) {
+    const lineStart = offset;
+    offset += line.length + 1;
+    const scalarMatch = line.match(/^(\s*)([A-Za-z0-9_.-]+):(.*)$/);
+    if (scalarMatch) {
+      const indent = scalarMatch[1].length;
+      const field = scalarMatch[2];
+      const rest = scalarMatch[3];
+      const restTrimmed = rest.trim();
+      if (restTrimmed === "") {
+        currentField = field;
+        currentFieldIndent = indent;
+        continue;
+      }
+      currentField = null;
+      const leadingWs = rest.length - rest.trimStart().length;
+      const valueStartInLine = line.length - rest.length + leadingWs;
+      if (restTrimmed.startsWith("[") && !restTrimmed.startsWith("[[") && restTrimmed.endsWith("]")) {
+        const items = splitFlowArrayItems(restTrimmed.slice(1, -1));
+        let searchFrom = valueStartInLine + 1;
+        for (const itemToken of items) {
+          const idx = line.indexOf(itemToken, searchFrom);
+          if (idx === -1) continue;
+          const { inner } = stripYamlQuote(itemToken);
+          hits.push({ field, start: lineStart + idx, end: lineStart + idx + itemToken.length, inner });
+          searchFrom = idx + itemToken.length;
+        }
+      } else {
+        const { inner } = stripYamlQuote(restTrimmed);
+        hits.push({
+          field,
+          start: lineStart + valueStartInLine,
+          end: lineStart + valueStartInLine + restTrimmed.length,
+          inner
+        });
+      }
+      continue;
+    }
+    const listMatch = line.match(/^(\s*)-\s?(.*)$/);
+    if (listMatch && currentField) {
+      const indent = listMatch[1].length;
+      if (indent <= currentFieldIndent) {
+        currentField = null;
+        continue;
+      }
+      const rest = listMatch[2];
+      const restTrimmed = rest.trim();
+      if (!restTrimmed) continue;
+      const leadingWs = rest.length - rest.trimStart().length;
+      const valueStartInLine = line.length - rest.length + leadingWs;
+      const { inner } = stripYamlQuote(restTrimmed);
+      hits.push({
+        field: currentField,
+        start: lineStart + valueStartInLine,
+        end: lineStart + valueStartInLine + restTrimmed.length,
+        inner
+      });
+    }
+  }
+  return hits;
+}
+function scanBodyWikilinks(body) {
+  const hits = [];
+  const re = /\[\[([^\]]+?)\]\]/g;
+  let m;
+  while (m = re.exec(body)) {
+    const inner = m[1];
+    const pipe = inner.indexOf("|");
+    const rawTarget = (pipe >= 0 ? inner.slice(0, pipe) : inner).trim();
+    if (!rawTarget) continue;
+    const display = (pipe >= 0 ? inner.slice(pipe + 1) : inner).trim();
+    hits.push({ start: m.index, end: m.index + m[0].length, rawTarget, display });
+  }
+  return hits;
+}
+function applySpanEdits(raw, edits) {
+  const sorted = [...edits].sort((a, b) => b.start - a.start);
+  let out2 = raw;
+  for (const e of sorted) {
+    out2 = out2.slice(0, e.start) + e.replacement + out2.slice(e.end);
+  }
+  return out2;
+}
+function migrateFrontmatterLinks(root, opts = {}) {
+  const mode = detectVaultMode(root);
+  if (mode !== "okf") {
+    throw new Error(
+      `migrateFrontmatterLinks is OKF-mode only (ENH-266): vault mode is ${mode ?? "not-a-vault"}. Obsidian-mode frontmatter keeps [[wikilinks]] \u2014 this migration does not apply.`
+    );
+  }
+  const notes = readNotes(root);
+  const index = buildTargetIndex(notes);
+  const byRelPath = new Map(notes.map((n) => [normalizePosix(n.relPath), n]));
+  const frontmatterWikilinks = { repaired: [], ambiguous: [], broken: [] };
+  const frontmatterBarePaths = { repaired: [], ambiguous: [], broken: [] };
+  const bodyWikilinks = { repaired: [], ambiguous: [], broken: [] };
+  const aliasBackfills = [];
+  for (const note of notes) {
+    const noteBasename = note.relPath.includes("/") ? note.relPath.slice(note.relPath.lastIndexOf("/") + 1) : note.relPath;
+    if (isGeneratedListingBasename(noteBasename)) continue;
+    const abs = note.absPath;
+    const raw = import_node_fs9.default.readFileSync(abs, "utf8");
+    const spanEdits = [];
+    for (const hit of scanFrontmatterValues(raw)) {
+      const wiki = hit.inner.match(FM_WIKILINK_VALUE_RE);
+      if (wiki) {
+        const rawTarget = wiki[1].trim();
+        const display = (wiki[2] ?? rawTarget).trim();
+        const key = targetKey(rawTarget, "wikilink");
+        const outcome = resolveDanglingTarget(index, key, display, hit.inner);
+        const oldValue = raw.slice(hit.start, hit.end);
+        if (outcome.kind === "ambiguous") {
+          frontmatterWikilinks.ambiguous.push({ fromRel: note.relPath, field: hit.field, oldValue, candidates: outcome.candidates });
+        } else if (outcome.kind === "broken") {
+          frontmatterWikilinks.broken.push({ fromRel: note.relPath, field: hit.field, oldValue });
+        } else {
+          const newValue = serializeOkfFrontmatterLink(note.relPath, outcome.note.relPath, display);
+          frontmatterWikilinks.repaired.push({
+            fromRel: note.relPath,
+            field: hit.field,
+            oldValue,
+            newValue,
+            via: outcome.via,
+            targetRel: outcome.note.relPath
+          });
+          spanEdits.push({ start: hit.start, end: hit.end, replacement: newValue });
+        }
+        continue;
+      }
+      if (FM_BARE_MD_PATH_RE.test(hit.inner)) {
+        const oldValue = raw.slice(hit.start, hit.end);
+        const targetRel = resolveHref(note.relPath, hit.inner);
+        const target = targetRel ? byRelPath.get(normalizePosix(targetRel)) : void 0;
+        if (!target) {
+          frontmatterBarePaths.broken.push({ fromRel: note.relPath, field: hit.field, oldValue });
+          continue;
+        }
+        const display = typeof target.frontmatter.title === "string" ? target.frontmatter.title : void 0;
+        const newValue = serializeOkfFrontmatterLink(note.relPath, target.relPath, display);
+        frontmatterBarePaths.repaired.push({
+          fromRel: note.relPath,
+          field: hit.field,
+          oldValue,
+          newValue,
+          via: "slug",
+          targetRel: target.relPath
+        });
+        spanEdits.push({ start: hit.start, end: hit.end, replacement: newValue });
+      }
+    }
+    const fence = raw.match(/^---\n[\s\S]*?\n---\n?/);
+    const bodyOffset = fence ? fence[0].length : 0;
+    for (const hit of scanBodyWikilinks(raw.slice(bodyOffset))) {
+      const key = targetKey(hit.rawTarget, "wikilink");
+      const rawOccurrence = raw.slice(bodyOffset + hit.start, bodyOffset + hit.end);
+      const outcome = resolveDanglingTarget(index, key, hit.display, rawOccurrence);
+      if (outcome.kind === "ambiguous") {
+        bodyWikilinks.ambiguous.push({ fromRel: note.relPath, oldValue: rawOccurrence, candidates: outcome.candidates });
+        continue;
+      }
+      if (outcome.kind === "broken") {
+        bodyWikilinks.broken.push({ fromRel: note.relPath, oldValue: rawOccurrence });
+        continue;
+      }
+      const newValue = serializeOkfLink(note.relPath, outcome.note.relPath, hit.display || void 0);
+      bodyWikilinks.repaired.push({
+        fromRel: note.relPath,
+        oldValue: rawOccurrence,
+        newValue,
+        via: outcome.via,
+        targetRel: outcome.note.relPath
+      });
+      spanEdits.push({ start: bodyOffset + hit.start, end: bodyOffset + hit.end, replacement: newValue });
+    }
+    const title = typeof note.frontmatter.title === "string" ? note.frontmatter.title.trim() : "";
+    if (title && slugStem(title) !== note.basename) {
+      const aliasList = Array.isArray(note.frontmatter.aliases) ? note.frontmatter.aliases.map(String) : [];
+      if (!aliasList.includes(title)) {
+        const aliasEdit = buildAliasBackfillEdit(raw, title);
+        if (aliasEdit) {
+          spanEdits.push(aliasEdit);
+          aliasBackfills.push({ fromRel: note.relPath, title });
+        }
+      }
+    }
+    if (spanEdits.length && !opts.dryRun) {
+      import_node_fs9.default.writeFileSync(abs, applySpanEdits(raw, spanEdits));
+    }
+  }
+  return { frontmatterWikilinks, frontmatterBarePaths, bodyWikilinks, aliasBackfills };
+}
+function buildAliasBackfillEdit(raw, title) {
+  const fence = raw.match(/^---\n/);
+  if (!fence) return null;
+  const fmEnd = raw.indexOf("\n---", fence[0].length);
+  if (fmEnd === -1) return null;
+  const quoted = `"${title.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  const flowMatch = raw.slice(0, fmEnd).match(/^aliases:[ \t]*\[(.*)\][ \t]*$/m);
+  if (flowMatch) {
+    const lineStart = raw.lastIndexOf("\n", flowMatch.index + "aliases:".length) + 1;
+    const bracketOpen = raw.indexOf("[", lineStart);
+    const bracketClose = raw.indexOf("]", bracketOpen);
+    const inner = flowMatch[1].trim();
+    const replacement = inner ? `[${inner}, ${quoted}]` : `[${quoted}]`;
+    return { start: bracketOpen, end: bracketClose + 1, replacement };
+  }
+  const blockMatch = raw.slice(0, fmEnd).match(/^aliases:[ \t]*$/m);
+  if (blockMatch) {
+    const keyLineEnd = blockMatch.index + blockMatch[0].length;
+    const rest = raw.slice(keyLineEnd, fmEnd);
+    const itemRe = /\n( +)-[^\n]*/g;
+    let lastEnd = keyLineEnd;
+    let indent = "  ";
+    let m;
+    let sawItem = false;
+    while (m = itemRe.exec(rest)) {
+      if (sawItem && m[1].length !== indent.length) break;
+      indent = m[1];
+      lastEnd = keyLineEnd + m.index + m[0].length;
+      sawItem = true;
+    }
+    const insertion = `
+${indent}- ${quoted}`;
+    return { start: lastEnd, end: lastEnd, replacement: insertion };
+  }
+  return { start: fence[0].length, end: fence[0].length, replacement: `aliases: [${quoted}]
+` };
 }
 
 // core/vault/scaffold.ts
@@ -6398,6 +6680,9 @@ function groupLabel(note) {
   const top = note.folder ? note.folder.split("/")[0] : "";
   return top || "Other";
 }
+function safeHref(href) {
+  return /[\s<>]/.test(href) ? `<${href}>` : href;
+}
 function isGeneratedListing(relPath) {
   const base = relPath.includes("/") ? relPath.slice(relPath.lastIndexOf("/") + 1) : relPath;
   return isGeneratedListingBasename(base);
@@ -6421,7 +6706,7 @@ function generateIndex(root, dir = "", indexFilename) {
     const rows = groups.get(label).sort((a, b) => noteTitle(a).localeCompare(noteTitle(b)));
     const lines = [`## ${label}`, ""];
     for (const n of rows) {
-      const href = relLink(indexRel, n.relPath);
+      const href = safeHref(relLink(indexRel, n.relPath));
       const desc = noteDescription(n);
       lines.push(`* [${noteTitle(n)}](${href})${desc ? ` - ${desc}` : ""}`);
     }
@@ -6477,7 +6762,7 @@ function generateLog(root, logFilename) {
     const rows = byDay.get(day).sort((a, b) => b.mtimeMs - a.mtimeMs);
     const lines = [`## ${day}`, ""];
     for (const n of rows) {
-      lines.push(`* [${noteTitle(n)}](${relLink(logRel, n.relPath)})`);
+      lines.push(`* [${noteTitle(n)}](${safeHref(relLink(logRel, n.relPath))})`);
     }
     sections.push(lines.join("\n"));
   }
@@ -6732,7 +7017,7 @@ ${mergeRes.stdout}`.trim();
 }
 
 // cli/duo.ts
-var VERSION = true ? "0.13.6" : "0.0.0-dev";
+var VERSION = true ? "0.13.7" : "0.0.0-dev";
 var VERBS = [
   // ── Browser & tabs ──
   {
@@ -7206,7 +7491,7 @@ var VERBS = [
     name: "vault",
     group: "Vault",
     args: "<init|list|schema|capture|stub|search|default|mv|relink|publish|promote> [args]",
-    summary: 'Work-notes vault. Two at-rest formats: OKF (standard markdown relative links, [Display](./rel.md)) and Obsidian (wikilinks, [[Display]]) \u2014 one graph model, two serializers. init <path> --format=okf|obsidian [--name "\u2026"] [--no-default] [--force]: scaffold a vault; --format is REQUIRED on the CLI (the New Vault dialog defaults to OKF). OKF mode marks the root with an okf_version _index.md (or legacy index.md) + static listings; Obsidian writes the legacy .obsidian/ + bases/processing.base + README. The fresh vault becomes the default unless --no-default is passed (a throwaway scaffold can opt out of the global-default hijack; it still lands in the picker\'s known list). list: vaults detected from the cwd (JSON). schema [--vault p]: the live corpus \u2014 types/entities/aliases/props-per-type/observed-enums, a pure function over frontmatter (the vault IS the schema; never cached). capture [--template t] [--text "\u2026"] [--title "\u2026"] [--open]: drop a timestamped inbox note (untyped by default; --template stamps a type). stub <type> <name> [--open]: create a typed entity stub from its template, filed by the D19 rule (the CLI twin of the silent-stub [[New Name]]\u21E5 gesture; idempotent \u2014 never clobbers). search <query> [--vault p]: full-text hits (file, line, excerpt) \u2014 the CLI twin of \u2318\u21E7F. default [<path> [--init [--format=okf|obsidian] [--name "\u2026"]] | --clear]: read or set the default vault (Phase-2 D11; the CLI twin of the Settings field). --init (ENH-242 create-on-choose) inits a bare <path> then sets it, or sets the ENCLOSING vault if <path> is inside one (never nests; --format defaults to OKF). mv <from> <to>: move a note (vault-relative) and rewrite every inbound markdown link to its new path, re-basing the moved note\'s own outbound links (D5 clean path). relink [--dry-run]: repair out-of-band moves (Finder/git) \u2014 re-resolve dangling markdown links by slug/basename first, using the stable frontmatter id: only to tiebreak when >1 note shares a slug, rewriting the unambiguous ones and reporting ambiguous + broken (D5; auto-runs on vault open). publish [--index-only|--log-only] [--dir] [--open]: (re)generate the OKF static listings from the corpus \u2014 root index (frontmatter byte-preserved, `_index.md` default / `index.md` legacy) + log (`_log.md`/`log.md`), --dir adds per-folder index files (D8; OKF-mode only). --index-only / --log-only narrow the WRITE to just that file (the other is left byte-identical \u2014 no churn), not just the reported set. promote <note> --heading "<h>" --type <t>: split a ## section into its own typed entity, leaving a markdown link behind (a wikilink in Obsidian) \u2014 never an embed (D9). Verbs resolve --vault \u2192 the enclosing vault \u2192 the default \u2192 error, so a set default lets them run from outside any vault.'
+    summary: 'Work-notes vault. Two at-rest formats: OKF (standard markdown relative links, [Display](./rel.md)) and Obsidian (wikilinks, [[Display]]) \u2014 one graph model, two serializers. init <path> --format=okf|obsidian [--name "\u2026"] [--no-default] [--force]: scaffold a vault; --format is REQUIRED on the CLI (the New Vault dialog defaults to OKF). OKF mode marks the root with an okf_version _index.md (or legacy index.md) + static listings; Obsidian writes the legacy .obsidian/ + bases/processing.base + README. The fresh vault becomes the default unless --no-default is passed (a throwaway scaffold can opt out of the global-default hijack; it still lands in the picker\'s known list). list: vaults detected from the cwd (JSON). schema [--vault p]: the live corpus \u2014 types/entities/aliases/props-per-type/observed-enums, a pure function over frontmatter (the vault IS the schema; never cached). capture [--template t] [--text "\u2026"] [--title "\u2026"] [--open]: drop a timestamped inbox note (untyped by default; --template stamps a type). stub <type> <name> [--open]: create a typed entity stub from its template, filed by the D19 rule (the CLI twin of the silent-stub [[New Name]]\u21E5 gesture; idempotent \u2014 never clobbers). search <query> [--vault p]: full-text hits (file, line, excerpt) \u2014 the CLI twin of \u2318\u21E7F. default [<path> [--init [--format=okf|obsidian] [--name "\u2026"]] | --clear]: read or set the default vault (Phase-2 D11; the CLI twin of the Settings field). --init (ENH-242 create-on-choose) inits a bare <path> then sets it, or sets the ENCLOSING vault if <path> is inside one (never nests; --format defaults to OKF). mv <from> <to>: move a note (vault-relative) and rewrite every inbound markdown link to its new path, re-basing the moved note\'s own outbound links (D5 clean path). relink [--dry-run]: repair out-of-band moves (Finder/git) \u2014 re-resolve dangling markdown links by slug/basename first, using the stable frontmatter id: only to tiebreak when >1 note shares a slug, rewriting the unambiguous ones and reporting ambiguous + broken (D5; auto-runs on vault open). relink --frontmatter [--dry-run]: ENH-266 \u2014 the frontmatter-link migration (OKF-mode only). Runs AUTOMATICALLY on the auto-relink-on-vault-open pass (identical write/report + D5 foreign-bundle gating as relink above), so a legacy OKF vault just works in Obsidian with zero user action; this verb runs the SAME migration explicitly, for a `--dry-run` preview or for headless/CI use where no vault-open fires. Four categories, each reported with repaired/ambiguous/broken counts (ambiguous/broken are left untouched, never guessed): (a) frontmatter wikilink values (owner: "[[Alice Park]]", scalar or list, quoted or not) \u2192 the quoted markdown-link form \u2014 a title-based frontmatter wikilink creates an unresolved phantom node in Obsidian since OKF filenames are slugs, not titles; (b) frontmatter BARE unbracketed rel-path values (owner: "./people/alice-park.md" \u2014 invisible to every link parser) \u2192 the quoted markdown-link form, only when the path resolves to a real file; (c) leftover prose-BODY wikilinks (someone edited the vault in Obsidian with factory-default wikilink settings) \u2192 markdown links; (d) alias backfill \u2014 an entity whose title: differs from its slug filename gets that title appended to aliases: (if not already present). publish [--index-only|--log-only] [--dir] [--open]: (re)generate the OKF static listings from the corpus \u2014 root index (frontmatter byte-preserved, `_index.md` default / `index.md` legacy) + log (`_log.md`/`log.md`), --dir adds per-folder index files (D8; OKF-mode only). --index-only / --log-only narrow the WRITE to just that file (the other is left byte-identical \u2014 no churn), not just the reported set. promote <note> --heading "<h>" --type <t>: split a ## section into its own typed entity, leaving a markdown link behind (a wikilink in Obsidian) \u2014 never an embed (D9). Verbs resolve --vault \u2192 the enclosing vault \u2192 the default \u2192 error, so a set default lets them run from outside any vault.'
   },
   {
     name: "graph",
@@ -9050,7 +9335,11 @@ ${res.pr.url}`);
           out(moveNote(root, from, to));
         } else if (sub === "relink") {
           const root = resolveVaultOrDefault(process.cwd(), vaultFlag);
-          out(relinkVault(root, { dryRun: subRest.includes("--dry-run") }));
+          if (subRest.includes("--frontmatter")) {
+            out(migrateFrontmatterLinks(root, { dryRun: subRest.includes("--dry-run") }));
+          } else {
+            out(relinkVault(root, { dryRun: subRest.includes("--dry-run") }));
+          }
         } else if (sub === "publish") {
           const root = resolveVaultOrDefault(process.cwd(), vaultFlag);
           const scope = subRest.includes("--index-only") ? "index" : subRest.includes("--log-only") ? "log" : "both";
@@ -9080,7 +9369,7 @@ ${res.pr.url}`);
           out(promoteSection(root, note, heading, type2));
         } else {
           die(
-            'Usage: duo vault <init|list|schema|capture|stub|search|default|mv|relink|publish|promote> [args]\n  init <path> --format=okf|obsidian [--name "\u2026"] [--no-default] [--force]   scaffold a new vault (becomes active unless --no-default)\n  list                      vaults detected from the cwd (JSON)\n  schema [--vault p]        the L0 corpus (JSON)\n  capture [--template t] [--text "\u2026"] [--title "\u2026"] [--open]   new inbox note\n  stub <type> <name> [--open]   create a typed entity stub (D19-filed)\n  search <query>            full-text hits (JSON)\n  default [<path> [--init]|--clear]  read / set the default vault (--init = create-on-choose)\n  mv <from> <to>            move a note + rewrite inbound md links (D5 clean path)\n  relink [--dry-run]        repair out-of-band moves (slug-first; id tiebreaks same-slug; D5)\n  publish [--index-only|--log-only] [--dir] [--open]   (re)generate OKF listings (D8)\n  promote <note> --heading "<h>" --type <t>   split a section into its own entity (D9)'
+            'Usage: duo vault <init|list|schema|capture|stub|search|default|mv|relink|publish|promote> [args]\n  init <path> --format=okf|obsidian [--name "\u2026"] [--no-default] [--force]   scaffold a new vault (becomes active unless --no-default)\n  list                      vaults detected from the cwd (JSON)\n  schema [--vault p]        the L0 corpus (JSON)\n  capture [--template t] [--text "\u2026"] [--title "\u2026"] [--open]   new inbox note\n  stub <type> <name> [--open]   create a typed entity stub (D19-filed)\n  search <query>            full-text hits (JSON)\n  default [<path> [--init]|--clear]  read / set the default vault (--init = create-on-choose)\n  mv <from> <to>            move a note + rewrite inbound md links (D5 clean path)\n  relink [--dry-run]        repair out-of-band moves (slug-first; id tiebreaks same-slug; D5)\n  relink --frontmatter [--dry-run]   ENH-266 opt-in migration: frontmatter wikilinks/bare-paths \u2192 quoted md-links, body wikilinks, alias backfill (OKF-only; never auto-run)\n  publish [--index-only|--log-only] [--dir] [--open]   (re)generate OKF listings (D8)\n  promote <note> --heading "<h>" --type <t>   split a section into its own entity (D9)'
           );
         }
         break;

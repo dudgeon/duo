@@ -25,6 +25,7 @@ import {
   relLink,
   serializeOkfLink,
   serializeWikilink,
+  serializeOkfFrontmatterLink,
   extractLinkRefs,
   extractLinkKeys,
 } from '../markdown/vaultLinks'
@@ -38,6 +39,7 @@ import {
 } from './index'
 import { moveNote, relinkVault, ensureNoteId } from './move'
 import { generateIndex, writeListings, promoteSection, LISTING_FENCE } from './listings'
+import { splitFrontmatter } from './parse'
 
 // `[[` — built from char codes so this source file itself carries ZERO
 // double-open-square-bracket literals (the very sequence the lock forbids in
@@ -447,5 +449,51 @@ describe('THE LOCK (D3) — a gesture-equivalent create persists a markdown link
     // …and there is NOT a single double-open-square-bracket sequence anywhere
     // in the persisted note (no wikilink ever survives in OKF mode).
     expect(onDisk.includes(WIKI_OPEN)).toBe(false)
+  })
+
+  // ENH-266 (2026-07-09) — extends THE LOCK to FRONTMATTER. A live Obsidian
+  // validation found the FOLLOWUP-051 wikilink-in-frontmatter form creates
+  // an unresolved phantom node (OKF filenames are slugs, Obsidian's
+  // frontmatter resolver matches by filename only). OKF frontmatter entity
+  // refs (owner:, initiative:, attendees:, …) are now QUOTED markdown links
+  // — this note must stay wikilink-free in ITS FRONTMATTER too, not just its
+  // body.
+  it('a freshly-stubbed OKF entity with a link-valued frontmatter field contains ZERO double-open square brackets anywhere in the file, frontmatter included', () => {
+    const v = initVault(path.join(root, 'v')).root // OKF default
+    const owner = createEntityStub(v, 'person', 'Alice Park', { mode: 'okf' })
+    const milestone = createEntityStub(v, 'milestone', 'Launch Day', { mode: 'okf' })
+
+    // The frontmatter `[[ ]]` GESTURE is INPUT-ONLY (D3/ENH-266): on resolve,
+    // OKF mode writes a QUOTED standard markdown relative link. We exercise
+    // the at-rest frontmatter serializer the resolve step calls and splice
+    // it into the milestone's blank `owner:` field, exactly as the
+    // useFrontmatterWikilink gesture would.
+    const ownerValue = serializeOkfFrontmatterLink(milestone.path, owner.path, 'Alice Park')
+    let raw = fs.readFileSync(milestone.absPath, 'utf8')
+    expect(raw).toMatch(/^owner:\s*$/m)
+    raw = raw.replace(/^owner:\s*$/m, `owner: ${ownerValue}`)
+    fs.writeFileSync(milestone.absPath, raw)
+
+    const onDisk = fs.readFileSync(milestone.absPath, 'utf8')
+    // Zero `[[` anywhere in the file — frontmatter AND body.
+    expect(onDisk.includes(WIKI_OPEN)).toBe(false)
+    // It's valid, QUOTED YAML — the value reads back as a STRING (not a
+    // misparsed nested flow-sequence, which an unquoted `[...]` would be).
+    const { frontmatter } = splitFrontmatter(onDisk)
+    expect(typeof frontmatter.owner).toBe('string')
+    expect(frontmatter.owner).toMatch(/^\[Alice Park\]\([./a-z-]+\)$/)
+    // …and it round-trips as a graph edge (extractLinkRefs scans the whole
+    // raw file — frontmatter included — so this is unaffected by YAML
+    // validity either way, but pins the syntax + key regardless).
+    const refs = extractLinkRefs(onDisk)
+    expect(refs.some((r) => r.syntax === 'mdlink' && r.key === 'alice-park')).toBe(true)
+    // …and the CORPUS (buildCorpus, powering rollup query pickers/eval) also
+    // classifies it as an entity ref, not a raw-string enum — this is the
+    // part that REQUIRES the quoting (an unquoted `[[...]]`/`[...](…)`
+    // value misparses as a nested YAML array, invisible to buildCorpus).
+    const corpus = buildCorpus(v)
+    expect(corpus.entityRefsByType['milestone.owner']).toEqual([
+      { name: 'Alice Park', slug: 'alice-park', type: 'person' },
+    ])
   })
 })
