@@ -50,6 +50,8 @@ export {
   resolveVaultOrDefault,
   resolveVaultForUi,
   DEFAULT_VAULT_FILE,
+  seedObsidianAppJson,
+  maybeSeedObsidianAppJson,
 } from './default-vault'
 export { buildCorpus, loadTemplates, parseBaseYaml } from './corpus'
 export { backlinks, orphans, type Backlink } from './graph'

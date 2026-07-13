@@ -23,7 +23,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
-import { isVaultRoot, findVaultRoot, resolveVault } from './detect'
+import { isVaultRoot, findVaultRoot, resolveVault, detectVaultMode, isForeignVault } from './detect'
 
 /** Default storage path. Overridable for tests. */
 export const DEFAULT_VAULT_FILE = path.join(os.homedir(), '.claude', 'duo', 'vault.json')
@@ -92,15 +92,70 @@ export function readDefaultVault(filePath: string = DEFAULT_VAULT_FILE): string 
   return typeof p === 'string' && isVaultRoot(p) ? p : null
 }
 
+// ENH-266c — Obsidian-compat `.obsidian/app.json` seed. OKF mode writes
+// prose links as standard markdown links (`[Display](./rel.md)`), never
+// wikilinks (frontmatter entity refs — owner:, initiative:, attendees:, …
+// — are a separate, NOT-yet-shipped effort, sibling ENH-266a; until that
+// lands they still write `[[Title]]` wikilinks per FOLLOWUP-051). Obsidian's
+// FACTORY DEFAULT is wikilinks-everywhere (Use Wikilinks ON), so a human who
+// opens an OKF vault in real Obsidian and authors a NEW link there gets a
+// `[[wikilink]]` that doesn't match OKF's own prose convention. Two Obsidian
+// settings flip that default to match OKF's convention — confirmed live
+// against a real installed Obsidian 1.12.7 this cycle (Settings → Files and
+// Links → Use Wikilinks OFF, New link format → Path from current file), then
+// reading the resulting `.obsidian/app.json` back:
+const OBSIDIAN_APP_JSON = { useMarkdownLinks: true, newLinkFormat: 'relative' } as const
+
+/** Write `.obsidian/app.json` with the two ENH-266c settings, ABSENT-ONLY —
+ *  never merges into or overwrites an existing app.json. A vault the owner
+ *  has already configured in Obsidian (any content, even `{}`) is left
+ *  completely untouched; this is what makes it safe to call as a silent
+ *  self-heal rather than an opt-in migration. Returns true iff it wrote the
+ *  file. Callers that need the OKF-mode / foreign-vault gate should use
+ *  {@link maybeSeedObsidianAppJson} instead — this one just writes. */
+export function seedObsidianAppJson(vaultRoot: string): boolean {
+  const target = path.join(vaultRoot, '.obsidian', 'app.json')
+  if (fs.existsSync(target)) return false
+  fs.mkdirSync(path.dirname(target), { recursive: true })
+  fs.writeFileSync(target, JSON.stringify(OBSIDIAN_APP_JSON, null, 2) + '\n')
+  return true
+}
+
+/** The eligibility-gated form of {@link seedObsidianAppJson}: only seeds
+ *  OKF-mode vaults (Obsidian-mode vaults keep whatever `.obsidian/app.json`
+ *  the legacy scaffold or the user already wrote — untouched by ENH-266c),
+ *  and skips a FOREIGN vault (one carrying a root `loop.manifest.json` —
+ *  a loopkit/brainkit-family bundle Duo did not create) using the SAME
+ *  `isForeignVault` guard the ENH-216 auto-relink-on-open hook respects —
+ *  Duo must never auto-mutate a vault it doesn't own. Shared by the
+ *  create-on-choose (`setDefaultVault`, below) and vault-open
+ *  (electron/main.ts boot + vault-switch, beside `maybeAutoRelinkVault`)
+ *  call sites so neither has to re-derive the guard. Returns true iff it
+ *  wrote the file. */
+export function maybeSeedObsidianAppJson(vaultRoot: string): boolean {
+  if (detectVaultMode(vaultRoot) !== 'okf') return false
+  if (isForeignVault(vaultRoot)) return false
+  return seedObsidianAppJson(vaultRoot)
+}
+
 /** Set the default vault. Validates the target is a real vault first (refuses a
  *  non-vault, so a typo can't strand the pref), and records it in
  *  `knownVaults` so the picker keeps offering it even after a later clear.
- *  Atomic write; preserves any existing known set. */
+ *  Atomic write; preserves any existing known set.
+ *
+ *  ENH-266c — also self-heals the Obsidian-compat app.json seed (absent-only,
+ *  OKF-mode + non-foreign only, see {@link maybeSeedObsidianAppJson}). This is
+ *  the site that covers the "already a vault, just set it as default" branch
+ *  of `duo vault default <path> --init` (ENH-242 create-on-choose) — the
+ *  branch that never calls `initVault` (and therefore never hits the
+ *  scaffold-time seed in `scaffold.ts`) because the folder was already a
+ *  vault. */
 export function setDefaultVault(target: string, filePath: string = DEFAULT_VAULT_FILE): string {
   const abs = path.resolve(target)
   if (!isVaultRoot(abs)) {
     throw new Error(`not a vault (no okf_version _index.md/index.md or .obsidian/): ${abs}. Run \`duo vault init ${target}\` first.`)
   }
+  maybeSeedObsidianAppJson(abs)
   const prefs = readPrefs(filePath)
   prefs.defaultVault = abs
   prefs.knownVaults = [...new Set([...(prefs.knownVaults ?? []), abs])]

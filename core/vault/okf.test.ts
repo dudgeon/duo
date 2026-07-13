@@ -215,9 +215,8 @@ describe('initVault — OKF scaffold + the D2 default flip', () => {
     expect(detectVaultMode(r.root)).toBe('okf')
   })
 
-  it('writes a root _index.md marker with okf_version + type:index + the listing fence, and NO .obsidian/', () => {
+  it('writes a root _index.md marker with okf_version + type:index + the listing fence, and NO README/bases', () => {
     const v = initVault(path.join(root, 'v')).root
-    expect(fs.existsSync(path.join(v, '.obsidian'))).toBe(false)
     expect(fs.existsSync(path.join(v, 'README.md'))).toBe(false)
     expect(fs.existsSync(path.join(v, 'bases'))).toBe(false)
     expect(fs.existsSync(path.join(v, 'index.md'))).toBe(false) // ENH-245: not the legacy name
@@ -225,6 +224,18 @@ describe('initVault — OKF scaffold + the D2 default flip', () => {
     expect(idx).toContain('okf_version:')
     expect(idx).toContain('type: index')
     expect(idx).toContain(LISTING_FENCE)
+  })
+
+  // ENH-266c — OKF mode now DOES carry a `.obsidian/` dir, but ONLY the
+  // app.json Obsidian-compat seed (see obsidian-compat.test.ts for the
+  // dedicated seed/respect/foreign-skip coverage).
+  it('ENH-266c: OKF init seeds .obsidian/app.json with the two Obsidian-compat keys', () => {
+    const v = initVault(path.join(root, 'v')).root
+    expect(fs.readdirSync(path.join(v, '.obsidian'))).toEqual(['app.json'])
+    expect(JSON.parse(fs.readFileSync(path.join(v, '.obsidian', 'app.json'), 'utf8'))).toEqual({
+      useMarkdownLinks: true,
+      newLinkFormat: 'relative',
+    })
   })
 
   it('templates are type-stamped (the 6-type set, incl. rollup) and the corpus surfaces index too (D10)', () => {
