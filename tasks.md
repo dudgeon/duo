@@ -2,6 +2,44 @@
 
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
+### BUG-265: Quitting one Duo instance unlinks another instance's live socket/port files
+
+**Status:** 🆕 Filed 2026-07-08 (live repro during the ENH-264 verification walk). **Priority:** P2. **Ticket note:** allocated after ENH-264 in this worktree; renumber on collision.
+
+**Repro (observed live).** The packaged Duo.app (v0.13.3) had been running since 08:11 with its Unix socket bound at `~/Library/Application Support/duo/duo.sock` and TCP listening — but BOTH marker files (`duo.sock`, `duo.port`) were gone from disk by evening, so every CLI call failed "app is not running" while `lsof` showed the app holding the bound socket + LISTEN. Timeline fits a dev instance (run from a worktree during the day) quitting and running its shutdown cleanup, which unlinks the SHARED transport paths even though the packaged instance still owns the bind. The single-instance lock doesn't protect against this (dev + packaged are distinct app identities but share the transport path). Recovery: clean quit + relaunch of the packaged app rebinds and rewrites both files.
+
+**Systemic fix options.** (a) Own-before-unlink: stamp the owning pid into `duo.port` (or a sidecar-free field of it) at bind; on shutdown, unlink only if the pid matches self. (b) Per-instance socket paths (dev gets `duo-dev.sock`) + CLI resolution order — heavier, changes CLI discovery. Lean (a) — one guard at the single cleanup site. Also worth making `duo doctor` distinguish "files missing but a process holds the bind" (lsof probe) from "app truly down" — tonight's doctor output pointed the wrong way ("Is Duo.app running?" — it was).
+
+---
+
+### ENH-264: Owner review — AIPM initiative-graph schema decision playground
+
+**Status:** 🟡 Awaiting owner walk (filed 2026-07-08). **Priority:** P1 for the owner's KB work (not Duo-gating — but per the research-report rule it surfaces in every smoke walk until walked). **Ticket note:** allocated after ENH-263 in this worktree; renumber on collision.
+
+**The artifact.** [docs/research/aipm-initiative-schema.html](docs/research/aipm-initiative-schema.html) — an interactive decision playground for the AIPM knowledge-base data model (the owner's work vault, brainkit/OKF substrate, rendered by Duo rollups). Four schema options (minimal → one-spine → two-axes → fully engineered), each scored against the six canonical program queries with real shipped rollup syntax (ENH-255/258/259/261/262 dialect) and mock rendered output; migration sketch from the current KB; **nine decision cards** (D1 overall shape … D9 track naming) with radios + notes + localStorage persistence + Copy-decisions payload.
+
+**Walk it:** `duo open docs/research/aipm-initiative-schema.html` → pick radios, notes where disagreeing → Copy decisions → paste back to a Claude session to lock the schema and plan the migration.
+
+**Companion #3 (2026-07-08):** [docs/research/aipm-migration/](docs/research/aipm-migration/README.md) — the operator handoff pack for executing the migration on the work KB (README with the teacher/operator/owner authority split · runbook with decision record + phases 0–9 + gates · frozen verification suite incl. the six canonical rollups as acceptance · 7 target template files · before/after archetype examples). **Parameterized by the decision walk** — runbook §0 is ASSUMED-recommendations until the owner pastes the Copy-decisions payload; per-decision deltas listed. Portable: copy the folder next to the work vault, paste the README's kickoff prompt.
+
+**Companion (2026-07-08):** [docs/research/aipm-graph-explorer.html](docs/research/aipm-graph-explorer.html) — an interactive, synthetic-scale explorer of Option B at full maturity (deterministic seeded graph: ~200 initiatives · exactly 60 VP orgs under SVP towers under 6 EVP LOBs · 7 tracks · 45 use cases; live-computed Q1–Q6 rollups, click-to-inspect frontmatter + derived folder path, track-focus / declaration-fan-out / VP-coverage-heat / playbook presets). Verified by a 4-agent workflow (dataset invariants incl. independent exec_org recompute + determinism; headless UI exercise; semantics-vs-decision-doc; UX review) — all confirmed findings fixed. `duo open` it alongside the decision doc.
+
+**Evidence base:** owner's `entity-model-reference.md` (2026-07-08 session), brainkit contract v2 (loop-library `dist/brainkit`), `okf-brainkit-folder-hierarchy.html` (Approach 2 lock), the v0.13.5–6 engine ships, this session's interview decisions.
+
+---
+
+### ENH-263: Seed `.obsidian/app.json` defaults for OKF vaults (cross-tool interop)
+
+**Status:** ❌ Superseded by ENH-266c ([PR #130](https://github.com/dudgeon/duo/pull/130)) — same fix, filed independently by a concurrent session that also live-tested against real Obsidian and shipped the implementation (`core/vault/scaffold.ts`, keys `{useMarkdownLinks: true, newLinkFormat: "relative"}` verified against Obsidian 1.12.7, not the recalled guess this entry flagged as needing verification). Closing here to avoid a duplicate open ticket; no code owed from this entry. **Filed:** 2026-07-08. **Closed:** 2026-07-09 (code-review finding on PR #133, applied before merge).
+
+**Problem (as originally filed).** OKF-mode vault scaffolding writes **no `.obsidian/` folder at all** (`core/vault/scaffold.ts` — the OKF branch's own comment says "NO .obsidian/ and NO bases/"; only `mode === 'obsidian'` writes `.obsidian/app.json`). Reading an OKF vault directly in real Obsidian already works fine today — Obsidian's parser follows standard `[Display](./note.md)` relative markdown links natively, no config needed. But if someone opens an OKF-formatted folder as a fresh Obsidian vault (outside Duo), Obsidian auto-creates its *own* `.obsidian/` with factory defaults — "Use [[Wikilinks]]" on, "New link format" = shortest-path — so any link Obsidian itself creates from then on (autocomplete, drag-drop, "copy link") comes out as a wikilink, silently diverging from OKF's markdown-relative-link convention (D3: no `[[wikilink]]` ever persists in OKF mode).
+
+**Scope note.** Purely a cross-tool interop nicety for OKF vault owners who also poke around in real Obsidian — doesn't affect anyone using the vault only through Duo, since Duo already enforces the markdown-link convention on write regardless of `.obsidian/` contents.
+
+**Provenance.** Surfaced when Claude asserted "OKF format renders fine in Obsidian, nothing extra needed" during an AIPM data-model design session and the owner correctly challenged it — the claim was half right (reading works) and half wrong (authoring defaults don't match without this).
+
+---
+
 ### ENH-232: Catch-up — rich re-entry for sessions whose worktree was removed
 **Status:** 🔵 Open (filed from ENH-231 walk #2, 2026-06-24). **P1.**
 
