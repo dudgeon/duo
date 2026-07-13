@@ -3950,6 +3950,12 @@ ${indent}- ${quoted}`;
 ` };
 }
 
+// core/vault/yaml-safe.ts
+function yamlSafeScalar(v) {
+  const hazard = /: |\t|\s#/.test(v) || /^[!&*?|>%@`"'[\]{},-]/.test(v) || /^\s|[\s:]$/.test(v);
+  return hazard ? `'${v.replace(/'/g, "''")}'` : v;
+}
+
 // core/vault/scaffold.ts
 var TB = "`".repeat(3);
 var APP_JSON = JSON.stringify({ promptDelete: false, alwaysUpdateLinks: true }, null, 2);
@@ -4227,10 +4233,6 @@ function pad(n) {
 }
 function slugify(s) {
   return s.trim().replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " ").slice(0, 60);
-}
-function yamlSafeScalar(v) {
-  const hazard = /: |\t|\s#/.test(v) || /^[!&*?|>%@`"'[\]{},-]/.test(v) || /^\s|[\s:]$/.test(v);
-  return hazard ? `'${v.replace(/'/g, "''")}'` : v;
 }
 function seedFrontmatterLines(template, opts = {}) {
   const lines = [`type: ${template.type}`];
@@ -5585,10 +5587,7 @@ function filterExpr(f) {
       return `!file.hasProperty(${JSON.stringify(f.property)})`;
   }
 }
-function yamlSafeExpr(expr) {
-  const hazard = /: |\t|\s#/.test(expr) || /^[!&*?|>%@`"'[\]{},-]/.test(expr) || /^\s|[\s:]$/.test(expr);
-  return hazard ? `'${expr.replace(/'/g, "''")}'` : expr;
-}
+var yamlSafeExpr = yamlSafeScalar;
 var TEMPLATES_EXCLUSION_EXPR = '!file.inFolder("templates")';
 function serializeBuilderBase(model) {
   const lines = [];

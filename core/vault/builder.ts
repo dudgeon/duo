@@ -42,6 +42,7 @@ import {
   type EvaluatedView,
 } from './render'
 import { buildEngineFiles, defaultAsOf, type EngineFile } from './engine'
+import { yamlSafeScalar } from './yaml-safe'
 
 // ── the builder model ───────────────────────────────────────────────────────
 
@@ -117,18 +118,10 @@ function filterExpr(f: BuilderFilter): string {
   }
 }
 
-/** BUG-260 — YAML-safe serialization of an expression as a block-sequence
- *  item. An UNQUOTED expression whose value contains `: ` parses as a YAML
- *  MAPPING (the engine then silently dropped the filter and the note fell to
- *  view-only — the owner's `Track: …` entity names hit this constantly); a
- *  ` #` starts a comment mid-line; a leading `!` is a YAML tag
- *  (`!file.hasProperty(...)` made the whole spec THROW). Single-quote
- *  (doubling internal quotes) whenever a hazard is present; simple
- *  expressions stay bare so existing canonical notes remain byte-identical. */
-function yamlSafeExpr(expr: string): string {
-  const hazard = /: |\t|\s#/.test(expr) || /^[!&*?|>%@`"'[\]{},-]/.test(expr) || /^\s|[\s:]$/.test(expr)
-  return hazard ? `'${expr.replace(/'/g, "''")}'` : expr
-}
+// BUG-260 — YAML-safe serialization of an expression as a block-sequence
+// item. Shared with `scaffold.ts`'s frontmatter `title:`/`aliases:` lines
+// (same hazard class, same fix) via `./yaml-safe`.
+const yamlSafeExpr = yamlSafeScalar
 
 // D15 (ENH-266d, review follow-up) — every builder-generated base filters by
 // `type ==` (single or or-group), which ALSO matches that type's schema

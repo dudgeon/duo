@@ -14,6 +14,7 @@ import { ensureNoteId } from './move'
 import { OKF_INDEX_FILENAMES, OKF_INDEX_FILENAME_DEFAULT } from './okf-filenames'
 import { OUTPUT_DIR_DEFAULT } from './output-dir'
 import { seedObsidianAppJson } from './default-vault'
+import { yamlSafeScalar } from './yaml-safe'
 import type { TypeTemplate, VaultMode } from './types'
 
 const TB = '`'.repeat(3) // ``` — the markdown code fence
@@ -414,21 +415,6 @@ function pad(n: number): string {
 }
 function slugify(s: string): string {
   return s.trim().replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').slice(0, 60)
-}
-
-/** YAML-safe scalar for a hand-composed frontmatter line — quoted ONLY when
- *  the value is hazardous, so the common case (a plain title with no YAML
- *  metacharacters) stays byte-identical to before this existed. BUG-260's
- *  hazard class: an unquoted value containing `: ` parses as a nested YAML
- *  MAPPING, a leading `!`/`[`/etc. is a YAML indicator, and a ` #` starts a
- *  comment — any of which silently blanks the ENTIRE frontmatter on parse
- *  (`splitFrontmatter` swallows the YAML error and returns `{}`). Mirrors
- *  `builder.ts`'s `yamlSafeExpr` hazard regex + single-quote-doubling
- *  escaping exactly (same hazard class, same fix, this module's own titles
- *  instead of filter expressions). */
-function yamlSafeScalar(v: string): string {
-  const hazard = /: |\t|\s#/.test(v) || /^[!&*?|>%@`"'[\]{},-]/.test(v) || /^\s|[\s:]$/.test(v)
-  return hazard ? `'${v.replace(/'/g, "''")}'` : v
 }
 
 /** Frontmatter lines that stamp a type + seed its expected fields empty
