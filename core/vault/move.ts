@@ -486,13 +486,18 @@ export function relinkVault(root: string, opts: { dryRun?: boolean } = {}): Reli
   return { repaired, ambiguous, broken }
 }
 
-// ── migrateFrontmatterLinks — the ENH-266 one-time migration (D5-adjacent) ────
+// ── migrateFrontmatterLinks — the ENH-266 migration ──────────────────────────
 //
-// `duo vault relink --frontmatter` (explicit, opt-in ONLY — never reachable
-// from the ENH-216 auto-relink-on-vault-open hook). Four independent repair
-// categories over an OKF vault, each REPORTED with counts; ambiguous (>1
-// candidate) or unresolvable targets are left untouched and reported, never
-// guessed (D15):
+// Runs TWO ways (owner decision 2026-07-13, tasks.md § ENH-266, superseding the
+// original opt-in-only D5/D6 lock): (1) AUTOMATICALLY on the ENH-216
+// auto-relink-on-vault-open pass (electron/main.ts `maybeAutoRelinkVault`),
+// under the identical write/report + OKF-mode + D5-foreign-bundle gating relink
+// uses — so a legacy OKF vault "just works" in Obsidian with zero user action;
+// and (2) explicitly via `duo vault relink --frontmatter` (preview with
+// `--dry-run`, or for headless/CI use where no vault-open event fires). Four
+// independent repair categories over an OKF vault, each REPORTED with counts;
+// ambiguous (>1 candidate) or unresolvable targets are left untouched and
+// reported, never guessed (D15):
 //
 //   (a) frontmatter WIKILINK values (`owner: "[[Alice Park]]"`, quoted or
 //       not, scalar or list) → the quoted markdown-link form.

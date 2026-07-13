@@ -237,7 +237,8 @@ describe('D5 — foreign-vault auto-relink guard (isForeignVault)', () => {
   })
 })
 
-// ── migrateFrontmatterLinks (ENH-266) — the 4-category opt-in migration ───────
+// ── migrateFrontmatterLinks (ENH-266) — the 4-category migration ──────────────
+// (runs both automatically on vault open AND via `duo vault relink --frontmatter`)
 
 function okfIndex(): string {
   // `title:` deliberately differs from the marker filename's slug (`_index`)
@@ -456,5 +457,81 @@ describe('migrateFrontmatterLinks (ENH-266) — (d) alias backfill', () => {
     const r = migrateFrontmatterLinks(root)
     expect(r.aliasBackfills.some((a) => a.fromRel === '_index.md')).toBe(false)
     expect(read('_index.md')).toBe(before)
+  })
+})
+
+// ── auto-open safety (ENH-266, 2026-07-13) ────────────────────────────────────
+// migrateFrontmatterLinks now ALSO runs automatically on the
+// auto-relink-on-vault-open pass (electron/main.ts `maybeAutoRelinkVault`), a
+// peer to relinkVault under identical gating. That means it runs on EVERY open
+// of an OKF vault, so two properties are load-bearing: (1) a fully-migrated (or
+// freshly-scaffolded) vault must be a pure no-op on re-open — no writes, no
+// churn; (2) a foreign loopkit/brainkit bundle must be skipped by the hook's D5
+// guard, exactly as relinkVault already is (the twin test lives at
+// "D5 — foreign-vault auto-relink guard" above).
+
+describe('migrateFrontmatterLinks (ENH-266) — idempotent on re-open (auto-run safety)', () => {
+  beforeEach(() => write('_index.md', okfIndex()))
+
+  it('a second run over an already-migrated vault is a pure no-op (nothing rewritten, files byte-identical)', () => {
+    // Seed one note from each rewriting category + one alias-eligible entity.
+    write('people/alice-park.md', '---\ntype: person\n---\n') // [[Alice Park]] resolves by slug → (a)
+    write('people/bob.md', '---\ntype: person\n---\n') // [[Bob]] resolves by slug → (c)
+    write('people/jordan.md', '---\ntype: person\ntitle: Jordan Lee\n---\n') // slug≠title → (d)
+    write('initiatives/onboarding.md', '---\ntype: initiative\nowner: "[[Alice Park]]"\n---\nSee [[Bob]].\n') // (a) + (c)
+
+    // First run migrates everything.
+    const first = migrateFrontmatterLinks(root)
+    expect(first.frontmatterWikilinks.repaired.length).toBeGreaterThan(0) // (a)
+    expect(first.bodyWikilinks.repaired.length).toBeGreaterThan(0) // (c)
+    expect(first.aliasBackfills.length).toBeGreaterThan(0) // (d)
+
+    // Snapshot every file after the first (applied) run.
+    const rels = [
+      'people/alice-park.md',
+      'people/bob.md',
+      'people/jordan.md',
+      'initiatives/onboarding.md',
+      '_index.md',
+    ]
+    const afterFirst = Object.fromEntries(rels.map((r) => [r, read(r)]))
+
+    // Second run: zero repairs in every category, and every file byte-identical.
+    const second = migrateFrontmatterLinks(root)
+    expect(second.frontmatterWikilinks.repaired).toEqual([])
+    expect(second.frontmatterWikilinks.ambiguous).toEqual([])
+    expect(second.frontmatterWikilinks.broken).toEqual([])
+    expect(second.frontmatterBarePaths.repaired).toEqual([])
+    expect(second.bodyWikilinks.repaired).toEqual([])
+    expect(second.aliasBackfills).toEqual([])
+    for (const rel of rels) expect(read(rel)).toBe(afterFirst[rel])
+  })
+
+  it('a freshly-scaffolded-shape vault (already in the new convention) is a no-op on first open', () => {
+    // Nothing in the legacy form → the on-open pass finds nothing to do.
+    write('people/alice.md', '---\ntype: person\n---\n')
+    write('initiatives/onboarding.md', '---\ntype: initiative\nowner: "[Alice](../people/alice.md)"\n---\nbody\n')
+    const r = migrateFrontmatterLinks(root)
+    expect(r.frontmatterWikilinks.repaired).toEqual([])
+    expect(r.frontmatterBarePaths.repaired).toEqual([])
+    expect(r.bodyWikilinks.repaired).toEqual([])
+    expect(r.aliasBackfills).toEqual([])
+  })
+})
+
+describe('migrateFrontmatterLinks (ENH-266) — foreign-bundle guard (auto-open skips it)', () => {
+  it('a foreign bundle WOULD be migrated by the core fn, so the hook must (and does) gate it via isForeignVault', () => {
+    // Mirror of the relinkVault foreign-guard twin above: the explicit CLI verb
+    // deliberately still works on a foreign bundle when a human invokes it, but
+    // the AUTO path in maybeAutoRelinkVault returns early on isForeignVault, so
+    // opening a loopkit/brainkit vault never silently rewrites it.
+    write('_index.md', okfIndex())
+    write('loop.manifest.json', '{ "name": "brainkit", "version": "0.2.0" }')
+    write('people/alice-park.md', '---\ntype: person\n---\n')
+    write('initiatives/onboarding.md', '---\ntype: initiative\nowner: "[[Alice Park]]"\n---\nbody\n')
+    // Proof the core migration WOULD mutate this bundle if the auto write ran:
+    expect(migrateFrontmatterLinks(root, { dryRun: true }).frontmatterWikilinks.repaired).toHaveLength(1)
+    // ...but it's foreign, so maybeAutoRelinkVault (electron/main.ts) returns early.
+    expect(isForeignVault(root)).toBe(true)
   })
 })
