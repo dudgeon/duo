@@ -579,18 +579,20 @@ export function App() {
   const [dirtyPaths, setDirtyPaths] = useState<Set<string>>(() => new Set())
   const [activeWorking, setActiveWorking] = useState<ActiveWorking>({ kind: 'browser' })
 
-  // ENH-228 — the Vault tab is present-when-default (D4). Track whether a
-  // default vault is set; the tab is synthesized into fileTabs (after Home)
-  // whenever this is true, and removed otherwise. Fetched once at mount and
+  // ENH-228 — the Vault tab is present-when-default (D4). Track the default
+  // vault's root path (null when unset); the tab is synthesized into fileTabs
+  // (after Home) whenever one is set, and removed otherwise. The titlebar
+  // vault chip renders off the same state. Fetched once at mount and
   // re-read whenever any path broadcasts `duo-vault-default-changed` (the
   // header switcher, Settings → Default Vault, `duo vault default`).
-  const [hasDefaultVault, setHasDefaultVault] = useState(false)
+  const [defaultVaultRoot, setDefaultVaultRoot] = useState<string | null>(null)
+  const hasDefaultVault = defaultVaultRoot !== null
   useEffect(() => {
     let alive = true
     const refresh = async () => {
       try {
         const r = await window.electron.vault.getDefault()
-        if (alive) setHasDefaultVault(!!r?.defaultVault)
+        if (alive) setDefaultVaultRoot(r?.defaultVault ?? null)
       } catch {
         /* leave prior state — the tab persists across a transient IPC failure */
       }
@@ -4824,6 +4826,34 @@ export function App() {
               <span className="text-zinc-500 shrink-0" aria-hidden="true">⎇</span>
               <span className="truncate font-mono text-zinc-500">{navWorktree.branch || 'detached'}</span>
             </span>
+          )}
+          {/* Default-vault chip — glanceable "captures land here" confirmation.
+              Driven by the same live defaultVaultRoot state that gates the
+              Vault tab (mount fetch + duo-vault-default-changed re-reads), so
+              it appears/re-points/disappears in lockstep across every writer
+              (Settings, menu radio, `duo vault default`, another window).
+              Click activates the Vault tab — same dispatch as `duo goto vault`
+              (ENH-257); the tab is guaranteed present while the chip renders. */}
+          {defaultVaultRoot && (
+            <button
+              type="button"
+              onClick={() => {
+                setActiveWorking({ kind: 'file', id: VAULT_TAB_ID })
+                setFocusedColumn('working')
+              }}
+              className="titlebar-nodrag ml-1 inline-flex items-center gap-1 shrink min-w-0 max-w-[180px] text-[11px] text-zinc-600 rounded-full px-2 py-0.5 border border-border hover:bg-accent/10 hover:border-accent/40 transition-colors"
+              title={`Default vault: ${defaultVaultRoot} — click to open the Vault tab`}
+              aria-label={`Default vault: ${defaultVaultRoot}`}
+            >
+              {/* Open-book glyph — same mark the Vault tab uses (ENH-228). */}
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true" className="shrink-0">
+                <path d="M5 2.4C4.2 1.9 2.9 1.7 1.5 1.9V7.7c1.4-.2 2.7 0 3.5.5.8-.5 2.1-.7 3.5-.5V1.9C7.1 1.7 5.8 1.9 5 2.4Z" stroke="currentColor" strokeWidth="0.9" strokeLinejoin="round" />
+                <path d="M5 2.4V8.2" stroke="currentColor" strokeWidth="0.9" strokeLinecap="round" />
+              </svg>
+              <span className="truncate">
+                {defaultVaultRoot.replace(/\/+$/, '').split('/').pop() || defaultVaultRoot}
+              </span>
+            </button>
           )}
         </div>
         {workspacePillMenuEnabled && (

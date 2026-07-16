@@ -2,6 +2,18 @@
 
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
+### ENH-267: Titlebar default-vault chip — show the set default vault in the app header
+
+**Status:** ⏳ Open 2026-07-16 — implemented on `claude/default-vault-scope-jdq6fh`, PR in review. **Priority:** Low (glanceable-state QoL). **Ticket note:** allocated after grepping tasks.md (max ENH-266) and checking open PRs for claims.
+
+**Problem.** The default vault (the global `~/.claude/duo/vault.json` pref every capture/search/rollup falls back to) is invisible unless you open Settings or the Vault tab — nothing in the chrome answers "where will ⇧⌘N land right now?". This matters because the setting is machine-global (D11): a `duo vault default` from ANY terminal or another window silently re-points every window (see ENH-257's verification, where exactly this cross-session mutation caused a confusing mid-walk red herring).
+
+**Fix.** A titlebar chip next to the workspace badge / worktree chip: open-book glyph (same mark as the Vault tab) + the vault's basename, full path on hover, click activates the Vault tab (same `setActiveWorking({kind:'file', id: VAULT_TAB_ID})` dispatch as `duo goto vault`). Renders only while a default vault is set. Driven by the SAME state that gates the Vault tab — the existing `vault.getDefault` mount fetch + the BUG-214 `duo-vault-default-changed` broadcast — so it appears/re-points/disappears live across every writer (Settings, menu radio, CLI, another window) with no new IPC. `App.tsx`'s `hasDefaultVault` boolean upgraded to hold the root path (`defaultVaultRoot`), boolean derived.
+
+**CLI parity:** read-only display of state the CLI already owns (`duo vault default` reads it; `duo goto vault` is the click's twin) — no new verb needed.
+
+---
+
 ### BUG-265: Quitting one Duo instance unlinks another instance's live socket/port files
 
 **Status:** 🆕 Filed 2026-07-08 (live repro during the ENH-264 verification walk). **Priority:** P2. **Ticket note:** allocated after ENH-264 in this worktree; renumber on collision.
