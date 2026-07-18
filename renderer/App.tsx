@@ -57,6 +57,7 @@ import type { TabSession, DirEntry, TerminalTabKind, NewTabResult, PinEntry, Ses
 import { reorderVisible } from '@shared/reorderTabs'
 import { pruneByTab } from './state/perTabPrune'
 import {
+  adjudicateActiveSurfaceFocusSwitch,
   effectiveProjectTerminals,
   mergeLiveCwdInfo,
   planProjectClose,
@@ -1314,6 +1315,13 @@ export function App() {
       setFocusedProject(root)
     })
   }, [])
+  // ENH-182 FOLLOWUP-030 — declared HERE (used by the BUG-267 adjudicators
+  // below) but drained by the browser-redirect apply effect further down.
+  // Set to the new focus on every focus change; non-null means "focus-entry
+  // convergence in progress" — the settling window during which the
+  // keep-visible/redirect effects may programmatically move the active
+  // surface.
+  const [pendingBrowserRedirect, setPendingBrowserRedirect] = useState<string | null>(null)
   // ENH-182 Phase 3c (D11) — auto-switch focus when activeWorking
   // moves to a file whose deepest project ≠ the currently-focused
   // project. Hooking off `activeWorking` (rather than `tabMembership`
@@ -1327,14 +1335,30 @@ export function App() {
   // file activations; terminal-tab switches are intentionally not a
   // trigger (a focused user clicking a hidden terminal is a UI
   // impossibility — the strip already hides it).
+  //
+  // BUG-267 — adjudicate only a GENUINE activation change. This effect
+  // used to re-run its membership check on every focus change; combined
+  // with the keep-visible effect (E9, below) moving the active file
+  // into the new focus, the pair formed a non-converging 2-cycle
+  // (focus P ↔ Q, both non-null) — the rail-click flicker loop. The
+  // ref tracks the last-seen active file id; an unchanged surface (or
+  // one moved programmatically inside the focus-entry settling window,
+  // `pendingBrowserRedirect !== null`) never switches focus. See
+  // `adjudicateActiveSurfaceFocusSwitch` for the full gate order.
+  const lastAdjudicatedFileRef = useRef<string | null>(null)
   useEffect(() => {
-    if (focusedProject === null) return
-    if (activeWorking.kind !== 'file') return
-    const project = tabMembership[activeWorking.id]
-    if (project && project !== focusedProject) {
-      setFocusedProject(project)
-    }
-  }, [activeWorking, tabMembership, focusedProject])
+    const surfaceKey = activeWorking.kind === 'file' ? activeWorking.id : null
+    const prevSurfaceKey = lastAdjudicatedFileRef.current
+    lastAdjudicatedFileRef.current = surfaceKey
+    const target = adjudicateActiveSurfaceFocusSwitch({
+      focusTransitionPending: pendingBrowserRedirect !== null,
+      prevSurfaceKey,
+      surfaceKey,
+      focusedProject,
+      membership: surfaceKey !== null ? tabMembership[surfaceKey] : null
+    })
+    if (target !== null) setFocusedProject(target)
+  }, [activeWorking, tabMembership, focusedProject, pendingBrowserRedirect])
   // BUG-194 — release focus when the focused project vanishes. With
   // BUG-191's live-cwd tracking, `cd`-ing the focused project's last
   // terminal OUT of it drops the project from the rail; if focus stayed
@@ -1640,16 +1664,28 @@ export function App() {
   // any path under no qualifying root) do NOT trigger a switch —
   // those are reference material; the FOLLOWUP-030 effect below
   // handles their visibility separately.
+  // BUG-267 — same activation-change adjudication as the file-side D11
+  // effect above. Without the ref/pending gates this effect and the
+  // FOLLOWUP-030 redirect machine below fight through async switchTab
+  // IPC (redirect moves the active tab to a member of the new focus;
+  // this effect sees the stale foreign tab and yanks focus back) — the
+  // browser-side face of the rail-click flicker loop.
+  const lastAdjudicatedBrowserTabRef = useRef<number | null>(null)
   useEffect(() => {
-    if (focusedProject === null) return
-    if (activeWorking.kind !== 'browser') return
     const active = browserTabs.find((bt) => bt.isActive && !bt.inAux)
-    if (!active) return
-    const project = browserTabMembership.get(active.id)
-    if (project && project !== focusedProject) {
-      setFocusedProject(project)
-    }
-  }, [activeWorking, browserTabs, browserTabMembership, focusedProject])
+    const surfaceKey =
+      activeWorking.kind === 'browser' && active ? active.id : null
+    const prevSurfaceKey = lastAdjudicatedBrowserTabRef.current
+    lastAdjudicatedBrowserTabRef.current = surfaceKey
+    const target = adjudicateActiveSurfaceFocusSwitch({
+      focusTransitionPending: pendingBrowserRedirect !== null,
+      prevSurfaceKey,
+      surfaceKey,
+      focusedProject,
+      membership: surfaceKey !== null ? browserTabMembership.get(surfaceKey) : null
+    })
+    if (target !== null) setFocusedProject(target)
+  }, [activeWorking, browserTabs, browserTabMembership, focusedProject, pendingBrowserRedirect])
   // ENH-182 FOLLOWUP-030 — browser-pane active-tab redirect on focus
   // entry / focus change. The browser pane is one shared
   // WebContentsView; without this, hiding a non-member browser tab's
@@ -1690,7 +1726,8 @@ export function App() {
   // propagated from the addTab IPC, then never re-fires for that focus
   // session (ref-guard skips). A pure no-guard effect fires every
   // state change but bounces user-clicked tabs.
-  const [pendingBrowserRedirect, setPendingBrowserRedirect] = useState<string | null>(null)
+  // (BUG-267 — the `pendingBrowserRedirect` useState itself is declared
+  // earlier, above the D11 adjudicator that reads it.)
   useEffect(() => {
     setPendingBrowserRedirect(focusedProject)
   }, [focusedProject])
@@ -1739,8 +1776,17 @@ export function App() {
       (bt) => !bt.inAux && browserTabMembership.get(bt.id) === focusedProject
     )
     if (firstMember) {
+      // BUG-267 — pre-seed the adjudicator ref: this is OUR move, not a
+      // user activation; the resulting active-tab change must not
+      // re-adjudicate focus (that re-opens the flicker loop after the
+      // pending window clears in this same batch).
+      lastAdjudicatedBrowserTabRef.current = firstMember.id
       void window.electron.browser.switchTab(firstMember.id)
     } else if (visibleFileTabs.length > 0) {
+      // BUG-267 — same pre-seed, file side. visibleFileTabs[0] may be a
+      // pinned foreign-project reference tab; landing on it must not
+      // steal focus.
+      lastAdjudicatedFileRef.current = visibleFileTabs[0].id
       setActiveWorking({ kind: 'file', id: visibleFileTabs[0].id })
     }
     setPendingBrowserRedirect(null)
@@ -1825,9 +1871,19 @@ export function App() {
       activeWorking.kind === 'file' &&
       !visibleFileTabs.some((t) => t.id === activeWorking.id)
     ) {
+      // BUG-267 — these are programmatic keep-visible moves, not user
+      // activations: pre-seed the adjudicator refs so the resulting
+      // surface change never re-adjudicates focus. Without this, moving
+      // the active file into the new focus while D11 re-examined the
+      // old one formed the rail-click flicker loop (see tasks.md
+      // BUG-267); and the browser fallback landing on a foreign
+      // file:// tab would bounce focus through the redirect machine.
       if (visibleFileTabs.length > 0) {
+        lastAdjudicatedFileRef.current = visibleFileTabs[0].id
         setActiveWorking({ kind: 'file', id: visibleFileTabs[0].id })
       } else {
+        const activeBt = browserTabs.find((bt) => bt.isActive && !bt.inAux)
+        lastAdjudicatedBrowserTabRef.current = activeBt?.id ?? null
         setActiveWorking({ kind: 'browser' })
       }
     }

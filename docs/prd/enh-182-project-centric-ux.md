@@ -257,3 +257,39 @@ code areas 1–10 (see § 9) and the § 4 design assets.
 
 **10 · Context-menu pattern (for the tile right-click menu, D12)**
 - `renderer/components/FileTree.tsx` — `popupMenu()` (`:630–670`) calls `window.electron.menu.popup({ items, x, y })` (`:663`) → `handleMenuChoice()` (`:669`); template via `buildTreeMenuTemplate()` (`:853`, items like `pin`/`unpin`, multi-select aware). Also `WorkingTabStrip.tsx:149` + `Breadcrumb.tsx:24`. **The tile menu (Pin/Unpin + "Close N terminals and M tabs") follows this `MenuTemplateItem[]` → IPC popup → `chosenId` shape — do not hand-roll a menu.**
+
+---
+
+## Requirements changed — BUG-267 (2026-07-17): D11 adjudicates activations, not focus changes
+
+**Defect.** D11's effect re-ran its membership check on every `focusedProject`
+change, not just on file/browser activations. Clicking a tile of project P
+while the active working surface belonged to project Q made D11 (focus → Q)
+and the keep-visible effect (active surface → member of P) correct the same
+discrepancy in opposite directions — a non-converging P↔Q oscillation that
+re-rendered on every commit (the "rail-click flicker loop"; app unusable
+until an "All" click landed, since both effects gate on `null`). The repro
+selector "a project with working tabs but no terminals" is simply a project
+the user is not working in, guaranteeing a foreign active surface at click
+time. The browser side (Phase 3c-browser vs the FOLLOWUP-030 redirect
+machine) had the same fight through async `switchTab` IPC.
+
+**Locked amendment.** D11 (file and browser alike) switches focus only on a
+**genuine activation change** — the active file-tab id / browser-tab id
+differs from the previous adjudication — and never during the focus-entry
+settling window (`pendingBrowserRedirect !== null`) or on a programmatic
+keep-visible/redirect move (those pre-seed the adjudication refs). Decision
+logic is the pure `adjudicateActiveSurfaceFocusSwitch`
+(`shared/project-lifecycle.ts`, unit-pinned). Behavioral deltas, all
+deliberate:
+
+- Tile clicks / CLI `duo project focus` never bounce: entering focus with a
+  foreign active surface keeps the chosen focus while the keep-visible
+  effect converges (≤2 passes).
+- BUG-193-family "focus theft" via a *pinned* foreign tab on focus entry is
+  gone — the pinned tab stays visible and active, focus stays put.
+- A late membership-probe settle on an unchanged active surface no longer
+  yanks focus.
+- `duo edit` / `duo open` / user tab-clicks onto a foreign-project surface
+  still auto-switch focus (those are activation changes — the original D11
+  contract).
