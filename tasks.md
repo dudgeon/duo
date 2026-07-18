@@ -4,7 +4,7 @@
 
 ### BUG-267: Project-rail focus flicker loop — clicking a tile of a project with working tabs but no terminals oscillates focus until an "All" click lands
 
-**Status:** 🚧 In progress 2026-07-17 (branch `claude/project-focus-flicker-bug-28b83c`). **Priority:** P0 (app-unusable render loop; recurring owner report — prior sessions failed to fix). **Ticket note:** allocated after ENH-266 across all worktrees; renumber on collision.
+**Status:** 🚧 In progress 2026-07-17 (branch `claude/project-focus-flicker-bug-28b83c`) — fix implemented + **live-verified in dev** (owner-approved app cycle): the exact repro (focus a marker project holding only a working tab, active file in another project) held focus rock-stable across 12 polls of `duo project list` with the keep-visible/auto-spawn convergence firing once; the D11 contract (`duo edit` a foreign-project file while focused → focus follows) also re-verified stable. **Priority:** P0 (app-unusable render loop; recurring owner report — prior sessions failed to fix). **Ticket note:** allocated after ENH-266 across all worktrees; renumber on collision. **Discovered in passing (separate):** terminals in a `/tmp`-rooted project split into a duplicate `/private/tmp/...` tile (live-cwd canonicalization; BUG-162 covered browser tabs only) — spun off as its own task chip; fixture-only impact today.
 
 **Symptom (owner, recurring).** Click a project tile whose project has open markdown/browser tabs but NO member terminals → the whole UI enters a rapid flickering re-render loop, unusable until repeated clicks on the "All" tile happen to land mid-flicker.
 
