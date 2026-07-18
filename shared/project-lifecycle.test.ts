@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  adjudicateActiveSurfaceFocusSwitch,
   effectiveProjectTerminals,
   mergeLiveCwdInfo,
   newTerminalMembershipsSince,
@@ -241,5 +242,92 @@ describe('planProjectClose (BUG-192 jitter-loop fix)', () => {
     expect(plan.memberTermIds).toEqual([])
     expect(plan.memberFileIds).toEqual([])
     expect(plan.needsReplacementShell).toBe(false)
+  })
+})
+
+// ── BUG-267 · adjudicateActiveSurfaceFocusSwitch ─────────────────────
+describe('adjudicateActiveSurfaceFocusSwitch (BUG-267 rail-click flicker loop)', () => {
+  const base = {
+    focusTransitionPending: false,
+    prevSurfaceKey: 'f-old' as string | number | null,
+    surfaceKey: 'f-new' as string | number | null,
+    focusedProject: '/proj/p' as string | null,
+    membership: '/proj/q' as string | null | undefined
+  }
+
+  it('switches focus when a genuinely-new surface belongs to another project (the D11 contract)', () => {
+    expect(adjudicateActiveSurfaceFocusSwitch(base)).toBe('/proj/q')
+  })
+
+  it('NEVER switches on an unchanged surface — a focus change alone must not re-adjudicate (the loop-breaker)', () => {
+    expect(
+      adjudicateActiveSurfaceFocusSwitch({ ...base, prevSurfaceKey: 'f-new' })
+    ).toBeNull()
+  })
+
+  it('never switches while the focus-entry convergence window is open (programmatic keep-visible moves)', () => {
+    expect(
+      adjudicateActiveSurfaceFocusSwitch({ ...base, focusTransitionPending: true })
+    ).toBeNull()
+  })
+
+  it('no-ops in All mode', () => {
+    expect(
+      adjudicateActiveSurfaceFocusSwitch({ ...base, focusedProject: null })
+    ).toBeNull()
+  })
+
+  it('no-ops when there is no adjudicable surface', () => {
+    expect(adjudicateActiveSurfaceFocusSwitch({ ...base, surfaceKey: null })).toBeNull()
+  })
+
+  it('stays put for a member of the focused project, and for null/undefined membership', () => {
+    expect(
+      adjudicateActiveSurfaceFocusSwitch({ ...base, membership: '/proj/p' })
+    ).toBeNull()
+    expect(adjudicateActiveSurfaceFocusSwitch({ ...base, membership: null })).toBeNull()
+    expect(
+      adjudicateActiveSurfaceFocusSwitch({ ...base, membership: undefined })
+    ).toBeNull()
+  })
+
+  it('accepts numeric surface keys (browser-tab ids) with the same gates', () => {
+    expect(
+      adjudicateActiveSurfaceFocusSwitch({
+        ...base,
+        prevSurfaceKey: 7,
+        surfaceKey: 7
+      })
+    ).toBeNull()
+    expect(
+      adjudicateActiveSurfaceFocusSwitch({ ...base, prevSurfaceKey: 7, surfaceKey: 9 })
+    ).toBe('/proj/q')
+  })
+
+  it('REGRESSION: the tile-click 2-cycle never fires a switch', () => {
+    // Entry state: focused P via a tile click, active file f-q (member of
+    // Q) unchanged from the previous run. Pass 1 — D11 observes the
+    // unchanged surface: must stay quiet while E9 converges.
+    expect(
+      adjudicateActiveSurfaceFocusSwitch({
+        focusTransitionPending: false,
+        prevSurfaceKey: 'f-q',
+        surfaceKey: 'f-q',
+        focusedProject: '/proj/p',
+        membership: '/proj/q'
+      })
+    ).toBeNull()
+    // Pass 2 — E9 moved the active file to P's member f-p (an activation
+    // change, but a member): still no switch. The pair quiesces in ≤2
+    // passes instead of flipping focus P↔Q forever.
+    expect(
+      adjudicateActiveSurfaceFocusSwitch({
+        focusTransitionPending: false,
+        prevSurfaceKey: 'f-q',
+        surfaceKey: 'f-p',
+        focusedProject: '/proj/p',
+        membership: '/proj/p'
+      })
+    ).toBeNull()
   })
 })

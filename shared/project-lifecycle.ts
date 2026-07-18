@@ -164,6 +164,61 @@ export function shouldReleaseFocusForNewTerminals(
   return newTerminalMemberships.some((membership) => membership !== focusedProject)
 }
 
+/**
+ * BUG-267 — the single decision point for the two "follow the active
+ * surface" effects (ENH-182 Phase 3c file + Phase 3c-browser): should
+ * activating this surface switch focus to its project?
+ *
+ * The flicker loop this kills: D11 used to re-adjudicate the
+ * PRE-EXISTING active surface whenever `focusedProject` changed, while
+ * the keep-visible effect (E9) simultaneously moved the active surface
+ * into the new focus — two effects correcting the same discrepancy in
+ * opposite directions, a perfect 2-cycle (focus P ↔ Q) that re-fired on
+ * every commit and made the app unusable until an "All" click landed.
+ *
+ * Invariants, in gate order:
+ *   • No surface (`surfaceKey === null`) → never switch.
+ *   • Unchanged surface (`surfaceKey === prevSurfaceKey`) → never
+ *     switch. A focus change or a late membership-probe settle is NOT a
+ *     user activation; only a genuine activation change adjudicates.
+ *     This is the loop-breaker: on tile-click entry the active surface
+ *     is unchanged, so D11 stays quiet while E9 converges.
+ *   • `focusTransitionPending` → never switch. E9's own convergence
+ *     moves (switching the active file / dropping to the browser
+ *     surface) DO change the surface, and may legitimately land on a
+ *     visible-but-foreign tab (pinned reference, non-member browser
+ *     tab). Those programmatic moves happen inside the focus-entry
+ *     settling window (the pendingBrowserRedirect machine's lifetime);
+ *     adjudicating them re-opens the loop through the redirect IPC.
+ *   • All mode (`focusedProject === null`) → nothing to switch from.
+ *   • No / same-project membership → stay put.
+ *   • Otherwise → switch to the surface's project (the D11 contract:
+ *     `duo edit` / `duo open` / a user tab-click onto a foreign-project
+ *     surface follows that project).
+ */
+export function adjudicateActiveSurfaceFocusSwitch(input: {
+  /** True while the focus-entry convergence window is open (a focus
+   *  change whose redirect/keep-visible moves haven't settled). */
+  focusTransitionPending: boolean
+  /** The surface key observed on the previous effect run (file-tab id
+   *  or browser-tab id), or null when none was adjudicable. */
+  prevSurfaceKey: string | number | null
+  /** The currently-active adjudicable surface key, or null. */
+  surfaceKey: string | number | null
+  focusedProject: string | null
+  /** The active surface's project membership (root, or null/undefined
+   *  for "no project" / "not yet probed"). */
+  membership: string | null | undefined
+}): string | null {
+  const { focusTransitionPending, prevSurfaceKey, surfaceKey, focusedProject, membership } = input
+  if (surfaceKey === null) return null
+  if (surfaceKey === prevSurfaceKey) return null
+  if (focusTransitionPending) return null
+  if (focusedProject === null) return null
+  if (!membership || membership === focusedProject) return null
+  return membership
+}
+
 /** BUG-192 — the pure plan for closing every member of a project. The
  *  React handler applies this with a single, un-nested setState burst. */
 export interface ProjectClosePlan {
