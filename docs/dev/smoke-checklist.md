@@ -44,6 +44,40 @@
 - [ ] Close via `⌘W` while focused on the terminal column — the other
       tab remains.
 
+## 2a. Project rail — focus (BUG-269 — catches: the tile-click flicker loop, the terminal placeholder)
+
+> **Setup.** Two qualifying projects, P and Q. Open a file from Q (`duo edit
+> <a file in Q>`) so it is the ACTIVE working tab, and open at least one
+> working tab from P. Watch the rail highlight, the title-bar focus chip, the
+> navigator root and the working-pane active tab together — the loop moved all
+> four several times per second.
+
+- [ ] **Foreign active file, P has only working tabs.** Click P's tile.
+      Focus lands on P and **holds** — no flicker anywhere. The active
+      working tab becomes one of P's, once. The terminal column shows the
+      placeholder: *"No terminal in P"* + **Open shell** / **Open Claude
+      here**. Confirm stability headlessly too: `duo project list` ten times
+      in a row reports the same focus.
+- [ ] **Same, but P's only shell has `exit`ed** (or was `cd`'d out of P).
+      Same result — focus holds, placeholder shows. This is the case the old
+      frozen-launch-cwd guard silently no-oped on, leaving an empty strip
+      with no affordance.
+- [ ] **D11 contract still works.** While focused on P, `duo edit <a file in
+      Q>`. Focus follows to Q — **once**, then settles. Repeat with
+      `duo open <a file:// URL under Q>` for the browser side.
+- [ ] **The placeholder's buttons.** Click **Open shell** → a shell opens at
+      P's root, becomes the active tab, appears in the strip, and focus stays
+      on P (it must NOT release to All). Release focus, re-enter P, click
+      **Open Claude here** → same, with Claude launching.
+- [ ] **⌘T from the placeholder.** With the placeholder up, press `⌘T` (and,
+      separately, the strip's `+` / `>` buttons). The new terminal opens at
+      **P's root** — not at whatever hidden tab was last active — and focus
+      holds.
+- [ ] **All releases.** Click **All**. It takes effect on the FIRST click
+      (the loop used to make this a mashing game), every hidden terminal and
+      working tab reappears, and their scrollback is intact — nothing was
+      unmounted while hidden.
+
 ## 3. Files pane (catches: breadcrumb follow-mode, nav regressions)
 
 - [ ] Left column shows a tree rooted at home (or the last persisted cwd).
