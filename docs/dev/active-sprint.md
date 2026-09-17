@@ -25,6 +25,7 @@
 > (clean) + suite (2387/2387) + static reasoning only; no Electron instance
 > was launched (other agents share the app). Walk § 2a of
 > `docs/dev/smoke-checklist.md`. Full writeup: `tasks.md` BUG-269.
+> **PR:** [#138](https://github.com/dudgeon/duo/pull/138) (supersedes #137). Owner walk sheet: `docs/dev/smoke-walks/v0.13.7-bug269` (pinned in the aux 2026-09-16).
 
 ## ENH-260 — Track-changes composition semantics (🚧 in progress, decisions locked 2026-07-08, PR #129)
 
