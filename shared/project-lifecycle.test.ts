@@ -247,8 +247,8 @@ describe('planProjectClose (BUG-192 jitter-loop fix)', () => {
   })
 })
 
-// ── BUG-267 · adjudicateActiveSurfaceFocusSwitch ─────────────────────
-describe('adjudicateActiveSurfaceFocusSwitch (BUG-267 rail-click flicker loop)', () => {
+// ── BUG-267/269 · adjudicateActiveSurfaceFocusSwitch ─────────────────────
+describe('adjudicateActiveSurfaceFocusSwitch (BUG-267/269 rail-click flicker loop)', () => {
   const base = {
     focusTransitionPending: false,
     prevSurfaceKey: 'f-old' as string | number | null,

@@ -165,9 +165,13 @@ export function shouldReleaseFocusForNewTerminals(
 }
 
 /**
- * BUG-267 — the single decision point for the two "follow the active
+ * BUG-267/269 — the single decision point for the two "follow the active
  * surface" effects (ENH-182 Phase 3c file + Phase 3c-browser): should
  * activating this surface switch focus to its project?
+ *
+ * (Filed and built as BUG-267 on PR #137, which never merged; that id
+ * collides with ENH-267, so the ledger entry is BUG-269. The code keeps
+ * both labels so either grep lands here.)
  *
  * The flicker loop this kills: D11 used to re-adjudicate the
  * PRE-EXISTING active surface whenever `focusedProject` changed, while
