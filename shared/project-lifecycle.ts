@@ -219,6 +219,63 @@ export function adjudicateActiveSurfaceFocusSwitch(input: {
   return membership
 }
 
+/**
+ * BUG-269 — does the terminal column show the "no terminal in this
+ * project" placeholder instead of an xterm?
+ *
+ * Replaces the ENH-182 Phase 2 auto-spawn-on-focus behavior (owner
+ * decision 2026-09-16, option b1). Focusing a project whose visible
+ * terminal strip is empty used to spawn a shell/Claude tab at the
+ * project root; that littered the session with terminals (the
+ * once-per-focus-session guard reset on every release to All) and its
+ * `hasTerminalUnderRoot` suppression read the FROZEN launch cwd, so an
+ * exited or `cd`'d-away shell silently blocked the spawn and left the
+ * user staring at an empty pane anyway. The placeholder makes the
+ * empty state explicit and puts the spawn one click away.
+ *
+ * Note this is deliberately about the VISIBLE (member) strip, not
+ * about whether any terminal's cwd happens to sit under the root —
+ * membership is the same signal the strip filter itself uses, so the
+ * placeholder can never disagree with what the user sees.
+ */
+export function shouldShowEmptyTerminalPlaceholder(input: {
+  focusedProject: string | null
+  visibleTerminalCount: number
+}): boolean {
+  return input.focusedProject !== null && input.visibleTerminalCount === 0
+}
+
+/**
+ * BUG-269 — where does a new terminal tab (⌘T, the `+` / `>` split
+ * button) open?
+ *
+ * Normally it inherits the active terminal's cwd (ENH-187: live shell
+ * cwd, falling back to its launch cwd), and `pendingCwd` when there is
+ * no active terminal at all (Stage 10 D9). But while the focused
+ * project's strip is empty, the "active" terminal is a HIDDEN
+ * non-member tab belonging to some other project — inheriting its cwd
+ * would open the new tab outside the focused project, leaving it
+ * invisible in the strip and the placeholder still showing. In that one
+ * case the focused project root wins, so the new tab is a member and
+ * focus holds (ENH-204 only releases on a FOREIGN new terminal).
+ */
+export function chooseNewTerminalCwd(input: {
+  focusedProject: string | null
+  visibleTerminalCount: number
+  /** Active terminal's live cwd, falling back to its launch cwd; null
+   *  when there is no active terminal. */
+  activeTerminalCwd: string | null
+  /** Stage 10 D9 pending cwd (navigator folder / selected file's parent). */
+  pendingCwd: string
+}): string {
+  const { focusedProject, visibleTerminalCount, activeTerminalCwd, pendingCwd } = input
+  if (shouldShowEmptyTerminalPlaceholder({ focusedProject, visibleTerminalCount })) {
+    // Non-null by the guard above; the cast keeps the helper pure.
+    return focusedProject as string
+  }
+  return activeTerminalCwd ?? pendingCwd
+}
+
 /** BUG-192 — the pure plan for closing every member of a project. The
  *  React handler applies this with a single, un-nested setState burst. */
 export interface ProjectClosePlan {
