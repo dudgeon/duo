@@ -280,6 +280,30 @@ export function chooseNewTerminalCwd(input: {
   return activeTerminalCwd ?? pendingCwd
 }
 
+/**
+ * BUG-269 (live-walk finding, 2026-09-16) — which visible working tab
+ * the keep-visible effect should land on when the active file is hidden
+ * under the new focus. `visibleFileTabs` keeps PINNED cross-project
+ * reference tabs visible in every focus, and they sort first, so a
+ * naive `visibleFileTabs[0]` parks the user on a foreign pinned tab
+ * instead of the project they just focused. Prefer a TRUE member (its
+ * membership === focusedProject); fall back to the first visible tab
+ * (a pinned reference) only when the project has no member file tabs
+ * — mirrors the FOLLOWUP-030 browser-side "prefer a true member over a
+ * pinned cross-project tab" rule. Returns null when nothing is visible
+ * (caller drops to the browser surface).
+ */
+export function chooseKeepVisibleFileTab(input: {
+  visibleFileTabs: ReadonlyArray<{ id: string }>
+  tabMembership: Readonly<Record<string, string | null>>
+  focusedProject: string
+}): string | null {
+  const { visibleFileTabs, tabMembership, focusedProject } = input
+  const member = visibleFileTabs.find((t) => tabMembership[t.id] === focusedProject)
+  if (member) return member.id
+  return visibleFileTabs.length > 0 ? visibleFileTabs[0].id : null
+}
+
 /** BUG-192 — the pure plan for closing every member of a project. The
  *  React handler applies this with a single, un-nested setState burst. */
 export interface ProjectClosePlan {

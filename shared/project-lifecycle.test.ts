@@ -9,7 +9,8 @@ import {
   shouldReleaseFocus,
   shouldReleaseFocusForNewTerminals,
   shouldShowEmptyTerminalPlaceholder,
-  type LiveCwdEntry
+  type LiveCwdEntry,
+  chooseKeepVisibleFileTab
 } from './project-lifecycle'
 
 // ── BUG-194 · shouldReleaseFocus ─────────────────────────────────────
@@ -471,5 +472,32 @@ describe('tile-click convergence contract (BUG-269)', () => {
     expect(states[2]).toBe(states[0])
     expect(states[3]).toBe(states[1])
     expect(states.every((s, i) => i === 0 || s !== states[i - 1])).toBe(true)
+  })
+})
+
+describe('chooseKeepVisibleFileTab (BUG-269 — member-first keep-visible landing)', () => {
+  const tabMembership = { pinned: '/proj/q', 'p-note': '/proj/p', 'p-two': '/proj/p' }
+  it('prefers a TRUE member over a pinned cross-project tab that sorts first', () => {
+    expect(
+      chooseKeepVisibleFileTab({
+        visibleFileTabs: [{ id: 'pinned' }, { id: 'p-note' }, { id: 'p-two' }],
+        tabMembership,
+        focusedProject: '/proj/p'
+      })
+    ).toBe('p-note')
+  })
+  it('falls back to the first visible (pinned reference) tab when the project has no member file tabs', () => {
+    expect(
+      chooseKeepVisibleFileTab({
+        visibleFileTabs: [{ id: 'pinned' }],
+        tabMembership,
+        focusedProject: '/proj/p'
+      })
+    ).toBe('pinned')
+  })
+  it('returns null when nothing is visible (caller drops to the browser surface)', () => {
+    expect(
+      chooseKeepVisibleFileTab({ visibleFileTabs: [], tabMembership, focusedProject: '/proj/p' })
+    ).toBeNull()
   })
 })

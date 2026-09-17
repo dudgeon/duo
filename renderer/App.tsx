@@ -58,6 +58,7 @@ import { reorderVisible } from '@shared/reorderTabs'
 import { pruneByTab } from './state/perTabPrune'
 import {
   adjudicateActiveSurfaceFocusSwitch,
+  chooseKeepVisibleFileTab,
   chooseNewTerminalCwd,
   effectiveProjectTerminals,
   mergeLiveCwdInfo,
@@ -1349,6 +1350,13 @@ export function App() {
   // `pendingBrowserRedirect !== null`) never switches focus. See
   // `adjudicateActiveSurfaceFocusSwitch` for the full gate order.
   const lastAdjudicatedFileRef = useRef<string | null>(null)
+  // BUG-269 (live-walk finding) — when D11 decides to switch focus, the
+  // keep-visible effect further down runs in the SAME flush against the
+  // still-stale focusedProject and would move the just-activated foreign
+  // file away (onto a pinned reference tab) before the new focus lands.
+  // Record the queued target so keep-visible can stand down for one
+  // render; the `[focusedProject]` effect clears it once the switch commits.
+  const focusSwitchQueuedRef = useRef<string | null>(null)
   useEffect(() => {
     const surfaceKey = activeWorking.kind === 'file' ? activeWorking.id : null
     const prevSurfaceKey = lastAdjudicatedFileRef.current
@@ -1360,7 +1368,10 @@ export function App() {
       focusedProject,
       membership: surfaceKey !== null ? tabMembership[surfaceKey] : null
     })
-    if (target !== null) setFocusedProject(target)
+    if (target !== null) {
+      focusSwitchQueuedRef.current = target
+      setFocusedProject(target)
+    }
   }, [activeWorking, tabMembership, focusedProject, pendingBrowserRedirect])
   // BUG-194 — release focus when the focused project vanishes. With
   // BUG-191's live-cwd tracking, `cd`-ing the focused project's last
@@ -1687,7 +1698,10 @@ export function App() {
       focusedProject,
       membership: surfaceKey !== null ? browserTabMembership.get(surfaceKey) : null
     })
-    if (target !== null) setFocusedProject(target)
+    if (target !== null) {
+      focusSwitchQueuedRef.current = target
+      setFocusedProject(target)
+    }
   }, [activeWorking, browserTabs, browserTabMembership, focusedProject, pendingBrowserRedirect])
   // ENH-182 FOLLOWUP-030 — browser-pane active-tab redirect on focus
   // entry / focus change. The browser pane is one shared
@@ -1733,6 +1747,7 @@ export function App() {
   // earlier, above the D11 adjudicator that reads it.)
   useEffect(() => {
     setPendingBrowserRedirect(focusedProject)
+    focusSwitchQueuedRef.current = null // BUG-269 — the D11 switch has committed
   }, [focusedProject])
   useEffect(() => {
     if (pendingBrowserRedirect === null) return
@@ -1843,6 +1858,11 @@ export function App() {
   // release focus.
   useEffect(() => {
     if (focusedProject === null) return
+    // BUG-269 — a D11 switch is queued in this same flush (a user just
+    // activated a foreign-project surface); this render's focusedProject
+    // is stale. Stand down — the next render re-runs this effect under
+    // the new focus, where that surface is a visible member.
+    if (focusSwitchQueuedRef.current !== null && focusSwitchQueuedRef.current !== focusedProject) return
     const activeTerminalVisible = visibleTerminals.some((t) => t.id === activeTabId)
     if (!activeTerminalVisible && visibleTerminals.length > 0) {
       setActiveTabId(visibleTerminals[0].id)
@@ -1858,9 +1878,13 @@ export function App() {
       // old one formed the rail-click flicker loop (see tasks.md
       // BUG-267/269); and the browser fallback landing on a foreign
       // file:// tab would bounce focus through the redirect machine.
-      if (visibleFileTabs.length > 0) {
-        lastAdjudicatedFileRef.current = visibleFileTabs[0].id
-        setActiveWorking({ kind: 'file', id: visibleFileTabs[0].id })
+      // Member-first landing (live-walk finding): pinned cross-project
+      // reference tabs sort first in `visibleFileTabs`; land on a TRUE
+      // member when the project has one.
+      const landing = chooseKeepVisibleFileTab({ visibleFileTabs, tabMembership, focusedProject })
+      if (landing !== null) {
+        lastAdjudicatedFileRef.current = landing
+        setActiveWorking({ kind: 'file', id: landing })
       } else {
         const activeBt = browserTabs.find((bt) => bt.isActive && !bt.inAux)
         lastAdjudicatedBrowserTabRef.current = activeBt?.id ?? null
