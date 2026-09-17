@@ -1,5 +1,20 @@
 # Active sprint state — v0.13.2 shipped (init-on-choose vault + default-vault autocomplete + foreign-vault guard); next: triage
 
+## BUG-269 — Project-rail tile-click flicker loop (root-caused 2026-09-16; fix exists, unmerged)
+
+> **Owner-reported (recurring):** click a rail tile for a project with working
+> tabs but no active terminal → the whole UI flickers; hard to escape. **Root
+> cause (static trace, no execution):** D11 auto-switch (`App.tsx` ≈ 1330)
+> and the keep-visible effect (≈ 1785) correct focus ↔ active-file in
+> opposite directions — a non-converging P↔Q passive-effect 2-cycle. **The
+> fix already exists in open [PR #137](https://github.com/dudgeon/duo/pull/137)
+> (BUG-267, 2026-07-17) and was never merged** — no tag contains it, `main`
+> never got its ledger/PRD pointers, so sessions kept re-diagnosing.
+> **Recommendation (rev 2):** land PR #137's D11 gate (required under every
+> option) + replace auto-spawn with a placeholder empty state (option b1);
+> reject hiding terminal-less projects (a); defer never-filter-terminals (c)
+> as a D8 relitigation. Full writeup: `tasks.md` BUG-269.
+
 ## ENH-260 — Track-changes composition semantics (🚧 in progress, decisions locked 2026-07-08, PR #129)
 
 > **Owner-reported:** deleting text you just added in Suggesting mode double-marks
