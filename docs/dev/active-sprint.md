@@ -1,5 +1,34 @@
 # Active sprint state — v0.13.2 shipped (init-on-choose vault + default-vault autocomplete + foreign-vault guard); next: triage
 
+## BUG-270 — Split View aux width pinned, occluding the editor (🚧 built on branch `claude/duo-split-view-width-pinned`; **not pushed, no PR**; live walk owed)
+
+> **Owner-reported 2026-09-18:** *"a bug with sidebar/splitview rendering; the
+> width of the splitview appears pinned and it is occluding the main editing
+> panel."* **Root cause (static trace + read-only `duo` probes of the running
+> app):** a WebContentsView's rectangle has exactly ONE publisher — a
+> `ResizeObserver` effect in the renderer — and that effect's cleanup is the
+> only thing that ever hides the view. A renderer reload destroys the document
+> without running React cleanups while main keeps every view, the aux pin and
+> the cached rectangles, so the aux browser kept painting at the pre-reload
+> geometry over the restored editor, unmovable. Confirmed live: the BUG-269
+> walk sheet pinned into the aux on 2026-09-16 still reports `inAux: true` in
+> `duo tabs` while `duo split-view` reports `aux: null` and `duo layout`
+> reports `browserTabsCount: 0` — the BUG-195 ghost signature, whose
+> documented follow-on ("a renderer-mount re-sync would also stop the ghost
+> from *appearing*") had never been implemented.
+>
+> **Built 2026-09-18:** `BrowserManager.reconcileForHostRendererReload()` on
+> the host window's `did-start-loading` (park every view, reset the cached
+> rectangles, drop the aux pin, never touch activeIndex/focus); App pulls
+> `browser.getTabs()` on mount; and `duo split-view resize` now drives the
+> browser-aux slot too (it was file-aux-only — the width was literally pinned
+> through the CLI). Typecheck clean, suite 2405/2405 (15 new).
+>
+> **Owed:** the live walk — `docs/dev/smoke-checklist.md` § 4a. Built with the
+> Duo Electron instance untouched (another session holds the shared socket).
+> **Owner workaround meanwhile:** `duo split-view close` clears today's ghost.
+> Full writeup: `tasks.md` BUG-270.
+
 ## BUG-269 — Project-rail tile-click flicker loop (🚧 built on branch `claude/project-filter-flickering-ea8850`; **live smoke walk owed**)
 
 > **Owner-reported (recurring):** click a rail tile for a project with working
