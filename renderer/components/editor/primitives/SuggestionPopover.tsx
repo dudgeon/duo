@@ -107,6 +107,14 @@ export const SuggestionPopover = forwardRef<SuggestionPopoverHandle, SuggestionP
     if (!clientRect) return null
     const rect = clientRect()
     if (!rect) return null
+    // BUG-271 — never render against an anchor that isn't laid out. This
+    // popover portals to document.body, so it escapes a display:none
+    // ancestor: an editor hidden mid-session (inactive tabs stay mounted)
+    // measures its anchor as an all-zero rect, and positionStyle would
+    // clamp that to the window's top-left corner, floating over every
+    // other tab. The lifecycle suspends the session on tab-hide; this is
+    // the net under it, for ANY consumer and any future re-render path.
+    if (!isAnchorLaidOut(rect)) return null
 
     // Empty state: render the "no matches" hint instead of an empty
     // shell. Loading state shows during the initial vault walk.
@@ -200,6 +208,14 @@ function renderItemContent(item: SuggestionItem) {
       )}
     </>
   )
+}
+
+/** A laid-out caret/decoration anchor always has line height; a rect with
+ *  no height AND no width is what getBoundingClientRect() reports for an
+ *  element under display:none (or detached). Width alone can legitimately
+ *  be 0 (a collapsed caret), so both must be 0 to count as not laid out. */
+export function isAnchorLaidOut(rect: DOMRect): boolean {
+  return rect.height > 0 || rect.width > 0
 }
 
 /** Exported for the TypePickerPopover (ENH-208 D4), which anchors at the

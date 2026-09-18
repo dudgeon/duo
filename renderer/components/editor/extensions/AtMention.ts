@@ -18,21 +18,14 @@
 import { Extension } from '@tiptap/core'
 import { PluginKey } from '@tiptap/pm/state'
 import Suggestion from '@tiptap/suggestion'
-import { ReactRenderer } from '@tiptap/react'
-import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion'
 
 // Sprint 11 walk-1 fix — distinct PluginKey from WikilinkSuggestion's
 // (see that file for the full ProseMirror-keyed-plugin rationale).
 const AT_MENTION_KEY = new PluginKey('atMention')
-import {
-  SuggestionPopover,
-  type SuggestionItem,
-  type SuggestionPopoverHandle,
-  type SuggestionPopoverProps
-} from '../primitives/SuggestionPopover'
 import type { VaultFile } from '../wikilinkResolver'
 import type { VaultMode } from '../../../../core/markdown/vaultLinks'
 import { okfLinkInsert } from '../okfLinks'
+import { createSuggestionLifecycle } from './suggestionLifecycle'
 import { findAtMentionMatch } from './suggestionMatchers'
 import { isSmartToken, mergeSuggestionItems, smartTokensFor, type SmartToken } from '../smartTokens'
 
@@ -49,7 +42,7 @@ export interface AtMentionOptions {
   getDocPath?: () => string | null
 }
 
-export const AtMention = Extension.create<AtMentionOptions>({
+export const AtMention = Extension.create<AtMentionOptions, { suspend: () => void }>({
   name: 'atMention',
 
   addOptions() {
@@ -62,8 +55,17 @@ export const AtMention = Extension.create<AtMentionOptions>({
     }
   },
 
+  // BUG-271 — 'suspend' is the host hook MarkdownEditor calls when its tab
+  // goes inactive (editor.storage.<name>.suspend()). Replaced with the live
+  // lifecycle's handle once the plugin is built.
+  addStorage() {
+    return { suspend: () => {} }
+  },
+
   addProseMirrorPlugins() {
     const opts = this.options
+    const lifecycle = createSuggestionLifecycle(() => opts.isLoading?.() ?? false)
+    this.storage.suspend = lifecycle.suspend
     return [
       Suggestion({
         editor: this.editor,
@@ -107,74 +109,10 @@ export const AtMention = Extension.create<AtMentionOptions>({
             .run()
         },
 
-        render: () => {
-          let component: ReactRenderer<SuggestionPopoverHandle, SuggestionPopoverProps> | null = null
-          // Walk-1 v4 fix — see WikilinkSuggestion.ts for the full
-          // dismissed-flag rationale. AT-MENTION specifically reproduced
-          // the persistent-popover bug at walk-2 (visible in user's
-          // screenshot — popover with "Foo" stayed up after Enter).
-          let dismissed = false
-          return {
-            onStart(props: SuggestionProps) {
-              dismissed = false
-              component = new ReactRenderer(SuggestionPopover, {
-                props: {
-                  items: props.items,
-                  command: (item: SuggestionItem) => props.command(item),
-                  clientRect: props.clientRect ?? null,
-                  loading: opts.isLoading?.() ?? false,
-                  visible: true
-                },
-                editor: props.editor
-              })
-            },
-            onUpdate(props: SuggestionProps) {
-              component?.updateProps({
-                items: props.items,
-                command: (item: SuggestionItem) => props.command(item),
-                clientRect: props.clientRect ?? null,
-                loading: opts.isLoading?.() ?? false,
-                visible: !dismissed
-              })
-            },
-            onKeyDown(props: SuggestionKeyDownProps) {
-              if (props.event.key === 'Escape') {
-                if (dismissed) return false
-                dismissed = true
-                component?.updateProps({
-                  items: [],
-                  command: () => {},
-                  clientRect: null,
-                  loading: false,
-                  visible: false
-                })
-                queueMicrotask(() => {
-                  component?.destroy()
-                  component = null
-                })
-                return true
-              }
-              if (dismissed) return false
-              const handled = component?.ref?.onKeyDown(props.event) ?? false
-              if (handled && (props.event.key === 'Enter' || props.event.key === 'Tab')) {
-                dismissed = true
-                component?.updateProps({
-                  items: [],
-                  command: () => {},
-                  clientRect: null,
-                  loading: false,
-                  visible: false
-                })
-              }
-              return handled
-            },
-            onExit() {
-              dismissed = false
-              component?.destroy()
-              component = null
-            }
-          }
-        }
+        // BUG-271 — the popover lifecycle (dismissed / suspended state
+        // machine) is shared with the sibling suggester; see
+        // suggestionLifecycle.ts.
+        render: lifecycle.render
       })
     ]
   }
