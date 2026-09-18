@@ -48,6 +48,8 @@ Reload paths that reach this: the app-level `ErrorBoundary` **Reload** button (`
 
 **Related.** [BUG-195](tasks-archive.md) (the aux-WCV ghost; its follow-on is this bug), BUG-209 (aux WCV occludes renderer modals — same native-above-DOM family), BUG-047 / ENH-080 (`setOverlayMuted`), BUG-153 (modal occlusion), ENH-099 (the walk-3 both-slots fix this back-ports to the resize verb).
 
+
+**Live walk (2026-09-18, dev build of this branch, over the `duo` CLI; coordinator).** (1) Pin the walk page into the aux → `location.reload()` on the host renderer → the tab reports `inAux: false`, `duo split-view` → `aux: null`, `duo layout` → `browserTabsCount: 4` with `main` populated, the renderer command bridge answers throughout (pre-fix signature was `inAux: true` / `aux: null` / `browserTabsCount: 0` and a page painted over the editor). (2) Re-pin → `split-view resize 0.3` / `0.7` → the aux column measured 513 → 308 → 718 px (pre-fix: frozen for a browser aux). (3) Child loads while pinned (`duo tab 1`, `duo open docs/roadmap.html`) → aux width unchanged, main pane shows the new page, bridge alive — `did-start-loading` did not fire for child views. (4) `split-view close` → clean; `duo errors` empty. **Process note:** a first attempt saw the renderer bridge stop answering mid-recipe; the dev log showed spurious Vite HMR pushes for `App.tsx`/`WorkingPane.tsx` with no file changes on disk (watcher noise). A clean relaunch reproduced none of it — dev-only artifact, not this fix.
 ---
 
 ### BUG-269: Project-rail tile click → whole-UI flicker loop when the active working tab belongs to another project (root-cause consolidation; absorbs BUG-267 / PR #137)
