@@ -2,6 +2,16 @@
 
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
+### BUG-274: iCloud eviction — new failure modes, and `materialize` misreports tracked files as unrecoverable
+
+**Status:** 🆕 Filed 2026-09-18 (hit live during the BUG-273 investigation; recovered by hand, tooling not changed). **Priority:** P2. **Effort:** S. Extends the CLAUDE.md "iCloud Drive trap" note.
+
+**What happened.** With ~20 GiB free, macOS evicted 63 tracked files in a worktree plus one packfile in the SHARED `.git/objects/pack/`. Three things the existing note doesn't cover: (1) **a `git commit` fails** with `… .pack is far too short to be a packfile` / `invalid object` / `Error building trees` — a packfile variant of the documented symptoms. (2) **The RUNNING dev app hangs**: Electron's main process sat in uninterruptible I/O wait (`ps` STAT `U`), so the CLI reported `ETIMEDOUT_RESPONSE` on both transports and `duo doctor` asked "Is Duo.app running?" while the process and socket were alive (same misdirection BUG-265 notes). `sample` against it hung too. It unblocked by itself the moment the evicted files were downloaded. (3) **`npm run materialize` left 3 TRACKED files dataless and reported them as "not in HEAD's tree AND iCloud doesn't have a copy"** — both false: `core/socket-server.ts` is tracked, and a plain `brctl download <path>` fetched all three in seconds.
+
+**Systemic fix.** (a) `scripts/materialize.sh`: retry stragglers with `brctl download` + a short wait before declaring loss, and check `git ls-files --error-unmatch` before claiming a path is not in HEAD. (b) `check-materialization.sh`: also scan `$(git rev-parse --git-common-dir)/objects/pack` — it only looks at the working tree, so the packfile eviction was invisible until a commit failed. (c) `duo doctor`: on `ETIMEDOUT_RESPONSE` with a live pid, say "app is running but not answering — check for evicted files (`npm run check:materialization`)". (d) The real cure is owner-side: move the repo out of iCloud-synced `~/Documents`, or turn off Optimize Mac Storage.
+
+---
+
 ### BUG-273: New-note type picker strands over other tabs after a non-mouse tab switch
 
 **Status:** 🆕 Filed 2026-09-18 — **confirmed live** on the BUG-271 dev build (investigation only; no fix applied). **Priority:** P2. **Effort:** XS. Sibling of BUG-271.
