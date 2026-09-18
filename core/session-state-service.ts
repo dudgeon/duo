@@ -59,6 +59,7 @@ import type {
   ActiveWorkspace,
 } from '../shared/types'
 import { EMPTY_SESSION_STATE } from '../shared/types'
+import { clampAuxSplitFraction } from '../shared/split-view'
 import { uniqueTmpPath } from './write-queue'
 import {
   composeEnvelope,
@@ -499,7 +500,9 @@ export class SessionStateService {
         ? raw.activeIndex
         : 0
     const rawPct = typeof raw.splitPct === 'number' && Number.isFinite(raw.splitPct) ? raw.splitPct : 0.5
-    const splitPct = Math.min(Math.max(rawPct, 0.20), 0.80)
+    // BUG-270 — one shared clamp (shared/split-view.ts) across persistence,
+    // the CLI verb, the IPC subscriber and the divider drag.
+    const splitPct = clampAuxSplitFraction(rawPct)
     return { paths, activeIndex, splitPct }
   }
 }

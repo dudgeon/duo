@@ -159,6 +159,27 @@
       the browser tab, round-trips cleanly — no stale canvas, no stuck
       browser view hiding the file tab.
 
+## 4a. Split View aux — no stale WebContentsView (BUG-270 · BUG-195 lineage)
+
+The aux browser slot is a native view painted ABOVE renderer DOM; its
+rectangle has one publisher (a renderer effect). Anything that kills the
+renderer without running React cleanups used to strand it over the editor.
+
+- [ ] Pin a browser tab into aux (`duo split-view open-browser <id>`), then
+      **reload the renderer** (`duo dom --js "location.reload()"`). After the
+      reload: no page fragment floats over the working pane, the editor is
+      fully visible and clickable, and the three surfaces agree —
+      `duo tabs` shows **no** `inAux: true`, `duo split-view` shows
+      `aux: null`, `duo layout` shows a non-zero `browserTabsCount` and the
+      tab is back in the strip.
+- [ ] With a browser tab in aux, `duo split-view resize 0.3` then `0.7`
+      moves the divider both times (pre-BUG-270 it was a silent no-op for
+      browser-aux and only worked for a file in aux). Repeat with a file in
+      aux (`duo split-view open <path>`).
+- [ ] Drag the aux divider, collapse/expand the navigator (⌘B) and resize the
+      window with a browser in aux — the web content tracks the aux column
+      every time (no lag rectangle, no overlap onto the main pane).
+
 ## 5. Keyboard shortcuts (catches: browser-focus forwarding, chord typos, focus-routing regressions)
 
 **Hard rule:** every Duo shortcut MUST be exercised from **all five

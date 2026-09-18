@@ -126,6 +126,7 @@ import * as vaultCore from '../core/vault'
 import { IPC, EMPTY_SESSION_STATE } from '../shared/types'
 import { htmlBoilerplate } from '../shared/html-boilerplate'
 import { abbreviateHome } from '../shared/path-display'
+import { clampAuxSplitPct } from '../shared/split-view'
 import type {
   BrowserBounds,
   BrowserState,
@@ -964,6 +965,21 @@ async function createWindow(opts: { restore?: boolean; restoreIndex?: number; in
   // context so liveBrowser()/liveCdp() (registry.only()) resolve them.
   ctx.browserManager = browserManager
   ctx.cdpBridge = cdpBridge
+
+  // BUG-270 — a WebContentsView's rectangle is published ONLY by a renderer
+  // effect (BrowserRenderer / AuxBrowserSlot), and hidden only by that
+  // effect's cleanup. A reload tears the document down without running
+  // cleanups, so every view would keep painting at the pre-reload geometry
+  // over the freshly-restored editor, unmovable (its publisher is gone) —
+  // the "split view width is pinned and occludes the editing panel" report.
+  // `did-start-loading` fires on THIS window's webContents at the START of
+  // each top-level load (a Vite full reload, the ErrorBoundary's Reload,
+  // crash recovery), i.e. strictly BEFORE the new renderer can publish —
+  // so the park can never clobber fresh bounds. A child WebContentsView's
+  // own loads do not reach this emitter. No-op on the first load (no tabs).
+  mainWindow.webContents.on('did-start-loading', () => {
+    browserManager.reconcileForHostRendererReload()
+  })
   // ENH-191 P3-S8 — this window's own claude-presence probe (no module global).
   // TERMINAL_ACTIVE_PUSH routes setTarget here by event.sender; the onChange
   // fan-out below captures THIS window's createWindow-local cdpBridge/browserManager.
@@ -6031,8 +6047,8 @@ export function splitViewResize(pct: number): { ok: boolean; pct?: number; error
   // Clamp to the same 20–80 range the existing terminal/canvas
   // divider uses — locked spec § 7. Accept either decimal (0.20–0.80)
   // or percent (20–80) for caller convenience; > 1 is treated as %.
-  const decimal = pct > 1 ? pct / 100 : pct
-  const clamped = Math.min(Math.max(decimal, 0.20), 0.80)
+  // BUG-270 — one shared clamp for main + renderer + divider drag.
+  const clamped = clampAuxSplitPct(pct)
   const win = windowByIdOrPrimary(undefined)
   if (!win || win.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }

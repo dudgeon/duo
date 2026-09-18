@@ -25,6 +25,7 @@ import * as fs from 'fs/promises'
 import * as path from 'path'
 import type { WorkspaceFile, SessionState } from '../shared/types'
 import { EMPTY_SESSION_STATE } from '../shared/types'
+import { clampAuxSplitFraction } from '../shared/split-view'
 
 const SCHEMA_VERSION = 1
 
@@ -110,7 +111,7 @@ export class WorkspaceFileService {
             paths: s.aux.paths.filter((p): p is string => typeof p === 'string'),
             activeIndex: Number.isInteger(s.aux.activeIndex) ? s.aux.activeIndex : 0,
             splitPct: typeof s.aux.splitPct === 'number' && Number.isFinite(s.aux.splitPct)
-              ? Math.min(Math.max(s.aux.splitPct, 0.20), 0.80)
+              ? clampAuxSplitFraction(s.aux.splitPct)  // BUG-270 — shared clamp
               : 0.5
           }
         : null

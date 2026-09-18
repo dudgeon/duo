@@ -15,6 +15,7 @@ import type { ExternalRedirectedPush, PlaygroundAction } from '../shared/host-ap
 import { IPC } from '../shared/types'
 import { BROWSER_SESSION_PARTITION } from '../core/constants'
 import { parseActionFromAttrs } from '../shared/playground-actions'
+import { planHostRendererReloadReconcile } from '../shared/wcv-bounds'
 import type { CdpBridge } from './cdp-bridge'
 import type { BrowserHistoryService } from '../core/browser-history-service'
 import type { ExternalDomainsService } from '../core/external-domains-service'
@@ -1092,6 +1093,52 @@ export class BrowserManager {
    *  holding a browser tab. */
   getAuxTabId(): number | null {
     return this.auxTabId
+  }
+
+  /**
+   * BUG-270 — the host renderer is going away (reload / crash recovery /
+   * the app-level ErrorBoundary's Reload). Park every view and forget the
+   * cached rectangles + the aux pin.
+   *
+   * Why: a WCV's bounds have exactly ONE publisher — a `ResizeObserver`
+   * effect in the renderer (`BrowserRenderer` / `AuxBrowserSlot`) — and its
+   * cleanup is the only thing that ever hides the view. A reload destroys
+   * the document WITHOUT running React cleanups, so without this hook the
+   * views keep painting at the pre-reload geometry over the freshly-restored
+   * editor, and can never move again (their publisher is unmounted): the
+   * "split view width is pinned and occludes the editor" report. Dropping
+   * `auxTabId` also closes the BUG-195 ghost at its source — browser-aux is
+   * deliberately not persisted, so a surviving pin can only ever desync main
+   * from the UI (`duo tabs` inAux:true vs `duo split-view` aux:null).
+   *
+   * Does NOT touch `activeIndex` or focus: the reloaded renderer restores its
+   * own active surface, and re-homing here would hijack it. Everything parked
+   * comes back the moment the new renderer mounts and publishes real bounds.
+   * Safe (and a no-op) on the very first load, when there are no tabs yet.
+   */
+  reconcileForHostRendererReload(): void {
+    const plan = planHostRendererReloadReconcile({
+      tabIds: this.tabs.map(t => t.id),
+      auxTabId: this.auxTabId
+    })
+    if (plan.clearOverlayMute) this.mutedForOverlay = false
+    if (plan.park.length === 0 && plan.unpinAux === null) {
+      this.currentBounds = plan.cachedBounds
+      this.auxBounds = plan.cachedBounds
+      return
+    }
+    const parked = new Set(plan.park)
+    for (const tab of this.tabs) {
+      if (!parked.has(tab.id)) continue
+      try { tab.view.setBounds(plan.cachedBounds) } catch { /* view already gone */ }
+    }
+    this.currentBounds = plan.cachedBounds
+    this.auxBounds = plan.cachedBounds
+    if (plan.unpinAux !== null) this.auxTabId = null
+    // The emits are for any subscriber already listening (they are lost on the
+    // outgoing renderer, which is fine — App.tsx pulls `getTabs()` on mount).
+    this.emitTabs()
+    this.emitState()
   }
 
   // BUG-047 Path B (overlay-mute) — temporarily collapse the active
