@@ -1,6 +1,6 @@
 # Active sprint state — v0.13.2 shipped (init-on-choose vault + default-vault autocomplete + foreign-vault guard); next: triage
 
-## BUG-271 — orphaned "Searching vault…" popover at the window's top-left (🚧 built + live-verified on branch `claude/duo-top-right-artifact-151aa0`; PR open, not cut)
+## BUG-271 — orphaned "Searching vault…" popover at the window's top-left — ✅ shipped 2026-09-18, PR #140 (with BUG-273)
 
 > **Owner-reported 2026-09-16** (screenshot). Root cause: a `[[` autocomplete
 > session left open in a tab that then went inactive — hidden tabs stay

@@ -14,7 +14,7 @@
 
 ### BUG-273: New-note type picker strands over other tabs after a non-mouse tab switch
 
-**Status:** 🚧 Built + **live-verified 2026-09-18** on the BUG-271 branch ([PR #140](https://github.com/dudgeon/duo/pull/140), pending merge) — typecheck clean, suite 2427/2427 (2 new, mutation-checked). **Priority:** P2. **Effort:** XS. Sibling of BUG-271.
+**Status:** ✅ **Shipped 2026-09-18 via [PR #140](https://github.com/dudgeon/duo/pull/140)** (built + live-verified on a dev build of the branch) — typecheck clean, suite 2427/2427 (2 new, mutation-checked). **Priority:** P2. **Effort:** XS. Sibling of BUG-271.
 
 **Repro (live, scratch Obsidian vault).** Type `[[Zedwalk` → pick the `New: "Zedwalk" — pick type…` row → the type picker opens with focus in its filter input. Switch tabs by any path that is not a mouse click — `duo edit <other>`, `duo goto home` — and the picker stays in `document.body` at its old coordinates, floating over the other note and over Home. It is still focusable and live: typing a type + Enter from there would create a stub and rewrite the placeholder in the now-HIDDEN editor.
 
@@ -40,7 +40,7 @@
 
 ### BUG-271: Orphaned "Searching vault…" popover pinned to the window's top-left after a tab switch
 
-**Status:** 🚧 Built + **live-verified 2026-09-18** on a dev build of branch `claude/duo-top-right-artifact-151aa0` (PR pending merge) — typecheck clean, suite 2425/2425 (19 new, mutation-checked). **Priority:** P2. **Effort:** S. **Ticket note:** allocated after grepping main + every sibling worktree + open PRs (BUG-270 went to the split-view fix mid-session).
+**Status:** ✅ **Shipped 2026-09-18 via [PR #140](https://github.com/dudgeon/duo/pull/140)** (built + live-verified on a dev build of the branch; the OS-keystroke item stays on the next owner walk) — typecheck clean, suite 2425/2425 (19 new, mutation-checked). **Priority:** P2. **Effort:** S. **Ticket note:** allocated after grepping main + every sibling worktree + open PRs (BUG-270 went to the split-view fix mid-session).
 
 **Symptom (owner screenshot, 2026-09-16).** A small dark box reading *"Searching vault…"* floats under the traffic lights at the top-left of the window, over every tab, and never goes away.
 
