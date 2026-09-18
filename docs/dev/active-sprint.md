@@ -1,6 +1,6 @@
 # Active sprint state — v0.13.2 shipped (init-on-choose vault + default-vault autocomplete + foreign-vault guard); next: triage
 
-## BUG-271 — orphaned "Searching vault…" popover at the window's top-left (🚧 built on branch `claude/duo-top-right-artifact-151aa0`; live walk owed)
+## BUG-271 — orphaned "Searching vault…" popover at the window's top-left (🚧 built + live-verified on branch `claude/duo-top-right-artifact-151aa0`; PR open, not cut)
 
 > **Owner-reported 2026-09-16** (screenshot). Root cause: a `[[` autocomplete
 > session left open in a tab that then went inactive — hidden tabs stay
@@ -10,9 +10,11 @@
 > `suspend()` hook fired on `isActive → false` (resumes on return), an
 > anchor-not-laid-out guard in `SuggestionPopover`, and the frontmatter
 > suggester closes on tab-hide. Suite 2425/2425 (19 new, mutation-checked).
-> **Owed:** live keystroke walk on a dev build of this branch (smoke-checklist
-> § 8 BUG-271 item) — not run; needs owner OK to take over the shared dev
-> Electron. Full writeup: `tasks.md` § BUG-271.
+> **Live-verified 2026-09-18** on a dev build of this branch via the real
+> TipTap instances + real tab switches (computer-use was declined, so no
+> OS-level keystrokes — the smoke-checklist § 8 BUG-271 item stays on the
+> next owner walk). Also filed **BUG-272** (sidecar-read log noise at boot).
+> Full writeup: `tasks.md` § BUG-271.
 
 ## BUG-270 — Split View aux width pinned, occluding the editor (🚧 built on branch `claude/duo-split-view-width-pinned`; **not pushed, no PR**; live walk owed) — ✅ shipped 2026-09-18, PR #139 (merged; not cut — one more PR pending from another worktree)
 

@@ -2,9 +2,19 @@
 
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
+### BUG-272: Missing `.duo.json` sidecars log a main-process error per open editor tab at boot
+
+**Status:** 🆕 Filed 2026-09-18 (noticed in the dev log during the BUG-271 live walk; not investigated further). **Priority:** P3. **Effort:** S.
+
+**Symptom.** Every restored markdown tab without a sidecar prints `Error occurred in handler for 'files:read': [Error: ENOENT … <file>.md.duo.json]` with a stack — 23 of them on one boot of a ~20-tab session. Benign (a missing sidecar is the normal case), but it buries real main-process errors, and the boot-log grep that catches IPC handler gaps has to be filtered by hand.
+
+**Class of issue.** An *expected* absence routed through a *throwing* IPC handler. **Systemic fix:** give the sidecar read a non-throwing path (an `exists`/`readIfExists` handler returning null), rather than catching the rejection renderer-side after Electron has already logged it; then grep for other optional-file reads using the same throwing `files:read`.
+
+---
+
 ### BUG-271: Orphaned "Searching vault…" popover pinned to the window's top-left after a tab switch
 
-**Status:** 🚧 Built 2026-09-18 on branch `claude/duo-top-right-artifact-151aa0` — typecheck clean, suite 2425/2425 (19 new, mutation-checked). **Live in-app walk owed** (needs real keystrokes in a dev build of THIS branch; not run — the only running dev instance was another worktree's and is shared with other agents). **Priority:** P2. **Effort:** S. **Ticket note:** allocated after grepping main + every sibling worktree + open PRs (BUG-270 went to the split-view fix mid-session).
+**Status:** 🚧 Built + **live-verified 2026-09-18** on a dev build of branch `claude/duo-top-right-artifact-151aa0` (PR pending merge) — typecheck clean, suite 2425/2425 (19 new, mutation-checked). **Priority:** P2. **Effort:** S. **Ticket note:** allocated after grepping main + every sibling worktree + open PRs (BUG-270 went to the split-view fix mid-session).
 
 **Symptom (owner screenshot, 2026-09-16).** A small dark box reading *"Searching vault…"* floats under the traffic lights at the top-left of the window, over every tab, and never goes away.
 
@@ -16,6 +26,8 @@
 - **Sibling exposure closed.** The frontmatter raw-YAML suggester (`useFrontmatterWikilink`) anchors on a rect *snapshotted* at input time, so the guard can't see it go stale; it now takes `active` (threaded `MarkdownEditor → FrontmatterPanel.isActive`) and drops its match when the tab hides.
 
 **Tests.** `suggestionLifecycle.test.ts` (8 — state machine incl. the exit→update→start ordering and the destroy-microtask race), `SuggestionPopover.test.tsx` (3 — guard), `suggestionTabHide.test.tsx` (8 — a REAL TipTap editor + ReactRenderer portal, `[[` and `@`, hide → nothing left in `document.body`, resume on return). Mutation-checked: removing the guard reproduces the orphan in the real-editor test; no-op'ing `suspend()` fails 5.
+
+**Live verification (2026-09-18, dev build of this branch, owner-approved restart).** Computer-use access was declined, so the walk drove the REAL app through each visible editor's TipTap instance (`.ProseMirror` → `.editor`, real transactions through the real plugin with real layout) and switched tabs through the real `duo edit` / `duo goto` path, probing `document.body` after every step. Results: `[[` opens 1 popover 4px under the caret → tab switch → **0** → Home → **0** → return + type → popover back at the caret; same for `@`; a session resumed after a hide still exits cleanly (a real space → 0, next `[[` → exactly 1, no leak); Escape holds with no tab switch. Frontmatter raw-YAML: `related: [[` opens 1 popover by the textarea → tab switch → **0** → return → **0**, draft intact. No renderer errors in the dev log. Two honest notes: (1) OS-level keystrokes were NOT exercised — the smoke-checklist § 8 item stays on the next owner walk for that; (2) on tab *return* the editor's selection resets to doc start, which ends any open session through TipTap's own exit path (unchanged code) — so after Escape + a tab round-trip, moving the caret back after the `[[` starts a fresh session. Pre-existing semantics, same as clicking away and back; not a regression.
 
 **Not done / follow-up.** `TypePickerPopover` (the silent-stub type picker) also portals to body on a snapshotted rect; unverified whether a tab switch mid-pick can strand it — not touched here. **Owner workaround on builds without the fix:** activate the tab holding the stray `[[` and press Escape or delete it.
 
