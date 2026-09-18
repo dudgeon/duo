@@ -2,6 +2,20 @@
 
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
+### BUG-273: New-note type picker strands over other tabs after a non-mouse tab switch
+
+**Status:** 🆕 Filed 2026-09-18 — **confirmed live** on the BUG-271 dev build (investigation only; no fix applied). **Priority:** P2. **Effort:** XS. Sibling of BUG-271.
+
+**Repro (live, scratch Obsidian vault).** Type `[[Zedwalk` → pick the `New: "Zedwalk" — pick type…` row → the type picker opens with focus in its filter input. Switch tabs by any path that is not a mouse click — `duo edit <other>`, `duo goto home` — and the picker stays in `document.body` at its old coordinates, floating over the other note and over Home. It is still focusable and live: typing a type + Enter from there would create a stub and rewrite the placeholder in the now-HIDDEN editor.
+
+**Root cause.** `TypePickerPopover` portals to `document.body` on an anchor rect SNAPSHOTTED at open time, and closes only on a pick, Escape in its own input, or a capture-phase document `mousedown` outside it. A mouse click on another tab dismisses it (that mousedown counts), which is why it rarely shows; nothing ties it to its host tab's visibility. BUG-271's anchor guard cannot help — the snapshotted rect never goes to zero. Both hosts are exposed: `MarkdownEditor`'s body `stubPicker` and `useFrontmatterWikilink`'s `typePicker` (BUG-271's new `active` effect clears that hook's `match` only).
+
+**Who hits it.** Any agent driving Duo while the human is mid-pick (`duo edit` / `open` / `goto` — the pair-work case), and keyboard-only switches (⌘O quick switcher / tab palette + Enter) that never produce a renderer mousedown.
+
+**Fix options.** (a) **Recommended — cancel on tab-hide, host-side:** `MarkdownEditor` effect `if (!isActive) setStubPicker(null)`, and `setTypePicker(null)` alongside `setMatch(null)` in the hook's `active` effect. Same outcome as today's click-outside cancel (the inserted `[[name]]` / OKF placeholder text stays, no stub). Add a case to `suggestionTabHide.test.tsx` + `TypePickerPopover.test.tsx`. (b) Suspend-and-restore the picker on return — nicer, but needs the anchor re-measured and the OKF placeholder range re-validated; not worth it for a rare path. (c) Do nothing beyond click-outside — rejected, the agent path is Duo's core premise.
+
+---
+
 ### BUG-272: Missing `.duo.json` sidecars log a main-process error per open editor tab at boot
 
 **Status:** 🆕 Filed 2026-09-18 (noticed in the dev log during the BUG-271 live walk; not investigated further). **Priority:** P3. **Effort:** S.
@@ -29,7 +43,7 @@
 
 **Live verification (2026-09-18, dev build of this branch, owner-approved restart).** Computer-use access was declined, so the walk drove the REAL app through each visible editor's TipTap instance (`.ProseMirror` → `.editor`, real transactions through the real plugin with real layout) and switched tabs through the real `duo edit` / `duo goto` path, probing `document.body` after every step. Results: `[[` opens 1 popover 4px under the caret → tab switch → **0** → Home → **0** → return + type → popover back at the caret; same for `@`; a session resumed after a hide still exits cleanly (a real space → 0, next `[[` → exactly 1, no leak); Escape holds with no tab switch. Frontmatter raw-YAML: `related: [[` opens 1 popover by the textarea → tab switch → **0** → return → **0**, draft intact. No renderer errors in the dev log. Two honest notes: (1) OS-level keystrokes were NOT exercised — the smoke-checklist § 8 item stays on the next owner walk for that; (2) on tab *return* the editor's selection resets to doc start, which ends any open session through TipTap's own exit path (unchanged code) — so after Escape + a tab round-trip, moving the caret back after the `[[` starts a fresh session. Pre-existing semantics, same as clicking away and back; not a regression.
 
-**Not done / follow-up.** `TypePickerPopover` (the silent-stub type picker) also portals to body on a snapshotted rect; unverified whether a tab switch mid-pick can strand it — not touched here. **Owner workaround on builds without the fix:** activate the tab holding the stray `[[` and press Escape or delete it.
+**Follow-up.** `TypePickerPopover` has the same class of exposure — investigated + confirmed live the same day, filed as **BUG-273**. **Owner workaround on builds without the fix:** activate the tab holding the stray `[[` and press Escape or delete it.
 
 **Affected:** `renderer/components/editor/{extensions/suggestionLifecycle.ts(+test), extensions/suggestionTabHide.test.tsx, extensions/WikilinkSuggestion.ts, extensions/AtMention.ts, primitives/SuggestionPopover.tsx(+test), MarkdownEditor.tsx, FrontmatterPanel.tsx, useFrontmatterWikilink.tsx}`, `docs/dev/smoke-checklist.md` § 8.
 
