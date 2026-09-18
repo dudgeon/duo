@@ -257,3 +257,97 @@ code areas 1–10 (see § 9) and the § 4 design assets.
 
 **10 · Context-menu pattern (for the tile right-click menu, D12)**
 - `renderer/components/FileTree.tsx` — `popupMenu()` (`:630–670`) calls `window.electron.menu.popup({ items, x, y })` (`:663`) → `handleMenuChoice()` (`:669`); template via `buildTreeMenuTemplate()` (`:853`, items like `pin`/`unpin`, multi-select aware). Also `WorkingTabStrip.tsx:149` + `Breadcrumb.tsx:24`. **The tile menu (Pin/Unpin + "Close N terminals and M tabs") follows this `MenuTemplateItem[]` → IPC popup → `chosenId` shape — do not hand-roll a menu.**
+
+---
+
+## Requirements changed — BUG-269 (2026-09-16): D11 adjudicates activations, not focus changes
+
+> Filed and built as **BUG-267** on branch `claude/project-focus-flicker-bug-28b83c`
+> (commits `2a2f246` + `5de7b9c`, PR #137, 2026-07-17), which never merged. That id
+> collides with ENH-267, so the bug is tracked as **BUG-269**; the original branch,
+> commits and the in-code comments still carry the BUG-267 label.
+
+**Defect.** D11's effect re-ran its membership check on every `focusedProject`
+change, not just on file/browser activations. Clicking a tile of project P
+while the active working surface belonged to project Q made D11 (focus → Q)
+and the keep-visible effect (active surface → member of P) correct the same
+discrepancy in opposite directions — a non-converging P↔Q oscillation that
+re-rendered on every commit (the "rail-click flicker loop"; app unusable
+until an "All" click landed, since both effects gate on `null`). The repro
+selector "a project with working tabs but no terminals" is simply a project
+the user is not working in, guaranteeing a foreign active surface at click
+time. The browser side (Phase 3c-browser vs the FOLLOWUP-030 redirect
+machine) had the same fight through async `switchTab` IPC.
+
+**Locked amendment.** D11 (file and browser alike) switches focus only on a
+**genuine activation change** — the active file-tab id / browser-tab id
+differs from the previous adjudication — and never during the focus-entry
+settling window (`pendingBrowserRedirect !== null`) or on a programmatic
+keep-visible/redirect move (those pre-seed the adjudication refs). Decision
+logic is the pure `adjudicateActiveSurfaceFocusSwitch`
+(`shared/project-lifecycle.ts`, unit-pinned). Behavioral deltas, all
+deliberate:
+
+- Tile clicks / CLI `duo project focus` never bounce: entering focus with a
+  foreign active surface keeps the chosen focus while the keep-visible
+  effect converges (≤2 passes).
+- BUG-193-family "focus theft" via a *pinned* foreign tab on focus entry is
+  gone — the pinned tab stays visible and active, focus stays put.
+- A late membership-probe settle on an unchanged active surface no longer
+  yanks focus.
+- `duo edit` / `duo open` / user tab-clicks onto a foreign-project surface
+  still auto-switch focus (those are activation changes — the original D11
+  contract).
+
+---
+
+## Requirements changed — BUG-269 (2026-09-16): auto-spawn-on-focus → placeholder empty state
+
+**Superseded directive.** The owner directive of **2026-05-25 (walk 1)** —
+"focusing a project that has working tabs but no terminals should auto-spawn a
+fresh terminal at the project root, once per focus session" (shipped in
+`dfb0b52`) — is **withdrawn**. It never reached its goal and cost more than it
+paid for:
+
+- **Terminal litter.** The once-per-focus-session guard (`autoSpawnedForRef`)
+  reset to `null` on every release to All, so re-entering the same project
+  spawned again. A day of rail clicking accumulated shells nobody opened.
+- **The guard had a hole.** The suppression probe read each tab's **frozen
+  launch cwd** (`t.cwd`), not its project membership, so a shell that had
+  exited or `cd`'d away still counted as "a terminal under this root" — the
+  spawn silently no-oped and the user got the confusing empty strip the
+  directive existed to prevent (BUG-269 sub-case 2, and the same frozen-cwd
+  design as BUG-191).
+- **It addressed the wrong half.** The directive was a response to the
+  focus-entry flicker, but the loop lives in the working-pane half
+  (focus ↔ active file); a spawned terminal cannot close it. Its only effect
+  on the loop was accidental: the new member terminal sometimes tripped
+  ENH-204's release-to-All, which is what made the repro feel intermittent.
+
+**Locked replacement (owner decision 2026-09-16, option b1).** While
+`focusedProject !== null` and the **visible** terminal strip is empty, the
+terminal column renders a placeholder empty state instead of an xterm:
+
+- Copy: *"No terminal in ‹project name›"* — the rail's display name, falling
+  back to the root's basename.
+- Two actions: **Open shell** (`openTerminalHere(focusedProject)`) and
+  **Open Claude here** (`openClaudeIn(focusedProject)`) — the navigator's
+  existing spawn handlers, which make the new tab both active and a member, so
+  ENH-204 does not release focus behind the user.
+- Nothing is unmounted: every terminal tab still renders (hidden), so PTYs,
+  scrollback and xterm state survive exactly as they do across a tab switch.
+  This stays visibility-only filtering, same contract as D8.
+- While the placeholder is up, **no** instance is active — the hidden
+  non-member tab that is still technically `activeTabId` is neither painted
+  underneath it nor allowed to show its cwd in the SessionHeader.
+
+**⌘T / `+` / `>` / `duo new-tab` (no `--cwd`) while focused-and-empty** open at
+the **focused project root** rather than inheriting the hidden foreign tab's
+live cwd (`chooseNewTerminalCwd`). ENH-187's three-tier inherit rule is
+untouched in every other case, and an explicit `--cwd` always wins. CLI and
+chord deliberately stay in lockstep (CLAUDE.md rule 4).
+
+**Unchanged.** BUG-161's release-to-All still fires when a focused project
+loses its **last member of any kind** — the placeholder covers "focused, no
+terminal, working tabs remain", not "nothing left at all". Pinned projects
+(D12) get the placeholder like anyone else.

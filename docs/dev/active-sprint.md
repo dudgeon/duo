@@ -1,5 +1,32 @@
 # Active sprint state — v0.13.2 shipped (init-on-choose vault + default-vault autocomplete + foreign-vault guard); next: triage
 
+## BUG-269 — Project-rail tile-click flicker loop (🚧 built on branch `claude/project-filter-flickering-ea8850`; **live smoke walk owed**)
+
+> **Owner-reported (recurring):** click a rail tile for a project with working
+> tabs but no active terminal → the whole UI flickers; hard to escape. **Root
+> cause (static trace, no execution):** the D11 auto-switch effect and the
+> keep-visible effect correct focus ↔ active-file in opposite directions — a
+> non-converging P↔Q passive-effect 2-cycle. The fix had existed since
+> 2026-07-17 in open [PR #137](https://github.com/dudgeon/duo/pull/137)
+> (labelled BUG-267) and was never merged — no tag contains it, `main` never
+> got its ledger/PRD pointers, so sessions kept re-diagnosing.
+>
+> **Built 2026-09-16, both parts of the rev-2 recommendation, not yet pushed
+> or PR'd:** (1) PR #137's `adjudicateActiveSurfaceFocusSwitch` gate
+> cherry-picked onto this branch — D11 adjudicates genuine activation changes
+> only, programmatic convergence moves pre-seed the refs; (2) auto-spawn-on-
+> focus replaced by the placeholder empty state (owner option b1) — *"No
+> terminal in ‹name›"* + **Open shell** / **Open Claude here**, and ⌘T /
+> `duo new-tab` open at the focused root while it is up. Rejected: hiding
+> terminal-less projects (a). Deferred: never-filter-terminals (c), a D8
+> relitigation.
+>
+> **Owed:** the live smoke walk — this branch was verified by typecheck
+> (clean) + suite (2387/2387) + static reasoning only; no Electron instance
+> was launched (other agents share the app). Walk § 2a of
+> `docs/dev/smoke-checklist.md`. Full writeup: `tasks.md` BUG-269.
+> **PR:** [#138](https://github.com/dudgeon/duo/pull/138) (supersedes #137). Owner walk sheet: `docs/dev/smoke-walks/v0.13.7-bug269` (pinned in the aux 2026-09-16).
+
 ## ENH-260 — Track-changes composition semantics (🚧 in progress, decisions locked 2026-07-08, PR #129)
 
 > **Owner-reported:** deleting text you just added in Suggesting mode double-marks

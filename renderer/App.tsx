@@ -57,12 +57,16 @@ import type { TabSession, DirEntry, TerminalTabKind, NewTabResult, PinEntry, Ses
 import { reorderVisible } from '@shared/reorderTabs'
 import { pruneByTab } from './state/perTabPrune'
 import {
+  adjudicateActiveSurfaceFocusSwitch,
+  chooseKeepVisibleFileTab,
+  chooseNewTerminalCwd,
   effectiveProjectTerminals,
   mergeLiveCwdInfo,
   planProjectClose,
   newTerminalMembershipsSince,
   shouldReleaseFocus,
   shouldReleaseFocusForNewTerminals,
+  shouldShowEmptyTerminalPlaceholder,
   type LiveCwdEntry
 } from '@shared/project-lifecycle'
 
@@ -1307,13 +1311,21 @@ export function App() {
   }, [railProjects, focusedProject, projectCounts])
   // ENH-182 Phase 4 — CLI `duo project focus` push. Routes through
   // the same setFocusedProject the rail uses; downstream effects
-  // (navigator re-root, visibility filters, auto-spawn, focus chip)
+  // (navigator re-root, visibility filters, terminal placeholder,
+  // focus chip)
   // fire identically.
   useEffect(() => {
     return window.electron.projects.onSetFocus((root) => {
       setFocusedProject(root)
     })
   }, [])
+  // ENH-182 FOLLOWUP-030 — declared HERE (used by the BUG-267/269 adjudicators
+  // below) but drained by the browser-redirect apply effect further down.
+  // Set to the new focus on every focus change; non-null means "focus-entry
+  // convergence in progress" — the settling window during which the
+  // keep-visible/redirect effects may programmatically move the active
+  // surface.
+  const [pendingBrowserRedirect, setPendingBrowserRedirect] = useState<string | null>(null)
   // ENH-182 Phase 3c (D11) — auto-switch focus when activeWorking
   // moves to a file whose deepest project ≠ the currently-focused
   // project. Hooking off `activeWorking` (rather than `tabMembership`
@@ -1327,14 +1339,40 @@ export function App() {
   // file activations; terminal-tab switches are intentionally not a
   // trigger (a focused user clicking a hidden terminal is a UI
   // impossibility — the strip already hides it).
+  //
+  // BUG-267/269 — adjudicate only a GENUINE activation change. This effect
+  // used to re-run its membership check on every focus change; combined
+  // with the keep-visible effect (E9, below) moving the active file
+  // into the new focus, the pair formed a non-converging 2-cycle
+  // (focus P ↔ Q, both non-null) — the rail-click flicker loop. The
+  // ref tracks the last-seen active file id; an unchanged surface (or
+  // one moved programmatically inside the focus-entry settling window,
+  // `pendingBrowserRedirect !== null`) never switches focus. See
+  // `adjudicateActiveSurfaceFocusSwitch` for the full gate order.
+  const lastAdjudicatedFileRef = useRef<string | null>(null)
+  // BUG-269 (live-walk finding) — when D11 decides to switch focus, the
+  // keep-visible effect further down runs in the SAME flush against the
+  // still-stale focusedProject and would move the just-activated foreign
+  // file away (onto a pinned reference tab) before the new focus lands.
+  // Record the queued target so keep-visible can stand down for one
+  // render; the `[focusedProject]` effect clears it once the switch commits.
+  const focusSwitchQueuedRef = useRef<string | null>(null)
   useEffect(() => {
-    if (focusedProject === null) return
-    if (activeWorking.kind !== 'file') return
-    const project = tabMembership[activeWorking.id]
-    if (project && project !== focusedProject) {
-      setFocusedProject(project)
+    const surfaceKey = activeWorking.kind === 'file' ? activeWorking.id : null
+    const prevSurfaceKey = lastAdjudicatedFileRef.current
+    lastAdjudicatedFileRef.current = surfaceKey
+    const target = adjudicateActiveSurfaceFocusSwitch({
+      focusTransitionPending: pendingBrowserRedirect !== null,
+      prevSurfaceKey,
+      surfaceKey,
+      focusedProject,
+      membership: surfaceKey !== null ? tabMembership[surfaceKey] : null
+    })
+    if (target !== null) {
+      focusSwitchQueuedRef.current = target
+      setFocusedProject(target)
     }
-  }, [activeWorking, tabMembership, focusedProject])
+  }, [activeWorking, tabMembership, focusedProject, pendingBrowserRedirect])
   // BUG-194 — release focus when the focused project vanishes. With
   // BUG-191's live-cwd tracking, `cd`-ing the focused project's last
   // terminal OUT of it drops the project from the rail; if focus stayed
@@ -1640,16 +1678,31 @@ export function App() {
   // any path under no qualifying root) do NOT trigger a switch —
   // those are reference material; the FOLLOWUP-030 effect below
   // handles their visibility separately.
+  // BUG-267/269 — same activation-change adjudication as the file-side D11
+  // effect above. Without the ref/pending gates this effect and the
+  // FOLLOWUP-030 redirect machine below fight through async switchTab
+  // IPC (redirect moves the active tab to a member of the new focus;
+  // this effect sees the stale foreign tab and yanks focus back) — the
+  // browser-side face of the rail-click flicker loop.
+  const lastAdjudicatedBrowserTabRef = useRef<number | null>(null)
   useEffect(() => {
-    if (focusedProject === null) return
-    if (activeWorking.kind !== 'browser') return
     const active = browserTabs.find((bt) => bt.isActive && !bt.inAux)
-    if (!active) return
-    const project = browserTabMembership.get(active.id)
-    if (project && project !== focusedProject) {
-      setFocusedProject(project)
+    const surfaceKey =
+      activeWorking.kind === 'browser' && active ? active.id : null
+    const prevSurfaceKey = lastAdjudicatedBrowserTabRef.current
+    lastAdjudicatedBrowserTabRef.current = surfaceKey
+    const target = adjudicateActiveSurfaceFocusSwitch({
+      focusTransitionPending: pendingBrowserRedirect !== null,
+      prevSurfaceKey,
+      surfaceKey,
+      focusedProject,
+      membership: surfaceKey !== null ? browserTabMembership.get(surfaceKey) : null
+    })
+    if (target !== null) {
+      focusSwitchQueuedRef.current = target
+      setFocusedProject(target)
     }
-  }, [activeWorking, browserTabs, browserTabMembership, focusedProject])
+  }, [activeWorking, browserTabs, browserTabMembership, focusedProject, pendingBrowserRedirect])
   // ENH-182 FOLLOWUP-030 — browser-pane active-tab redirect on focus
   // entry / focus change. The browser pane is one shared
   // WebContentsView; without this, hiding a non-member browser tab's
@@ -1690,9 +1743,11 @@ export function App() {
   // propagated from the addTab IPC, then never re-fires for that focus
   // session (ref-guard skips). A pure no-guard effect fires every
   // state change but bounces user-clicked tabs.
-  const [pendingBrowserRedirect, setPendingBrowserRedirect] = useState<string | null>(null)
+  // (BUG-267/269 — the `pendingBrowserRedirect` useState itself is declared
+  // earlier, above the D11 adjudicator that reads it.)
   useEffect(() => {
     setPendingBrowserRedirect(focusedProject)
+    focusSwitchQueuedRef.current = null // BUG-269 — the D11 switch has committed
   }, [focusedProject])
   useEffect(() => {
     if (pendingBrowserRedirect === null) return
@@ -1739,8 +1794,17 @@ export function App() {
       (bt) => !bt.inAux && browserTabMembership.get(bt.id) === focusedProject
     )
     if (firstMember) {
+      // BUG-267/269 — pre-seed the adjudicator ref: this is OUR move, not a
+      // user activation; the resulting active-tab change must not
+      // re-adjudicate focus (that re-opens the flicker loop after the
+      // pending window clears in this same batch).
+      lastAdjudicatedBrowserTabRef.current = firstMember.id
       void window.electron.browser.switchTab(firstMember.id)
     } else if (visibleFileTabs.length > 0) {
+      // BUG-267/269 — same pre-seed, file side. visibleFileTabs[0] may be a
+      // pinned foreign-project reference tab; landing on it must not
+      // steal focus.
+      lastAdjudicatedFileRef.current = visibleFileTabs[0].id
       setActiveWorking({ kind: 'file', id: visibleFileTabs[0].id })
     }
     setPendingBrowserRedirect(null)
@@ -1771,63 +1835,59 @@ export function App() {
     // while focused (D10 explicitly allows free navigation).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusedProject])
-  // ENH-182 Phase 2 — auto-spawn-on-focus tracker. Owner directive
-  // 2026-05-25 walk-1: focusing on a project that has working tabs
-  // but no terminals shows an empty terminal strip — confusing.
-  // Auto-spawn a fresh terminal at the project root (using the
-  // user's most-recent kind choice) so the focused state always has
-  // a usable terminal. Tracked per-focus-session so re-focusing the
-  // same project repeatedly doesn't keep spawning.
-  const autoSpawnedForRef = useRef<string | null>(null)
-  // While focused, if the active terminal tab isn't visible, switch
-  // to the first visible one. Same for the working pane. Keeps the
-  // user from staring at an empty pane after entering focus.
+  // ENH-182 Phase 2 keep-visible effect. While focused, if the active
+  // terminal tab isn't visible, switch to the first visible one. Same
+  // for the working pane. Keeps the user from staring at an empty pane
+  // after entering focus.
+  //
+  // BUG-269 (2026-09-16) — this used to ALSO auto-spawn a terminal at
+  // the project root whenever the focused project had no member
+  // terminal (owner directive 2026-05-25 walk-1), guarded by a
+  // once-per-focus-session ref plus a `hasTerminalUnderRoot` probe. All
+  // three are gone, replaced by the placeholder empty state the
+  // terminal column now renders (`shouldShowEmptyTerminalPlaceholder`
+  // → TerminalPane's `emptyState` prop). Why: (1) the guard read each
+  // tab's FROZEN launch cwd rather than membership, so an exited or
+  // `cd`'d-away shell silently suppressed the spawn and left the user
+  // with an empty pane and no affordance; (2) the session ref reset on
+  // every release to All, so the spawn re-fired and littered the
+  // session with terminals; (3) it could never address the
+  // working-pane half of the flicker loop it was blamed for. The
+  // placeholder puts the same two spawns one click away, and both of
+  // them make the new tab active AND a member, so ENH-204 doesn't
+  // release focus.
   useEffect(() => {
-    if (focusedProject === null) {
-      autoSpawnedForRef.current = null
-      return
-    }
+    if (focusedProject === null) return
+    // BUG-269 — a D11 switch is queued in this same flush (a user just
+    // activated a foreign-project surface); this render's focusedProject
+    // is stale. Stand down — the next render re-runs this effect under
+    // the new focus, where that surface is a visible member.
+    if (focusSwitchQueuedRef.current !== null && focusSwitchQueuedRef.current !== focusedProject) return
     const activeTerminalVisible = visibleTerminals.some((t) => t.id === activeTabId)
     if (!activeTerminalVisible && visibleTerminals.length > 0) {
       setActiveTabId(visibleTerminals[0].id)
-    } else if (
-      visibleTerminals.length === 0 &&
-      autoSpawnedForRef.current !== focusedProject
-    ) {
-      // No member terminals — spawn one at the project root. Mark
-      // the focus session as auto-spawned BEFORE the state update so
-      // the next render (with the new tab in `tabs`) doesn't re-fire.
-      //
-      // Race guard: `terminalMembership` is computed from async
-      // git/marker probes, so in the probe-pending window right after a
-      // focus click `visibleTerminals` is transiently empty even when an
-      // existing terminal's launch cwd sits under the focused root.
-      // Auto-spawning here would strand the user with a spurious new
-      // terminal while their real one becomes visible-but-inactive a
-      // beat later. Suppress the spawn while any open terminal's cwd is
-      // under the focused root — once membership resolves, the
-      // switch-to-first-visible branch above focuses it. Only spawn when
-      // there's genuinely no terminal under the root (e.g. focusing a
-      // project that has only working tabs open).
-      const hasTerminalUnderRoot = tabs.some(
-        (t) => t.cwd === focusedProject || t.cwd.startsWith(focusedProject + '/')
-      )
-      if (!hasTerminalUnderRoot) {
-        autoSpawnedForRef.current = focusedProject
-        if (lastTabKind === 'claude') {
-          openClaudeIn(focusedProject)
-        } else {
-          openTerminalHere(focusedProject)
-        }
-      }
     }
     if (
       activeWorking.kind === 'file' &&
       !visibleFileTabs.some((t) => t.id === activeWorking.id)
     ) {
-      if (visibleFileTabs.length > 0) {
-        setActiveWorking({ kind: 'file', id: visibleFileTabs[0].id })
+      // BUG-267/269 — these are programmatic keep-visible moves, not user
+      // activations: pre-seed the adjudicator refs so the resulting
+      // surface change never re-adjudicates focus. Without this, moving
+      // the active file into the new focus while D11 re-examined the
+      // old one formed the rail-click flicker loop (see tasks.md
+      // BUG-267/269); and the browser fallback landing on a foreign
+      // file:// tab would bounce focus through the redirect machine.
+      // Member-first landing (live-walk finding): pinned cross-project
+      // reference tabs sort first in `visibleFileTabs`; land on a TRUE
+      // member when the project has one.
+      const landing = chooseKeepVisibleFileTab({ visibleFileTabs, tabMembership, focusedProject })
+      if (landing !== null) {
+        lastAdjudicatedFileRef.current = landing
+        setActiveWorking({ kind: 'file', id: landing })
       } else {
+        const activeBt = browserTabs.find((bt) => bt.isActive && !bt.inAux)
+        lastAdjudicatedBrowserTabRef.current = activeBt?.id ?? null
         setActiveWorking({ kind: 'browser' })
       }
     }
@@ -1836,9 +1896,12 @@ export function App() {
   // BUG-161 (v0.8.0 fold-in) — auto-release focus when the focused
   // project loses its last member via a non-rail close path. Without
   // this, ⌘W or × on the last member tab leaves the user focus-
-  // trapped (auto-spawn already fired once this focus session;
-  // refuses to fire again; strip empty; only escape is clicking All
-  // or chip ×). Bulk-close via the rail right-click menu already
+  // trapped (strip empty, working pane empty; the only escape is
+  // clicking All or the chip ×). BUG-269 note: this release predates
+  // the placeholder empty state and is still the right call for a
+  // project whose LAST member of any kind was just closed — the
+  // placeholder covers "focused, no terminal, but working tabs remain",
+  // not "nothing left at all". Bulk-close via the rail right-click menu already
   // handles release explicitly; this covers the direct close paths.
   //
   // Two-layer guard against false positives during the probe-pending
@@ -1854,7 +1917,8 @@ export function App() {
   //
   // Pinned projects skip the release — D12 says pinned tiles persist
   // even with zero members; the user opted-in to the empty state by
-  // pinning. Auto-spawn still fires for them.
+  // pinning. They get the BUG-269 terminal placeholder like any other
+  // focused project with an empty strip.
   const previousNonZeroCountsRef = useRef<Set<string>>(new Set())
   useEffect(() => {
     if (focusedProject === null) return
@@ -1975,18 +2039,36 @@ export function App() {
   // claude after the shell starts (D17 / D21). The split-button `+`
   // always passes 'claude'; `>` passes 'shell'. The persisted last-kind
   // only governs `duo new-tab` calls without --kind — see addTabFromCli below.
+  //
+  // BUG-269 — fourth rule, ahead of all three: while a project is
+  // focused and its strip is EMPTY (the placeholder is showing),
+  // `activeTab` is a hidden non-member terminal from another project.
+  // Inheriting its cwd would drop the new tab outside the focused
+  // project — invisible in the strip, placeholder still up. Open at the
+  // focused root instead, so ⌘T / `+` / `>` match what the
+  // placeholder's own buttons do. Non-empty strips are untouched.
   const newTab = useCallback(async (kind: TerminalTabKind) => {
-    let cwd = pendingCwd
-    if (activeTab) {
+    const atFocusedRoot = shouldShowEmptyTerminalPlaceholder({
+      focusedProject,
+      visibleTerminalCount: visibleTerminals.length
+    })
+    let activeTerminalCwd: string | null = null
+    if (!atFocusedRoot && activeTab) {
       const liveCwd = await window.electron.pty.liveCwd(activeTab.id)
-      cwd = liveCwd ?? activeTab.cwd ?? pendingCwd
+      activeTerminalCwd = liveCwd ?? activeTab.cwd ?? null
     }
+    const cwd = chooseNewTerminalCwd({
+      focusedProject,
+      visibleTerminalCount: visibleTerminals.length,
+      activeTerminalCwd,
+      pendingCwd
+    })
     const tab = makeTab(cwd, kind, home)
     setTabs(prev => [...prev, tab])
     setActiveTabId(tab.id)
     void dispatchPostSpawnWrite(tab.id, kind)
     return tab
-  }, [pendingCwd, home, dispatchPostSpawnWrite, activeTab])
+  }, [pendingCwd, home, dispatchPostSpawnWrite, activeTab, focusedProject, visibleTerminals.length])
 
   // "Open terminal here" from the navigator's right-click menu (§ D11).
   // Explicit CWD bypasses the pending-CWD rule so the user gets exactly
@@ -2014,6 +2096,32 @@ export function App() {
     setFocusedColumn('terminal')
     void dispatchPostSpawnWrite(tab.id, 'claude')
   }, [home, dispatchPostSpawnWrite])
+
+  // BUG-269 — the terminal column's placeholder empty state, which
+  // replaced ENH-182 Phase 2's auto-spawn-on-focus (owner decision
+  // 2026-09-16, option b1). `undefined` = render terminals normally.
+  // Both buttons reuse the navigator's existing spawn handlers, which
+  // already make the new tab active AND a member of the focused
+  // project, so ENH-204 never releases focus behind the user's back.
+  const terminalEmptyState = useMemo(() => {
+    if (
+      !shouldShowEmptyTerminalPlaceholder({
+        focusedProject,
+        visibleTerminalCount: visibleTerminals.length
+      })
+    ) {
+      return undefined
+    }
+    const root = focusedProject as string
+    return {
+      // Prefer the rail's display name; fall back to the root's
+      // basename (the same default `shared/projects.ts` gives a tile)
+      // for the beat before the rail list has the project.
+      projectName: focusedProjectName ?? root.split('/').filter(Boolean).pop() ?? root,
+      onOpenShell: () => openTerminalHere(root),
+      onOpenClaude: () => openClaudeIn(root)
+    }
+  }, [focusedProject, focusedProjectName, visibleTerminals.length, openTerminalHere, openClaudeIn])
 
   const closeTab = useCallback((id: string) => {
     setTabs(prev => {
@@ -3515,15 +3623,28 @@ export function App() {
           // ENH-187 — when the caller didn't pass --cwd, mirror the
           // chord's behavior: inherit the focused terminal's live shell
           // cwd, falling back to its launch cwd, then to pendingCwd.
+          // BUG-269 — including the chord's focused-and-empty rule, so
+          // `duo new-tab` and ⌘T still agree (CLI/UI parity). An
+          // explicit --cwd always wins.
           let cwd: string
           if (req.cwd && req.cwd.length > 0) {
             cwd = req.cwd
           } else {
-            cwd = pendingCwd
-            if (activeTab) {
+            const atFocusedRoot = shouldShowEmptyTerminalPlaceholder({
+              focusedProject,
+              visibleTerminalCount: visibleTerminals.length
+            })
+            let activeTerminalCwd: string | null = null
+            if (!atFocusedRoot && activeTab) {
               const liveCwd = await window.electron.pty.liveCwd(activeTab.id)
-              cwd = liveCwd ?? activeTab.cwd ?? pendingCwd
+              activeTerminalCwd = liveCwd ?? activeTab.cwd ?? null
             }
+            cwd = chooseNewTerminalCwd({
+              focusedProject,
+              visibleTerminalCount: visibleTerminals.length,
+              activeTerminalCwd,
+              pendingCwd
+            })
           }
           const tab = makeTab(cwd, kind, home)
           setTabs(prev => [...prev, tab])
@@ -3548,7 +3669,7 @@ export function App() {
         }
       })()
     })
-  }, [pendingCwd, lastTabKind, home, dispatchPostSpawnWrite, activeTab])
+  }, [pendingCwd, lastTabKind, home, dispatchPostSpawnWrite, activeTab, focusedProject, visibleTerminals.length])
 
   // ── Cozy mode (Stage 9) ────────────────────────────────────────────────────
 
@@ -5192,6 +5313,11 @@ export function App() {
                     // its own DOM heavily and clicks on it sometimes
                     // miss the column wrapper's onMouseDown.
                     onTerminalFocus={() => setFocusedColumnSilent('terminal')}
+                    // BUG-269 — focused project with an empty strip:
+                    // show the placeholder instead of auto-spawning.
+                    // `tabs` (all of them) still mounts, so hidden
+                    // PTYs/scrollback survive untouched.
+                    emptyState={terminalEmptyState}
                   />
                 </div>
             </div>

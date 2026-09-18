@@ -155,16 +155,39 @@ interface TerminalPaneProps {
    *  PTY init) where the synthetic-event path doesn't see the
    *  click. */
   onTerminalFocus?: () => void
+  /** BUG-269 — set only while a project is focused and its visible
+   *  terminal strip is empty (see `shouldShowEmptyTerminalPlaceholder`).
+   *  Replaces ENH-182 Phase 2's auto-spawn-on-focus: instead of quietly
+   *  opening a terminal the user didn't ask for, the column says so and
+   *  offers the two spawn gestures.
+   *
+   *  While set, NO instance renders as active — `tabs` still carries
+   *  every open terminal (including the hidden non-member tab that is
+   *  technically `activeTabId`), so their PTYs, scrollback and xterm
+   *  state stay alive exactly as they do on any tab switch. This is
+   *  visibility-only, same as the strip filter. */
+  emptyState?: {
+    /** The rail's display name for the focused project. */
+    projectName: string
+    onOpenShell: () => void
+    onOpenClaude: () => void
+  }
 }
 
 export function TerminalPane({
-  tabs, activeTabId, onTitleChange, cozyByTab, cozyDefault, fontBumpByTab, fontBumpDefault, themeEffective, onTerminalFocus
+  tabs, activeTabId, onTitleChange, cozyByTab, cozyDefault, fontBumpByTab, fontBumpDefault, themeEffective, onTerminalFocus, emptyState
 }: TerminalPaneProps) {
   // ENH-183 — polymorphic SessionHeader replaces the C2-era
   // ClaudeResumeBanner. Per-tab dismissal state moved into
   // `renderer/store/sessionHeader.ts` (still in-memory only per D9).
   const claudePresence = useClaudePresence()
-  const activeTab = tabs.find(t => t.id === activeTabId) ?? null
+  // BUG-269 — while the placeholder is up, `activeTabId` still points at
+  // a hidden NON-member terminal (the strip shows nothing). Treating it
+  // as active would paint a foreign project's terminal underneath the
+  // placeholder and show its cwd in the SessionHeader, so nothing is
+  // active while `emptyState` is set.
+  const effectiveActiveId = emptyState ? null : activeTabId
+  const activeTab = tabs.find(t => t.id === effectiveActiveId) ?? null
   // ENH-183 (post-walk-1 fix) — render SessionHeader as an IN-FLOW
   // panel ABOVE the terminal area so it occupies its own vertical
   // slot (per the locked Variant B mockup at
@@ -191,7 +214,7 @@ export function TerminalPane({
           <TerminalInstance
             key={tab.id}
             tab={tab}
-            isActive={tab.id === activeTabId}
+            isActive={tab.id === effectiveActiveId}
             onTitleChange={onTitleChange}
             cozy={cozyByTab[tab.id] ?? cozyDefault}
             fontBump={fontBumpByTab[tab.id] ?? fontBumpDefault}
@@ -199,6 +222,45 @@ export function TerminalPane({
             onTerminalFocus={onTerminalFocus}
           />
         ))}
+        {emptyState && <TerminalEmptyState {...emptyState} />}
+      </div>
+    </div>
+  )
+}
+
+// ── Empty state (BUG-269) ────────────────────────────────────────────────────
+// Deliberately quiet: this is an empty state, not a modal. Both colors
+// are theme-aware — `bg-surface-0` / `text-ink*` follow the Atelier
+// tokens, and the primary button pairs a hardcoded background with a
+// hardcoded foreground (`bg-accent text-white`, the PullModal
+// convention) so it stays legible in light AND dark.
+function TerminalEmptyState({
+  projectName, onOpenShell, onOpenClaude
+}: {
+  projectName: string
+  onOpenShell: () => void
+  onOpenClaude: () => void
+}) {
+  return (
+    <div className="absolute inset-0 bg-surface-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
+      <p className="text-[13px] text-ink-mute">
+        No terminal in <span className="text-ink font-medium">{projectName}</span>
+      </p>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onOpenShell}
+          className="px-3 py-1 text-[12px] rounded border border-border text-ink hover:bg-accent/10 transition-colors"
+        >
+          Open shell
+        </button>
+        <button
+          type="button"
+          onClick={onOpenClaude}
+          className="px-3 py-1 text-[12px] rounded bg-accent text-white hover:bg-accent/90 transition-colors"
+        >
+          Open Claude here
+        </button>
       </div>
     </div>
   )

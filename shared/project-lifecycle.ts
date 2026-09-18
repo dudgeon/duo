@@ -164,6 +164,146 @@ export function shouldReleaseFocusForNewTerminals(
   return newTerminalMemberships.some((membership) => membership !== focusedProject)
 }
 
+/**
+ * BUG-267/269 — the single decision point for the two "follow the active
+ * surface" effects (ENH-182 Phase 3c file + Phase 3c-browser): should
+ * activating this surface switch focus to its project?
+ *
+ * (Filed and built as BUG-267 on PR #137, which never merged; that id
+ * collides with ENH-267, so the ledger entry is BUG-269. The code keeps
+ * both labels so either grep lands here.)
+ *
+ * The flicker loop this kills: D11 used to re-adjudicate the
+ * PRE-EXISTING active surface whenever `focusedProject` changed, while
+ * the keep-visible effect (E9) simultaneously moved the active surface
+ * into the new focus — two effects correcting the same discrepancy in
+ * opposite directions, a perfect 2-cycle (focus P ↔ Q) that re-fired on
+ * every commit and made the app unusable until an "All" click landed.
+ *
+ * Invariants, in gate order:
+ *   • No surface (`surfaceKey === null`) → never switch.
+ *   • Unchanged surface (`surfaceKey === prevSurfaceKey`) → never
+ *     switch. A focus change or a late membership-probe settle is NOT a
+ *     user activation; only a genuine activation change adjudicates.
+ *     This is the loop-breaker: on tile-click entry the active surface
+ *     is unchanged, so D11 stays quiet while E9 converges.
+ *   • `focusTransitionPending` → never switch. E9's own convergence
+ *     moves (switching the active file / dropping to the browser
+ *     surface) DO change the surface, and may legitimately land on a
+ *     visible-but-foreign tab (pinned reference, non-member browser
+ *     tab). Those programmatic moves happen inside the focus-entry
+ *     settling window (the pendingBrowserRedirect machine's lifetime);
+ *     adjudicating them re-opens the loop through the redirect IPC.
+ *   • All mode (`focusedProject === null`) → nothing to switch from.
+ *   • No / same-project membership → stay put.
+ *   • Otherwise → switch to the surface's project (the D11 contract:
+ *     `duo edit` / `duo open` / a user tab-click onto a foreign-project
+ *     surface follows that project).
+ */
+export function adjudicateActiveSurfaceFocusSwitch(input: {
+  /** True while the focus-entry convergence window is open (a focus
+   *  change whose redirect/keep-visible moves haven't settled). */
+  focusTransitionPending: boolean
+  /** The surface key observed on the previous effect run (file-tab id
+   *  or browser-tab id), or null when none was adjudicable. */
+  prevSurfaceKey: string | number | null
+  /** The currently-active adjudicable surface key, or null. */
+  surfaceKey: string | number | null
+  focusedProject: string | null
+  /** The active surface's project membership (root, or null/undefined
+   *  for "no project" / "not yet probed"). */
+  membership: string | null | undefined
+}): string | null {
+  const { focusTransitionPending, prevSurfaceKey, surfaceKey, focusedProject, membership } = input
+  if (surfaceKey === null) return null
+  if (surfaceKey === prevSurfaceKey) return null
+  if (focusTransitionPending) return null
+  if (focusedProject === null) return null
+  if (!membership || membership === focusedProject) return null
+  return membership
+}
+
+/**
+ * BUG-269 — does the terminal column show the "no terminal in this
+ * project" placeholder instead of an xterm?
+ *
+ * Replaces the ENH-182 Phase 2 auto-spawn-on-focus behavior (owner
+ * decision 2026-09-16, option b1). Focusing a project whose visible
+ * terminal strip is empty used to spawn a shell/Claude tab at the
+ * project root; that littered the session with terminals (the
+ * once-per-focus-session guard reset on every release to All) and its
+ * `hasTerminalUnderRoot` suppression read the FROZEN launch cwd, so an
+ * exited or `cd`'d-away shell silently blocked the spawn and left the
+ * user staring at an empty pane anyway. The placeholder makes the
+ * empty state explicit and puts the spawn one click away.
+ *
+ * Note this is deliberately about the VISIBLE (member) strip, not
+ * about whether any terminal's cwd happens to sit under the root —
+ * membership is the same signal the strip filter itself uses, so the
+ * placeholder can never disagree with what the user sees.
+ */
+export function shouldShowEmptyTerminalPlaceholder(input: {
+  focusedProject: string | null
+  visibleTerminalCount: number
+}): boolean {
+  return input.focusedProject !== null && input.visibleTerminalCount === 0
+}
+
+/**
+ * BUG-269 — where does a new terminal tab (⌘T, the `+` / `>` split
+ * button) open?
+ *
+ * Normally it inherits the active terminal's cwd (ENH-187: live shell
+ * cwd, falling back to its launch cwd), and `pendingCwd` when there is
+ * no active terminal at all (Stage 10 D9). But while the focused
+ * project's strip is empty, the "active" terminal is a HIDDEN
+ * non-member tab belonging to some other project — inheriting its cwd
+ * would open the new tab outside the focused project, leaving it
+ * invisible in the strip and the placeholder still showing. In that one
+ * case the focused project root wins, so the new tab is a member and
+ * focus holds (ENH-204 only releases on a FOREIGN new terminal).
+ */
+export function chooseNewTerminalCwd(input: {
+  focusedProject: string | null
+  visibleTerminalCount: number
+  /** Active terminal's live cwd, falling back to its launch cwd; null
+   *  when there is no active terminal. */
+  activeTerminalCwd: string | null
+  /** Stage 10 D9 pending cwd (navigator folder / selected file's parent). */
+  pendingCwd: string
+}): string {
+  const { focusedProject, visibleTerminalCount, activeTerminalCwd, pendingCwd } = input
+  if (shouldShowEmptyTerminalPlaceholder({ focusedProject, visibleTerminalCount })) {
+    // Non-null by the guard above; the cast keeps the helper pure.
+    return focusedProject as string
+  }
+  return activeTerminalCwd ?? pendingCwd
+}
+
+/**
+ * BUG-269 (live-walk finding, 2026-09-16) — which visible working tab
+ * the keep-visible effect should land on when the active file is hidden
+ * under the new focus. `visibleFileTabs` keeps PINNED cross-project
+ * reference tabs visible in every focus, and they sort first, so a
+ * naive `visibleFileTabs[0]` parks the user on a foreign pinned tab
+ * instead of the project they just focused. Prefer a TRUE member (its
+ * membership === focusedProject); fall back to the first visible tab
+ * (a pinned reference) only when the project has no member file tabs
+ * — mirrors the FOLLOWUP-030 browser-side "prefer a true member over a
+ * pinned cross-project tab" rule. Returns null when nothing is visible
+ * (caller drops to the browser surface).
+ */
+export function chooseKeepVisibleFileTab(input: {
+  visibleFileTabs: ReadonlyArray<{ id: string }>
+  tabMembership: Readonly<Record<string, string | null>>
+  focusedProject: string
+}): string | null {
+  const { visibleFileTabs, tabMembership, focusedProject } = input
+  const member = visibleFileTabs.find((t) => tabMembership[t.id] === focusedProject)
+  if (member) return member.id
+  return visibleFileTabs.length > 0 ? visibleFileTabs[0].id : null
+}
+
 /** BUG-192 — the pure plan for closing every member of a project. The
  *  React handler applies this with a single, un-nested setState burst. */
 export interface ProjectClosePlan {
