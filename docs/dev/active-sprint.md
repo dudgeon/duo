@@ -1,6 +1,6 @@
 # Active sprint state — v0.13.2 shipped (init-on-choose vault + default-vault autocomplete + foreign-vault guard); next: triage
 
-## BUG-270 — Split View aux width pinned, occluding the editor (🚧 built on branch `claude/duo-split-view-width-pinned`; **not pushed, no PR**; live walk owed)
+## BUG-270 — Split View aux width pinned, occluding the editor (🚧 built on branch `claude/duo-split-view-width-pinned`; **not pushed, no PR**; live walk owed) — ✅ shipped 2026-09-18, PR #139 (merged; not cut — one more PR pending from another worktree)
 
 > **Owner-reported 2026-09-18:** *"a bug with sidebar/splitview rendering; the
 > width of the splitview appears pinned and it is occluding the main editing

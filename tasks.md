@@ -4,7 +4,7 @@
 
 ### BUG-270: Split View aux width pinned — occludes the main editing panel (stale WebContentsView bounds survive a renderer reload)
 
-**Status:** 🚧 **In progress 2026-09-18** — root-caused by static trace of `main` @ `bc7a8d2` **and confirmed live, read-only, in the owner's running app** (see Live evidence). Fix on branch `claude/duo-split-view-width-pinned`. **Priority:** High (occludes the primary editing surface; escape is non-obvious). **Effort:** S. **Ticket note:** ids ≤ 269 were taken at filing time (269 = BUG-269 on `main`; **268** is held by the unpushed branch `claude/duo-ui-floating-search-f0ae83`); `270` verified free across every ref via `git log --all -S` on `tasks.md`. Concurrent agents hold uncommitted entries at the same next numbers — if this collides with a merged 270, this entry renumbers (it is the unmerged one).
+**Status:** ✅ **Shipped 2026-09-18 via [PR #139](https://github.com/dudgeon/duo/pull/139)** (owner: *"merge but do not cut"* — agent live-verification on the dev build accepted; the visual item stays on the next walk sheet). 
 
 **Symptom (owner, verbatim, 2026-09-18).** *"a bug with sidebar/splitview rendering; the width of the splitview appears pinned and it is occluding the main editing panel"*
 
