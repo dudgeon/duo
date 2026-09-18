@@ -20,7 +20,7 @@
 // MarkdownEditor's body `stubPicker`). Obsidian mode is UNCHANGED — still
 // inserts a plain `[[basename]]` wikilink, no rewrite.
 
-import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   SuggestionPopover,
   ITEM_LIMIT_VISIBLE,
@@ -55,6 +55,11 @@ export interface FrontmatterWikilinkOptions {
   /** ENH-266 — the open doc's path, the rel-link base in OKF mode. Null
    *  (or Obsidian mode) falls back to the unquoted `[[ ]]` insert. */
   docPath?: string | null
+  /** BUG-271 — false when the host editor's tab is hidden. The popover
+   *  portals to document.body and anchors on a rect SNAPSHOTTED at input
+   *  time, so it would keep floating at the old caret position over
+   *  whatever tab is now showing. Defaults to true. */
+  active?: boolean
 }
 
 export interface FrontmatterWikilink {
@@ -98,11 +103,17 @@ export function useFrontmatterWikilink(opts: FrontmatterWikilinkOptions): Frontm
     onVaultRefresh,
     vaultMode = 'obsidian',
     docPath = null,
+    active = true,
   } = opts
   const okf = vaultMode === 'okf' && !!docPath
   const [match, setMatch] = useState<ActiveMatch | null>(null)
   const [typePicker, setTypePicker] = useState<TypePickerState | null>(null)
   const popoverRef = useRef<SuggestionPopoverHandle | null>(null)
+
+  // BUG-271 — drop the open trigger match when the tab hides (see 'active').
+  useEffect(() => {
+    if (!active) setMatch(null)
+  }, [active])
 
   const items: SuggestionItem[] = useMemo(() => {
     if (!match) return []

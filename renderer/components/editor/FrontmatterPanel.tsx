@@ -178,6 +178,10 @@ interface Props {
    *  walks from the active doc). Absent → md-links render as plain text.
    *  ENH-266 — ALSO the rel-link base for a new OKF frontmatter pick. */
   docPath?: string
+  /** BUG-271 — false when the host editor's tab is hidden; closes the
+   *  raw-YAML '[[' popover so it can't float over another tab. Defaults
+   *  to true (hosts that never hide the panel need not pass it). */
+  isActive?: boolean
 }
 
 export function FrontmatterPanel({
@@ -190,7 +194,8 @@ export function FrontmatterPanel({
   vaultRoot,
   onVaultRefresh,
   vaultMode,
-  docPath
+  docPath,
+  isActive = true
 }: Props) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<string>('')
@@ -231,7 +236,8 @@ export function FrontmatterPanel({
     vaultRoot: vaultRoot ?? null,
     onVaultRefresh,
     vaultMode,
-    docPath
+    docPath,
+    active: isActive
   })
 
   // Sync draft from props whenever we enter edit mode or the

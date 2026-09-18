@@ -468,6 +468,14 @@ related to editor flows.
       then back to "Saved" after the autosave debounce (~800ms).
 - [ ] `⌘S` flushes immediately (status flips to "Saved" without waiting).
 - [ ] `cat <path>` outside Duo confirms the edit landed on disk.
+- [ ] **BUG-271 — no orphaned autocomplete popover.** In a `.md`, type
+      `[[` (popover opens at the caret), then switch to another tab
+      WITHOUT pressing Escape. Nothing floats anywhere — check the
+      window's top-left corner under the traffic lights specifically.
+      Switch back and type a letter: the popover resumes at the caret.
+      Repeat with ` @`, and with `[[` inside the frontmatter raw-YAML
+      editor. Headless confirm after the tab switch:
+      `duo dom --js 'document.querySelectorAll(".duo-suggestion-popover").length'` → `0`.
 - [ ] `⌘N` from each focus surface (T/B/E/F) creates a new editor tab
       with the "New document" filename bar focused.
 - [ ] **D33f regression — known recurring bug; walk literally.**

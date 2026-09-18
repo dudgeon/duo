@@ -21,8 +21,6 @@
 import { Extension } from '@tiptap/core'
 import { PluginKey } from '@tiptap/pm/state'
 import Suggestion from '@tiptap/suggestion'
-import { ReactRenderer } from '@tiptap/react'
-import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion'
 
 // Sprint 11 walk-1 fix — distinct PluginKey is mandatory when two
 // Suggestion-utility instances live in the same editor (one for
@@ -32,16 +30,11 @@ import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion
 // of a keyed plugin (suggestion$)` — the renderer crashed in
 // MarkdownEditor's mount and bubbled up through the working pane.
 const WIKILINK_SUGGESTION_KEY = new PluginKey('wikilinkSuggestion')
-import {
-  SuggestionPopover,
-  ITEM_LIMIT_VISIBLE,
-  type SuggestionItem,
-  type SuggestionPopoverHandle,
-  type SuggestionPopoverProps
-} from '../primitives/SuggestionPopover'
+import { ITEM_LIMIT_VISIBLE } from '../primitives/SuggestionPopover'
 import type { VaultFile } from '../wikilinkResolver'
 import type { VaultMode } from '../../../../core/markdown/vaultLinks'
 import { okfLinkInsert } from '../okfLinks'
+import { createSuggestionLifecycle } from './suggestionLifecycle'
 import { findWikilinkMatch } from './suggestionMatchers'
 import { isCreateNoteItem, withCreateNoteRow, type CreateNoteItem } from './createNoteRow'
 
@@ -86,7 +79,7 @@ export interface WikilinkSuggestionOptions {
   }) => void
 }
 
-export const WikilinkSuggestion = Extension.create<WikilinkSuggestionOptions>({
+export const WikilinkSuggestion = Extension.create<WikilinkSuggestionOptions, { suspend: () => void }>({
   name: 'wikilinkSuggestion',
 
   addOptions() {
@@ -99,8 +92,17 @@ export const WikilinkSuggestion = Extension.create<WikilinkSuggestionOptions>({
     }
   },
 
+  // BUG-271 — 'suspend' is the host hook MarkdownEditor calls when its tab
+  // goes inactive (editor.storage.<name>.suspend()). Replaced with the live
+  // lifecycle's handle once the plugin is built.
+  addStorage() {
+    return { suspend: () => {} }
+  },
+
   addProseMirrorPlugins() {
     const opts = this.options
+    const lifecycle = createSuggestionLifecycle(() => opts.isLoading?.() ?? false)
+    this.storage.suspend = lifecycle.suspend
     return [
       Suggestion({
         editor: this.editor,
@@ -202,97 +204,10 @@ export const WikilinkSuggestion = Extension.create<WikilinkSuggestionOptions>({
           }
         },
 
-        render: () => {
-          let component: ReactRenderer<SuggestionPopoverHandle, SuggestionPopoverProps> | null = null
-          // Walk-1 v4 fix — dismissed flag survives across the
-          // suggestion plugin's onUpdate calls. When Escape is
-          // pressed (or Enter selects an item), the popover destroys
-          // its React tree but the suggestion plugin may still be
-          // "active" until the next state change makes
-          // findSuggestionMatch return null. Without dismissed=true,
-          // the next onUpdate would re-mount the component (because
-          // we aggressively re-create on null component reference).
-          // Reset on onStart for the next suggestion session.
-          let dismissed = false
-          const mountComponent = (props: SuggestionProps) => {
-            component = new ReactRenderer(SuggestionPopover, {
-              props: {
-                items: props.items,
-                command: (item: SuggestionItem) => props.command(item),
-                clientRect: props.clientRect ?? null,
-                loading: opts.isLoading?.() ?? false,
-                visible: true
-              },
-              editor: props.editor
-            })
-          }
-          return {
-            onStart(props: SuggestionProps) {
-              dismissed = false
-              mountComponent(props)
-            },
-            onUpdate(props: SuggestionProps) {
-              // Walk-2 v2 — even when dismissed, keep updateProps
-              // running with visible:false so the React tree stays
-              // alive but the popover renders null. Lets onExit
-              // do the real teardown when the plugin's state
-              // changes; visible:false ensures the user sees the
-              // popover dismiss IMMEDIATELY on Escape.
-              component?.updateProps({
-                items: props.items,
-                command: (item: SuggestionItem) => props.command(item),
-                clientRect: props.clientRect ?? null,
-                loading: opts.isLoading?.() ?? false,
-                visible: !dismissed
-              })
-            },
-            onKeyDown(props: SuggestionKeyDownProps) {
-              if (props.event.key === 'Escape') {
-                if (dismissed) return false
-                dismissed = true
-                // Walk-2 v3 — directly destroy + remove DOM element.
-                // ReactRenderer's destroy() unmounts via the editor's
-                // contentComponent registry — but the registry's
-                // re-render is async (subscriber notification +
-                // React commit), so a stale DOM element can linger
-                // for a frame or two. We immediately hide via
-                // visible:false (so the next render returns null)
-                // AND queue a destroy. Both belt-and-braces.
-                component?.updateProps({
-                  items: [],
-                  command: () => {},
-                  clientRect: null,
-                  loading: false,
-                  visible: false
-                })
-                // Explicitly destroy after the visible-update propagates.
-                queueMicrotask(() => {
-                  component?.destroy()
-                  component = null
-                })
-                return true
-              }
-              if (dismissed) return false
-              const handled = component?.ref?.onKeyDown(props.event) ?? false
-              if (handled && (props.event.key === 'Enter' || props.event.key === 'Tab')) {
-                dismissed = true
-                component?.updateProps({
-                  items: [],
-                  command: () => {},
-                  clientRect: null,
-                  loading: false,
-                  visible: false
-                })
-              }
-              return handled
-            },
-            onExit() {
-              dismissed = false
-              component?.destroy()
-              component = null
-            }
-          }
-        }
+        // BUG-271 — the popover lifecycle (dismissed / suspended state
+        // machine) is shared with the sibling suggester; see
+        // suggestionLifecycle.ts.
+        render: lifecycle.render
       })
     ]
   }

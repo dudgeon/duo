@@ -2381,6 +2381,18 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // wrong file. Same race shape as the doc-read bug.
   const isActiveRef = useRef(isActive ?? false)
   isActiveRef.current = isActive ?? false
+
+  // BUG-271 — an inactive tab stays mounted under display:none, and the
+  // TipTap Suggestion plugin only closes a '[[' / '@' session from a
+  // transaction inside its own editor — which a hidden editor never gets.
+  // Its body-portaled popover would otherwise outlive the tab switch and
+  // float at the window's top-left over every other tab. Suspend (not
+  // dismiss): coming back and typing on resumes the session at the caret.
+  useEffect(() => {
+    if (isActive || !editor) return
+    editor.storage.wikilinkSuggestion?.suspend?.()
+    editor.storage.atMention?.suspend?.()
+  }, [isActive, editor])
   useEffect(() => {
     if (!editor || isNew) return
     return window.electron.editor?.onImageInsert(async (req) => {
@@ -2588,6 +2600,8 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           vaultMode={vaultIndex.mode}
           // ENH-241 — resolve `[md](rel.md)` frontmatter links relative to this doc.
           docPath={pathRef.current}
+          // BUG-271 — closes the raw-YAML '[[' popover when this tab hides.
+          isActive={isActive ?? false}
         />
       )}
       {/* BUG-138 Phase 4d — bulk banner above the editor body when

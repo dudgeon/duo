@@ -1,5 +1,19 @@
 # Active sprint state — v0.13.2 shipped (init-on-choose vault + default-vault autocomplete + foreign-vault guard); next: triage
 
+## BUG-271 — orphaned "Searching vault…" popover at the window's top-left (🚧 built on branch `claude/duo-top-right-artifact-151aa0`; live walk owed)
+
+> **Owner-reported 2026-09-16** (screenshot). Root cause: a `[[` autocomplete
+> session left open in a tab that then went inactive — hidden tabs stay
+> mounted under display:none, TipTap only closes a session from a transaction
+> inside that editor, and the body-portaled popover re-anchors on an all-zero
+> rect. **Built 2026-09-18:** one shared lifecycle for `[[` + `@` with a
+> `suspend()` hook fired on `isActive → false` (resumes on return), an
+> anchor-not-laid-out guard in `SuggestionPopover`, and the frontmatter
+> suggester closes on tab-hide. Suite 2425/2425 (19 new, mutation-checked).
+> **Owed:** live keystroke walk on a dev build of this branch (smoke-checklist
+> § 8 BUG-271 item) — not run; needs owner OK to take over the shared dev
+> Electron. Full writeup: `tasks.md` § BUG-271.
+
 ## BUG-270 — Split View aux width pinned, occluding the editor (🚧 built on branch `claude/duo-split-view-width-pinned`; **not pushed, no PR**; live walk owed) — ✅ shipped 2026-09-18, PR #139 (merged; not cut — one more PR pending from another worktree)
 
 > **Owner-reported 2026-09-18:** *"a bug with sidebar/splitview rendering; the
