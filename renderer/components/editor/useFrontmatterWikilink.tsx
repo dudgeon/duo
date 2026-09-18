@@ -111,8 +111,14 @@ export function useFrontmatterWikilink(opts: FrontmatterWikilinkOptions): Frontm
   const popoverRef = useRef<SuggestionPopoverHandle | null>(null)
 
   // BUG-271 — drop the open trigger match when the tab hides (see 'active').
+  // BUG-273 — and the type picker: its anchor rect is a snapshot too, and it
+  // only closes on a pick / Escape / outside-mousedown, so a non-mouse tab
+  // switch would leave it live over the next tab. No caret restore here —
+  // that would pull focus back into the hidden tab.
   useEffect(() => {
-    if (!active) setMatch(null)
+    if (active) return
+    setMatch(null)
+    setTypePicker(null)
   }, [active])
 
   const items: SuggestionItem[] = useMemo(() => {

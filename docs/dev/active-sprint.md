@@ -14,6 +14,12 @@
 > TipTap instances + real tab switches (computer-use was declined, so no
 > OS-level keystrokes — the smoke-checklist § 8 BUG-271 item stays on the
 > next owner walk). Also filed **BUG-272** (sidecar-read log noise at boot).
+> **Same PR also fixes BUG-273** (the new-note type picker stranded the same
+> way on non-mouse tab switches — cancelled on tab-hide in both hosts,
+> live-verified) and files **BUG-274** (iCloud eviction hit mid-task: a git
+> packfile, 63 tracked files, the running dev app, and the main checkout's
+> `node_modules` — this worktree now runs on a clean install outside iCloud
+> at `~/.cache/duo-deps/bug271`).
 > Full writeup: `tasks.md` § BUG-271.
 
 ## BUG-270 — Split View aux width pinned, occluding the editor (🚧 built on branch `claude/duo-split-view-width-pinned`; **not pushed, no PR**; live walk owed) — ✅ shipped 2026-09-18, PR #139 (merged; not cut — one more PR pending from another worktree)

@@ -2393,6 +2393,17 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     editor.storage.wikilinkSuggestion?.suspend?.()
     editor.storage.atMention?.suspend?.()
   }, [isActive, editor])
+
+  // BUG-273 — same exposure for the new-note type picker: it portals to
+  // document.body on a rect SNAPSHOTTED at open time and only closes on a
+  // pick, Escape, or a mousedown outside it. A tab switch that isn't a
+  // mouse click (an agent's 'duo edit', the quick switcher + Enter) left it
+  // floating — still live — over the next tab. Cancel it on hide. Plain
+  // null, NOT the picker's onCancel: that refocuses this (now hidden)
+  // editor and would steal focus from the tab the user just went to.
+  useEffect(() => {
+    if (!isActive) setStubPicker(null)
+  }, [isActive])
   useEffect(() => {
     if (!editor || isNew) return
     return window.electron.editor?.onImageInsert(async (req) => {

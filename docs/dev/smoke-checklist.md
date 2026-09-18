@@ -476,6 +476,13 @@ related to editor flows.
       Repeat with ` @`, and with `[[` inside the frontmatter raw-YAML
       editor. Headless confirm after the tab switch:
       `duo dom --js 'document.querySelectorAll(".duo-suggestion-popover").length'` → `0`.
+- [ ] **BUG-273 — the new-note type picker doesn't strand.** In a vault
+      note type `[[Some New Name`, pick the `New: … — pick type…` row so
+      the type picker opens, then switch tabs WITHOUT the mouse (from a
+      terminal: `duo edit <another file>` or `duo goto home`). The picker
+      is gone and keyboard focus is in the new tab. Return: it stays
+      closed, the `[[Some New Name]]` text is still there, no stub file
+      was created. Repeat from the frontmatter raw-YAML editor.
 - [ ] `⌘N` from each focus surface (T/B/E/F) creates a new editor tab
       with the "New document" filename bar focused.
 - [ ] **D33f regression — known recurring bug; walk literally.**
