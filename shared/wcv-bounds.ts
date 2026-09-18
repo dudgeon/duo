@@ -42,6 +42,12 @@ export interface HostRendererReloadReconcile {
    *  `switchTab` re-applies the cache, and 1×1 is the safe "nothing is
    *  claiming a rect right now" value. */
   cachedBounds: BrowserBounds
+  /** Always true: the overlay mute (BUG-047 — views collapsed to 1×1 so a
+   *  renderer menu/palette can paint) is owned by the renderer that asked
+   *  for it. A reload while muted would otherwise leave the flag latched
+   *  forever, so every later `setBounds` would be cached but never applied
+   *  and the browser pane would stay blank. */
+  clearOverlayMute: true
 }
 
 /**
@@ -61,6 +67,7 @@ export function planHostRendererReloadReconcile(state: {
   return {
     park: [...state.tabIds],
     unpinAux: state.auxTabId,
-    cachedBounds: PARKED_WCV_BOUNDS
+    cachedBounds: PARKED_WCV_BOUNDS,
+    clearOverlayMute: true
   }
 }

@@ -22,7 +22,7 @@
 > rectangles, drop the aux pin, never touch activeIndex/focus); App pulls
 > `browser.getTabs()` on mount; and `duo split-view resize` now drives the
 > browser-aux slot too (it was file-aux-only — the width was literally pinned
-> through the CLI). Typecheck clean, suite 2405/2405 (15 new).
+> through the CLI). Typecheck clean, suite 2406/2406 (16 new).
 >
 > **Owed:** the live walk — `docs/dev/smoke-checklist.md` § 4a. Built with the
 > Duo Electron instance untouched (another session holds the shared socket).

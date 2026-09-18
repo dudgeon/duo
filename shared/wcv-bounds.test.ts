@@ -45,6 +45,14 @@ describe('planHostRendererReloadReconcile — BUG-270', () => {
     expect(PARKED_WCV_BOUNDS).toEqual({ x: 0, y: 0, width: 1, height: 1 })
   })
 
+  it('always clears the overlay mute — it belongs to the outgoing renderer', () => {
+    // BUG-047's mute collapses views to 1×1 so a renderer menu can paint. A
+    // reload while muted would latch the flag forever: every later setBounds
+    // would be cached but never applied and the browser pane would stay blank.
+    expect(planHostRendererReloadReconcile({ tabIds: [1], auxTabId: null }).clearOverlayMute).toBe(true)
+    expect(planHostRendererReloadReconcile({ tabIds: [], auxTabId: null }).clearOverlayMute).toBe(true)
+  })
+
   it('copies the tab-id list rather than aliasing the caller state', () => {
     const tabIds = [1, 2]
     const plan = planHostRendererReloadReconcile({ tabIds, auxTabId: null })

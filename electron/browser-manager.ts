@@ -1121,6 +1121,7 @@ export class BrowserManager {
       tabIds: this.tabs.map(t => t.id),
       auxTabId: this.auxTabId
     })
+    if (plan.clearOverlayMute) this.mutedForOverlay = false
     if (plan.park.length === 0 && plan.unpinAux === null) {
       this.currentBounds = plan.cachedBounds
       this.auxBounds = plan.cachedBounds
