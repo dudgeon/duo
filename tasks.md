@@ -2,6 +2,42 @@
 
 > **Scope.** Engineering ledger — open work + root-cause writeups for closed bugs. **Canonical version-by-version inventory lives in [CHANGELOG.md](CHANGELOG.md)** and the prose log in docs/RELEASES.md; this file is the running notebook with the "why did this break, what did we learn" detail those don't carry. \*\***Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`. \*\***Closed-work archive (ENH-191 / D1, 2026-05-31).** Closed entries (✅ shipped · ❌ won't-do · 🟢 done) now live in [tasks-archive.md](tasks-archive.md) — this file had grown to an 11k-line / 1.2 MB monolith (Duo's own editor worst-case). The cut-version skill moves newly-closed entries to the archive on each cut so this stays lean. \*\***Status legend.** OPEN (stay here): 🆕 filed · 🟡 awaiting-decision · ⏳ open · 🚧 in-progress · 🔴 blocker · ⬜ draft · ⚠️ / 🔵 see entry. CLOSED (archived): ✅ shipped · ❌ won't-do · 🟢 done.
 
+### BUG-270: Split View aux width pinned — occludes the main editing panel (stale WebContentsView bounds survive a renderer reload)
+
+**Status:** 🚧 **In progress 2026-09-18** — root-caused by static trace of `main` @ `bc7a8d2` **and confirmed live, read-only, in the owner's running app** (see Live evidence). Fix on branch `claude/duo-split-view-width-pinned`. **Priority:** High (occludes the primary editing surface; escape is non-obvious). **Effort:** S. **Ticket note:** ids ≤ 269 were taken at filing time (269 = BUG-269 on `main`; **268** is held by the unpushed branch `claude/duo-ui-floating-search-f0ae83`); `270` verified free across every ref via `git log --all -S` on `tasks.md`. Concurrent agents hold uncommitted entries at the same next numbers — if this collides with a merged 270, this entry renumbers (it is the unmerged one).
+
+**Symptom (owner, verbatim, 2026-09-18).** *"a bug with sidebar/splitview rendering; the width of the splitview appears pinned and it is occluding the main editing panel"*
+
+**Live evidence (2026-09-18, read-only `duo` verbs against the owner's running dev app — nothing mutated).** The three surfaces disagree exactly as BUG-195 predicted:
+
+- `duo tabs` → tab **5** (`…/smoke-walks/v0.13.7-bug269.html`) reports **`inAux: true`**
+- `duo split-view` → **`aux: null`** (the renderer holds no aux state)
+- `duo layout` → `aux: null`, `main: null`, `active: "browser"`, **`browserTabsCount: 0`** (four tabs exist)
+
+So a WebContentsView is still pinned into the aux slot in the main process while the renderer renders a single-column working pane over the full width. The WCV is a native overlay that paints above renderer DOM regardless of z-index, so it sits on top of the editor at the rectangle it held before — "pinned width", "occluding the main editing panel".
+
+**Root cause — WCV geometry has exactly one publisher (a React effect) and no owner across renderer generations.** Aux/main bounds reach the main process only from `AuxBrowserSlot`'s and `BrowserRenderer`'s `ResizeObserver` effects, and the views are hidden only by those effects' *cleanups*:
+
+- `renderer/components/AuxBrowserSlot.tsx:99-140` — `send()` (RO + `window.resize`) → `browser.setAuxBounds`; unmount → `setAuxBounds(1×1)`.
+- `renderer/components/BrowserRenderer.tsx:141-180` — same shape for the main pane → `browser.setBounds`; unmount → `setBounds(1×1)`.
+- `electron/browser-manager.ts:973-999` — main caches `currentBounds` / `auxBounds` and re-applies them from `switchTab`, `moveTabToAux`, `releaseAuxTab` and `setOverlayMuted`.
+
+A renderer reload destroys the document **without running React cleanups**, while the main process keeps every `WebContentsView`, `activeIndex`, `auxTabId`, `currentBounds` and `auxBounds`. Nothing re-synchronises on the new renderer's mount, so:
+
+1. the aux WCV keeps painting at the pre-reload aux rectangle (the occlusion), and it can never move again — its only publisher is unmounted, which is why the width is *pinned* against divider drags, ⌘B, and window resize;
+2. `auxTabId` stays set, so `duo tabs` says `inAux: true` while the renderer says `aux: null` — the BUG-195 ghost, whose **documented, never-implemented follow-on** is exactly this ("a renderer-mount re-sync … would also stop the ghost from *appearing* … after a dev/agent renderer reload before any close", `tasks-archive.md:838`);
+3. `renderer/App.tsx:766` subscribes to `browser.onTabsChange` but never pulls `browser.getTabs()` on mount, so App's `browserTabs` stays `[]` until main next emits — hence `browserTabsCount: 0` and an empty strip, which also hides the stranded tab from the user.
+
+Reload paths that reach this: the app-level `ErrorBoundary` **Reload** button (`renderer/components/ErrorBoundary.tsx:79`), a dev/Vite full reload, the smoke-walk skill's renderer hard-reload (`duo dom --js "location.reload()"`), and a renderer crash. (⌘R was deliberately removed in BUG-084, and `applyNewSessionState` closes every tab before its reload, so those two are clean.)
+
+**Secondary defect found in the same trace — `duo split-view resize <pct>` is a silent no-op for browser-aux.** `renderer/App.tsx:4796-4808` applies the resize to `auxState` (file-aux) only; with a browser tab pinned in aux the CLI cannot move the divider at all, so "the width is pinned" is *also* literally true through the CLI path. Same class as the ENH-099 walk-3 fix, which taught the 3-way-even chord to drive both slots (`renderer/App.tsx:4534-4550`) but never reached the resize verb.
+
+**Not involved: the BUG-269 terminal placeholder.** `TerminalEmptyState` (`renderer/components/TerminalPane.tsx:245`) is `absolute inset-0` inside the terminal column's own `relative flex-1 min-h-0` box (`TerminalPane.tsx:212`), itself inside an `overflow-hidden` column — no `fixed`, no z-index, renderer DOM only. It cannot paint outside the terminal column, let alone over the working pane. Ruled out.
+
+**Related.** [BUG-195](tasks-archive.md) (the aux-WCV ghost; its follow-on is this bug), BUG-209 (aux WCV occludes renderer modals — same native-above-DOM family), BUG-047 / ENH-080 (`setOverlayMuted`), BUG-153 (modal occlusion).
+
+---
+
 ### BUG-269: Project-rail tile click → whole-UI flicker loop when the active working tab belongs to another project (root-cause consolidation; absorbs BUG-267 / PR #137)
 
 **Status:** ✅ **Shipped 2026-09-18 via [PR #138](https://github.com/dudgeon/duo/pull/138)** (owner: *"I trust you, merge it in"* — the hand walk `v0.13.7-bug269` was waived; agent live-verification over the `duo` CLI on the dev build accepted, see the Live walk paragraph below). Built on branch `claude/project-filter-flickering-ea8850`: PR #137's gate cherry-picked + auto-spawn replaced by the placeholder empty state + two live-walk follow-ups; suite 2390/2390, typecheck clean. Root-caused 2026-09-16 by static trace of `main` @ `1a6deb4`. **Priority:** P0 (app-unusable render loop; recurring owner report across ≥3 sessions). **Effort:** S to unblock (land the existing gate) · M with the auto-spawn removal. **Ticket note:** the id **267 is retired for this bug** — it collides with ENH-267 (titlebar vault chip, open PR #136); `268` is held by branch `claude/duo-ui-floating-search-f0ae83`, so this bug is **269** and this is its single ledger entry. The original fix branch/commits (`claude/project-focus-flicker-bug-28b83c`, `2a2f246` + `5de7b9c`, PR #137) still carry the **BUG-267** label in their commit messages; the in-code comments now read **BUG-267/269** so either grep lands on the gate — same bug, older id.
