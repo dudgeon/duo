@@ -22,6 +22,7 @@ import { WorkingTabStrip } from './WorkingTabStrip'
 import { useBrowserState } from '../hooks/useBrowserState'
 import { classifyFile } from './fileClassifier'
 import type { WorkingTab, WorkingTabType, PinEntry } from '@shared/types'
+import { clampAuxSplitFraction, AUX_SPLIT_EVEN } from '@shared/split-view'
 
 export interface FileTab {
   id: string
@@ -1019,9 +1020,10 @@ function SplitViewDivider({
       // splitPct is the AUX width fraction (right column). x increases
       // L→R; aux is on the right so as we drag RIGHT (increasing x),
       // aux gets SMALLER, main grows. So splitPct = (right edge - x) / width.
-      const auxFrac = (r.right - ev.clientX) / r.width
-      const clamped = Math.min(Math.max(auxFrac, 0.20), 0.80)
-      onResize?.(clamped)
+      // BUG-270 — one shared clamp. The FRACTION form: dragging past the
+      // pane's left edge yields > 1 and must land on the max aux width, never
+      // be re-read as a percentage.
+      onResize?.(clampAuxSplitFraction((r.right - ev.clientX) / r.width))
     }
     const onUp = () => {
       draggingRef.current = false
@@ -1035,7 +1037,7 @@ function SplitViewDivider({
   }, [onResize])
 
   const onDoubleClick = useCallback(() => {
-    onResize?.(0.5)
+    onResize?.(AUX_SPLIT_EVEN)
   }, [onResize])
 
   return (

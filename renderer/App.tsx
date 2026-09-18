@@ -55,6 +55,7 @@ import { encodeUtf8 } from './components/editor/markdown-io'
 import { findVaultRootWithDefault, resolveWikilinkInVault } from './components/editor/wikilinkResolver'
 import type { TabSession, DirEntry, TerminalTabKind, NewTabResult, PinEntry, SessionState, BrowserTab, ActiveWorkspace, HomeSnapshot, CheckoutTarget, CheckoutResult, VaultModalPrefill } from '@shared/types'
 import { reorderVisible } from '@shared/reorderTabs'
+import { clampAuxSplitFraction } from '@shared/split-view'
 import { pruneByTab } from './state/perTabPrune'
 import {
   adjudicateActiveSurfaceFocusSwitch,
@@ -763,8 +764,26 @@ export function App() {
   // Subscribe to BrowserManager's tab broadcasts so `browserTabs`
   // tracks main's view of the browser tab list. Used by the save
   // effect below.
+  //
+  // BUG-270 — the subscription alone leaves `browserTabs` EMPTY until main
+  // happens to emit again, because main's tabs outlive the renderer (a
+  // reload keeps every WebContentsView). Symptom: after any renderer reload
+  // the strip shows no browser tabs and `duo layout` reports
+  // `browserTabsCount: 0` while `duo tabs` lists four — which also hides the
+  // tab that BrowserManager just un-pinned from the aux slot. Pull the
+  // current list on mount (the same snapshot-on-mount pattern
+  // `useBrowserState` already uses); the subscription takes over from there.
   useEffect(() => {
+    // `supersededByBroadcast` keeps the async pull from clobbering a newer
+    // broadcast that lands first.
+    let supersededByBroadcast = false
+    void window.electron.browser.getTabs().then(tabs => {
+      if (supersededByBroadcast) return
+      browserTabsRef.current = tabs
+      setBrowserTabs(tabs)
+    })
     return window.electron.browser.onTabsChange((tabs) => {
+      supersededByBroadcast = true
       // ENH-179 — diff prev vs new to detect a browser-tab close.
       // Any URL/title pairs present in `prev` but missing from `tabs`
       // (by stable `id`) are closed; push the most-recent one onto
@@ -4795,16 +4814,19 @@ export function App() {
       })
     })
     const offResize = window.electron.workingAux?.onResize?.((pct) => {
-      setAuxState(prev => {
-        const clamped = Math.min(Math.max(pct, 0.20), 0.80)
-        if (!prev) {
-          // Resize on closed split is a no-op (clamping a non-existent
-          // splitPct). Could also choose to "remember the size for
-          // next open" but that's pre-optimization; defer.
-          return null
-        }
-        return { ...prev, splitPct: clamped }
-      })
+      // BUG-270 — drive BOTH slots. The aux's effective splitPct is read from
+      // whichever slot is filled (WorkingPane § activeSplitPct), and they are
+      // mutually exclusive, so setting both is safe and keeps the CLI honest.
+      // Pre-fix `duo split-view resize <pct>` only touched file-aux: with a
+      // browser tab pinned in aux the divider could not be moved from the CLI
+      // at all — "the width of the splitview appears pinned". Exactly the gap
+      // the ENH-099 walk-3 fix closed for the ⌘⌥4 chord and never
+      // back-ported here.
+      // Resize with NO split open stays a no-op (nothing to clamp); we don't
+      // remember a size for the next open — ENH-126 snaps that to 50/50.
+      const clamped = clampAuxSplitFraction(pct)
+      setAuxState(prev => (prev ? { ...prev, splitPct: clamped } : prev))
+      setAuxBrowserTab(prev => (prev ? { ...prev, splitPct: clamped } : prev))
     })
     return () => {
       offOpen?.()
